@@ -1,0 +1,32 @@
+# Tasks
+
+- [x] Design Logo for ScoreKeeper
+    - [x] Generate initial logo concepts (CSS implementation)
+    - [x] Refine logo based on user feedback
+        - [x] Make plate thinner (adjust shadows/depth)
+        - [x] Fix text scaling ratio (ensure letters fill same area relative to plate)
+        - [x] Make letters look machined out (same color as plate)
+        - [x] Remove border around plate
+        - [x] Reduce rounded corners
+        - [x] Remove light highlight/border effect around plate edge
+        - [x] Remove outer rim/bezel (outlined by user)
+        - [x] Increase lettering size for larger logos
+        - [x] Add neon green backlit/outline effect to letters
+        - [x] Make neon glow more prominent
+        - [x] Add support for custom glow colors
+        - [x] Refine orange color to be more neon
+        - [x] Add dark copper metal variant
+        - [x] Adjust plate aspect ratio to be more rectangular (less vertical space)
+        - [x] Revert inset glow (user preferred previous iteration)
+        - [x] Revert transparent inner color (user preferred previous iteration)
+        - [x] Add support for variable glow sizes (smaller glow example)
+        - [x] Change default glow to smaller size for all examples
+        - [x] Add even more compact vertical spacing option for last row
+        - [x] Fix missing plate bug in compact mode and tighten spacing
+        - [x] Make compact spacing the default for all logos
+        - [x] Create 3 variations of copper color (more yellowish) for user selection
+        - [x] Show copper options on a dark background
+        - [x] Move original copper examples (rows 3 & 4) to dark background section
+        - [x] Add dark silver (dark grey) variant and show on dark background
+        - [x] Make dark silver variant even darker
+        - [x] Make dark silver variant even darker (test)
