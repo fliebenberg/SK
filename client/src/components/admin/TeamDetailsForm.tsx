@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { store } from "@/lib/store";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Team, Organization } from "@/types";
+import { useState, useEffect } from "react";
+import { Team, Organization } from "@sk/types";
 import {
   Select,
   SelectContent,
@@ -25,7 +25,7 @@ interface TeamDetailsFormProps {
   organization: Organization; // Pass org to get sports
 }
 
-import { updateTeamAction } from "@/app/actions";
+// import { updateTeamAction } from "@/app/actions";
 
 export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormProps) {
   const [team, setTeam] = useState<Team>(initialTeam);
@@ -36,14 +36,42 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
     ageGroup: initialTeam.ageGroup,
   });
 
-  const availableSports = (organization.supportedSportIds || []).map(id => store.getSport(id)).filter(Boolean);
+  const [availableSports, setAvailableSports] = useState<any[]>([]); // Using any for now to match store return type inference or Sport[]
+
+  useEffect(() => {
+    const updateSports = () => {
+      const sports = (organization.supportedSportIds || [])
+          .map(id => store.getSport(id))
+          .filter(Boolean);
+      setAvailableSports(sports);
+    };
+
+    // Initial load
+    updateSports();
+
+    // Subscribe
+    const unsubscribe = store.subscribe(() => {
+        updateSports();
+        const updatedTeam = store.getTeam(initialTeam.id);
+        if (updatedTeam) {
+            setTeam(updatedTeam);
+            // Sync form data to prevent "ghost" dirty state
+            setFormData({
+                name: updatedTeam.name,
+                sportId: updatedTeam.sportId,
+                ageGroup: updatedTeam.ageGroup,
+            });
+        }
+    });
+    return () => unsubscribe();
+  }, [organization.supportedSportIds, initialTeam.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const updated = await updateTeamAction(team.id, formData);
+    const updated = store.updateTeam(team.id, formData);
     if (updated) {
         setTeam(updated);
-        router.refresh();
+        // No router.refresh() needed as store update is optimistic and reactive
     }
   };
 
@@ -57,10 +85,9 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
 
   const handleToggleStatus = async () => {
     const newStatus = !(team.isActive ?? true);
-    const updatedTeam = await updateTeamAction(team.id, { isActive: newStatus });
+    const updatedTeam = store.updateTeam(team.id, { isActive: newStatus });
     if (updatedTeam) {
       setTeam(updatedTeam);
-      router.refresh();
     }
   };
 

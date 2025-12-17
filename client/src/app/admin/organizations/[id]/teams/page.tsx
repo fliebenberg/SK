@@ -1,3 +1,5 @@
+"use client";
+
 import { MetalButton } from "@/components/ui/MetalButton";
 import { store } from "@/lib/store";
 import { Plus, Users, Trophy, Circle, Shield, Target, Disc, Activity } from "lucide-react";
@@ -13,12 +15,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TeamListFilter } from "@/components/admin/TeamListFilter";
 import { DeactivatedTeamsSection } from "@/components/admin/DeactivatedTeamsSection";
+import { useState, useEffect } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Organization, Team, Sport } from "@sk/types";
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}
-
+// Helper for icons (keep outside component)
 const getSportIcon = (sport: string) => {
   const normalizedSport = sport.toLowerCase();
   if (normalizedSport.includes('soccer') || normalizedSport.includes('football')) return <Activity className="h-4 w-4" />;
@@ -29,31 +30,48 @@ const getSportIcon = (sport: string) => {
   return <Trophy className="h-4 w-4" />;
 };
 
-export default async function TeamManagementPage({ params, searchParams }: PageProps) {
-  const { id } = await params;
-  const { sport } = await searchParams;
-  
-  const org = store.getOrganization(id);
-  const allTeams = store.getTeams(id);
-  
-  // Determine default sport selection
+export default function TeamManagementPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const id = params.id as string;
+  const sportParam = searchParams.get('sport');
+
+  const [org, setOrg] = useState<Organization | undefined>(undefined);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [sports, setSports] = useState<Sport[]>([]);
+
+  useEffect(() => {
+    const updateData = () => {
+        setOrg(store.getOrganization(id));
+        setTeams(store.getTeams(id));
+        setSports(store.getSports());
+    };
+
+    updateData();
+    const unsubscribe = store.subscribe(updateData);
+    return () => unsubscribe();
+  }, [id]);
+
+  if (!org) return <div>Loading...</div>;
+
+  // Derived state
   let currentSport = "all";
-  if (org.supportedSportIds.length === 1) {
+  if (org.supportedSportIds?.length === 1) {
     currentSport = org.supportedSportIds[0];
-  } else if (typeof sport === 'string') {
-    currentSport = sport;
+  } else if (sportParam) {
+    currentSport = sportParam;
   }
 
   // Filter teams
   const filteredTeams = currentSport === "all" 
-    ? allTeams 
-    : allTeams.filter(t => t.sportId === currentSport);
+    ? teams 
+    : teams.filter(t => t.sportId === currentSport);
 
-  // Sort teams: Active first, then Deactivated (though we split them below)
-  const teams = [...filteredTeams].sort((a, b) => a.name.localeCompare(b.name));
+  // Sort teams
+  const sortedTeams = [...filteredTeams].sort((a, b) => a.name.localeCompare(b.name));
 
-  const activeTeams = teams.filter(t => t.isActive ?? true);
-  const deactivatedTeams = teams.filter(t => !(t.isActive ?? true));
+  const activeTeams = sortedTeams.filter(t => t.isActive ?? true);
+  const deactivatedTeams = sortedTeams.filter(t => !(t.isActive ?? true));
 
   return (
     <div className="space-y-6">

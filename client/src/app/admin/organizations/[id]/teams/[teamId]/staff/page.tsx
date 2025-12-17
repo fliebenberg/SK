@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { store } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Person, TeamMembership } from "@/types";
+import { Person, TeamMembership } from "@sk/types";
 import { Plus, Trash2, Briefcase } from "lucide-react";
 import {
   Dialog,
@@ -25,11 +25,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface PageProps {
-  params: Promise<{ id: string; teamId: string }>;
-}
-
-export default function TeamStaffPage({ params }: PageProps) {
+export default function TeamStaffPage() {
+  const params = useParams();
+  // const teamId = params.teamId as string; is handled in effect usage or by accessing params directly
+  
   const [staff, setStaff] = useState<(Person & { roleId: string; roleName?: string; membershipId: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -38,14 +37,17 @@ export default function TeamStaffPage({ params }: PageProps) {
   const router = useRouter();
 
   useEffect(() => {
-    const loadData = async () => {
-      const { teamId } = await params;
-      const data = store.getTeamMembers(teamId).filter(p => p.roleId === 'role-coach' || p.roleId === 'role-staff');
-      setStaff(data);
-      setLoading(false);
+    const update = () => {
+        const data = store.getTeamMembers(params.teamId as string).filter(p => p.roleId === 'role-coach' || p.roleId === 'role-staff');
+        setStaff(data);
+        if (data.length >= 0) setLoading(false);
     };
-    loadData();
-  }, [params]);
+    
+    // Initial load
+    update();
+    const unsubscribe = store.subscribe(update);
+    return () => unsubscribe();
+  }, [params.teamId]);
 
   const handleAddStaff = async () => {
     if (!newStaffName.trim()) return;

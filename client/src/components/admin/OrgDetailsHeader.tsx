@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Organization } from "@/types";
+import { Organization } from "@sk/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +50,15 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
     }
   }, [isCreating]);
 
+  const [sports, setSports] = useState<{id: string, name: string}[]>([]);
+
+  useEffect(() => {
+    const updateSports = () => setSports(store.getSports());
+    updateSports();
+    const unsubscribe = store.subscribe(updateSports);
+    return () => unsubscribe();
+  },[]);
+
   // Auto-resize name textarea
   useEffect(() => {
     if (nameInputRef.current) {
@@ -75,15 +84,18 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
     if (!formData.name.trim()) return;
 
     if (isCreating) {
-        const newOrg = await createOrganizationAction({
+        // Optimistic update
+        const newOrg = store.addOrganization({
             ...formData,
             supportedSportIds: formData.supportedSportIds || [],
         });
         
-        window.dispatchEvent(new CustomEvent('organization-updated', { 
-            detail: { orgId: newOrg.id } 
-        }));
-
+        // No need for window event dispatch if we just navigate
+        // The store update should propagate to anything listening
+        // But the redirect is key.
+        
+        // window.dispatch event was for legacy refresh?
+        
         router.push(`/admin/organizations/${newOrg.id}`);
     } else if (organization) {
         await updateOrganizationAction(organization.id, formData);
@@ -230,7 +242,7 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                         <DropdownMenuContent className="w-56" align="start">
                             <DropdownMenuLabel>Available Sports</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {store.getSports().map((sport) => (
+                            {sports.map((sport) => (
                                 <DropdownMenuCheckboxItem
                                     key={sport.id}
                                     checked={(formData.supportedSportIds || []).includes(sport.id)}

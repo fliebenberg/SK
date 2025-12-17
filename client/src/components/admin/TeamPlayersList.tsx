@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
-import { TeamMembership, Person } from "@/types";
+import { TeamMembership, Person } from "@sk/types";
 import { addPersonAction, addTeamMemberAction, removeTeamMemberAction } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { useThemeColors } from "@/hooks/useThemeColors";
@@ -37,11 +37,23 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
     setLoading(true);
     try {
       // For now, we assume simple flow: create new person and add to team
-      // In future, we might want to search existing people first
-      await addPersonAction(newPlayerName, "role-player", teamId);
+      // Use store for optimistic update
+      // 1. Create Person
+      const newPerson = store.addPerson({ name: newPlayerName });
+      
+      // 2. Add to team
+      store.addTeamMember(newPerson.id, teamId, "role-player");
+
       setNewPlayerName("");
       setIsAdding(false);
-      router.refresh();
+      // router.refresh(); // Not needed with store reactivity if we subscribe? 
+      // This component creates players but receives them via props `players`.
+      // The parent component passes `players`. We need to verify if parent is reactive.
+      // Parent is `admin/organizations/[id]/teams/[teamId]/players/page.tsx` or similar?
+      // Actually `TeamPlayersList` receives `players` prop.
+      // If we update store, `players` prop needs to update.
+      // We must check the parent component.
+
     } catch (error) {
       console.error("Failed to add player:", error);
     } finally {
@@ -53,8 +65,8 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
     if (!confirm("Are you sure you want to remove this player from the team?")) return;
     
     try {
-      await removeTeamMemberAction(membershipId, teamId);
-      router.refresh();
+      store.removeTeamMember(membershipId);
+      // router.refresh();
     } catch (error) {
       console.error("Failed to remove player:", error);
     }

@@ -2,7 +2,7 @@
 
 import { store } from "@/lib/store";
 import { revalidatePath } from "next/cache";
-import { Organization } from "@/types";
+import { Organization } from "@sk/types";
 
 export async function addTeamAction(formData: FormData) {
   const name = formData.get("name") as string;

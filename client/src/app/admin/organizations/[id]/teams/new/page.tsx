@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { store } from "@/lib/store";
-import { addTeamAction } from "@/app/actions";
+// import { addTeamAction } from "@/app/actions";
 import { useRouter, useParams } from "next/navigation";
 import { useState } from "react";
 import {
@@ -35,16 +35,19 @@ export default function NewTeamPage() {
     setLoading(true);
 
     try {
-        const formDataObj = new FormData();
-        formDataObj.append("name", formData.name);
-        formDataObj.append("sportId", formData.sportId);
-        formDataObj.append("ageGroup", formData.ageGroup);
-        formDataObj.append("organizationId", organizationId);
-
-        const newTeam = await addTeamAction(formDataObj);
+        const newTeamId = `team-${crypto.randomUUID()}`;
+        
+        // Optimistic update via Client Store
+        const newTeam = store.addTeam({
+            id: newTeamId,
+            name: formData.name,
+            sportId: formData.sportId,
+            ageGroup: formData.ageGroup,
+            organizationId: organizationId,
+        });
 
         if (newTeam) {
-            console.log("Team created:", newTeam.id, "for Org:", organizationId);
+            console.log("Team created (client):", newTeam.id, "for Org:", organizationId);
             const path = `/admin/organizations/${organizationId}/teams/${newTeam.id}`;
             console.log("Redirecting to:", path);
             router.push(path);
@@ -129,7 +132,7 @@ export default function NewTeamPage() {
                     variantType="filled"
                     glowColor="hsl(var(--primary))"
                     className="text-primary-foreground"
-                    disabled={loading}
+                    disabled={loading || !formData.sportId || !formData.name || !formData.ageGroup}
                 >
                     {loading ? "Creating..." : "Create Team"}
                 </MetalButton>

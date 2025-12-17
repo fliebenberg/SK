@@ -1,0 +1,15 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Production
+dist/
+lib/
+
+# Misc
+.DS_Store
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

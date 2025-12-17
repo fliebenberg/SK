@@ -1,5 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { Game } from "@sk/types";
+
 import Link from "next/link";
 import { MetalButton } from "@/components/ui/MetalButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +11,18 @@ import { Calendar, Clock, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function LivePage() {
-  const games = store.getGames();
+  const [games, setGames] = useState<Game[]>(() => store.getGames());
   const teams = store.getTeams();
 
-  const getTeamName = (id: string) => teams.find(t => t.id === id)?.name || "Unknown";
+  useEffect(() => {
+    const update = () => {
+        setGames([...store.getGames()]);
+    };
+    const unsubscribe = store.subscribe(update);
+    return () => unsubscribe();
+  }, []);
+
+  const getTeamName = (id: string) => store.getTeams().find(t => t.id === id)?.name || "Unknown";
 
   // Sort games: Live first, then Scheduled by date
   const sortedGames = [...games].sort((a, b) => {

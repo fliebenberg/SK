@@ -1,16 +1,28 @@
+"use client";
+
 import { store } from "@/lib/store";
 import { TeamPlayersList } from "@/components/admin/TeamPlayersList";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { Person } from "@sk/types";
 
-interface PageProps {
-  params: Promise<{ id: string; teamId: string }>;
-}
-
-export default async function PlayersPage({ params }: PageProps) {
-  const { teamId } = await params;
+export default function PlayersPage() {
+  const params = useParams();
+  const teamId = params.teamId as string;
   
-  // Fetch data directly from store on server
-  const members = store.getTeamMembers(teamId);
-  const players = members.filter(p => p.roleId === 'role-player');
+  const [players, setPlayers] = useState<any[]>([]);
+
+  useEffect(() => {
+    const updatePlayers = () => {
+        const members = store.getTeamMembers(teamId);
+        const p = members.filter(p => p.roleId === 'role-player');
+        setPlayers(p);
+    };
+
+    updatePlayers();
+    const unsubscribe = store.subscribe(updatePlayers);
+    return () => unsubscribe();
+  }, [teamId]);
 
   return (
     <div className="py-6">

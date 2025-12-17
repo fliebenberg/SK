@@ -7,56 +7,67 @@ import { MetalButton } from "@/components/ui/MetalButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { store } from "@/lib/store";
 import { Plus, ArrowRight, Building2 } from "lucide-react";
-import { Organization } from "@/types";
+import { Organization } from "@sk/types";
 import { getOrganizationsAction } from "@/app/actions";
 
 export default function OrganizationsPage() {
   const router = useRouter();
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [organizations, setOrganizations] = useState<Organization[]>(() => store.getOrganizations());
+  const [loading, setLoading] = useState(!store.isLoaded());
 
   useEffect(() => {
-    const fetchOrgs = async () => {
-      try {
-        const orgs = await getOrganizationsAction();
-        setOrganizations(orgs);
-        setLoading(false);
-      } catch (error) {
-        console.error("Failed to fetch organizations:", error);
-        setLoading(false);
-      }
+    const update = () => {
+        const loaded = store.isLoaded();
+        setOrganizations([...store.getOrganizations()]);
+        if (loaded) setLoading(false);
     };
 
-    fetchOrgs();
-  }, [router]);
+    update();
+    const unsubscribe = store.subscribe(update);
+    return () => unsubscribe();
+  }, []);
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+            <p className="text-muted-foreground">
+                Connecting to server...
+            </p>
+            {!store.isConnected() && (
+                 <p className="text-xs text-red-500 bg-red-50 px-3 py-1 rounded">
+                    Ensure server is running on port 3001
+                 </p>
+            )}
+        </div>
+    );
   }
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex flex-col md:flex-row items-center md:justify-between gap-4 mb-8 text-center md:text-left">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Your Organizations</h1>
-          <p className="text-muted-foreground">
-            Select an organization to manage or create a new one.
-          </p>
+      {organizations.length > 0 && (
+        <div className="flex flex-col md:flex-row items-center md:justify-between gap-4 mb-8 text-center md:text-left">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Your Organizations</h1>
+            <p className="text-muted-foreground">
+              Select an organization to manage or create a new one.
+            </p>
+          </div>
+          <Link href="/admin/organizations/new">
+            <MetalButton 
+              variantType="filled" 
+              size="sm"
+              glowColor="hsl(var(--primary))"
+              className="text-primary-foreground"
+            >
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                <Plus className="h-4 w-4" />
+                <span>Create Organization</span>
+              </div>
+            </MetalButton>
+          </Link>
         </div>
-        <Link href="/admin/organizations/new">
-          <MetalButton 
-            variantType="filled" 
-            size="sm"
-            glowColor="hsl(var(--primary))"
-            className="text-primary-foreground"
-          >
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <Plus className="h-4 w-4" />
-              <span>Create Organization</span>
-            </div>
-          </MetalButton>
-        </Link>
-      </div>
+      )}
 
       {organizations.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center space-y-4 min-h-[400px] border-2 border-dashed rounded-lg">

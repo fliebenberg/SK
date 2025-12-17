@@ -1,22 +1,33 @@
+"use client";
+
 import { OrgDetailsHeader } from "@/components/admin/OrgDetailsHeader";
 import { store } from "@/lib/store";
-import { notFound } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { Organization } from "@sk/types";
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
+export default function OrganizationEditPage() {
+  const params = useParams();
+  const id = params.id as string;
+  const [org, setOrg] = useState<Organization | undefined>(() => store.getOrganization(id));
+  const [loading, setLoading] = useState(!store.getOrganization(id));
 
-export default async function OrganizationEditPage({ params }: PageProps) {
-  const { id } = await params;
-  const org = store.getOrganization(id);
+  useEffect(() => {
+    const update = () => {
+        const o = store.getOrganization(id);
+        if (o) {
+            setOrg(o);
+            setLoading(false);
+        }
+    };
+    update(); // Initial check
+    const unsubscribe = store.subscribe(update);
+    return () => unsubscribe();
+  }, [id]);
 
+  if (loading) return <div>Loading...</div>;
   if (!org) {
-    notFound();
-  }
-
-  // Double check ID match for basic security/correctness in this mock
-  if (org.id !== id) {
-      // In real app, handle error
+    return <div>Organization not found</div>;
   }
 
   return (

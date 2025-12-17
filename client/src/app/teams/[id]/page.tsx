@@ -1,21 +1,42 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import { notFound, useParams } from "next/navigation";
 import { store } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { addPersonAction, addPersonFromForm } from "@/app/actions";
 import { UserPlus, User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Team, TeamMembership, Person } from "@sk/types";
 
-export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const team = store.getTeam(id);
+export default function TeamDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
   
-  if (!team) {
-    notFound();
-    return null;
-  }
+  const [team, setTeam] = useState<Team | undefined>(() => store.getTeam(id));
+  const [roster, setRoster] = useState<(Person & { roleId: string; roleName?: string; membershipId: string })[]>(() => store.getTeamMembers(id));
+  const [loading, setLoading] = useState(!store.getTeam(id));
 
-  const roster = store.getTeamMembers(team.id);
+  useEffect(() => {
+    const update = () => {
+        const t = store.getTeam(id);
+        if (t) {
+            setTeam(t);
+            setRoster(store.getTeamMembers(id));
+            setLoading(false);
+        }
+    };
+    
+    update();
+    const unsubscribe = store.subscribe(update);
+    return () => unsubscribe();
+  }, [id]);
+  
+  if (loading) return <div className="p-8">Loading...</div>;
+  if (!team) {
+    return <div className="p-8">Team not found</div>;
+  }
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -28,7 +49,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Roster</CardTitle>
+              <CardTitle>Roster ({roster.length})</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -43,7 +64,7 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
                         </div>
                         <div>
                           <p className="font-medium">{person.name}</p>
-                          <p className="text-xs text-muted-foreground">{store.getTeamRole(person.roleId)?.name}</p>
+                          <p className="text-xs text-muted-foreground">{person.roleName || store.getTeamRole(person.roleId)?.name}</p>
                         </div>
                       </div>
                     </div>

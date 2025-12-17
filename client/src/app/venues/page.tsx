@@ -1,12 +1,24 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { Venue } from "@sk/types";
+
 import Link from "next/link";
 import { MetalButton } from "@/components/ui/MetalButton";
 import { store } from "@/lib/store";
 import { Plus, MapPin } from "lucide-react";
 
 export default function VenuesPage() {
-  const venues = store.getVenues();
+  const [venues, setVenues] = useState<Venue[]>(() => store.getVenues());
+
+  useEffect(() => {
+    const update = () => {
+        setVenues([...store.getVenues()]);
+    };
+    update();
+    const unsubscribe = store.subscribe(update);
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="container mx-auto py-8 px-4 min-h-screen">

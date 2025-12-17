@@ -26,7 +26,7 @@ import {
 // BEST APPROACH: Parent Server Component passes `teams` AND a map of `playerCounts`.
 // OR: Just don't show player counts for deactivated teams for now to keep it simple. User just wants to see them and reactivate.
 
-import { Team, Sport } from "@/types";
+import { Team, Sport } from "@sk/types";
 
 interface DeactivatedTeamsSectionProps {
   teams: Team[];

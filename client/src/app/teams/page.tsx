@@ -6,9 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { store } from "@/lib/store";
 import { Plus, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+
+import { Team } from "@sk/types";
 
 export default function TeamsPage() {
-  const teams = store.getTeams();
+  const [teams, setTeams] = useState<Team[]>(store.getTeams());
+  
+  useEffect(() => {
+     const updateTeams = () => setTeams([...store.getTeams()]);
+     // Initial checks
+     updateTeams();
+     const unsubscribe = store.subscribe(updateTeams);
+     return () => unsubscribe();
+  }, []);
+
 
   return (
     <div className="container mx-auto py-8 px-4 min-h-screen">

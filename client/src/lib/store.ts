@@ -1,318 +1,340 @@
-import { Organization, Team, Venue, Person, Event, Game, ScoreLog, TeamMembership, Sport, OrganizationMembership, TeamRole, OrganizationRole } from "@/types";
+import { Organization, Team, Venue, Person, Event, Game, ScoreLog, TeamMembership, Sport, OrganizationMembership, TeamRole, OrganizationRole } from "@sk/types";
+import { socket, socketService } from "./socketService";
 
-  // Initial Mock Data
   const MOCK_ORG_ID = "org-1";
 
-  // Singleton pattern to persist data across HMR in development
   class Store {
-    sports: Sport[] = [
-        { id: "sport-soccer", name: "Soccer" },
-        { id: "sport-rugby", name: "Rugby" },
-        { id: "sport-netball", name: "Netball" },
-        { id: "sport-hockey", name: "Hockey" },
-        { id: "sport-cricket", name: "Cricket" },
-        { id: "sport-basketball", name: "Basketball" },
-    ];
+    sports: Sport[] = [];
+    teamRoles: TeamRole[] = [];
+    organizationRoles: OrganizationRole[] = [];
+    organizations: Organization[] = [];
+    venues: Venue[] = [];
+    teams: Team[] = [];
+    persons: Person[] = [];
+    teamMemberships: TeamMembership[] = [];
+    organizationMemberships: OrganizationMembership[] = [];
+    events: Event[] = [];
+    games: Game[] = [];
+    scoreLogs: ScoreLog[] = [];
+    loaded: boolean = false;
+    connected: boolean = false;
+    listeners: (() => void)[] = [];
 
-    teamRoles: TeamRole[] = [
-        { id: "role-player", name: "Player" },
-        { id: "role-coach", name: "Coach" },
-        { id: "role-staff", name: "Staff" },
-        { id: "role-medic", name: "Medic" },
-    ];
+    constructor() {
+        console.log("Store initialized, connecting socket...");
+        socketService.connect();
 
-    organizationRoles: OrganizationRole[] = [
-        { id: "role-org-admin", name: "Admin" },
-        { id: "role-org-manager", name: "Manager" },
-    ];
-
-    organizations: Organization[] = [
-      {
-        id: MOCK_ORG_ID,
-        name: "Springfield High School",
-        supportedSportIds: ["sport-soccer", "sport-rugby", "sport-netball"],
-        primaryColor: "#00ff00",
-        secondaryColor: "#000000",
-        logo: "https://api.dicebear.com/7.x/initials/svg?seed=SHS&backgroundColor=00ff00&textColor=000000",
-        shortName: "SHS",
-      },
-    ];
-
-  venues: Venue[] = [
-    {
-      id: "venue-1",
-      name: "Main Field",
-      address: "123 School Lane",
-      organizationId: MOCK_ORG_ID,
-    },
-  ];
-
-  teams: Team[] = [
-    {
-      id: "team-1",
-      name: "First XI",
-      ageGroup: "U19",
-      sportId: "sport-soccer",
-      organizationId: MOCK_ORG_ID,
-    },
-    {
-      id: "team-2",
-      name: "U16 A",
-      ageGroup: "U16",
-      sportId: "sport-rugby",
-      organizationId: MOCK_ORG_ID,
-    },
-  ];
-
-  persons: Person[] = [];
-  teamMemberships: TeamMembership[] = [];
-  organizationMemberships: OrganizationMembership[] = [];
-  events: Event[] = [];
-  games: Game[] = [];
-  scoreLogs: ScoreLog[] = [];
-
-  getOrganization = (id?: string) => {
-    if (id) {
-      return this.organizations.find(o => o.id === id) || this.organizations[0];
+        this.setupListeners();
+        this.fetchAllData();
     }
-    return this.organizations[0];
-  };
 
-  getSports = () => this.sports;
-  
-  getSport = (id: string) => this.sports.find(s => s.id === id);
+    isLoaded = () => this.loaded;
+    isConnected = () => this.connected;
 
-  getTeamRoles = () => this.teamRoles;
-  getTeamRole = (id: string) => this.teamRoles.find(r => r.id === id);
-
-  getOrganizationRoles = () => this.organizationRoles;
-  getOrganizationRole = (id: string) => this.organizationRoles.find(r => r.id === id);
-
-  getOrganizations = () => this.organizations;
-  
-  updateOrganization = (id: string, data: Partial<Organization>) => {
-    const orgIndex = this.organizations.findIndex(o => o.id === id);
-    if (orgIndex > -1) {
-      this.organizations[orgIndex] = { ...this.organizations[orgIndex], ...data };
-      return this.organizations[orgIndex];
+    subscribe(listener: () => void) {
+        this.listeners.push(listener);
+        return () => this.unsubscribe(listener);
     }
-    return null;
-  };
 
-  addOrganization = (org: Omit<Organization, "id">) => {
-    const newOrg: Organization = {
-      ...org,
-      id: `org-${Date.now()}`,
+    unsubscribe(listener: () => void) {
+        this.listeners = this.listeners.filter(l => l !== listener);
+    }
+
+    private notifyListeners() {
+        this.listeners.forEach(l => l());
+    }
+
+    private setupListeners() {
+        socket.on('connect', () => {
+            console.log("Store connected to server");
+            this.connected = true;
+            
+            // Subscribe to data channels
+            socket.emit('subscribe', `org:${MOCK_ORG_ID}:teams`);
+            socket.emit('subscribe', `org:${MOCK_ORG_ID}:venues`);
+            socket.emit('subscribe', 'games');
+            socket.emit('subscribe', 'persons');
+            socket.emit('subscribe', 'team_memberships');
+            socket.emit('subscribe', 'organization_memberships');
+
+            this.notifyListeners();
+            this.fetchAllData();
+        });
+
+        socket.on('disconnect', () => {
+            console.log("Store disconnected");
+            this.connected = false;
+            this.notifyListeners();
+        });
+
+        socket.on('connect_error', (err) => {
+            console.log("Store connection error", err);
+            this.connected = false;
+            this.notifyListeners();
+        });
+
+        socket.on('update', (event: { type: string, data: any }) => {
+            console.log("Store received update:", event.type, event.data);
+            this.handleUpdate(event);
+        });
+    }
+
+    private fetchAllData() {
+        const types = ['sports', 'roles', 'organizations', 'teams', 'venues', 'games', 'persons', 'team_memberships', 'organization_memberships'];
+        
+        socket.emit('get_data', { type: 'sports' }, (data: Sport[]) => { 
+            if(data) {
+                 this.sports = data;
+                 this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'roles' }, (data: any) => { 
+            if(data) {
+                this.teamRoles = data.team;
+                this.organizationRoles = data.org;
+                this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'organizations' }, (data: Organization[]) => { 
+            if(data) {
+                this.organizations = data;
+                this.loaded = true;
+                this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'teams' }, (data: Team[]) => { 
+            if(data) {
+                 this.teams = data;
+                 this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'venues' }, (data: Venue[]) => { 
+            if(data) {
+                this.venues = data;
+                this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'games' }, (data: Game[]) => { 
+            if(data) {
+                this.games = data;
+                this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'persons' }, (data: Person[]) => { 
+            if(data) {
+                this.persons = data;
+                this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'team_memberships' }, (data: TeamMembership[]) => { 
+            if(data) {
+                this.teamMemberships = data;
+                this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'organization_memberships' }, (data: OrganizationMembership[]) => { 
+            if(data) {
+                this.organizationMemberships = data;
+                this.notifyListeners();
+            }
+        });
+    }
+
+    private handleUpdate(event: { type: string, data: any }) {
+        switch(event.type) {
+            case 'TEAMS_UPDATED':
+                this.mergeTeam(event.data as Team);
+                break;
+            case 'VENUES_UPDATED':
+                this.mergeVenue(event.data as Venue);
+                break;
+            case 'GAMES_UPDATED':
+                this.mergeGame(event.data as Game);
+                break;
+            case 'PERSONS_UPDATED':
+                this.mergePerson(event.data as Person);
+                break;
+            case 'TEAM_MEMBERSHIPS_UPDATED':
+                this.mergeTeamMembership(event.data as TeamMembership);
+                break;
+             // Add others as needed
+        }
+        this.notifyListeners();
+    }
+    
+    // Merge helpers
+    private mergeTeam(team: Team) {
+        const index = this.teams.findIndex(t => t.id === team.id);
+        if (index > -1) this.teams[index] = team;
+        else this.teams.push(team);
+    }
+    private mergeVenue(venue: Venue) {
+        const index = this.venues.findIndex(v => v.id === venue.id);
+        if (index > -1) this.venues[index] = venue;
+        else this.venues.push(venue);
+    }
+    private mergeGame(game: Game) {
+        const index = this.games.findIndex(g => g.id === game.id);
+        if (index > -1) this.games[index] = game;
+        else this.games.push(game);
+    }
+    private mergePerson(person: Person) {
+        const index = this.persons.findIndex(p => p.id === person.id);
+        if (index > -1) this.persons[index] = person;
+        else this.persons.push(person);
+    }
+    private mergeTeamMembership(membership: TeamMembership) {
+        // If it has endDate, we update it. If it's a new one, we push.
+        // Actually, if endDate is set, it might be an update to existing.
+        const index = this.teamMemberships.findIndex(m => m.id === membership.id);
+        if (index > -1) this.teamMemberships[index] = membership;
+        else this.teamMemberships.push(membership);
+    }
+
+
+    getOrganization = (id?: string) => id ? (this.organizations.find(o => o.id === id) || this.organizations[0]) : this.organizations[0];
+    getSports = () => this.sports;
+    getSport = (id: string) => this.sports.find(s => s.id === id);
+    getTeamRoles = () => this.teamRoles;
+    getTeamRole = (id: string) => this.teamRoles.find(r => r.id === id);
+    getOrganizationRoles = () => this.organizationRoles;
+    getOrganizationRole = (id: string) => this.organizationRoles.find(r => r.id === id);
+    getOrganizations = () => this.organizations;
+    getTeams = (organizationId?: string) => organizationId ? this.teams.filter(t => t.organizationId === organizationId) : this.teams;
+    getTeam = (id: string) => this.teams.find((t) => t.id === id);
+    getVenues = (organizationId?: string) => organizationId ? this.venues.filter(v => v.organizationId === organizationId) : this.venues;
+    getGames = (organizationId?: string) => this.games; 
+    getGame = (id: string) => this.games.find((g) => g.id === id);
+    getPersons = () => this.persons;
+    
+    // Complex getter
+    getTeamMembers = (teamId: string) => {
+        const memberships = this.teamMemberships.filter(m => m.teamId === teamId && !m.endDate);
+        return memberships.map(m => {
+          const person = this.persons.find(p => p.id === m.personId);
+          return {
+            ...person!,
+            roleId: m.roleId,
+            roleName: this.getTeamRole(m.roleId)?.name,
+            membershipId: m.id
+          };
+        }).filter(p => p.id);
     };
-    this.organizations = [...this.organizations, newOrg];
-    return newOrg;
-  };
 
-
-
-  getTeams = (organizationId?: string) => {
-    if (organizationId) {
-      return this.teams.filter(t => t.organizationId === organizationId);
-    }
-    return this.teams;
-  };
-
-  addTeam = (team: Omit<Team, "id">) => {
-    const newTeam: Team = {
-      ...team,
-      id: `team-${Date.now()}`,
-      isActive: true,
+    updateOrganization = (id: string, data: Partial<Organization>) => {
+        const orgIndex = this.organizations.findIndex(o => o.id === id);
+        if (orgIndex > -1) {
+             const updated = { ...this.organizations[orgIndex], ...data };
+             this.organizations[orgIndex] = updated;
+             socket.emit('action', { type: 'UPDATE_ORG', payload: { id, data } });
+             return updated;
+        }
+        return null;
     };
-    this.teams = [...this.teams, newTeam];
-    return newTeam;
-  };
 
-  addOrganizationMember = (personId: string, organizationId: string, roleId: string) => {
-    const existing = this.organizationMemberships.find(m => 
-      m.personId === personId && 
-      m.organizationId === organizationId && 
-      m.roleId === roleId &&
-      !m.endDate
-    );
-
-    if (existing) return existing;
-
-    const membership: OrganizationMembership = {
-      id: `org-mem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      personId,
-      organizationId,
-      roleId,
-      startDate: new Date().toISOString(),
+    addOrganization = (org: Omit<Organization, "id">) => {
+        const tempId = `org-${crypto.randomUUID()}`;
+        const newOrg = { ...org, id: tempId };
+        this.organizations.push(newOrg);
+        socket.emit('action', { type: 'ADD_ORG', payload: newOrg }); 
+        this.notifyListeners();
+        return newOrg;
     };
-    this.organizationMemberships.push(membership);
-    return membership;
-  };
 
-  getOrganizationMembers = (organizationId: string) => {
-    const memberships = this.organizationMemberships.filter(m => m.organizationId === organizationId && !m.endDate);
-    return memberships.map(m => {
-      const person = this.persons.find(p => p.id === m.personId);
-      return {
-        ...person!,
-        roleId: m.roleId,
-        roleName: this.getOrganizationRole(m.roleId)?.name,
-        membershipId: m.id,
-        startDate: m.startDate,
-        endDate: m.endDate
-      };
-    }).filter(p => p.id);
-  };
-
-  updateTeam = (id: string, data: Partial<Team>) => {
-    const index = this.teams.findIndex(t => t.id === id);
-    if (index > -1) {
-      this.teams[index] = { ...this.teams[index], ...data };
-      return this.teams[index];
-    }
-    return null;
-  };
-
-  deleteTeam = (id: string) => {
-    this.teams = this.teams.filter(t => t.id !== id);
-  };
-  
-  getVenues = (organizationId?: string) => {
-    if (organizationId) {
-      return this.venues.filter(v => v.organizationId === organizationId);
-    }
-    return this.venues;
-  };
-
-  addVenue = (venue: Omit<Venue, "id" | "organizationId">) => {
-    const newVenue: Venue = {
-      ...venue,
-      id: `venue-${Date.now()}`,
-      organizationId: MOCK_ORG_ID, // TODO: Fix this hardcoded ID later
+    addTeam = (team: Omit<Team, "id"> & { id?: string }) => {
+        const newTeam = { ...team, id: team.id || `team-${crypto.randomUUID()}`, isActive: true };
+        this.teams.push(newTeam as Team);
+        socket.emit('action', { type: 'ADD_TEAM', payload: newTeam });
+        return newTeam;
     };
-    this.venues = [...this.venues, newVenue];
-    return newVenue;
-  };
-
-  getTeam = (id: string) => this.teams.find((t) => t.id === id);
-  
-
-  
-  getPersons = () => this.persons;
-  
-  getTeamMembers = (teamId: string) => {
-    // Return people who are currently members of the team
-    const memberships = this.teamMemberships.filter(m => m.teamId === teamId && !m.endDate);
-    return memberships.map(m => {
-      const person = this.persons.find(p => p.id === m.personId);
-      return {
-        ...person!,
-        roleId: m.roleId,
-        roleName: this.getTeamRole(m.roleId)?.name,
-        membershipId: m.id
-      };
-    }).filter(p => p.id); // Valid persons only
-  };
-  
-  addPerson = (person: Omit<Person, "id">) => {
-    const newPerson: Person = {
-      ...person,
-      id: `person-${Date.now()}`,
+    
+    updateTeam = (id: string, data: Partial<Team>) => {
+        const index = this.teams.findIndex(t => t.id === id);
+        if (index > -1) {
+            this.teams[index] = { ...this.teams[index], ...data };
+            socket.emit('action', { type: 'UPDATE_TEAM', payload: { id, data } });
+            this.notifyListeners();
+            return this.teams[index];
+        }
+        return null;
     };
-    this.persons = [...this.persons, newPerson];
-    return newPerson;
-  };
-
-  addTeamMember = (personId: string, teamId: string, roleId: string) => {
-      // Check if already a member WITH THIS ROLE with no end date
-      const existing = this.teamMemberships.find(m => 
-        m.personId === personId && 
-        m.teamId === teamId && 
-        m.roleId === roleId &&
-        !m.endDate
-      );
-
-      if (existing) {
-        return existing;
-      }
-      // Note: We deliberately allow multiple active memberships if the role is different
-      // (e.g. Player AND Coach concurrently).
-
-      const membership: TeamMembership = {
-          id: `mem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          personId,
-          teamId,
-          roleId,
-          startDate: new Date().toISOString(),
-      };
-      this.teamMemberships.push(membership);
-      return membership;
-  };
-
-  removeTeamMember = (membershipId: string) => {
-      const membership = this.teamMemberships.find(m => m.id === membershipId);
-      if (membership) {
-          membership.endDate = new Date().toISOString();
-      }
-  };
-
-  updatePerson = (id: string, data: Partial<Person>) => {
-    const index = this.persons.findIndex(p => p.id === id);
-    if (index > -1) {
-      this.persons[index] = { ...this.persons[index], ...data };
-      return this.persons[index];
-    }
-    return null;
-  };
-
-  deletePerson = (id: string) => {
-    // Soft delete or real delete? For now, we clean up memberships
-    this.persons = this.persons.filter(p => p.id !== id);
-    this.teamMemberships = this.teamMemberships.filter(m => m.personId !== id);
-  };
-
-  getGames = (organizationId?: string) => {
-      // Games are a bit trickier as they might belong to a league or tournament, 
-      // but for now let's assume we filter by teams in the org? 
-      // Or maybe games should have an organizationId if they are internal?
-      // For this mock, let's just return all for now as the data model for games/orgs isn't fully defined for filtering yet.
-      // actually, let's just return all for now to avoid breaking things, but ideally we'd filter.
-      // Wait, the user specifically complained about "new org shows teams from previous org".
-      // So getTeams is the most critical one.
-      return this.games; 
-  };
-  
-  getGame = (id: string) => this.games.find((g) => g.id === id);
-  
-  addGame = (game: Omit<Game, "id" | "status" | "homeScore" | "awayScore">) => {
-    const newGame: Game = {
-      ...game,
-      id: `game-${Date.now()}`,
-      status: 'Scheduled',
-      homeScore: 0,
-      awayScore: 0,
+    
+    addVenue = (venue: Omit<Venue, "id" | "organizationId">) => {
+         const newVenue = { ...venue, id: `venue-${crypto.randomUUID()}`, organizationId: MOCK_ORG_ID };
+         this.venues.push(newVenue);
+         socket.emit('action', { type: 'ADD_VENUE', payload: newVenue });
+         return newVenue;
     };
-    this.games = [...this.games, newGame];
-    return newGame;
-  };
 
-  updateGameStatus = (id: string, status: Game['status']) => {
-    const game = this.games.find(g => g.id === id);
-    if (game) {
-      game.status = status;
-    }
-  };
+    addGame = (game: Omit<Game, "id" | "status" | "homeScore" | "awayScore">) => {
+        const newGame: Game = {
+          ...game,
+          id: `game-${crypto.randomUUID()}`,
+          status: 'Scheduled',
+          homeScore: 0,
+          awayScore: 0,
+        };
+        this.games.push(newGame);
+        socket.emit('action', { type: 'ADD_GAME', payload: newGame });
+        return newGame;
+    };
 
-  updateScore = (id: string, homeScore: number, awayScore: number) => {
-    const game = this.games.find(g => g.id === id);
-    if (game) {
-      game.homeScore = homeScore;
-      game.awayScore = awayScore;
-    }
-  };
-}
+    updateGameStatus = (id: string, status: Game['status']) => {
+        const game = this.games.find(g => g.id === id);
+        if (game) {
+          game.status = status;
+          socket.emit('action', { type: 'UPDATE_GAME_STATUS', payload: { id, status } });
+        }
+    };
 
-const globalForStore = globalThis as unknown as { store_v4: Store };
+    updateScore = (id: string, homeScore: number, awayScore: number) => {
+        const game = this.games.find(g => g.id === id);
+        if (game) {
+          game.homeScore = homeScore;
+          game.awayScore = awayScore;
+          socket.emit('action', { type: 'UPDATE_SCORE', payload: { id, homeScore, awayScore } });
+        }
+    };
+    
+    addPerson = (person: Omit<Person, "id">) => {
+        const newPerson = { ...person, id: `person-${crypto.randomUUID()}` };
+        this.persons.push(newPerson);
+        socket.emit('action', { type: 'ADD_PERSON', payload: newPerson });
+        this.notifyListeners();
+        return newPerson;
+    };
 
-export const store = globalForStore.store_v4 || new Store();
+    addTeamMember = (personId: string, teamId: string, roleId: string) => {
+        const membership: TeamMembership = {
+            id: `mem-${crypto.randomUUID()}`,
+            personId,
+            teamId,
+            roleId,
+            startDate: new Date().toISOString()
+        };
+        this.teamMemberships.push(membership);
+        socket.emit('action', { type: 'ADD_TEAM_MEMBER', payload: membership });
+        this.notifyListeners();
+        return membership;
+    };
 
-if (process.env.NODE_ENV !== "production") globalForStore.store_v4 = store;
+    removeTeamMember = (membershipId: string) => {
+        const index = this.teamMemberships.findIndex(m => m.id === membershipId);
+        if (index > -1) {
+            this.teamMemberships[index].endDate = new Date().toISOString(); // Optimistic
+            socket.emit('action', { type: 'REMOVE_TEAM_MEMBER', payload: { id: membershipId } });
+            this.notifyListeners();
+        }
+    };
+
+    // Stubs for others
+    getOrganizationMembers = (organizationId: string) => [];
+    addOrganizationMember = (a: any, b: any, c: any) => ({}) as any;
+    deleteTeam = (id: string) => { this.teams = this.teams.filter(t => t.id !== id); }; 
+    deletePerson = (id: string) => {};
+    updatePerson = (id: string, data: any) => {};
+  }
+
+  const globalForStore = globalThis as unknown as { store_v4: Store };
+  export const store = globalForStore.store_v4 || new Store();
+  if (process.env.NODE_ENV !== "production") globalForStore.store_v4 = store;

@@ -1,23 +1,47 @@
+
+
+"use client";
+
 import { MetalButton } from "@/components/ui/MetalButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { store } from "@/lib/store";
 import { Users, Trophy, MapPin, Calendar } from "lucide-react";
 import Link from "next/link";
 import { OrgDetailsHeader } from "@/components/admin/OrgDetailsHeader";
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import { Organization } from "@sk/types";
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default async function OrganizationDetailsPage({ params }: PageProps) {
-  const { id } = await params;
-  // In a real app, fetch org by ID. Here we mock it or get from store if it matches.
-  const org = store.getOrganization(id); 
+export default function OrganizationDetailsPage() {
+  const params = useParams();
+  const id = params.id as string;
   
-  if (org.id !== id) {
-      // Handle not found or mismatch in this mock scenario
-      // For now, just show the mock org regardless of ID for demo purposes
-  }
+  const [org, setOrg] = useState<Organization | undefined>(undefined);
+  const [counts, setCounts] = useState({ teams: 0, venues: 0, events: 0 });
+
+  useEffect(() => {
+    const updateData = () => {
+        const organization = store.getOrganization(id);
+        const teams = store.getTeams(id);
+        const venues = store.getVenues(id);
+        const games = store.getGames(); // filtering logic TBD for org
+
+        if (organization) {
+            setOrg(organization);
+            setCounts({
+                teams: teams.length,
+                venues: venues.length,
+                events: games.length
+            });
+        }
+    };
+
+    updateData();
+    const unsubscribe = store.subscribe(updateData);
+    return () => unsubscribe();
+  }, [id]);
+
+  if (!org) return <div>Loading...</div>;
 
   const managementSections = [
     {
@@ -32,23 +56,21 @@ export default async function OrganizationDetailsPage({ params }: PageProps) {
       description: "Manage teams and squads.",
       icon: Trophy,
       href: `/admin/organizations/${id}/teams`,
-      count: ((org.supportedSportIds || []).length === 1 
-        ? store.getTeams(id).filter(t => t.sportId === (org.supportedSportIds || [])[0])
-        : store.getTeams(id)).filter(t => (t.isActive ?? true)).length,
+      count: counts.teams,
     },
     {
       title: "Venues",
       description: "Manage fields, courts, and facilities.",
       icon: MapPin,
       href: `/admin/organizations/${id}/venues`,
-      count: store.getVenues(id).length,
+      count: counts.venues,
     },
     {
       title: "Events",
       description: "Schedule games and tournaments.",
       icon: Calendar,
       href: `/admin/organizations/${id}/events`,
-      count: store.getGames().length, // Games filtering logic TBD
+      count: counts.events,
     },
   ];
 

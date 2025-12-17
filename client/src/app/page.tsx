@@ -14,8 +14,14 @@ export default function Home() {
 
   useEffect(() => {
     // Check if user has an organization
-    const org = store.getOrganization();
-    setHasOrg(!!org);
+    const checkOrg = () => {
+        const org = store.getOrganization();
+        setHasOrg(!!org);
+    };
+    
+    checkOrg();
+    const unsubscribe = store.subscribe(checkOrg);
+    return () => unsubscribe();
   }, []);
 
   const managementFeatures = [
@@ -85,7 +91,7 @@ export default function Home() {
               Set up your organisation, manage teams and matches and organise tournaments.
             </p>
 
-            <Link href="/admin" className="pt-4">
+            <Link href="/admin/organizations" className="pt-4">
               <MetalButton 
                 variantType="secondary"
                 className="min-w-[200px] text-lg"

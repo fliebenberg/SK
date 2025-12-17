@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
-import { Organization } from "@/types";
+import { Organization } from "@sk/types";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
 
 interface AdminSidebarProps extends React.HTMLAttributes<HTMLDivElement> {}

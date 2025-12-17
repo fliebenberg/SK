@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Organization } from "@/types";
+import { Organization } from "@sk/types";
 import { getOrganizationsAction } from "@/app/actions";
 import {
   LayoutDashboard,

@@ -108,6 +108,7 @@ export const MetalButton = React.forwardRef<HTMLButtonElement | HTMLAnchorElemen
       'relative flex items-center justify-center rounded-xl font-bold tracking-wider transition-all duration-100 whitespace-nowrap',
       sizeClasses[size],
       styles.active,
+      props.disabled && "opacity-50 pointer-events-none cursor-not-allowed",
       className
     );
 
