@@ -22,7 +22,7 @@ export class DataManager {
 
   organizationRoles: OrganizationRole[] = [
     { id: "role-org-admin", name: "Admin" },
-    { id: "role-org-manager", name: "Manager" },
+    { id: "role-org-member", name: "Member" },
   ];
 
   organizations: Organization[] = [
@@ -34,6 +34,7 @@ export class DataManager {
       secondaryColor: "#000000",
       logo: "https://api.dicebear.com/7.x/initials/svg?seed=SHS&backgroundColor=00ff00&textColor=000000",
       shortName: "SHS",
+      supportedRoleIds: ["role-org-admin", "role-org-member"],
     },
   ];
 
@@ -74,33 +75,13 @@ export class DataManager {
     console.log("DataManager initialized");
   }
 
+  getOrganizations = () => this.organizations;
+
   getOrganization = (id?: string) => {
     if (id) {
-      return this.organizations.find(o => o.id === id) || this.organizations[0];
+      return this.organizations.find(o => o.id === id);
     }
-    return this.organizations[0];
-  };
-
-  getSports = () => this.sports;
-  
-  getSport = (id: string) => this.sports.find(s => s.id === id);
-
-  getTeamRoles = () => this.teamRoles;
-  getTeamRole = (id: string) => this.teamRoles.find(r => r.id === id);
-
-  getOrganizationRoles = () => this.organizationRoles;
-  getOrganizationRole = (id: string) => this.organizationRoles.find(r => r.id === id);
-
-  getOrganizations = () => this.organizations;
-  
-  updateOrganization = (id: string, data: Partial<Organization>) => {
-    const orgIndex = this.organizations.findIndex(o => o.id === id);
-    if (orgIndex > -1) {
-      const updatedOrg = { ...this.organizations[orgIndex], ...data };
-      this.organizations[orgIndex] = updatedOrg;
-      return updatedOrg;
-    }
-    return null;
+    return undefined;
   };
 
   addOrganization = (org: Omit<Organization, "id"> & { id?: string }) => {
@@ -117,11 +98,43 @@ export class DataManager {
     return newOrg;
   };
 
-  getTeams = (organizationId?: string) => {
-    if (organizationId) {
-      return this.teams.filter(t => t.organizationId === organizationId);
+  updateOrganization = (id: string, data: Partial<Organization>) => {
+    const orgIndex = this.organizations.findIndex(o => o.id === id);
+    if (orgIndex > -1) {
+      const updatedOrg = { ...this.organizations[orgIndex], ...data };
+      this.organizations[orgIndex] = updatedOrg;
+      return updatedOrg;
     }
-    return this.teams;
+    return null;
+  };
+
+  getSports = () => this.sports;
+  
+  getSport = (id: string) => this.sports.find(s => s.id === id);
+
+  getTeamRoles = () => this.teamRoles;
+  getTeamRole = (id: string) => this.teamRoles.find(r => r.id === id);
+
+  getOrganizationRoles = () => this.organizationRoles;
+  getOrganizationRole = (id: string) => this.organizationRoles.find(r => r.id === id);
+
+  
+  
+  getTeams = (organizationId?: string) => {
+    const teams = organizationId ? this.teams.filter(t => t.organizationId === organizationId) : this.teams;
+    return teams.map(t => this.enrichTeam(t));
+  };
+
+  enrichTeam = (team: Team): Team => {
+    const roster = this.teamMemberships.filter(m => m.teamId === team.id && !m.endDate);
+    const playerCount = roster.filter(m => m.roleId === 'role-player').length;
+    const staffCount = roster.length - playerCount;
+    return { ...team, playerCount, staffCount };
+  };
+
+  getTeam = (id: string) => {
+    const team = this.teams.find(t => t.id === id);
+    return team ? this.enrichTeam(team) : undefined;
   };
 
   addTeam = (team: Omit<Team, "id"> & { id?: string }) => {
@@ -142,18 +155,46 @@ export class DataManager {
     return newTeam;
   };
 
-  addOrganizationMember = (personId: string, organizationId: string, roleId: string) => {
+  addPerson = (person: Person) => {
+    this.persons.push(person);
+    return person;
+  };
+
+  addTeamMember = (membership: TeamMembership) => {
+    this.teamMemberships.push(membership);
+
+    // Auto-add to organization if not already a member
+    const team = this.teams.find(t => t.id === membership.teamId);
+    if (team) {
+      const isOrgMember = this.organizationMemberships.some(m => 
+        m.personId === membership.personId && 
+        m.organizationId === team.organizationId &&
+        !m.endDate
+      );
+      
+      if (!isOrgMember) {
+           // Default to a basic member role
+           this.addOrganizationMember(membership.personId, team.organizationId, 'role-org-member');
+      }
+    }
+
+    return membership;
+  };
+
+  addOrganizationMember = (personId: string, organizationId: string, roleId: string, id?: string) => {
     const existing = this.organizationMemberships.find(m => 
       m.personId === personId && 
       m.organizationId === organizationId && 
-      m.roleId === roleId &&
       !m.endDate
     );
 
-    if (existing) return existing;
+    if (existing) {
+        existing.roleId = roleId;
+        return existing;
+    }
 
     const membership: OrganizationMembership = {
-      id: `org-mem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: id || `org-mem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       personId,
       organizationId,
       roleId,
@@ -161,6 +202,22 @@ export class DataManager {
     };
     this.organizationMemberships.push(membership);
     return membership;
+  };
+
+  getTeamMembers = (teamId: string) => {
+    const memberships = this.teamMemberships.filter(m => m.teamId === teamId && !m.endDate);
+    return memberships.map(m => {
+      const person = this.persons.find(p => p.id === m.personId);
+      return {
+        ...person!,
+        teamId, // Include teamId for easier client-side routing
+        roleId: m.roleId,
+        roleName: this.getTeamRole(m.roleId)?.name,
+        membershipId: m.id,
+        startDate: m.startDate,
+        endDate: m.endDate
+      };
+    }).filter(p => p.id);
   };
 
   getOrganizationMembers = (organizationId: string) => {
@@ -172,6 +229,7 @@ export class DataManager {
         roleId: m.roleId,
         roleName: this.getOrganizationRole(m.roleId)?.name,
         membershipId: m.id,
+        organizationId: m.organizationId,
         startDate: m.startDate,
         endDate: m.endDate
       };
@@ -189,92 +247,44 @@ export class DataManager {
   };
 
   deleteTeam = (id: string) => {
+    const team = this.teams.find(t => t.id === id);
+    if (!team) return null;
+    
     this.teams = this.teams.filter(t => t.id !== id);
-    return id;
+    return team; // Return the team so we know orgId to broadcast
   };
   
-  getVenues = (organizationId?: string) => {
-    if (organizationId) {
-      return this.venues.filter(v => v.organizationId === organizationId);
-    }
-    return this.venues;
-  };
-
-  addVenue = (venue: Omit<Venue, "id" | "organizationId">) => {
-    const newVenue: Venue = {
-      ...venue,
-      id: `venue-${Date.now()}`,
-      organizationId: MOCK_ORG_ID, // TODO: Fix this hardcoded ID later
-    };
-    this.venues = [...this.venues, newVenue];
-    return newVenue;
-  };
-
-  getTeam = (id: string) => this.teams.find((t) => t.id === id);
-  
-  getPersons = () => this.persons;
-  
-  getTeamMembers = (teamId: string) => {
-    // Return people who are currently members of the team
-    const memberships = this.teamMemberships.filter(m => m.teamId === teamId && !m.endDate);
-    return memberships.map(m => {
-      const person = this.persons.find(p => p.id === m.personId);
-      return {
-        ...person!,
-        roleId: m.roleId,
-        roleName: this.getTeamRole(m.roleId)?.name,
-        membershipId: m.id
-      };
-    }).filter(p => p.id); // Valid persons only
-  };
-  
-  addPerson = (person: Omit<Person, "id"> & { id?: string }) => {
-    let finalId = person.id;
-    if (!finalId) {
-         console.warn("DataManager: ID missing in addPerson, generating new one.");
-         finalId = `person-${Date.now()}`;
-    }
-    const newPerson: Person = {
-      ...person,
-      id: finalId,
-    };
-    this.persons = [...this.persons, newPerson];
-    return newPerson;
-  };
-
-  addTeamMember = (membershipData: { personId: string, teamId: string, roleId: string, id?: string }) => {
-      // Check if already a member WITH THIS ROLE with no end date
-      const existing = this.teamMemberships.find(m => 
-        m.personId === membershipData.personId && 
-        m.teamId === membershipData.teamId && 
-        m.roleId === membershipData.roleId &&
-        !m.endDate
-      );
-
-      if (existing) {
-        return existing;
+  updateTeamMember = (id: string, data: Partial<TeamMembership>) => {
+      const index = this.teamMemberships.findIndex(m => m.id === id);
+      if (index > -1) {
+          this.teamMemberships[index] = { ...this.teamMemberships[index], ...data };
+          return this.teamMemberships[index];
       }
-
-      let finalId = membershipData.id;
-      if (!finalId) {
-           finalId = `mem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      }
-
-      const membership: TeamMembership = {
-          id: finalId,
-          personId: membershipData.personId,
-          teamId: membershipData.teamId,
-          roleId: membershipData.roleId,
-          startDate: new Date().toISOString(),
-      };
-      this.teamMemberships.push(membership);
-      return membership;
+      return null;
   };
 
   removeTeamMember = (membershipId: string) => {
       const membership = this.teamMemberships.find(m => m.id === membershipId);
       if (membership) {
           membership.endDate = new Date().toISOString();
+          return membership;
+      }
+      return null;
+  };
+
+  removeOrganizationMember = (membershipId: string) => {
+      const membership = this.organizationMemberships.find(m => m.id === membershipId);
+      if (membership) {
+          membership.endDate = new Date().toISOString();
+          return membership;
+      }
+      return null;
+  };
+
+  updateOrganizationMember = (membershipId: string, roleId: string) => {
+      const membership = this.organizationMemberships.find(m => m.id === membershipId);
+      if (membership) {
+          membership.roleId = roleId;
           return membership;
       }
       return null;
@@ -300,6 +310,13 @@ export class DataManager {
   getGames = (organizationId?: string) => {
       return this.games; 
   };
+
+  getVenues = (organizationId?: string) => {
+    if (organizationId) {
+      return this.venues.filter(v => v.organizationId === organizationId);
+    }
+    return this.venues;
+  };
   
   getGame = (id: string) => this.games.find((g) => g.id === id);
   
@@ -313,6 +330,34 @@ export class DataManager {
     };
     this.games = [...this.games, newGame];
     return newGame;
+  };
+
+  addVenue = (venue: Omit<Venue, "id" | "organizationId"> & { organizationId: string }) => {
+    // Note: Ensuring organizationId is passed or we default (MOCK_ORG_ID logic should be removed ideally)
+    const newVenue: Venue = {
+      ...venue,
+      id: `venue-${Date.now()}`,
+    };
+    this.venues = [...this.venues, newVenue];
+    return newVenue;
+  };
+  
+  updateVenue = (id: string, data: Partial<Venue>) => {
+      const index = this.venues.findIndex(v => v.id === id);
+      if (index > -1) {
+          const updated = { ...this.venues[index], ...data };
+          this.venues[index] = updated;
+          return updated;
+      }
+      return null;
+  };
+
+  deleteVenue = (id: string) => {
+      const venue = this.venues.find(v => v.id === id);
+      if (!venue) return null;
+      
+      this.venues = this.venues.filter(v => v.id !== id);
+      return venue; // Return venue to know orgId
   };
 
   updateGameStatus = (id: string, status: Game['status']) => {

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { addGameAction } from "@/app/actions";
 
 // Note: In a real app, we'd fetch these via a Server Component or API

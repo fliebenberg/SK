@@ -15,9 +15,20 @@ interface ImageUploadProps {
   value?: string;
   className?: string;
   minimal?: boolean;
+  placeholderPrimary?: string;
+  placeholderSecondary?: string;
+  initials?: string;
 }
 
-export function ImageUpload({ onChange, value, className, minimal = false }: ImageUploadProps) {
+export function ImageUpload({ 
+  onChange, 
+  value, 
+  className, 
+  minimal = false,
+  placeholderPrimary,
+  placeholderSecondary,
+  initials
+}: ImageUploadProps) {
   const { isDark, metalVariant, primaryColor } = useThemeColors();
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
@@ -79,11 +90,21 @@ export function ImageUpload({ onChange, value, className, minimal = false }: Ima
       <div className={minimal ? "w-full h-full" : "flex items-center gap-4"}>
         <div className={`relative group ${minimal ? "w-full h-full cursor-pointer" : ""}`}>
           <label htmlFor={uniqueId} className={`block w-full h-full ${minimal ? "cursor-pointer" : ""}`}>
-            <div className={`${minimal ? "w-full h-full" : "w-24 h-24"} rounded-md overflow-hidden border-2 border-border bg-muted flex items-center justify-center transition-opacity hover:opacity-80`}>
+            <div 
+              className={`${minimal ? "w-full h-full" : "w-24 h-24"} rounded-md overflow-hidden border-2 border-border flex items-center justify-center transition-opacity hover:opacity-80`}
+              style={{ 
+                backgroundColor: !preview && placeholderPrimary ? placeholderPrimary : (preview ? 'transparent' : 'var(--muted)'),
+                color: !preview && placeholderSecondary ? placeholderSecondary : 'var(--muted-foreground)'
+              }}
+            >
                 {preview ? (
                 <img src={preview} alt="Profile preview" className="w-full h-full object-cover" />
                 ) : (
-                <ImageIcon className={`${minimal ? "w-1/2 h-1/2" : "w-8 h-8"} text-muted-foreground`} />
+                  initials ? (
+                    <span className="font-bold select-none text-2xl" style={{ fontSize: minimal ? '2.5rem' : '1.5rem' }}>{initials}</span>
+                  ) : (
+                    <ImageIcon className={`${minimal ? "w-1/2 h-1/2" : "w-8 h-8"}`} style={{ opacity: placeholderSecondary ? 0.8 : 0.5 }} />
+                  )
                 )}
                 
                 {minimal && (

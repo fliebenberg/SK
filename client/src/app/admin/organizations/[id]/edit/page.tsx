@@ -1,7 +1,7 @@
 "use client";
 
 import { OrgDetailsHeader } from "@/components/admin/OrgDetailsHeader";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { notFound, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Organization } from "@sk/types";
@@ -32,11 +32,13 @@ export default function OrganizationEditPage() {
 
   return (
     <div className="space-y-6">
-      <div className="border-b pb-4">
-        <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Organization Settings</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your organization&apos;s details, branding, and preferences.
-        </p>
+      <div className="border-b pb-4 flex flex-col xl:flex-row items-center justify-between gap-6 text-center xl:text-left">
+        <div>
+            <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Organization Settings</h1>
+            <p className="text-muted-foreground mt-2">
+            Manage your organization&apos;s details, branding, and preferences.
+            </p>
+        </div>
       </div>
       
       <OrgDetailsHeader organization={org} />

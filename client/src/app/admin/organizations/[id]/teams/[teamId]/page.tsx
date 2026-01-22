@@ -1,6 +1,6 @@
 "use client";
 
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { TeamDetailsForm } from "@/components/admin/TeamDetailsForm";
 import { Organization, Team } from "@sk/types";
 import { useParams } from "next/navigation";

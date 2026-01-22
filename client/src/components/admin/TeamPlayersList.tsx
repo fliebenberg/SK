@@ -4,14 +4,23 @@ import { MetalButton } from "@/components/ui/MetalButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TeamMembership, Person } from "@sk/types";
+import { PersonnelAutocomplete } from "@/components/ui/PersonnelAutocomplete";
 import { addPersonAction, addTeamMemberAction, removeTeamMemberAction } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { Trash2, Plus, UserPlus } from "lucide-react";
+import { Trash2, Plus, UserPlus, Pencil } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
+import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 
 interface TeamMemberWithDetails extends Person {
   roleId: string;
@@ -28,7 +37,19 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
   const { isDark, metalVariant, primaryColor } = useThemeColors();
   const [isAdding, setIsAdding] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(false);
+  const orgId = store.getTeam(teamId)?.organizationId || "";
+  const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; membershipId: string; name: string }>({
+    isOpen: false,
+    membershipId: "",
+    name: "",
+  });
+  const [editingPlayer, setEditingPlayer] = useState<{ isOpen: boolean; personId: string; name: string }>({
+    isOpen: false,
+    personId: "",
+    name: "",
+  });
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,13 +59,21 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
     try {
       // For now, we assume simple flow: create new person and add to team
       // Use store for optimistic update
-      // 1. Create Person
-      const newPerson = store.addPerson({ name: newPlayerName });
+      // 1. Create or Use Person
+      let personId = selectedPerson?.id;
+      if (!personId) {
+        const newPerson = store.addPerson({ name: newPlayerName });
+        personId = newPerson.id;
+        // Also add to organization if not already there? 
+        // Logic should probably be: if they are added to a team, they must be in the org.
+        store.addOrganizationMember(personId, orgId, 'role-org-manager'); // Default role? Or maybe we need a 'member' role.
+      }
       
       // 2. Add to team
-      store.addTeamMember(newPerson.id, teamId, "role-player");
+      store.addTeamMember(personId, teamId, "role-player");
 
       setNewPlayerName("");
+      setSelectedPerson(null);
       setIsAdding(false);
       // router.refresh(); // Not needed with store reactivity if we subscribe? 
       // This component creates players but receives them via props `players`.
@@ -61,14 +90,32 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
     }
   };
 
-  const handleRemovePlayer = async (membershipId: string) => {
-    if (!confirm("Are you sure you want to remove this player from the team?")) return;
+  const handleRemovePlayer = (membershipId: string, name: string) => {
+    setConfirmDelete({ isOpen: true, membershipId, name });
+  };
+
+  const onConfirmDelete = async () => {
+    if (!confirmDelete.membershipId) return;
     
     try {
-      store.removeTeamMember(membershipId);
-      // router.refresh();
+      store.removeTeamMember(confirmDelete.membershipId);
     } catch (error) {
       console.error("Failed to remove player:", error);
+    }
+  };
+
+  const handleEditPlayer = (personId: string, name: string) => {
+    setEditingPlayer({ isOpen: true, personId, name });
+  };
+
+  const onConfirmEdit = async () => {
+    if (!editingPlayer.personId || !editingPlayer.name.trim()) return;
+    
+    try {
+      store.updatePerson(editingPlayer.personId, { name: editingPlayer.name });
+      setEditingPlayer({ isOpen: false, personId: "", name: "" });
+    } catch (error) {
+      console.error("Failed to update player:", error);
     }
   };
 
@@ -94,14 +141,13 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
           <CardContent className="pt-6">
             <form onSubmit={handleAddPlayer} className="flex gap-4 items-end">
               <div className="flex-1 space-y-2">
-                <Label htmlFor="playerName">New Player Name</Label>
-                <Input
-                  id="playerName"
+                <Label htmlFor="playerName">Player Name</Label>
+                <PersonnelAutocomplete
+                  organizationId={orgId}
                   value={newPlayerName}
-                  onChange={(e) => setNewPlayerName(e.target.value)}
-                  placeholder="Enter player name"
-                  className="bg-background/50"
-                  autoFocus
+                  onChange={setNewPlayerName}
+                  onSelectPerson={setSelectedPerson}
+                  placeholder="Search or enter player name"
                 />
               </div>
               <MetalButton
@@ -147,19 +193,72 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
                    </div>
                 </div>
                 
-                <MetalButton
-                   variantType="outlined"
-                   className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-                   onClick={() => handleRemovePlayer(player.membershipId)}
-                   title="Remove from team"
-                >
-                   <Trash2 className="w-4 h-4" />
-                </MetalButton>
+                 <div className="flex items-center gap-2">
+                    <MetalButton
+                        variantType="outlined"
+                        className="text-muted-foreground hover:text-primary h-8 w-8 p-0"
+                        onClick={() => handleEditPlayer(player.id, player.name)}
+                        title="Edit player"
+                    >
+                        <Pencil className="w-4 h-4" />
+                    </MetalButton>
+                    <MetalButton
+                        variantType="outlined"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                        onClick={() => handleRemovePlayer(player.membershipId, player.name)}
+                        title="Remove from team"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </MetalButton>
+                 </div>
               </CardContent>
             </Card>
           ))
         )}
       </div>
+      <ConfirmationModal
+        isOpen={confirmDelete.isOpen}
+        onOpenChange={(open) => setConfirmDelete({ ...confirmDelete, isOpen: open })}
+        title="Remove Player"
+        description={`Are you sure you want to remove ${confirmDelete.name} from the team? This action cannot be undone.`}
+        onConfirm={onConfirmDelete}
+      />
+
+      <Dialog open={editingPlayer.isOpen} onOpenChange={(open) => setEditingPlayer({ ...editingPlayer, isOpen: open })}>
+        <DialogContent className="border-border/50 bg-card/95 backdrop-blur-md">
+          <DialogHeader>
+            <DialogTitle style={{ fontFamily: 'var(--font-orbitron)' }}>Edit Player</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="editName">Player Name</Label>
+              <Input
+                id="editName"
+                value={editingPlayer.name}
+                onChange={(e) => setEditingPlayer({ ...editingPlayer, name: e.target.value })}
+                placeholder="Enter player name"
+                className="bg-background/50"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+             <MetalButton 
+                variantType="outlined" 
+                onClick={() => setEditingPlayer({ ...editingPlayer, isOpen: false })}
+             >
+                Cancel
+             </MetalButton>
+             <MetalButton 
+                variantType="filled" 
+                glowColor={primaryColor}
+                onClick={onConfirmEdit}
+             >
+                Save Changes
+             </MetalButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

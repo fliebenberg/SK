@@ -5,7 +5,7 @@ import { Venue } from "@sk/types";
 
 import Link from "next/link";
 import { MetalButton } from "@/components/ui/MetalButton";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { Plus, MapPin } from "lucide-react";
 
 export default function VenuesPage() {

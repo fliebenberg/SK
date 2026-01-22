@@ -1,6 +1,6 @@
 "use client";
 
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { MetalButton } from "@/components/ui/MetalButton";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";

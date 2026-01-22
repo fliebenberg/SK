@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { store } from "@/lib/store"; // NOTE: This won't work directly in Client Component if store is server-side only. 
+import { store } from "@/app/store/store"; // NOTE: This won't work directly in Client Component if store is server-side only. 
 // But since store.ts is just a TS file, it will be bundled. 
 // However, modifications here won't affect the Server Component rendering of the list page if they are separate instances.
 // To fix this for the demo, we need a Server Action or API Route.

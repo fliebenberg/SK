@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { cn, getContrastColor, getInitials, isPlaceholderLogo } from "@/lib/utils";
 import {
   LayoutDashboard,
   Building2,
@@ -40,6 +40,9 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
       router.push(`/admin/organizations/${org.id}`);
   };
 
+  const contrastColor = currentOrg ? getContrastColor(currentOrg.primaryColor) : '#ffffff';
+  const hasActualLogo = currentOrg?.logo && !isPlaceholderLogo(currentOrg.logo);
+
   return (
     <div className={cn("pb-12 h-full flex flex-col", className)}>
       <div className="space-y-4 py-4 flex-1">
@@ -53,18 +56,26 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
                     backgroundColor: currentOrg.primaryColor || undefined,
                     borderColor: currentOrg.secondaryColor || undefined,
                     borderWidth: '2px',
-                    color: '#ffffff'
+                    color: contrastColor
                 } : undefined}
               >
                 <div className="flex items-center gap-2 truncate">
-                    {currentOrg?.logo ? (
+                    {hasActualLogo ? (
                         <div className="w-6 h-6 rounded-md overflow-hidden border border-border bg-background flex-shrink-0">
                             <img src={currentOrg.logo} alt={currentOrg.name} className="w-full h-full object-cover" />
                         </div>
                     ) : (
-                        <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <div 
+                            className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
+                            style={{ 
+                                backgroundColor: currentOrg?.secondaryColor || 'var(--muted)',
+                                color: currentOrg?.primaryColor || 'var(--muted-foreground)'
+                            }}
+                        >
+                            {currentOrg ? getInitials(currentOrg.name, currentOrg.shortName) : <Building2 className="w-3 h-3" />}
+                        </div>
                     )}
-                    <span className="truncate font-medium drop-shadow-md">
+                    <span className="truncate font-medium">
                         {currentOrg ? currentOrg.name : "Select Organization"}
                     </span>
                 </div>
@@ -74,34 +85,44 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
             <DropdownMenuContent className="w-[200px]">
               <DropdownMenuLabel>My Organizations</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {organizations.map((org) => (
-                <DropdownMenuItem
-                  key={org.id}
-                  onSelect={() => handleOrgChange(org)}
-                  className="justify-between mb-1 cursor-pointer"
-                  style={{
-                      backgroundColor: org.primaryColor || 'transparent',
-                      borderColor: org.secondaryColor || 'transparent',
-                      borderWidth: '2px',
-                      borderStyle: 'solid',
-                      color: '#ffffff'
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                      {org.logo ? (
-                          <div className="w-8 h-8 rounded-md overflow-hidden border border-border bg-background flex-shrink-0">
-                              <img src={org.logo} alt={org.name} className="w-full h-full object-cover" />
-                          </div>
-                      ) : (
-                          <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                              <Building2 className="w-4 h-4 text-muted-foreground" />
-                          </div>
-                      )}
-                      <span className="font-medium drop-shadow-md">{org.name}</span>
-                  </div>
-                  {currentOrg?.id === org.id && <Check className="h-4 w-4 drop-shadow-md" />}
-                </DropdownMenuItem>
-              ))}
+              {organizations.map((org) => {
+                const orgContrast = getContrastColor(org.primaryColor);
+                const orgHasLogo = org.logo && !isPlaceholderLogo(org.logo);
+                return (
+                  <DropdownMenuItem
+                    key={org.id}
+                    onSelect={() => handleOrgChange(org)}
+                    className="justify-between mb-1 cursor-pointer"
+                    style={{
+                        backgroundColor: org.primaryColor || 'transparent',
+                        borderColor: org.secondaryColor || 'transparent',
+                        borderWidth: '2px',
+                        borderStyle: 'solid',
+                        color: orgContrast
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                        {orgHasLogo ? (
+                            <div className="w-8 h-8 rounded-md overflow-hidden border border-border bg-background flex-shrink-0">
+                                <img src={org.logo} alt={org.name} className="w-full h-full object-cover" />
+                            </div>
+                        ) : (
+                            <div 
+                                className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                                style={{ 
+                                    backgroundColor: org.secondaryColor || 'var(--muted)',
+                                    color: org.primaryColor || 'var(--muted-foreground)'
+                                }}
+                            >
+                                {getInitials(org.name, org.shortName)}
+                            </div>
+                        )}
+                        <span className="font-medium">{org.name}</span>
+                    </div>
+                    {currentOrg?.id === org.id && <Check className="h-4 w-4" />}
+                  </DropdownMenuItem>
+                );
+              })}
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => router.push("/admin/organizations/new")}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -154,6 +175,8 @@ export function MobileSidebar() {
     const [open, setOpen] = useState(false);
     const router = useRouter();
     const { pathname, organizations, currentOrg, sidebarItems } = useAdminNavigation();
+    const contrastColor = currentOrg ? getContrastColor(currentOrg.primaryColor) : '#ffffff';
+    const hasActualLogo = currentOrg?.logo && !isPlaceholderLogo(currentOrg.logo);
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
@@ -178,18 +201,26 @@ export function MobileSidebar() {
                                 backgroundColor: currentOrg.primaryColor || undefined,
                                 borderColor: currentOrg.secondaryColor || undefined,
                                 borderWidth: '2px',
-                                color: '#ffffff'
+                                color: contrastColor
                             } : undefined}
                         >
                             <div className="flex items-center gap-2 truncate">
-                                {currentOrg?.logo ? (
+                                {hasActualLogo ? (
                                     <div className="w-6 h-6 rounded-full overflow-hidden border border-border bg-background flex-shrink-0">
                                         <img src={currentOrg.logo} alt={currentOrg.name} className="w-full h-full object-cover" />
                                     </div>
                                 ) : (
-                                    <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                    <div 
+                                        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
+                                        style={{ 
+                                            backgroundColor: currentOrg?.secondaryColor || 'var(--muted)',
+                                            color: currentOrg?.primaryColor || 'var(--muted-foreground)'
+                                        }}
+                                    >
+                                        {currentOrg ? getInitials(currentOrg.name, currentOrg.shortName) : <Building2 className="w-3 h-3" />}
+                                    </div>
                                 )}
-                                <span className="truncate font-medium drop-shadow-md">
+                                <span className="truncate font-medium">
                                     {currentOrg ? currentOrg.name : "Select Organization"}
                                 </span>
                             </div>
@@ -199,37 +230,47 @@ export function MobileSidebar() {
                         <DropdownMenuContent className="w-[200px]">
                         <DropdownMenuLabel>My Organizations</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        {organizations.map((org) => (
-                            <DropdownMenuItem
-                            key={org.id}
-                            onSelect={() => {
-                                router.push(`/admin/organizations/${org.id}`);
-                                setOpen(false);
-                            }}
-                            className="justify-between mb-1 cursor-pointer"
-                            style={{
-                                backgroundColor: org.primaryColor || 'transparent',
-                                borderColor: org.secondaryColor || 'transparent',
-                                borderWidth: '2px',
-                                borderStyle: 'solid',
-                                color: '#ffffff'
-                            }}
-                            >
-                            <div className="flex items-center gap-2">
-                                {org.logo ? (
-                                    <div className="w-8 h-8 rounded-md overflow-hidden border border-border bg-background flex-shrink-0">
-                                        <img src={org.logo} alt={org.name} className="w-full h-full object-cover" />
-                                    </div>
-                                ) : (
-                                    <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                                        <Building2 className="w-4 h-4 text-muted-foreground" />
-                                    </div>
-                                )}
-                                <span className="font-medium drop-shadow-md">{org.name}</span>
-                            </div>
-                            {currentOrg?.id === org.id && <Check className="h-4 w-4 drop-shadow-md" />}
-                            </DropdownMenuItem>
-                        ))}
+                        {organizations.map((org) => {
+                            const orgContrast = getContrastColor(org.primaryColor);
+                            const orgHasLogo = org.logo && !isPlaceholderLogo(org.logo);
+                            return (
+                                <DropdownMenuItem
+                                key={org.id}
+                                onSelect={() => {
+                                    router.push(`/admin/organizations/${org.id}`);
+                                    setOpen(false);
+                                }}
+                                className="justify-between mb-1 cursor-pointer"
+                                style={{
+                                    backgroundColor: org.primaryColor || 'transparent',
+                                    borderColor: org.secondaryColor || 'transparent',
+                                    borderWidth: '2px',
+                                    borderStyle: 'solid',
+                                    color: orgContrast
+                                }}
+                                >
+                                <div className="flex items-center gap-2">
+                                    {orgHasLogo ? (
+                                        <div className="w-8 h-8 rounded-md overflow-hidden border border-border bg-background flex-shrink-0">
+                                            <img src={org.logo} alt={org.name} className="w-full h-full object-cover" />
+                                        </div>
+                                    ) : (
+                                        <div 
+                                            className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                                            style={{ 
+                                                backgroundColor: org.secondaryColor || 'var(--muted)',
+                                                color: org.primaryColor || 'var(--muted-foreground)'
+                                            }}
+                                        >
+                                            {getInitials(org.name, org.shortName)}
+                                        </div>
+                                    )}
+                                    <span className="font-medium">{org.name}</span>
+                                </div>
+                                {currentOrg?.id === org.id && <Check className="h-4 w-4" />}
+                                </DropdownMenuItem>
+                            );
+                        })}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => {
                             router.push("/admin/organizations/new");

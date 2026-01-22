@@ -6,7 +6,7 @@ import { FeatureSection } from "@/components/FeatureSection";
 import { Trophy, Users, Calendar, ArrowRight, Activity, Plus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 
 export default function Home() {
   const [hoveredSection, setHoveredSection] = useState<'left' | 'right' | null>(null);

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MetalButton } from "@/components/ui/MetalButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { Plus, ArrowRight, Building2 } from "lucide-react";
 import { Organization } from "@sk/types";
 import { getOrganizationsAction } from "@/app/actions";

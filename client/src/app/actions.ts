@@ -1,6 +1,6 @@
 "use server";
 
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { revalidatePath } from "next/cache";
 import { Organization } from "@sk/types";
 
@@ -103,6 +103,7 @@ export async function addVenueAction(formData: FormData) {
   store.addVenue({
     name,
     address,
+    organizationId: "org-1", // TODO: Get from form/context
   });
 
   revalidatePath("/venues");

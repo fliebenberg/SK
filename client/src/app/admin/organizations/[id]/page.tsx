@@ -4,7 +4,7 @@
 
 import { MetalButton } from "@/components/ui/MetalButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { Users, Trophy, MapPin, Calendar } from "lucide-react";
 import Link from "next/link";
 import { OrgDetailsHeader } from "@/components/admin/OrgDetailsHeader";
@@ -17,13 +17,14 @@ export default function OrganizationDetailsPage() {
   const id = params.id as string;
   
   const [org, setOrg] = useState<Organization | undefined>(undefined);
-  const [counts, setCounts] = useState({ teams: 0, venues: 0, events: 0 });
+  const [counts, setCounts] = useState({ teams: 0, venues: 0, events: 0, people: 0 });
 
   useEffect(() => {
     const updateData = () => {
         const organization = store.getOrganization(id);
         const teams = store.getTeams(id);
         const venues = store.getVenues(id);
+        const members = store.getOrganizationMembers(id);
         const games = store.getGames(); // filtering logic TBD for org
 
         if (organization) {
@@ -31,14 +32,20 @@ export default function OrganizationDetailsPage() {
             setCounts({
                 teams: teams.length,
                 venues: venues.length,
-                events: games.length
+                events: games.length,
+                people: members.length
             });
         }
     };
 
     updateData();
+    store.subscribeToOrganization(id);
     const unsubscribe = store.subscribe(updateData);
-    return () => unsubscribe();
+    
+    return () => {
+        unsubscribe();
+        store.unsubscribeFromOrganization(id);
+    };
   }, [id]);
 
   if (!org) return <div>Loading...</div>;
@@ -49,7 +56,7 @@ export default function OrganizationDetailsPage() {
       description: "Manage staff, coaches, and members.",
       icon: Users,
       href: `/admin/organizations/${id}/people`,
-      count: "--", // Placeholder
+      count: counts.people,
     },
     {
       title: "Teams",

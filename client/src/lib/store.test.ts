@@ -1,4 +1,4 @@
-import { store } from '@/lib/store';
+import { store } from '@/app/store/store';
 
 describe('Store Logic', () => {
   // Note: Since the store is a singleton module with in-memory state, 

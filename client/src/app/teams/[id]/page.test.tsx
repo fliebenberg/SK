@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import TeamDetailPage from './page';
-import { store } from '@/lib/store';
+import { store } from '@/app/store/store';
 import { notFound } from 'next/navigation';
 
 // Mock the store

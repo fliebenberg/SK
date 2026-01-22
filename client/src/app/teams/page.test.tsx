@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import TeamsPage from './page';
-import { store } from '@/lib/store';
+import { store } from '@/app/store/store';
 
 // Mock the store
 jest.mock('@/lib/store', () => ({

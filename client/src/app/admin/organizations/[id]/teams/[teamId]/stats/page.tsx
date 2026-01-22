@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { Game } from "@sk/types";
 import { Trophy, XCircle, MinusCircle, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Organization } from "@sk/types";
-import { getOrganizationsAction } from "@/app/actions";
+import { store } from "@/app/store/store";
 import {
   LayoutDashboard,
   Users,
@@ -21,14 +21,14 @@ export interface SidebarItem {
 
 export function useAdminNavigation() {
   const pathname = usePathname();
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>(store.getOrganizations());
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
 
   useEffect(() => {
-    const fetchOrgs = async () => {
-        const orgs = await getOrganizationsAction();
-        setOrganizations(orgs);
-    
+    const update = () => {
+        const orgs = store.getOrganizations();
+        setOrganizations([...orgs]);
+        
         const match = pathname.match(/\/admin\/organizations\/([^\/]+)/);
         if (match) {
           const orgId = match[1];
@@ -37,23 +37,16 @@ export function useAdminNavigation() {
           } else {
             const found = orgs.find(o => o.id === orgId);
             if (found) setCurrentOrg(found);
+            // If not found in store yet (loading?), currentOrg becomes null, showing dashboard only
           }
         } else {
             setCurrentOrg(null);
         }
     };
 
-    fetchOrgs();
-
-    const handleOrgUpdate = () => {
-        fetchOrgs();
-    };
-
-    window.addEventListener('organization-updated', handleOrgUpdate);
-
-    return () => {
-        window.removeEventListener('organization-updated', handleOrgUpdate);
-    };
+    update(); // Initial check
+    const unsubscribe = store.subscribe(update);
+    return () => unsubscribe();
   }, [pathname]);
 
   const getSidebarItems = (): SidebarItem[] => {

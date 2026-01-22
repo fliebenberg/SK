@@ -1,7 +1,7 @@
 "use client";
 
 import { MetalButton } from "@/components/ui/MetalButton";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { Plus, Users, Trophy, Circle, Shield, Target, Disc, Activity } from "lucide-react";
 import Link from "next/link";
 import {
@@ -75,12 +75,12 @@ export default function TeamManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+      <div className="flex flex-col xl:flex-row items-center justify-between gap-6 text-center xl:text-left">
         <div>
           <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Team Management</h1>
           <p className="text-muted-foreground">Manage your organization's teams and rosters.</p>
         </div>
-        <div className="flex flex-row items-center gap-4">
+        <div className="flex flex-row items-center gap-4 w-full xl:w-auto">
             <TeamListFilter 
                 sports={org.supportedSportIds.map(id => store.getSport(id)).filter((s): s is NonNullable<typeof s> => !!s)} 
                 currentSport={currentSport} 
@@ -135,14 +135,14 @@ export default function TeamManagementPage() {
                     <TableCell className="font-medium py-3">
                         <div className="flex flex-col">
                             <span>{team.name}</span>
-                            <span className="text-xs text-muted-foreground md:hidden">{team.ageGroup} • {store.getTeamMembers(team.id).filter(p => p.roleId === 'role-player').length} Players</span>
+                            <span className="text-xs text-muted-foreground md:hidden">{team.ageGroup} • {team.playerCount || 0} Players</span>
                         </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell py-3">{team.ageGroup}</TableCell>
                     <TableCell className="hidden md:table-cell py-3">
                         <div className="flex items-center gap-1 text-muted-foreground">
                             <Users className="h-3 w-3" />
-                            {store.getTeamMembers(team.id).filter(p => p.roleId === 'role-player').length}
+                            {team.playerCount || 0}
                         </div>
                     </TableCell>
                     <TableCell className="text-right pr-4 md:pr-2 py-3">

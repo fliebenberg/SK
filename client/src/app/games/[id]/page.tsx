@@ -1,7 +1,7 @@
 "use client";
 
 import { notFound, useParams } from "next/navigation";
-import { store } from "@/lib/store";
+import { store } from "@/app/store/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
