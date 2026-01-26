@@ -14,7 +14,7 @@ interface MetalButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 export const MetalButton = React.forwardRef<HTMLButtonElement | HTMLAnchorElement, MetalButtonProps>(
-  ({ className, metalVariant = 'silver', isPrimary = false, variantType, glowColor = '#FF5F1F', size = 'sm', children, href, ...props }, ref) => {
+  ({ className, metalVariant = 'silver', isPrimary = false, variantType, glowColor = 'hsl(var(--primary))', size = 'sm', children, href, ...props }, ref) => {
     
     // Determine effective variant type
     const effectiveVariant = variantType || (isPrimary ? 'outlined' : 'secondary');

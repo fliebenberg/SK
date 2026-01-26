@@ -266,6 +266,9 @@ import { socket, socketService } from "../../lib/socketService";
             case 'VENUE_UPDATED': // If we add this logic later
                 this.mergeVenue(event.data as Venue);
                 break;
+            case 'VENUE_DELETED':
+                this.venues = this.venues.filter(v => v.id !== event.data.id);
+                break;
             case 'GAMES_UPDATED':
                 this.mergeGame(event.data as Game);
                 break;
@@ -412,63 +415,80 @@ import { socket, socketService } from "../../lib/socketService";
         if (orgIndex > -1) {
              const updated = { ...this.organizations[orgIndex], ...data };
              this.organizations[orgIndex] = updated;
-             socket.emit('action', { type: 'UPDATE_ORG', payload: { id, data } });
-             return updated;
+             this.notifyListeners();
+
+             return new Promise<Organization>((resolve, reject) => {
+                 socket.emit('action', { type: 'UPDATE_ORG', payload: { id, data } }, (response: any) => {
+                     if (response.status === 'ok') resolve(response.data);
+                     else reject(new Error(response.message || 'Failed to update organization'));
+                 });
+             });
         }
-        return null;
+        return Promise.reject(new Error('Organization not found'));
     };
 
     addOrganization = (org: Omit<Organization, "id">) => {
-        const tempId = `org-${crypto.randomUUID()}`;
-        const newOrg = { 
-            ...org, 
-            id: tempId,
-            supportedRoleIds: org.supportedRoleIds || this.organizationRoles.map(r => r.id) // Default to all roles
-        };
-        this.organizations.push(newOrg);
-        socket.emit('action', { type: 'ADD_ORG', payload: newOrg }); 
-        this.notifyListeners();
-        return newOrg;
+        return new Promise<Organization>((resolve, reject) => {
+            socket.emit('action', { type: 'ADD_ORG', payload: org }, (response: any) => {
+                if (response.status === 'ok') {
+                    resolve(response.data);
+                } else {
+                    reject(new Error(response.message || 'Failed to add organization'));
+                }
+            });
+        });
     };
 
-    addTeam = (team: Omit<Team, "id"> & { id?: string }) => {
-        const newTeam = { ...team, id: team.id || `team-${crypto.randomUUID()}`, isActive: true };
-        this.teams.push(newTeam as Team);
-        socket.emit('action', { type: 'ADD_TEAM', payload: newTeam });
-        this.notifyListeners();
-        return newTeam;
+    addTeam = (team: Omit<Team, "id">) => {
+        return new Promise<Team>((resolve, reject) => {
+            socket.emit('action', { type: 'ADD_TEAM', payload: team }, (response: any) => {
+                if (response.status === 'ok') {
+                    resolve(response.data);
+                } else {
+                    reject(new Error(response.message || 'Failed to add team'));
+                }
+            });
+        });
     };
     
     updateTeam = (id: string, data: Partial<Team>) => {
         const index = this.teams.findIndex(t => t.id === id);
         if (index > -1) {
             this.teams[index] = { ...this.teams[index], ...data };
-            socket.emit('action', { type: 'UPDATE_TEAM', payload: { id, data } });
             this.notifyListeners();
-            return this.teams[index];
+
+            return new Promise<Team>((resolve, reject) => {
+                socket.emit('action', { type: 'UPDATE_TEAM', payload: { id, data } }, (response: any) => {
+                    if (response.status === 'ok') resolve(response.data);
+                    else reject(new Error(response.message || 'Failed to update team'));
+                });
+            });
         }
-        return null;
+        return Promise.reject(new Error('Team not found'));
     };
     
-    addVenue = (venue: Omit<Venue, "id"> & { id?: string }) => {
-         const newVenue = { ...venue, id: `venue-${crypto.randomUUID()}` };
-         this.venues.push(newVenue);
-         socket.emit('action', { type: 'ADD_VENUE', payload: newVenue });
-         this.notifyListeners();
-         return newVenue;
+    addVenue = (venue: Omit<Venue, "id">) => {
+         return new Promise<Venue>((resolve, reject) => {
+             socket.emit('action', { type: 'ADD_VENUE', payload: venue }, (response: any) => {
+                 if (response.status === 'ok') {
+                     resolve(response.data);
+                 } else {
+                     reject(new Error(response.message || 'Failed to add venue'));
+                 }
+             });
+         });
     };
-
+    
     addGame = (game: Omit<Game, "id" | "status" | "homeScore" | "awayScore">) => {
-        const newGame: Game = {
-          ...game,
-          id: `game-${crypto.randomUUID()}`,
-          status: 'Scheduled',
-          homeScore: 0,
-          awayScore: 0,
-        };
-        this.games.push(newGame);
-        socket.emit('action', { type: 'ADD_GAME', payload: newGame });
-        return newGame;
+        return new Promise<Game>((resolve, reject) => {
+            socket.emit('action', { type: 'ADD_GAME', payload: game }, (response: any) => {
+                if (response.status === 'ok') {
+                    resolve(response.data);
+                } else {
+                    reject(new Error(response.message || 'Failed to add game'));
+                }
+            });
+        });
     };
 
     updateGameStatus = (id: string, status: Game['status']) => {
@@ -489,45 +509,65 @@ import { socket, socketService } from "../../lib/socketService";
     };
     
     addPerson = (person: Omit<Person, "id">) => {
-        const newPerson = { ...person, id: `person-${crypto.randomUUID()}` };
-        this.persons.push(newPerson);
-        socket.emit('action', { type: 'ADD_PERSON', payload: newPerson });
-        this.notifyListeners();
-        return newPerson;
+        return new Promise<Person>((resolve, reject) => {
+            socket.emit('action', { type: 'ADD_PERSON', payload: person }, (response: any) => {
+                if (response.status === 'ok') {
+                    resolve(response.data);
+                } else {
+                    reject(new Error(response.message || 'Failed to add person'));
+                }
+            });
+        });
     };
 
     addTeamMember = (personId: string, teamId: string, roleId: string) => {
-        const membership: TeamMembership = {
-            id: `mem-${crypto.randomUUID()}`,
+        const payload = {
             personId,
             teamId,
             roleId,
             startDate: new Date().toISOString()
         };
-        this.teamMemberships.push(membership);
-        socket.emit('action', { type: 'ADD_TEAM_MEMBER', payload: membership });
-        this.notifyListeners();
-        return membership;
+        return new Promise<TeamMembership>((resolve, reject) => {
+            socket.emit('action', { type: 'ADD_TEAM_MEMBER', payload }, (response: any) => {
+                if (response.status === 'ok') {
+                    resolve(response.data);
+                } else {
+                    reject(new Error(response.message || 'Failed to add team member'));
+                }
+            });
+        });
     };
 
     updateTeamMember = (id: string, data: Partial<TeamMembership>) => {
         const index = this.teamMemberships.findIndex(m => m.id === id);
         if (index > -1) {
             this.teamMemberships[index] = { ...this.teamMemberships[index], ...data };
-            socket.emit('action', { type: 'UPDATE_TEAM_MEMBER', payload: { id, data } });
             this.notifyListeners();
-            return this.teamMemberships[index];
+
+            return new Promise<TeamMembership>((resolve, reject) => {
+                socket.emit('action', { type: 'UPDATE_TEAM_MEMBER', payload: { id, data } }, (response: any) => {
+                    if (response.status === 'ok') resolve(response.data);
+                    else reject(new Error(response.message || 'Failed to update team member'));
+                });
+            });
         }
-        return null;
+        return Promise.reject(new Error('Membership not found'));
     };
 
     removeTeamMember = (membershipId: string) => {
         const index = this.teamMemberships.findIndex(m => m.id === membershipId);
         if (index > -1) {
             this.teamMemberships[index].endDate = new Date().toISOString(); // Optimistic
-            socket.emit('action', { type: 'REMOVE_TEAM_MEMBER', payload: { id: membershipId } });
             this.notifyListeners();
+
+            return new Promise<void>((resolve, reject) => {
+                socket.emit('action', { type: 'REMOVE_TEAM_MEMBER', payload: { id: membershipId } }, (response: any) => {
+                    if (response.status === 'ok') resolve();
+                    else reject(new Error(response.message || 'Failed to remove team member'));
+                });
+            });
         }
+        return Promise.reject(new Error('Membership not found'));
     };
 
     getOrganizationMembers = (organizationId: string) => {
@@ -552,77 +592,137 @@ import { socket, socketService } from "../../lib/socketService";
     };
 
     addOrganizationMember = (personId: string, organizationId: string, roleId: string) => {
-        const membershipId = `org-mem-${crypto.randomUUID()}`;
-        const membership: OrganizationMembership = {
-            id: membershipId,
+        const payload = {
             personId,
             organizationId,
             roleId,
             startDate: new Date().toISOString()
         };
-        this.organizationMemberships.push(membership);
-        socket.emit('action', { type: 'ADD_ORG_MEMBER', payload: { id: membershipId, personId, organizationId, roleId } });
-        this.notifyListeners();
-        return membership;
+        return new Promise<OrganizationMembership>((resolve, reject) => {
+            socket.emit('action', { type: 'ADD_ORG_MEMBER', payload }, (response: any) => {
+                if (response.status === 'ok') {
+                    resolve(response.data);
+                } else {
+                    reject(new Error(response.message || 'Failed to add organization member'));
+                }
+            });
+        });
     };
 
     removeOrganizationMember = (membershipId: string) => {
         const index = this.organizationMemberships.findIndex(m => m.id === membershipId);
         if (index > -1) {
             this.organizationMemberships[index].endDate = new Date().toISOString(); // Optimistic
-            socket.emit('action', { type: 'REMOVE_ORG_MEMBER', payload: { id: membershipId } });
             this.notifyListeners();
+
+            return new Promise<void>((resolve, reject) => {
+                socket.emit('action', { type: 'REMOVE_ORG_MEMBER', payload: { id: membershipId } }, (response: any) => {
+                    if (response.status === 'ok') resolve();
+                    else reject(new Error(response.message || 'Failed to remove organization member'));
+                });
+            });
         }
+        return Promise.reject(new Error('Membership not found'));
     };
 
     updateOrganizationMember = (membershipId: string, roleId: string) => {
         const index = this.organizationMemberships.findIndex(m => m.id === membershipId);
         if (index > -1) {
             this.organizationMemberships[index] = { ...this.organizationMemberships[index], roleId };
-            socket.emit('action', { type: 'UPDATE_ORG_MEMBER', payload: { id: membershipId, roleId } });
             this.notifyListeners();
+
+            return new Promise<OrganizationMembership>((resolve, reject) => {
+                socket.emit('action', { type: 'UPDATE_ORG_MEMBER', payload: { id: membershipId, roleId } }, (response: any) => {
+                    if (response.status === 'ok') resolve(response.data);
+                    else reject(new Error(response.message || 'Failed to update organization member'));
+                });
+            });
         }
+        return Promise.reject(new Error('Membership not found'));
     };
 
     deleteTeam = (id: string) => { 
         this.teams = this.teams.filter(t => t.id !== id);
-        socket.emit('action', { type: 'DELETE_TEAM', payload: { id } });
         this.notifyListeners();
+
+        return new Promise<void>((resolve, reject) => {
+            socket.emit('action', { type: 'DELETE_TEAM', payload: { id } }, (response: any) => {
+                if (response.status === 'ok') resolve();
+                else reject(new Error(response.message || 'Failed to delete team'));
+            });
+        });
     }; 
 
     deletePerson = (id: string) => {
-        this.persons = this.persons.filter(p => p.id !== id);
-        this.teamMemberships = this.teamMemberships.filter(m => m.personId !== id);
-        socket.emit('action', { type: 'DELETE_PERSON', payload: { id } });
-        this.notifyListeners();
+        const person = this.persons.find(p => p.id === id);
+        if (person) {
+            this.persons = this.persons.filter(p => p.id !== id);
+            this.teamMemberships = this.teamMemberships.filter(m => m.personId !== id);
+            this.notifyListeners();
+
+            return new Promise<void>((resolve, reject) => {
+                socket.emit('action', { type: 'DELETE_PERSON', payload: { id } }, (response: any) => {
+                    if (response.status === 'ok') resolve();
+                    else reject(new Error(response.message || 'Failed to delete person'));
+                });
+            });
+        }
+        return Promise.reject(new Error('Person not found'));
     };
 
     updatePerson = (id: string, data: Partial<Person>) => {
         const index = this.persons.findIndex(p => p.id === id);
         if (index > -1) {
             this.persons[index] = { ...this.persons[index], ...data };
-            socket.emit('action', { type: 'UPDATE_PERSON', payload: { id, data } });
             this.notifyListeners();
-            return this.persons[index];
+
+            return new Promise<Person>((resolve, reject) => {
+                socket.emit('action', { type: 'UPDATE_PERSON', payload: { id, data } }, (response: any) => {
+                    if (response.status === 'ok') resolve(response.data);
+                    else reject(new Error(response.message || 'Failed to update person'));
+                });
+            });
         }
-        return null;
+        return Promise.reject(new Error('Person not found'));
     };
 
     updateVenue = (id: string, data: Partial<Venue>) => {
         const index = this.venues.findIndex(v => v.id === id);
         if (index > -1) {
-            this.venues[index] = { ...this.venues[index], ...data };
-            socket.emit('action', { type: 'UPDATE_VENUE', payload: { id, data } });
+            const updated = { ...this.venues[index], ...data };
+            this.venues[index] = updated;
             this.notifyListeners();
-            return this.venues[index];
+
+            return new Promise<Venue>((resolve, reject) => {
+                socket.emit('action', { type: 'UPDATE_VENUE', payload: { id, data } }, (response: any) => {
+                    if (response.status === 'ok') {
+                        resolve(response.data);
+                    } else {
+                        reject(new Error(response.message || 'Failed to update venue'));
+                    }
+                });
+            });
         }
-        return null;
+        return Promise.reject(new Error('Venue not found'));
     };
 
     deleteVenue = (id: string) => {
-        this.venues = this.venues.filter(v => v.id !== id);
-        socket.emit('action', { type: 'DELETE_VENUE', payload: { id } });
-        this.notifyListeners();
+        const venue = this.venues.find(v => v.id === id);
+        if (venue) {
+            this.venues = this.venues.filter(v => v.id !== id);
+            this.notifyListeners();
+
+            return new Promise<void>((resolve, reject) => {
+                socket.emit('action', { type: 'DELETE_VENUE', payload: { id } }, (response: any) => {
+                    if (response.status === 'ok') {
+                        resolve();
+                    } else {
+                        reject(new Error(response.message || 'Failed to delete venue'));
+                    }
+                });
+            });
+        }
+        return Promise.reject(new Error('Venue not found'));
     };
   }
 

@@ -35,11 +35,8 @@ export default function NewTeamPage() {
     setLoading(true);
 
     try {
-        const newTeamId = `team-${crypto.randomUUID()}`;
-        
         // Optimistic update via Client Store
-        const newTeam = store.addTeam({
-            id: newTeamId,
+        const newTeam = await store.addTeam({
             name: formData.name,
             sportId: formData.sportId,
             ageGroup: formData.ageGroup,

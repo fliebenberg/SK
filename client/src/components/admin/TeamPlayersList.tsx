@@ -34,7 +34,7 @@ interface TeamPlayersListProps {
 
 export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
   const router = useRouter();
-  const { isDark, metalVariant, primaryColor } = useThemeColors();
+  const { isDark, metalVariant } = useThemeColors();
   const [isAdding, setIsAdding] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -61,16 +61,15 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
       // Use store for optimistic update
       // 1. Create or Use Person
       let personId = selectedPerson?.id;
-      if (!personId) {
-        const newPerson = store.addPerson({ name: newPlayerName });
+      
+      if (!personId && newPlayerName.trim()) {
+        const newPerson = await store.addPerson({ name: newPlayerName });
         personId = newPerson.id;
-        // Also add to organization if not already there? 
-        // Logic should probably be: if they are added to a team, they must be in the org.
-        store.addOrganizationMember(personId, orgId, 'role-org-manager'); // Default role? Or maybe we need a 'member' role.
       }
       
-      // 2. Add to team
-      store.addTeamMember(personId, teamId, "role-player");
+      if (personId) {
+        await store.addTeamMember(personId, teamId, "role-player");
+      }
 
       setNewPlayerName("");
       setSelectedPerson(null);
@@ -98,7 +97,8 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
     if (!confirmDelete.membershipId) return;
     
     try {
-      store.removeTeamMember(confirmDelete.membershipId);
+      await store.removeTeamMember(confirmDelete.membershipId);
+      setConfirmDelete({ isOpen: false, membershipId: "", name: "" });
     } catch (error) {
       console.error("Failed to remove player:", error);
     }
@@ -112,7 +112,7 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
     if (!editingPlayer.personId || !editingPlayer.name.trim()) return;
     
     try {
-      store.updatePerson(editingPlayer.personId, { name: editingPlayer.name });
+      await store.updatePerson(editingPlayer.personId, { name: editingPlayer.name });
       setEditingPlayer({ isOpen: false, personId: "", name: "" });
     } catch (error) {
       console.error("Failed to update player:", error);
@@ -126,7 +126,7 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
         <MetalButton
           onClick={() => setIsAdding(!isAdding)}
           variantType="filled"
-          glowColor={primaryColor}
+          glowColor="hsl(var(--primary))"
           metalVariant={metalVariant}
           className="text-primary-foreground whitespace-nowrap"
           icon={<Plus className="w-4 h-4" />}
@@ -153,7 +153,7 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
               <MetalButton
                 type="submit"
                 variantType="filled"
-                glowColor={primaryColor}
+                glowColor="hsl(var(--primary))"
                 metalVariant={metalVariant}
                 disabled={loading}
               >
@@ -206,6 +206,7 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
                         variantType="outlined"
                         className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
                         onClick={() => handleRemovePlayer(player.membershipId, player.name)}
+                        glowColor="hsl(var(--destructive))"
                         title="Remove from team"
                     >
                         <Trash2 className="w-4 h-4" />
@@ -251,7 +252,7 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
              </MetalButton>
              <MetalButton 
                 variantType="filled" 
-                glowColor={primaryColor}
+                glowColor="hsl(var(--primary))"
                 onClick={onConfirmEdit}
              >
                 Save Changes

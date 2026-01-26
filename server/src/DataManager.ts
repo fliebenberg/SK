@@ -64,15 +64,45 @@ export class DataManager {
     },
   ];
 
-  persons: Person[] = [];
+  persons: Person[] = [
+    { id: "p1", name: "Sarah Connor" },
+    { id: "p2", name: "Kyle Reese" },
+    { id: "p3", name: "John Connor" },
+  ];
   teamMemberships: TeamMembership[] = [];
-  organizationMemberships: OrganizationMembership[] = [];
+  organizationMemberships: OrganizationMembership[] = [
+    { 
+        id: "om1", 
+        personId: "p1", 
+        organizationId: MOCK_ORG_ID, 
+        roleId: "role-org-admin", 
+        startDate: new Date().toISOString() 
+    },
+    { 
+        id: "om2", 
+        personId: "p2", 
+        organizationId: MOCK_ORG_ID, 
+        roleId: "role-org-member", 
+        startDate: new Date().toISOString() 
+    },
+    { 
+        id: "om3", 
+        personId: "p3", 
+        organizationId: MOCK_ORG_ID, 
+        roleId: "role-org-member", 
+        startDate: new Date().toISOString() 
+    },
+  ];
   events: Event[] = [];
   games: Game[] = [];
   scoreLogs: ScoreLog[] = [];
 
   constructor() {
     console.log("DataManager initialized");
+    console.log(`- Sports: ${this.sports.length}`);
+    console.log(`- Teams: ${this.teams.length}`);
+    console.log(`- Persons: ${this.persons.length}`);
+    console.log(`- Org Memberships: ${this.organizationMemberships.length}`);
   }
 
   getOrganizations = () => this.organizations;
@@ -222,8 +252,10 @@ export class DataManager {
 
   getOrganizationMembers = (organizationId: string) => {
     const memberships = this.organizationMemberships.filter(m => m.organizationId === organizationId && !m.endDate);
+    console.log(`DataManager: Found ${memberships.length} memberships for org ${organizationId}`);
     return memberships.map(m => {
       const person = this.persons.find(p => p.id === m.personId);
+      if (!person) console.warn(`DataManager: Person ${m.personId} not found in persons array!`);
       return {
         ...person!,
         roleId: m.roleId,
@@ -320,10 +352,10 @@ export class DataManager {
   
   getGame = (id: string) => this.games.find((g) => g.id === id);
   
-  addGame = (game: Omit<Game, "id" | "status" | "homeScore" | "awayScore">) => {
+  addGame = (game: Omit<Game, "id" | "status" | "homeScore" | "awayScore"> & { id?: string }) => {
     const newGame: Game = {
       ...game,
-      id: `game-${Date.now()}`,
+      id: game.id || `game-${Date.now()}`,
       status: 'Scheduled',
       homeScore: 0,
       awayScore: 0,
@@ -332,11 +364,11 @@ export class DataManager {
     return newGame;
   };
 
-  addVenue = (venue: Omit<Venue, "id" | "organizationId"> & { organizationId: string }) => {
+  addVenue = (venue: Omit<Venue, "id" | "organizationId"> & { organizationId: string, id?: string }) => {
     // Note: Ensuring organizationId is passed or we default (MOCK_ORG_ID logic should be removed ideally)
     const newVenue: Venue = {
       ...venue,
-      id: `venue-${Date.now()}`,
+      id: venue.id || `venue-${Date.now()}`,
     };
     this.venues = [...this.venues, newVenue];
     return newVenue;

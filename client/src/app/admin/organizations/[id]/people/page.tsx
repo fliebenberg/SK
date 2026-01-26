@@ -47,7 +47,7 @@ interface OrganizationMemberWithDetails extends Person {
 export default function OrganizationPeoplePage() {
   const params = useParams();
   const id = params.id as string;
-  const { isDark, metalVariant, primaryColor } = useThemeColors();
+  const { isDark, metalVariant } = useThemeColors();
 
   const [org, setOrg] = useState<Organization | undefined>(undefined);
   const [members, setMembers] = useState<OrganizationMemberWithDetails[]>([]);
@@ -135,14 +135,16 @@ export default function OrganizationPeoplePage() {
     setLoading(true);
     try {
       let personId = selectedPerson?.id;
-      if (!personId) {
-        // Create new person
-        const newPerson = store.addPerson({ name: newPersonName });
+      
+      if (!personId && newPersonName.trim()) {
+        const newPerson = await store.addPerson({ name: newPersonName });
         personId = newPerson.id;
       }
       
-      // Add to organization with selected role
-      store.addOrganizationMember(personId, id, selectedRole);
+      if (personId) {
+        // Add to organization with selected role
+        await store.addOrganizationMember(personId, id, selectedRole);
+      }
 
       setNewPersonName("");
       setSelectedPerson(null);
@@ -160,10 +162,14 @@ export default function OrganizationPeoplePage() {
 
   const onConfirmDelete = async () => {
     if (!confirmDelete.membershipId) return;
+    setLoading(true);
     try {
-        store.removeOrganizationMember(confirmDelete.membershipId);
+        await store.removeOrganizationMember(confirmDelete.membershipId);
+        setConfirmDelete({ isOpen: false, membershipId: "", name: "" });
     } catch (error) {
         console.error("Failed to remove member:", error);
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -173,14 +179,17 @@ export default function OrganizationPeoplePage() {
 
   const onConfirmEdit = async () => {
     if (!editingPerson.personId || !editingPerson.name.trim()) return;
+    setLoading(true);
     try {
-      store.updatePerson(editingPerson.personId, { name: editingPerson.name });
+      await store.updatePerson(editingPerson.personId, { name: editingPerson.name });
       if (editingPerson.roleId && editingPerson.membershipId) {
-          store.updateOrganizationMember(editingPerson.membershipId, editingPerson.roleId);
+          await store.updateOrganizationMember(editingPerson.membershipId, editingPerson.roleId);
       }
-      setEditingPerson({ isOpen: false, personId: "", name: "", roleId: "", membershipId: "" });
+      setEditingPerson({ ...editingPerson, isOpen: false });
     } catch (error) {
       console.error("Failed to update person:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -329,6 +338,7 @@ export default function OrganizationPeoplePage() {
                                 variantType="outlined"
                                 className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
                                 onClick={() => handleRemoveMember(member.membershipId, member.name)}
+                                glowColor="hsl(var(--destructive))"
                                 title="Remove"
                             >
                                 <Trash2 className="w-4 h-4" />
@@ -388,7 +398,7 @@ export default function OrganizationPeoplePage() {
                  </MetalButton>
                  <MetalButton 
                     variantType="filled" 
-                    glowColor={primaryColor}
+                    glowColor="hsl(var(--primary))"
                     type="submit"
                     disabled={loading || !newPersonName.trim()}
                  >
@@ -453,7 +463,7 @@ export default function OrganizationPeoplePage() {
              </MetalButton>
              <MetalButton 
                 variantType="filled" 
-                glowColor={primaryColor}
+                glowColor="hsl(var(--primary))"
                 onClick={onConfirmEdit}
              >
                 Save Changes

@@ -61,8 +61,11 @@ io.on('connection', (socket) => {
               break;
           case 'organization_members':
               if (organizationId) {
-                  callback(dataManager.getOrganizationMembers(organizationId));
+                  const members = dataManager.getOrganizationMembers(organizationId);
+                  console.log(`Server: Returning ${members.length} members for org ${organizationId}`);
+                  callback(members);
               } else {
+                  console.warn("Server: organization_members requested without organizationId");
                   callback([]);
               }
               break;

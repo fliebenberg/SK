@@ -6,6 +6,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeInitializer } from "@/components/theme-initializer";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { NavigationLoader } from "@/components/NavigationLoader";
+import { Suspense } from "react";
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({ subsets: ["latin"], variable: "--font-orbitron" });
@@ -32,6 +34,9 @@ export default function RootLayout({
           >
           <ThemeInitializer />
           <AuthProvider>
+            <Suspense fallback={null}>
+              <NavigationLoader />
+            </Suspense>
             <Navbar />
             {children}
           </AuthProvider>

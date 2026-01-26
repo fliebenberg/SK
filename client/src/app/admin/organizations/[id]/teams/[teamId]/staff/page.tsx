@@ -85,17 +85,17 @@ export default function TeamStaffPage() {
 
     let personId = selectedPerson?.id;
     if (!personId) {
-      const person = store.addPerson({
+      const person = await store.addPerson({
         name: newStaffName,
       });
       personId = person.id;
       // Ensure they are in the organization
-      store.addOrganizationMember(personId, orgId, 'role-org-manager');
+      await store.addOrganizationMember(personId, orgId, 'role-org-manager');
     }
 
     // Map selection to ID
     const roleId = newStaffRole === 'Coach' ? 'role-coach' : 'role-staff';
-    store.addTeamMember(personId, teamId, roleId);
+    await store.addTeamMember(personId, teamId, roleId);
     
     setNewStaffName("");
     setSelectedPerson(null);
@@ -115,11 +115,12 @@ export default function TeamStaffPage() {
   const onConfirmDelete = async () => {
     if (!confirmDelete.membershipId) return;
     
-    store.removeTeamMember(confirmDelete.membershipId);
+    await store.removeTeamMember(confirmDelete.membershipId);
     
     const teamId = params.teamId as string;
     const data = store.getTeamMembers(teamId).filter(p => p.roleId === 'role-coach' || p.roleId === 'role-staff');
     setStaff(data);
+    setConfirmDelete({ isOpen: false, membershipId: "", name: "" });
     router.refresh();
   };
 
@@ -138,11 +139,11 @@ export default function TeamStaffPage() {
     
     try {
       // 1. Update Person (Name)
-      store.updatePerson(editingStaff.personId, { name: editingStaff.name });
+      await store.updatePerson(editingStaff.personId, { name: editingStaff.name });
       
       // 2. Update Membership (Role)
       const roleId = editingStaff.role === 'Coach' ? 'role-coach' : 'role-staff';
-      store.updateTeamMember(editingStaff.membershipId, { roleId });
+      await store.updateTeamMember(editingStaff.membershipId, { roleId });
       
       setEditingStaff({ ...editingStaff, isOpen: false });
       
