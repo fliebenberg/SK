@@ -66,6 +66,9 @@ export default function EventDetailsPage() {
   const [confirmCancel, setConfirmCancel] = useState({ isOpen: false });
   const [isInitialized, setIsInitialized] = useState(false);
 
+  const [filterSportId, setFilterSportId] = useState<string>("all");
+  const [filterVenueId, setFilterVenueId] = useState<string>("all");
+
   // Dirty Tracking
   const isDirty = event ? (
       editName !== event.name ||
@@ -277,58 +280,7 @@ export default function EventDetailsPage() {
       }
   };
 
-  function renderSchedule() {
-    if (!event) return null;
-    if (games.length === 0) {
-        return (
-            <MetalCard className="p-12 text-center space-y-4">
-                <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <div className="space-y-1">
-                    <h3 className="font-bold text-lg">No games scheduled</h3>
-                    <p className="text-muted-foreground">Start by adding games to this event.</p>
-                </div>
-                <GameDialog 
-                    organizationId={organizationId} 
-                    event={event} 
-                    trigger={<MetalButton>Schedule First Game</MetalButton>}
-                />
-            </MetalCard>
-        );
-    }
 
-    const groups: Record<string, Game[]> = {};
-    const sortedGames = [...games].sort((a, b) => {
-        if (!a.startTime) return 1;
-        if (!b.startTime) return -1;
-        return a.startTime.localeCompare(b.startTime);
-    });
-
-    sortedGames.forEach(g => {
-        let key = "Scheduled";
-        if (grouping === 'time') key = g.startTime || "TBD";
-        else if (grouping === 'sport') {
-            const homeTeam = store.getTeam(g.homeTeamId);
-            key = homeTeam ? store.getSport(homeTeam.sportId)?.name || "Unknown Sport" : "Unknown Sport";
-        } else if (grouping === 'venue') {
-            key = g.venueId ? store.getVenue(g.venueId)?.name || "Unknown Venue" : "No Venue";
-        }
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(g);
-    });
-
-    return (
-        <div className="space-y-8">
-            {Object.entries(groups).map(([title, groupGames]) => (
-                <div key={title} className="space-y-3">
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground pl-1">{title}</h3>
-                    {groupGames.map(game => <GameCard key={game.id} game={game} />)}
-                </div>
-            ))}
-        </div>
-    );
-  }
 
   function GameCard({ game }: { game: Game }) {
       const homeTeam = store.getTeam(game.homeTeamId);
@@ -336,11 +288,7 @@ export default function EventDetailsPage() {
       const gameVenue = game.venueId ? store.getVenue(game.venueId) : null;
 
       return (
-        <GameDialog 
-            organizationId={organizationId} 
-            event={event!} 
-            game={game}
-            trigger={
+        <div onClick={() => router.push(`/admin/organizations/${organizationId}/events/${eventId}/games/${game.id}/edit`)}>
                 <MetalCard className="p-3 flex flex-col md:flex-row items-center gap-2 md:gap-4 relative overflow-hidden group min-h-[60px] cursor-pointer hover:bg-accent/5 active:scale-[0.99] transition-all">
                     {/* Mobile Top Row: Time/Status */}
                     <div className="flex md:hidden w-full items-center justify-between text-xs text-muted-foreground mb-1">
@@ -400,8 +348,7 @@ export default function EventDetailsPage() {
                         )}
                     </div>
                 </MetalCard>
-            }
-        />
+        </div>
       );
   }
 
@@ -497,6 +444,85 @@ export default function EventDetailsPage() {
       );
   }
 
+
+  function renderSchedule() {
+    if (!event) return null;
+    
+    // Filter games based on selection
+    let filteredGames = games;
+    
+    if (filterSportId !== "all") {
+         filteredGames = filteredGames.filter(g => {
+             const homeTeam = store.getTeam(g.homeTeamId);
+             return homeTeam?.sportId === filterSportId;
+         });
+    }
+    
+    if (filterVenueId !== "all") {
+         filteredGames = filteredGames.filter(g => g.venueId === filterVenueId);
+    }
+
+    if (games.length === 0) {
+        return (
+            <MetalCard className="p-12 text-center space-y-4">
+                <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div className="space-y-1">
+                    <h3 className="font-bold text-lg">No games scheduled</h3>
+                    <p className="text-muted-foreground">Start by adding games to this event.</p>
+                </div>
+                <MetalButton onClick={() => router.push(`/admin/organizations/${organizationId}/events/${eventId}/games/new`)}>Schedule First Game</MetalButton>
+            </MetalCard>
+        );
+    }
+
+    if (filteredGames.length === 0 && games.length > 0) {
+         return (
+            <MetalCard className="p-12 text-center space-y-4">
+                 <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <Search className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div className="space-y-1">
+                    <h3 className="font-bold text-lg">No games found</h3>
+                    <p className="text-muted-foreground">Try adjusting your filters.</p>
+                </div>
+            </MetalCard>
+         )
+    }
+
+    const groups: Record<string, Game[]> = {};
+    const sortedGames = [...filteredGames].sort((a, b) => {
+        if (!a.startTime) return 1;
+        if (!b.startTime) return -1;
+        return a.startTime.localeCompare(b.startTime);
+    });
+
+    sortedGames.forEach(g => {
+        let key = "Scheduled";
+        if (grouping === 'time') key = g.startTime || "TBD";
+        else if (grouping === 'sport') {
+            const homeTeam = store.getTeam(g.homeTeamId);
+            key = homeTeam ? store.getSport(homeTeam.sportId)?.name || "Unknown Sport" : "Unknown Sport";
+        } else if (grouping === 'venue') {
+            key = g.venueId ? store.getVenue(g.venueId)?.name || "Unknown Venue" : "No Venue";
+        }
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(g);
+    });
+
+    return (
+        <div className="space-y-8">
+            {Object.entries(groups).map(([title, groupGames]) => (
+                <div key={title} className="space-y-3">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground pl-1">{title}</h3>
+                    {groupGames.map(game => <GameCard key={game.id} game={game} />)}
+                </div>
+            ))}
+        </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pb-20">
         <header className="sticky top-0 z-30 w-full border-b bg-background/80 backdrop-blur-md">
@@ -529,51 +555,74 @@ export default function EventDetailsPage() {
                     </TabsTrigger>
                 </TabsList>
 
-                <div className="mt-8">
-                    <TabsContent value="schedule" className="space-y-6 outline-none">
-                        <div className="flex items-center justify-between gap-4 bg-muted/30 p-2 rounded-xl ring-1 ring-border/50">
-                            <div className="flex items-center gap-1 p-1">
-                                <Button 
-                                    variant={grouping === 'time' ? 'secondary' : 'ghost'} 
-                                    size="sm" 
-                                    className={cn("h-8 px-3 text-[10px] uppercase font-black tracking-widest", grouping === 'time' && "shadow-sm")}
-                                    onClick={() => setGrouping('time')}
-                                >
-                                    <Clock className="w-3.5 h-3.5 mr-1.5" /> Time
-                                </Button>
-                                <Button 
-                                    variant={grouping === 'sport' ? 'secondary' : 'ghost'} 
-                                    size="sm" 
-                                    className={cn("h-8 px-3 text-[10px] uppercase font-black tracking-widest", grouping === 'sport' && "shadow-sm")}
-                                    onClick={() => setGrouping('sport')}
-                                >
-                                    <TrophyIcon className="w-3.5 h-3.5 mr-1.5" /> Sport
-                                </Button>
-                                <Button 
-                                    variant={grouping === 'venue' ? 'secondary' : 'ghost'} 
-                                    size="sm" 
-                                    className={cn("h-8 px-3 text-[10px] uppercase font-black tracking-widest", grouping === 'venue' && "shadow-sm")}
-                                    onClick={() => setGrouping('venue')}
-                                >
-                                    <MapPinIcon className="w-3.5 h-3.5 mr-1.5" /> Venue
-                                </Button>
-                            </div>
-                            
-                            <GameDialog 
-                                organizationId={organizationId} 
-                                event={event} 
-                                trigger={
-                                    <MetalButton 
+                    <div className="mt-8">
+                        <TabsContent value="schedule" className="space-y-6 outline-none">
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-muted/30 p-2 rounded-xl ring-1 ring-border/50">
+                                <div className="flex items-center gap-1 p-1 overflow-x-auto w-full md:w-auto">
+                                    <Button 
+                                        variant={grouping === 'sport' ? 'secondary' : 'ghost'} 
                                         size="sm" 
-                                        icon={<Trophy className="w-4 h-4" />}
+                                        className={cn("h-8 px-3 text-[10px] uppercase font-black tracking-widest whitespace-nowrap", grouping === 'sport' && "shadow-sm")}
+                                        onClick={() => setGrouping('sport')}
                                     >
-                                        Add Game
-                                    </MetalButton>
-                                }
-                            />
-                        </div>
-                        {renderSchedule()}
-                    </TabsContent>
+                                        <TrophyIcon className="w-3.5 h-3.5 mr-1.5" /> Sport
+                                    </Button>
+                                    <Button 
+                                        variant={grouping === 'venue' ? 'secondary' : 'ghost'} 
+                                        size="sm" 
+                                        className={cn("h-8 px-3 text-[10px] uppercase font-black tracking-widest whitespace-nowrap", grouping === 'venue' && "shadow-sm")}
+                                        onClick={() => setGrouping('venue')}
+                                    >
+                                        <MapPinIcon className="w-3.5 h-3.5 mr-1.5" /> Venue
+                                    </Button>
+                                    <Button 
+                                        variant={grouping === 'time' ? 'secondary' : 'ghost'} 
+                                        size="sm" 
+                                        className={cn("h-8 px-3 text-[10px] uppercase font-black tracking-widest whitespace-nowrap", grouping === 'time' && "shadow-sm")}
+                                        onClick={() => setGrouping('time')}
+                                    >
+                                        <Clock className="w-3.5 h-3.5 mr-1.5" /> Time
+                                    </Button>
+                                </div>
+                                
+                                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+                                    <Select value={filterSportId} onValueChange={setFilterSportId}>
+                                        <SelectTrigger className="h-8 w-[130px] text-xs">
+                                            <SelectValue placeholder="All Sports" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Sports</SelectItem>
+                                            {allSports.map(s => (
+                                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    
+                                    <Select value={filterVenueId} onValueChange={setFilterVenueId}>
+                                        <SelectTrigger className="h-8 w-[130px] text-xs">
+                                            <SelectValue placeholder="All Venues" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Venues</SelectItem>
+                                            {venues.map(v => (
+                                                <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    <div className="ml-2 pl-2 border-l border-border/50">
+                                        <MetalButton 
+                                            size="sm" 
+                                            icon={<Trophy className="w-4 h-4" />}
+                                            onClick={() => router.push(`/admin/organizations/${organizationId}/events/${eventId}/games/new`)}
+                                        >
+                                            Add Game
+                                        </MetalButton>
+                                    </div>
+                                </div>
+                            </div>
+                            {renderSchedule()}
+                        </TabsContent>
 
                     <TabsContent value="scoreboard" className="outline-none">
                         {renderScoreboard()}

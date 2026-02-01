@@ -897,6 +897,22 @@ import { socket, socketService } from "../../lib/socketService";
         });
     };
 
+    deleteGame = (id: string) => {
+        const game = this.games.find(g => g.id === id);
+        if (game) {
+            this.games = this.games.filter(g => g.id !== id);
+            this.notifyListeners();
+
+            return new Promise<void>((resolve, reject) => {
+                socket.emit('action', { type: 'DELETE_GAME', payload: { id } }, (response: any) => {
+                    if (response.status === 'ok') resolve();
+                    else reject(new Error(response.message || 'Failed to delete game'));
+                });
+            });
+        }
+        return Promise.reject(new Error('Game not found'));
+    };
+
     deleteEvent = (id: string) => {
         const event = this.events.find(e => e.id === id);
         if (event) {
@@ -959,7 +975,7 @@ import { socket, socketService } from "../../lib/socketService";
     }
 }
 
-  const globalForStore = globalThis as unknown as { store_v8: Store };
-  export const store = globalForStore.store_v8 || new Store();
-  if (process.env.NODE_ENV !== "production") globalForStore.store_v8 = store;
+  const globalForStore = globalThis as unknown as { store_v9: Store };
+  export const store = globalForStore.store_v9 || new Store();
+  if (process.env.NODE_ENV !== "production") globalForStore.store_v9 = store;
 

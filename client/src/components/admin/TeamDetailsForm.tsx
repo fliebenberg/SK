@@ -247,7 +247,7 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
       </Card>
 
       <p className="text-xs text-muted-foreground mt-4">
-        Note: Teams cannot be deleted once created. Use the activation toggle to hide them from the schedule.
+        <span className="font-bold text-destructive">Note:</span> Teams cannot be deleted once they have been allocated to a game. You can deactivate a team if you dont want them to be available for future schedules.
       </p>
     </div>
   );

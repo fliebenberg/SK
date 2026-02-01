@@ -292,11 +292,11 @@ export function MatchForm({
         {/* TEAM SELECTION */}
         <div className="space-y-4">
           <div className="space-y-4 p-4 rounded-xl border border-border/50 bg-accent/30">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-primary/70">Match Alignment</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-primary/70">Teams</h3>
             
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Home Team</Label>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Team 1</Label>
                 {isSportsDay ? (
                   <div className="space-y-2">
                      <GenericAutocomplete 
@@ -352,7 +352,7 @@ export function MatchForm({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Away Team</Label>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Team 2</Label>
                 <div className="space-y-2">
                   <GenericAutocomplete
                     items={allOrgs.map(o => ({ id: o.id, label: o.name, data: o }))}
