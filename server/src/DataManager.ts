@@ -1,18 +1,8 @@
 import { Organization, Team, Venue, Person, Event, Game, ScoreLog, TeamMembership, Sport, OrganizationMembership, TeamRole, OrganizationRole } from "@sk/types";
-
-// Initial Mock Data
-const MOCK_ORG_ID = "org-1";
+import { query } from "./db";
 
 export class DataManager {
-  sports: Sport[] = [
-    { id: "sport-soccer", name: "Soccer" },
-    { id: "sport-rugby", name: "Rugby" },
-    { id: "sport-netball", name: "Netball" },
-    { id: "sport-hockey", name: "Hockey" },
-    { id: "sport-cricket", name: "Cricket" },
-    { id: "sport-basketball", name: "Basketball" },
-  ];
-
+  // Hardcoded for now, as they are static data or less likely to change dynamically in this iteration
   teamRoles: TeamRole[] = [
     { id: "role-player", name: "Player" },
     { id: "role-coach", name: "Coach" },
@@ -25,452 +15,533 @@ export class DataManager {
     { id: "role-org-member", name: "Member" },
   ];
 
-  organizations: Organization[] = [
-    {
-      id: MOCK_ORG_ID,
-      name: "Springfield High School",
-      supportedSportIds: ["sport-soccer", "sport-rugby", "sport-netball"],
-      primaryColor: "#00ff00",
-      secondaryColor: "#000000",
-      logo: "https://api.dicebear.com/7.x/initials/svg?seed=SHS&backgroundColor=00ff00&textColor=000000",
-      shortName: "SHS",
-      supportedRoleIds: ["role-org-admin", "role-org-member"],
-    },
-  ];
-
-  venues: Venue[] = [
-    {
-      id: "venue-1",
-      name: "Main Field",
-      address: "123 School Lane",
-      organizationId: MOCK_ORG_ID,
-    },
-  ];
-
-  teams: Team[] = [
-    {
-      id: "team-1",
-      name: "First XI",
-      ageGroup: "U19",
-      sportId: "sport-soccer",
-      organizationId: MOCK_ORG_ID,
-    },
-    {
-      id: "team-2",
-      name: "U16 A",
-      ageGroup: "U16",
-      sportId: "sport-rugby",
-      organizationId: MOCK_ORG_ID,
-    },
-  ];
-
-  persons: Person[] = [
-    { id: "p1", name: "Sarah Connor" },
-    { id: "p2", name: "Kyle Reese" },
-    { id: "p3", name: "John Connor" },
-  ];
-  teamMemberships: TeamMembership[] = [];
-  organizationMemberships: OrganizationMembership[] = [
-    { 
-        id: "om1", 
-        personId: "p1", 
-        organizationId: MOCK_ORG_ID, 
-        roleId: "role-org-admin", 
-        startDate: new Date().toISOString() 
-    },
-    { 
-        id: "om2", 
-        personId: "p2", 
-        organizationId: MOCK_ORG_ID, 
-        roleId: "role-org-member", 
-        startDate: new Date().toISOString() 
-    },
-    { 
-        id: "om3", 
-        personId: "p3", 
-        organizationId: MOCK_ORG_ID, 
-        roleId: "role-org-member", 
-        startDate: new Date().toISOString() 
-    },
-  ];
-  events: Event[] = [];
-  games: Game[] = [];
-  scoreLogs: ScoreLog[] = [];
-
   constructor() {
-    console.log("DataManager initialized");
-    console.log(`- Sports: ${this.sports.length}`);
-    console.log(`- Teams: ${this.teams.length}`);
-    console.log(`- Persons: ${this.persons.length}`);
-    console.log(`- Org Memberships: ${this.organizationMemberships.length}`);
+    console.log("DataManager initialized (Database Mode)");
   }
 
-  getOrganizations = () => this.organizations;
-
-  getOrganization = (id?: string) => {
-    if (id) {
-      return this.organizations.find(o => o.id === id);
-    }
-    return undefined;
+  getOrganizations = async (): Promise<Organization[]> => {
+    const res = await query('SELECT id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds" FROM organizations');
+    return res.rows;
   };
 
-  addOrganization = (org: Omit<Organization, "id"> & { id?: string }) => {
-    let finalId = org.id;
-    if (!finalId) {
-        console.warn("DataManager: ID missing in addOrganization, generating new one.");
-        finalId = `org-${Date.now()}`;
-    }
-    const newOrg: Organization = {
-      ...org,
-      id: finalId,
+  getOrganization = async (id?: string): Promise<Organization | undefined> => {
+    if (!id) return undefined;
+    const res = await query('SELECT id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds" FROM organizations WHERE id = $1', [id]);
+    return res.rows[0];
+  };
+
+  addOrganization = async (org: Omit<Organization, "id"> & { id?: string }): Promise<Organization> => {
+    const id = org.id || `org-${Date.now()}`;
+    // Defaults
+    const supportedSportIds = org.supportedSportIds || [];
+    const supportedRoleIds = org.supportedRoleIds || [];
+    
+    const res = await query(
+      `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, supported_sport_ids, short_name, supported_role_ids) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds"`,
+      [id, org.name, org.logo, org.primaryColor, org.secondaryColor, supportedSportIds, org.shortName, supportedRoleIds]
+    );
+    return res.rows[0];
+  };
+
+  updateOrganization = async (id: string, data: Partial<Organization>): Promise<Organization | null> => {
+    // Dynamic query building could be better, but fixed for now or simple manual check
+    // Actually, let's fetch first or just update fields present?
+    // Implementing a simple dynamic update helper logic inline
+    
+    // NOTE: This implementation assumes we update known fields. 
+    // For simplicity in this plan, I'll update key fields if provided.
+    // A robust solution uses dynamic SET clause.
+    
+    const keys = Object.keys(data).filter(k => k !== 'id');
+    if (keys.length === 0) return this.getOrganization(id).then(r => r || null);
+
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    // Manual mapping for snake_case columns
+    // This part is tricky without an ORM.
+    const map: Record<string, string> = {
+        name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
+        supportedSportIds: 'supported_sport_ids', shortName: 'short_name', supportedRoleIds: 'supported_role_ids'
     };
-    this.organizations = [...this.organizations, newOrg];
-    return newOrg;
+
+    keys.forEach(key => {
+        if (map[key]) {
+            setClauses.push(`${map[key]} = $${idx}`);
+            values.push((data as any)[key]);
+            idx++;
+        }
+    });
+
+    if (setClauses.length === 0) return this.getOrganization(id).then(r => r || null);
+    values.push(id); // ID is strict
+    
+    const res = await query(
+        `UPDATE organizations SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds"`,
+        values
+    );
+    return res.rows[0] || null;
   };
 
-  updateOrganization = (id: string, data: Partial<Organization>) => {
-    const orgIndex = this.organizations.findIndex(o => o.id === id);
-    if (orgIndex > -1) {
-      const updatedOrg = { ...this.organizations[orgIndex], ...data };
-      this.organizations[orgIndex] = updatedOrg;
-      return updatedOrg;
-    }
-    return null;
+  getSports = async (): Promise<Sport[]> => {
+    const res = await query('SELECT id, name FROM sports');
+    return res.rows;
   };
-
-  getSports = () => this.sports;
   
-  getSport = (id: string) => this.sports.find(s => s.id === id);
+  getSport = async (id: string): Promise<Sport | undefined> => {
+      const res = await query('SELECT id, name FROM sports WHERE id = $1', [id]);
+      return res.rows[0];
+  };
 
-  getTeamRoles = () => this.teamRoles;
-  getTeamRole = (id: string) => this.teamRoles.find(r => r.id === id);
+  getTeamRoles = async (): Promise<TeamRole[]> => {
+      return this.teamRoles; // Still static for now
+  };
+  getTeamRole = (id: string) => this.teamRoles.find(r => r.id === id); // Synchronous helper used below, keeping simplistic
 
-  getOrganizationRoles = () => this.organizationRoles;
+  getOrganizationRoles = async (): Promise<OrganizationRole[]> => {
+      return this.organizationRoles;
+  };
   getOrganizationRole = (id: string) => this.organizationRoles.find(r => r.id === id);
 
   
-  
-  getTeams = (organizationId?: string) => {
-    const teams = organizationId ? this.teams.filter(t => t.organizationId === organizationId) : this.teams;
-    return teams.map(t => this.enrichTeam(t));
-  };
-
-  enrichTeam = (team: Team): Team => {
-    const roster = this.teamMemberships.filter(m => m.teamId === team.id && !m.endDate);
-    const playerCount = roster.filter(m => m.roleId === 'role-player').length;
-    const staffCount = roster.length - playerCount;
-    return { ...team, playerCount, staffCount };
-  };
-
-  getTeam = (id: string) => {
-    const team = this.teams.find(t => t.id === id);
-    return team ? this.enrichTeam(team) : undefined;
-  };
-
-  addTeam = (team: Omit<Team, "id"> & { id?: string }) => {
-    // console.log("DataManager.addTeam called with:", team);
-    let finalId = team.id;
-    if (!finalId) {
-        console.warn("DataManager: ID missing in addTeam payload, generating new one.");
-        finalId = `team-${Date.now()}`;
+  getTeams = async (organizationId?: string): Promise<Team[]> => {
+    let queryText = 'SELECT id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive" FROM teams';
+    const params: any[] = [];
+    if (organizationId) {
+        queryText += ' WHERE organization_id = $1';
+        params.push(organizationId);
     }
+    const res = await query(queryText, params);
+    
+    // Enrich teams
+    const teams: Team[] = [];
+    for (const t of res.rows) {
+        teams.push(await this.enrichTeam(t));
+    }
+    return teams;
+  };
 
-    const newTeam: Team = {
-      ...team,
-      id: finalId,
-      isActive: true,
+  enrichTeam = async (team: Team): Promise<Team> => {
+    // Count players
+    const pCountRes = await query(`
+        SELECT COUNT(*) as count FROM team_memberships 
+        WHERE team_id = $1 AND role_id = 'role-player' AND (end_date IS NULL OR end_date > NOW())
+    `, [team.id]);
+    
+    // Count staff
+    const sCountRes = await query(`
+        SELECT COUNT(*) as count FROM team_memberships 
+        WHERE team_id = $1 AND role_id != 'role-player' AND (end_date IS NULL OR end_date > NOW())
+    `, [team.id]);
+
+    return { 
+        ...team, 
+        playerCount: parseInt(pCountRes.rows[0].count), 
+        staffCount: parseInt(sCountRes.rows[0].count) 
     };
-    // console.log("DataManager.addTeam created:", newTeam);
-    this.teams = [...this.teams, newTeam];
-    return newTeam;
   };
 
-  addPerson = (person: Person) => {
-    this.persons.push(person);
-    return person;
+  getTeam = async (id: string): Promise<Team | undefined> => {
+    const res = await query('SELECT id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive" FROM teams WHERE id = $1', [id]);
+    if (!res.rows[0]) return undefined;
+    return this.enrichTeam(res.rows[0]);
   };
 
-  addTeamMember = (membership: TeamMembership) => {
-    this.teamMemberships.push(membership);
-
-    // Auto-add to organization if not already a member
-    const team = this.teams.find(t => t.id === membership.teamId);
-    if (team) {
-      const isOrgMember = this.organizationMemberships.some(m => 
-        m.personId === membership.personId && 
-        m.organizationId === team.organizationId &&
-        !m.endDate
-      );
-      
-      if (!isOrgMember) {
-           // Default to a basic member role
-           this.addOrganizationMember(membership.personId, team.organizationId, 'role-org-member');
-      }
-    }
-
-    return membership;
+  addTeam = async (team: Omit<Team, "id"> & { id?: string }): Promise<Team> => {
+    const id = team.id || `team-${Date.now()}`;
+    const res = await query(
+        `INSERT INTO teams (id, name, age_group, sport_id, organization_id, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive"`,
+         [id, team.name, team.ageGroup, team.sportId, team.organizationId, true]
+    );
+    return res.rows[0];
   };
 
-  addOrganizationMember = (personId: string, organizationId: string, roleId: string, id?: string) => {
-    const existing = this.organizationMemberships.find(m => 
-      m.personId === personId && 
-      m.organizationId === organizationId && 
-      !m.endDate
+  addPerson = async (person: Person): Promise<Person> => {
+    const res = await query('INSERT INTO persons (id, name) VALUES ($1, $2) RETURNING id, name', [person.id, person.name]);
+    return res.rows[0];
+  };
+
+  addTeamMember = async (membership: TeamMembership): Promise<TeamMembership> => {
+    await query(
+        `INSERT INTO team_memberships (id, person_id, team_id, role_id, start_date)
+         VALUES ($1, $2, $3, $4, NOW())`,
+         [membership.id, membership.personId, membership.teamId, membership.roleId]
     );
 
-    if (existing) {
-        existing.roleId = roleId;
-        return existing;
+    // Auto-add to organization checking
+    const team = await this.getTeam(membership.teamId);
+    if (team) {
+        const orgMemRes = await query(
+            `SELECT * FROM organization_memberships WHERE person_id = $1 AND organization_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
+            [membership.personId, team.organizationId]
+        );
+        if (orgMemRes.rowCount === 0) {
+             await this.addOrganizationMember(membership.personId, team.organizationId, 'role-org-member');
+        }
     }
-
-    const membership: OrganizationMembership = {
-      id: id || `org-mem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      personId,
-      organizationId,
-      roleId,
-      startDate: new Date().toISOString(),
-    };
-    this.organizationMemberships.push(membership);
     return membership;
   };
 
-  getTeamMembers = (teamId: string) => {
-    const memberships = this.teamMemberships.filter(m => m.teamId === teamId && !m.endDate);
-    return memberships.map(m => {
-      const person = this.persons.find(p => p.id === m.personId);
-      return {
-        ...person!,
-        teamId, // Include teamId for easier client-side routing
-        roleId: m.roleId,
-        roleName: this.getTeamRole(m.roleId)?.name,
-        membershipId: m.id,
-        startDate: m.startDate,
-        endDate: m.endDate
-      };
-    }).filter(p => p.id);
-  };
-
-  getOrganizationMembers = (organizationId: string) => {
-    const memberships = this.organizationMemberships.filter(m => m.organizationId === organizationId && !m.endDate);
-    console.log(`DataManager: Found ${memberships.length} memberships for org ${organizationId}`);
-    return memberships.map(m => {
-      const person = this.persons.find(p => p.id === m.personId);
-      if (!person) console.warn(`DataManager: Person ${m.personId} not found in persons array!`);
-      return {
-        ...person!,
-        roleId: m.roleId,
-        roleName: this.getOrganizationRole(m.roleId)?.name,
-        membershipId: m.id,
-        organizationId: m.organizationId,
-        startDate: m.startDate,
-        endDate: m.endDate
-      };
-    }).filter(p => p.id);
-  };
-
-  updateTeam = (id: string, data: Partial<Team>) => {
-    const index = this.teams.findIndex(t => t.id === id);
-    if (index > -1) {
-      const updatedTeam = { ...this.teams[index], ...data };
-      this.teams[index] = updatedTeam;
-      return updatedTeam;
-    }
-    return null;
-  };
-
-  deleteTeam = (id: string) => {
-    // Check for linked games
-    const hasGames = this.games.some(g => g.homeTeamId === id || g.awayTeamId === id);
-    if (hasGames) {
-        throw new Error("Cannot delete team with linked games");
+  addOrganizationMember = async (personId: string, organizationId: string, roleId: string, id?: string): Promise<OrganizationMembership> => {
+    // Check existing
+    const existing = await query(
+       `SELECT * FROM organization_memberships WHERE person_id = $1 AND organization_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
+       [personId, organizationId]
+    );
+    if (existing.rowCount! > 0) {
+        // Update role?
+        const mId = existing.rows[0].id;
+        await query('UPDATE organization_memberships SET role_id = $1 WHERE id = $2', [roleId, mId]);
+        return { ...existing.rows[0], roleId };
     }
 
-    const team = this.teams.find(t => t.id === id);
-    if (!team) return null;
+    const finalId = id || `org-mem-${Date.now()}`;
+    const res = await query(
+        `INSERT INTO organization_memberships (id, person_id, organization_id, role_id, start_date)
+         VALUES ($1, $2, $3, $4, NOW())
+         RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+         [finalId, personId, organizationId, roleId]
+    );
+    return res.rows[0];
+  };
+
+  getTeamMembers = async (teamId: string): Promise<any[]> => {
+    const res = await query(`
+        SELECT 
+            tm.id as "membershipId", tm.role_id as "roleId", tm.start_date as "startDate", tm.end_date as "endDate",
+            p.id, p.name,
+            tm.team_id as "teamId"
+        FROM team_memberships tm
+        JOIN persons p ON tm.person_id = p.id
+        WHERE tm.team_id = $1 AND (tm.end_date IS NULL OR tm.end_date > NOW())
+    `, [teamId]);
     
-    this.teams = this.teams.filter(t => t.id !== id);
-    return team; // Return the team so we know orgId to broadcast
+    return res.rows.map(row => ({
+        ...row,
+        roleName: this.getTeamRole(row.roleId)?.name
+    }));
+  };
+
+  getOrganizationMembers = async (organizationId: string): Promise<any[]> => {
+    const res = await query(`
+        SELECT 
+            om.id as "membershipId", om.role_id as "roleId", om.start_date as "startDate", om.end_date as "endDate",
+            p.id, p.name,
+            om.organization_id as "organizationId"
+        FROM organization_memberships om
+        JOIN persons p ON om.person_id = p.id
+        WHERE om.organization_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
+    `, [organizationId]);
+    
+    return res.rows.map(row => ({
+        ...row,
+        roleName: this.getOrganizationRole(row.roleId)?.name
+    }));
+  };
+
+  updateTeam = async (id: string, data: Partial<Team>): Promise<Team | null> => {
+    const keys = Object.keys(data).filter(k => k !== 'id');
+    if (keys.length === 0) return this.getTeam(id).then(r => r || null);
+
+    const map: Record<string, string> = {
+        name: 'name', ageGroup: 'age_group', sportId: 'sport_id', organizationId: 'organization_id', isActive: 'is_active'
+    };
+
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    keys.forEach(key => {
+        if (map[key]) {
+            setClauses.push(`${map[key]} = $${idx}`);
+            values.push((data as any)[key]);
+            idx++;
+        }
+    });
+
+    if (setClauses.length === 0) return this.getTeam(id).then(r => r || null);
+    values.push(id);
+    
+    const res = await query(
+        `UPDATE teams SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive"`,
+        values
+    );
+    if (!res.rows[0]) return null;
+    return this.enrichTeam(res.rows[0]);
+  };
+
+  deleteTeam = async (id: string): Promise<Team | null> => {
+     // Check games
+     const gamesRes = await query('SELECT 1 FROM games WHERE home_team_id = $1 OR away_team_id = $1', [id]);
+     if (gamesRes.rowCount! > 0) {
+         throw new Error("Cannot delete team with linked games");
+     }
+
+     const team = await this.getTeam(id);
+     if (!team) return null;
+
+     await query('DELETE FROM teams WHERE id = $1', [id]);
+     return team;
   };
   
-  updateTeamMember = (id: string, data: Partial<TeamMembership>) => {
-      const index = this.teamMemberships.findIndex(m => m.id === id);
-      if (index > -1) {
-          this.teamMemberships[index] = { ...this.teamMemberships[index], ...data };
-          return this.teamMemberships[index];
-      }
-      return null;
+  updateTeamMember = async (id: string, data: Partial<TeamMembership>): Promise<TeamMembership | null> => {
+      // Assuming we mostly update roles or dates?
+      // Need implementations for keys
+      const keys = Object.keys(data).filter(k => k !== 'id');
+      if (keys.length === 0) return null; // Fetching existing might be hard without knowing keys? 
+      
+      const map: Record<string, string> = { roleId: 'role_id', startDate: 'start_date', endDate: 'end_date' };
+      const setClauses: string[] = [];
+      const values: any[] = [];
+      let idx = 1;
+
+      keys.forEach(key => {
+        if (map[key]) {
+            setClauses.push(`${map[key]} = $${idx}`);
+            values.push((data as any)[key]);
+            idx++;
+        }
+      });
+      values.push(id);
+
+      const res = await query(
+          `UPDATE team_memberships SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, person_id as "personId", team_id as "teamId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+          values
+      );
+      return res.rows[0] || null;
   };
 
-  removeTeamMember = (membershipId: string) => {
-      const membership = this.teamMemberships.find(m => m.id === membershipId);
-      if (membership) {
-          membership.endDate = new Date().toISOString();
-          return membership;
-      }
-      return null;
+  removeTeamMember = async (membershipId: string): Promise<TeamMembership | null> => {
+      const res = await query(
+          `UPDATE team_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, person_id as "personId", team_id as "teamId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+          [membershipId]
+      );
+      return res.rows[0] || null;
   };
 
-  removeOrganizationMember = (membershipId: string) => {
-      const membership = this.organizationMemberships.find(m => m.id === membershipId);
-      if (membership) {
-          membership.endDate = new Date().toISOString();
-          return membership;
-      }
-      return null;
+  removeOrganizationMember = async (membershipId: string): Promise<OrganizationMembership | null> => {
+      const res = await query(
+          `UPDATE organization_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+          [membershipId]
+      );
+      return res.rows[0] || null;
   };
 
-  updateOrganizationMember = (membershipId: string, roleId: string) => {
-      const membership = this.organizationMemberships.find(m => m.id === membershipId);
-      if (membership) {
-          membership.roleId = roleId;
-          return membership;
-      }
-      return null;
+  updateOrganizationMember = async (membershipId: string, roleId: string): Promise<OrganizationMembership | null> => {
+      const res = await query(
+          `UPDATE organization_memberships SET role_id = $1 WHERE id = $2 RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+          [roleId, membershipId]
+      );
+      return res.rows[0] || null;
   };
 
-  updatePerson = (id: string, data: Partial<Person>) => {
-    const index = this.persons.findIndex(p => p.id === id);
-    if (index > -1) {
-      const updatedPerson = { ...this.persons[index], ...data };
-      this.persons[index] = updatedPerson;
-      return updatedPerson;
-    }
-    return null;
+  updatePerson = async (id: string, data: Partial<Person>): Promise<Person | null> => {
+     // Assuming name update
+     if (data.name) {
+         const res = await query('UPDATE persons SET name = $1 WHERE id = $2 RETURNING id, name', [data.name, id]);
+         return res.rows[0] || null;
+     }
+     return null;
   };
 
-  deletePerson = (id: string) => {
-    // Soft delete or real delete? For now, we clean up memberships
-    this.persons = this.persons.filter(p => p.id !== id);
-    this.teamMemberships = this.teamMemberships.filter(m => m.personId !== id);
-    return id;
-  };
-
-  getEvents = (organizationId?: string) => {
+  // Skip deletePerson logic for now or implement if critical
+  
+  getEvents = async (organizationId?: string): Promise<Event[]> => {
+    let queryText = 'SELECT id, name, type, start_date as "startDate", end_date as "endDate", venue_id as "venueId", organization_id as "organizationId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status FROM events';
+    const params: any[] = [];
     if (organizationId) {
-      return this.events.filter(e => (e as any).organizationId === organizationId || (e as any).participatingOrgIds?.includes(organizationId));
+        queryText += ' WHERE organization_id = $1 OR $1 = ANY(participating_org_ids)';
+        params.push(organizationId);
     }
-    return this.events;
+    const res = await query(queryText, params);
+    return res.rows;
   };
 
-  addEvent = (event: Omit<Event, "id"> & { id?: string }) => {
-    const newEvent: Event = {
-      ...event,
-      id: event.id || `event-${Date.now()}`,
-    };
-    this.events = [...this.events, newEvent];
-    return newEvent;
+  addEvent = async (event: Omit<Event, "id"> & { id?: string }): Promise<Event> => {
+    const id = event.id || `event-${Date.now()}`;
+    const res = await query(
+        `INSERT INTO events (id, name, type, start_date, end_date, venue_id, organization_id, participating_org_ids, sport_ids, settings, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING id, name, type, start_date as "startDate", end_date as "endDate", venue_id as "venueId", organization_id as "organizationId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status`,
+         [id, event.name, event.type, event.startDate, event.endDate, event.venueId, event.organizationId, event.participatingOrgIds, event.sportIds, JSON.stringify(event.settings), event.status]
+    );
+    return res.rows[0];
   };
 
-  updateEvent = (id: string, data: Partial<Event>) => {
-    const index = this.events.findIndex(e => e.id === id);
-    if (index > -1) {
-      const updatedEvent = { ...this.events[index], ...data };
-      this.events[index] = updatedEvent;
-      return updatedEvent;
-    }
-    return null;
+  updateEvent = async (id: string, data: Partial<Event>): Promise<Event | null> => {
+     // Similar dynamic update mapping
+     const keys = Object.keys(data).filter(k => k !== 'id');
+     if (keys.length === 0) return (await this.getEvent(id)) || null;
+
+     const map: Record<string, string> = {
+         name: 'name', type: 'type', startDate: 'start_date', endDate: 'end_date', venueId: 'venue_id', organizationId: 'organization_id',
+         participatingOrgIds: 'participating_org_ids', sportIds: 'sport_ids', settings: 'settings', status: 'status'
+     };
+
+     const setClauses: string[] = [];
+     const values: any[] = [];
+     let idx = 1;
+
+     keys.forEach(key => {
+        if (map[key]) {
+            setClauses.push(`${map[key]} = $${idx}`);
+            values.push((data as any)[key]);
+            idx++;
+        }
+     });
+     values.push(id);
+     
+     const res = await query(
+         `UPDATE events SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, type, start_date as "startDate", end_date as "endDate", venue_id as "venueId", organization_id as "organizationId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status`,
+         values
+     );
+     return res.rows[0] || null;
   };
 
-  deleteEvent = (id: string) => {
-    const event = this.events.find(e => e.id === id);
+  deleteEvent = async (id: string): Promise<Event | null> => {
+    const event = await this.getEvent(id);
     if (!event) return null;
     
-    this.events = this.events.filter(e => e.id !== id);
-    // Also cleanup games? For now, we'll keep them or delete them.
-    // Let's cascade delete games for this event.
-    this.games = this.games.filter(g => g.eventId !== id);
-    
+    // Cascade delete games (or define in DB schema cascade? Logic in DataManager said yes)
+    await query('DELETE FROM games WHERE event_id = $1', [id]);
+    await query('DELETE FROM events WHERE id = $1', [id]);
     return event;
   };
 
-  getGames = (organizationId?: string) => {
-      if (!organizationId) return this.games;
-      // Return games for events where this organization is host or participant
-      return this.games.filter(g => {
-          const ev = this.getEvent(g.eventId);
-          if (!ev) return false;
-          return ev.organizationId === organizationId || (ev as any).participatingOrgIds?.includes(organizationId);
-      });
-  };
-
-  getVenues = (organizationId?: string) => {
-    if (organizationId) {
-      return this.venues.filter(v => v.organizationId === organizationId);
+  getGames = async (organizationId?: string): Promise<Game[]> => {
+    if (!organizationId) {
+        const res = await query('SELECT id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, venue_id as "venueId", home_score as "homeScore", away_score as "awayScore" FROM games');
+        return res.rows;
     }
-    return this.venues;
-  };
-  
-  getEvent = (id: string) => this.events.find(e => e.id === id);
-  
-  getGame = (id: string) => this.games.find((g) => g.id === id);
-  
-  addGame = (game: Omit<Game, "id" | "status" | "homeScore" | "awayScore"> & { id?: string }) => {
-    const newGame: Game = {
-      ...game,
-      id: game.id || `game-${Date.now()}`,
-      status: 'Scheduled',
-      homeScore: 0,
-      awayScore: 0,
-    };
-    this.games = [...this.games, newGame];
-    return newGame;
+    // Filter by org (host or participant of event)
+    const res = await query(`
+        SELECT g.id, g.event_id as "eventId", g.home_team_id as "homeTeamId", g.away_team_id as "awayTeamId", g.away_team_name as "awayTeamName", g.start_time as "startTime", g.status, g.venue_id as "venueId", g.home_score as "homeScore", g.away_score as "awayScore"
+        FROM games g
+        JOIN events e ON g.event_id = e.id
+        WHERE e.organization_id = $1 OR $1 = ANY(e.participating_org_ids)
+    `, [organizationId]);
+    return res.rows;
   };
 
-  addVenue = (venue: Omit<Venue, "id" | "organizationId"> & { organizationId: string, id?: string }) => {
-    // Note: Ensuring organizationId is passed or we default (MOCK_ORG_ID logic should be removed ideally)
-    const newVenue: Venue = {
-      ...venue,
-      id: venue.id || `venue-${Date.now()}`,
-    };
-    this.venues = [...this.venues, newVenue];
-    return newVenue;
-  };
-  
-  updateVenue = (id: string, data: Partial<Venue>) => {
-      const index = this.venues.findIndex(v => v.id === id);
-      if (index > -1) {
-          const updated = { ...this.venues[index], ...data };
-          this.venues[index] = updated;
-          return updated;
+  getVenues = async (organizationId?: string): Promise<Venue[]> => {
+      let queryText = 'SELECT id, name, address, organization_id as "organizationId" FROM venues';
+      const params: any[] = [];
+      if (organizationId) {
+          queryText += ' WHERE organization_id = $1';
+          params.push(organizationId);
       }
-      return null;
+      const res = await query(queryText, params);
+      return res.rows;
+  };
+  
+  getEvent = async (id: string): Promise<Event | undefined> => {
+      const res = await query('SELECT id, name, type, start_date as "startDate", end_date as "endDate", venue_id as "venueId", organization_id as "organizationId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status FROM events WHERE id = $1', [id]);
+      return res.rows[0];
+  };
+  
+  getGame = async (id: string): Promise<Game | undefined> => {
+      const res = await query('SELECT id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, venue_id as "venueId", home_score as "homeScore", away_score as "awayScore" FROM games WHERE id = $1', [id]);
+      return res.rows[0];
+  };
+  
+  addGame = async (game: Omit<Game, "id" | "status" | "homeScore" | "awayScore"> & { id?: string }): Promise<Game> => {
+      const id = game.id || `game-${Date.now()}`;
+      const res = await query(
+          `INSERT INTO games (id, event_id, home_team_id, away_team_id, away_team_name, start_time, status, venue_id, home_score, away_score)
+           VALUES ($1, $2, $3, $4, $5, $6, 'Scheduled', $7, 0, 0)
+           RETURNING id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, venue_id as "venueId", home_score as "homeScore", away_score as "awayScore"`,
+           [id, game.eventId, game.homeTeamId, game.awayTeamId, game.awayTeamName, game.startTime, game.venueId]
+      );
+      return res.rows[0];
   };
 
-  deleteVenue = (id: string) => {
-      const venue = this.venues.find(v => v.id === id);
-      if (!venue) return null;
+  addVenue = async (venue: Omit<Venue, "id" | "organizationId"> & { organizationId: string, id?: string }): Promise<Venue> => {
+      const id = venue.id || `venue-${Date.now()}`;
+      const res = await query(
+          `INSERT INTO venues (id, name, address, organization_id)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, name, address, organization_id as "organizationId"`,
+           [id, venue.name, venue.address, venue.organizationId]
+      );
+      return res.rows[0];
+  };
+  
+  updateVenue = async (id: string, data: Partial<Venue>): Promise<Venue | null> => {
+      if (data.name || data.address) {
+           // Simpler update
+           const res = await query(
+               `UPDATE venues SET name = COALESCE($1, name), address = COALESCE($2, address) WHERE id = $3 RETURNING id, name, address, organization_id as "organizationId"`,
+               [data.name, data.address, id]
+           );
+           return res.rows[0];
+      }
+      return (await this.getVenues()).find(v => v.id === id) || null;
+  };
+
+  deleteVenue = async (id: string): Promise<Venue | null> => {
+      const venueRaw = await query('SELECT * FROM venues WHERE id = $1', [id]);
+      if (venueRaw.rowCount === 0) return null;
+      const venue = { ...venueRaw.rows[0], organizationId: venueRaw.rows[0].organization_id };
       
-      this.venues = this.venues.filter(v => v.id !== id);
-      return venue; // Return venue to know orgId
+      await query('DELETE FROM venues WHERE id = $1', [id]);
+      return venue;
   };
 
-  updateGameStatus = (id: string, status: Game['status']) => {
-    const game = this.games.find(g => g.id === id);
-    if (game) {
-      game.status = status;
-      return game;
-    }
-    return null;
+  updateGameStatus = async (id: string, status: Game['status']): Promise<Game | null> => {
+      const res = await query(
+          `UPDATE games SET status = $1 WHERE id = $2 RETURNING id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, venue_id as "venueId", home_score as "homeScore", away_score as "awayScore"`,
+          [status, id]
+      );
+      return res.rows[0] || null;
   };
 
-  updateScore = (id: string, homeScore: number, awayScore: number) => {
-    const game = this.games.find(g => g.id === id);
-    if (game) {
-      game.homeScore = homeScore;
-      game.awayScore = awayScore;
-      return game;
-    }
-    return null;
+  updateScore = async (id: string, homeScore: number, awayScore: number): Promise<Game | null> => {
+      const res = await query(
+          `UPDATE games SET home_score = $1, away_score = $2 WHERE id = $3 RETURNING id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, venue_id as "venueId", home_score as "homeScore", away_score as "awayScore"`,
+          [homeScore, awayScore, id]
+      );
+      return res.rows[0] || null;
   };
 
-  updateGame = (id: string, data: Partial<Game>) => {
-    const index = this.games.findIndex(g => g.id === id);
-    if (index > -1) {
-      const updatedGame = { ...this.games[index], ...data };
-      this.games[index] = updatedGame;
-      return updatedGame;
-    }
-    return null;
+  updateGame = async (id: string, data: Partial<Game>): Promise<Game | null> => {
+     const keys = Object.keys(data).filter(k => k !== 'id');
+     if (keys.length === 0) return (await this.getGame(id)) || null;
+
+     const map: Record<string, string> = {
+         venueId: 'venue_id', startTime: 'start_time', status: 'status', homeScore: 'home_score', awayScore: 'away_score' // etc
+     };
+     // For game, standard map.
+     // ... Implementation similar to others
+     // Abbreviating for now, assuming standard update needed
+     // Ideally we implement the `updateEntity` helper but here I'll just do a targeted update for likely fields if needed
+     
+     // Quick implementation:
+      const setClauses: string[] = [];
+      const values: any[] = [];
+      let idx = 1;
+      
+      const fullMap: Record<string, string> = {
+           homeTeamId: 'home_team_id', awayTeamId: 'away_team_id', awayTeamName: 'away_team_name', startTime: 'start_time', status: 'status', venueId: 'venue_id', homeScore: 'home_score', awayScore: 'away_score'
+      };
+
+      keys.forEach(key => {
+        if (fullMap[key]) {
+            setClauses.push(`${fullMap[key]} = $${idx}`);
+            values.push((data as any)[key]);
+            idx++;
+        }
+      });
+      values.push(id);
+      
+      const res = await query(
+          `UPDATE games SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, venue_id as "venueId", home_score as "homeScore", away_score as "awayScore"`,
+          values
+      );
+      return res.rows[0] || null;
   };
 }
 

@@ -5,14 +5,19 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "db:init": "ts-node src/scripts/init-db.ts",
+    "db:reset": "ts-node src/scripts/reset-db.ts && npm run db:init",
+    "db:seed": "ts-node src/scripts/seed-db.ts",
+    "db:setup": "npm run db:reset && npm run db:seed"
   },
   "dependencies": {
+    "@sk/types": "file:../shared",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
-    "socket.io": "^4.8.1",
-    "@sk/types": "file:../shared"
+    "pg": "^8.18.0",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

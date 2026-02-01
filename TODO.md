@@ -10,6 +10,7 @@ This list tracks the tasks we need to accomplish in your application.
 - [ ] Prevent saving duplicate events (i.e. events that are exactly the same)
 - [ ] Ability to select players for a match from the team view
 - [ ] Consolidate Sportsday and Tournament view. Sportsday will just become one type of tournament. Based on the tournament type the details tab will change.
+- [ ] Add Offline indicator when the app is not connected to the server/websocket
 
 ---
 *Note: You can ask me to update this list or check off items as we complete them.*
