@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { store } from "@/app/store/store";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Team, Organization } from "@sk/types";
+import { Team, Organization, Game } from "@sk/types";
 import {
   Select,
   SelectContent,
@@ -15,6 +15,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 // import { TeamPlayersList } from "./TeamPlayersList"; // Not needed here anymore
 // NOTE: We should eventually move updateTeam to a Server Action too, but for now store updates might be tricky if we mix client/server stores. 
 // Ideally we move ALL writes to Server Actions.
@@ -35,8 +46,8 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
     sportId: initialTeam.sportId,
     ageGroup: initialTeam.ageGroup,
   });
-
   const [availableSports, setAvailableSports] = useState<any[]>([]); // Using any for now to match store return type inference or Sport[]
+  const [hasGames, setHasGames] = useState(false);
 
   useEffect(() => {
     const updateSports = () => {
@@ -44,6 +55,10 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
           .map(id => store.getSport(id))
           .filter(Boolean);
       setAvailableSports(sports);
+      
+      const games = store.getGames(organization.id);
+      const teamHasGames = games.some(g => g.homeTeamId === initialTeam.id || g.awayTeamId === initialTeam.id);
+      setHasGames(teamHasGames);
     };
 
     // Initial load
@@ -64,14 +79,17 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
         }
     });
     return () => unsubscribe();
-  }, [organization.supportedSportIds, initialTeam.id]);
+  }, [organization.supportedSportIds, initialTeam.id, organization.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const updated = store.updateTeam(team.id, formData);
-    if (updated) {
-        setTeam(updated);
-        // No router.refresh() needed as store update is optimistic and reactive
+    try {
+      const updated = await store.updateTeam(team.id, formData);
+      if (updated) {
+          setTeam(updated);
+      }
+    } catch (error) {
+      console.error("Failed to update team:", error);
     }
   };
 
@@ -85,9 +103,24 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
 
   const handleToggleStatus = async () => {
     const newStatus = !(team.isActive ?? true);
-    const updatedTeam = store.updateTeam(team.id, { isActive: newStatus });
-    if (updatedTeam) {
-      setTeam(updatedTeam);
+    try {
+      const updatedTeam = await store.updateTeam(team.id, { isActive: newStatus });
+      if (updatedTeam) {
+        setTeam(updatedTeam);
+      }
+    } catch (error) {
+      console.error("Failed to toggle team status:", error);
+    }
+  };
+
+  const handleDelete = async () => {
+    // window.confirm removed in favor of AlertDialog
+    try {
+        await store.deleteTeam(team.id);
+        router.push(`/admin/organizations/${organization.id}/teams`);
+    } catch (error: any) {
+        console.error("Failed to delete team:", error);
+        alert(error.message || "Failed to delete team");
     }
   };
 
@@ -158,7 +191,36 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
               >
                 {isActive ? "Deactivate Team" : "Activate Team"}
               </MetalButton>
-              
+
+              {!hasGames && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <MetalButton
+                          type="button"
+                          variantType="filled"
+                          glowColor="hsl(var(--destructive))"
+                          className="text-destructive-foreground hover:bg-destructive/90"
+                      >
+                          Delete Team
+                      </MetalButton>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the team "{team.name}" and remove it from the organization.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+              )}
+
               {isDirty && (
                 <div className="flex items-center gap-2">
                     <MetalButton
@@ -183,6 +245,10 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
           </form>
         </CardContent>
       </Card>
+
+      <p className="text-xs text-muted-foreground mt-4">
+        Note: Teams cannot be deleted once created. Use the activation toggle to hide them from the schedule.
+      </p>
     </div>
   );
 }

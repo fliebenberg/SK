@@ -125,7 +125,16 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-end gap-3 pt-4">
+                <MetalButton
+                  type="button"
+                  variantType="outlined"
+                  onClick={() => router.back()}
+                  disabled={isLoading}
+                  className="w-full sm:w-auto min-w-[120px]"
+                >
+                  Cancel
+                </MetalButton>
                 <MetalButton
                   type="submit"
                   metalVariant={metalVariant}

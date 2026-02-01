@@ -205,8 +205,15 @@ export default function TeamStaffPage() {
                 </Select>
               </div>
             </div>
-            <DialogFooter>
-              <MetalButton variantType="filled" onClick={handleAddStaff} glowColor="hsl(var(--primary))">
+            <DialogFooter className="gap-2 sm:gap-0">
+              <MetalButton 
+                variantType="outlined" 
+                onClick={() => setIsDialogOpen(false)}
+                disabled={loading}
+              >
+                Cancel
+              </MetalButton>
+              <MetalButton variantType="filled" onClick={handleAddStaff} glowColor="hsl(var(--primary))" disabled={loading}>
                 Add Staff
               </MetalButton>
             </DialogFooter>

@@ -49,8 +49,8 @@ export default function GamePage() {
           {game.status === 'Live' ? '● LIVE NOW' : game.status.toUpperCase()}
         </div>
         <div className="flex items-center justify-center gap-2 text-muted-foreground mb-2">
-           <Clock className="h-4 w-4" />
-           {new Date(game.startTime).toLocaleString()}
+            <Clock className="h-4 w-4" />
+            {game.startTime ? new Date(game.startTime).toLocaleString() : "TBD"}
         </div>
       </div>
 

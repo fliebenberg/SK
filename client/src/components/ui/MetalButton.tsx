@@ -86,16 +86,16 @@ export const MetalButton = React.forwardRef<HTMLButtonElement | HTMLAnchorElemen
 
         {/* Text */}
         <span 
-          className={cn("relative z-20", effectiveVariant === 'secondary' && styles.text)}
+          className={cn("relative z-20 whitespace-nowrap", effectiveVariant === 'secondary' && styles.text)}
           style={{ 
             textShadow: textShadowStyle,
             color: textColorStyle
           }}
         >
           {props.icon ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 whitespace-nowrap">
               {props.icon}
-              <span>{children}</span>
+              <span className="whitespace-nowrap">{children}</span>
             </div>
           ) : (
             children

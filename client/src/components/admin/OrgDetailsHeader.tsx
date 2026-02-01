@@ -86,7 +86,7 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
 
     if (isCreating) {
         // Optimistic update
-        const newOrg = store.addOrganization({
+        const newOrg = await store.addOrganization({
             ...formData,
             supportedSportIds: formData.supportedSportIds || [],
             supportedRoleIds: formData.supportedRoleIds || [],

@@ -20,7 +20,7 @@ export default function NewGamePage() {
   // A better way is to make this a Server Component that renders a Client Form.
   // But let's stick to the pattern we used for Teams for consistency in this MVP.
   
-  const teams = store.getTeams();
+  const teams = store.getTeams().filter(t => t.isActive !== false);
   const venues = store.getVenues();
   
   const router = useRouter();

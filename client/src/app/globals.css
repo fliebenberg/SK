@@ -213,3 +213,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Improve discoverability of native date/time picker icons especially in dark mode */
+[type="date"]::-webkit-calendar-picker-indicator,
+[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(var(--calendar-invert, 0));
+    opacity: 0.8;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+[type="date"]::-webkit-calendar-picker-indicator:hover,
+[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+/* Set inversion for dark themes */
+.dark-green, .dark-orange, .dark {
+    --calendar-invert: 1;
+}

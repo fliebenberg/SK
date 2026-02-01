@@ -4,8 +4,9 @@ export interface Game {
   homeTeamId: string;
   awayTeamId: string; // Could be external team name if not in system
   awayTeamName?: string; // For external teams
-  startTime: string;
-  status: 'Scheduled' | 'Live' | 'Finished';
+  startTime?: string;
+  status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
+  venueId?: string;
   homeScore: number;
   awayScore: number;
 }

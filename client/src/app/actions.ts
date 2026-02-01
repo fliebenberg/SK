@@ -14,7 +14,7 @@ export async function addTeamAction(formData: FormData) {
     throw new Error("Missing required fields");
   }
 
-  const newTeam = store.addTeam({
+  const newTeam = await store.addTeam({
     name,
     sportId,
     ageGroup,
@@ -29,7 +29,7 @@ export async function addTeamAction(formData: FormData) {
 }
 
 export async function updateTeamAction(id: string, data: Partial<import("@/types").Team>) {
-  const updatedTeam = store.updateTeam(id, data);
+  const updatedTeam = await store.updateTeam(id, data);
   if (updatedTeam) {
     revalidatePath(`/admin/organizations/${updatedTeam.organizationId}/teams/${id}`);
     revalidatePath(`/admin/organizations/${updatedTeam.organizationId}/teams`);
@@ -44,12 +44,12 @@ export async function addPersonAction(name: string, roleId: string, teamId: stri
   }
 
   // 1. Create Person
-  const newPerson = store.addPerson({
+  const newPerson = await store.addPerson({
     name,
   });
 
   // 2. Create Membership
-  store.addTeamMember(newPerson.id, teamId, roleId);
+  await store.addTeamMember(newPerson.id, teamId, roleId);
 
   const team = store.getTeam(teamId);
   if (team) {
@@ -69,25 +69,25 @@ export async function addPersonFromForm(formData: FormData) {
   }
 
   // 1. Create Person
-  const newPerson = store.addPerson({
+  const newPerson = await store.addPerson({
     name,
   });
 
   // 2. Create Membership
   // 2. Create Membership
-  store.addTeamMember(newPerson.id, teamId, roleId);
+  await store.addTeamMember(newPerson.id, teamId, roleId);
 
   revalidatePath(`/teams/${teamId}`);
   revalidatePath(`/admin/organizations`);
 }
 
 export async function addTeamMemberAction(personId: string, teamId: string, roleId: string) {
-    store.addTeamMember(personId, teamId, roleId);
+    await store.addTeamMember(personId, teamId, roleId);
     revalidatePath(`/teams/${teamId}`);
 }
 
 export async function removeTeamMemberAction(membershipId: string, teamId: string) {
-    store.removeTeamMember(membershipId);
+    await store.removeTeamMember(membershipId);
     revalidatePath(`/teams/${teamId}`);
     revalidatePath(`/admin/organizations`);
 }
@@ -100,7 +100,7 @@ export async function addVenueAction(formData: FormData) {
     throw new Error("Missing required fields");
   }
 
-  store.addVenue({
+  await store.addVenue({
     name,
     address,
     organizationId: "org-1", // TODO: Get from form/context
@@ -120,7 +120,7 @@ export async function addGameAction(formData: FormData) {
     throw new Error("Missing required fields");
   }
 
-  store.addGame({
+  await store.addGame({
     eventId: "event-1", // Simplified for MVP
     homeTeamId,
     awayTeamId,
@@ -142,7 +142,7 @@ export async function updateScoreAction(gameId: string, homeScore: number, awayS
   revalidatePath(`/games/${gameId}`);
 }
 export async function updateOrganizationAction(id: string, data: Partial<Organization>) {
-  store.updateOrganization(id, data);
+  await store.updateOrganization(id, data);
   revalidatePath("/admin");
   revalidatePath(`/admin/organizations/${id}`);
 }
@@ -152,7 +152,7 @@ export async function getOrganizationsAction() {
 }
 
 export async function createOrganizationAction(data: Omit<Organization, "id">) {
-  const newOrg = store.addOrganization(data);
+  const newOrg = await store.addOrganization(data);
   revalidatePath("/admin");
   return newOrg;
 }

@@ -25,14 +25,14 @@ export default function OrganizationDetailsPage() {
         const teams = store.getTeams(id);
         const venues = store.getVenues(id);
         const members = store.getOrganizationMembers(id);
-        const games = store.getGames(); // filtering logic TBD for org
+        const eventCount = store.getEvents(id).length;
 
         if (organization) {
             setOrg(organization);
             setCounts({
                 teams: teams.length,
                 venues: venues.length,
-                events: games.length,
+                events: eventCount,
                 people: members.length
             });
         }

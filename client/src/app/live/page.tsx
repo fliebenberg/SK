@@ -28,7 +28,10 @@ export default function LivePage() {
   const sortedGames = [...games].sort((a, b) => {
     if (a.status === 'Live' && b.status !== 'Live') return -1;
     if (a.status !== 'Live' && b.status === 'Live') return 1;
-    return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+    
+    const timeA = a.startTime ? new Date(a.startTime).getTime() : 0;
+    const timeB = b.startTime ? new Date(b.startTime).getTime() : 0;
+    return timeA - timeB;
   });
 
   return (
@@ -68,7 +71,7 @@ export default function LivePage() {
                   </span>
                   <span className="text-xs text-muted-foreground flex items-center font-mono">
                     <Calendar className="h-3 w-3 mr-1.5" />
-                    {new Date(game.startTime).toLocaleDateString()}
+                    {game.startTime ? new Date(game.startTime).toLocaleDateString() : "TBD"}
                   </span>
                 </div>
 

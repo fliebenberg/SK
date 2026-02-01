@@ -36,6 +36,9 @@ io.on('connection', (socket) => {
           case 'organizations':
               callback(dataManager.getOrganizations());
               break;
+          case 'organization':
+              callback(dataManager.getOrganization(id));
+              break;
           case 'teams':
               callback(dataManager.getTeams(organizationId));
               break;
@@ -44,6 +47,9 @@ io.on('connection', (socket) => {
               break;
           case 'games':
               callback(dataManager.getGames(organizationId));
+              break;
+          case 'events':
+              callback(dataManager.getEvents(organizationId));
               break;
           case 'sports':
               callback(dataManager.getSports());
@@ -122,8 +128,10 @@ io.on('connection', (socket) => {
         switch(action.type) {
             case 'ADD_TEAM':
                 result = dataManager.addTeam(action.payload);
-                updateTopic = `org:${result.organizationId}:teams`;
-                updateType = 'TEAM_ADDED';
+                if (result) {
+                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_ADDED', data: result });
+                }
                 break;
             case 'UPDATE_TEAM':
                 result = dataManager.updateTeam(action.payload.id, action.payload.data);
@@ -136,8 +144,10 @@ io.on('connection', (socket) => {
                 break;
             case 'ADD_VENUE':
                 result = dataManager.addVenue(action.payload);
-                updateTopic = `org:${result.organizationId}:venues`; 
-                updateType = 'VENUE_ADDED';
+                if (result) {
+                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_ADDED', data: result });
+                }
                 break;
             case 'UPDATE_VENUE':
                 result = dataManager.updateVenue(action.payload.id, action.payload.data);
@@ -162,16 +172,48 @@ io.on('connection', (socket) => {
                 result = dataManager.addGame(action.payload);
                 updateTopic = `games`; // Broad topic for now
                 updateType = 'GAMES_UPDATED';
+                if (result) {
+                    additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAMES_UPDATED', data: result });
+                    
+                    // Also notify participating orgs so it appears in their main list if needed
+                    const parentEvent = dataManager.getEvent(result.eventId);
+                    if (parentEvent) {
+                         // We might want to notify all participants of the event, 
+                         // or just the teams involved in the game? 
+                         // For now, event room covering the "Schedule" tab is critical.
+                         // But if an org is looking at "My Games" dashboard, they need it too.
+                         const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                         orgIds.forEach(orgId => {
+                             additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
+                         });
+                    }
+                }
                 break;
              case 'UPDATE_GAME_STATUS':
                 result = dataManager.updateGameStatus(action.payload.id, action.payload.status);
-                updateTopic = `games`;
-                updateType = 'GAMES_UPDATED';
+                if (result) {
+                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAMES_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAMES_UPDATED', data: result });
+                }
                 break;
              case 'UPDATE_SCORE':
                 result = dataManager.updateScore(action.payload.id, action.payload.homeScore, action.payload.awayScore);
-                updateTopic = `games`;
-                updateType = 'GAMES_UPDATED';
+                if (result) {
+                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAMES_UPDATED', data: result });
+                     additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAMES_UPDATED', data: result });
+                }
+                break;
+             case 'UPDATE_GAME':
+                result = dataManager.updateGame(action.payload.id, action.payload.data);
+                if (result) {
+                    const parentEvent = dataManager.getEvent(result.eventId);
+                    if (parentEvent) {
+                        const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                        orgIds.forEach(orgId => {
+                            additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
+                        });
+                    }
+                }
                 break;
              case 'ADD_PERSON':
                 result = dataManager.addPerson(action.payload);
@@ -280,6 +322,34 @@ io.on('connection', (socket) => {
                 if (result) {
                     updateTopic = `organizations`;
                     updateType = 'ORGANIZATIONS_UPDATED';
+                }
+                break;
+            case 'ADD_EVENT':
+                result = dataManager.addEvent(action.payload);
+                if (result) {
+                    const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    orgIds.forEach(orgId => {
+                        additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_ADDED', data: result });
+                    });
+                    additionalBroadcasts.push({ topic: `event:${result.id}`, type: 'EVENT_ADDED', data: result });
+                }
+                break;
+            case 'UPDATE_EVENT':
+                result = dataManager.updateEvent(action.payload.id, action.payload.data);
+                if (result) {
+                    const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    orgIds.forEach(orgId => {
+                        additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_UPDATED', data: result });
+                    });
+                }
+                break;
+            case 'DELETE_EVENT':
+                result = dataManager.deleteEvent(action.payload.id);
+                if (result) {
+                    const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    orgIds.forEach(orgId => {
+                        additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_DELETED', data: { id: result.id } });
+                    });
                 }
                 break;
              case 'UPDATE_PERSON':

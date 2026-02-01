@@ -72,6 +72,7 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
 
   const tabs = [
     { name: "Details", href: `/admin/organizations/${id}/teams/${teamId}`, exact: true },
+    { name: "Events", href: `/admin/organizations/${id}/teams/${teamId}/events` },
     { name: "Players", href: `/admin/organizations/${id}/teams/${teamId}/players` },
     { name: "Staff", href: `/admin/organizations/${id}/teams/${teamId}/staff` },
     { name: "Stats", href: `/admin/organizations/${id}/teams/${teamId}/stats` },

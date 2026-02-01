@@ -279,6 +279,12 @@ export class DataManager {
   };
 
   deleteTeam = (id: string) => {
+    // Check for linked games
+    const hasGames = this.games.some(g => g.homeTeamId === id || g.awayTeamId === id);
+    if (hasGames) {
+        throw new Error("Cannot delete team with linked games");
+    }
+
     const team = this.teams.find(t => t.id === id);
     if (!team) return null;
     
@@ -339,8 +345,52 @@ export class DataManager {
     return id;
   };
 
+  getEvents = (organizationId?: string) => {
+    if (organizationId) {
+      return this.events.filter(e => (e as any).organizationId === organizationId || (e as any).participatingOrgIds?.includes(organizationId));
+    }
+    return this.events;
+  };
+
+  addEvent = (event: Omit<Event, "id"> & { id?: string }) => {
+    const newEvent: Event = {
+      ...event,
+      id: event.id || `event-${Date.now()}`,
+    };
+    this.events = [...this.events, newEvent];
+    return newEvent;
+  };
+
+  updateEvent = (id: string, data: Partial<Event>) => {
+    const index = this.events.findIndex(e => e.id === id);
+    if (index > -1) {
+      const updatedEvent = { ...this.events[index], ...data };
+      this.events[index] = updatedEvent;
+      return updatedEvent;
+    }
+    return null;
+  };
+
+  deleteEvent = (id: string) => {
+    const event = this.events.find(e => e.id === id);
+    if (!event) return null;
+    
+    this.events = this.events.filter(e => e.id !== id);
+    // Also cleanup games? For now, we'll keep them or delete them.
+    // Let's cascade delete games for this event.
+    this.games = this.games.filter(g => g.eventId !== id);
+    
+    return event;
+  };
+
   getGames = (organizationId?: string) => {
-      return this.games; 
+      if (!organizationId) return this.games;
+      // Return games for events where this organization is host or participant
+      return this.games.filter(g => {
+          const ev = this.getEvent(g.eventId);
+          if (!ev) return false;
+          return ev.organizationId === organizationId || (ev as any).participatingOrgIds?.includes(organizationId);
+      });
   };
 
   getVenues = (organizationId?: string) => {
@@ -349,6 +399,8 @@ export class DataManager {
     }
     return this.venues;
   };
+  
+  getEvent = (id: string) => this.events.find(e => e.id === id);
   
   getGame = (id: string) => this.games.find((g) => g.id === id);
   
@@ -407,6 +459,16 @@ export class DataManager {
       game.homeScore = homeScore;
       game.awayScore = awayScore;
       return game;
+    }
+    return null;
+  };
+
+  updateGame = (id: string, data: Partial<Game>) => {
+    const index = this.games.findIndex(g => g.id === id);
+    if (index > -1) {
+      const updatedGame = { ...this.games[index], ...data };
+      this.games[index] = updatedGame;
+      return updatedGame;
     }
     return null;
   };
