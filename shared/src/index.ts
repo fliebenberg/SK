@@ -6,6 +6,7 @@ export * from './models/team/Team';
 export * from './models/team/TeamRole';
 export * from './models/team/TeamMembership';
 export * from './models/people/Person';
+export * from './models/people/User';
 export * from './models/event/Event';
 export * from './models/event/Game';
 export * from './models/event/ScoreLog';

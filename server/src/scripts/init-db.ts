@@ -99,11 +99,104 @@ const createTables = async () => {
             );
         `);
 
+        // Users Table (Auth accounts)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                email TEXT UNIQUE,
+                email_verified TIMESTAMPTZ,
+                image TEXT,
+                custom_image TEXT,
+                avatar_source TEXT DEFAULT 'custom',
+                password_hash TEXT,
+                global_role TEXT DEFAULT 'user',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                preferences JSONB DEFAULT '{}'
+            );
+        `);
+
+        // User Emails (Multi-email support)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_emails (
+                id TEXT PRIMARY KEY,
+                user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+                email TEXT UNIQUE NOT NULL,
+                is_primary BOOLEAN DEFAULT false,
+                verified_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        // NextAuth Accounts (Social providers)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS accounts (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                type TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                provider_account_id TEXT NOT NULL,
+                refresh_token TEXT,
+                access_token TEXT,
+                expires_at INTEGER,
+                token_type TEXT,
+                scope TEXT,
+                id_token TEXT,
+                session_state TEXT,
+                provider_image TEXT,
+                UNIQUE(provider, provider_account_id)
+            );
+        `);
+
+        // NextAuth Sessions
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS sessions (
+                id TEXT PRIMARY KEY,
+                session_token TEXT UNIQUE NOT NULL,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                expires TIMESTAMPTZ NOT NULL
+            );
+        `);
+
+        // Verification Tokens
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS verification_tokens (
+                identifier TEXT NOT NULL,
+                token TEXT NOT NULL,
+                expires TIMESTAMPTZ NOT NULL,
+                PRIMARY KEY (identifier, token)
+            );
+        `);
+
+        // Password Reset Tokens
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_hash TEXT NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        // User Favorites
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_favorites (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                entity_type TEXT NOT NULL, -- 'team', 'organization', 'event'
+                entity_id TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, entity_type, entity_id)
+            );
+        `);
+
          // Games
          await pool.query(`
             CREATE TABLE IF NOT EXISTS games (
                 id TEXT PRIMARY KEY,
-                event_id TEXT REFERENCES events(id),
+                event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
                 home_team_id TEXT REFERENCES teams(id),
                 away_team_id TEXT REFERENCES teams(id),
                 away_team_name TEXT,

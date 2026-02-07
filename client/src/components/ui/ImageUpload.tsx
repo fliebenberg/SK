@@ -10,6 +10,7 @@ import { Upload, X, Check, Image as ImageIcon, Pencil } from 'lucide-react';
 import { cn, getOrgInitialsFontSize } from '@/lib/utils';
 
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { UserAvatar } from '@/components/UserAvatar';
 
 interface ImageUploadProps {
   onChange: (base64: string) => void;
@@ -19,6 +20,7 @@ interface ImageUploadProps {
   placeholderPrimary?: string;
   placeholderSecondary?: string;
   initials?: string;
+  rounded?: "sm" | "md" | "lg" | "xl" | "full" | "none";
 }
 
 export function ImageUpload({ 
@@ -28,7 +30,8 @@ export function ImageUpload({
   minimal = false,
   placeholderPrimary,
   placeholderSecondary,
-  initials
+  initials,
+  rounded = "md"
 }: ImageUploadProps) {
   const { isDark, metalVariant, primaryColor } = useThemeColors();
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -38,6 +41,22 @@ export function ImageUpload({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [preview, setPreview] = useState<string | null>(value || null);
   const uniqueId = useId();
+
+  // Sync preview with value if it changes externally (e.g. session load)
+  React.useEffect(() => {
+    if (value !== undefined) {
+      setPreview(value || null);
+    }
+  }, [value]);
+
+  const roundedClasses = {
+    none: "rounded-none",
+    sm: "rounded-sm",
+    md: "rounded-md",
+    lg: "rounded-lg",
+    xl: "rounded-xl",
+    full: "rounded-full",
+  };
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -88,39 +107,35 @@ export function ImageUpload({
 
   return (
     <div className={className}>
-      <div className={minimal ? "w-full h-full" : "flex items-center gap-4"}>
-        <div className={`relative group ${minimal ? "w-full h-full cursor-pointer" : ""}`}>
-          <label htmlFor={uniqueId} className={`block w-full h-full ${minimal ? "cursor-pointer" : ""}`}>
+      <div className={cn("flex flex-col gap-4 w-full", !minimal && "sm:flex-row sm:items-center")}>
+        <div className={`relative group shrink-0 ${minimal ? "w-full aspect-square" : "w-32 h-32"}`}>
+          <label htmlFor={uniqueId} className="block w-full h-full cursor-pointer">
             <div 
-              className={`${minimal ? "w-full h-full" : "w-24 h-24"} rounded-md overflow-hidden border-2 border-border flex items-center justify-center transition-opacity hover:opacity-80`}
-              style={{ 
-                backgroundColor: !preview && placeholderPrimary ? placeholderPrimary : (preview ? 'transparent' : 'var(--muted)'),
-                color: !preview && placeholderSecondary ? placeholderSecondary : 'var(--muted-foreground)'
-              }}
+              className={cn(
+                "w-full h-full overflow-hidden border-2 border-border flex items-center justify-center transition-opacity hover:opacity-80 shadow-md bg-muted/20",
+                roundedClasses[rounded]
+              )}
             >
                 {preview ? (
-                <img src={preview} alt="Profile preview" className="w-full h-full object-cover" />
+                  <img src={preview} alt="Profile preview" className="w-full h-full object-cover" />
                 ) : (
-                  initials ? (
-                    <span className={cn(
-                      "font-bold select-none leading-none",
-                      getOrgInitialsFontSize(initials, minimal ? 'xl' : 'lg')
-                    )}>
-                      {initials}
-                    </span>
-                  ) : (
-                    <ImageIcon className={`${minimal ? "w-1/2 h-1/2" : "w-8 h-8"}`} style={{ opacity: placeholderSecondary ? 0.8 : 0.5 }} />
-                  )
+                  <UserAvatar 
+                    name={initials} 
+                    size={minimal ? "xl" : "2xl"} 
+                    className="w-full h-full"
+                    rounded={rounded}
+                  />
                 )}
                 
-                {minimal && (
-                  <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                    <div className="bg-background/80 text-foreground text-xs font-semibold px-2 py-1 rounded shadow-sm flex items-center gap-1.5">
-                       <Pencil className="w-3 h-3" />
-                       Edit
-                    </div>
+                <div className={cn(
+                  "absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center",
+                  roundedClasses[rounded]
+                )}>
+                  <div className="bg-background/80 text-foreground text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1.5 border border-white/20">
+                     <Pencil className="w-3.5 h-3.5" />
+                     {preview ? 'Change' : 'Upload'}
                   </div>
-                )}
+                </div>
             </div>
           </label>
           
@@ -128,16 +143,16 @@ export function ImageUpload({
             <button
               type="button"
               onClick={handleRemoveImage}
-              className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-1 shadow-md hover:bg-destructive/90 transition-colors"
+              className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-1.5 shadow-md hover:bg-destructive/90 transition-colors z-10"
               aria-label="Remove image"
             >
-              <X className="w-3 h-3" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
         {!minimal && (
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
             <input
                 type="file"
                 accept="image/*"
@@ -145,15 +160,14 @@ export function ImageUpload({
                 className="hidden"
                 id={uniqueId}
             />
-            <label htmlFor={uniqueId}>
-                <div className="inline-flex items-center justify-center rounded-xl font-bold tracking-wider px-4 py-2 transition-all duration-100 cursor-pointer border border-input bg-background hover:bg-accent hover:text-accent-foreground">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Image
-                </div>
+            <label htmlFor={uniqueId} className="cursor-pointer group flex flex-col gap-1 w-fit">
+                <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground group-hover:text-primary transition-colors">
+                  Upload Profile Avatar
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  Recommended: Square image, max 5MB
+                </p>
             </label>
-            <p className="text-xs text-muted-foreground mt-2">
-                Recommended: Square image, max 5MB
-            </p>
             </div>
         )}
         

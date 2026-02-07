@@ -10,6 +10,8 @@ import { NavigationLoader } from "@/components/NavigationLoader";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { Suspense } from "react";
 import { Toaster } from "@/components/ui/toast";
+import { ClientProviders } from "@/components/ClientProviders";
+import { Footer } from "@/components/Footer";
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({ subsets: ["latin"], variable: "--font-orbitron" });
@@ -26,25 +28,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={cn(inter.className, orbitron.variable, "min-h-screen bg-background font-sans antialiased")}>
-        <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem={true}
-            disableTransitionOnChange
-            themes={["light-orange", "dark-green", "dark-orange"]}
-          >
-          <ThemeInitializer />
-          <AuthProvider>
-            <Suspense fallback={null}>
-              <NavigationLoader />
-            </Suspense>
-            <Navbar />
-            <OfflineIndicator />
+      <body className={cn(inter.className, orbitron.variable, "min-h-screen bg-background font-sans antialiased flex flex-col")}>
+        <ClientProviders>
+          <Navbar />
+          <main className="flex-1">
             {children}
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
+          </main>
+          <Footer />
+        </ClientProviders>
       </body>
     </html>
   );

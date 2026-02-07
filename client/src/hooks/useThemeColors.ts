@@ -13,8 +13,10 @@ export function useThemeColors() {
 
   const isDark = mounted && theme?.includes('dark');
   const metalVariant: 'silver-dark' | 'silver' = isDark ? 'silver-dark' : 'silver';
-  const primaryColor = theme?.includes('orange') 
-    ? 'hsl(24, 95%, 53%)' 
+  
+  // Use a stable default during hydration (before mount) to match SSR
+  const primaryColor = mounted 
+    ? (theme?.includes('orange') ? 'hsl(24, 95%, 53%)' : 'hsl(142, 70%, 50%)')
     : 'hsl(142, 70%, 50%)';
 
   return {

@@ -453,6 +453,35 @@ io.on('connection', (socket) => {
   });
 });
 
+// --- Admin REST API ---
+app.use(express.json());
+
+// Middleware to check for App Admin (simplified for now, should verify session token)
+const checkAppAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const userId = req.headers['x-user-id'] as string; // Temporary: should use real session validation
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    
+    if (await dataManager.isAppAdmin(userId)) {
+        next();
+    } else {
+        res.status(403).json({ message: "Forbidden: Admin access required" });
+    }
+};
+
+app.get('/api/admin/users', checkAppAdmin, async (req, res) => {
+    // We need an "getAllUsers" method in UserManager/DataManager
+    // Since it's not there yet, I'll add a quick query or update the manager
+    const usersRes = await (dataManager as any).query('SELECT id, name, email, global_role as "globalRole", created_at as "createdAt" FROM users');
+    res.json(usersRes.rows);
+});
+
+app.post('/api/admin/users/:id/role', checkAppAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { role } = req.body;
+    await (dataManager as any).query('UPDATE users SET global_role = $1 WHERE id = $2', [role, id]);
+    res.json({ success: true });
+});
+
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

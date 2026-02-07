@@ -1,24 +1,26 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
+import { signIn, signOut, useSession } from "next-auth/react";
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  avatar?: string;
-  loginMethod: 'email' | 'google' | 'facebook';
+  image?: string;
+  globalRole: 'user' | 'admin';
+  hasPassword: boolean;
+  avatarSource?: string;
+  customImage?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  loginWithFacebook: () => Promise<void>;
-  signup: (name: string, email: string, password: string, avatar?: string) => Promise<void>;
-  signupWithGoogle: () => Promise<void>;
-  signupWithFacebook: () => Promise<void>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
@@ -26,147 +28,74 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { data: session, status, update } = useSession();
+  const isLoading = status === "loading";
+  const isAuthenticated = !!session;
+  
+  const user: User | null = session?.user ? {
+    id: (session.user as any).id,
+    name: session.user.name || "",
+    email: session.user.email || "",
+    image: session.user.image || undefined,
+    globalRole: (session.user as any).globalRole || 'user',
+    hasPassword: (session.user as any).hasPassword || false,
+    avatarSource: (session.user as any).avatarSource || undefined,
+    customImage: (session.user as any).customImage || undefined,
+  } : null;
 
-  // Load user from localStorage on mount
-  useEffect(() => {
-    const storedUser = localStorage.getItem('scorekeeper_user');
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Failed to parse stored user:', error);
-        localStorage.removeItem('scorekeeper_user');
-      }
-    }
-  }, []);
-
-  // Mock login with email/password
   const login = async (email: string, password: string): Promise<void> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Mock validation (accept any non-empty credentials)
-    if (!email || !password) {
-      throw new Error('Email and password are required');
-    }
-
-    // Check if there's a stored user with this email to simulate persistence across sessions
-    // In a real app, this would be a DB lookup
-    const storedUserStr = localStorage.getItem('scorekeeper_user');
-    let mockUser: User;
-
-    if (storedUserStr) {
-      const storedUser = JSON.parse(storedUserStr);
-      if (storedUser.email === email) {
-        mockUser = storedUser;
-      } else {
-        // New login, different user
-        mockUser = {
-          id: '1',
-          name: email.split('@')[0], // Use email prefix as name
-          email,
-          loginMethod: 'email',
-        };
-      }
-    } else {
-      mockUser = {
-        id: '1',
-        name: email.split('@')[0], // Use email prefix as name
-        email,
-        loginMethod: 'email',
-      };
-    }
-
-    setUser(mockUser);
-    setIsAuthenticated(true);
-    localStorage.setItem('scorekeeper_user', JSON.stringify(mockUser));
-  };
-
-  // Mock Google login
-  const loginWithGoogle = async (): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const mockUser: User = {
-      id: '2',
-      name: 'Google User',
-      email: 'user@gmail.com',
-      avatar: 'https://lh3.googleusercontent.com/a/default-user',
-      loginMethod: 'google',
-    };
-
-    setUser(mockUser);
-    setIsAuthenticated(true);
-    localStorage.setItem('scorekeeper_user', JSON.stringify(mockUser));
-  };
-
-  // Mock Facebook login
-  const loginWithFacebook = async (): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const mockUser: User = {
-      id: '3',
-      name: 'Facebook User',
-      email: 'user@facebook.com',
-      avatar: 'https://graph.facebook.com/v12.0/me/picture',
-      loginMethod: 'facebook',
-    };
-
-    setUser(mockUser);
-    setIsAuthenticated(true);
-    localStorage.setItem('scorekeeper_user', JSON.stringify(mockUser));
-  };
-
-  // Mock signup with email/password
-  const signup = async (name: string, email: string, password: string, avatar?: string): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    if (!name || !email || !password) {
-      throw new Error('All fields are required');
-    }
-
-    const mockUser: User = {
-      id: '4',
-      name,
+    const result = await signIn("credentials", {
+      redirect: false,
       email,
-      avatar,
-      loginMethod: 'email',
-    };
+      password,
+    });
 
-    setUser(mockUser);
-    setIsAuthenticated(true);
-    localStorage.setItem('scorekeeper_user', JSON.stringify(mockUser));
+    if (result?.error) {
+      throw new Error(result.error);
+    }
   };
 
-  // Mock signup with Google
-  const signupWithGoogle = async (): Promise<void> => {
-    await loginWithGoogle(); // Same as login for mock
+  const loginWithGoogle = async (): Promise<void> => {
+    await signIn("google", { callbackUrl: "/" });
   };
 
-  // Mock signup with Facebook
-  const signupWithFacebook = async (): Promise<void> => {
-    await loginWithFacebook(); // Same as login for mock
+  const signup = async (name: string, email: string, password: string): Promise<void> => {
+    // We need to implement a signup API route on the server
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || "Signup failed");
+    }
+
+    // After signup, log them in
+    await login(email, password);
   };
 
-  // Update profile
   const updateProfile = async (data: Partial<User>): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    if (!user) throw new Error('No user logged in');
+    if (!user) throw new Error("No user logged in");
 
-    const updatedUser = { ...user, ...data };
-    setUser(updatedUser);
-    localStorage.setItem('scorekeeper_user', JSON.stringify(updatedUser));
+    const res = await fetch("/api/user/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || "Update failed");
+    }
+
+    // Refresh session to reflect changes (e.g., name, hasPassword)
+    await update(data);
   };
 
-  // Logout
   const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('scorekeeper_user');
+    signOut();
   };
 
   return (
@@ -174,12 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated,
+        isLoading,
         login,
         loginWithGoogle,
-        loginWithFacebook,
         signup,
-        signupWithGoogle,
-        signupWithFacebook,
         logout,
         updateProfile,
       }}

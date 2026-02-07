@@ -8,10 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { Chrome, Facebook } from 'lucide-react';
+import { Chrome, Facebook, Shield } from 'lucide-react';
 
 export function LoginForm() {
-  const { login, loginWithGoogle, loginWithFacebook } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
   const { isDark, metalVariant, primaryColor } = useThemeColors();
   const [email, setEmail] = useState('');
@@ -20,8 +20,6 @@ export function LoginForm() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -29,9 +27,10 @@ export function LoginForm() {
 
     try {
       await login(email, password);
-      router.push('/teams');
+      router.push('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+       // Check if it's a NextAuth error or a string
+      setError(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {
       setIsLoading(false);
     }
@@ -42,23 +41,10 @@ export function LoginForm() {
     setIsLoading(true);
     try {
       await loginWithGoogle();
-      router.push('/teams');
+      // NextAuth handles redirection for OAuth usually, 
+      // but we wait for it to trigger.
     } catch (err) {
       setError('Google login failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleFacebookLogin = async () => {
-    setError('');
-    setIsLoading(true);
-    try {
-      await loginWithFacebook();
-      router.push('/teams');
-    } catch (err) {
-      setError('Facebook login failed');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -129,8 +115,17 @@ export function LoginForm() {
           </div>
 
           {error && (
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-              {error}
+            <div className="rounded-xl overflow-hidden border border-red-500/50 bg-red-500/10 shadow-[0_0_30px_rgba(239,68,68,0.15)] animate-in fade-in zoom-in-95 duration-300">
+              <div className="bg-red-500/20 px-4 py-2 border-b border-red-500/50 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-red-400" />
+                <span className="font-bold text-sm text-white">Sign In Failed</span>
+              </div>
+              <div className="p-4 text-[13px] leading-relaxed text-slate-100 font-medium bg-black/20">
+                {error === 'EMAIL_NOT_FOUND' && "This email isn't registered. If you used Google to sign up, please try the Google button below, or create a new account."}
+                {error === 'PASSWORD_MISMATCH' && "The password you entered is incorrect. You can reset it using the 'Forgot password?' link above."}
+                {error === 'SOCIAL_ONLY' && "You usually log in with Google. Please click the 'Continue with Google' button below to access your account."}
+                {!['EMAIL_NOT_FOUND', 'PASSWORD_MISMATCH', 'SOCIAL_ONLY'].includes(error) && error}
+              </div>
             </div>
           )}
 
@@ -157,12 +152,12 @@ export function LoginForm() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="flex justify-center">
           <button
             type="button"
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="flex items-center justify-center p-4 bg-white hover:bg-gray-50 border border-border rounded-lg transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex w-full items-center justify-center p-4 bg-white hover:bg-gray-50 border border-border rounded-lg transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-medium gap-3"
             aria-label="Sign in with Google"
           >
             <svg className="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -171,18 +166,7 @@ export function LoginForm() {
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleFacebookLogin}
-            disabled={isLoading}
-            className="flex items-center justify-center p-4 bg-[#1877F2] hover:bg-[#166FE5] border border-[#1877F2] rounded-lg transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Sign in with Facebook"
-          >
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
+            Continue with Google
           </button>
         </div>
 

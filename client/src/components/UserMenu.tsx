@@ -18,6 +18,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 export function UserMenu() {
   const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
@@ -61,36 +63,20 @@ export function UserMenu() {
     );
   }
 
-  // Get initials for avatar
-  const initials = user?.name
-    ? user.name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
-    : 'U';
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
-          className="rounded-full hover:bg-accent"
+          className="rounded-full hover:bg-accent p-0 overflow-hidden"
           aria-label="User menu"
         >
-          {user?.avatar ? (
-            <img
-              src={user.avatar}
-              alt={user.name || 'User'}
-              className="h-8 w-8 rounded-full object-cover"
-            />
-          ) : (
-            <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold">
-              {initials}
-            </div>
-          )}
+          <UserAvatar 
+            name={user?.name} 
+            image={user?.image} 
+            size="sm" 
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48 md:w-56">
