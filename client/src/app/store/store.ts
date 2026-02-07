@@ -24,6 +24,8 @@ import { socket, socketService } from "../../lib/socketService";
     // Track active subscriptions to avoid duplicates
     activeTeamSubscriptions: Set<string> = new Set();
     activeOrgSubscriptions: Set<string> = new Set();
+    activeOrgDataSubscriptions: Set<string> = new Set(); // New set for data
+    activeOrgSummarySubscriptions: Set<string> = new Set(); // New set for lightweight summaries
     activeEventSubscriptions: Set<string> = new Set();
     activeVenueSubscriptions: Set<string> = new Set();
     activeGameSubscriptions: Set<string> = new Set();
@@ -52,26 +54,27 @@ import { socket, socketService } from "../../lib/socketService";
     }
     
     // NEW: Granular Subscription Methods
-    subscribeToTeam(teamId: string) {
+    subscribeToTeamData(teamId: string) {
+        const key = `team:${teamId}`;
+        if (this.cancelUnsubscribe(key)) return;
+
         if (this.activeTeamSubscriptions.has(teamId)) return;
         
         console.log(`Store: Subscribing to team ${teamId}`);
         this.activeTeamSubscriptions.add(teamId);
         socket.emit('join_room', `team:${teamId}`);
         
+        // Fetch Team Details (in case we navigated directly)
+        socket.emit('get_data', { type: 'team', id: teamId }, (team: Team) => {
+            if (team) {
+                this.mergeTeam(team);
+                this.notifyListeners();
+            }
+        });
+
         // Fetch initial data for this team
         socket.emit('get_data', { type: 'team_members', teamId }, (data: any[]) => {
             if (data) {
-                // expecting data to be enriched memberships with person info, 
-                // OR we need to handle plain memberships and fetching persons?
-                // The server 'getTeamMembers' returns enriched objects:
-                // { ...person, roleId, membershipId, startDate, endDate }
-                
-                // We need to deconstruct this back into our normalized store structure
-                // or just store them as is?
-                // Our `getTeamMembers` getter expects normalized `teamMemberships` and `persons`.
-                
-                // Let's unpack the enriched data from server into our local store
                 data.forEach((item: any) => {
                     // Extract Person
                     const person: Person = {
@@ -98,18 +101,21 @@ import { socket, socketService } from "../../lib/socketService";
         });
     }
     
-    unsubscribeFromTeam(teamId: string) {
-        if (!this.activeTeamSubscriptions.has(teamId)) return;
-        
-        console.log(`Store: Unsubscribing from team ${teamId}`);
-        this.activeTeamSubscriptions.delete(teamId);
-        socket.emit('leave_room', `team:${teamId}`);
-        
-        // Optional: Clean up cache? 
-        // For now, we prefer to keep it in case they navigate back quickly.
+    unsubscribeFromTeamData(teamId: string) {
+        const key = `team:${teamId}`;
+        this.scheduleUnsubscribe(key, () => {
+            if (!this.activeTeamSubscriptions.has(teamId)) return;
+            
+            console.log(`Store: Unsubscribing from team ${teamId}`);
+            this.activeTeamSubscriptions.delete(teamId);
+            socket.emit('leave_room', `team:${teamId}`);
+        });
     }
 
     subscribeToOrganization(organizationId: string) {
+        const key = `org:${organizationId}:members`;
+        if (this.cancelUnsubscribe(key)) return;
+
         if (this.activeOrgSubscriptions.has(organizationId)) return;
 
         console.log(`Store: Subscribing to organization ${organizationId} members`);
@@ -135,26 +141,73 @@ import { socket, socketService } from "../../lib/socketService";
     }
 
     unsubscribeFromOrganization(organizationId: string) {
-        if (!this.activeOrgSubscriptions.has(organizationId)) return;
+        const key = `org:${organizationId}:members`;
+        this.scheduleUnsubscribe(key, () => {
+            if (!this.activeOrgSubscriptions.has(organizationId)) return;
 
-        console.log(`Store: Unsubscribing from organization ${organizationId} members`);
-        this.activeOrgSubscriptions.delete(organizationId);
-        socket.emit('leave_room', `org:${organizationId}:members`);
+            console.log(`Store: Unsubscribing from organization ${organizationId} members`);
+            this.activeOrgSubscriptions.delete(organizationId);
+            socket.emit('leave_room', `org:${organizationId}:members`);
+        });
+    }
+
+    // Subscription Timer Management
+    private unsubscribeTimers: Map<string, NodeJS.Timeout> = new Map();
+    private readonly DEBOUNCE_MS = 2 * 60 * 1000; // 2 minutes
+
+    private cancelUnsubscribe(key: string) {
+        if (this.unsubscribeTimers.has(key)) {
+            console.log(`Store: Cancelling pending unsubscribe for ${key}`);
+            clearTimeout(this.unsubscribeTimers.get(key));
+            this.unsubscribeTimers.delete(key);
+            return true;
+        }
+        return false;
+    }
+
+    private scheduleUnsubscribe(key: string, callback: () => void) {
+        // Clear existing if any (refresh timer)
+        this.cancelUnsubscribe(key);
+        
+        console.log(`Store: Scheduling unsubscribe for ${key} in ${this.DEBOUNCE_MS/1000}s`);
+        const timer = setTimeout(() => {
+            console.log(`Store: Executing unsubscribe for ${key}`);
+            callback();
+            this.unsubscribeTimers.delete(key);
+        }, this.DEBOUNCE_MS);
+        
+        this.unsubscribeTimers.set(key, timer);
     }
 
     subscribeToOrganizationData(organizationId: string) {
         if (!organizationId) return;
-        // Check if we are already subscribed to this org's data rooms? 
-        // We track members separately. Let's assume we can track generic org data too or reuse a set.
-        // For simplicity, we'll emit every time as safe-guard, or add a new set if needed. 
-        // But activeOrgSubscriptions is for MEMBERS. Let's just emit join_room.
-        // The server handles duplicate joins gracefully usually.
         
+        const key = `org:${organizationId}:data`;
+        
+        // If we were about to unsubscribe, just cancel it and we are done.
+        // We are already subscribed and data is in store.
+        if (this.cancelUnsubscribe(key)) {
+             return;
+        }
+
+        // Sentinel check: If we are already subscribed (and no timer was running), do nothing.
+        // We need a way to track "data" subscription specifically if it differs from other sets.
+        // We reused activeOrgSubscriptions for members? No, activeOrgSubscriptions is for MEMBERS.
+        // Let's rely on checking the socket rooms? No, store doesn't know.
+        // Let's add a set for data.
+        if (this.activeOrgDataSubscriptions.has(organizationId)) return;
+
         console.log(`Store: Subscribing to organization ${organizationId} data (teams/venues)`);
+        this.activeOrgDataSubscriptions.add(organizationId);
+        
         socket.emit('join_room', `org:${organizationId}:teams`);
         socket.emit('join_room', `org:${organizationId}:venues`);
+        socket.emit('join_room', `org:${organizationId}:events`);
 
-        // Also fetch latest to be sure
+        // Ensure we have the organization details themselves
+        this.fetchOrganization(organizationId);
+
+        // Fetch latest
         socket.emit('get_data', { type: 'teams', organizationId }, (data: Team[]) => {
             if(data) {
                 data.forEach(t => this.mergeTeam(t));
@@ -167,13 +220,63 @@ import { socket, socketService } from "../../lib/socketService";
                 this.notifyListeners();
             }
         });
+        socket.emit('get_data', { type: 'events', organizationId }, (data: Event[]) => {
+            if(data) {
+                data.forEach(e => this.mergeEvent(e));
+                this.notifyListeners();
+            }
+        });
+        socket.emit('get_data', { type: 'games', organizationId }, (data: Game[]) => {
+            if(data) {
+                data.forEach(g => this.mergeGame(g));
+                this.notifyListeners();
+            }
+        });
     }
 
     unsubscribeFromOrganizationData(organizationId: string) {
         if (!organizationId) return;
-        console.log(`Store: Unsubscribing from organization ${organizationId} data`);
-        socket.emit('leave_room', `org:${organizationId}:teams`);
-        socket.emit('leave_room', `org:${organizationId}:venues`);
+        const key = `org:${organizationId}:data`;
+
+        this.scheduleUnsubscribe(key, () => {
+            if (!this.activeOrgDataSubscriptions.has(organizationId)) return;
+
+            console.log(`Store: Unsubscribing from organization ${organizationId} data`);
+            this.activeOrgDataSubscriptions.delete(organizationId);
+            socket.emit('leave_room', `org:${organizationId}:teams`);
+            socket.emit('leave_room', `org:${organizationId}:venues`);
+            socket.emit('leave_room', `org:${organizationId}:events`);
+        });
+    }
+
+    subscribeToOrganizationSummary(organizationId: string) {
+        if (!organizationId) return;
+        
+        const key = `org:${organizationId}:summary`;
+        if (this.cancelUnsubscribe(key)) return;
+
+        if (this.activeOrgSummarySubscriptions.has(organizationId)) return;
+
+        console.log(`Store: Subscribing to organization ${organizationId} summary (lightweight)`);
+        this.activeOrgSummarySubscriptions.add(organizationId);
+        
+        socket.emit('join_room', `org:${organizationId}:summary`);
+
+        // Fetch just the organization metadata initially
+        this.fetchOrganization(organizationId);
+    }
+
+    unsubscribeFromOrganizationSummary(organizationId: string) {
+        if (!organizationId) return;
+        const key = `org:${organizationId}:summary`;
+
+        this.scheduleUnsubscribe(key, () => {
+            if (!this.activeOrgSummarySubscriptions.has(organizationId)) return;
+
+            console.log(`Store: Unsubscribing from organization ${organizationId} summary`);
+            this.activeOrgSummarySubscriptions.delete(organizationId);
+            socket.emit('leave_room', `org:${organizationId}:summary`);
+        });
     }
 
     subscribeToVenue(venueId: string) {
@@ -212,6 +315,40 @@ import { socket, socketService } from "../../lib/socketService";
         socket.emit('leave_room', `game:${gameId}`);
     }
 
+    subscribeToGlobalGames() {
+        const key = 'global:games';
+        if (this.cancelUnsubscribe(key)) return;
+        
+        console.log("Store: Subscribing to GLOBAL games");
+        socket.emit('subscribe', 'games'); // Server broadcasts ADD_GAME to 'games'
+        
+        // Fetch all games
+        socket.emit('get_data', { type: 'games' }, (data: Game[]) => { 
+            if(data) {
+                this.games = data; // Replace or merge? Replace is safer for global view
+                data.forEach(g => this.mergeGame(g));
+                this.notifyListeners();
+            }
+        });
+        
+        // Also ensure we have teams for names
+        if (this.teams.length === 0) {
+             socket.emit('get_data', { type: 'teams' }, (data: Team[]) => {
+                 if (data) {
+                     data.forEach(t => this.mergeTeam(t)); 
+                 }
+             });
+        }
+    }
+
+    unsubscribeFromGlobalGames() {
+        const key = 'global:games';
+        this.scheduleUnsubscribe(key, () => {
+             console.log("Store: Unsubscribing from GLOBAL games");
+             socket.emit('unsubscribe', 'games');
+        });
+    }
+
 
     private setupListeners() {
         const onConnect = () => {
@@ -230,6 +367,12 @@ import { socket, socketService } from "../../lib/socketService";
             // Re-subscribe to active entities if re-connecting
             this.activeTeamSubscriptions.forEach(id => socket.emit('join_room', `team:${id}`));
             this.activeOrgSubscriptions.forEach(id => socket.emit('join_room', `org:${id}:members`));
+            this.activeOrgDataSubscriptions.forEach(id => {
+                socket.emit('join_room', `org:${id}:teams`);
+                socket.emit('join_room', `org:${id}:venues`);
+                socket.emit('join_room', `org:${id}:events`);
+            });
+            this.activeOrgSummarySubscriptions.forEach(id => socket.emit('join_room', `org:${id}:summary`));
             this.activeEventSubscriptions.forEach(id => socket.emit('join_room', `event:${id}`));
             this.activeVenueSubscriptions.forEach(id => socket.emit('join_room', `venue:${id}`));
             this.activeGameSubscriptions.forEach(id => socket.emit('join_room', `game:${id}`));
@@ -285,14 +428,8 @@ import { socket, socketService } from "../../lib/socketService";
             if(data) {
                 this.organizations = data;
                 
-                // Subscribe to each organization's team and venue rooms
-                this.organizations.forEach(org => {
-                    console.log(`Store: Subscribing to org ${org.id} channels`);
-                    socket.emit('join_room', `org:${org.id}:teams`);
-                    socket.emit('join_room', `org:${org.id}:venues`);
-                    socket.emit('join_room', `org:${org.id}:events`);
-                });
-
+                // Removed global subscription to organization sub-channels for performance
+                // Subscriptions are now handled on-demand by the respective pages
                 this.loaded = true;
                 this.notifyListeners();
             }
@@ -431,7 +568,7 @@ import { socket, socketService } from "../../lib/socketService";
         if (index > -1) this.teams[index] = team;
         else this.teams.push(team);
 
-        this.subscribeToTeam(team.id);
+        this.subscribeToTeamData(team.id);
         this.notifyListeners();
     }
     
@@ -451,8 +588,10 @@ import { socket, socketService } from "../../lib/socketService";
         
         // Discover teams if unknown
         if (!this.getTeam(game.homeTeamId)) {
-            // Team might be foreign, we'll fetch its org if needed but teams are usually in org rooms
-            // Actually, with granular rooms, we don't need to join the org room to get updates.
+            this.fetchTeam(game.homeTeamId);
+        }
+        if (!this.getTeam(game.awayTeamId)) {
+            this.fetchTeam(game.awayTeamId);
         }
     }
     private mergePerson(person: Person) {
@@ -598,6 +737,7 @@ import { socket, socketService } from "../../lib/socketService";
          return new Promise<Venue>((resolve, reject) => {
              socket.emit('action', { type: 'ADD_VENUE', payload: venue }, (response: any) => {
                  if (response.status === 'ok') {
+                     this.mergeVenue(response.data);
                      resolve(response.data);
                  } else {
                      reject(new Error(response.message || 'Failed to add venue'));
@@ -610,6 +750,7 @@ import { socket, socketService } from "../../lib/socketService";
         return new Promise<Game>((resolve, reject) => {
             socket.emit('action', { type: 'ADD_GAME', payload: game }, (response: any) => {
                 if (response.status === 'ok') {
+                    this.mergeGame(response.data);
                     resolve(response.data);
                 } else {
                     reject(new Error(response.message || 'Failed to add game'));
@@ -654,6 +795,7 @@ import { socket, socketService } from "../../lib/socketService";
         return new Promise<Person>((resolve, reject) => {
             socket.emit('action', { type: 'ADD_PERSON', payload: person }, (response: any) => {
                 if (response.status === 'ok') {
+                    this.mergePerson(response.data);
                     resolve(response.data);
                 } else {
                     reject(new Error(response.message || 'Failed to add person'));
@@ -870,6 +1012,7 @@ import { socket, socketService } from "../../lib/socketService";
         return new Promise<Event>((resolve, reject) => {
             socket.emit('action', { type: 'ADD_EVENT', payload: event }, (response: any) => {
                 if (response.status === 'ok') {
+                    this.mergeEvent(response.data);
                     resolve(response.data);
                 } else {
                     reject(new Error(response.message || 'Failed to add event'));
@@ -971,6 +1114,18 @@ import { socket, socketService } from "../../lib/socketService";
     fetchEvent(id: string) {
         socket.emit('get_data', { type: 'event', id }, (data: Event) => {
             if (data) this.mergeEvent(data);
+        });
+    }
+
+    fetchTeam(id: string) {
+        socket.emit('get_data', { type: 'team', id }, (data: Team) => {
+            if (data) {
+                this.mergeTeam(data);
+                // Also ensure we have the org for this team
+                if (!this.getOrganization(data.organizationId)) {
+                    this.fetchOrganization(data.organizationId);
+                }
+            }
         });
     }
 }

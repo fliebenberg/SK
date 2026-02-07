@@ -13,7 +13,7 @@ export default function PlayersPage() {
   const [players, setPlayers] = useState<any[]>([]);
 
   useEffect(() => {
-    store.subscribeToTeam(teamId);
+    store.subscribeToTeamData(teamId);
 
     const updatePlayers = () => {
         const members = store.getTeamMembers(teamId);
@@ -25,7 +25,7 @@ export default function PlayersPage() {
     const unsubscribe = store.subscribe(updatePlayers);
     return () => {
         unsubscribe();
-        store.unsubscribeFromTeam(teamId);
+        store.unsubscribeFromTeamData(teamId);
     };
   }, [teamId]);
 

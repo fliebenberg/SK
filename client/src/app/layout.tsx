@@ -7,7 +7,9 @@ import { ThemeInitializer } from "@/components/theme-initializer";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { NavigationLoader } from "@/components/NavigationLoader";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { Suspense } from "react";
+import { Toaster } from "@/components/ui/toast";
 
 const inter = Inter({ subsets: ["latin"] });
 const orbitron = Orbitron({ subsets: ["latin"], variable: "--font-orbitron" });
@@ -38,7 +40,9 @@ export default function RootLayout({
               <NavigationLoader />
             </Suspense>
             <Navbar />
+            <OfflineIndicator />
             {children}
+            <Toaster />
           </AuthProvider>
         </ThemeProvider>
       </body>

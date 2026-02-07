@@ -14,9 +14,9 @@ export default function TeamDetailPage() {
   const params = useParams();
   const id = params.id as string;
   
-  const [team, setTeam] = useState<Team | undefined>(() => store.getTeam(id));
-  const [roster, setRoster] = useState<(Person & { roleId: string; roleName?: string; membershipId: string })[]>(() => store.getTeamMembers(id));
-  const [loading, setLoading] = useState(!store.getTeam(id));
+  const [team, setTeam] = useState<Team | undefined>(undefined);
+  const [roster, setRoster] = useState<(Person & { roleId: string; roleName?: string; membershipId: string })[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const update = () => {
@@ -29,8 +29,12 @@ export default function TeamDetailPage() {
     };
     
     update();
+    store.subscribeToTeamData(id);
     const unsubscribe = store.subscribe(update);
-    return () => unsubscribe();
+    return () => {
+        unsubscribe();
+        store.unsubscribeFromTeamData(id);
+    };
   }, [id]);
   
   if (loading) return <div className="p-8">Loading...</div>;

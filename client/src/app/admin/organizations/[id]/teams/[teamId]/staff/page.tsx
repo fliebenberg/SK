@@ -55,7 +55,7 @@ export default function TeamStaffPage() {
     const teamId = params.teamId as string;
     
     // Subscribe to this specific team's data room
-    store.subscribeToTeam(teamId);
+    store.subscribeToTeamData(teamId);
 
     const update = () => {
         const data = store.getTeamMembers(teamId).filter(p => p.roleId === 'role-coach' || p.roleId === 'role-staff');
@@ -73,7 +73,7 @@ export default function TeamStaffPage() {
     
     return () => {
         unsubscribe();
-        store.unsubscribeFromTeam(teamId);
+        store.unsubscribeFromTeamData(teamId);
     };
   }, [params.teamId]);
 

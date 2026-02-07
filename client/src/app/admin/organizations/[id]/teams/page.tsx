@@ -58,6 +58,8 @@ export default function TeamManagementPage() {
     };
 
     updateData();
+    store.subscribeToOrganization(id); // For members
+    store.subscribeToOrganizationData(id); // For teams/venues
     const unsubscribe = store.subscribe(updateData);
     return () => unsubscribe();
   }, [id]);

@@ -8,6 +8,8 @@ export default function TeamEventsPage() {
   const id = params.id as string;
   const teamId = params.teamId as string;
 
+  if (!teamId) return null;
+
   return (
     <div className="p-6">
       <EventList organizationId={id} teamId={teamId} />

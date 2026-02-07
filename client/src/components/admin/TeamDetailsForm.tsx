@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { toast } from "@/hooks/use-toast";
 // import { TeamPlayersList } from "./TeamPlayersList"; // Not needed here anymore
 // NOTE: We should eventually move updateTeam to a Server Action too, but for now store updates might be tricky if we mix client/server stores. 
 // Ideally we move ALL writes to Server Actions.
@@ -120,7 +121,11 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
         router.push(`/admin/organizations/${organization.id}/teams`);
     } catch (error: any) {
         console.error("Failed to delete team:", error);
-        alert(error.message || "Failed to delete team");
+        toast({
+            title: "Error",
+            description: error.message || "Failed to delete team",
+            variant: "destructive"
+        });
     }
   };
 

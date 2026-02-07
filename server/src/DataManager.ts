@@ -19,14 +19,56 @@ export class DataManager {
     console.log("DataManager initialized (Database Mode)");
   }
 
+  // Caching
+  private organizationCache: Organization[] | null = null;
+  private lastCacheUpdate: number = 0;
+
   getOrganizations = async (): Promise<Organization[]> => {
-    const res = await query('SELECT id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds" FROM organizations');
+    // Simple caching: If we have a cache and it's less than 30 seconds old, return it.
+    // Or better: Invalidate on write.
+    if (this.organizationCache) {
+        return this.organizationCache;
+    }
+
+    const res = await query(`
+      SELECT 
+        o.id, 
+        o.name, 
+        o.logo, 
+        o.primary_color as "primaryColor", 
+        o.secondary_color as "secondaryColor", 
+        o.supported_sport_ids as "supportedSportIds", 
+        o.short_name as "shortName", 
+        o.supported_role_ids as "supportedRoleIds",
+        (SELECT COUNT(*)::int FROM teams t WHERE t.organization_id = o.id) as "teamCount",
+        (SELECT COUNT(*)::int FROM venues v WHERE v.organization_id = o.id) as "venueCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.organization_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
+        (SELECT COUNT(*)::int FROM organization_memberships om WHERE om.organization_id = o.id) as "memberCount"
+      FROM organizations o
+    `);
+    
+    this.organizationCache = res.rows;
     return res.rows;
   };
 
   getOrganization = async (id?: string): Promise<Organization | undefined> => {
     if (!id) return undefined;
-    const res = await query('SELECT id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds" FROM organizations WHERE id = $1', [id]);
+    const res = await query(`
+      SELECT 
+        o.id, 
+        o.name, 
+        o.logo, 
+        o.primary_color as "primaryColor", 
+        o.secondary_color as "secondaryColor", 
+        o.supported_sport_ids as "supportedSportIds", 
+        o.short_name as "shortName", 
+        o.supported_role_ids as "supportedRoleIds",
+        (SELECT COUNT(*)::int FROM teams t WHERE t.organization_id = o.id) as "teamCount",
+        (SELECT COUNT(*)::int FROM venues v WHERE v.organization_id = o.id) as "venueCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.organization_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount"
+      FROM organizations o
+      WHERE o.id = $1
+    `, [id]);
     return res.rows[0];
   };
 
@@ -41,6 +83,7 @@ export class DataManager {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds"`,
       [id, org.name, org.logo, org.primaryColor, org.secondaryColor, supportedSportIds, org.shortName, supportedRoleIds]
     );
+    this.organizationCache = null; // Invalidate cache
     return res.rows[0];
   };
 
@@ -82,6 +125,7 @@ export class DataManager {
         `UPDATE organizations SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds"`,
         values
     );
+    this.organizationCache = null; // Invalidate cache
     return res.rows[0] || null;
   };
 
@@ -157,6 +201,7 @@ export class DataManager {
          RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive"`,
          [id, team.name, team.ageGroup, team.sportId, team.organizationId, true]
     );
+    this.organizationCache = null;
     return res.rows[0];
   };
 
@@ -206,6 +251,7 @@ export class DataManager {
          RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
          [finalId, personId, organizationId, roleId]
     );
+    this.organizationCache = null;
     return res.rows[0];
   };
 
@@ -271,6 +317,7 @@ export class DataManager {
         values
     );
     if (!res.rows[0]) return null;
+    this.organizationCache = null;
     return this.enrichTeam(res.rows[0]);
   };
 
@@ -285,7 +332,8 @@ export class DataManager {
      if (!team) return null;
 
      await query('DELETE FROM teams WHERE id = $1', [id]);
-     return team;
+     this.organizationCache = null;
+    return team;
   };
   
   updateTeamMember = async (id: string, data: Partial<TeamMembership>): Promise<TeamMembership | null> => {
@@ -328,6 +376,7 @@ export class DataManager {
           `UPDATE organization_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
           [membershipId]
       );
+      this.organizationCache = null;
       return res.rows[0] || null;
   };
 
@@ -335,8 +384,9 @@ export class DataManager {
       const res = await query(
           `UPDATE organization_memberships SET role_id = $1 WHERE id = $2 RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
           [roleId, membershipId]
-      );
-      return res.rows[0] || null;
+    );
+    this.organizationCache = null;
+    return res.rows[0] || null;
   };
 
   updatePerson = async (id: string, data: Partial<Person>): Promise<Person | null> => {
@@ -369,6 +419,7 @@ export class DataManager {
          RETURNING id, name, type, start_date as "startDate", end_date as "endDate", venue_id as "venueId", organization_id as "organizationId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status`,
          [id, event.name, event.type, event.startDate, event.endDate, event.venueId, event.organizationId, event.participatingOrgIds, event.sportIds, JSON.stringify(event.settings), event.status]
     );
+    this.organizationCache = null;
     return res.rows[0];
   };
 
@@ -398,8 +449,9 @@ export class DataManager {
      const res = await query(
          `UPDATE events SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, type, start_date as "startDate", end_date as "endDate", venue_id as "venueId", organization_id as "organizationId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status`,
          values
-     );
-     return res.rows[0] || null;
+    );
+    this.organizationCache = null;
+    return res.rows[0] || null;
   };
 
   deleteEvent = async (id: string): Promise<Event | null> => {
@@ -409,6 +461,7 @@ export class DataManager {
     // Cascade delete games (or define in DB schema cascade? Logic in DataManager said yes)
     await query('DELETE FROM games WHERE event_id = $1', [id]);
     await query('DELETE FROM events WHERE id = $1', [id]);
+    this.organizationCache = null;
     return event;
   };
 
@@ -465,8 +518,9 @@ export class DataManager {
           `INSERT INTO venues (id, name, address, organization_id)
            VALUES ($1, $2, $3, $4)
            RETURNING id, name, address, organization_id as "organizationId"`,
-           [id, venue.name, venue.address, venue.organizationId]
+            [id, venue.name, venue.address, venue.organizationId]
       );
+      this.organizationCache = null;
       return res.rows[0];
   };
   
@@ -488,7 +542,8 @@ export class DataManager {
       const venue = { ...venueRaw.rows[0], organizationId: venueRaw.rows[0].organization_id };
       
       await query('DELETE FROM venues WHERE id = $1', [id]);
-      return venue;
+      this.organizationCache = null;
+    return venue;
   };
 
   updateGameStatus = async (id: string, status: Game['status']): Promise<Game | null> => {

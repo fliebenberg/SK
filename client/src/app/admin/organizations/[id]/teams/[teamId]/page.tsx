@@ -12,9 +12,9 @@ export default function TeamDetailsPage() {
   const id = params.id as string;
   const teamId = params.teamId as string;
   
-  const [team, setTeam] = useState<Team | undefined>(() => store.getTeam(teamId));
-  const [org, setOrg] = useState<Organization | undefined>(() => store.getOrganization(id));
-  const [loading, setLoading] = useState(!store.getTeam(teamId));
+  const [team, setTeam] = useState<Team | undefined>(undefined);
+  const [org, setOrg] = useState<Organization | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const updateData = () => {
@@ -35,8 +35,12 @@ export default function TeamDetailsPage() {
     };
 
     updateData();
+    store.subscribeToTeamData(teamId);
     const unsubscribe = store.subscribe(updateData);
-    return () => unsubscribe();
+    return () => {
+        unsubscribe();
+        store.unsubscribeFromTeamData(teamId);
+    };
   }, [id, teamId]);
 
   if (loading) {

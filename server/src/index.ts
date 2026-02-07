@@ -42,6 +42,9 @@ io.on('connection', (socket) => {
           case 'teams':
               callback(await dataManager.getTeams(organizationId));
               break;
+          case 'team':
+              callback(await dataManager.getTeam(id) || await dataManager.getTeam(teamId));
+              break;
           case 'venues':
               callback(await dataManager.getVenues(organizationId));
               break;
@@ -124,6 +127,24 @@ io.on('connection', (socket) => {
     // Some actions might need multiple broadcasts (e.g. to team room AND global list)
     let additionalBroadcasts: { topic: string, type: string, data: any }[] = [];
 
+    const broadcastOrgSummaries = async (orgIds: (string | undefined)[]) => {
+        const uniqueOrgIds = [...new Set(orgIds.filter((id): id is string => !!id))];
+        console.log(`Server: Requesting summary broadcast for orgs: ${uniqueOrgIds.join(', ')}`);
+        for (const orgId of uniqueOrgIds) {
+            const updatedOrg = await dataManager.getOrganization(orgId);
+            if (updatedOrg) {
+                // Emit to the specific organization summary room (for dashboards)
+                const room = `org:${orgId}:summary`;
+                io.to(room).emit('update', { type: 'ORGANIZATIONS_UPDATED', data: updatedOrg });
+                // Also emit to the global organizations list room (for admin overview)
+                io.to('organizations').emit('update', { type: 'ORGANIZATIONS_UPDATED', data: updatedOrg });
+                console.log(`Server: Broadcasted ORGANIZATIONS_UPDATED for ${orgId} to ${room} and global`);
+            } else {
+                console.warn(`Server: Could not find organization ${orgId} for summary broadcast`);
+            }
+        }
+    };
+
     try {
         switch(action.type) {
             case 'ADD_TEAM':
@@ -131,6 +152,7 @@ io.on('connection', (socket) => {
                 if (result) {
                     additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_ADDED', data: result });
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_ADDED', data: result });
+                    await broadcastOrgSummaries([result.organizationId]);
                 }
                 break;
             case 'UPDATE_TEAM':
@@ -147,6 +169,7 @@ io.on('connection', (socket) => {
                 if (result) {
                     additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_ADDED', data: result });
                     additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_ADDED', data: result });
+                    await broadcastOrgSummaries([result.organizationId]);
                 }
                 break;
             case 'UPDATE_VENUE':
@@ -165,6 +188,7 @@ io.on('connection', (socket) => {
                      additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_DELETED', data: { id: result.id } });
                      // Notify Venue Room
                      additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_DELETED', data: { id: result.id } });
+                     await broadcastOrgSummaries([result.organizationId]);
                 }
                 break;
             // ... (Games omitted for brevity, keeping as is)
@@ -194,6 +218,14 @@ io.on('connection', (socket) => {
                 if (result) {
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAMES_UPDATED', data: result });
                     additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAMES_UPDATED', data: result });
+                    
+                    const parentEvent = await dataManager.getEvent(result.eventId);
+                    if (parentEvent) {
+                        const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                        orgIds.forEach(orgId => {
+                            additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
+                        });
+                    }
                 }
                 break;
              case 'UPDATE_SCORE':
@@ -201,6 +233,14 @@ io.on('connection', (socket) => {
                 if (result) {
                      additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAMES_UPDATED', data: result });
                      additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAMES_UPDATED', data: result });
+
+                     const parentEvent = await dataManager.getEvent(result.eventId);
+                     if (parentEvent) {
+                         const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                         orgIds.forEach(orgId => {
+                             additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
+                         });
+                     }
                 }
                 break;
              case 'UPDATE_GAME':
@@ -242,6 +282,9 @@ io.on('connection', (socket) => {
 
                 const richMember = (await dataManager.getTeamMembers(result.teamId)).find((m: any) => m.membershipId === result.id);
                 if (richMember) result = richMember;
+                if (teamForAdd) {
+                    await broadcastOrgSummaries([teamForAdd.organizationId]);
+                }
                 break;
              case 'REMOVE_TEAM_MEMBER':
                 result = await dataManager.removeTeamMember(action.payload.id); 
@@ -257,6 +300,7 @@ io.on('connection', (socket) => {
                              type: 'TEAM_UPDATED', 
                              data: { ...teamForRem } 
                          });
+                         await broadcastOrgSummaries([teamForRem.organizationId]);
                     }
                 }
                 break;
@@ -267,6 +311,7 @@ io.on('connection', (socket) => {
                     additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_DELETED', data: { id: result.id } });
                     // Notify team room (optional, maybe force leave?)
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_DELETED', data: { id: result.id } });
+                    await broadcastOrgSummaries([result.organizationId]);
                 }
                 break;
              case 'UPDATE_TEAM_MEMBER':
@@ -291,6 +336,7 @@ io.on('connection', (socket) => {
                     
                     updateTopic = `org:${action.payload.organizationId}:members`;
                     updateType = 'ORG_MEMBERS_UPDATED';
+                    await broadcastOrgSummaries([action.payload.organizationId]);
                 }
                 break;
              case 'REMOVE_ORG_MEMBER':
@@ -299,6 +345,7 @@ io.on('connection', (socket) => {
                 if (result) {
                     updateTopic = `org:${result.organizationId}:members`;
                     updateType = 'ORG_MEMBERS_UPDATED';
+                    await broadcastOrgSummaries([result.organizationId]);
                 }
                 break;
              case 'UPDATE_ORG_MEMBER':
@@ -327,20 +374,35 @@ io.on('connection', (socket) => {
             case 'ADD_EVENT':
                 result = await dataManager.addEvent(action.payload);
                 if (result) {
+                    console.log("Server: Event Added, processing broadcasts. Participating:", result.participatingOrgIds);
                     const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
                     orgIds.forEach(orgId => {
                         additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_ADDED', data: result });
                     });
                     additionalBroadcasts.push({ topic: `event:${result.id}`, type: 'EVENT_ADDED', data: result });
+                    await broadcastOrgSummaries([result.organizationId, ...(result.participatingOrgIds || [])]);
                 }
                 break;
             case 'UPDATE_EVENT':
+                // Fetch current event to know who might be removed
+                const oldEvent = await dataManager.getEvent(action.payload.id);
                 result = await dataManager.updateEvent(action.payload.id, action.payload.data);
                 if (result) {
-                    const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
-                    orgIds.forEach(orgId => {
+                    const oldOrgIds = oldEvent ? [oldEvent.organizationId, ...(oldEvent.participatingOrgIds || [])] : [];
+                    const newOrgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    const allAffectedOrgs = [...new Set([...oldOrgIds, ...newOrgIds])];
+
+                    newOrgIds.forEach(orgId => {
                         additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_UPDATED', data: result });
                     });
+                    
+                    // Also notify removed orgs that the event is gone for them
+                    const removedOrgs = oldOrgIds.filter(id => !newOrgIds.includes(id));
+                    removedOrgs.forEach(orgId => {
+                        additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_DELETED', data: { id: result.id } });
+                    });
+
+                    await broadcastOrgSummaries(allAffectedOrgs);
                 }
                 break;
             case 'DELETE_EVENT':
@@ -350,6 +412,7 @@ io.on('connection', (socket) => {
                     orgIds.forEach(orgId => {
                         additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_DELETED', data: { id: result.id } });
                     });
+                    await broadcastOrgSummaries([result.organizationId, ...(result.participatingOrgIds || [])]);
                 }
                 break;
              case 'UPDATE_PERSON':

@@ -7,6 +7,7 @@ import { MetalButton } from '@/components/ui/MetalButton';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Upload, X, Check, Image as ImageIcon, Pencil } from 'lucide-react';
+import { cn, getOrgInitialsFontSize } from '@/lib/utils';
 
 import { useThemeColors } from '@/hooks/useThemeColors';
 
@@ -101,7 +102,12 @@ export function ImageUpload({
                 <img src={preview} alt="Profile preview" className="w-full h-full object-cover" />
                 ) : (
                   initials ? (
-                    <span className="font-bold select-none text-2xl" style={{ fontSize: minimal ? '2.5rem' : '1.5rem' }}>{initials}</span>
+                    <span className={cn(
+                      "font-bold select-none leading-none",
+                      getOrgInitialsFontSize(initials, minimal ? 'xl' : 'lg')
+                    )}>
+                      {initials}
+                    </span>
                   ) : (
                     <ImageIcon className={`${minimal ? "w-1/2 h-1/2" : "w-8 h-8"}`} style={{ opacity: placeholderSecondary ? 0.8 : 0.5 }} />
                   )

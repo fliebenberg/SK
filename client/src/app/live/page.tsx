@@ -18,8 +18,15 @@ export default function LivePage() {
     const update = () => {
         setGames([...store.getGames()]);
     };
+    
+    update(); // Initial sync
+    store.subscribeToGlobalGames();
     const unsubscribe = store.subscribe(update);
-    return () => unsubscribe();
+    
+    return () => {
+        unsubscribe();
+        store.unsubscribeFromGlobalGames();
+    };
   }, []);
 
   const getTeamName = (id: string) => store.getTeams().find(t => t.id === id)?.name || "Unknown";

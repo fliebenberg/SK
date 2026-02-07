@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { store } from "@/app/store/store";
 import { cn } from "@/lib/utils";
-import { Event, Game, Organization, Team } from "@sk/types";
+import { Event, Game, Organization, Team, Sport } from "@sk/types";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, List, MapPin as MapPinIcon, Trophy, Trophy as TrophyIcon, X, Loader2, Check, Settings as SettingsIcon, ArrowLeft, Clock, MapPin, Calendar, ChevronLeft, Pencil } from "lucide-react";
+import { LayoutGrid, List, MapPin as MapPinIcon, Trophy, Trophy as TrophyIcon, X, Loader2, Check, Settings as SettingsIcon, ArrowLeft, Clock, MapPin, Calendar, ChevronLeft, Pencil, Search } from "lucide-react";
 import { 
   Select, 
   SelectContent, 
@@ -20,12 +20,17 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { GenericAutocomplete } from "@/components/ui/GenericAutocomplete";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { GameDialog } from "@/components/admin/games/GameDialog";
+import { OrgLogo } from "@/components/ui/OrgLogo";
+import { MatchCard } from "@/components/ui/MatchCard";
+import { getOrgInitialsFontSize, isPlaceholderLogo, getContrastColor } from "@/lib/utils";
+
 import { MetalCard } from "@/components/ui/metal-card";
 import { Badge } from "@/components/ui/badge";
 import { format, startOfDay, isBefore } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MatchForm, MatchFormData } from "@/components/admin/games/MatchForm";
+import { toast } from "@/hooks/use-toast";
+import { OrgCreationDialog } from "@/components/admin/organizations/OrgCreationDialog";
 
 export default function EventDetailsPage() {
   const params = useParams();
@@ -35,7 +40,7 @@ export default function EventDetailsPage() {
   const router = useRouter();
   const { metalVariant } = useThemeColors();
 
-  const [event, setEvent] = useState<Event | undefined>(store.getEvent(eventId));
+  const [event, setEvent] = useState<Event | undefined>(undefined);
   const [games, setGames] = useState<Game[]>([]);
   const [venueName, setVenueName] = useState("");
   
@@ -57,10 +62,12 @@ export default function EventDetailsPage() {
   const [orgSearch, setOrgSearch] = useState("");
 
   const [matchFormData, setMatchFormData] = useState<MatchFormData | null>(null);
+  const [orgDialogOpen, setOrgDialogOpen] = useState(false);
+  const [pendingOrgName, setPendingOrgName] = useState("");
 
-  const [venues, setVenues] = useState(store.getVenues(organizationId));
-  const [allSports, setAllSports] = useState(store.getSports());
-  const [allOrgs, setAllOrgs] = useState(store.getOrganizations());
+  const [venues, setVenues] = useState<any[]>([]);
+  const [allSports, setAllSports] = useState<Sport[]>([]);
+  const [allOrgs, setAllOrgs] = useState<Organization[]>([]);
 
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
   const [confirmCancel, setConfirmCancel] = useState({ isOpen: false });
@@ -171,7 +178,14 @@ export default function EventDetailsPage() {
   }
 
   const getTeamName = (id: string, name?: string) => {
-      if (teamMap[id]) return teamMap[id];
+      const team = store.getTeam(id);
+      if (team) {
+          const org = store.getOrganization(team.organizationId);
+          if (org?.shortName) {
+              return `${org.shortName} ${team.name}`;
+          }
+          return team.name;
+      }
       return name || "Unknown Team";
   };
 
@@ -181,13 +195,21 @@ export default function EventDetailsPage() {
     setLoading(true);
     try {
         if (!editName.trim()) {
-             alert("Event name is required");
+             toast({
+                 title: "Validation Error",
+                 description: "Event name is required",
+                 variant: "warning"
+             });
              setLoading(false);
              return;
         }
 
         if (isMultiDay && editEndDate < editStartDate) {
-            alert("End Date cannot be before Start Date");
+            toast({
+                title: "Validation Error",
+                description: "End Date cannot be before Start Date",
+                variant: "warning"
+            });
             setLoading(false);
             return;
         }
@@ -214,7 +236,7 @@ export default function EventDetailsPage() {
             await store.updateGame(games[0].id, {
                 homeTeamId: matchFormData.homeTeamId,
                 awayTeamId: matchFormData.awayTeamId,
-                startTime: matchFormData.isTbd ? "" : matchFormData.startTime,
+                startTime: matchFormData.isTbd ? "" : `${(event.startDate || event.date || "").split('T')[0]}T${matchFormData.startTime}:00`,
                 venueId: matchFormData.venueId
             });
         }
@@ -223,7 +245,11 @@ export default function EventDetailsPage() {
         setActiveTab("schedule");
     } catch (err) {
         console.error(err);
-        alert("Failed to update event");
+        toast({
+            title: "Error",
+            description: "Failed to update event",
+            variant: "destructive"
+        });
     } finally {
         setLoading(false);
     }
@@ -237,7 +263,11 @@ export default function EventDetailsPage() {
         router.push(`/admin/organizations/${organizationId}/events`);
     } catch (err) {
         console.error(err);
-        alert("Failed to delete event");
+        toast({
+            title: "Error",
+            description: "Failed to delete event",
+            variant: "destructive"
+        });
         setLoading(false);
     }
   };
@@ -253,7 +283,11 @@ export default function EventDetailsPage() {
         }
     } catch (err) {
         console.error(err);
-        alert("Failed to cancel event");
+        toast({
+            title: "Error",
+            description: "Failed to cancel event",
+            variant: "destructive"
+        });
     } finally {
         setLoading(false);
     }
@@ -282,75 +316,6 @@ export default function EventDetailsPage() {
 
 
 
-  function GameCard({ game }: { game: Game }) {
-      const homeTeam = store.getTeam(game.homeTeamId);
-      const sport = homeTeam ? store.getSport(homeTeam.sportId) : null;
-      const gameVenue = game.venueId ? store.getVenue(game.venueId) : null;
-
-      return (
-        <div onClick={() => router.push(`/admin/organizations/${organizationId}/events/${eventId}/games/${game.id}/edit`)}>
-                <MetalCard className="p-3 flex flex-col md:flex-row items-center gap-2 md:gap-4 relative overflow-hidden group min-h-[60px] cursor-pointer hover:bg-accent/5 active:scale-[0.99] transition-all">
-                    {/* Mobile Top Row: Time/Status */}
-                    <div className="flex md:hidden w-full items-center justify-between text-xs text-muted-foreground mb-1">
-                        <div className="flex items-center gap-2">
-                            <Badge variant={game.status === 'Live' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 h-4">
-                                {game.status}
-                            </Badge>
-                            <span className="font-mono font-bold flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {game.startTime || "TBD"}
-                            </span>
-                            {sport && <span className="text-[10px] uppercase font-bold text-primary/70 ml-2">{sport.name}</span>}
-                        </div>
-                        {gameVenue && (
-                            <div className="flex items-center gap-1 text-[10px]">
-                                <MapPinIcon className="w-3 h-3" />
-                                {gameVenue.name}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Desktop Left: Status/Time/Sport */}
-                    <div className="hidden md:flex items-center gap-3 shrink-0 w-[180px]">
-                        <Badge variant={game.status === 'Live' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 h-5 shrink-0">
-                            {game.status}
-                        </Badge>
-                        <div className="flex flex-col leading-none">
-                            <span className="font-mono font-bold text-sm flex items-center gap-1.5">
-                                {game.startTime || "TBD"}
-                            </span>
-                            {sport && <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">{sport.name}</span>}
-                        </div>
-                    </div>
-
-                    {/* Center: Teams & Score */}
-                    <div className="flex items-center justify-center flex-1 w-full gap-3 md:gap-6">
-                        <div className="flex-1 text-right truncate">
-                            <span className="font-bold text-sm md:text-base">{getTeamName(game.homeTeamId)}</span>
-                        </div>
-                        
-                        <div className="px-3 py-1 bg-black/20 rounded-md font-mono font-black text-sm md:text-lg whitespace-nowrap min-w-[60px] text-center border border-white/5">
-                            {game.homeScore} - {game.awayScore}
-                        </div>
-
-                        <div className="flex-1 text-left truncate">
-                            <span className="font-bold text-sm md:text-base">{getTeamName(game.awayTeamId, game.awayTeamName)}</span>
-                        </div>
-                    </div>
-
-                    {/* Desktop Right: Venue */}
-                    <div className="hidden md:flex items-center justify-end gap-4 shrink-0 w-[150px] text-xs text-muted-foreground">
-                        {gameVenue && event && game.venueId !== event.venueId && (
-                            <div className="flex items-center gap-1 truncate max-w-[120px]" title={gameVenue.name}>
-                                <MapPinIcon className="w-3.5 h-3.5 text-primary/70" />
-                                {gameVenue.name}
-                            </div>
-                        )}
-                    </div>
-                </MetalCard>
-        </div>
-      );
-  }
 
   function renderScoreboard() {
       if (!event) return null;
@@ -472,7 +437,6 @@ export default function EventDetailsPage() {
                     <h3 className="font-bold text-lg">No games scheduled</h3>
                     <p className="text-muted-foreground">Start by adding games to this event.</p>
                 </div>
-                <MetalButton onClick={() => router.push(`/admin/organizations/${organizationId}/events/${eventId}/games/new`)}>Schedule First Game</MetalButton>
             </MetalCard>
         );
     }
@@ -500,7 +464,7 @@ export default function EventDetailsPage() {
 
     sortedGames.forEach(g => {
         let key = "Scheduled";
-        if (grouping === 'time') key = g.startTime || "TBD";
+        if (grouping === 'time') key = g.startTime ? format(new Date(g.startTime), "HH:mm") : "TBD";
         else if (grouping === 'sport') {
             const homeTeam = store.getTeam(g.homeTeamId);
             key = homeTeam ? store.getSport(homeTeam.sportId)?.name || "Unknown Sport" : "Unknown Sport";
@@ -515,8 +479,16 @@ export default function EventDetailsPage() {
         <div className="space-y-8">
             {Object.entries(groups).map(([title, groupGames]) => (
                 <div key={title} className="space-y-3">
-                    <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground pl-1">{title}</h3>
-                    {groupGames.map(game => <GameCard key={game.id} game={game} />)}
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pl-3">{title}</h3>
+                    <div className="space-y-3 bg-muted/20 border border-border/40 rounded-2xl p-4 shadow-inner">
+                        {groupGames.map(game => (
+                          <MatchCard 
+                            key={game.id} 
+                            game={game} 
+                            onClick={() => router.push(`/admin/organizations/${organizationId}/events/${eventId}/games/${game.id}/edit`)}
+                          />
+                        ))}
+                    </div>
                 </div>
             ))}
         </div>
@@ -546,6 +518,107 @@ export default function EventDetailsPage() {
         </header>
 
         <div className="container py-8 space-y-8">
+            {event.type === 'SingleMatch' ? (
+                <div className="max-w-3xl space-y-12">
+                     <section className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-2xl font-black uppercase tracking-tight">Manage Match</h2>
+                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest bg-muted/50 px-2 py-1 rounded">Single Match</span>
+                        </div>
+                        
+                        <form onSubmit={handleUpdate} className="space-y-8">
+                            <div className="grid gap-6 md:grid-cols-2">
+                                <div className="space-y-2 col-span-2">
+                                    <Label htmlFor="name">Event Name</Label>
+                                    <Input 
+                                        id="name" 
+                                        value={editName} 
+                                        onChange={e => setEditName(e.target.value)} 
+                                        placeholder="e.g. Friendly Match"
+                                        required 
+                                    />
+                                </div>
+                                
+                                <div className="flex flex-col gap-2 col-span-2">
+                                    <Label>Event Date</Label>
+                                    <Input 
+                                        type="date" 
+                                        value={editStartDate} 
+                                        onChange={e => setEditStartDate(e.target.value)} 
+                                        required 
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-border/50">
+                                    <MatchForm 
+                                    organizationId={organizationId}
+                                    event={event}
+                                    isSportsDay={false}
+                                    initialData={games[0] ? {
+                                        homeTeamId: games[0].homeTeamId,
+                                        awayTeamId: games[0].awayTeamId,
+                                        startTime: games[0].startTime,
+                                        isTbd: !games[0].startTime,
+                                        venueId: games[0].venueId,
+                                        sportId: event.sportIds?.[0]
+                                    } : undefined}
+                                    onChange={setMatchFormData}
+                                    />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 pt-4">
+                                <MetalButton 
+                                    type="button"
+                                    variantType="outlined"
+                                    disabled={!isDirty || loading}
+                                    onClick={() => setIsInitialized(false)}
+                                >
+                                    Discard Changes
+                                </MetalButton>
+                                <Button disabled={!isDirty || loading} className="px-8">
+                                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Save Changes
+                                </Button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <section className="space-y-6 border-t border-destructive/10 pt-12">
+                        <h2 className="text-xl font-black uppercase tracking-tight text-destructive">Danger Zone</h2>
+                        <div className="space-y-8">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="space-y-1">
+                                    <h3 className="font-bold text-lg">Cancel Event</h3>
+                                    <p className="text-sm text-muted-foreground italic">Marks the event and all scheduled matches as cancelled.</p>
+                                </div>
+                                {event.status === 'Cancelled' ? (
+                                        <Badge variant="destructive" className="h-10 px-6 text-sm uppercase font-black">Event Cancelled</Badge>
+                                ) : (
+                                    <MetalButton variantType="outlined" className="border-destructive/50 text-destructive hover:bg-destructive/10" glowColor="hsl(38, 92%, 50%)" onClick={() => setConfirmCancel({ isOpen: true })}>
+                                        Cancel Event
+                                    </MetalButton>
+                                )}
+                            </div>
+                            
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="space-y-1">
+                                    <h3 className="font-bold text-lg">Delete Event</h3>
+                                    <p className="text-sm text-muted-foreground italic">Permanently removes this event and all associated data. This action cannot be undone.</p>
+                                </div>
+                                <MetalButton variantType="outlined" className="border-destructive/50 text-destructive hover:bg-destructive/10" glowColor="hsl(var(--destructive))" onClick={() => setConfirmDelete({ isOpen: true })} disabled={!canDelete}>
+                                    Delete Event
+                                </MetalButton>
+                            </div>
+                            {!canDelete && event.status !== 'Cancelled' && (
+                                <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-center">
+                                    Cannot delete event because it has already started or contains finished games.
+                                </p>
+                            )}
+                        </div>
+                    </section>
+                </div>
+            ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-3 md:w-[400px]">
                     <TabsTrigger value="schedule">Schedule</TabsTrigger>
@@ -609,10 +682,12 @@ export default function EventDetailsPage() {
                                             ))}
                                         </SelectContent>
                                     </Select>
-
+ 
                                     <div className="ml-2 pl-2 border-l border-border/50">
                                         <MetalButton 
                                             size="sm" 
+                                            variantType="filled"
+                                            glowColor="hsl(var(--primary))"
                                             icon={<Trophy className="w-4 h-4" />}
                                             onClick={() => router.push(`/admin/organizations/${organizationId}/events/${eventId}/games/new`)}
                                         >
@@ -623,11 +698,11 @@ export default function EventDetailsPage() {
                             </div>
                             {renderSchedule()}
                         </TabsContent>
-
+ 
                     <TabsContent value="scoreboard" className="outline-none">
                         {renderScoreboard()}
                     </TabsContent>
-
+ 
                     <TabsContent value="settings" className="outline-none">
                         <div className="max-w-4xl space-y-12">
                             <section className="space-y-6">
@@ -655,28 +730,24 @@ export default function EventDetailsPage() {
                                                     required 
                                                 />
                                             </div>
-
-                                            {event.type !== 'SingleMatch' && (
-                                                <div className="flex items-center gap-2 mt-2">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        id="editIsMultiDay" 
-                                                        checked={isMultiDay} 
-                                                        onChange={(e) => setIsMultiDay(e.target.checked)}
-                                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                                    />
-                                                    <Label htmlFor="editIsMultiDay" className="text-xs cursor-pointer">Multi-day Event</Label>
-                                                </div>
-                                            )}
+ 
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="editIsMultiDay" 
+                                                    checked={isMultiDay} 
+                                                    onChange={(e) => setIsMultiDay(e.target.checked)}
+                                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                />
+                                                <Label htmlFor="editIsMultiDay" className="text-xs cursor-pointer">Multi-day Event</Label>
+                                            </div>
                                             
                                             {isMultiDay && (
                                                 <div className="mt-2 text-sm text-destructive font-medium animate-in fade-in slide-in-from-top-1">
                                                      End Date: <Input type="date" min={editStartDate} value={editEndDate} onChange={e => setEditEndDate(e.target.value)} className="inline-block w-40 h-8 ml-2" required />
                                                 </div>
                                             )}
-
-
-                                            {event.type !== 'SingleMatch' && (
+ 
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <Label htmlFor="venue">Venue</Label>
@@ -698,28 +769,8 @@ export default function EventDetailsPage() {
                                                     createLabel="Create Venue"
                                                 />
                                             </div>
-                                            )}
                                         </div>
-
-                                        {event.type === 'SingleMatch' && (
-                                            <div className="pt-4 border-t border-border/50">
-                                                 <MatchForm 
-                                                    organizationId={organizationId}
-                                                    event={event}
-                                                    isSportsDay={false}
-                                                    initialData={games[0] ? {
-                                                        homeTeamId: games[0].homeTeamId,
-                                                        awayTeamId: games[0].awayTeamId,
-                                                        startTime: games[0].startTime,
-                                                        isTbd: !games[0].startTime,
-                                                        venueId: games[0].venueId,
-                                                        sportId: event.sportIds?.[0]
-                                                    } : undefined}
-                                                    onChange={setMatchFormData}
-                                                 />
-                                            </div>
-                                        )}
-
+ 
                                         {(event.type === 'SportsDay' || event.type === 'Tournament') && (
                                             <div className="grid gap-8 border-t border-border/50 pt-8">
                                                 <div className="space-y-3">
@@ -742,7 +793,7 @@ export default function EventDetailsPage() {
                                                         })}
                                                     </div>
                                                 </div>
-
+ 
                                                 <div className="space-y-3">
                                                     <Label>Participating Organizations</Label>
                                                     <div className="flex flex-wrap gap-2 mb-2">
@@ -767,17 +818,9 @@ export default function EventDetailsPage() {
                                                                 setOrgSearch("");
                                                             }
                                                         }}
-                                                        onCreateNew={async (name) => {
-                                                            const newOrg = await store.addOrganization({
-                                                                name,
-                                                                shortName: name.substring(0,3).toUpperCase(),
-                                                                primaryColor: "#000000",
-                                                                secondaryColor: "#ffffff",
-                                                                supportedSportIds: [],
-                                                                supportedRoleIds: []
-                                                            });
-                                                            setSelectedOrgIds([...selectedOrgIds, newOrg.id]);
-                                                            setOrgSearch("");
+                                                        onCreateNew={(name) => {
+                                                            setPendingOrgName(name);
+                                                            setOrgDialogOpen(true);
                                                         }}
                                                         placeholder="Add organization..."
                                                         createLabel="Register Organization"
@@ -785,7 +828,7 @@ export default function EventDetailsPage() {
                                                 </div>
                                             </div>
                                         )}
-
+ 
                                         <div className="flex items-center justify-end gap-3 pt-4">
                                             <MetalButton 
                                                 type="button"
@@ -803,7 +846,7 @@ export default function EventDetailsPage() {
                                     </form>
                                 </MetalCard>
                             </section>
-
+ 
                             <section className="space-y-6">
                                 <h2 className="text-xl font-black uppercase tracking-tight text-destructive">Danger Zone</h2>
                                 <MetalCard className="p-8 border-destructive/20 bg-destructive/5">
@@ -815,7 +858,7 @@ export default function EventDetailsPage() {
                                         {event.status === 'Cancelled' ? (
                                              <Badge variant="destructive" className="h-10 px-6 text-sm uppercase font-black">Event Cancelled</Badge>
                                         ) : (
-                                            <MetalButton variantType="outlined" className="border-destructive/50 text-destructive hover:bg-destructive/10" onClick={() => setConfirmCancel({ isOpen: true })}>
+                                            <MetalButton variantType="outlined" className="border-destructive/50 text-destructive hover:bg-destructive/10" glowColor="hsl(38, 92%, 50%)" onClick={() => setConfirmCancel({ isOpen: true })}>
                                                 Cancel Event
                                             </MetalButton>
                                         )}
@@ -826,7 +869,7 @@ export default function EventDetailsPage() {
                                             <h3 className="font-bold text-lg">Delete Event</h3>
                                             <p className="text-sm text-muted-foreground italic">Permanently removes this event and all associated data. This action cannot be undone.</p>
                                         </div>
-                                        <MetalButton variantType="outlined" className="border-destructive/50 text-destructive hover:bg-destructive/10" onClick={() => setConfirmDelete({ isOpen: true })} disabled={!canDelete}>
+                                        <MetalButton variantType="outlined" className="border-destructive/50 text-destructive hover:bg-destructive/10" glowColor="hsl(var(--destructive))" onClick={() => setConfirmDelete({ isOpen: true })} disabled={!canDelete}>
                                             Delete Event
                                         </MetalButton>
                                     </div>
@@ -841,6 +884,7 @@ export default function EventDetailsPage() {
                     </TabsContent>
                 </div>
             </Tabs>
+            )}
         </div>
 
         <ConfirmationModal 
@@ -861,6 +905,17 @@ export default function EventDetailsPage() {
             description={`Are you sure you want to cancel "${event.name}"? All scheduled games will also be marked as cancelled.`}
             confirmText="Cancel Event"
             variant="destructive"
+        />
+
+        <OrgCreationDialog 
+            open={orgDialogOpen}
+            onOpenChange={setOrgDialogOpen}
+            initialName={pendingOrgName}
+            onCreated={(org) => {
+                setSelectedOrgIds([...selectedOrgIds, org.id]);
+                setOrgSearch("");
+            }}
+            supportedSportIds={selectedSportIds}
         />
     </div>
   );

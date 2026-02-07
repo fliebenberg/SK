@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,6 +14,8 @@ import { GenericAutocomplete } from "@/components/ui/GenericAutocomplete";
 import { Event, Organization, Sport, Team } from "@sk/types";
 import { store } from "@/app/store/store";
 import { Loader2, Check } from "lucide-react";
+import { OrgCreationDialog } from "../organizations/OrgCreationDialog";
+import { TeamCreationDialog } from "../teams/TeamCreationDialog";
 
 export interface MatchFormData {
   homeTeamId: string;
@@ -40,21 +42,16 @@ export function MatchForm({
   isSportsDay = false,
 }: MatchFormProps) {
   const [loading, setLoading] = useState(false);
-  const [allSports, setAllSports] = useState(store.getSports());
-  const [allOrgs, setAllOrgs] = useState(store.getOrganizations());
-  const [venues, setVenues] = useState(store.getVenues(organizationId));
+  const [allSports, setAllSports] = useState<Sport[]>([]);
+  const [allOrgs, setAllOrgs] = useState<Organization[]>([]);
+  const [venues, setVenues] = useState<any[]>([]);
 
   // Form State
   const [selectedSportId, setSelectedSportId] = useState(initialData?.sportId || (event.sportIds?.[0] || ""));
   const [homeOrgId, setHomeOrgId] = useState(organizationId);
-  const [homeOrgName, setHomeOrgName] = useState(store.getOrganization(organizationId)?.name || "");
+  const [homeOrgName, setHomeOrgName] = useState("");
   const [homeTeamId, setHomeTeamId] = useState(initialData?.homeTeamId || "");
   const [homeOrgTeams, setHomeOrgTeams] = useState<Team[]>([]);
-
-  // ... (other state)
-
-  // ...
-
 
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [targetOrgName, setTargetOrgName] = useState("");
@@ -62,10 +59,25 @@ export function MatchForm({
   const [targetTeamName, setTargetTeamName] = useState("");
   const [opponentOrgTeams, setOpponentOrgTeams] = useState<Team[]>([]);
 
-  const [startTime, setStartTime] = useState(initialData?.startTime || "09:00");
-  const [isTbd, setIsTbd] = useState(initialData?.isTbd || false);
+  const [startTime, setStartTime] = useState(() => {
+    if (!initialData?.startTime) return "09:00";
+    if (initialData.startTime.includes('T')) {
+      return initialData.startTime.split('T')[1].substring(0, 5);
+    }
+    return initialData.startTime;
+  });
+  const [isTbd, setIsTbd] = useState(initialData?.isTbd || !initialData?.startTime);
   const [gameVenueId, setGameVenueId] = useState(initialData?.venueId || event.venueId || "");
   const [gameVenueName, setGameVenueName] = useState("");
+
+  const [orgDialogOpen, setOrgDialogOpen] = useState(false);
+  const [pendingOrgName, setPendingOrgName] = useState("");
+  const [isCreatingHomeOrg, setIsCreatingHomeOrg] = useState(false);
+
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
+  const [isCreatingHomeTeam, setIsCreatingHomeTeam] = useState(false);
+  const [pendingTeamName, setPendingTeamName] = useState("");
+  const [targetOrgIdForTeam, setTargetOrgIdForTeam] = useState("");
 
   const participatingOrgIds = [event.organizationId, ...(event.participatingOrgIds || [])];
   const eventSports = event.sportIds && event.sportIds.length > 0 
@@ -119,90 +131,66 @@ export function MatchForm({
     return unsub;
   }, [homeOrgId, selectedOrgId, selectedSportId, organizationId, gameVenueId]);
 
-  // Handle Initial State
+  // Special effect to resolve organizations from team IDs once data is available
   useEffect(() => {
-    if (initialData?.awayTeamId && !selectedOrgId) {
+    // Resolve Away Team Details
+    if (initialData?.awayTeamId && (!selectedOrgId || !targetTeamName || !targetOrgName)) {
       const awayTeam = store.getTeam(initialData.awayTeamId);
       if (awayTeam) {
-        setSelectedOrgId(awayTeam.organizationId);
-        setTargetOrgName(store.getOrganization(awayTeam.organizationId)?.name || "");
-        setSelectedTeamId(awayTeam.id);
-        setTargetTeamName(awayTeam.name);
+        if (!selectedOrgId) setSelectedOrgId(awayTeam.organizationId);
+        if (!targetOrgName) setTargetOrgName(store.getOrganization(awayTeam.organizationId)?.name || "");
+        if (!selectedTeamId) setSelectedTeamId(awayTeam.id);
+        if (!targetTeamName) setTargetTeamName(awayTeam.name);
       }
     }
     
-    if (initialData?.homeTeamId) {
+    // Resolve Home Team Details
+    if (initialData?.homeTeamId && (!homeOrgName || !homeTeamId)) {
         const homeTeam = store.getTeam(initialData.homeTeamId);
         if (homeTeam) {
-            setHomeOrgId(homeTeam.organizationId);
-            setHomeOrgName(store.getOrganization(homeTeam.organizationId)?.name || "");
-            setHomeTeamId(homeTeam.id);
+            // Only update ID if strictly needed or if we suspect mismatch (but here we trust initialData)
+            // Just update Name if missing
+            if ((!homeOrgId || homeOrgId === organizationId) && homeTeam.organizationId !== homeOrgId) {
+                 setHomeOrgId(homeTeam.organizationId);
+            }
+            if (!homeOrgName) setHomeOrgName(store.getOrganization(homeTeam.organizationId)?.name || "");
+            if (!homeTeamId) setHomeTeamId(homeTeam.id);
         }
     }
+  }, [initialData, homeTeamId, selectedOrgId, selectedTeamId, homeOrgName, targetOrgName, targetTeamName, allOrgs]);
 
-    if (initialData?.sportId) {
-        setSelectedSportId(initialData.sportId);
-    }
-    
-    if (initialData?.venueId) {
-        setGameVenueId(initialData.venueId);
-        const v = store.getVenue(initialData.venueId);
-        if (v) setGameVenueName(v.name);
-    }
+  const handleCreateOrg = (name: string, isHome: boolean) => {
+    setPendingOrgName(name);
+    setIsCreatingHomeOrg(isHome);
+    setOrgDialogOpen(true);
+  };
 
-    if (initialData?.startTime !== undefined) {
-        setStartTime(initialData.startTime || "09:00");
-        setIsTbd(!initialData.startTime);
-    }
-  }, [initialData, organizationId]);
-
-  const handleCreateOrg = async (name: string, isHome: boolean) => {
-    if (!name.trim()) return;
-    setLoading(true);
-    try {
-      const newOrg = await store.addOrganization({
-        name: name,
-        primaryColor: "#000000",
-        secondaryColor: "#ffffff",
-        shortName: name.substring(0, 3).toUpperCase(),
-        supportedSportIds: selectedSportId ? [selectedSportId] : [],
-        supportedRoleIds: []
-      });
-      if (isHome) {
-        setHomeOrgId(newOrg.id);
-        setHomeOrgName(newOrg.name);
-      } else {
-        setSelectedOrgId(newOrg.id);
-        setTargetOrgName(newOrg.name);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+  const handleOrgCreated = (newOrg: Organization) => {
+    if (isCreatingHomeOrg) {
+      setHomeOrgId(newOrg.id);
+      setHomeOrgName(newOrg.name);
+    } else {
+      setSelectedOrgId(newOrg.id);
+      setTargetOrgName(newOrg.name);
     }
   };
 
-  const handleCreateTeam = async (name: string, isHome: boolean) => {
+  const handleCreateTeam = (name: string, isHome: boolean) => {
     const orgId = isHome ? homeOrgId : selectedOrgId;
     if (!orgId || !name.trim()) return;
-    setLoading(true);
-    try {
-      const newTeam = await store.addTeam({
-        name: name,
-        organizationId: orgId,
-        sportId: selectedSportId || "sport-soccer",
-        ageGroup: "Open"
-      });
-      if (isHome) {
-        setHomeTeamId(newTeam.id);
-      } else {
-        setSelectedTeamId(newTeam.id);
-        setTargetTeamName(newTeam.name);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+    
+    setPendingTeamName(name);
+    setIsCreatingHomeTeam(isHome);
+    setTargetOrgIdForTeam(orgId);
+    setTeamDialogOpen(true);
+  };
+
+  const handleTeamCreated = (newTeam: Team) => {
+    if (isCreatingHomeTeam) {
+      setHomeTeamId(newTeam.id);
+    } else {
+      setSelectedTeamId(newTeam.id);
+      setTargetTeamName(newTeam.name);
     }
   };
 
@@ -248,14 +236,14 @@ export function MatchForm({
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label>Time</Label>
-              <Label className="flex items-center gap-2 cursor-pointer">
+              <Label className="flex items-center gap-2 cursor-pointer group">
                 <input
                   type="checkbox"
                   checked={isTbd}
                   onChange={(e) => setIsTbd(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  className="h-4 w-4 rounded border-white/20 bg-black/40 text-primary focus:ring-primary cursor-pointer transition-colors group-hover:border-primary/50"
                 />
-                <span className="text-xs uppercase font-bold text-muted-foreground">TBD</span>
+                <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground group-hover:text-primary/70 transition-colors">TBD</span>
               </Label>
             </div>
             <Input
@@ -291,12 +279,12 @@ export function MatchForm({
 
         {/* TEAM SELECTION */}
         <div className="space-y-4">
-          <div className="space-y-4 p-4 rounded-xl border border-border/50 bg-accent/30">
+          <div className="space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-primary/70">Teams</h3>
             
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Team 1</Label>
+                <Label className="uppercase">Team 1</Label>
                 {isSportsDay ? (
                   <div className="space-y-2">
                      <GenericAutocomplete 
@@ -348,11 +336,11 @@ export function MatchForm({
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border/30" />
                 </div>
-                <span className="relative bg-[#0d0d12] px-2 text-[10px] font-black italic text-primary/40 uppercase tracking-widest">vs</span>
+                <span className="relative bg-background px-2 text-[10px] font-black italic text-muted-foreground uppercase tracking-widest">vs</span>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Team 2</Label>
+                <Label className="uppercase">Team 2</Label>
                 <div className="space-y-2">
                   <GenericAutocomplete
                     items={allOrgs.map(o => ({ id: o.id, label: o.name, data: o }))}
@@ -386,6 +374,31 @@ export function MatchForm({
           </div>
         </div>
       </div>
+
+      <OrgCreationDialog 
+        open={orgDialogOpen}
+        onOpenChange={setOrgDialogOpen}
+        initialName={pendingOrgName}
+        onCreated={handleOrgCreated}
+        supportedSportIds={selectedSportId ? [selectedSportId] : []}
+      />
+
+      <TeamCreationDialog
+        open={teamDialogOpen}
+        onOpenChange={setTeamDialogOpen}
+        organizationId={targetOrgIdForTeam}
+        initialName={pendingTeamName}
+        initialSportId={selectedSportId}
+        initialAgeGroup={(() => {
+            const otherTeamId = isCreatingHomeTeam ? selectedTeamId : homeTeamId;
+            if (otherTeamId) {
+                const team = store.getTeam(otherTeamId);
+                return team?.ageGroup;
+            }
+            return "Open";
+        })()}
+        onCreated={handleTeamCreated}
+      />
     </div>
   );
 }

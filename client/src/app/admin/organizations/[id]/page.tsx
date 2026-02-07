@@ -22,29 +22,27 @@ export default function OrganizationDetailsPage() {
   useEffect(() => {
     const updateData = () => {
         const organization = store.getOrganization(id);
-        const teams = store.getTeams(id);
-        const venues = store.getVenues(id);
-        const members = store.getOrganizationMembers(id);
-        const eventCount = store.getEvents(id).length;
 
         if (organization) {
             setOrg(organization);
             setCounts({
-                teams: teams.length,
-                venues: venues.length,
-                events: eventCount,
-                people: members.length
+                teams: organization.teamCount || 0,
+                venues: organization.venueCount || 0,
+                events: organization.eventCount || 0,
+                people: organization.memberCount || 0
             });
         }
     };
 
     updateData();
-    store.subscribeToOrganization(id);
+    // Use lightweight summary subscription for dashboard efficiency
+    store.subscribeToOrganizationSummary(id);
+    
     const unsubscribe = store.subscribe(updateData);
     
     return () => {
         unsubscribe();
-        store.unsubscribeFromOrganization(id);
+        store.unsubscribeFromOrganizationSummary(id);
     };
   }, [id]);
 

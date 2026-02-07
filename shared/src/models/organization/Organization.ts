@@ -7,4 +7,8 @@ export interface Organization {
   supportedSportIds: string[];
   shortName?: string;
   supportedRoleIds?: string[];
+  teamCount?: number;
+  venueCount?: number;
+  eventCount?: number;
+  memberCount?: number;
 }

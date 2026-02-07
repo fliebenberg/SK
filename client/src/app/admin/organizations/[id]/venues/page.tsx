@@ -72,6 +72,7 @@ export default function VenueManagementPage() {
     };
 
     updateData();
+    store.subscribeToOrganizationData(id);
     // Subscribe to stores
     const unsubscribe = store.subscribe(updateData);
     

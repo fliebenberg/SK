@@ -15,8 +15,8 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
   const id = params.id as string;
   const teamId = params.teamId as string;
   
-  const [team, setTeam] = useState<Team | undefined>(() => store.getTeam(teamId));
-  const [loading, setLoading] = useState(!store.getTeam(teamId));
+  const [team, setTeam] = useState<Team | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const update = () => {

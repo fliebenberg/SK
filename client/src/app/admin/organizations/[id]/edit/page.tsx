@@ -9,8 +9,8 @@ import { Organization } from "@sk/types";
 export default function OrganizationEditPage() {
   const params = useParams();
   const id = params.id as string;
-  const [org, setOrg] = useState<Organization | undefined>(() => store.getOrganization(id));
-  const [loading, setLoading] = useState(!store.getOrganization(id));
+  const [org, setOrg] = useState<Organization | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const update = () => {

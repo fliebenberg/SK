@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
+import { OrgLogo } from "@/components/ui/OrgLogo";
 
 interface OrgDetailsHeaderProps {
   organization?: Organization;
@@ -144,21 +145,7 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
         {/* Box 1: Logo */}
         <div className="w-32 h-32 flex-shrink-0 mx-auto xl:mx-0">
              {readOnly ? (
-                 hasActualLogo ? (
-                    <div className="w-full h-full rounded-md overflow-hidden shadow-sm border border-border">
-                        <img src={formData.logo} alt={formData.name} className="w-full h-full object-cover" />
-                    </div>
-                 ) : (
-                    <div 
-                        className="w-full h-full rounded-md overflow-hidden shadow-sm border border-border flex items-center justify-center"
-                        style={{ 
-                            backgroundColor: formData.primaryColor || 'var(--muted)',
-                            color: formData.secondaryColor || 'var(--muted-foreground)'
-                        }}
-                    >
-                        <span className="font-bold select-none text-4xl">{currentInitials}</span>
-                    </div>
-                 )
+                 <OrgLogo organization={formData} size="xl" />
              ) : (
                 <ImageUpload
                     value={hasActualLogo ? formData.logo : ""}

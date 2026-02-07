@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { store } from "@/app/store/store";
 import { cn } from "@/lib/utils";
-import { Event } from "@sk/types";
+import { Event, Game } from "@sk/types";
 import { MetalButton } from "@/components/ui/MetalButton";
 import { Plus, Pencil, Trash2, Calendar, MapPin, Trophy, Clock, Activity, Search, History, EyeOff } from "lucide-react";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
 import { useRouter } from "next/navigation";
-import { format, isBefore, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,8 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+
+import { MatchCard } from "@/components/ui/MatchCard";
 
 interface EventListProps {
   organizationId: string;
@@ -37,14 +39,23 @@ export function EventList({ organizationId, teamId }: EventListProps) {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<'upcoming' | 'past'>('upcoming');
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     const update = () => {
         setEvents([...store.getEvents(organizationId)]);
     };
-    update(); // Initial fetch might be needed if store wasn't ready
+    update(); 
+    store.subscribeToOrganizationData(organizationId);
     const unsub = store.subscribe(update);
-    return unsub;
+    return () => {
+        unsub();
+        store.unsubscribeFromOrganizationData(organizationId);
+    };
   }, [organizationId]);
 
   const handleDelete = async () => {
@@ -53,17 +64,6 @@ export function EventList({ organizationId, teamId }: EventListProps) {
       setConfirmDelete({ isOpen: false, eventId: "", name: "" });
     }
   };
-
-  const getVenueName = (id: string) => {
-      const v = store.getVenue(id);
-      return v ? v.name : "Unknown Venue";
-  }
-
-  const getSportName = (id?: string) => {
-      if (!id) return "Unknown Sport";
-      const s = store.getSports().find(s => s.id === id);
-      return s ? s.name : "Unknown Sport";
-  }
 
   const getDisplayName = (event: Event) => {
       if (event.name) return event.name;
@@ -99,15 +99,16 @@ export function EventList({ organizationId, teamId }: EventListProps) {
         const matchesSearch = displayName.includes(searchQuery.toLowerCase());
         if (!matchesSearch) return false;
 
-        const eventDate = e.startDate ? startOfDay(new Date(e.startDate)) : (e.date ? startOfDay(new Date(e.date)) : null);
-        const today = startOfDay(new Date());
+        const eventDate = e.startDate ? new Date(e.startDate) : (e.date ? new Date(e.date) : null);
+        const now = new Date();
+        const pastCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
         if (viewMode === 'upcoming') {
-            // Include matches with no date or future/today dates
-            return !eventDate || !isBefore(eventDate, today);
+            // Include matches with no date or starting within the last 24h/future
+            return !eventDate || eventDate >= pastCutoff;
         } else {
-            // Only past dates
-            return eventDate && isBefore(eventDate, today);
+            // Only matches that started more than 24h ago
+            return eventDate && eventDate < pastCutoff;
         }
     })
     .sort((a, b) => {
@@ -252,74 +253,104 @@ export function EventList({ organizationId, teamId }: EventListProps) {
           </div>
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredEvents.map((event) => {
-          const games = store.getGames().filter(g => g.eventId === event.id);
-          const isMatch = games.length === 1;
-          const game = isMatch ? games[0] : null;
+      <div className="space-y-2">
+        {filteredEvents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-2xl text-muted-foreground bg-muted/5">
+            <Calendar className="h-12 w-12 mb-4 opacity-20" />
+            <p className="font-medium">No matches scheduled yet.</p>
+          </div>
+        ) : !hasMounted ? (
+          <div className="flex items-center justify-center p-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : (
+          filteredEvents.map((event) => {
+            const games = store.getGames().filter(g => g.eventId === event.id);
+            const isContainerEvent = event.type === 'SportsDay' || event.type === 'Tournament';
+            
+            // For team view, we only care about games involving this specific team
+            let relevantGames = games;
+            if (teamId) {
+                relevantGames = games.filter(g => g.homeTeamId === teamId || g.awayTeamId === teamId);
+            } else {
+                // For Org view, show games where this org is involved
+                relevantGames = games.filter(g => {
+                    const homeTeam = store.getTeam(g.homeTeamId);
+                    const awayTeam = store.getTeam(g.awayTeamId);
+                    return homeTeam?.organizationId === organizationId || awayTeam?.organizationId === organizationId;
+                });
+            }
+            
+            relevantGames = relevantGames.sort((a, b) => {
+                const dateA = a.startTime || event.startDate || "";
+                const dateB = b.startTime || event.startDate || "";
+                return dateA.localeCompare(dateB);
+            });
 
-          return (
-          <Card 
-            key={event.id} 
-            className="group relative flex flex-col justify-between hover:shadow-md hover:ring-1 hover:ring-primary/50 transition-all duration-200 border-border/50 cursor-pointer overflow-hidden bg-card/50"
-            onClick={() => router.push(`/admin/organizations/${organizationId}/events/${event.id}`)}
-          >
-            <div className="p-3 space-y-3">
-              {/* Top Row: Name & Sport */}
-              <div className="flex justify-between items-start gap-4">
-                <div className="font-bold text-base leading-tight group-hover:text-primary transition-colors line-clamp-2">
-                  {getDisplayName(event)}
-                </div>
-                <div className="shrink-0 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/70 flex items-center gap-1 bg-muted/50 px-1.5 py-0.5 rounded border border-border/50">
-                    {/* @ts-ignore */}
-                    <Activity className="h-3 w-3" />
-                    {getSportName(event.sportIds?.[0])}
-                </div>
-              </div>
+            if (relevantGames.length === 0 && !teamId) return null;
 
-              {/* Bottom Row: Type, Time, Venue */}
-              <div className="flex items-center justify-between text-xs pt-2 border-t border-border/40">
-                {/* Left: Type */}
-                <div className="flex-1 text-left">
-                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0 uppercase tracking-widest font-bold h-5 bg-secondary/50 text-foreground/80">
-                      {event.type === 'SportsDay' ? "Sports Day" : (event.type === 'Tournament' ? "Tournament" : "Match")}
-                     </Badge>
-                </div>
-
-                {/* Center: Time/Date */}
-                <div className="flex-1 flex justify-center">
-                    <div className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                        <Clock className="w-3.5 h-3.5 text-primary/70" />
-                        <span className="font-mono text-[11px]">
-                          {isMatch 
-                            ? (game?.startTime || "TBD") 
-                            : (event.startDate ? format(new Date(event.startDate), "MMM d") : "No Date")
-                          }
+            return (
+              <div 
+                key={event.id} 
+                className={cn(
+                  "space-y-0 overflow-hidden", 
+                  isContainerEvent ? "border border-primary/20 rounded-2xl bg-primary/10 mb-6 shadow-sm" : "space-y-1"
+                )}
+              >
+                {/* Event Group Header (only for container events or if multiple games) */}
+                {(isContainerEvent || (relevantGames.length > 1 && !teamId)) && (
+                  <div 
+                    onClick={() => isContainerEvent && router.push(`/admin/organizations/${organizationId}/events/${event.id}`)}
+                    className={cn(
+                      "flex items-center justify-between gap-4 px-3 py-1.5 transition-all",
+                      isContainerEvent 
+                        ? "bg-primary/10 border-b border-border/50 cursor-pointer hover:bg-primary/20" 
+                        : "rounded-lg bg-primary/5 border border-primary/10 mb-2"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <div className="p-1 rounded bg-primary text-primary-foreground shrink-0">
+                        {event.type === 'Tournament' ? <Trophy className="h-3 w-3" /> : <Activity className="h-3 w-3" />}
+                      </div>
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-primary truncate">
+                        {event.name || getDisplayName(event)}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-4 text-[9px] font-bold text-muted-foreground uppercase opacity-70 shrink-0">
+                      <span>{event.type === 'SportsDay' ? 'Sports Day' : event.type}</span>
+                      {event.venueId && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-2.5 w-2.5" />
+                          {store.getVenue(event.venueId)?.name || "Unknown Venue"}
                         </span>
+                      )}
                     </div>
-                </div>
+                  </div>
+                )}
 
-                {/* Right: Venue */}
-                <div className="flex-1 flex justify-end">
-                    <div className="flex items-center gap-1.5 text-muted-foreground max-w-[100px]">
-                        <MapPin className="w-3.5 h-3.5 text-primary/70 shrink-0" />
-                        <span className="truncate text-[11px]">{getVenueName(event.venueId)}</span>
-                    </div>
+                {/* Match Rows */}
+                <div className={cn(
+                  "grid gap-2",
+                  isContainerEvent ? "p-3" : ""
+                )}>
+                  {relevantGames.map((game) => {
+                    return (
+                      <MatchCard 
+                        key={game.id} 
+                        game={game} 
+                        isStandalone={!isContainerEvent}
+                        highlightTeamId={teamId}
+                        onClick={() => router.push(`/admin/organizations/${organizationId}/events/${event.id}/games/${game.id}/edit`)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-          </Card>
-          );
-        })}
-        
-        {filteredEvents.length === 0 && (
-            <div className="col-span-full flex flex-col items-center justify-center p-8 border border-dashed rounded-lg text-muted-foreground">
-                <Calendar className="h-12 w-12 mb-4 opacity-20" />
-                <p>No events scheduled yet.</p>
-            </div>
+            );
+          })
         )}
       </div>
-      
+
       <ConfirmationModal
         isOpen={confirmDelete.isOpen}
         onOpenChange={(open) => setConfirmDelete({ ...confirmDelete, isOpen: open })}

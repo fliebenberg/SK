@@ -26,6 +26,7 @@
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
     --ring: 0 0% 3.9%;
+    --sunken-bg: rgba(0, 0, 0, 0.05);
     --radius: 0.5rem;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -74,6 +75,7 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 24 95% 53%;
+    --sunken-bg: rgba(0, 0, 0, 0.05);
 
     /* Metal Variables (Light) */
     --metal-outer-start: #94a3b8;
@@ -109,6 +111,8 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 142 70% 50%;
+    --sunken-bg: #050505;
+    --radius: 0.5rem;
 
     /* Metal Variables (Dark) */
     --metal-outer-start: #0f172a;
@@ -151,6 +155,7 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 24 95% 53%;
+    --sunken-bg: #050505;
 
     /* Metal Variables (Dark) */
     --metal-outer-start: #0f172a;
@@ -184,6 +189,7 @@
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
+    --sunken-bg: #050505;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -217,18 +223,20 @@
 /* Improve discoverability of native date/time picker icons especially in dark mode */
 [type="date"]::-webkit-calendar-picker-indicator,
 [type="time"]::-webkit-calendar-picker-indicator {
-    filter: invert(var(--calendar-invert, 0));
-    opacity: 0.8;
-    cursor: pointer;
-    transition: opacity 0.2s;
+  filter: invert(var(--calendar-invert, 0));
+  opacity: 0.8;
+  cursor: pointer;
+  transition: opacity 0.2s;
 }
 
 [type="date"]::-webkit-calendar-picker-indicator:hover,
 [type="time"]::-webkit-calendar-picker-indicator:hover {
-    opacity: 1;
+  opacity: 1;
 }
 
 /* Set inversion for dark themes */
-.dark-green, .dark-orange, .dark {
-    --calendar-invert: 1;
+.dark-green,
+.dark-orange,
+.dark {
+  --calendar-invert: 1;
 }

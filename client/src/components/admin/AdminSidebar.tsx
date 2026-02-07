@@ -16,6 +16,7 @@ import {
   Plus,
   Check
 } from "lucide-react";
+import { OrgLogo } from "@/components/ui/OrgLogo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import {
@@ -60,21 +61,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
                 } : undefined}
               >
                 <div className="flex items-center gap-2 truncate">
-                    {hasActualLogo ? (
-                        <div className="w-6 h-6 rounded-md overflow-hidden border border-border bg-background flex-shrink-0">
-                            <img src={currentOrg.logo} alt={currentOrg.name} className="w-full h-full object-cover" />
-                        </div>
-                    ) : (
-                        <div 
-                            className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
-                            style={{ 
-                                backgroundColor: currentOrg?.secondaryColor || 'var(--muted)',
-                                color: currentOrg?.primaryColor || 'var(--muted-foreground)'
-                            }}
-                        >
-                            {currentOrg ? getInitials(currentOrg.name, currentOrg.shortName) : <Building2 className="w-3 h-3" />}
-                        </div>
-                    )}
+                    <OrgLogo organization={currentOrg} size="xs" className="border-white/20" />
                     <span className="truncate font-medium">
                         {currentOrg ? currentOrg.name : "Select Organization"}
                     </span>
@@ -102,21 +89,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
                     }}
                   >
                     <div className="flex items-center gap-2">
-                        {orgHasLogo ? (
-                            <div className="w-8 h-8 rounded-md overflow-hidden border border-border bg-background flex-shrink-0">
-                                <img src={org.logo} alt={org.name} className="w-full h-full object-cover" />
-                            </div>
-                        ) : (
-                            <div 
-                                className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                                style={{ 
-                                    backgroundColor: org.secondaryColor || 'var(--muted)',
-                                    color: org.primaryColor || 'var(--muted-foreground)'
-                                }}
-                            >
-                                {getInitials(org.name, org.shortName)}
-                            </div>
-                        )}
+                        <OrgLogo organization={org} size="sm" className="border-white/20" />
                         <span className="font-medium">{org.name}</span>
                     </div>
                     {currentOrg?.id === org.id && <Check className="h-4 w-4" />}
@@ -205,21 +178,7 @@ export function MobileSidebar() {
                             } : undefined}
                         >
                             <div className="flex items-center gap-2 truncate">
-                                {hasActualLogo ? (
-                                    <div className="w-6 h-6 rounded-full overflow-hidden border border-border bg-background flex-shrink-0">
-                                        <img src={currentOrg.logo} alt={currentOrg.name} className="w-full h-full object-cover" />
-                                    </div>
-                                ) : (
-                                    <div 
-                                        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
-                                        style={{ 
-                                            backgroundColor: currentOrg?.secondaryColor || 'var(--muted)',
-                                            color: currentOrg?.primaryColor || 'var(--muted-foreground)'
-                                        }}
-                                    >
-                                        {currentOrg ? getInitials(currentOrg.name, currentOrg.shortName) : <Building2 className="w-3 h-3" />}
-                                    </div>
-                                )}
+                                <OrgLogo organization={currentOrg} size="xs" rounded="full" className="border-white/20" />
                                 <span className="truncate font-medium">
                                     {currentOrg ? currentOrg.name : "Select Organization"}
                                 </span>
@@ -250,21 +209,7 @@ export function MobileSidebar() {
                                 }}
                                 >
                                 <div className="flex items-center gap-2">
-                                    {orgHasLogo ? (
-                                        <div className="w-8 h-8 rounded-md overflow-hidden border border-border bg-background flex-shrink-0">
-                                            <img src={org.logo} alt={org.name} className="w-full h-full object-cover" />
-                                        </div>
-                                    ) : (
-                                        <div 
-                                            className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                                            style={{ 
-                                                backgroundColor: org.secondaryColor || 'var(--muted)',
-                                                color: org.primaryColor || 'var(--muted-foreground)'
-                                            }}
-                                        >
-                                            {getInitials(org.name, org.shortName)}
-                                        </div>
-                                    )}
+                                    <OrgLogo organization={org} size="sm" className="border-white/20" />
                                     <span className="font-medium">{org.name}</span>
                                 </div>
                                 {currentOrg?.id === org.id && <Check className="h-4 w-4" />}

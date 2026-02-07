@@ -20,6 +20,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MetalButton } from "@/components/ui/MetalButton";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { MatchForm, MatchFormData } from "@/components/admin/games/MatchForm";
+import { toast } from "@/hooks/use-toast";
+import { OrgCreationDialog } from "@/components/admin/organizations/OrgCreationDialog";
 
 export default function CreateEventPage() {
   const params = useParams();
@@ -30,23 +32,31 @@ export default function CreateEventPage() {
 
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(""); // Initialize empty to avoid hydration mismatch by server/client time difference
+  
+  useEffect(() => {
+    // Set default date to today's local date on client side only
+    if (!startDate) setStartDate(new Date().toLocaleDateString('en-CA')); // YYYY-MM-DD format
+  }, []);
+
   const [endDate, setEndDate] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
   
   // Venue State
   const [venueId, setVenueId] = useState("");
   const [venueName, setVenueName] = useState("");
-  const [venues, setVenues] = useState(store.getVenues(organizationId));
+  const [venues, setVenues] = useState<any[]>([]);
   
-  const [sports, setSports] = useState(store.getSports());
-  const [allOrgs, setAllOrgs] = useState(store.getOrganizations());
+  const [sports, setSports] = useState<Sport[]>([]);
+  const [allOrgs, setAllOrgs] = useState<Organization[]>([]);
 
   // Tournament Specific
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
   const [selectedOrgIds, setSelectedOrgIds] = useState<string[]>([]);
   const [matchFormData, setMatchFormData] = useState<MatchFormData | null>(null);
   const [orgSearch, setOrgSearch] = useState("");
+  const [orgDialogOpen, setOrgDialogOpen] = useState(false);
+  const [pendingOrgName, setPendingOrgName] = useState("");
 
   const nameInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -81,7 +91,11 @@ export default function CreateEventPage() {
           setVenueId(newVenue.id);
       } catch (e) {
           console.error(e);
-          alert("Failed to create venue");
+          toast({ 
+              title: "Error",
+              description: "Failed to create venue",
+              variant: "destructive"
+          });
       } finally {
           setLoading(true); // Wait, this should be false, but following existing logic
           setLoading(false);
@@ -95,13 +109,21 @@ export default function CreateEventPage() {
     try {
         if (type === 'tournament' || type === 'sportsday') {
             if (!name.trim()) {
-                alert("Event name is required");
+                toast({
+                    title: "Validation Error",
+                    description: "Event name is required",
+                    variant: "warning"
+                });
                 setLoading(false);
                 return;
             }
 
             if (isMultiDay && endDate < startDate) {
-                alert("End Date cannot be before Start Date");
+                toast({
+                    title: "Validation Error",
+                    description: "End Date cannot be before Start Date",
+                    variant: "warning"
+                });
                 setLoading(false);
                 return;
             }
@@ -119,7 +141,11 @@ export default function CreateEventPage() {
             router.push(`/admin/organizations/${organizationId}/events`);
         } else {
             if (!matchFormData?.homeTeamId || !matchFormData?.awayTeamId) {
-                alert("Please select both teams");
+                toast({
+                    title: "Validation Error",
+                    description: "Please select both teams",
+                    variant: "warning"
+                });
                 setLoading(false);
                 return;
             }
@@ -147,7 +173,7 @@ export default function CreateEventPage() {
                 eventId: newEvent.id,
                 homeTeamId: matchFormData.homeTeamId,
                 awayTeamId: matchFormData.awayTeamId,
-                startTime: matchFormData.isTbd ? "" : matchFormData.startTime,
+                startTime: matchFormData.isTbd ? undefined : `${startDate}T${matchFormData.startTime}:00`,
                 venueId: matchFormData.venueId
             });
             
@@ -155,7 +181,11 @@ export default function CreateEventPage() {
         }
     } catch (err) {
         console.error(err);
-        alert("Failed to create event");
+        toast({
+            title: "Error",
+            description: "Failed to create event",
+            variant: "destructive"
+        });
     } finally {
         setLoading(false);
     }
@@ -309,25 +339,9 @@ export default function CreateEventPage() {
                             value={orgSearch}
                             onChange={setOrgSearch}
                             onSelect={(item) => item && addOrg(item.id)}
-                            onCreateNew={async (name) => {
-                                if (!name.trim()) return;
-                                setLoading(true);
-                                try {
-                                    const newOrg = await store.addOrganization({
-                                        name: name,
-                                        primaryColor: "#000000",
-                                        secondaryColor: "#ffffff",
-                                        shortName: name.substring(0, 3).toUpperCase(),
-                                        supportedSportIds: selectedSportIds, 
-                                        supportedRoleIds: []
-                                    });
-                                    addOrg(newOrg.id);
-                                } catch (e) {
-                                    console.error(e);
-                                    alert("Failed to create organization");
-                                } finally {
-                                    setLoading(false);
-                                }
+                            onCreateNew={(name) => {
+                                setPendingOrgName(name);
+                                setOrgDialogOpen(true);
                             }}
                             placeholder="Add Organization..."
                             createLabel="Register New Organization" 
@@ -390,6 +404,14 @@ export default function CreateEventPage() {
             </CardContent>
          </Card>
       </form>
+
+      <OrgCreationDialog 
+        open={orgDialogOpen}
+        onOpenChange={setOrgDialogOpen}
+        initialName={pendingOrgName}
+        onCreated={(org) => addOrg(org.id)}
+        supportedSportIds={selectedSportIds}
+      />
     </div>
   );
 }

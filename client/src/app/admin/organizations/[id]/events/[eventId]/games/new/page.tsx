@@ -1,43 +1,67 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { store } from "@/app/store/store";
-import { Event, MatchFormData } from "@sk/types"; 
-// Note: MatchFormData export might need to be checked if it is exported from @sk/types or locally from MatchForm
-// Checking MatchForm imports in previous turns, it was exported from local file. 
-// I will import it from the component file.
-
+import { Event } from "@sk/types"; 
 import { MatchForm, MatchFormData as FormDataType } from "@/components/admin/games/MatchForm";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { MetalCard } from "@/components/ui/MetalCard";
+import { MetalCard } from "@/components/ui/metal-card";
+import { toast } from "@/hooks/use-toast";
 
-export default function NewGamePage({ params }: { params: { id: string, eventId: string } }) {
+export default function NewGamePage() {
   const router = useRouter();
-  const [event, setEvent] = useState<Event | null>(store.getEvent(params.eventId) || null);
+  const params = useParams();
+  const organizationId = params.id as string;
+  const eventId = params.eventId as string;
+
+  const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormDataType | null>(null);
 
   useEffect(() => {
     // If event is not in store (e.g. refresh), fetch it
     if (!event) {
-        const e = store.getEvent(params.eventId);
+        const e = store.getEvent(eventId);
         if (e) setEvent(e);
         else {
-             store.fetchEvent(params.eventId);
+             store.fetchEvent(eventId);
              // Subscribe effectively
              const unsub = store.subscribe(() => {
-                 const updated = store.getEvent(params.eventId);
+                 const updated = store.getEvent(eventId);
                  if (updated) setEvent(updated);
              });
              return unsub;
         }
     }
-  }, [params.eventId, event]);
+  }, [eventId, event]);
 
   const handleSubmit = async () => {
     if (!event || !formData || !formData.homeTeamId || !formData.awayTeamId) return;
+
+    if (!formData.isTbd && formData.startTime) {
+         // Construct full date string for proposed time (Local Time interpretation)
+         const dateBase = (event.startDate || event.date || "").split('T')[0];
+         const proposedDate = new Date(`${dateBase}T${formData.startTime}:00`);
+
+         const conflicts = store.getGames().filter(g => {
+             if (g.eventId !== eventId || g.venueId !== formData.venueId || g.status === 'Cancelled' || !g.startTime) return false;
+             
+             // Compare timestamps to handle timezone differences (UTC vs Local)
+             const gameDate = new Date(g.startTime);
+             return gameDate.getTime() === proposedDate.getTime();
+         });
+
+         if (conflicts.length > 0) {
+             toast({
+                 title: "Scheduling Conflict",
+                 description: "A game is already scheduled on this field at this time.",
+                 variant: "destructive"
+             });
+             return;
+         }
+    }
 
     setLoading(true);
     try {
@@ -45,16 +69,17 @@ export default function NewGamePage({ params }: { params: { id: string, eventId:
             eventId: event.id,
             homeTeamId: formData.homeTeamId,
             awayTeamId: formData.awayTeamId,
-            startTime: formData.isTbd ? "" : formData.startTime,
-            venueId: formData.venueId,
-            status: "Scheduled",
-            homeScore: 0,
-            awayScore: 0
+            startTime: formData.isTbd ? undefined : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
+            venueId: formData.venueId
         });
-        router.push(`/admin/organizations/${params.id}/events/${params.eventId}`);
+        router.push(`/admin/organizations/${organizationId}/events/${eventId}`);
     } catch (e) {
         console.error(e);
-        alert("Failed to schedule game");
+        toast({
+            title: "Error",
+            description: "Failed to schedule game",
+            variant: "destructive"
+        });
     } finally {
         setLoading(false);
     }
@@ -79,15 +104,15 @@ export default function NewGamePage({ params }: { params: { id: string, eventId:
       </header>
 
       <main className="container py-8 max-w-3xl">
-        <MetalCard className="p-6 md:p-8">
+        <div className="space-y-8">
             <MatchForm 
-                organizationId={params.id}
+                organizationId={organizationId}
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
                 onChange={setFormData}
             />
 
-            <div className="mt-8 flex justify-end gap-3 pt-6 border-t border-border/50">
+            <div className="flex justify-end gap-3 pt-6 border-t border-border/10">
                 <Button variant="ghost" onClick={() => router.back()}>
                     Cancel
                 </Button>
@@ -99,7 +124,7 @@ export default function NewGamePage({ params }: { params: { id: string, eventId:
                     Schedule Game
                 </Button>
             </div>
-        </MetalCard>
+        </div>
       </main>
     </div>
   );

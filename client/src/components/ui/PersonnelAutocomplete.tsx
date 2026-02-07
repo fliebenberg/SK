@@ -78,7 +78,7 @@ export function PersonnelAutocomplete({
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className="pr-10 bg-background/50"
+          className="pr-10"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
           <Search className="w-4 h-4" />
