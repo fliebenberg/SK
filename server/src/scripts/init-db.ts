@@ -113,7 +113,8 @@ const createTables = async () => {
                 global_role TEXT DEFAULT 'user',
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
-                preferences JSONB DEFAULT '{}'
+                preferences JSONB DEFAULT '{}',
+                theme TEXT DEFAULT 'light-orange'
             );
         `);
 

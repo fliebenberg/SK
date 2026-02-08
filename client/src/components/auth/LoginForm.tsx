@@ -115,12 +115,12 @@ export function LoginForm() {
           </div>
 
           {error && (
-            <div className="rounded-xl overflow-hidden border border-red-500/50 bg-red-500/10 shadow-[0_0_30px_rgba(239,68,68,0.15)] animate-in fade-in zoom-in-95 duration-300">
-              <div className="bg-red-500/20 px-4 py-2 border-b border-red-500/50 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-red-400" />
+            <div className="rounded-xl overflow-hidden border border-red-500/50 dark:bg-red-500/10 bg-red-50 shadow-lg dark:shadow-[0_0_30px_rgba(239,68,68,0.15)] animate-in fade-in zoom-in-95 duration-300">
+              <div className="bg-red-500 px-4 py-2 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-white" />
                 <span className="font-bold text-sm text-white">Sign In Failed</span>
               </div>
-              <div className="p-4 text-[13px] leading-relaxed text-slate-100 font-medium bg-black/20">
+              <div className="p-4 text-[13px] leading-relaxed font-semibold dark:text-slate-100 text-red-900 dark:bg-black/20 bg-red-50/50">
                 {error === 'EMAIL_NOT_FOUND' && "This email isn't registered. If you used Google to sign up, please try the Google button below, or create a new account."}
                 {error === 'PASSWORD_MISMATCH' && "The password you entered is incorrect. You can reset it using the 'Forgot password?' link above."}
                 {error === 'SOCIAL_ONLY' && "You usually log in with Google. Please click the 'Continue with Google' button below to access your account."}

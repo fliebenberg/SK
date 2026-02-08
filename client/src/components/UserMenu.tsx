@@ -25,9 +25,8 @@ export function UserMenu() {
   const router = useRouter();
   const { setTheme } = useTheme();
 
-  const handleLogout = () => {
-    logout();
-    router.push('/');
+  const handleLogout = async () => {
+    await logout();
   };
 
   if (!isAuthenticated) {
@@ -45,6 +44,24 @@ export function UserMenu() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuLabel>Account</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="cursor-pointer flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              <span>Theme</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent sideOffset={2} alignOffset={-5} collisionPadding={16}>
+              <DropdownMenuItem onClick={() => setTheme("dark-green")} className="cursor-pointer">
+                Dark (Green)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("dark-orange")} className="cursor-pointer">
+                Dark (Orange)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("light-orange")} className="cursor-pointer">
+                Light (Orange)
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link href="/login" className="cursor-pointer flex items-center gap-2">
@@ -95,12 +112,23 @@ export function UserMenu() {
             <span>Profile</span>
           </Link>
         </DropdownMenuItem>
+        
+        {user?.globalRole === 'admin' && (
+          <DropdownMenuItem asChild>
+            <Link href="/admin" className="cursor-pointer flex items-center gap-2 font-semibold">
+              <Settings className="h-4 w-4 text-primary" />
+              <span>Admin Dashboard</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
+
         <DropdownMenuItem asChild>
           <Link href="/settings" className="cursor-pointer flex items-center gap-2">
             <Settings className="h-4 w-4" />
             <span>Settings</span>
           </Link>
         </DropdownMenuItem>
+
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="cursor-pointer flex items-center gap-2">
             <Palette className="h-4 w-4" />
@@ -118,10 +146,12 @@ export function UserMenu() {
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+
         <DropdownMenuSeparator />
+        
         <DropdownMenuItem
           onClick={handleLogout}
-          className="cursor-pointer flex items-center gap-2 text-destructive focus:text-destructive"
+          className="cursor-pointer flex items-center gap-2 text-muted-foreground focus:text-foreground font-medium"
         >
           <LogOut className="h-4 w-4" />
           <span>Log Out</span>

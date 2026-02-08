@@ -15,7 +15,7 @@ export async function GET() {
   
   // Fetch user details and linked social accounts
   const userRes = await pool.query(
-    "SELECT name, image, custom_image, avatar_source FROM users WHERE id = $1",
+    "SELECT name, image, custom_image, avatar_source, theme FROM users WHERE id = $1",
     [userId]
   );
   
@@ -37,7 +37,7 @@ export async function PATCH(req: Request) {
   const userId = (session.user as any).id;
   const data = await req.json();
 
-  const { name, image, password, avatarSource, customImage } = data;
+  const { name, image, password, avatarSource, customImage, theme } = data;
 
   if (name) {
     await pool.query("UPDATE users SET name = $1 WHERE id = $2", [name, userId]);
@@ -57,6 +57,10 @@ export async function PATCH(req: Request) {
     const { hash } = await import("bcryptjs");
     const passwordHash = await hash(password, 10);
     await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, userId]);
+  }
+  
+  if (theme) {
+    await pool.query("UPDATE users SET theme = $1 WHERE id = $2", [theme, userId]);
   }
 
   return NextResponse.json({ success: true });

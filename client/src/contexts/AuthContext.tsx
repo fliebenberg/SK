@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useTheme } from 'next-themes';
+import { toast } from '@/hooks/use-toast';
 
 export interface User {
   id: string;
@@ -12,6 +14,7 @@ export interface User {
   hasPassword: boolean;
   avatarSource?: string;
   customImage?: string;
+  theme?: string;
 }
 
 interface AuthContextType {
@@ -21,7 +24,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
@@ -41,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasPassword: (session.user as any).hasPassword || false,
     avatarSource: (session.user as any).avatarSource || undefined,
     customImage: (session.user as any).customImage || undefined,
+    theme: (session.user as any).theme || undefined,
   } : null;
 
   const login = async (email: string, password: string): Promise<void> => {
@@ -94,9 +98,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await update(data);
   };
 
-  const logout = () => {
-    signOut();
+  const logout = async () => {
+    await signOut({ callbackUrl: "/" });
   };
+
+  const { theme, setTheme } = useTheme();
+
+  // 1. Initial Sync: When logging in, if DB has a theme, apply it locally.
+  // DB preference ALWAYS wins over guest selection (localStorage).
+  // If DB has no theme set, then we save the current local theme to the DB.
+  React.useEffect(() => {
+    if (isAuthenticated && user) {
+      const dbTheme = user.theme;
+      const localTheme = localStorage.getItem('theme');
+      
+      if (dbTheme) {
+        // User already has a preference saved in the DB.
+        // This overrides whatever the guest might have selected.
+        if (dbTheme !== localTheme) {
+          setTheme(dbTheme);
+        }
+      } else if (localTheme && localTheme !== 'system') {
+        // No DB theme set yet, so we persist the guest's selection to their profile.
+        updateProfile({ theme: localTheme } as any);
+      }
+    }
+  }, [isAuthenticated, user?.id]);
+
+  // 2. Continuous Sync: If user is logged in and MANUALLY changes theme, update DB.
+  // This ensures the custom choice is saved for other devices.
+  React.useEffect(() => {
+    // We only trigger this if the theme state actually changes to something different from the user profile
+    // AND if we are mounted/initialized (next-themes handles the initial state).
+    if (isAuthenticated && user && theme && theme !== user.theme) {
+      // Small delay or check to ensure we don't race with the initial sync above
+      const timer = setTimeout(() => {
+        // Re-check user.theme in case Effect #1 just finished updating it
+        if (theme !== user.theme) {
+          updateProfile({ theme } as any);
+          toast({
+            description: `Theme updated to ${theme.replace('-', ' ')}`,
+            variant: "success",
+            duration: 3000
+          });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [theme, isAuthenticated, user?.theme]);
 
   return (
     <AuthContext.Provider

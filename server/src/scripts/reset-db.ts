@@ -8,6 +8,13 @@ const resetDb = async () => {
         // Drop tables in reverse order of dependency
         const tables = [
             'games',
+            'user_favorites',
+            'password_reset_tokens',
+            'verification_tokens',
+            'sessions',
+            'accounts',
+            'user_emails',
+            'users',
             'events',
             'organization_memberships',
             'team_memberships',

@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import Link from 'next/link';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { Chrome, Facebook } from 'lucide-react';
+import { Chrome, Facebook, Shield } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function SignupForm() {
   const { signup, loginWithGoogle } = useAuth();
@@ -134,9 +135,22 @@ export function SignupForm() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="confirmPassword" className="text-sm font-medium">
-              Confirm Password
-            </label>
+            <div className="flex items-center justify-between">
+              <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground/80">
+                Confirm Password
+              </label>
+              {confirmPassword && (
+                password === confirmPassword ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-success animate-in fade-in slide-in-from-right-1 duration-300">
+                    Matched
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-destructive animate-pulse">
+                    Unmatched
+                  </span>
+                )
+              )}
+            </div>
             <Input
               id="confirmPassword"
               type="password"
@@ -144,7 +158,14 @@ export function SignupForm() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="transition-all duration-200 focus:ring-2 focus:ring-primary"
+              className={cn(
+                "transition-all duration-300 focus:ring-2",
+                confirmPassword ? (
+                  password === confirmPassword 
+                    ? "border-success/50 ring-1 ring-success/10 focus:ring-success/20" 
+                    : "border-destructive ring-1 ring-destructive/20 focus:ring-destructive/30"
+                ) : "focus:ring-primary"
+              )}
             />
           </div>
 
@@ -172,8 +193,14 @@ export function SignupForm() {
           </div>
 
           {error && (
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-              {error}
+            <div className="rounded-xl overflow-hidden border border-red-500/50 dark:bg-red-500/10 bg-red-50 shadow-lg dark:shadow-[0_0_30px_rgba(239,68,68,0.15)] animate-in fade-in zoom-in-95 duration-300">
+              <div className="bg-red-500 px-4 py-2 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-white" />
+                <span className="font-bold text-sm text-white">Registration Failed</span>
+              </div>
+              <div className="p-4 text-[13px] leading-relaxed font-semibold dark:text-slate-100 text-red-900 dark:bg-black/20 bg-red-50/50">
+                {error}
+              </div>
             </div>
           )}
 

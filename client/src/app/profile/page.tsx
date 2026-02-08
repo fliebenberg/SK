@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { MetalButton } from '@/components/ui/MetalButton';
 import { Input } from '@/components/ui/input';
@@ -26,25 +27,36 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage] = useState({ type: '', text: '' });
   const [activeSection, setActiveSection] = useState('account');
 
   const handleUpdatePassword = async () => {
     if (newPassword !== confirmPassword) {
-      setMessage({ type: 'error', text: 'Passwords do not match' });
+      toast({
+        title: "Error",
+        description: "Passwords do not match",
+        variant: "destructive"
+      });
       return;
     }
     
     setIsLoading(true);
-    setMessage({ type: '', text: '' });
+    setIsLoading(true);
 
     try {
       await updateProfile({ password: newPassword } as any);
       setNewPassword('');
       setConfirmPassword('');
-      setMessage({ type: 'success', text: 'Password set successfully!' });
+      toast({
+        title: "Success",
+        description: "Password set successfully!",
+        variant: "success"
+      });
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to update password' });
+      toast({
+        title: "Error",
+        description: "Failed to update password",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -92,19 +104,12 @@ export default function ProfilePage() {
     fetchSocials();
   }, [user, isAuthenticated, router]);
 
-  useEffect(() => {
-    if (message.text) {
-      const timer = setTimeout(() => {
-        setMessage({ type: '', text: '' });
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [message.text]);
+  // Removed local message timeout useEffect as toast handles its own duration
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage({ type: '', text: '' });
+    setIsLoading(true);
 
     try {
       await updateProfile({ 
@@ -113,9 +118,17 @@ export default function ProfilePage() {
         avatarSource 
       } as any);
       setInitialData({ name, customImage, avatarSource });
-      setMessage({ type: 'success', text: 'Profile updated successfully' });
+      toast({
+        title: "Success",
+        description: "Profile updated successfully",
+        variant: "success"
+      });
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to update profile' });
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -453,18 +466,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Status Notifications */}
-      {message.text && (
-        <div className={cn(
-          "fixed bottom-8 right-8 p-4 rounded-2xl border-2 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] flex items-center gap-3 animate-in slide-in-from-right-10 duration-500 z-50",
-          message.type === 'success' 
-            ? 'bg-green-500/10 text-green-500 border-green-500/20' 
-            : 'bg-destructive/10 text-destructive border-destructive/20'
-        )}>
-          {message.type === 'success' ? <Shield className="w-5 h-5" /> : <Shield className="w-5 h-5 text-destructive" />}
-          <span className="font-bold text-sm tracking-tight">{message.text}</span>
-        </div>
-      )}
+      {/* Status Notifications are now handled by the global Toaster */}
     </div>
   );
 }

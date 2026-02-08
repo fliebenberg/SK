@@ -119,7 +119,7 @@ export const authOptions: NextAuthOptions = {
       
       // Fetch latest data from DB to be source of truth
       const res = await pool.query(
-        "SELECT name, image, global_role, password_hash, custom_image, avatar_source FROM users WHERE id = $1", 
+        "SELECT name, image, global_role, password_hash, custom_image, avatar_source, theme FROM users WHERE id = $1", 
         [token.id]
       );
       const dbUser = res.rows[0];
@@ -130,6 +130,7 @@ export const authOptions: NextAuthOptions = {
         token.hasPassword = !!dbUser.password_hash;
         token.avatarSource = dbUser.avatar_source;
         token.customImage = dbUser.custom_image;
+        token.theme = dbUser.theme;
         
         // Determine active image based on avatar_source
         if (!dbUser.avatar_source || dbUser.avatar_source === 'custom') {
@@ -150,6 +151,7 @@ export const authOptions: NextAuthOptions = {
         if (session.image !== undefined) token.picture = session.image;
         if (session.avatarSource !== undefined) token.avatarSource = session.avatarSource;
         if (session.customImage !== undefined) token.customImage = session.customImage;
+        if (session.theme !== undefined) token.theme = session.theme;
       }
 
       return token;
@@ -164,6 +166,7 @@ export const authOptions: NextAuthOptions = {
         if (token.picture !== undefined) session.user.image = token.picture as string;
         (session.user as any).avatarSource = token.avatarSource;
         (session.user as any).customImage = token.customImage;
+        (session.user as any).theme = token.theme;
       }
       return session;
     }
