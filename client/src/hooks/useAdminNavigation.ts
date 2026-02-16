@@ -12,6 +12,7 @@ import {
   Calendar,
   Settings,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface SidebarItem {
     title: string;
@@ -21,13 +22,28 @@ export interface SidebarItem {
 
 export function useAdminNavigation() {
   const pathname = usePathname();
-  const [organizations, setOrganizations] = useState<Organization[]>(store.getOrganizations());
+  const { user } = useAuth();
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
+  const [hasOwnedOrg, setHasOwnedOrg] = useState(false);
 
   useEffect(() => {
     const update = () => {
-        const orgs = store.getOrganizations();
-        setOrganizations([...orgs]);
+        const allOrgs = store.getOrganizations();
+        
+        if (!user) {
+            setOrganizations([]);
+            setCurrentOrg(null);
+            return;
+        }
+
+        const adminOrgIds = store.getAdminOrgIds(user.id, user.globalRole);
+        const filteredOrgs = allOrgs.filter(o => adminOrgIds.includes(o.id));
+        setOrganizations(filteredOrgs);
+
+        const hasOwned = user.globalRole === 'admin' || 
+          store.userOrgMemberships.some(m => m.roleId === 'role-org-admin');
+        setHasOwnedOrg(hasOwned);
         
         const match = pathname.match(/\/admin\/organizations\/([^\/]+)/);
         if (match) {
@@ -35,9 +51,8 @@ export function useAdminNavigation() {
           if (orgId === 'new') {
             setCurrentOrg(null);
           } else {
-            const found = orgs.find(o => o.id === orgId);
+            const found = allOrgs.find(o => o.id === orgId);
             if (found) setCurrentOrg(found);
-            // If not found in store yet (loading?), currentOrg becomes null, showing dashboard only
           }
         } else {
             setCurrentOrg(null);
@@ -47,42 +62,51 @@ export function useAdminNavigation() {
     update(); // Initial check
     const unsubscribe = store.subscribe(update);
     return () => unsubscribe();
-  }, [pathname]);
+  }, [pathname, user]);
 
   const getSidebarItems = (): SidebarItem[] => {
       if (currentOrg) {
-          return [
+          const isOrgAdmin = user?.globalRole === 'admin' || 
+            store.userOrgMemberships.some(m => m.organizationId === currentOrg.id && m.roleId === 'role-org-admin');
+
+          const items: SidebarItem[] = [
               {
                   title: "Dashboard",
                   href: `/admin/organizations/${currentOrg.id}`,
                   icon: LayoutDashboard,
               },
-              {
+          ];
+
+          if (isOrgAdmin) {
+              items.push({
                   title: "Organization Settings",
                   href: `/admin/organizations/${currentOrg.id}/edit`,
                   icon: Settings,
-              },
-              {
+              });
+              items.push({
                   title: "People",
                   href: `/admin/organizations/${currentOrg.id}/people`,
                   icon: Users,
-              },
-              {
-                  title: "Teams",
-                  href: `/admin/organizations/${currentOrg.id}/teams`,
-                  icon: Trophy,
-              },
-              {
-                  title: "Venues",
-                  href: `/admin/organizations/${currentOrg.id}/venues`,
-                  icon: MapPin,
-              },
-              {
-                  title: "Events",
-                  href: `/admin/organizations/${currentOrg.id}/events`,
-                  icon: Calendar,
-              },
-          ];
+              });
+          }
+
+          items.push({
+              title: "Teams",
+              href: `/admin/organizations/${currentOrg.id}/teams`,
+              icon: Trophy,
+          });
+          items.push({
+              title: "Venues",
+              href: `/admin/organizations/${currentOrg.id}/venues`,
+              icon: MapPin,
+          });
+          items.push({
+              title: "Events",
+              href: `/admin/organizations/${currentOrg.id}/events`,
+              icon: Calendar,
+          });
+
+          return items;
       }
 
       return [
@@ -99,5 +123,6 @@ export function useAdminNavigation() {
     organizations,
     currentOrg,
     sidebarItems: getSidebarItems(),
+    hasOwnedOrg,
   };
 }

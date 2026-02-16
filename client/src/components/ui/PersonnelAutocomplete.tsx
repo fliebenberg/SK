@@ -28,24 +28,27 @@ export function PersonnelAutocomplete({
   const [suggestions, setSuggestions] = useState<Person[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    store.subscribeToOrganization(organizationId);
-    
-    const updateSuggestions = () => {
-      const members = store.getOrganizationMembers(organizationId);
-      if (value.trim()) {
-        const filtered = members.filter(m => 
-          m.name.toLowerCase().includes(value.toLowerCase())
-        );
-        setSuggestions(filtered);
-      } else {
-        setSuggestions([]);
-      }
-    };
+  const [isLoading, setIsLoading] = useState(false);
 
-    updateSuggestions();
-    const unsubscribe = store.subscribe(updateSuggestions);
-    return () => unsubscribe();
+  useEffect(() => {
+    if (!value.trim() || value.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const results = await store.searchPeople(value, organizationId);
+        setSuggestions(results);
+      } catch (error) {
+        console.error("Fuzzy search failed:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
   }, [organizationId, value]);
 
   useEffect(() => {
@@ -91,7 +94,7 @@ export function PersonnelAutocomplete({
             {suggestions.length > 0 ? (
               <>
                 <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/30 bg-muted/30">
-                  Existing Members
+                  Search Results
                 </div>
                 {suggestions.map((person) => (
                   <button
@@ -104,9 +107,21 @@ export function PersonnelAutocomplete({
                       <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">
                         {person.name.charAt(0).toUpperCase()}
                       </div>
-                      <span className="font-medium">{person.name}</span>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{person.name}</span>
+                        {person.email && (
+                          <span className="text-xs text-muted-foreground">{person.email}</span>
+                        )}
+                      </div>
                     </div>
-                    <Check className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-2">
+                      {person.birthdate && (
+                        <span className="text-xs text-muted-foreground italic">
+                          ({new Date(person.birthdate).toLocaleDateString()})
+                        </span>
+                      )}
+                      <Check className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </button>
                 ))}
               </>

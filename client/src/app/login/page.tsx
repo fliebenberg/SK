@@ -1,22 +1,25 @@
 "use client";
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { FullPageLoader } from '@/components/FullPageLoader';
+import { Suspense } from 'react';
 
-export default function LoginPage() {
+function LoginPageContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const { mounted, primaryColor } = useThemeColors();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl') || '/';
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      router.push('/');
+      router.push(callbackUrl);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router, callbackUrl]);
 
   // If we are looking for the session, or haven't mounted the theme yet,
   // or if we are already authenticated (waiting for redirect), show loader.
@@ -43,4 +46,12 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<FullPageLoader />}>
+            <LoginPageContent />
+        </Suspense>
+    );
 }

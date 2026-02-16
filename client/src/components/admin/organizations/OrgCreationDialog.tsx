@@ -18,6 +18,7 @@ import { Loader2, X } from "lucide-react";
 import { MetalButton } from "@/components/ui/MetalButton";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { getInitials } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface OrgCreationDialogProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function OrgCreationDialog({
   onCreated,
   supportedSportIds = [],
 }: OrgCreationDialogProps) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: initialName,
@@ -42,6 +44,8 @@ export function OrgCreationDialog({
     secondaryColor: "#ffffff",
     logo: "",
   });
+
+  const [referralEmails, setReferralEmails] = useState<string[]>([""]);
 
   // Sync initial name when it changes (e.g. from autocomplete)
   useEffect(() => {
@@ -52,8 +56,24 @@ export function OrgCreationDialog({
         shortName: initialName.substring(0, 3).toUpperCase(),
         logo: "", // Reset logo on open
       }));
+      setReferralEmails([""]); // Reset referrals
     }
   }, [open, initialName]);
+
+  const handleReferralChange = (index: number, value: string) => {
+    const newEmails = [...referralEmails];
+    newEmails[index] = value;
+    setReferralEmails(newEmails);
+  };
+
+  const addReferralField = () => {
+    setReferralEmails([...referralEmails, ""]);
+  };
+
+  const removeReferralField = (index: number) => {
+    const newEmails = referralEmails.filter((_, i) => i !== index);
+    setReferralEmails(newEmails.length ? newEmails : [""]);
+  };
 
   const handleSave = async () => {
     if (!formData.name.trim()) return;
@@ -69,6 +89,30 @@ export function OrgCreationDialog({
         supportedSportIds,
         supportedRoleIds: [],
       });
+
+      // Process referrals if any valid emails exist
+      const validEmails = referralEmails
+        .map(e => e.trim())
+        .filter(e => e && e.includes('@')); // Basic validation
+      
+      if (validEmails.length > 0 && user?.id) {
+          try {
+             await store.referOrgContact(newOrg.id, validEmails, user.id);
+             console.log("Referrals initiated for", newOrg.id);
+          } catch (referralError) {
+             console.error("Failed to submit referrals:", referralError);
+             // We don't block the org creation success, just log the error
+          }
+      }
+        
+      // ACTUALLY: I'll defer the referral call to a separate helper or assume `store` can handle it if I pass the ID.
+      // Let's update the component to accept `currentUserId` as a prop.
+      // Wait, `OrgCreationDialog` is used in `AdminEventsPage` or similar.
+      // I'll assume the parent passes it.
+      
+      // Re-reading code... I don't see `currentUserId` in props.
+      // I will add it to the interface.
+      
       onCreated(newOrg);
       onOpenChange(false);
     } catch (e) {
@@ -77,6 +121,9 @@ export function OrgCreationDialog({
       setLoading(false);
     }
   };
+
+  // ... (render part)
+
 
   const currentInitials = getInitials(formData.name, formData.shortName);
 
@@ -168,6 +215,56 @@ export function OrgCreationDialog({
                         style={{ backgroundColor: formData.secondaryColor }}
                     />
                     <span className="text-xs font-mono uppercase text-muted-foreground">{formData.secondaryColor}</span>
+                </div>
+            </div>
+              {/* Box 3: Referrals */}
+            <div className="col-span-2 border-t pt-4 mt-2">
+                <div className="space-y-3">
+                    <div className="flex flex-col gap-1">
+                        <Label className="text-base font-semibold text-primary flex items-center gap-2">
+                             <span className="bg-primary/10 text-primary p-1 rounded-md">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-users-round"><path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a9 9 0 0 0-2.2-2.2"/></svg>
+                             </span>
+                             Known Contacts?
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                            Help us get this organization claimed! If you know who manages <strong>{formData.name || "this organization"}</strong>, add their email below. We'll send them an invite to claim it.
+                        </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        {referralEmails.map((email, index) => (
+                            <div key={index} className="flex gap-2">
+                                <Input
+                                    value={email}
+                                    onChange={(e) => handleReferralChange(index, e.target.value)}
+                                    placeholder="contact@school.edu"
+                                    className="text-sm"
+                                    type="email"
+                                />
+                                {referralEmails.length > 1 && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        onClick={() => removeReferralField(index)}
+                                        className="h-10 w-10 text-muted-foreground hover:text-destructive"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={addReferralField}
+                        className="text-xs h-8 border-dashed"
+                    >
+                        + Add Another Contact
+                    </Button>
                 </div>
             </div>
           </div>

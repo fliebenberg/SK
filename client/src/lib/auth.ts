@@ -69,8 +69,8 @@ export const authOptions: NextAuthOptions = {
           // Create user if they don't exist
           userId = `user-${account.provider}-${profile?.sub || Date.now()}`;
           await pool.query(
-            "INSERT INTO users (id, name, email, image, global_role) VALUES ($1, $2, $3, $4, $5)",
-            [userId, user.name, user.email, user.image, role]
+            "INSERT INTO users (id, name, email, image, global_role, avatar_source) VALUES ($1, $2, $3, $4, $5, $6)",
+            [userId, user.name, user.email, user.image, role, account.provider]
           );
           // Also add to user_emails
           await pool.query(
@@ -84,6 +84,15 @@ export const authOptions: NextAuthOptions = {
             await pool.query("UPDATE users SET global_role = 'admin' WHERE id = $1", [userId]);
           }
         }
+        
+        // Ensure this verified email is linked to the user in user_emails (UPSERT)
+        await pool.query(`
+          INSERT INTO user_emails (id, user_id, email, is_primary, verified_at)
+          VALUES ($1, $2, $3, $4, NOW())
+          ON CONFLICT (email) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            verified_at = COALESCE(user_emails.verified_at, EXCLUDED.verified_at)
+        `, [`email-${Date.now()}`, userId, user.email, true]);
         
         user.id = userId;
 
@@ -134,15 +143,16 @@ export const authOptions: NextAuthOptions = {
         
         // Determine active image based on avatar_source
         if (!dbUser.avatar_source || dbUser.avatar_source === 'custom') {
-          token.picture = dbUser.custom_image || null;
+          // If no source or custom, use custom_image, or fallback to the initial social image 'image' if custom is missing
+          token.picture = dbUser.custom_image || dbUser.image || null;
         } else {
           // Fetch from accounts table for that provider
           const accRes = await pool.query(
             "SELECT provider_image FROM accounts WHERE user_id = $1 AND provider = $2",
             [token.id, dbUser.avatar_source]
           );
-          // Use provider image, or fall back to initials if missing
-          token.picture = accRes.rows[0]?.provider_image || null;
+          // Use provider image, or fall back to the main user.image (initial social) if account record has no image
+          token.picture = accRes.rows[0]?.provider_image || dbUser.image || null;
         }
       }
 

@@ -85,6 +85,17 @@ export class EventManager extends BaseManager {
     return res.rows;
   }
 
+  async getLiveGames(): Promise<Game[]> {
+    const res = await this.query(`
+        SELECT id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, venue_id as "venueId", home_score as "homeScore", away_score as "awayScore"
+        FROM games
+        WHERE status = 'Live' 
+           OR (status = 'Scheduled' AND start_time > (NOW() - INTERVAL '24 hours') AND start_time < (NOW() + INTERVAL '7 days'))
+        ORDER BY status DESC, start_time ASC
+    `);
+    return res.rows;
+  }
+
   async getGame(id: string): Promise<Game | undefined> {
     const res = await this.query('SELECT id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, venue_id as "venueId", home_score as "homeScore", away_score as "awayScore" FROM games WHERE id = $1', [id]);
     return res.rows[0];
@@ -143,6 +154,14 @@ export class EventManager extends BaseManager {
           values
       );
       return res.rows[0] || null;
+  }
+
+  async deleteGame(id: string): Promise<Game | null> {
+      const game = await this.getGame(id);
+      if (!game) return null;
+
+      await this.query('DELETE FROM games WHERE id = $1', [id]);
+      return game;
   }
 }
 

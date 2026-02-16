@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { store } from "@/app/store/store";
-import { Team, Sport } from "@sk/types";
+import { Team, Sport, Organization } from "@sk/types";
 import { Loader2 } from "lucide-react";
 import { MetalButton } from "@/components/ui/MetalButton";
 
@@ -49,12 +49,19 @@ export function TeamCreationDialog({
     sportId: initialSportId,
     ageGroup: initialAgeGroup,
   });
+  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
 
   useEffect(() => {
-    setSports(store.getSports());
-    const unsub = store.subscribe(() => setSports(store.getSports()));
+    const update = () => {
+        setSports(store.getSports());
+        const org = store.getOrganization(organizationId);
+        if (org) setCurrentOrg(org);
+        else if (organizationId) store.fetchOrganization(organizationId);
+    };
+    update();
+    const unsub = store.subscribe(update);
     return unsub;
-  }, []);
+  }, [organizationId]);
 
   useEffect(() => {
     if (open) {
@@ -119,7 +126,7 @@ export function TeamCreationDialog({
                   <SelectValue placeholder="Select sport" />
                 </SelectTrigger>
                 <SelectContent>
-                  {sports.map((s) => (
+                  {(currentOrg?.supportedSportIds?.length ? sports.filter(s => currentOrg.supportedSportIds.includes(s.id)) : sports).map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>

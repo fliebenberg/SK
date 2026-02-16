@@ -11,9 +11,9 @@ describe('Store Logic', () => {
     expect(teams[0].name).toBe('First XI');
   });
 
-  it('should add a new team', () => {
+  it('should add a new team', async () => {
     const initialCount = store.getTeams().length;
-    const newTeam = store.addTeam({
+    const newTeam = await store.addTeam({
       name: 'Test Team',
       sportId: 'sport-tennis',
       ageGroup: 'U14',
@@ -25,11 +25,12 @@ describe('Store Logic', () => {
     expect(store.getTeams().length).toBe(initialCount + 1);
   });
 
-  it('should add a new venue', () => {
+  it('should add a new venue', async () => {
     const initialCount = store.getVenues().length;
-    const newVenue = store.addVenue({
+    const newVenue = await store.addVenue({
       name: 'Test Venue',
-      address: '123 Test St'
+      address: '123 Test St',
+      organizationId: 'org-test'
     });
 
     expect(newVenue.id).toBeDefined();
@@ -37,12 +38,12 @@ describe('Store Logic', () => {
     expect(store.getVenues().length).toBe(initialCount + 1);
   });
 
-  it('should add and retrieve a game', () => {
+  it('should add and retrieve a game', async () => {
     const teams = store.getTeams();
     const homeTeam = teams[0];
     const awayTeam = teams[1];
     
-    const newGame = store.addGame({
+    const newGame = await store.addGame({
       eventId: 'event-test',
       homeTeamId: homeTeam.id,
       awayTeamId: awayTeam.id,
@@ -57,19 +58,19 @@ describe('Store Logic', () => {
     expect(retrievedGame?.id).toBe(newGame.id);
   });
 
-  it('should update game status and score', () => {
+  it('should update game status and score', async () => {
     const teams = store.getTeams();
-    const game = store.addGame({
+    const game = await store.addGame({
       eventId: 'event-test-2',
       homeTeamId: teams[0].id,
       awayTeamId: teams[1].id,
       startTime: '2024-01-01T14:00'
     });
 
-    store.updateGameStatus(game.id, 'Live');
+    await store.updateGameStatus(game.id, 'Live');
     expect(store.getGame(game.id)?.status).toBe('Live');
 
-    store.updateScore(game.id, 1, 0);
+    await store.updateScore(game.id, 1, 0);
     const updatedGame = store.getGame(game.id);
     expect(updatedGame?.homeScore).toBe(1);
     expect(updatedGame?.awayScore).toBe(0);

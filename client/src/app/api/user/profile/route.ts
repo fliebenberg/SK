@@ -51,10 +51,36 @@ export async function PATCH(req: Request) {
   
   if (avatarSource) {
     await pool.query("UPDATE users SET avatar_source = $1 WHERE id = $2", [avatarSource, userId]);
+    
+    // Sync main 'image' field for legacy components and JWT fallback
+    if (avatarSource === 'custom' && finalCustomImage) {
+        await pool.query("UPDATE users SET image = $1 WHERE id = $2", [finalCustomImage, userId]);
+    } else if (avatarSource !== 'custom') {
+        const accRes = await pool.query("SELECT provider_image FROM accounts WHERE user_id = $1 AND provider = $2", [userId, avatarSource]);
+        if (accRes.rows[0]?.provider_image) {
+            await pool.query("UPDATE users SET image = $1 WHERE id = $2", [accRes.rows[0].provider_image, userId]);
+        }
+    }
   }
 
   if (password) {
-    const { hash } = await import("bcryptjs");
+    const { compare, hash } = await import("bcryptjs");
+    
+    // If the user already has a password, we must verify the old one
+    const existingPassRes = await pool.query("SELECT password_hash FROM users WHERE id = $1", [userId]);
+    const existingHash = existingPassRes.rows[0]?.password_hash;
+    
+    if (existingHash) {
+      if (!data.oldPassword) {
+        return NextResponse.json({ message: "Current password is required" }, { status: 400 });
+      }
+      
+      const isMatch = await compare(data.oldPassword, existingHash);
+      if (!isMatch) {
+        return NextResponse.json({ message: "Incorrect current password" }, { status: 403 });
+      }
+    }
+
     const passwordHash = await hash(password, 10);
     await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, userId]);
   }

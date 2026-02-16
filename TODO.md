@@ -12,6 +12,9 @@ This list tracks the tasks we need to accomplish in your application.
 - [ ] Ability to select players for a match from the team view
 - [ ] Consolidate Sportsday and Tournament view. Sportsday will just become one type of tournament. Based on the tournament type the details tab will change.
 - [x] Add Offline indicator when the app is not connected to the server/websocket
+- [ ] Remember to add email verification for new email addresses
+- [ ] Add password reset functionality. On profile screen user can enter old password and then enter new password. If they have forgotten their password, we need to send a password reset code to the user's email that should then allow them to reset their password.
+- [ ] Trigger Referral Scan/Notification Sync when a new email is verified for the first time.
 
 ---
 *Note: You can ask me to update this list or check off items as we complete them.*

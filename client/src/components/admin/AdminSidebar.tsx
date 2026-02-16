@@ -35,7 +35,7 @@ interface AdminSidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 export function AdminSidebar({ className }: AdminSidebarProps) {
   const router = useRouter();
-  const { pathname, organizations, currentOrg, sidebarItems } = useAdminNavigation();
+  const { pathname, organizations, currentOrg, sidebarItems, hasOwnedOrg } = useAdminNavigation();
 
   const handleOrgChange = (org: Organization) => {
       router.push(`/admin/organizations/${org.id}`);
@@ -96,11 +96,24 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
                   </DropdownMenuItem>
                 );
               })}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => router.push("/admin/organizations/new")}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create New
-              </DropdownMenuItem>
+              {currentOrg && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => router.push("/admin/organizations/new")}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create New
+                  </DropdownMenuItem>
+                </>
+              )}
+              {!hasOwnedOrg && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => router.push("/admin/organizations/new")}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create New
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -147,7 +160,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
 export function MobileSidebar() {
     const [open, setOpen] = useState(false);
     const router = useRouter();
-    const { pathname, organizations, currentOrg, sidebarItems } = useAdminNavigation();
+    const { pathname, organizations, currentOrg, sidebarItems, hasOwnedOrg } = useAdminNavigation();
     const contrastColor = currentOrg ? getContrastColor(currentOrg.primaryColor || '#ffffff') : '#ffffff';
     const hasActualLogo = currentOrg?.logo && !isPlaceholderLogo(currentOrg.logo);
 
@@ -216,14 +229,18 @@ export function MobileSidebar() {
                                 </DropdownMenuItem>
                             );
                         })}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => {
-                            router.push("/admin/organizations/new");
-                            setOpen(false);
-                        }}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Create New
-                        </DropdownMenuItem>
+                        {!hasOwnedOrg && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => {
+                                router.push("/admin/organizations/new");
+                                setOpen(false);
+                            }}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Create New
+                            </DropdownMenuItem>
+                          </>
+                        )}
                         </DropdownMenuContent>
                     </DropdownMenu>
 

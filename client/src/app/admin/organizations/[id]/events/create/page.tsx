@@ -22,6 +22,7 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 import { MatchForm, MatchFormData } from "@/components/admin/games/MatchForm";
 import { toast } from "@/hooks/use-toast";
 import { OrgCreationDialog } from "@/components/admin/organizations/OrgCreationDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function CreateEventPage() {
   const params = useParams();
@@ -29,6 +30,8 @@ export default function CreateEventPage() {
   const router = useRouter();
   const organizationId = params.id as string;
   const type = searchParams.get("type") as "tournament" | "game" | "sportsday" || "tournament";
+
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
@@ -55,8 +58,40 @@ export default function CreateEventPage() {
   const [selectedOrgIds, setSelectedOrgIds] = useState<string[]>([]);
   const [matchFormData, setMatchFormData] = useState<MatchFormData | null>(null);
   const [orgSearch, setOrgSearch] = useState("");
+  const [searchedOrgs, setSearchedOrgs] = useState<Organization[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Instant Local Search + Debounced Backend Search
+  useEffect(() => {
+    const query = orgSearch.trim();
+    if (!query) {
+        setSearchedOrgs(allOrgs);
+        setIsSearching(false);
+        return;
+    }
+
+    // 1. Instant local search update
+    setSearchedOrgs(store.searchOrganizationsLocal(query));
+    setIsSearching(true);
+
+    // 2. Debounced backend augmentation
+    const timer = setTimeout(async () => {
+        try {
+            const results = await store.searchSimilarOrganizations(orgSearch);
+            setSearchedOrgs(results);
+        } catch (e) {
+            console.error("Failed to search orgs", e);
+        } finally {
+            setIsSearching(false);
+        }
+    }, 400); 
+    
+    return () => clearTimeout(timer);
+  }, [orgSearch, allOrgs]);
+
   const [orgDialogOpen, setOrgDialogOpen] = useState(false);
   const [pendingOrgName, setPendingOrgName] = useState("");
+  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
 
   const nameInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -72,6 +107,9 @@ export default function CreateEventPage() {
         setVenues(store.getVenues(organizationId));
         setSports(store.getSports());
         setAllOrgs(store.getOrganizations());
+        const org = store.getOrganization(organizationId);
+        if (org) setCurrentOrg(org);
+        else store.fetchOrganization(organizationId);
     };
     update();
     const unsub = store.subscribe(update);
@@ -168,6 +206,20 @@ export default function CreateEventPage() {
                 sportIds: matchFormData.sportId ? [matchFormData.sportId] : [],
                 participatingOrgIds: awayTeam ? [awayTeam.organizationId] : []
             });
+
+            // Handle Referrals
+            if (matchFormData.referrals && user?.id) {
+                for (const [orgId, emails] of Object.entries(matchFormData.referrals)) {
+                    const validEmails = emails.map(e => e.trim()).filter(e => e && e.includes('@'));
+                    if (validEmails.length > 0) {
+                        try {
+                            await store.referOrgContact(orgId, validEmails, user.id);
+                        } catch (e) {
+                            console.error(`Failed to refer contacts for org ${orgId}`, e);
+                        }
+                    }
+                }
+            }
 
             await store.addGame({
                 eventId: newEvent.id,
@@ -302,7 +354,7 @@ export default function CreateEventPage() {
                     <div className="space-y-3">
                         <Label>Sports</Label>
                         <div className="flex flex-wrap gap-2">
-                            {sports.map(sport => {
+                            {(currentOrg?.supportedSportIds?.length ? sports.filter(s => currentOrg.supportedSportIds.includes(s.id)) : sports).map(sport => {
                                 const isSelected = selectedSportIds.includes(sport.id);
                                 return (
                                     <div 
@@ -324,7 +376,7 @@ export default function CreateEventPage() {
                         <Label>Participating Organizations</Label>
                         <div className="flex flex-wrap gap-2 mb-2">
                             {selectedOrgIds.map(id => {
-                                const org = allOrgs.find(o => o.id === id);
+                                const org = allOrgs.find(o => o.id === id) || store.getOrganization(id);
                                 if (!org) return null;
                                 return (
                                     <div key={id} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-md text-sm">
@@ -335,16 +387,26 @@ export default function CreateEventPage() {
                             })}
                         </div>
                         <GenericAutocomplete 
-                            items={allOrgs.filter(o => o.id !== organizationId && !selectedOrgIds.includes(o.id)).map(o => ({ id: o.id, label: o.name, data: o }))}
+                            items={searchedOrgs.filter(o => o.id !== organizationId && !selectedOrgIds.includes(o.id)).map(o => ({ 
+                                id: o.id, 
+                                label: o.name, 
+                                subLabel: o.shortName,
+                                data: o 
+                            }))}
                             value={orgSearch}
-                            onChange={setOrgSearch}
+                            onChange={(val) => {
+                                setOrgSearch(val);
+                                setIsSearching(true);
+                            }}
                             onSelect={(item) => item && addOrg(item.id)}
                             onCreateNew={(name) => {
                                 setPendingOrgName(name);
                                 setOrgDialogOpen(true);
                             }}
-                            placeholder="Add Organization..."
-                            createLabel="Register New Organization" 
+                            placeholder="Add Organization (Name or Code)..."
+                            createLabel="Register New Organization"
+                            isLoading={isSearching}
+                            disableFiltering={true} 
                         />
                     </div>
                 </>

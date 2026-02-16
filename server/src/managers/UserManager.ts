@@ -1,4 +1,5 @@
 import { Person, OrganizationMembership, User, UserEmail } from "@sk/types";
+import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 
@@ -76,6 +77,15 @@ export class UserManager extends BaseManager {
   async getUserEmails(userId: string): Promise<UserEmail[]> {
     const res = await this.query('SELECT * FROM user_emails WHERE user_id = $1', [userId]);
     return res.rows;
+  }
+
+  async getVerifiedEmails(userId: string): Promise<string[]> {
+    const res = await this.query(`
+      SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
+      UNION
+      SELECT email FROM users WHERE id = $1
+    `, [userId]);
+    return res.rows.map(r => r.email);
   }
 
   async addEmail(userId: string, email: string, isPrimary = false, verified = false): Promise<UserEmail> {
@@ -192,34 +202,102 @@ export class UserManager extends BaseManager {
 
   // --- Existing Logic (Persons & Memberships) ---
 
-  async addPerson(person: Person): Promise<Person> {
-    const res = await this.query('INSERT INTO persons (id, name) VALUES ($1, $2) RETURNING id, name', [person.id, person.name]);
+  async addPerson(person: Omit<Person, 'id'> & { id?: string }): Promise<Person> {
+    const id = person.id || `person-${Date.now()}`;
+    const res = await this.query(
+      `INSERT INTO persons (id, name, email, birthdate, national_id) 
+       VALUES ($1, $2, $3, $4, $5) 
+       ON CONFLICT (id) DO UPDATE SET 
+         name = EXCLUDED.name,
+         email = COALESCE(persons.email, EXCLUDED.email),
+         birthdate = COALESCE(persons.birthdate, EXCLUDED.birthdate),
+         national_id = COALESCE(persons.national_id, EXCLUDED.national_id)
+       RETURNING id, name, email, birthdate, national_id as "nationalId"`, 
+      [id, person.name, person.email, person.birthdate, person.nationalId]
+    );
     return res.rows[0];
   }
 
   async updatePerson(id: string, data: Partial<Person>): Promise<Person | null> {
-     if (data.name) {
-         const res = await this.query('UPDATE persons SET name = $1 WHERE id = $2 RETURNING id, name', [data.name, id]);
-         return res.rows[0] || null;
-     }
-     return null;
+    const keys = Object.keys(data).filter(k => k !== 'id');
+    if (keys.length === 0) return null;
+
+    const map: Record<string, string> = {
+      name: 'name',
+      email: 'email',
+      birthdate: 'birthdate',
+      nationalId: 'national_id'
+    };
+
+    const clauses: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    keys.forEach(key => {
+      if (map[key]) {
+        clauses.push(`${map[key]} = $${idx}`);
+        values.push((data as any)[key]);
+        idx++;
+      }
+    });
+
+    if (clauses.length === 0) return null;
+
+    values.push(id);
+    const res = await this.query(
+      `UPDATE persons SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, name, email, birthdate, national_id as "nationalId"`,
+      values
+    );
+    return res.rows[0] || null;
+  }
+
+  // --- Person Identifiers (Org-specific IDs) ---
+
+  async getPersonIdentifiers(personId: string): Promise<any[]> {
+    const res = await this.query(
+      `SELECT id, person_id as "personId", organization_id as "organizationId", identifier 
+       FROM person_identifiers WHERE person_id = $1`,
+      [personId]
+    );
+    return res.rows;
+  }
+
+  async setPersonIdentifier(personId: string, organizationId: string, identifier: string): Promise<any> {
+    const id = `pi-${Date.now()}`;
+    const res = await this.query(
+      `INSERT INTO person_identifiers (id, person_id, organization_id, identifier)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (organization_id, identifier) DO UPDATE SET person_id = EXCLUDED.person_id
+       RETURNING id, person_id as "personId", organization_id as "organizationId", identifier`,
+      [id, personId, organizationId, identifier]
+    );
+    return res.rows[0];
   }
 
   async getOrganizationMembers(organizationId: string): Promise<any[]> {
     const res = await this.query(`
         SELECT 
             om.id as "membershipId", om.role_id as "roleId", om.start_date as "startDate", om.end_date as "endDate",
-            p.id, p.name,
+            p.id, p.name, p.email, p.birthdate, p.national_id as "nationalId",
+            pi.identifier as "personOrgId",
             om.organization_id as "organizationId"
         FROM organization_memberships om
         JOIN persons p ON om.person_id = p.id
+        LEFT JOIN person_identifiers pi ON p.id = pi.person_id AND pi.organization_id = om.organization_id
         WHERE om.organization_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
     `, [organizationId]);
     
-    return res.rows.map(row => ({
+    const members = res.rows.map(row => ({
         ...row,
         roleName: organizationManager.getOrganizationRole(row.roleId)?.name
     }));
+    console.log(`UserManager: Found ${members.length} members for org ${organizationId}`);
+    return members;
+  }
+
+  async getOrganizationMembership(id: string): Promise<OrganizationMembership | undefined> {
+    const res = await this.query('SELECT id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate" FROM organization_memberships WHERE id = $1', [id]);
+    return res.rows[0];
   }
 
   async addOrganizationMember(personId: string, organizationId: string, roleId: string, id?: string): Promise<OrganizationMembership> {
@@ -230,6 +308,7 @@ export class UserManager extends BaseManager {
     if (existing.rowCount! > 0) {
         const mId = existing.rows[0].id;
         await this.query('UPDATE organization_memberships SET role_id = $1 WHERE id = $2', [roleId, mId]);
+        await organizationManager.syncClaimedStatus(organizationId);
         return { ...existing.rows[0], roleId };
     }
 
@@ -240,7 +319,7 @@ export class UserManager extends BaseManager {
          RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
          [finalId, personId, organizationId, roleId]
     );
-    organizationManager.invalidateCache();
+    await organizationManager.syncClaimedStatus(organizationId);
     return res.rows[0];
   }
 
@@ -249,7 +328,9 @@ export class UserManager extends BaseManager {
           `UPDATE organization_memberships SET role_id = $1 WHERE id = $2 RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
           [roleId, membershipId]
     );
-    organizationManager.invalidateCache();
+    if (res.rows[0]) {
+        await organizationManager.syncClaimedStatus(res.rows[0].organizationId);
+    }
     return res.rows[0] || null;
   }
 
@@ -258,8 +339,150 @@ export class UserManager extends BaseManager {
           `UPDATE organization_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
           [membershipId]
       );
-      organizationManager.invalidateCache();
+      if (res.rows[0]) {
+          await organizationManager.syncClaimedStatus(res.rows[0].organizationId);
+      }
       return res.rows[0] || null;
+  }
+
+  // --- User-Centric Membership Queries ---
+
+  async getUserOrgMemberships(userId: string): Promise<OrganizationMembership[]> {
+    const res = await this.query(`
+      SELECT id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"
+      FROM organization_memberships
+      WHERE person_id IN (
+        SELECT id FROM persons WHERE email IN (
+          SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
+          UNION
+          SELECT email FROM users WHERE id = $1
+        ) OR id = $1
+      ) AND (end_date IS NULL OR end_date > NOW())
+    `, [userId]);
+    return res.rows;
+  }
+
+  async getUserTeamMemberships(userId: string): Promise<any[]> {
+    const res = await this.query(`
+      SELECT 
+        tm.id, tm.person_id as "personId", tm.team_id as "teamId", tm.role_id as "roleId", tm.start_date as "startDate", tm.end_date as "endDate",
+        t.organization_id as "organizationId"
+      FROM team_memberships tm
+      JOIN teams t ON tm.team_id = t.id
+      WHERE tm.person_id IN (
+        SELECT id FROM persons WHERE email IN (
+          SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
+          UNION
+          SELECT email FROM users WHERE id = $1
+        ) OR id = $1
+      ) AND (tm.end_date IS NULL OR tm.end_date > NOW())
+    `, [userId]);
+    return res.rows;
+  }
+
+  // --- Search & Matching ---
+
+  async searchPeople(searchTerm: string, organizationId?: string, orgDomain?: string): Promise<any[]> {
+    // Term should be at least 2 chars
+    if (!searchTerm || searchTerm.trim().length < 2) return [];
+
+    const queryStr = `
+      WITH search_results AS (
+        SELECT 
+          p.id, p.name, p.email, p.birthdate, p.national_id as "nationalId",
+          similarity(p.name, $1) as name_sim,
+          similarity(p.email, $1) as email_sim,
+          EXISTS(SELECT 1 FROM organization_memberships om WHERE om.person_id = p.id AND om.organization_id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())) as is_member,
+          (CASE WHEN p.email ILIKE $4 THEN 1 ELSE 0 END) as domain_match,
+          (SELECT identifier FROM person_identifiers pi WHERE pi.person_id = p.id AND pi.organization_id = $2 LIMIT 1) as "personOrgId"
+        FROM persons p
+        WHERE p.name % $1 OR p.email % $1 OR p.name ILIKE $3 OR p.email ILIKE $3
+      )
+      SELECT *,
+        (GREATEST(name_sim, email_sim) + (CASE WHEN is_member THEN 0.5 ELSE 0 END) + (CASE WHEN domain_match = 1 THEN 0.3 ELSE 0 END)) as final_score
+      FROM search_results
+      ORDER BY final_score DESC
+      LIMIT 10
+    `;
+
+    const domainPattern = orgDomain ? `%@${orgDomain}%` : '%@no-domain.com%';
+    const res = await this.query(queryStr, [searchTerm, organizationId || null, `%${searchTerm}%`, domainPattern]);
+    return res.rows;
+  }
+
+  async findMatchingUser(email?: string, name?: string, birthdate?: string): Promise<User | null> {
+    if (!email && !birthdate) return null;
+
+    // Primarily match by email
+    if (email) {
+      const user = await this.getUserByEmail(email);
+      if (user) return user;
+    }
+
+    // Secondary match: same name AND same birthdate
+    if (name && birthdate) {
+      const res = await this.query(`
+        SELECT * FROM users 
+        WHERE name ILIKE $1 AND preferences->>'birthdate' = $2
+        LIMIT 1
+      `, [name, birthdate]);
+      if (res.rows[0]) return res.rows[0];
+    }
+
+    return null;
+  }
+
+  async linkUserToPerson(email: string, personId: string): Promise<Person | null> {
+    // Explicitly update the person's email to match the user's email, establishing the link
+    return this.updatePerson(personId, { email });
+  }
+
+  /**
+   * Finds or creates a Person record for a user in the context of a specific organization.
+   * This respects the idea that a user can have multiple identities (one per org).
+   */
+  async ensurePersonForUserInOrg(userId: string, organizationId: string): Promise<string> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error("User not found");
+
+    const emails = await this.getVerifiedEmails(userId);
+    
+    // 1. Look for an existing person with one of these emails ALREADY in this organization
+    const existingPersonRes = await this.query(`
+      SELECT p.id 
+      FROM persons p
+      JOIN organization_memberships om ON p.id = om.person_id
+      WHERE (p.email = ANY($1) OR p.id = $2)
+        AND om.organization_id = $3
+      LIMIT 1
+    `, [emails, userId, organizationId]);
+
+    if (existingPersonRes.rows.length > 0) {
+      return existingPersonRes.rows[0].id;
+    }
+
+    // 2. If not found, create a NEW person for this organization context
+    const personId = `p-${randomBytes(8).toString('hex')}`;
+    await this.addPerson({
+      id: personId,
+      name: user.name || user.email || "Unknown User",
+      email: user.email // Use primary email
+    });
+
+    return personId;
+  }
+
+  async deletePerson(id: string): Promise<Person | null> {
+      const person = (await this.query('SELECT * FROM persons WHERE id = $1', [id])).rows[0];
+      if (!person) return null;
+
+      // Clean up dependencies
+      await this.query('DELETE FROM team_memberships WHERE person_id = $1', [id]);
+      await this.query('DELETE FROM organization_memberships WHERE person_id = $1', [id]);
+      await this.query('DELETE FROM person_identifiers WHERE person_id = $1', [id]);
+
+      await this.query('DELETE FROM persons WHERE id = $1', [id]);
+      return person;
   }
 }
 

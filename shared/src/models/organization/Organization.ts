@@ -11,4 +11,6 @@ export interface Organization {
   venueCount?: number;
   eventCount?: number;
   memberCount?: number;
+  isClaimed?: boolean;
+  creatorId?: string;
 }

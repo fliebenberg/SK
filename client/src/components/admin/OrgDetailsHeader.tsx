@@ -5,7 +5,7 @@ import { Organization } from "@sk/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pencil, Save, X, Building2 } from "lucide-react";
+import { Pencil, Save, X, Building2, Flag } from "lucide-react";
 import { ImageUpload } from "@/components/ui/ImageUpload";
 import { store } from "@/app/store/store";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { OrgLogo } from "@/components/ui/OrgLogo";
+import { useAuth } from "@/contexts/AuthContext";
+import { ReportDialog } from "@/components/ui/ReportDialog";
 
 interface OrgDetailsHeaderProps {
   organization?: Organization;
@@ -30,6 +32,7 @@ interface OrgDetailsHeaderProps {
 
 export function OrgDetailsHeader({ organization, isCreating = false, readOnly = false }: OrgDetailsHeaderProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: organization?.name || "",
     logo: organization?.logo || "",
@@ -39,6 +42,9 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
     shortName: organization?.shortName || "",
     supportedRoleIds: organization?.supportedRoleIds || [],
   });
+  const [similarOrgs, setSimilarOrgs] = useState<Organization[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
 
   const nameInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -60,13 +66,32 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
     return () => unsubscribe();
   },[]);
 
-  // Auto-resize name textarea
   useEffect(() => {
     if (nameInputRef.current) {
         nameInputRef.current.style.height = 'auto';
         nameInputRef.current.style.height = nameInputRef.current.scrollHeight + 'px';
     }
   }, [formData.name]);
+  
+  // Similar Org Lookup
+  useEffect(() => {
+    if (!isCreating || !formData.name.trim() || formData.name.length < 3) {
+      setSimilarOrgs([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await store.searchSimilarOrganizations(formData.name);
+        setSimilarOrgs(results);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.name, isCreating]);
 
   const hasChanges = () => {
       if (isCreating) return true;
@@ -91,6 +116,7 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
             ...formData,
             supportedSportIds: formData.supportedSportIds || [],
             supportedRoleIds: formData.supportedRoleIds || [],
+            creatorId: user?.id,
         });
         
         // No need for window event dispatch if we just navigate
@@ -180,6 +206,38 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                     />
                 </div>
               )}
+              
+              {isCreating && similarOrgs.length > 0 && (
+                <div className="w-full bg-muted/60 border border-orange-500/30 rounded-md p-3 mt-1 animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center gap-2 text-orange-400 font-semibold text-sm mb-1">
+                        <Building2 className="w-4 h-4" />
+                        Similar Organizations Found
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                        Before creating a new one, check if your organization already exists:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {similarOrgs.map(org => (
+                            <div 
+                                key={org.id}
+                                className="flex items-center gap-2 bg-card border border-border py-1 px-2 rounded text-xs"
+                            >
+                                <OrgLogo organization={org} size="xs" />
+                                <span className="font-medium text-foreground">{org.name}</span>
+                                {org.isClaimed ? (
+                                    <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-medium">CLAIMED</span>
+                                ) : (
+                                    <span className="text-[10px] bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded font-medium">UNCLAIMED</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground/70 mt-2 italic">
+                        If one of these is yours, you can search for and claim it instead of creating a duplicate.
+                    </p>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 justify-center xl:justify-start w-full xl:w-auto">
                 <span className="text-sm text-muted-foreground font-medium">CODE:</span>
                 {readOnly ? (
@@ -196,7 +254,21 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
               </div>
         </div>
 
-        </div>
+        {/* Box 3: Actions (Report) */}
+        {!isCreating && organization && (
+          <div className="flex items-start">
+             <Button 
+                variant="ghost" 
+                size="icon" 
+                className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                onClick={() => setIsReportDialogOpen(true)}
+                title="Report Organization"
+             >
+                <Flag className="w-5 h-5" />
+             </Button>
+          </div>
+        )}
+      </div>
 
       {!readOnly && (
         <div className="grid md:grid-cols-2 gap-8 border-t pt-6">
@@ -314,6 +386,16 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                 <X className="w-4 h-4 mr-2" /> Cancel
             </Button>
         </div>
+      )}
+
+      {organization && (
+        <ReportDialog 
+            isOpen={isReportDialogOpen}
+            onClose={() => setIsReportDialogOpen(false)}
+            entityType="organization"
+            entityId={organization.id}
+            entityName={organization.name}
+        />
       )}
     </div>
   );

@@ -86,7 +86,7 @@ export default function EventDetailsPage() {
       JSON.stringify([...selectedOrgIds].sort()) !== JSON.stringify([...(event.participatingOrgIds || [])].sort()) ||
       (event.type === 'SingleMatch' && matchFormData && (
           matchFormData.sportId !== (event.sportIds?.[0] || "") ||
-          matchFormData.startTime !== (games[0]?.startTime || "09:00") ||
+          matchFormData.startTime !== (games[0]?.startTime ? format(new Date(games[0].startTime), "HH:mm") : "09:00") ||
           matchFormData.isTbd !== (!games[0]?.startTime) ||
           matchFormData.homeTeamId !== (games[0]?.homeTeamId || "") ||
           matchFormData.awayTeamId !== (games[0]?.awayTeamId || "") ||
@@ -552,6 +552,7 @@ export default function EventDetailsPage() {
 
                             <div className="pt-4 border-t border-border/50">
                                     <MatchForm 
+                                    key={games[0]?.id || 'new'}
                                     organizationId={organizationId}
                                     event={event}
                                     isSportsDay={false}

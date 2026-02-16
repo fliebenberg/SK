@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, Check } from "lucide-react";
+import { Search, Plus, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AutocompleteItem {
@@ -22,6 +22,7 @@ interface GenericAutocompleteProps {
   createLabel?: string;
   className?: string;
   isLoading?: boolean;
+  disableFiltering?: boolean;
 }
 
 export function GenericAutocomplete({
@@ -33,13 +34,14 @@ export function GenericAutocomplete({
   placeholder = "Search...",
   createLabel = "Create",
   className,
-  isLoading
+  isLoading,
+  disableFiltering = false
 }: GenericAutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Filter items based on value if not handled externally (we'll do basic local filtering)
-  const filteredItems = items.filter(item => 
+  // Filter items based on value if not handled externally
+  const filteredItems = disableFiltering ? items : items.filter(item => 
       item.label.toLowerCase().includes(value.toLowerCase()) || 
       item.subLabel?.toLowerCase().includes(value.toLowerCase())
   );
@@ -79,16 +81,25 @@ export function GenericAutocomplete({
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
           className="pr-10"
-          disabled={isLoading}
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
-          <Search className="w-4 h-4" />
+          {isLoading ? (
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          ) : (
+            <Search className="w-4 h-4" />
+          )}
         </div>
       </div>
 
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-popover text-popover-foreground border rounded-md shadow-md animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
           <div className="max-h-[200px] overflow-y-auto p-1">
+            {isLoading && filteredItems.length === 0 && (
+                <div className="py-6 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span className="text-sm">Searching...</span>
+                </div>
+            )}
             {filteredItems.length > 0 && (
                 <>
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase">

@@ -42,6 +42,7 @@ interface OrganizationMemberWithDetails extends Person {
   membershipId: string;
   startDate?: string;
   endDate?: string;
+  personOrgId?: string;
 }
 
 export default function OrganizationPeoplePage() {
@@ -59,9 +60,15 @@ export default function OrganizationPeoplePage() {
 
   // Add Member State
   const [isAdding, setIsAdding] = useState(false);
-  const [newPersonName, setNewPersonName] = useState("");
+  const [newMemberData, setNewMemberData] = useState({
+    name: "",
+    email: "",
+    birthdate: "",
+    nationalId: "",
+    personOrgId: "",
+    roleId: "role-org-member"
+  });
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
-  const [selectedRole, setSelectedRole] = useState("role-org-manager"); // Default role
 
   // Edit/Delete State
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; membershipId: string; name: string }>({
@@ -69,12 +76,26 @@ export default function OrganizationPeoplePage() {
     membershipId: "",
     name: "",
   });
-  const [editingPerson, setEditingPerson] = useState<{ isOpen: boolean; personId: string; name: string; roleId: string; membershipId: string }>({
+  const [editingPerson, setEditingPerson] = useState<{ 
+    isOpen: boolean; 
+    personId: string; 
+    name: string; 
+    roleId: string; 
+    membershipId: string;
+    email: string;
+    birthdate: string;
+    nationalId: string;
+    personOrgId: string;
+  }>({
     isOpen: false,
     personId: "",
     name: "",
     roleId: "",
     membershipId: "",
+    email: "",
+    birthdate: "",
+    nationalId: "",
+    personOrgId: "",
   });
 
   const [availableRoles, setAvailableRoles] = useState<{id: string, name: string}[]>([]);
@@ -124,29 +145,61 @@ export default function OrganizationPeoplePage() {
     // When opening dialog, set default role
     if (isAdding && availableRoles.length > 0) {
         const defaultRole = availableRoles.find(r => r.name === 'Member')?.id || availableRoles[0]?.id;
-        setSelectedRole(defaultRole || 'role-org-member');
+        setNewMemberData(prev => ({ ...prev, roleId: defaultRole || 'role-org-member' }));
     }
   }, [isAdding, availableRoles]);
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPersonName.trim()) return;
+    if (!newMemberData.name.trim()) return;
 
     setLoading(true);
     try {
       let personId = selectedPerson?.id;
       
-      if (!personId && newPersonName.trim()) {
-        const newPerson = await store.addPerson({ name: newPersonName });
+      if (!personId && newMemberData.name.trim()) {
+        // Try to find a matching user first
+        const matchingUser = await store.findMatchingUser(
+          newMemberData.email || undefined,
+          newMemberData.name,
+          newMemberData.birthdate || undefined
+        );
+
+        const newPerson = await store.addPerson({ 
+          id: matchingUser?.id || `person-${Date.now()}`,
+          name: newMemberData.name,
+          email: newMemberData.email || undefined,
+          birthdate: newMemberData.birthdate || undefined,
+          nationalId: newMemberData.nationalId || undefined
+        });
         personId = newPerson.id;
+      } else if (personId) {
+        // Update existing person metadata if provided
+        await store.updatePerson(personId, {
+          email: newMemberData.email || undefined,
+          birthdate: newMemberData.birthdate || undefined,
+          nationalId: newMemberData.nationalId || undefined
+        });
       }
       
       if (personId) {
         // Add to organization with selected role
-        await store.addOrganizationMember(personId, id, selectedRole);
+        await store.addOrganizationMember(personId, id, newMemberData.roleId);
+        
+        // Save organization-specific identifier if provided
+        if (newMemberData.personOrgId) {
+          await store.setPersonIdentifier(personId, id, newMemberData.personOrgId);
+        }
       }
 
-      setNewPersonName("");
+      setNewMemberData({
+        name: "",
+        email: "",
+        birthdate: "",
+        nationalId: "",
+        personOrgId: "",
+        roleId: "role-org-member"
+      });
       setSelectedPerson(null);
       setIsAdding(false);
     } catch (error) {
@@ -173,18 +226,39 @@ export default function OrganizationPeoplePage() {
     }
   };
 
-  const handleEditPerson = (personId: string, name: string, roleId: string, membershipId: string) => {
-    setEditingPerson({ isOpen: true, personId, name, roleId, membershipId });
+  const handleEditPerson = (member: OrganizationMemberWithDetails) => {
+    setEditingPerson({ 
+      isOpen: true, 
+      personId: member.id, 
+      name: member.name, 
+      roleId: member.roleId, 
+      membershipId: member.membershipId,
+      email: member.email || "",
+      birthdate: member.birthdate || "",
+      nationalId: member.nationalId || "",
+      personOrgId: member.personOrgId || "",
+    });
   };
 
   const onConfirmEdit = async () => {
     if (!editingPerson.personId || !editingPerson.name.trim()) return;
     setLoading(true);
     try {
-      await store.updatePerson(editingPerson.personId, { name: editingPerson.name });
+      await store.updatePerson(editingPerson.personId, { 
+        name: editingPerson.name,
+        email: editingPerson.email || undefined,
+        birthdate: editingPerson.birthdate || undefined,
+        nationalId: editingPerson.nationalId || undefined
+      });
+      
       if (editingPerson.roleId && editingPerson.membershipId) {
           await store.updateOrganizationMember(editingPerson.membershipId, editingPerson.roleId);
       }
+
+      if (editingPerson.personOrgId) {
+        await store.setPersonIdentifier(editingPerson.personId, id, editingPerson.personOrgId);
+      }
+
       setEditingPerson({ ...editingPerson, isOpen: false });
     } catch (error) {
       console.error("Failed to update person:", error);
@@ -296,6 +370,7 @@ export default function OrganizationPeoplePage() {
                         {getSortIcon('roleName')}
                     </button>
                 </TableHead>
+                <TableHead className="hidden md:table-cell">Org ID</TableHead>
                 <TableHead className="text-right pr-4 md:pr-2">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -324,12 +399,15 @@ export default function OrganizationPeoplePage() {
                     <TableCell className="py-3 text-muted-foreground">
                         {member.roleName || "Member"}
                     </TableCell>
+                    <TableCell className="py-3 text-muted-foreground hidden md:table-cell font-mono text-xs">
+                        {member.personOrgId || "-"}
+                    </TableCell>
                     <TableCell className="text-right pr-4 md:pr-2 py-3">
                         <div className="flex items-center justify-end gap-2">
                             <MetalButton
                                 variantType="outlined"
                                 className="text-muted-foreground hover:text-primary h-8 w-8 p-0"
-                                onClick={() => handleEditPerson(member.id, member.name, member.roleId, member.membershipId)}
+                                onClick={() => handleEditPerson(member)}
                                 title="Edit"
                             >
                                 <Pencil className="w-4 h-4" />
@@ -364,17 +442,73 @@ export default function OrganizationPeoplePage() {
                 <Label htmlFor="personName">Name</Label>
                 <PersonnelAutocomplete
                   organizationId={id}
-                  value={newPersonName}
-                  onChange={setNewPersonName}
-                  onSelectPerson={setSelectedPerson}
+                  value={newMemberData.name}
+                  onChange={(val) => setNewMemberData(prev => ({ ...prev, name: val }))}
+                  onSelectPerson={(p) => {
+                    setSelectedPerson(p);
+                    if (p) {
+                      setNewMemberData(prev => ({ 
+                        ...prev, 
+                        name: p.name,
+                        email: p.email || prev.email,
+                        birthdate: p.birthdate || prev.birthdate,
+                        nationalId: p.nationalId || prev.nationalId
+                      }));
+                    }
+                  }}
                   placeholder="Search or enter name"
                 />
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
+                  <Label htmlFor="newEmail">Email</Label>
+                  <Input
+                    id="newEmail"
+                    type="email"
+                    value={newMemberData.email}
+                    onChange={(e) => setNewMemberData(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="email@example.com"
+                    className="bg-background/50"
+                  />
+               </div>
+               <div className="space-y-2">
+                  <Label htmlFor="newOrgId">Organization ID (e.g. Student #)</Label>
+                  <Input
+                    id="newOrgId"
+                    value={newMemberData.personOrgId}
+                    onChange={(e) => setNewMemberData(prev => ({ ...prev, personOrgId: e.target.value }))}
+                    placeholder="ID Number"
+                    className="bg-background/50"
+                  />
+               </div>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-2">
+                  <Label htmlFor="newBirthdate">Birthdate</Label>
+                  <Input
+                    id="newBirthdate"
+                    type="date"
+                    value={newMemberData.birthdate}
+                    onChange={(e) => setNewMemberData(prev => ({ ...prev, birthdate: e.target.value }))}
+                    className="bg-background/50"
+                  />
+               </div>
+               <div className="space-y-2">
+                  <Label htmlFor="newNationalId">National ID</Label>
+                  <Input
+                    id="newNationalId"
+                    value={newMemberData.nationalId}
+                    onChange={(e) => setNewMemberData(prev => ({ ...prev, nationalId: e.target.value }))}
+                    placeholder="ID / Passport"
+                    className="bg-background/50"
+                  />
+               </div>
              </div>
              <div className="space-y-2">
                 <Label htmlFor="newRole">Role</Label>
                 <Select
-                    value={selectedRole}
-                    onValueChange={setSelectedRole}
+                    value={newMemberData.roleId}
+                    onValueChange={(val) => setNewMemberData(prev => ({ ...prev, roleId: val }))}
                 >
                     <SelectTrigger className="bg-background/50">
                         <SelectValue placeholder="Select a role" />
@@ -400,7 +534,7 @@ export default function OrganizationPeoplePage() {
                     variantType="filled" 
                     glowColor="hsl(var(--primary))"
                     type="submit"
-                    disabled={loading || !newPersonName.trim()}
+                    disabled={loading || !newMemberData.name.trim()}
                  >
                     {loading ? "Adding..." : "Add Person"}
                  </MetalButton>
@@ -434,6 +568,51 @@ export default function OrganizationPeoplePage() {
                 placeholder="Enter name"
                 className="bg-background/50"
               />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editEmail">Email</Label>
+                <Input
+                  id="editEmail"
+                  type="email"
+                  value={editingPerson.email}
+                  onChange={(e) => setEditingPerson({ ...editingPerson, email: e.target.value })}
+                  placeholder="email@example.com"
+                  className="bg-background/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editOrgId">Organization ID</Label>
+                <Input
+                  id="editOrgId"
+                  value={editingPerson.personOrgId}
+                  onChange={(e) => setEditingPerson({ ...editingPerson, personOrgId: e.target.value })}
+                  placeholder="ID Number"
+                  className="bg-background/50"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editBirthdate">Birthdate</Label>
+                <Input
+                  id="editBirthdate"
+                  type="date"
+                  value={editingPerson.birthdate}
+                  onChange={(e) => setEditingPerson({ ...editingPerson, birthdate: e.target.value })}
+                  className="bg-background/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editNationalId">National ID</Label>
+                <Input
+                  id="editNationalId"
+                  value={editingPerson.nationalId}
+                  onChange={(e) => setEditingPerson({ ...editingPerson, nationalId: e.target.value })}
+                  placeholder="ID / Passport"
+                  className="bg-background/50"
+                />
+              </div>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="editRole">Role</Label>

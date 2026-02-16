@@ -11,3 +11,11 @@ export * from './models/event/Event';
 export * from './models/event/Game';
 export * from './models/event/ScoreLog';
 export * from './models/sport/Sport';
+export * from './models/people/UserBadge';
+export * from './models/referral/OrgClaimReferral';
+export * from './models/notification/Notification';
+export * from './models/Report';
+
+export * from './constants/SocketActions';
+export * from './types/Protocol';
+export * from './utils/stringUtils';

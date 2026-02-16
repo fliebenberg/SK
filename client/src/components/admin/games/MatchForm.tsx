@@ -16,6 +16,9 @@ import { store } from "@/app/store/store";
 import { Loader2, Check } from "lucide-react";
 import { OrgCreationDialog } from "../organizations/OrgCreationDialog";
 import { TeamCreationDialog } from "../teams/TeamCreationDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 
 export interface MatchFormData {
   homeTeamId: string;
@@ -24,6 +27,7 @@ export interface MatchFormData {
   isTbd: boolean;
   venueId: string;
   sportId: string;
+  referrals?: Record<string, string[]>;
 }
 
 interface MatchFormProps {
@@ -45,6 +49,7 @@ export function MatchForm({
   const [allSports, setAllSports] = useState<Sport[]>([]);
   const [allOrgs, setAllOrgs] = useState<Organization[]>([]);
   const [venues, setVenues] = useState<any[]>([]);
+  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
 
   // Form State
   const [selectedSportId, setSelectedSportId] = useState(initialData?.sportId || (event.sportIds?.[0] || ""));
@@ -79,10 +84,19 @@ export function MatchForm({
   const [pendingTeamName, setPendingTeamName] = useState("");
   const [targetOrgIdForTeam, setTargetOrgIdForTeam] = useState("");
 
+  const [searchedOrgs, setSearchedOrgs] = useState<Organization[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const [referrals, setReferrals] = useState<Record<string, string[]>>({});
+
   const participatingOrgIds = [event.organizationId, ...(event.participatingOrgIds || [])];
-  const eventSports = event.sportIds && event.sportIds.length > 0 
-    ? allSports.filter(s => (event.sportIds || []).includes(s.id))
+  const orgSports = currentOrg?.supportedSportIds && currentOrg.supportedSportIds.length > 0
+    ? allSports.filter(s => currentOrg.supportedSportIds.includes(s.id))
     : allSports;
+
+  const eventSports = event.sportIds && event.sportIds.length > 0 
+    ? orgSports.filter(s => (event.sportIds || []).includes(s.id))
+    : orgSports;
 
   // Notify parent of changes
   useEffect(() => {
@@ -92,9 +106,10 @@ export function MatchForm({
       startTime,
       isTbd,
       venueId: gameVenueId,
-      sportId: selectedSportId
+      sportId: selectedSportId,
+      referrals
     });
-  }, [homeTeamId, selectedTeamId, startTime, isTbd, gameVenueId, selectedSportId]);
+  }, [homeTeamId, selectedTeamId, startTime, isTbd, gameVenueId, selectedSportId, referrals]);
 
   // Initialization & Updates
   useEffect(() => {
@@ -103,6 +118,10 @@ export function MatchForm({
       setAllSports(store.getSports());
       const allVenues = store.getVenues(organizationId);
       setVenues(allVenues);
+
+      const org = store.getOrganization(organizationId);
+      if (org) setCurrentOrg(org);
+      else store.fetchOrganization(organizationId);
 
       if (gameVenueId && !gameVenueName) {
         const v = store.getVenue(gameVenueId);
@@ -130,6 +149,36 @@ export function MatchForm({
     const unsub = store.subscribe(update);
     return unsub;
   }, [homeOrgId, selectedOrgId, selectedSportId, organizationId, gameVenueId]);
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Instant Local Search + Debounced Backend Search
+  useEffect(() => {
+    const query = searchTerm.trim();
+    if (!query) {
+        setSearchedOrgs(allOrgs);
+        setIsSearching(false);
+        return;
+    }
+
+    // 1. Instant local search update
+    setSearchedOrgs(store.searchOrganizationsLocal(query));
+    setIsSearching(true);
+
+    // 2. Debounced backend augmentation
+    const timer = setTimeout(async () => {
+        try {
+            const results = await store.searchSimilarOrganizations(searchTerm);
+            setSearchedOrgs(results);
+        } catch (e) {
+            console.error("Failed to search orgs", e);
+        } finally {
+            setIsSearching(false);
+        }
+    }, 400); // Slightly longer debounce since we have local results for instant feedback
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm, allOrgs]);
 
   // Special effect to resolve organizations from team IDs once data is available
   useEffect(() => {
@@ -212,6 +261,78 @@ export function MatchForm({
     }
   };
 
+  const handleReferralChange = (orgId: string, index: number, value: string) => {
+    const orgReferrals = [...(referrals[orgId] || [""])];
+    orgReferrals[index] = value;
+    setReferrals({ ...referrals, [orgId]: orgReferrals });
+  };
+
+  const addReferralField = (orgId: string) => {
+    const orgReferrals = [...(referrals[orgId] || [""])];
+    setReferrals({ ...referrals, [orgId]: [...orgReferrals, ""] });
+  };
+
+  const removeReferralField = (orgId: string, index: number) => {
+    const orgReferrals = (referrals[orgId] || [""]).filter((_, i) => i !== index);
+    setReferrals({ ...referrals, [orgId]: orgReferrals.length ? orgReferrals : [""] });
+  };
+
+  const renderReferralPrompt = (org: Organization) => {
+    if (org.isClaimed !== false) return null;
+
+    const orgReferrals = referrals[org.id] || [""];
+
+    return (
+      <div className="col-span-1 md:col-span-2 bg-primary/5 border border-primary/20 rounded-xl p-4 mt-2 space-y-3">
+        <div className="flex flex-col gap-1">
+          <Label className="text-sm font-semibold text-primary flex items-center gap-2">
+            <span className="bg-primary/10 text-primary p-1 rounded-md">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-users-round"><path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a9 9 0 0 0-2.2-2.2"/></svg>
+            </span>
+            Known Contacts for {org.name}?
+          </Label>
+          <p className="text-[10px] text-muted-foreground">
+            This organization is not claimed yet. Help us get them on board by providing a contact email.
+          </p>
+        </div>
+        
+        <div className="space-y-2">
+          {orgReferrals.map((email, index) => (
+            <div key={index} className="flex gap-2">
+              <Input
+                value={email}
+                onChange={(e) => handleReferralChange(org.id, index, e.target.value)}
+                placeholder="contact@school.edu"
+                className="text-xs h-9 bg-background/50"
+                type="email"
+              />
+              {orgReferrals.length > 1 && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => removeReferralField(org.id, index)}
+                  className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        <Button 
+          type="button" 
+          variant="outline" 
+          size="sm" 
+          onClick={() => addReferralField(org.id)}
+          className="text-[10px] h-7 border-dashed h-auto py-1"
+        >
+          + Add Contact
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -288,24 +409,34 @@ export function MatchForm({
                 {isSportsDay ? (
                   <div className="space-y-2">
                      <GenericAutocomplete 
-                        items={allOrgs.map(o => ({ id: o.id, label: o.name, data: o }))}
+                        items={searchedOrgs.filter(o => !isSportsDay || o.id !== organizationId).map(o => ({ 
+                            id: o.id, 
+                            label: o.name, 
+                            subLabel: o.shortName,
+                            data: o 
+                        }))}
                         value={homeOrgName}
                         onChange={(val) => {
                             setHomeOrgName(val);
+                            setSearchTerm(val);
+                            setIsSearching(true);
                             if (!val) setHomeOrgId("");
                         }}
                         onSelect={(item) => {
                             if (item) {
                                 setHomeOrgId(item.id);
                                 setHomeOrgName(item.label);
+                                setHomeTeamId("");
                             } else {
                                 setHomeOrgId("");
+                                setHomeTeamId("");
                             }
                         }}
                         onCreateNew={(name) => handleCreateOrg(name, true)}
-                        placeholder="Select school/club..."
+                        placeholder="Search school/club..."
                         createLabel="Register Org"
-                        isLoading={loading}
+                        isLoading={isSearching}
+                        disableFiltering={true}
                     />
                     <GenericAutocomplete 
                         items={homeOrgTeams.map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
@@ -317,6 +448,10 @@ export function MatchForm({
                         createLabel="Add Team"
                         isLoading={loading || !selectedSportId}
                     />
+                    {(() => {
+                        const org = store.getOrganization(homeOrgId);
+                        return org ? renderReferralPrompt(org) : null;
+                    })()}
                   </div>
                 ) : (
                   <Select value={homeTeamId} onValueChange={setHomeTeamId}>
@@ -343,20 +478,35 @@ export function MatchForm({
                 <Label className="uppercase">Team 2</Label>
                 <div className="space-y-2">
                   <GenericAutocomplete
-                    items={allOrgs.map(o => ({ id: o.id, label: o.name, data: o }))}
+                    items={searchedOrgs.filter(o => o.id !== homeOrgId).map(o => ({ 
+                        id: o.id, 
+                        label: o.name, 
+                        subLabel: o.shortName,
+                        data: o 
+                    }))}
                     value={targetOrgName}
-                    onChange={setTargetOrgName}
+                    onChange={(val) => {
+                        setTargetOrgName(val);
+                        setSearchTerm(val);
+                        setIsSearching(true);
+                    }}
                     onSelect={(item) => {
                       if (item) {
                         setSelectedOrgId(item.id);
+                        setTargetOrgName(item.label);
+                        setSelectedTeamId(null);
+                        setTargetTeamName("");
                       } else {
                         setSelectedOrgId(null);
+                        setSelectedTeamId(null);
+                        setTargetTeamName("");
                       }
                     }}
                     onCreateNew={(name) => handleCreateOrg(name, false)}
                     placeholder="Search opponent org..."
                     createLabel="Register Org"
-                    isLoading={loading}
+                    isLoading={isSearching}
+                    disableFiltering={true}
                   />
                   <GenericAutocomplete
                     items={opponentOrgTeams.map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
@@ -368,6 +518,10 @@ export function MatchForm({
                     createLabel="Add Team"
                     isLoading={loading || !selectedOrgId}
                   />
+                  {(() => {
+                      const org = selectedOrgId ? store.getOrganization(selectedOrgId) : null;
+                      return org ? renderReferralPrompt(org) : null;
+                  })()}
                 </div>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import TeamDetailPage from './page';
 import { store } from '@/app/store/store';
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 
 // Mock the store
 jest.mock('@/lib/store', () => ({
@@ -18,6 +18,7 @@ jest.mock('@/lib/store', () => ({
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
   notFound: jest.fn(),
+  useParams: jest.fn(),
 }));
 
 // Mock server actions (since they are imported)
@@ -43,9 +44,9 @@ describe('TeamDetailPage', () => {
         { id: 'role-coach', name: 'Coach' },
     ]);
 
-    const params = Promise.resolve({ id: '1' });
-    const jsx = await TeamDetailPage({ params });
-    render(jsx);
+    (useParams as jest.Mock).mockReturnValue({ id: '1' });
+
+    render(<TeamDetailPage />);
 
     expect(screen.getByText('Team A')).toBeInTheDocument();
     expect(screen.getByText('Soccer • U19')).toBeInTheDocument();
@@ -56,11 +57,13 @@ describe('TeamDetailPage', () => {
 
   it('calls notFound if team does not exist', async () => {
     (store.getTeam as jest.Mock).mockReturnValue(undefined);
+    (useParams as jest.Mock).mockReturnValue({ id: '999' });
 
-    const params = Promise.resolve({ id: '999' });
-    const jsx = await TeamDetailPage({ params });
-    render(jsx);
+    render(<TeamDetailPage />);
 
-    expect(notFound).toHaveBeenCalled();
+    // Since it's a client component with useEffect, we might need to wait or check how it handles !team
+    // In the current implementation line 41-43, it returns <div>Team not found</div> but doesn't call notFound() hook directly in a way that jest can catch easily if not called in render.
+    // Wait, the component DOES NOT call notFound() hook, it just returns a div.
+    expect(screen.getByText('Team not found')).toBeInTheDocument();
   });
 });

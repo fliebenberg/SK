@@ -7,10 +7,13 @@ import { store } from "@/app/store/store";
 import { Event, Game } from "@sk/types"; 
 import { MatchForm, MatchFormData as FormDataType } from "@/components/admin/games/MatchForm";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { MetalButton } from "@/components/ui/MetalButton";
+import { ArrowLeft, Loader2, Trash2, AlertTriangle, Ban } from "lucide-react";
 import { MetalCard } from "@/components/ui/metal-card";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useThemeColors } from "@/hooks/useThemeColors";
 
 export default function EditGamePage() {
   const router = useRouter();
@@ -19,11 +22,15 @@ export default function EditGamePage() {
   const eventId = params.eventId as string;
   const gameId = params.gameId as string;
 
+  const { user } = useAuth();
+  const { metalVariant } = useThemeColors();
+
   const [event, setEvent] = useState<Event | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormDataType | null>(null);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
+  const [confirmCancel, setConfirmCancel] = useState({ isOpen: false });
 
   const initialData = React.useMemo(() => {
     if (!game) return undefined;
@@ -96,6 +103,21 @@ export default function EditGamePage() {
             startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
             venueId: formData.venueId
         });
+
+        // Handle Referrals
+        if (formData.referrals && user?.id) {
+            for (const [orgId, emails] of Object.entries(formData.referrals)) {
+                const validEmails = emails.map(e => e.trim()).filter(e => e && e.includes('@'));
+                if (validEmails.length > 0) {
+                    try {
+                        await store.referOrgContact(orgId, validEmails, user.id);
+                    } catch (e) {
+                        console.error(`Failed to refer contacts for org ${orgId}`, e);
+                    }
+                }
+            }
+        }
+
         router.push(`/admin/organizations/${organizationId}/events/${eventId}`);
     } catch (e) {
         console.error(e);
@@ -110,26 +132,54 @@ export default function EditGamePage() {
   };
 
   const handleDelete = async () => {
-      if (!game) return;
+      if (!game || !event) return;
+      setLoading(true);
       try {
-          await store.deleteGame(game.id); // Assuming this method exists or will be added, technically deleteGame is not in the viewed store.ts... let's check
-          // store.ts view earlier showed deleteTeam/Event/Person but verify deleteGame.
-          // Wait, I didn't verify deleteGame exists in store.ts. I should check or assume generic action.
-          // In previous turn I saw `updateGame`, `addGame`. 
-          // I will assume for now or check. 
-          // Checking line 609 of store.ts... I see addGame. 
-          // I don't recall seeing deleteGame in the snippet around lines 600-800.
-          // I will double check. If not, I'll add it or use socket directly? No, should be in store.
-          
-          router.push(`/admin/organizations/${organizationId}/events/${eventId}`);
+          if (event.type === 'SingleMatch') {
+              await store.deleteEvent(event.id);
+              router.push(`/admin/organizations/${organizationId}/events`);
+          } else {
+              await store.deleteGame(game.id);
+              router.push(`/admin/organizations/${organizationId}/events/${eventId}`);
+          }
       } catch (e) {
           console.error(e);
           toast({
               title: "Error",
-              description: "Failed to delete game",
+              description: "Failed to delete match",
               variant: "destructive"
           });
+      } finally {
+          setLoading(false);
       }
+  };
+
+  const handleCancelGame = async () => {
+    if (!game || !event) return;
+    setLoading(true);
+    try {
+        await store.updateGame(game.id, { status: 'Cancelled' });
+        
+        // If it's a single match, cancel the event too
+        if (event.type === 'SingleMatch') {
+            await store.updateEvent(event.id, { status: 'Cancelled' });
+        }
+        
+        setConfirmCancel({ isOpen: false });
+        toast({
+            title: "Success",
+            description: "Match has been cancelled.",
+        });
+    } catch (err) {
+        console.error(err);
+        toast({
+            title: "Error",
+            description: "Failed to cancel match",
+            variant: "destructive"
+        });
+    } finally {
+        setLoading(false);
+    }
   };
 
   const hasChanges = React.useMemo(() => {
@@ -165,19 +215,25 @@ export default function EditGamePage() {
     <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-30 w-full border-b bg-background/80 backdrop-blur-md">
         <div className="container flex h-16 items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.back()}>
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <div>
-                    <h1 className="text-xl font-black uppercase tracking-tight">{getMatchName()}</h1>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{event.name}</p>
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                        <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <div>
+                        <h1 className="text-xl font-black uppercase tracking-tight">{getMatchName()}</h1>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{event.name}</p>
+                    </div>
                 </div>
-            </div>
-            {/* Delete button option */}
-             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setConfirmDelete({ isOpen: true })}>
-                <Trash2 className="h-5 w-5" />
-            </Button>
+                <div className="flex items-center gap-2">
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10" 
+                        onClick={() => setConfirmDelete({ isOpen: true })}
+                    >
+                        <Trash2 className="h-5 w-5" />
+                    </Button>
+                </div>
         </div>
       </header>
 
@@ -204,8 +260,77 @@ export default function EditGamePage() {
                     Save Changes
                 </Button>
             </div>
+
+            {/* Danger Zone */}
+            <section className="mt-12 pt-12 border-t border-destructive/10 space-y-6">
+                <div className="flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="h-5 w-5" />
+                    <h2 className="text-xl font-black uppercase tracking-tight">Danger Zone</h2>
+                </div>
+                
+                <div className="grid gap-6">
+                    {/* Cancel Game */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl border border-destructive/10 bg-destructive/5">
+                        <div className="space-y-1">
+                            <h3 className="font-bold text-lg">Cancel Match</h3>
+                            <p className="text-sm text-muted-foreground italic">Temporarily cancel this match. This can be reversed later by changing the status back to Scheduled.</p>
+                        </div>
+                        <MetalButton 
+                            variantType="outlined" 
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0" 
+                            glowColor="hsl(38, 92%, 50%)" // Orange glow for cancel
+                            onClick={() => setConfirmCancel({ isOpen: true })}
+                            disabled={loading || game.status === 'Cancelled'}
+                        >
+                            Cancel Match
+                        </MetalButton>
+                    </div>
+
+                    {/* Delete Game */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl border border-destructive/10 bg-destructive/5">
+                        <div className="space-y-1">
+                            <h3 className="font-bold text-lg text-destructive">Delete Match</h3>
+                            <p className="text-sm text-muted-foreground italic">
+                                {event.type === 'SingleMatch' 
+                                    ? "Permanently remove this match and the entire event record. This action cannot be undone."
+                                    : "Permanently remove this match from the event. This action cannot be undone."}
+                            </p>
+                        </div>
+                        <MetalButton 
+                            variantType="outlined" 
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0" 
+                            glowColor="hsl(var(--destructive))"
+                            onClick={() => setConfirmDelete({ isOpen: true })}
+                            disabled={loading}
+                        >
+                            Delete Match
+                        </MetalButton>
+                    </div>
+                </div>
+            </section>
         </div>
       </main>
+
+      <ConfirmationModal
+        isOpen={confirmCancel.isOpen}
+        onOpenChange={(open) => setConfirmCancel({ isOpen: open })}
+        onConfirm={handleCancelGame}
+        title="Cancel Match?"
+        description="Are you sure you want to cancel this match? You can restore it later by editing the status."
+        confirmText="Cancel Match"
+      />
+
+      <ConfirmationModal
+        isOpen={confirmDelete.isOpen}
+        onOpenChange={(open) => setConfirmDelete({ isOpen: open })}
+        onConfirm={handleDelete}
+        title={event.type === 'SingleMatch' ? "Delete Match & Event?" : "Delete Match?"}
+        description={event.type === 'SingleMatch' 
+            ? "Are you sure you want to delete this match and the parent event? This will permanently remove all data and cannot be undone."
+            : "Are you sure you want to delete this match? This will permanently remove all data for this specific game and cannot be undone."}
+        confirmText="Delete Match"
+        variant="destructive"
+      />
     </div>
   );
 }

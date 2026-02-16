@@ -7,4 +7,5 @@ export interface Team {
   isActive?: boolean;
   playerCount?: number;
   staffCount?: number;
+  creatorId?: string;
 }

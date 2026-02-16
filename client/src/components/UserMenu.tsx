@@ -17,6 +17,8 @@ import { User, LogIn, UserPlus, LogOut, Settings, Palette } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { store } from '@/app/store/store';
+import { useState, useEffect } from 'react';
 
 import { UserAvatar } from '@/components/UserAvatar';
 
@@ -24,6 +26,21 @@ export function UserMenu() {
   const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const { setTheme } = useTheme();
+  const [canSeeAdmin, setCanSeeAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      setCanSeeAdmin(false);
+      return;
+    }
+
+    const update = () => {
+      setCanSeeAdmin(isAuthenticated);
+    };
+
+    update();
+    return store.subscribe(update);
+  }, [isAuthenticated, user]);
 
   const handleLogout = async () => {
     await logout();
@@ -113,7 +130,7 @@ export function UserMenu() {
           </Link>
         </DropdownMenuItem>
         
-        {user?.globalRole === 'admin' && (
+        {canSeeAdmin && (
           <DropdownMenuItem asChild>
             <Link href="/admin" className="cursor-pointer flex items-center gap-2 font-semibold">
               <Settings className="h-4 w-4 text-primary" />

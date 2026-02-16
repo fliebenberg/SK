@@ -4,6 +4,7 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useTheme } from 'next-themes';
 import { toast } from '@/hooks/use-toast';
+import { store } from '@/app/store/store';
 
 export interface User {
   id: string;
@@ -122,6 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // No DB theme set yet, so we persist the guest's selection to their profile.
         updateProfile({ theme: localTheme } as any);
       }
+
+      // Fetch memberships for RBAC
+      store.fetchUserMemberships(user.id);
     }
   }, [isAuthenticated, user?.id]);
 

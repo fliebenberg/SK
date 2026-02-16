@@ -20,12 +20,12 @@ export default function LivePage() {
     };
     
     update(); // Initial sync
-    store.subscribeToGlobalGames();
+    store.subscribeToLiveGames();
     const unsubscribe = store.subscribe(update);
     
     return () => {
         unsubscribe();
-        store.unsubscribeFromGlobalGames();
+        store.unsubscribeFromLiveGames();
     };
   }, []);
 

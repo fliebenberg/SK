@@ -17,6 +17,8 @@ import { Loader2 } from "lucide-react";
 import { MatchForm, MatchFormData } from "./MatchForm";
 import { toast } from "@/hooks/use-toast";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 interface GameDialogProps {
   organizationId: string;
   event: Event;
@@ -66,17 +68,19 @@ export function GameDialog({
          }
     }
     
+    const { user } = useAuth();
     setLoading(true);
     try {
+        let savedGame: Game;
         if (game) {
-            await store.updateGame(game.id, {
+            savedGame = await store.updateGame(game.id, {
                 homeTeamId: formData.homeTeamId,
                 awayTeamId: formData.awayTeamId,
                 startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
                 venueId: formData.venueId,
             });
         } else {
-            await store.addGame({
+            savedGame = await store.addGame({
                 eventId: event.id,
                 homeTeamId: formData.homeTeamId,
                 awayTeamId: formData.awayTeamId,
@@ -84,6 +88,18 @@ export function GameDialog({
                 venueId: formData.venueId,
             });
         }
+
+        // Process Referrals if any
+        if (formData.referrals && user) {
+            const orgIds = Object.keys(formData.referrals);
+            for (const orgId of orgIds) {
+                const emails = formData.referrals[orgId].filter(e => e.trim() !== "");
+                if (emails.length > 0) {
+                    await store.referOrgContact(orgId, emails, user.id);
+                }
+            }
+        }
+
         setOpen(false);
     } catch (e) {
         console.error(e);

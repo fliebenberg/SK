@@ -27,7 +27,7 @@
         "./src/*"
       ],
       "@sk/types": [
-        "../shared/src"
+        "../shared/src/index.ts"
       ]
     }
   },

@@ -340,7 +340,13 @@ export function EventList({ organizationId, teamId }: EventListProps) {
                         game={game} 
                         isStandalone={!isContainerEvent}
                         highlightTeamId={teamId}
-                        onClick={() => router.push(`/admin/organizations/${organizationId}/events/${event.id}/games/${game.id}/edit`)}
+                        onClick={() => {
+                            if (event.type === 'SingleMatch') {
+                                router.push(`/admin/organizations/${organizationId}/events/${event.id}`);
+                            } else {
+                                router.push(`/admin/organizations/${organizationId}/events/${event.id}/games/${game.id}/edit`);
+                            }
+                        }}
                       />
                     );
                   })}

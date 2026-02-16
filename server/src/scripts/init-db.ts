@@ -6,6 +6,9 @@ const createTables = async () => {
 
         await pool.query('BEGIN');
 
+        // Enable pg_trgm for fuzzy search
+        await pool.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+
         // Sports Table
         await pool.query(`
             CREATE TABLE IF NOT EXISTS sports (
@@ -24,7 +27,9 @@ const createTables = async () => {
                 secondary_color TEXT,
                 supported_sport_ids TEXT[],
                 short_name TEXT,
-                supported_role_ids TEXT[]
+                supported_role_ids TEXT[],
+                is_claimed BOOLEAN DEFAULT false,
+                creator_id TEXT
             );
         `);
 
@@ -46,7 +51,8 @@ const createTables = async () => {
                 age_group TEXT,
                 sport_id TEXT REFERENCES sports(id),
                 organization_id TEXT REFERENCES organizations(id),
-                is_active BOOLEAN DEFAULT true
+                is_active BOOLEAN DEFAULT true,
+                creator_id TEXT
             );
         `);
 
@@ -54,9 +60,17 @@ const createTables = async () => {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS persons (
                 id TEXT PRIMARY KEY,
-                name TEXT NOT NULL
+                name TEXT NOT NULL,
+                email TEXT,
+                birthdate DATE,
+                national_id TEXT
             );
         `);
+
+        // Ensure columns exist (for existing databases)
+        await pool.query('ALTER TABLE persons ADD COLUMN IF NOT EXISTS email TEXT;');
+        await pool.query('ALTER TABLE persons ADD COLUMN IF NOT EXISTS birthdate DATE;');
+        await pool.query('ALTER TABLE persons ADD COLUMN IF NOT EXISTS national_id TEXT;');
 
         // Team Memberships
         await pool.query(`
@@ -79,6 +93,17 @@ const createTables = async () => {
                 role_id TEXT,
                 start_date TIMESTAMPTZ,
                 end_date TIMESTAMPTZ
+            );
+        `);
+
+        // Person Identifiers (Org-specific IDs like Student Numbers)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS person_identifiers (
+                id TEXT PRIMARY KEY,
+                person_id TEXT REFERENCES persons(id) ON DELETE CASCADE,
+                organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+                identifier TEXT NOT NULL,
+                UNIQUE(organization_id, identifier)
             );
         `);
 
@@ -206,6 +231,64 @@ const createTables = async () => {
                 venue_id TEXT,
                 home_score INTEGER DEFAULT 0,
                 away_score INTEGER DEFAULT 0
+            );
+        `);
+
+        // Org Claim Referrals
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS org_claim_referrals (
+                id TEXT PRIMARY KEY,
+                organization_id TEXT REFERENCES organizations(id),
+                referred_email TEXT NOT NULL,
+                referred_by_user_id TEXT REFERENCES users(id),
+                claim_token TEXT UNIQUE,
+                claim_token_expires_at TIMESTAMPTZ, -- Optional; NULL = never expires
+                status TEXT DEFAULT 'pending',      -- 'pending', 'claimed', 'declined'
+                claimed_by_user_id TEXT REFERENCES users(id),
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                claimed_at TIMESTAMPTZ,
+                notified_referrer_at TIMESTAMPTZ
+            );
+        `);
+
+        // Reports
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS reports (
+                id TEXT PRIMARY KEY,
+                reporter_user_id TEXT REFERENCES users(id),
+                entity_type TEXT NOT NULL,          -- 'organization', 'event', 'user'
+                entity_id TEXT NOT NULL,
+                reason TEXT NOT NULL,               -- 'impersonation', 'inappropriate_content', 'spam', 'other'
+                description TEXT,
+                status TEXT DEFAULT 'open',         -- 'open', 'investigating', 'resolved', 'dismissed'
+                resolved_by_user_id TEXT,
+                resolved_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        // User Badges
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_badges (
+                id TEXT PRIMARY KEY,
+                user_id TEXT REFERENCES users(id),
+                badge_type TEXT NOT NULL,           -- 'community_builder', etc.
+                earned_at TIMESTAMPTZ DEFAULT NOW(),
+                metadata JSONB DEFAULT '{}'
+            );
+        `);
+        
+        // Notifications Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS notifications (
+                id TEXT PRIMARY KEY,
+                user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                type TEXT NOT NULL, -- e.g. 'claim_invitation', 'match_update'
+                link TEXT,
+                is_read BOOLEAN DEFAULT false,
+                created_at TIMESTAMPTZ DEFAULT NOW()
             );
         `);
 

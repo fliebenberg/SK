@@ -8,18 +8,36 @@ import { MobileSidebar } from "@/components/admin/AdminSidebar";
 import { UserMenu } from "@/components/UserMenu";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { store } from "@/app/store/store";
 
 export function Navbar() {
   const pathname = usePathname();
+  const { user, isAuthenticated } = useAuth();
   const { theme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [canSeeAdmin, setCanSeeAdmin] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      setCanSeeAdmin(false);
+      return;
+    }
+
+    const updatePermissions = () => {
+      setCanSeeAdmin(isAuthenticated);
+    };
+
+    updatePermissions();
+    return store.subscribe(updatePermissions);
+  }, [isAuthenticated, user]);
 
   // Default to silver/light if not mounted or unknown
   const isDark = mounted && theme?.includes("dark");
@@ -47,6 +65,11 @@ export function Navbar() {
             <Link href="/live" className="transition-colors hover:text-foreground/80 text-foreground/60">
               Live Scores
             </Link>
+            {canSeeAdmin && (
+              <Link href="/admin" className="transition-colors hover:text-primary/80 text-primary font-semibold">
+                Admin
+              </Link>
+            )}
           </div>
         )}
 
@@ -67,6 +90,17 @@ export function Navbar() {
             <div className="md:hidden">
               <MobileSidebar />
             </div>
+          )}
+          
+          {isAuthenticated && (
+            <Link href="/notifications" className="relative p-2 text-foreground/60 hover:text-primary transition-colors">
+              <Bell className="w-6 h-6" />
+              {store.unreadCount > 0 && (
+                <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  {store.unreadCount > 9 ? '9+' : store.unreadCount}
+                </span>
+              )}
+            </Link>
           )}
           
           <UserMenu />
@@ -98,6 +132,15 @@ export function Navbar() {
             >
               Live Scores
             </Link>
+            {canSeeAdmin && (
+              <Link 
+                href="/admin" 
+                className="px-4 py-2 hover:bg-accent text-primary font-semibold rounded-md transition-colors"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Admin Panel
+              </Link>
+            )}
           </div>
         </div>
       )}

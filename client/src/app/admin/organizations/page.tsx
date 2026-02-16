@@ -23,6 +23,7 @@ export default function OrganizationsPage() {
     };
 
     update();
+    store.fetchOrganizations();
     const unsubscribe = store.subscribe(update);
     return () => unsubscribe();
   }, []);
