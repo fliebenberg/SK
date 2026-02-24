@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { dataManager } from './DataManager';
 import { SocketAction } from '@sk/types';
 
@@ -11,6 +12,7 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -302,6 +304,12 @@ io.on('connection', (socket) => {
 
     try {
         switch(action.type) {
+            case SocketAction.DELETE_ORG:
+                result = await dataManager.deleteOrganization(action.payload.id);
+                // Broadcast to rooms that the org is gone
+                io.to(`org:${action.payload.id}:summary`).emit('update', { type: 'ORGANIZATIONS_UPDATED', data: { id: action.payload.id, deleted: true } });
+                io.to('organizations').emit('update', { type: 'ORGANIZATIONS_UPDATED', data: { id: action.payload.id, deleted: true } });
+                break;
             case SocketAction.ADD_TEAM:
                 result = await dataManager.addTeam(action.payload);
                 if (result) {
@@ -474,14 +482,14 @@ io.on('connection', (socket) => {
 
             case SocketAction.ADD_ORG:
                 result = await dataManager.addOrganization(action.payload);
-                updateTopic = `organizations`;
-                updateType = 'ORGANIZATIONS_UPDATED';
+                if (result) {
+                    await broadcastOrgSummaries([result.id]);
+                }
                 break;
             case SocketAction.UPDATE_ORG:
                 result = await dataManager.updateOrganization(action.payload.id, action.payload.data);
                 if (result) {
-                    updateTopic = `organizations`;
-                    updateType = 'ORGANIZATIONS_UPDATED';
+                    await broadcastOrgSummaries([result.id]);
                 }
                 break;
 
@@ -589,10 +597,9 @@ io.on('connection', (socket) => {
                 result = await dataManager.linkUserToPerson(action.payload.email, action.payload.personId);
                 break;
             case SocketAction.CLAIM_ORG:
-                result = await dataManager.claimOrganization(action.payload.organizationId, action.payload.userId);
+                result = await dataManager.claimOrganization(action.payload.id, action.payload.userId);
                  if (result) {
-                    updateTopic = `organizations`;
-                    updateType = 'ORGANIZATIONS_UPDATED';
+                    await broadcastOrgSummaries([result.id]);
                  }
                 break;
             case SocketAction.CLAIM_ORG_VIA_TOKEN:
@@ -627,6 +634,9 @@ io.on('connection', (socket) => {
                 break;
             case SocketAction.GET_USER_BADGES:
                 result = await dataManager.getUserBadges(action.payload.userId);
+                break;
+            case SocketAction.FEED_GET_HOME:
+                result = await dataManager.getHomeFeed(action.payload.userId, action.payload.timezone);
                 break;
 
             default:

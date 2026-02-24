@@ -15,7 +15,7 @@ export * from './models/people/UserBadge';
 export * from './models/referral/OrgClaimReferral';
 export * from './models/notification/Notification';
 export * from './models/Report';
-
+export * from './models/feed/Feed';
 export * from './constants/SocketActions';
 export * from './types/Protocol';
 export * from './utils/stringUtils';

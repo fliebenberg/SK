@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
@@ -301,12 +302,10 @@ export default function OrganizationPeoplePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col xl:flex-row items-center justify-between gap-6 text-center xl:text-left">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>People</h1>
-          <p className="text-muted-foreground">Manage your organization's staff and members.</p>
-        </div>
-        <div className="flex flex-row items-center gap-2 w-full xl:w-auto">
+      <PageHeader 
+        title="People" 
+        description="Manage your organization's staff and members."
+      >
              <div className="relative flex-1 md:w-48">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -340,8 +339,7 @@ export default function OrganizationPeoplePage() {
                     <span className="hidden md:inline">Add Person</span>
                     <span className="md:hidden">Add</span>
             </MetalButton>
-        </div>
-      </div>
+      </PageHeader>
 
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
         <CardHeader className="px-4 py-4 md:px-6 md:py-6">

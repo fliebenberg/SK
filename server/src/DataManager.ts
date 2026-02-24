@@ -7,6 +7,7 @@ import { accessManager } from "./managers/AccessManager";
 import { referralManager } from "./managers/ReferralManager";
 import { notificationManager } from "./managers/NotificationManager";
 import { reportManager } from "./managers/ReportManager";
+import { feedManager } from "./managers/FeedManager";
 
 export class DataManager {
   constructor() {
@@ -51,6 +52,7 @@ export class DataManager {
   };
   getOrganizationRoles = () => organizationManager.getOrganizationRoles();
   getOrganizationRole = (id: string) => organizationManager.getOrganizationRole(id);
+  deleteOrganization = (id: string) => organizationManager.deleteOrganization(id);
 
   // Venues
   getVenues = (organizationId?: string) => organizationManager.getVenues(organizationId);
@@ -179,6 +181,9 @@ export class DataManager {
   // Reports
   submitReport = (data: any) => reportManager.submitReport(data);
   getReportsForEntity = (entityType: string, entityId: string) => reportManager.getReportsForEntity(entityType, entityId);
+
+  // Feed
+  getHomeFeed = (userId?: string, timezone?: string) => feedManager.getHomeFeed(userId, timezone);
 }
 
 export const dataManager = new DataManager();

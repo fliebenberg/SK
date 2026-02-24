@@ -760,6 +760,20 @@ import { socket, socketService } from "../../lib/socketService";
         });
     };
 
+    deleteOrganization = (id: string) => {
+        return new Promise<void>((resolve, reject) => {
+            socket.emit('action', { type: SocketAction.DELETE_ORG, payload: { id } }, (response: any) => {
+                if (response.status === 'ok') {
+                    this.organizations = this.organizations.filter(o => o.id !== id);
+                    this.notifyListeners();
+                    resolve();
+                } else {
+                    reject(new Error(response.message || 'Failed to delete organization'));
+                }
+            });
+        });
+    };
+
     declineClaim = (token: string) => {
         return new Promise<void>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.DECLINE_CLAIM, payload: { token } }, (response: any) => {
@@ -792,6 +806,15 @@ import { socket, socketService } from "../../lib/socketService";
             socket.emit('action', { type: SocketAction.GET_USER_BADGES, payload: { userId } }, (response: any) => {
                 if (response.status === 'ok') resolve(response.data);
                 else reject(new Error(response.message || 'Failed to fetch badges'));
+            });
+        });
+    };
+
+    getHomeFeed = (userId: string | undefined, timezone: string) => {
+        return new Promise<any>((resolve, reject) => {
+            socket.emit('action', { type: SocketAction.FEED_GET_HOME, payload: { userId, timezone } }, (response: any) => {
+                if (response.status === 'ok') resolve(response.data);
+                else reject(new Error(response.message || 'Failed to fetch home feed'));
             });
         });
     };

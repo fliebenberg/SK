@@ -79,5 +79,39 @@ export function getOrgInitialsFontSize(text: string, containerSize: 'xs' | 'sm' 
 
 export function isPlaceholderLogo(url?: string) {
   if (!url) return true;
+  // If it's a data URL or hex color (sometimes logos are just colors in early dev), it's not a placeholder
+  if (url.startsWith('data:') || url.startsWith('#')) return false;
+  // If it's an internal ID (doesn't start with http/data), it's a real optimized logo
+  if (!url.startsWith('http')) return false;
   return url.includes("dicebear.com");
+}
+
+export function getOrgLogoUrl(logo?: string, tier: 'large' | 'medium' | 'thumb' = 'medium') {
+  if (!logo) return "";
+  if (logo.startsWith('http') || logo.startsWith('data:')) return logo;
+  
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3001";
+  return `${serverUrl}/uploads/logos/${logo}_${tier}.webp`;
+}
+
+export function getUserAvatarUrl(image?: string, tier: 'large' | 'medium' | 'thumb' = 'medium') {
+  if (!image) return "";
+  if (image.startsWith('http') || image.startsWith('data:')) return image;
+  
+  return `/uploads/avatars/${image}_${tier}.webp`;
+}
+
+export function formatTime(isoString: string): string {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+export function formatDate(isoString: string, short: boolean = false): string {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (short) {
+         return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+    return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 }

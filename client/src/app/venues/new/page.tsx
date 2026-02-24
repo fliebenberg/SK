@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { addVenueAction } from "@/app/actions";
+import { store } from "@/app/store/store";
 
 export default function NewVenuePage() {
   const router = useRouter();
@@ -13,10 +13,22 @@ export default function NewVenuePage() {
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
-    await addVenueAction(formData);
-    setLoading(false);
-    router.push("/venues");
-    router.refresh();
+    try {
+      const name = formData.get("name") as string;
+      const address = formData.get("address") as string;
+      if (!name || !address) throw new Error("Missing required fields");
+
+      await store.addVenue({
+        name,
+        address,
+        organizationId: "org-1", // TODO: Get from context if applicable
+      });
+      router.push("/venues");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

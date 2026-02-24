@@ -1,5 +1,6 @@
 import { Organization, Venue, OrganizationRole, levenshtein } from "@sk/types";
 import { BaseManager } from "./BaseManager";
+import { imageService } from "../services/ImageService";
 
 export class OrganizationManager extends BaseManager {
   private organizationCache: Organization[] | null = null;
@@ -26,6 +27,7 @@ export class OrganizationManager extends BaseManager {
         o.supported_role_ids as "supportedRoleIds",
         o.is_claimed as "isClaimed",
         o.creator_id as "creatorId",
+        o.is_active as "isActive",
         (SELECT COUNT(*)::int FROM teams t WHERE t.organization_id = o.id) as "teamCount",
         (SELECT COUNT(*)::int FROM venues v WHERE v.organization_id = o.id) as "venueCount",
         (SELECT COUNT(*)::int FROM events e WHERE (e.organization_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
@@ -48,10 +50,10 @@ export class OrganizationManager extends BaseManager {
         o.secondary_color as "secondaryColor", 
         o.supported_sport_ids as "supportedSportIds", 
         o.short_name as "shortName", 
-        o.short_name as "shortName", 
         o.supported_role_ids as "supportedRoleIds",
         o.is_claimed as "isClaimed",
         o.creator_id as "creatorId",
+        o.is_active as "isActive",
         (SELECT COUNT(*)::int FROM teams t WHERE t.organization_id = o.id) as "teamCount",
         (SELECT COUNT(*)::int FROM venues v WHERE v.organization_id = o.id) as "venueCount",
         (SELECT COUNT(*)::int FROM events e WHERE (e.organization_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
@@ -71,17 +73,31 @@ export class OrganizationManager extends BaseManager {
     const supportedSportIds = org.supportedSportIds || [];
     const supportedRoleIds = org.supportedRoleIds || [];
     
+    let logo = org.logo;
+    if (logo && logo.startsWith('data:image')) {
+      logo = await imageService.processLogo(logo, id);
+    }
     
     const res = await this.query(
-      `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, supported_sport_ids, short_name, supported_role_ids, is_claimed, creator_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds", is_claimed as "isClaimed", creator_id as "creatorId"`,
-      [id, org.name, org.logo, org.primaryColor, org.secondaryColor, supportedSportIds, org.shortName, supportedRoleIds, org.isClaimed || false, org.creatorId]
+      `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, supported_sport_ids, short_name, supported_role_ids, is_claimed, creator_id, is_active) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds", is_claimed as "isClaimed", creator_id as "creatorId", is_active as "isActive"`,
+      [id, org.name, logo, org.primaryColor, org.secondaryColor, supportedSportIds, org.shortName, supportedRoleIds, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true]
     );
     this.invalidateCache();
     return res.rows[0];
   }
 
   async updateOrganization(id: string, data: Partial<Organization>): Promise<Organization | null> {
+    // If logo is being updated and it's base64, process it
+    if (data.logo && data.logo.startsWith('data:image')) {
+        // Optional: delete old logo file if it exists
+        const oldOrg = await this.getOrganization(id);
+        if (oldOrg && oldOrg.logo) {
+            await imageService.deleteLogo(oldOrg.logo);
+        }
+        data.logo = await imageService.processLogo(data.logo, id);
+    }
+
     const keys = Object.keys(data).filter(k => k !== 'id');
     if (keys.length === 0) return this.getOrganization(id).then(r => r || null);
 
@@ -92,7 +108,7 @@ export class OrganizationManager extends BaseManager {
     const map: Record<string, string> = {
         name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
         supportedSportIds: 'supported_sport_ids', shortName: 'short_name', supportedRoleIds: 'supported_role_ids',
-        isClaimed: 'is_claimed', creatorId: 'creator_id'
+        isClaimed: 'is_claimed', creatorId: 'creator_id', isActive: 'is_active'
     };
 
     keys.forEach(key => {
@@ -107,7 +123,7 @@ export class OrganizationManager extends BaseManager {
     values.push(id);
     
     const res = await this.query(
-        `UPDATE organizations SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds", is_claimed as "isClaimed", creator_id as "creatorId"`,
+        `UPDATE organizations SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds", is_claimed as "isClaimed", creator_id as "creatorId", is_active as "isActive"`,
         values
     );
     this.invalidateCache();
@@ -245,6 +261,39 @@ export class OrganizationManager extends BaseManager {
     
     const isClaimed = res.rows[0].count > 0;
     await this.query('UPDATE organizations SET is_claimed = $1 WHERE id = $2', [isClaimed, organizationId]);
+    this.invalidateCache();
+  }
+
+  async deleteOrganization(id: string): Promise<void> {
+    // Dependency checks
+    const countsRes = await this.query(`
+      SELECT 
+        (SELECT COUNT(*)::int FROM teams WHERE organization_id = $1) as teams,
+        (SELECT COUNT(*)::int FROM venues WHERE organization_id = $1) as venues,
+        (SELECT COUNT(*)::int FROM events WHERE organization_id = $1 OR $1 = ANY(participating_org_ids)) as events,
+        (SELECT COUNT(*)::int FROM organization_memberships WHERE organization_id = $1 AND (end_date IS NULL OR end_date > NOW())) as active_people
+    `, [id]);
+
+    const { teams, venues, events, active_people } = countsRes.rows[0];
+
+    if (teams > 0 || venues > 0 || events > 0 || active_people > 0) {
+      let reason = "it has ";
+      const parts = [];
+      if (teams > 0) parts.push(`${teams} teams`);
+      if (venues > 0) parts.push(`${venues} venues`);
+      if (events > 0) parts.push(`${events} events`);
+      if (active_people > 0) parts.push(`${active_people} linked people`);
+      
+      throw new Error(`Cannot delete organization: ${reason}${parts.join(', ')}.`);
+    }
+
+    // Clean up memberships (even inactive ones) to allow deletion
+    await this.query('DELETE FROM organization_memberships WHERE organization_id = $1', [id]);
+    
+    // Check if there are any other links we missed (like cancelled events that still reference the host org)
+    // Actually, if 'events > 0' passed above, it means there are NO events at all.
+    
+    await this.query('DELETE FROM organizations WHERE id = $1', [id]);
     this.invalidateCache();
   }
 }

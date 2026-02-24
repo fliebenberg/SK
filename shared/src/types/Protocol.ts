@@ -9,7 +9,7 @@ import { Event } from "../models/event/Event";
 import { Game } from "../models/event/Game";
 import { Person, PersonIdentifier } from "../models/people/Person";
 import { UserBadge } from "../models/people/UserBadge";
-
+import { FeedHomeResponse } from "../models/feed/Feed";
 // --- Shared Response Type ---
 /**
  * Standard response wrapper for all socket actions.
@@ -41,6 +41,10 @@ export interface UpdateOrgPayload {
 export interface ClaimOrgPayload {
     id: string;
     userId: string;
+}
+
+export interface DeleteOrgPayload {
+    id: string;
 }
 
 export interface AddTeamPayload extends Omit<Team, "id"> {}
@@ -199,6 +203,11 @@ export interface GetUserBadgesPayload {
     userId: string;
 }
 
+export interface FeedGetHomePayload {
+    userId?: string;
+    timezone?: string;
+}
+
 // --- Protocol Map ---
 /**
  * Mapping of SocketActions to their Request Payload and Response Data types.
@@ -207,6 +216,7 @@ export interface ProtocolMap {
     [SocketAction.ADD_ORG]: { payload: AddOrgPayload; response: Organization };
     [SocketAction.UPDATE_ORG]: { payload: UpdateOrgPayload; response: Organization };
     [SocketAction.CLAIM_ORG]: { payload: ClaimOrgPayload; response: Organization };
+    [SocketAction.DELETE_ORG]: { payload: DeleteOrgPayload; response: void };
     [SocketAction.REFER_ORG_CONTACT]: { payload: ReferOrgContactPayload; response: any }; // Returns created referrals
     [SocketAction.CLAIM_ORG_VIA_TOKEN]: { payload: ClaimOrgViaTokenPayload; response: Organization };
     
@@ -249,4 +259,6 @@ export interface ProtocolMap {
     [SocketAction.DECLINE_CLAIM]: { payload: DeclineClaimPayload; response: any };
     [SocketAction.REFER_ORG_CONTACT_VIA_TOKEN]: { payload: ReferOrgContactViaTokenPayload; response: any };
     [SocketAction.GET_USER_BADGES]: { payload: GetUserBadgesPayload; response: UserBadge[] };
+
+    [SocketAction.FEED_GET_HOME]: { payload: FeedGetHomePayload; response: FeedHomeResponse };
 }

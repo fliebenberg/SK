@@ -1,7 +1,7 @@
 "use client";
 
 import { Organization } from "@sk/types";
-import { cn, getInitials, getOrgInitialsFontSize, isPlaceholderLogo } from "@/lib/utils";
+import { cn, getInitials, getOrgInitialsFontSize, isPlaceholderLogo, getOrgLogoUrl } from "@/lib/utils";
 
 interface OrgLogoProps {
   organization: Partial<Organization> | null;
@@ -46,10 +46,11 @@ export function OrgLogo({
   );
 
   if (hasActualLogo) {
+    const tier = (size === 'xs' || size === 'sm') ? 'thumb' : 'medium';
     return (
       <div className={containerClasses}>
         <img 
-          src={organization.logo} 
+          src={getOrgLogoUrl(organization.logo, tier)} 
           alt={organization.name} 
           className="h-full w-full object-cover" 
         />

@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { useState, useEffect } from "react";
 import { TeamMembership, Person } from "@sk/types";
 import { PersonnelAutocomplete } from "@/components/ui/PersonnelAutocomplete";
-import { addPersonAction, addTeamMemberAction, removeTeamMemberAction } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { Trash2, Plus, UserPlus, Pencil } from "lucide-react";

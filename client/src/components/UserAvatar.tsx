@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { cn } from "@/lib/utils";
+import { cn, getUserAvatarUrl } from "@/lib/utils";
 
 interface UserAvatarProps {
   name?: string | null;
@@ -64,10 +64,11 @@ export function UserAvatar({ name, image, size = "md", className, rounded = "ful
   }, [name]);
 
   if (image && image !== "" && image !== "null" && image !== "undefined") {
+    const tier = (size === 'xs' || size === 'sm' || size === 'md' || size === 'lg') ? 'thumb' : 'medium';
     return (
       <div className={cn("relative flex-shrink-0 overflow-hidden border border-border", sizeMap[size], roundedMap[rounded], className)}>
         <img
-          src={image}
+          src={getUserAvatarUrl(image, tier)}
           alt={name || "User"}
           className="h-full w-full object-cover"
         />

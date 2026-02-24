@@ -5,7 +5,7 @@ import { store } from "@/app/store/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { addPersonAction, addPersonFromForm } from "@/app/actions";
+
 import { UserPlus, User } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Team, TeamMembership, Person } from "@sk/types";
@@ -17,6 +17,28 @@ export default function TeamDetailPage() {
   const [team, setTeam] = useState<Team | undefined>(undefined);
   const [roster, setRoster] = useState<(Person & { roleId: string; roleName?: string; membershipId: string })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAddingPerson, setIsAddingPerson] = useState(false);
+
+  const handleAddPerson = async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      setIsAddingPerson(true);
+      const formData = new FormData(e.currentTarget);
+      const name = formData.get("name") as string;
+      const roleId = formData.get("roleId") as string;
+      const teamIdInput = formData.get("teamId") as string;
+
+      try {
+          if (name && roleId && teamIdInput) {
+              const newPerson = await store.addPerson({ name });
+              await store.addTeamMember(newPerson.id, teamIdInput, roleId);
+              (e.target as HTMLFormElement).reset();
+          }
+      } catch (e) {
+          console.error("Failed to add person:", e);
+      } finally {
+          setIsAddingPerson(false);
+      }
+  };
 
   useEffect(() => {
     const update = () => {
@@ -85,7 +107,7 @@ export default function TeamDetailPage() {
               <CardTitle>Add Member</CardTitle>
             </CardHeader>
             <CardContent>
-              <form action={addPersonFromForm} className="space-y-4">
+              <form onSubmit={handleAddPerson} className="space-y-4">
                 <input type="hidden" name="teamId" value={team.id} />
                 <div className="space-y-2">
                   <label htmlFor="name" className="text-sm font-medium">Name</label>
@@ -104,8 +126,8 @@ export default function TeamDetailPage() {
                     ))}
                   </select>
                 </div>
-                <Button type="submit" className="w-full">
-                  <UserPlus className="mr-2 h-4 w-4" /> Add Member
+                <Button type="submit" className="w-full" disabled={isAddingPerson}>
+                  <UserPlus className="mr-2 h-4 w-4" /> {isAddingPerson ? "Adding..." : "Add Member"}
                 </Button>
               </form>
             </CardContent>

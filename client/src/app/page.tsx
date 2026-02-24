@@ -18,13 +18,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { HeroGameCard } from "@/components/feed/HeroGameCard";
+import { FeedItemCard } from "@/components/feed/FeedItemCard";
+import { PersonalizationModal } from "@/components/feed/PersonalizationModal";
+import { FeedHomeResponse } from "@sk/types";
 
 export default function Home() {
-  const { isAuthenticated, isLoading: authLoading, loginWithGoogle } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, loginWithGoogle, user } = useAuth();
   const router = useRouter();
-  const [hoveredSection, setHoveredSection] = useState<'left' | 'right' | null>(null);
+  
+  // State
   const [hasOrg, setHasOrg] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showPersonalization, setShowPersonalization] = useState(false);
+  
+  // Feed Data
+  const [feedData, setFeedData] = useState<FeedHomeResponse | null>(null);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(true);
 
   useEffect(() => {
     // Check if user has an organization
@@ -33,16 +43,13 @@ export default function Home() {
             setHasOrg(false);
             return;
         }
-        const isAppAdmin = store.userOrgMemberships.some(m => false); // Placeholder or use AuthContext
-        // Use store helper if available
         const hasOwned = store.userOrgMemberships.some(m => m.roleId === 'role-org-admin');
         setHasOrg(hasOwned);
     };
     
-    checkOrg();
     const unsubscribe = store.subscribe(checkOrg);
     return () => unsubscribe();
-  }, []);
+  }, [isAuthenticated]);
 
   const managementFeatures = [
     {
@@ -80,123 +87,224 @@ export default function Home() {
     }
   ];
 
+  useEffect(() => {
+    const loadFeed = async () => {
+        setIsLoadingFeed(true);
+        try {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const data = await store.getHomeFeed(user?.id, timezone);
+            setFeedData(data);
+            
+            // Show personalization prompt for new authenticated users who haven't set preferences
+            // For now, we'll simulate this by checking if the feed implies no preferences were found
+            if (isAuthenticated && data && data.personalizedFeed.length === 0) {
+                 // For demo purposes, we will rely on a manual CTA click for now
+                 // setShowPersonalization(true); 
+            }
+        } catch (error) {
+            console.error("Failed to load feed", error);
+        } finally {
+            setIsLoadingFeed(false);
+        }
+    };
+
+    if (store.isConnected()) {
+        loadFeed();
+    } else {
+        const unsubscribe = store.subscribe(() => {
+            if (store.isConnected()) {
+                loadFeed();
+                unsubscribe();
+            }
+        });
+        return () => unsubscribe();
+    }
+  }, [isAuthenticated, user]);
+
   return (
     <>
-      <main className="flex min-h-screen flex-col bg-background text-foreground selection:bg-primary/30 overflow-x-hidden">
+      <main className="flex min-h-[calc(100vh-4rem)] flex-col bg-background text-foreground selection:bg-primary/30 overflow-x-hidden">
       
-      {/* HERO SECTION */}
-      <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)]">
-        {/* LEFT SECTION: Management */}
-        <section 
-          className={cn(
-            "relative flex flex-col items-center justify-center p-8 md:p-16 transition-all duration-500 ease-in-out border-b md:border-b-0 md:border-r border-border",
-            hoveredSection === 'left' ? 'md:w-[55%]' : hoveredSection === 'right' ? 'md:w-[45%]' : 'md:w-1/2',
-            "w-full min-h-[50vh] md:min-h-full"
-          )}
-          onMouseEnter={() => setHoveredSection('left')}
-          onMouseLeave={() => setHoveredSection(null)}
-        >
-          {/* Base Gradient - Clean & Simple */}
-          <div className="absolute inset-0 bg-gradient-to-br from-background via-muted/20 to-background z-0" />
-          
-          {/* Subtle Vignette */}
-          <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-background/80 z-0" />
-
-          <div className="relative z-10 flex flex-col items-center md:items-start text-center md:text-left space-y-6 max-w-lg">
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-foreground to-muted-foreground" style={{ fontFamily: 'var(--font-orbitron)' }}>
-              PROFESSIONAL <br/>
-              <span className="text-muted-foreground">SPORT MANAGEMENT</span>
-            </h2>
-            
-            <p className="text-lg text-muted-foreground leading-relaxed">
-              Set up your organisation, manage teams and matches and organise tournaments.
-            </p>
-
-            <div className="pt-4">
-              <MetalButton 
-                variantType="secondary"
-                className="min-w-[200px] text-lg"
-                onClick={() => {
-                  if (isAuthenticated) {
-                    router.push('/admin');
-                  } else {
-                    setShowAuthModal(true);
-                  }
-                }}
-              >
-                <span className="flex items-center gap-2">
-                  {hasOrg ? (
-                    <>Manage your organisation <ArrowRight className="w-5 h-5" /></>
-                  ) : (
-                    <>Add your organisation <Plus className="w-5 h-5" /></>
+        {/* TOP BANNER / CTA */}
+        <div className="w-full bg-gradient-to-r from-muted/50 via-background to-muted/50 border-b border-border py-4 px-6 md:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
+             <div className="text-center md:text-left">
+                  <h2 className="text-xl font-bold font-orbitron text-primary">ScoreKeeper</h2>
+                  <p className="text-sm text-muted-foreground">Follow the action, manage your games. All in one place.</p>
+             </div>
+             <div className="flex items-center gap-3">
+                  {!isAuthenticated && (
+                       <Button variant="outline" size="sm" onClick={() => setShowAuthModal(true)}>
+                           Sign In
+                       </Button>
                   )}
-                </span>
-              </MetalButton>
-            </div>
-          </div>
-        </section>
+                  {isAuthenticated && !hasOrg && (
+                       <Button variant="outline" size="sm" onClick={() => router.push('/admin')}>
+                           <Plus className="w-4 h-4 mr-2" /> Add Organization
+                       </Button>
+                  )}
+                  {isAuthenticated && hasOrg && (
+                       <Button variant="default" size="sm" onClick={() => router.push('/admin')}>
+                           Manage Organization <ArrowRight className="w-4 h-4 ml-2" />
+                       </Button>
+                  )}
+             </div>
+        </div>
 
-        {/* RIGHT SECTION: Audience */}
-        <section 
-          className={cn(
-            "relative flex flex-col items-center justify-center p-8 md:p-16 transition-all duration-500 ease-in-out",
-            hoveredSection === 'right' ? 'md:w-[55%]' : hoveredSection === 'left' ? 'md:w-[45%]' : 'md:w-1/2',
-            "w-full min-h-[50vh] md:min-h-full"
-          )}
-          onMouseEnter={() => setHoveredSection('right')}
-          onMouseLeave={() => setHoveredSection(null)}
-        >
-          {/* Base Gradient - Clean & Simple */}
-          <div className="absolute inset-0 bg-gradient-to-br from-muted via-background to-muted z-0" />
-          
-          {/* Very Subtle Glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/5 blur-[100px] rounded-full pointer-events-none z-0" />
-
-          <div className="relative z-10 flex flex-col items-center md:items-end text-center md:text-right space-y-6 max-w-lg">
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-foreground to-muted-foreground" style={{ fontFamily: 'var(--font-orbitron)' }}>
-              NEVER MISS <br/>
-              <span className="text-primary drop-shadow-[0_0_15px_rgba(var(--primary),0.5)]">A MOMENT</span>
-            </h2>
+        {/* FEED LAYOUT */}
+        <div className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-8 flex flex-col xl:flex-row gap-8">
             
-            <p className="text-lg text-muted-foreground leading-relaxed">
-              Follow your favorite teams and players live. Real-time scores and stats delivered instantly.
-            </p>
+            {/* MAIN COLUMN */}
+            <div className="flex-1 flex flex-col gap-10 min-w-0">
+                
+                {/* HERO CAROUSEL: LIVE & SOON */}
+                <section>
+                    <div className="flex justify-between items-end mb-4 pr-1">
+                        <h3 className="text-2xl font-bold font-orbitron flex items-center gap-2">
+                             Activity Hub <Activity className="w-5 h-5 text-primary" />
+                        </h3>
+                    </div>
+                    
+                    {isLoadingFeed ? (
+                        <div className="flex gap-4 overflow-hidden pt-2">
+                             {[1, 2, 3].map(i => (
+                                 <div key={i} className="h-[180px] w-full max-w-sm rounded-xl bg-muted animate-pulse flex-shrink-0" />
+                             ))}
+                        </div>
+                    ) : feedData?.heroGames?.length ? (
+                        <div className="flex overflow-x-auto pb-6 pt-2 -mx-4 px-4 md:-mx-8 md:px-8 gap-6 snap-x snap-mandatory hide-scrollbar">
+                            {feedData.heroGames.map(game => (
+                                <HeroGameCard key={game.id} game={game} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-dashed border-border p-8 text-center bg-muted/20">
+                             <p className="text-muted-foreground">No live action right now. Check back later!</p>
+                        </div>
+                    )}
+                </section>
 
-            <Link href="/live" className="pt-4">
-              <MetalButton 
-                variantType="filled" 
-                glowColor="hsl(var(--primary))" 
-                className="text-primary-foreground min-w-[200px] text-lg"
-              >
-                <span className="flex items-center gap-2">
-                  Live Scores <Activity className="w-5 h-5" />
-                </span>
-              </MetalButton>
-            </Link>
-          </div>
-        </section>
-      </div>
+                {/* PERSONALIZATION PROMPT (Animated Banner) */}
+                {isAuthenticated && (
+                     <section className="relative overflow-hidden rounded-xl border border-primary/20 bg-primary/5 p-6 hover:bg-primary/10 transition-colors cursor-pointer" onClick={() => setShowPersonalization(true)}>
+                           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div>
+                                     <h4 className="text-lg font-bold">Make ScoreKeeper Yours</h4>
+                                     <p className="text-sm text-muted-foreground">Tell us what sports and teams you follow to customize this feed.</p>
+                                </div>
+                                <Button variant="default" className="whitespace-nowrap shadow-md shadow-primary/20">Customize Feed</Button>
+                           </div>
+                     </section>
+                )}
 
-      {/* FEATURE SECTIONS */}
-      <div className="relative z-10 bg-background">
-        <FeatureSection 
-          title="Manage like a Pro" 
-          description="Everything you need to run your sports organization efficiently. From the back office to the field."
-          features={managementFeatures}
-          alignment="left"
-          className="bg-gradient-to-b from-background to-muted/30"
-        />
+                {/* ACTIVITY TIMELINE */}
+                <section>
+                    <h3 className="text-xl font-bold mb-4 font-orbitron">My Feed</h3>
+                    
+                    {isLoadingFeed ? (
+                        <div className="space-y-4">
+                             {[1, 2, 3, 4].map(i => (
+                                 <div key={i} className="h-[80px] w-full rounded-lg bg-muted animate-pulse" />
+                             ))}
+                        </div>
+                    ) : feedData?.personalizedFeed?.length ? (
+                        <div className="flex flex-col gap-3">
+                            {feedData.personalizedFeed.map((item, idx) => (
+                                <FeedItemCard key={item.id || idx} item={item} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-border p-8 text-center">
+                             <p className="text-muted-foreground mb-4">You have no upcoming matches or recent results in your feed.</p>
+                             {!isAuthenticated ? (
+                                 <Button variant="outline" onClick={() => setShowAuthModal(true)}>Sign In to Follow Teams</Button>
+                             ) : (
+                                 <Button variant="outline" onClick={() => setShowPersonalization(true)}>Discover Sports</Button>
+                             )}
+                        </div>
+                    )}
+                </section>
 
-        <FeatureSection 
-          title="Game Day, Every Day" 
-          description="Be part of the action on the field, wherever you are. Real-time updates, comprehensive stats and all the info at your fingertips."
-          features={audienceFeatures}
-          alignment="right"
-          className="bg-gradient-to-b from-muted/30 to-background"
-        />
-      </div>
+            </div>
 
-    </main>
+            {/* SIDEBAR: DISCOVERY */}
+            <div className="xl:w-[350px] flex flex-col gap-8 shrink-0">
+                 
+                 <section className="rounded-xl border border-border bg-card p-5">
+                      <h4 className="font-bold flex items-center gap-2 mb-4 border-b pb-2">
+                          <Users className="w-4 h-4 text-muted-foreground"/> Trending Organizations
+                      </h4>
+                      {isLoadingFeed ? (
+                           <div className="h-[150px] bg-muted animate-pulse rounded-md" />
+                      ) : feedData?.discovery?.trendingOrganizations?.length ? (
+                           <div className="flex flex-col gap-3">
+                                {feedData.discovery.trendingOrganizations.map(org => (
+                                     <div key={org.id} className="flex flex-col gap-1 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
+                                          <span className="font-semibold text-sm">{org.name}</span>
+                                          <span className="text-xs text-muted-foreground line-clamp-1">Public Organization</span>
+                                     </div>
+                                ))}
+                           </div>
+                      ) : (
+                           <p className="text-sm text-muted-foreground">No trending organizations right now.</p>
+                      )}
+                 </section>
+
+                 <section className="rounded-xl border border-border bg-card p-5">
+                      <h4 className="font-bold flex items-center gap-2 mb-4 border-b pb-2">
+                          <Trophy className="w-4 h-4 text-muted-foreground"/> Top Tournaments
+                      </h4>
+                      {isLoadingFeed ? (
+                           <div className="h-[150px] bg-muted animate-pulse rounded-md" />
+                      ) : feedData?.discovery?.popularTournaments?.length ? (
+                           <div className="flex flex-col gap-3">
+                                {feedData.discovery.popularTournaments.map(tournament => (
+                                     <div key={tournament.id} className="flex flex-col gap-1 p-2 rounded-md hover:bg-muted/50 cursor-pointer">
+                                          <span className="font-semibold text-sm">{tournament.name}</span>
+                                          <div className="flex gap-2 items-center">
+                                               <span className="text-xs px-2 py-0.5 bg-muted rounded-full">Event</span>
+                                          </div>
+                                     </div>
+                                ))}
+                           </div>
+                      ) : (
+                           <p className="text-sm text-muted-foreground">No popular tournaments right now.</p>
+                      )}
+                 </section>
+
+            </div>
+
+        </div>
+
+        {/* LEGACY FEATURE SECTIONS (Kept for Unauthenticated Users primarily, pushed down) */}
+        {!isAuthenticated && (
+            <div className="relative z-10 bg-background border-t border-border mt-12">
+                <FeatureSection 
+                title="Manage like a Pro" 
+                description="Everything you need to run your sports organization efficiently. From the back office to the field."
+                features={managementFeatures}
+                alignment="left"
+                className="bg-gradient-to-b from-background to-muted/30"
+                />
+
+                <FeatureSection 
+                title="Game Day, Every Day" 
+                description="Be part of the action on the field, wherever you are. Real-time updates, comprehensive stats and all the info at your fingertips."
+                features={audienceFeatures}
+                alignment="right"
+                className="bg-gradient-to-b from-muted/30 to-background"
+                />
+            </div>
+        )}
+
+      </main>
+      
+      {isAuthenticated && user && (
+           <PersonalizationModal 
+               open={showPersonalization} 
+               onOpenChange={setShowPersonalization} 
+               userId={user.id} 
+           />
+      )}
       <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader className="flex flex-col items-center text-center">

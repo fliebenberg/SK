@@ -20,6 +20,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 import { MatchCard } from "@/components/ui/MatchCard";
 
@@ -141,16 +142,11 @@ export function EventList({ organizationId, teamId }: EventListProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-8">
-        {/* Title Section */}
-        <div className="text-center space-y-2 pb-2">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Events</h1>
-          <p className="text-muted-foreground text-lg">Manage matches, tournaments, and schedules.</p>
-        </div>
-
-        {/* Toolbar Section */}
-        <div className="flex flex-col gap-4">
-          {/* Row 1: Creation Button Dropdown */}
+      <PageHeader
+        title="Events"
+        description="Manage matches, tournaments, and schedules."
+      >
+          {/* Creation Button Dropdown */}
           <div className="flex flex-row items-center justify-end gap-3 w-full">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -213,9 +209,11 @@ export function EventList({ organizationId, teamId }: EventListProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+      </PageHeader>
 
-          {/* Row 2: Search & Toggle */}
-          <div className="flex flex-col sm:flex-row items-center gap-4">
+      <div className="flex flex-col gap-4">
+        {/* Row 2: Search & Toggle */}
+        <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="relative flex-1 w-full group">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
@@ -252,7 +250,7 @@ export function EventList({ organizationId, teamId }: EventListProps) {
             </div>
           </div>
         </div>
-      </div>
+
       <div className="space-y-2">
         {filteredEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-2xl text-muted-foreground bg-muted/5">

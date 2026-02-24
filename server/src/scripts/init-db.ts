@@ -29,7 +29,8 @@ const createTables = async () => {
                 short_name TEXT,
                 supported_role_ids TEXT[],
                 is_claimed BOOLEAN DEFAULT false,
-                creator_id TEXT
+                creator_id TEXT,
+                is_active BOOLEAN DEFAULT true
             );
         `);
 
@@ -68,9 +69,8 @@ const createTables = async () => {
         `);
 
         // Ensure columns exist (for existing databases)
-        await pool.query('ALTER TABLE persons ADD COLUMN IF NOT EXISTS email TEXT;');
-        await pool.query('ALTER TABLE persons ADD COLUMN IF NOT EXISTS birthdate DATE;');
         await pool.query('ALTER TABLE persons ADD COLUMN IF NOT EXISTS national_id TEXT;');
+        await pool.query('ALTER TABLE organizations ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;');
 
         // Team Memberships
         await pool.query(`

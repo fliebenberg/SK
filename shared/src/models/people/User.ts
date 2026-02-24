@@ -1,3 +1,11 @@
+export interface UserPreferences {
+  followedOrganizations: string[];
+  followedTeams: string[];
+  favoriteSports: string[];
+  location?: { city: string; country: string };
+  lastKnownTimezone?: string;
+}
+
 export interface User {
   id: string;
   name?: string;
@@ -8,7 +16,7 @@ export interface User {
   globalRole: 'user' | 'admin';
   createdAt: Date;
   updatedAt: Date;
-  preferences: Record<string, any>;
+  preferences: UserPreferences;
 }
 
 export interface UserEmail {

@@ -13,4 +13,5 @@ export interface Organization {
   memberCount?: number;
   isClaimed?: boolean;
   creatorId?: string;
+  isActive?: boolean;
 }

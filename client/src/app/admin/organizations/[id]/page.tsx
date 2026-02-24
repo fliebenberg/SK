@@ -1,6 +1,7 @@
 
 
 "use client";
+import { cn } from "@/lib/utils";
 
 import { MetalButton } from "@/components/ui/MetalButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,12 +10,17 @@ import { Users, Trophy, MapPin, Calendar } from "lucide-react";
 import Link from "next/link";
 import { OrgDetailsHeader } from "@/components/admin/OrgDetailsHeader";
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Organization } from "@sk/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
 import { toast } from "@/hooks/use-toast";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Trash2, Power, PowerOff, Flag } from "lucide-react";
+import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ReportDialog } from "@/components/ui/ReportDialog";
+import { Button } from "@/components/ui/button";
 
 export default function OrganizationDetailsPage() {
   const params = useParams();
@@ -25,6 +31,11 @@ export default function OrganizationDetailsPage() {
   const { user, isAuthenticated } = useAuth();
   const { hasOwnedOrg } = useAdminNavigation();
   const [isClaiming, setIsClaiming] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
+  const [confirmDeactivate, setConfirmDeactivate] = useState({ isOpen: false });
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const updateData = () => {
@@ -76,6 +87,53 @@ export default function OrganizationDetailsPage() {
     }
   };
 
+  const handleDeactivate = async () => {
+    if (!org) return;
+    setIsProcessing(true);
+    try {
+        await store.updateOrganization(org.id, { isActive: !org.isActive });
+        toast({
+            title: org.isActive ? "Organization Deactivated" : "Organization Activated",
+            description: `${org.name} has been ${org.isActive ? "deactivated" : "activated"}.`,
+            variant: "success"
+        });
+        setConfirmDeactivate({ isOpen: false });
+    } catch (e: any) {
+        toast({
+            title: "Action Failed",
+            description: e.message || "Something went wrong.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!org) return;
+    setIsProcessing(true);
+    try {
+        await store.deleteOrganization(org.id);
+        toast({
+            title: "Organization Deleted",
+            description: `${org.name} has been permanently removed.`,
+            variant: "success"
+        });
+        router.push("/admin/organizations");
+    } catch (e: any) {
+        toast({
+            title: "Deletion Failed",
+            description: e.message || "Ensure no linked teams, events, or venues exist.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  const canDelete = counts.teams === 0 && counts.venues === 0 && counts.events === 0 && counts.people === 0;
+  const isAppAdmin = user?.globalRole === 'admin';
+
   const managementSections = [
     {
       title: "People",
@@ -108,7 +166,34 @@ export default function OrganizationDetailsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <PageHeader
+        title="Organization Dashboard"
+        description="Overview and management of your organization's resources."
+      >
+        <div className="flex items-center justify-center gap-2 w-full xl:w-auto">
+          <Link href={`/admin/organizations/${id}/edit`}>
+            <MetalButton 
+              variantType="outlined" 
+              size="sm"
+              glowColor="hsl(var(--primary))"
+              icon={<ShieldCheck className="w-4 h-4" />}
+            >
+              Settings
+            </MetalButton>
+          </Link>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-muted-foreground hover:text-destructive transition-colors shrink-0 h-9 w-9 rounded-full border border-border/50 bg-muted/20"
+            onClick={() => setIsReportDialogOpen(true)}
+            title="Report Organization"
+          >
+            <Flag className="w-4 h-4" />
+          </Button>
+        </div>
+      </PageHeader>
+
       <OrgDetailsHeader organization={org} readOnly={true} />
 
       {!org.isClaimed && (
@@ -182,6 +267,95 @@ export default function OrganizationDetailsPage() {
           </Card>
         ))}
       </div>
+
+      {isAppAdmin && (
+        <section className="space-y-6 border-t border-destructive/10 pt-12 mt-12">
+            <h2 className="text-xl font-black uppercase tracking-tight text-destructive flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                Danger Zone
+            </h2>
+            <div className="space-y-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-1">
+                        <h3 className="font-bold text-lg">{org.isActive ? "Deactivate Organization" : "Activate Organization"}</h3>
+                        <p className="text-sm text-muted-foreground italic">
+                            {org.isActive 
+                                ? "Marks the organization as inactive. It will become read-only but retain its history." 
+                                : "Enables all features and editing for this organization."}
+                        </p>
+                    </div>
+                    <MetalButton 
+                        variantType="outlined" 
+                        className={cn(
+                            "border-destructive/50 text-destructive hover:bg-destructive/10",
+                            !org.isActive && "border-primary/50 text-primary hover:bg-primary/10"
+                        )} 
+                        glowColor={org.isActive ? "hsl(38, 92%, 50%)" : "hsl(var(--primary))"}
+                        onClick={() => setConfirmDeactivate({ isOpen: true })}
+                        disabled={isProcessing}
+                        icon={org.isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                    >
+                        {org.isActive ? "Deactivate Organization" : "Activate Organization"}
+                    </MetalButton>
+                </div>
+
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-1">
+                        <h3 className="font-bold text-lg">Delete Organization</h3>
+                        <p className="text-sm text-muted-foreground italic">Permanently removes this organization and all associated data. This action cannot be undone.</p>
+                    </div>
+                    <MetalButton 
+                        variantType="outlined" 
+                        className="border-destructive/50 text-destructive hover:bg-destructive/10" 
+                        glowColor="hsl(var(--destructive))" 
+                        onClick={() => setConfirmDelete({ isOpen: true })} 
+                        disabled={!canDelete || isProcessing}
+                        icon={<Trash2 className="w-4 h-4" />}
+                    >
+                        Delete Organization
+                    </MetalButton>
+                </div>
+                {!canDelete && (
+                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-center animate-in fade-in slide-in-from-top-1">
+                        Cannot delete organization because it still has linked entities ({counts.teams} teams, {counts.venues} venues, {counts.events} events, {counts.people} people).
+                    </p>
+                )}
+            </div>
+
+            <ConfirmationModal
+                isOpen={confirmDeactivate.isOpen}
+                onOpenChange={(open) => setConfirmDeactivate({ isOpen: open })}
+                onConfirm={handleDeactivate}
+                title={org.isActive ? "Deactivate Organization?" : "Activate Organization?"}
+                description={org.isActive 
+                    ? `Are you sure you want to deactivate ${org.name}? This will make the organization read-only.`
+                    : `Are you sure you want to activate ${org.name}? This will enable all functions for the organization.`
+                }
+                confirmText={org.isActive ? "Deactivate" : "Activate"}
+                variant={org.isActive ? "destructive" : "default"}
+            />
+
+            <ConfirmationModal
+                isOpen={confirmDelete.isOpen}
+                onOpenChange={(open) => setConfirmDelete({ isOpen: open })}
+                onConfirm={handleDelete}
+                title="Delete Organization?"
+                description={`This action is permanent and cannot be undone. All data associated with ${org.name} will be lost.`}
+                confirmText="Delete Permanently"
+                variant="destructive"
+            />
+        </section>
+      )}
+
+      {org && (
+        <ReportDialog 
+            isOpen={isReportDialogOpen}
+            onClose={() => setIsReportDialogOpen(false)}
+            entityType="organization"
+            entityId={org.id}
+            entityName={org.name}
+        />
+      )}
     </div>
   );
 }

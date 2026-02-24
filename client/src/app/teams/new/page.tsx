@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { store } from "@/app/store/store"; // NOTE: This won't work directly in Client Component if store is server-side only. 
-// But since store.ts is just a TS file, it will be bundled. 
-// However, modifications here won't affect the Server Component rendering of the list page if they are separate instances.
-// To fix this for the demo, we need a Server Action or API Route.
-
-// Let's use a Server Action for adding the team to ensure it updates the "server" store.
-import { addTeamAction } from "@/app/actions"; 
+import { store } from "@/app/store/store";
 
 export default function NewTeamPage() {
   const router = useRouter();
@@ -19,10 +13,25 @@ export default function NewTeamPage() {
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
-    await addTeamAction(formData);
-    setLoading(false);
-    router.push("/teams");
-    router.refresh(); // Refresh server components
+    try {
+      const name = formData.get("name") as string;
+      const sportId = formData.get("sport") as string;
+      const ageGroup = formData.get("ageGroup") as string;
+      
+      if (!name || !sportId || !ageGroup) throw new Error("Missing required fields");
+
+      await store.addTeam({
+        name,
+        sportId,
+        ageGroup,
+        organizationId: "org-1", // TODO: Get from context if applicable
+      });
+      router.push("/teams");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

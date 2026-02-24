@@ -8,7 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { store } from "@/app/store/store";
 import { Plus, ArrowRight, Building2 } from "lucide-react";
 import { Organization } from "@sk/types";
-import { getOrganizationsAction } from "@/app/actions";
+import { PageHeader } from "@/components/ui/PageHeader";
+
+
+import { OrgLogo } from "@/components/ui/OrgLogo";
+import { Users, Calendar, Trophy } from "lucide-react";
 
 export default function OrganizationsPage() {
   const router = useRouter();
@@ -47,27 +51,23 @@ export default function OrganizationsPage() {
   return (
     <div className="h-full flex flex-col">
       {organizations.length > 0 && (
-        <div className="flex flex-col md:flex-row items-center md:justify-between gap-4 mb-8 text-center md:text-left">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Your Organizations</h1>
-            <p className="text-muted-foreground">
-              Select an organization to manage or create a new one.
-            </p>
-          </div>
+        <PageHeader
+          title="Your Organizations"
+          description="Select an organization to manage or create a new one."
+          className="mb-8"
+        >
           <Link href="/admin/organizations/new">
             <MetalButton 
               variantType="filled" 
               size="sm"
               glowColor="hsl(var(--primary))"
               className="text-primary-foreground"
+              icon={<Plus className="h-4 w-4" />}
             >
-              <div className="flex items-center gap-2 whitespace-nowrap">
-                <Plus className="h-4 w-4" />
-                <span>Create Organization</span>
-              </div>
+              Create Organization
             </MetalButton>
           </Link>
-        </div>
+        </PageHeader>
       )}
 
       {organizations.length === 0 ? (
@@ -94,45 +94,68 @@ export default function OrganizationsPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           {organizations.map((org) => (
             <Card 
               key={org.id} 
-              className="hover:shadow-md transition-shadow cursor-pointer relative overflow-hidden flex flex-col" 
+              className="group hover:shadow-xl transition-all duration-300 cursor-pointer border-t-4 flex flex-col relative overflow-hidden bg-card/50 backdrop-blur-sm" 
               onClick={() => router.push(`/admin/organizations/${org.id}`)}
               style={{
-                backgroundColor: org.primaryColor || 'hsl(var(--card))',
-                borderColor: org.secondaryColor || 'hsl(var(--border))',
-                borderWidth: '5px',
+                borderTopColor: org.primaryColor || 'hsl(var(--primary))',
               }}
             >
-              {/* Semi-transparent overlay for text readability */}
-              <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" />
-              
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-3 px-4 relative z-10">
-                <CardTitle className="text-xl font-bold text-white drop-shadow-md">{org.name}</CardTitle>
-                <Building2 className="h-5 w-5 text-white/80" />
-              </CardHeader>
-              <CardContent className="relative z-10 px-4 pb-4 flex flex-col flex-1">
-                <div className="flex-1">
-                  <div className="text-sm text-white/90 drop-shadow">
-                    Sports: {org.supportedSportIds?.map(id => store.getSport(id)?.name).filter(Boolean).join(", ")}
+              <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-4 pt-6 px-6">
+                <OrgLogo 
+                  organization={org} 
+                  size="lg" 
+                  className="ring-2 ring-background shadow-lg transition-transform group-hover:scale-105"
+                />
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-xl font-black truncate group-hover:text-primary transition-colors">
+                    {org.name}
+                  </CardTitle>
+                  <p className="text-sm font-mono text-muted-foreground flex items-center gap-1 opacity-70">
+                    {org.shortName || org.id.slice(0, 8).toUpperCase()}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {org.supportedSportIds?.slice(0, 3).map(id => (
+                      <span key={id} className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+                        {store.getSport(id)?.name}
+                      </span>
+                    ))}
+                    {org.supportedSportIds && org.supportedSportIds.length > 3 && (
+                      <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+                        +{org.supportedSportIds.length - 3}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <Link href={`/admin/organizations/${org.id}`} className="mt-4 block">
-                  <MetalButton 
-                    variantType="outlined" 
-                    size="sm"
-                    glowColor="hsl(var(--primary))"
-                    className="w-full"
-                  >
-                    <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                      <span>Manage</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </div>
-                  </MetalButton>
-                </Link>
+              </CardHeader>
+              <CardContent className="px-6 pb-8 flex flex-col flex-1">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col items-center p-2 rounded-lg bg-muted/30 border border-border/5">
+                    <Users className="h-4 w-4 text-muted-foreground mb-1" />
+                    <span className="text-sm font-bold">{org.memberCount || 0}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase">Members</span>
+                  </div>
+                  <div className="flex flex-col items-center p-2 rounded-lg bg-muted/30 border border-border/5">
+                    <Trophy className="h-4 w-4 text-muted-foreground mb-1" />
+                    <span className="text-sm font-bold">{org.teamCount || 0}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase">Teams</span>
+                  </div>
+                  <div className="flex flex-col items-center p-2 rounded-lg bg-muted/30 border border-border/5">
+                    <Calendar className="h-4 w-4 text-muted-foreground mb-1" />
+                    <span className="text-sm font-bold">{org.eventCount || 0}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase">Events</span>
+                  </div>
+                </div>
               </CardContent>
+              
+              {/* Subtle background glow based on primary color */}
+              <div 
+                className="absolute -right-20 -bottom-20 w-40 h-40 rounded-full blur-[100px] opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none"
+                style={{ backgroundColor: org.primaryColor || 'hsl(var(--primary))' }}
+              />
             </Card>
           ))}
         </div>

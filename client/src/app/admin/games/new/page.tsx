@@ -6,12 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { store } from "@/app/store/store";
-import { addGameAction } from "@/app/actions";
-
-// Note: In a real app, we'd fetch these via a Server Component or API
-// For this mock, we'll assume we can get them or pass them as props if we refactor.
-// Since store is shared in memory for this demo, we can try to access it directly, 
-// but in a real Next.js app, we should pass data from a Server Component wrapper.
 // Let's create a Client Component that takes teams/venues as props.
 
 export default function NewGamePage() {
@@ -28,10 +22,29 @@ export default function NewGamePage() {
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
-    await addGameAction(formData);
-    setLoading(false);
-    router.push("/admin");
-    router.refresh();
+    try {
+      const homeTeamId = formData.get("homeTeamId") as string;
+      const awayTeamId = formData.get("awayTeamId") as string;
+      const venueId = formData.get("venueId") as string;
+      const date = formData.get("date") as string;
+      const time = formData.get("time") as string;
+
+      if (!homeTeamId || !awayTeamId || !venueId || !date || !time) {
+        throw new Error("Missing required fields");
+      }
+
+      await store.addGame({
+        eventId: "event-1", // Simplified for MVP
+        homeTeamId,
+        awayTeamId,
+        startTime: `${date}T${time}`,
+      });
+      router.push("/admin");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

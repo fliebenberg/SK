@@ -5,6 +5,7 @@ import { store } from "@/app/store/store";
 import { notFound, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Organization } from "@sk/types";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default function OrganizationEditPage() {
   const params = useParams();
@@ -32,14 +33,10 @@ export default function OrganizationEditPage() {
 
   return (
     <div className="space-y-6">
-      <div className="border-b pb-4 flex flex-col xl:flex-row items-center justify-between gap-6 text-center xl:text-left">
-        <div>
-            <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Organization Settings</h1>
-            <p className="text-muted-foreground mt-2">
-            Manage your organization&apos;s details, branding, and preferences.
-            </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Organization Settings"
+        description="Manage your organization's details, branding, and preferences."
+      />
       
       <OrgDetailsHeader organization={org} />
     </div>

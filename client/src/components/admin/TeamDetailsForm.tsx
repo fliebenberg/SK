@@ -27,17 +27,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-// import { TeamPlayersList } from "./TeamPlayersList"; // Not needed here anymore
-// NOTE: We should eventually move updateTeam to a Server Action too, but for now store updates might be tricky if we mix client/server stores. 
-// Ideally we move ALL writes to Server Actions.
-// But for this specific bug fix (404), we just need to display the data.
-
 interface TeamDetailsFormProps {
   initialTeam: Team;
   organization: Organization; // Pass org to get sports
 }
 
-// import { updateTeamAction } from "@/app/actions";
 
 export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormProps) {
   const [team, setTeam] = useState<Team>(initialTeam);
@@ -145,16 +139,6 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Team Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="bg-background/50"
-              />
-            </div>
-            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="sport">Sport</Label>
@@ -184,6 +168,16 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
                   className="bg-background/50"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Team Name</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="bg-background/50"
+              />
             </div>
 
             <div className="flex items-center justify-between pt-4">

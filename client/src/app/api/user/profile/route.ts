@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { Pool } from "pg";
+import { imageService } from "@/lib/ImageService";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -44,8 +45,19 @@ export async function PATCH(req: Request) {
   }
   
   // 'image' from the legacy UI is now treated as 'customImage'
-  const finalCustomImage = customImage || image;
-  if (finalCustomImage) {
+  let finalCustomImage = customImage || image;
+  if (finalCustomImage && finalCustomImage.startsWith('data:image')) {
+    // Optional: delete old avatar file if it exists
+    const oldUserRes = await pool.query("SELECT custom_image FROM users WHERE id = $1", [userId]);
+    const oldCustomImage = oldUserRes.rows[0]?.custom_image;
+    if (oldCustomImage) {
+        await imageService.deleteAvatar(oldCustomImage);
+    }
+
+    finalCustomImage = await imageService.processAvatar(finalCustomImage, userId);
+    await pool.query("UPDATE users SET custom_image = $1 WHERE id = $2", [finalCustomImage, userId]);
+  } else if (finalCustomImage) {
+    // If it's already a filename (e.g. from a previous update or some other logic), just update the DB
     await pool.query("UPDATE users SET custom_image = $1 WHERE id = $2", [finalCustomImage, userId]);
   }
   

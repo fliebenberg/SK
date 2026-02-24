@@ -160,3 +160,57 @@ All state-changing operations are sent via the `action` event.
     *   **Topic**: `organization_memberships` (To be scoped)
     *   **Event**: `ORG_MEMBERSHIPS_UPDATED`
     *   **Data**: The new membership.
+
+### 6. Referrals & Claiming
+
+#### `REFER_ORG_CONTACT`
+*   **Payload**: `{ organizationId, contactEmails, referredByUserId }`
+*   **Logic**: Creates pending referral records and sends invitation emails.
+*   **Returns**: `OrgClaimReferral[]`
+
+#### `GET_CLAIM_INFO`
+*   **Payload**: `{ token }`
+*   **Logic**: Retrieves organization information associated with a claim token.
+*   **Returns**: `{ organizationId, organizationName, ... }`
+
+#### `CLAIM_ORG_VIA_TOKEN`
+*   **Payload**: `{ token, userId }`
+*   **Logic**: Claims the organization for the user, sets them as admin, and awards "Community Builder" badge if referral threshold met.
+*   **Broadcasts**:
+    *   **Topic**: `organizations`
+    *   **Event**: `ORGANIZATIONS_UPDATED`
+
+#### `DECLINE_CLAIM`
+*   **Payload**: `{ token }`
+*   **Logic**: Marks a referral as declined to prevent further contact.
+
+#### `REFER_ORG_CONTACT_VIA_TOKEN`
+*   **Payload**: `{ token, contactEmails }`
+*   **Logic**: Allows a recipient to refer different contacts for an organization.
+
+### 7. Reports
+
+#### `SUBMIT_REPORT`
+*   **Payload**: `{ entityType, entityId, reason, description, reporterUserId }`
+*   **Logic**: Submits a report for an organization, user, or event for moderation.
+
+### 8. Badges
+
+#### `GET_USER_BADGES`
+*   **Payload**: `{ userId }`
+*   **Logic**: Retrieves all badges earned by a specific user.
+*   **Returns**: `UserBadge[]`
+
+### 9. Notifications
+
+#### `MARK_NOTIFICATION_READ`
+*   **Payload**: `{ id }`
+*   **Logic**: Marks a specific notification as read.
+
+#### `MARK_ALL_NOTIFICATIONS_READ`
+*   **Payload**: `{ userId }`
+*   **Logic**: Marks all notifications for a user as read.
+
+#### `DELETE_NOTIFICATION`
+*   **Payload**: `{ id }`
+*   **Logic**: Deletes a specific notification.

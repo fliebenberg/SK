@@ -23,6 +23,12 @@ export enum SocketAction {
      */
     CLAIM_ORG = 'CLAIM_ORG',
 
+    /**
+     * Action to delete an organization.
+     * Expects payload: { id: string }
+     */
+    DELETE_ORG = 'DELETE_ORG',
+
     // --- Teams ---
     /**
      * Action to create a new team.
@@ -234,4 +240,17 @@ export enum SocketAction {
      * Expects payload: { userId: string }
      */
     GET_USER_BADGES = 'GET_USER_BADGES',
+
+    // --- Feed & Home ---
+    /**
+     * Action to get the personalized home feed for a user.
+     * Expects payload: { userId?: string, timezone?: string }
+     */
+    FEED_GET_HOME = 'FEED_GET_HOME',
+
+    /**
+     * Action to subscribe to a lightweight scoreboard feed.
+     * Event payload: { gameId: string, status: GameStatus, homeScore: number, awayScore: number }
+     */
+    GAME_SCORE_UPDATED = 'GAME_SCORE_UPDATED',
 }

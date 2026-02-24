@@ -313,39 +313,6 @@ export default function ProfilePage() {
 
         {/* Main Content: Vertical Stack */}
         <div className="lg:col-span-9 space-y-12">
-          {/* Badges Section */}
-          <section id="badges" className="scroll-mt-24">
-            <Card className="p-8 bg-card/40 backdrop-blur-sm border-2 overflow-hidden relative">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -z-10" />
-              <h2 className="text-2xl font-bold mb-8 flex items-center gap-3" style={{ fontFamily: 'var(--font-orbitron)' }}>
-                <Palette className="text-primary w-6 h-6" />
-                Your Badges
-              </h2>
-              
-              {badges.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                  {badges.map((badge) => (
-                    <div key={badge.id} className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-background/50 border-2 border-primary/20 group hover:border-primary/50 transition-all duration-300">
-                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                        {badge.badgeType === 'community_builder' ? <UserPlus className="w-8 h-8" /> : <Shield className="w-8 h-8" />}
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs font-bold uppercase tracking-widest">{badge.badgeType.replace('_', ' ')}</p>
-                        <p className="text-[10px] text-muted-foreground uppercase">{new Date(badge.earnedAt).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-border rounded-2xl bg-background/20">
-                    <Palette className="w-12 h-12 text-muted-foreground/30 mb-4" />
-                    <p className="text-lg font-bold text-muted-foreground">No badges earned yet</p>
-                    <p className="text-sm text-muted-foreground max-w-xs mx-auto">Help build the community by referring other organizations to earn your first badge!</p>
-                </div>
-              )}
-            </Card>
-          </section>
-
           {/* Account Details Section */}
           <section id="account" className="scroll-mt-24">
             <Card className="p-8 bg-card/40 backdrop-blur-sm border-2 overflow-hidden relative">
@@ -491,6 +458,40 @@ export default function ProfilePage() {
               </form>
             </Card>
           </section>
+
+          {/* Badges Section */}
+          <section id="badges" className="scroll-mt-24">
+            <Card className="p-8 bg-card/40 backdrop-blur-sm border-2 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -z-10" />
+              <h2 className="text-2xl font-bold mb-8 flex items-center gap-3" style={{ fontFamily: 'var(--font-orbitron)' }}>
+                <Palette className="text-primary w-6 h-6" />
+                Your Badges
+              </h2>
+              
+              {badges.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                  {badges.map((badge) => (
+                    <div key={badge.id} className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-background/50 border-2 border-primary/20 group hover:border-primary/50 transition-all duration-300">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                        {badge.badgeType === 'community_builder' ? <UserPlus className="w-8 h-8" /> : <Shield className="w-8 h-8" />}
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-bold uppercase tracking-widest">{badge.badgeType.replace('_', ' ')}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{new Date(badge.earnedAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-border rounded-2xl bg-background/20">
+                    <Palette className="w-12 h-12 text-muted-foreground/30 mb-4" />
+                    <p className="text-lg font-bold text-muted-foreground">No badges earned yet</p>
+                    <p className="text-sm text-muted-foreground max-w-xs mx-auto">Help build the community by referring other organizations to earn your first badge!</p>
+                </div>
+              )}
+            </Card>
+          </section>
+
 
           {/* Security Section */}
           <section id="security" className="scroll-mt-24">

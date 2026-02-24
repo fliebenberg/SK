@@ -68,18 +68,6 @@ export default function NewTeamPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Team Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="bg-background/50"
-                placeholder="e.g. First XI"
-                required
-              />
-            </div>
-            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="sport">Sport</Label>
@@ -112,6 +100,18 @@ export default function NewTeamPage() {
                   required
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name">Team Name</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="bg-background/50"
+                placeholder="e.g. First XI"
+                required
+              />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-4">

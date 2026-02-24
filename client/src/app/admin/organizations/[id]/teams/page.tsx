@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AgeGroupFilter } from "@/components/admin/AgeGroupFilter";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 // ... (imports)
 
@@ -107,14 +108,10 @@ export default function TeamManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-6">
-        <div className="text-center xl:text-left">
-          <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>Team Management</h1>
-          <p className="text-muted-foreground">Manage your organization's teams and rosters.</p>
-        </div>
-
-        {/* Toolbar: Add Button (Top on Mobile) + Filters (Bottom on Mobile) */}
-        <div className="flex flex-col md:flex-row-reverse items-center justify-between gap-4">
+      <PageHeader
+        title="Team Management"
+        description="Manage your organization's teams and rosters."
+      >
              {/* Add Team Button */}
              <div className="w-full md:w-auto flex justify-end">
                 <MetalButton 
@@ -159,8 +156,7 @@ export default function TeamManagementPage() {
                      </div>
                 </div>
              </div>
-        </div>
-      </div>
+      </PageHeader>
 
       <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
         <CardContent className="p-0 md:p-6">
