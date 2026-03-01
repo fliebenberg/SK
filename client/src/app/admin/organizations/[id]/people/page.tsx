@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { store } from "@/app/store/store";
-import { Users, Plus, Pencil, Trash2, Search, UserPlus, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, Search, UserPlus, ArrowUpDown, ChevronUp, ChevronDown, Image as ImageIcon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { PersonnelAutocomplete } from "@/components/ui/PersonnelAutocomplete";
+import { ImageUpload } from "@/components/ui/ImageUpload";
+import { getInitials, getUserAvatarUrl } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -33,17 +35,19 @@ import {
 import { PageHeader } from "@/components/ui/PageHeader";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
-import { Organization, Person } from "@sk/types";
+import { useParams, notFound } from "next/navigation";
+import { Organization, OrgProfile } from "@sk/types";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { useOrganization } from "@/hooks/useOrganization";
 
-interface OrganizationMemberWithDetails extends Person {
+interface OrganizationMemberWithDetails extends OrgProfile {
   roleId: string;
   roleName?: string;
   membershipId: string;
   startDate?: string;
   endDate?: string;
   personOrgId?: string;
+  image?: string;
 }
 
 export default function OrganizationPeoplePage() {
@@ -51,9 +55,9 @@ export default function OrganizationPeoplePage() {
   const id = params.id as string;
   const { isDark, metalVariant } = useThemeColors();
 
-  const [org, setOrg] = useState<Organization | undefined>(undefined);
+  const { org, isLoading: loading } = useOrganization(id, { subscribeData: true });
   const [members, setMembers] = useState<OrganizationMemberWithDetails[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,9 +71,10 @@ export default function OrganizationPeoplePage() {
     birthdate: "",
     nationalId: "",
     personOrgId: "",
-    roleId: "role-org-member"
+    roleId: "role-org-member",
+    image: ""
   });
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<OrgProfile | null>(null);
 
   // Edit/Delete State
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; membershipId: string; name: string }>({
@@ -79,7 +84,7 @@ export default function OrganizationPeoplePage() {
   });
   const [editingPerson, setEditingPerson] = useState<{ 
     isOpen: boolean; 
-    personId: string; 
+    orgProfileId: string; 
     name: string; 
     roleId: string; 
     membershipId: string;
@@ -87,9 +92,10 @@ export default function OrganizationPeoplePage() {
     birthdate: string;
     nationalId: string;
     personOrgId: string;
+    image: string;
   }>({
     isOpen: false,
-    personId: "",
+    orgProfileId: "",
     name: "",
     roleId: "",
     membershipId: "",
@@ -97,6 +103,7 @@ export default function OrganizationPeoplePage() {
     birthdate: "",
     nationalId: "",
     personOrgId: "",
+    image: "",
   });
 
   const [availableRoles, setAvailableRoles] = useState<{id: string, name: string}[]>([]);
@@ -109,24 +116,17 @@ export default function OrganizationPeoplePage() {
 
   useEffect(() => {
     const updateRoles = () => {
-        const allRoles = store.getOrganizationRoles();
-        if (org?.supportedRoleIds && org.supportedRoleIds.length > 0) {
-            setAvailableRoles(allRoles.filter(r => org.supportedRoleIds?.includes(r.id)));
-        } else {
-            setAvailableRoles(allRoles);
-        }
+        setAvailableRoles(store.getOrganizationRoles());
     };
     updateRoles();
     const unsubscribe = store.subscribe(updateRoles);
     return () => unsubscribe();
-  }, [org]);
+  }, [id]);
 
   useEffect(() => {
     const updateData = () => {
-        const currentOrg = store.getOrganization(id);
         const currentMembers = store.getOrganizationMembers(id);
         console.log(`PeoplePage: Updating data for org ${id}. Found ${currentMembers.length} members.`);
-        setOrg(currentOrg);
         setMembers(currentMembers);
     };
 
@@ -154,11 +154,11 @@ export default function OrganizationPeoplePage() {
     e.preventDefault();
     if (!newMemberData.name.trim()) return;
 
-    setLoading(true);
+    setIsProcessing(true);
     try {
-      let personId = selectedPerson?.id;
+      let profileId = selectedPerson?.id;
       
-      if (!personId && newMemberData.name.trim()) {
+      if (!profileId && newMemberData.name.trim()) {
         // Try to find a matching user first
         const matchingUser = await store.findMatchingUser(
           newMemberData.email || undefined,
@@ -166,30 +166,33 @@ export default function OrganizationPeoplePage() {
           newMemberData.birthdate || undefined
         );
 
-        const newPerson = await store.addPerson({ 
-          id: matchingUser?.id || `person-${Date.now()}`,
+        const newProfile = await store.addOrgProfile({ 
+          id: matchingUser?.id || `profile-${Date.now()}`,
           name: newMemberData.name,
           email: newMemberData.email || undefined,
           birthdate: newMemberData.birthdate || undefined,
-          nationalId: newMemberData.nationalId || undefined
+          nationalId: newMemberData.nationalId || undefined,
+          orgId: id,
+          image: newMemberData.image || undefined
         });
-        personId = newPerson.id;
-      } else if (personId) {
+        profileId = newProfile.id;
+      } else if (profileId) {
         // Update existing person metadata if provided
-        await store.updatePerson(personId, {
+        await store.updateOrgProfile(profileId, {
           email: newMemberData.email || undefined,
           birthdate: newMemberData.birthdate || undefined,
-          nationalId: newMemberData.nationalId || undefined
+          nationalId: newMemberData.nationalId || undefined,
+          image: newMemberData.image || undefined
         });
       }
       
-      if (personId) {
+      if (profileId) {
         // Add to organization with selected role
-        await store.addOrganizationMember(personId, id, newMemberData.roleId);
+        await store.addOrganizationMember(profileId, id, newMemberData.roleId);
         
         // Save organization-specific identifier if provided
         if (newMemberData.personOrgId) {
-          await store.setPersonIdentifier(personId, id, newMemberData.personOrgId);
+          await store.updateOrgProfile(profileId, { identifier: newMemberData.personOrgId });
         }
       }
 
@@ -199,14 +202,15 @@ export default function OrganizationPeoplePage() {
         birthdate: "",
         nationalId: "",
         personOrgId: "",
-        roleId: "role-org-member"
+        roleId: "role-org-member",
+        image: ""
       });
       setSelectedPerson(null);
       setIsAdding(false);
     } catch (error) {
       console.error("Failed to add member:", error);
     } finally {
-      setLoading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -216,21 +220,21 @@ export default function OrganizationPeoplePage() {
 
   const onConfirmDelete = async () => {
     if (!confirmDelete.membershipId) return;
-    setLoading(true);
+    setIsProcessing(true);
     try {
         await store.removeOrganizationMember(confirmDelete.membershipId);
         setConfirmDelete({ isOpen: false, membershipId: "", name: "" });
     } catch (error) {
         console.error("Failed to remove member:", error);
     } finally {
-        setLoading(false);
+        setIsProcessing(false);
     }
   };
 
   const handleEditPerson = (member: OrganizationMemberWithDetails) => {
     setEditingPerson({ 
       isOpen: true, 
-      personId: member.id, 
+      orgProfileId: member.id, 
       name: member.name, 
       roleId: member.roleId, 
       membershipId: member.membershipId,
@@ -238,18 +242,34 @@ export default function OrganizationPeoplePage() {
       birthdate: member.birthdate || "",
       nationalId: member.nationalId || "",
       personOrgId: member.personOrgId || "",
+      image: member.image || "",
     });
   };
 
+  const getEditingDirty = () => {
+    const original = members.find(m => m.id === editingPerson.orgProfileId);
+    if (!original) return false;
+    return (
+      editingPerson.name !== original.name ||
+      editingPerson.roleId !== original.roleId ||
+      editingPerson.email !== (original.email || "") ||
+      editingPerson.birthdate !== (original.birthdate || "") ||
+      editingPerson.nationalId !== (original.nationalId || "") ||
+      editingPerson.personOrgId !== (original.personOrgId || "") ||
+      editingPerson.image !== (original.image || "")
+    );
+  };
+
   const onConfirmEdit = async () => {
-    if (!editingPerson.personId || !editingPerson.name.trim()) return;
-    setLoading(true);
+    if (!editingPerson.orgProfileId || !editingPerson.name.trim()) return;
+    setIsProcessing(true);
     try {
-      await store.updatePerson(editingPerson.personId, { 
+      await store.updateOrgProfile(editingPerson.orgProfileId, { 
         name: editingPerson.name,
         email: editingPerson.email || undefined,
         birthdate: editingPerson.birthdate || undefined,
-        nationalId: editingPerson.nationalId || undefined
+        nationalId: editingPerson.nationalId || undefined,
+        image: editingPerson.image || undefined
       });
       
       if (editingPerson.roleId && editingPerson.membershipId) {
@@ -257,14 +277,14 @@ export default function OrganizationPeoplePage() {
       }
 
       if (editingPerson.personOrgId) {
-        await store.setPersonIdentifier(editingPerson.personId, id, editingPerson.personOrgId);
+        await store.updateOrgProfile(editingPerson.orgProfileId, { identifier: editingPerson.personOrgId });
       }
 
       setEditingPerson({ ...editingPerson, isOpen: false });
     } catch (error) {
       console.error("Failed to update person:", error);
     } finally {
-      setLoading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -298,7 +318,16 @@ export default function OrganizationPeoplePage() {
         <ChevronDown className="ml-2 h-4 w-4 text-primary" />;
   };
 
-  if (!org) return <div>Loading...</div>;
+  if (loading && !org) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="mt-4 text-muted-foreground font-orbitron">Loading people data...</p>
+      </div>
+    );
+  }
+
+  if (!org) return null;
 
   return (
     <div className="space-y-6">
@@ -387,9 +416,13 @@ export default function OrganizationPeoplePage() {
                 sortedMembers.map((member) => (
                   <TableRow key={member.membershipId} className="group hover:bg-muted/50">
                     <TableCell className="pl-4 md:pl-2 py-3">
-                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
-                              {member.name.charAt(0).toUpperCase()}
-                         </div>
+                         {member.image ? (
+                           <img src={getUserAvatarUrl(member.image, 'thumb')} alt={member.name} className="w-8 h-8 rounded-full object-cover" />
+                         ) : (
+                           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                              {getInitials(member.name)}
+                           </div>
+                         )}
                     </TableCell>
                     <TableCell className="font-medium py-3">
                         {member.name}
@@ -436,10 +469,21 @@ export default function OrganizationPeoplePage() {
             <DialogTitle style={{ fontFamily: 'var(--font-orbitron)' }}>Add Person to Organization</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAddMember} className="space-y-4 py-4">
-             <div className="space-y-2">
-                <Label htmlFor="personName">Name</Label>
+            <div className="flex gap-4 items-start">
+              <div className="w-24 h-24 flex-shrink-0 mt-2">
+                <ImageUpload
+                  value={newMemberData.image}
+                  onChange={(val) => setNewMemberData(prev => ({ ...prev, image: val }))}
+                  minimal
+                  initials={getInitials(newMemberData.name)}
+                  className="rounded-full shadow-sm"
+                />
+              </div>
+              <div className="flex-1 space-y-4">
+                <div className="space-y-2">
+                   <Label htmlFor="personName">Name</Label>
                 <PersonnelAutocomplete
-                  organizationId={id}
+                  orgId={id}
                   value={newMemberData.name}
                   onChange={(val) => setNewMemberData(prev => ({ ...prev, name: val }))}
                   onSelectPerson={(p) => {
@@ -457,7 +501,9 @@ export default function OrganizationPeoplePage() {
                   placeholder="Search or enter name"
                 />
              </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            </div>
+           </div>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div className="space-y-2">
                   <Label htmlFor="newEmail">Email</Label>
                   <Input
@@ -532,9 +578,9 @@ export default function OrganizationPeoplePage() {
                     variantType="filled" 
                     glowColor="hsl(var(--primary))"
                     type="submit"
-                    disabled={loading || !newMemberData.name.trim()}
+                    disabled={isProcessing || !newMemberData.name.trim()}
                  >
-                    {loading ? "Adding..." : "Add Person"}
+                    {isProcessing ? "Adding..." : "Add Person"}
                  </MetalButton>
              </DialogFooter>
           </form>
@@ -557,8 +603,19 @@ export default function OrganizationPeoplePage() {
             <DialogTitle style={{ fontFamily: 'var(--font-orbitron)' }}>Edit Person</DialogTitle>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="editName">Name</Label>
+           <div className="flex gap-4 items-start">
+              <div className="w-24 h-24 flex-shrink-0 mt-2">
+                <ImageUpload
+                  value={editingPerson.image}
+                  onChange={(val) => setEditingPerson({ ...editingPerson, image: val })}
+                  minimal
+                  initials={getInitials(editingPerson.name)}
+                  className="rounded-full shadow-sm"
+                />
+              </div>
+              <div className="flex-1 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editName">Name</Label>
               <Input
                 id="editName"
                 value={editingPerson.name}
@@ -567,7 +624,9 @@ export default function OrganizationPeoplePage() {
                 className="bg-background/50"
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+           </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="editEmail">Email</Label>
                 <Input
@@ -632,19 +691,32 @@ export default function OrganizationPeoplePage() {
             </div>
           </div>
           <DialogFooter>
-             <MetalButton 
-                variantType="outlined" 
-                onClick={() => setEditingPerson({ ...editingPerson, isOpen: false })}
-             >
-                Cancel
-             </MetalButton>
-             <MetalButton 
-                variantType="filled" 
-                glowColor="hsl(var(--primary))"
-                onClick={onConfirmEdit}
-             >
-                Save Changes
-             </MetalButton>
+             {getEditingDirty() ? (
+               <div className="flex gap-2 w-full justify-end animate-in fade-in slide-in-from-right-2">
+                 <MetalButton 
+                    variantType="outlined" 
+                    onClick={() => setEditingPerson({ ...editingPerson, isOpen: false })}
+                 >
+                    Cancel
+                 </MetalButton>
+                 <MetalButton 
+                    variantType="filled" 
+                    glowColor="hsl(var(--primary))"
+                    onClick={onConfirmEdit}
+                    disabled={isProcessing || !editingPerson.name.trim()}
+                 >
+                    Save Changes
+                 </MetalButton>
+               </div>
+             ) : (
+                <MetalButton 
+                  variantType="outlined" 
+                  onClick={() => setEditingPerson({ ...editingPerson, isOpen: false })}
+                  className="w-full sm:w-auto"
+                >
+                  Close
+                </MetalButton>
+             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

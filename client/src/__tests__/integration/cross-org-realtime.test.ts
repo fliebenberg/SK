@@ -80,7 +80,7 @@ describe("Cross-Org Real-Time Updates", () => {
                     type: "Sports Day",
                     startDate: new Date().toISOString(),
                     endDate: new Date().toISOString(),
-                    organizationId: ORG_ACTOR_ID,
+                    orgId: ORG_ACTOR_ID,
                     participatingOrgIds: [ORG_LISTENER_ID], // Crucial: Involves Listener
                     sportIds: [],
                     settings: {},
@@ -92,3 +92,4 @@ describe("Cross-Org Real-Time Updates", () => {
         });
     }, 10000); // 10s timeout
 });
+

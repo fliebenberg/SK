@@ -18,6 +18,13 @@ export function ClientProviders({ children }: { children: ReactNode }) {
         enableSystem={true}
         disableTransitionOnChange
         themes={["light-orange", "dark-green", "dark-orange"]}
+        value={{
+          "dark-green": "dark-green",
+          "dark-orange": "dark-orange",
+          "light-orange": "light-orange",
+          "dark": "dark-orange",
+          "light": "light-orange"
+        }}
       >
         <ThemeInitializer />
         <AuthProvider>
@@ -32,3 +39,4 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     </SessionProvider>
   );
 }
+

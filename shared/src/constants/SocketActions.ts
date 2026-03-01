@@ -48,24 +48,42 @@ export enum SocketAction {
      */
     DELETE_TEAM = 'DELETE_TEAM',
 
-    // --- Venues ---
+    // --- Sites & Facilities ---
     /**
-     * Action to create a new venue.
-     * Expects payload: Omit<Venue, "id">
+     * Action to create a new site.
+     * Expects payload: { site: Site }
      */
-    ADD_VENUE = 'ADD_VENUE',
+    ADD_SITE = 'ADD_SITE',
 
     /**
-     * Action to update an existing venue.
-     * Expects payload: { id: string, data: Partial<Venue> }
+     * Action to update an existing site.
+     * Expects payload: { id: string, data: Partial<Site> }
      */
-    UPDATE_VENUE = 'UPDATE_VENUE',
+    UPDATE_SITE = 'UPDATE_SITE',
 
     /**
-     * Action to delete a venue.
+     * Action to delete a site.
      * Expects payload: { id: string }
      */
-    DELETE_VENUE = 'DELETE_VENUE',
+    DELETE_SITE = 'DELETE_SITE',
+
+    /**
+     * Action to create a new facility.
+     * Expects payload: { facility: Facility }
+     */
+    ADD_FACILITY = 'ADD_FACILITY',
+
+    /**
+     * Action to update an existing facility.
+     * Expects payload: { id: string, data: Partial<Facility> }
+     */
+    UPDATE_FACILITY = 'UPDATE_FACILITY',
+
+    /**
+     * Action to delete a facility.
+     * Expects payload: { id: string }
+     */
+    DELETE_FACILITY = 'DELETE_FACILITY',
 
     // --- Events ---
     /**
@@ -117,41 +135,35 @@ export enum SocketAction {
      */
     DELETE_GAME = 'DELETE_GAME',
 
-    // --- Persons ---
+    // --- Org Profiles ---
     /**
-     * Action to create a new person record.
-     * Expects payload: Omit<Person, "id"> & { id?: string }
+     * Action to create a new org profile.
+     * Expects payload: Omit<OrgProfile, "id"> & { id?: string }
      */
-    ADD_PERSON = 'ADD_PERSON',
+    ADD_ORG_PROFILE = 'ADD_ORG_PROFILE',
 
     /**
-     * Action to update an existing person record.
-     * Expects payload: { id: string, data: Partial<Person> }
+     * Action to update an existing org profile.
+     * Expects payload: { id: string, data: Partial<OrgProfile> }
      */
-    UPDATE_PERSON = 'UPDATE_PERSON',
+    UPDATE_ORG_PROFILE = 'UPDATE_ORG_PROFILE',
 
     /**
-     * Action to delete a person (soft delete or hard delete depending on implementation).
+     * Action to delete an org profile.
      * Expects payload: { id: string }
      */
-    DELETE_PERSON = 'DELETE_PERSON',
+    DELETE_ORG_PROFILE = 'DELETE_ORG_PROFILE',
 
     /**
-     * Action to set an organization-specific identifier for a person.
-     * Expects payload: { personId: string, organizationId: string, identifier: string }
+     * Action to link a user account to an org profile.
+     * Expects payload: { email: string, orgProfileId: string }
      */
-    SET_PERSON_IDENTIFIER = 'SET_PERSON_IDENTIFIER',
-
-        /**
-     * Action to link a user account to a person record.
-     * Expects payload: { email: string, personId: string }
-     */
-    LINK_USER_PERSON = 'LINK_USER_PERSON',
+    LINK_USER_PROFILE = 'LINK_USER_PROFILE',
 
     // --- Memberships (Organization) ---
     /**
      * Action to add a person to an organization.
-     * Expects payload: { personId: string, organizationId: string, roleId: string }
+     * Expects payload: { orgProfileId: string, orgId: string, roleId: string }
      */
     ADD_ORG_MEMBER = 'ADD_ORG_MEMBER',
 
@@ -170,7 +182,7 @@ export enum SocketAction {
     // --- Memberships (Team) ---
     /**
      * Action to add a person to a team.
-     * Expects payload: { personId: string, teamId: string, roleId: string }
+     * Expects payload: { orgProfileId: string, teamId: string, roleId: string }
      */
     ADD_TEAM_MEMBER = 'ADD_TEAM_MEMBER',
 
@@ -189,7 +201,7 @@ export enum SocketAction {
     // --- Referrals ---
     /**
      * Action to refer a contact person for an organization.
-     * Expects payload: { organizationId: string, contactEmail: string, referredByUserId: string }
+     * Expects payload: { orgId: string, contactEmail: string, referredByUserId: string }
      */
     REFER_ORG_CONTACT = 'REFER_ORG_CONTACT',
 
@@ -253,4 +265,14 @@ export enum SocketAction {
      * Event payload: { gameId: string, status: GameStatus, homeScore: number, awayScore: number }
      */
     GAME_SCORE_UPDATED = 'GAME_SCORE_UPDATED',
+
+    /**
+     * Action to signal clients to refresh their global caches/views.
+     */
+    GLOBAL_CACHE_REFRESH = 'GLOBAL_CACHE_REFRESH',
+
+    /**
+     * @deprecated Use GLOBAL_CACHE_REFRESH instead.
+     */
+    RESET_CACHE = 'RESET_CACHE',
 }

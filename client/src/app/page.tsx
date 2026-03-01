@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { MetalButton } from "@/components/ui/MetalButton";
 import { FeatureSection } from "@/components/FeatureSection";
-import { Trophy, Users, Calendar, ArrowRight, Activity, Plus, ShieldAlert } from "lucide-react";
+import { Trophy, Users, Calendar, ArrowRight, Activity, Plus, ShieldAlert, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { store } from "@/app/store/store";
@@ -37,19 +37,25 @@ export default function Home() {
   const [isLoadingFeed, setIsLoadingFeed] = useState(true);
 
   useEffect(() => {
-    // Check if user has an organization
+    // Check if user has management rights (admin or has any memberships)
     const checkOrg = () => {
         if (!isAuthenticated) {
             setHasOrg(false);
             return;
         }
-        const hasOwned = store.userOrgMemberships.some(m => m.roleId === 'role-org-admin');
-        setHasOrg(hasOwned);
+        
+        const isGlobalAdmin = user?.globalRole === 'admin';
+        const hasOwned = store.userOrgMemberships.length > 0 || store.userTeamMemberships.length > 0;
+        
+        setHasOrg(isGlobalAdmin || hasOwned);
     };
+    
+    // Initial check
+    checkOrg();
     
     const unsubscribe = store.subscribe(checkOrg);
     return () => unsubscribe();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   const managementFeatures = [
     {
@@ -138,15 +144,25 @@ export default function Home() {
                        </Button>
                   )}
                   {isAuthenticated && !hasOrg && (
-                       <Button variant="outline" size="sm" onClick={() => router.push('/admin')}>
-                           <Plus className="w-4 h-4 mr-2" /> Add Organization
-                       </Button>
+                       <MetalButton 
+                           variantType="outlined" 
+                           size="sm" 
+                           onClick={() => router.push('/admin')}
+                           icon={<Plus className="w-4 h-4" />}
+                       >
+                           Add Organization
+                       </MetalButton>
                   )}
                   {isAuthenticated && hasOrg && (
-                       <Button variant="default" size="sm" onClick={() => router.push('/admin')}>
-                           Manage Organization <ArrowRight className="w-4 h-4 ml-2" />
-                       </Button>
-                  )}
+                       <MetalButton 
+                           variantType="filled" 
+                           size="sm" 
+                           onClick={() => router.push('/admin')}
+                           icon={<ArrowRight className="w-4 h-4" />}
+                       >
+                           Manage Organization
+                       </MetalButton>
+                   )}
              </div>
         </div>
 
@@ -187,12 +203,23 @@ export default function Home() {
                 {isAuthenticated && (
                      <section className="relative overflow-hidden rounded-xl border border-primary/20 bg-primary/5 p-6 hover:bg-primary/10 transition-colors cursor-pointer" onClick={() => setShowPersonalization(true)}>
                            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
-                                <div>
-                                     <h4 className="text-lg font-bold">Make ScoreKeeper Yours</h4>
-                                     <p className="text-sm text-muted-foreground">Tell us what sports and teams you follow to customize this feed.</p>
-                                </div>
-                                <Button variant="default" className="whitespace-nowrap shadow-md shadow-primary/20">Customize Feed</Button>
-                           </div>
+                                 <div>
+                                      <h4 className="text-lg font-bold text-foreground">Make ScoreKeeper Yours</h4>
+                                      <p className="text-sm text-muted-foreground">Tell us what sports and teams you follow to customize this feed.</p>
+                                 </div>
+                                 <MetalButton 
+                                     variantType="filled" 
+                                     size="sm" 
+                                     onClick={(e) => {
+                                         e.stopPropagation();
+                                         setShowPersonalization(true);
+                                     }}
+                                     glowColor="hsl(var(--primary))"
+                                     icon={<Sparkles className="w-4 h-4" />}
+                                 >
+                                     Customize Feeds
+                                 </MetalButton>
+                             </div>
                      </section>
                 )}
 
@@ -215,11 +242,11 @@ export default function Home() {
                     ) : (
                         <div className="rounded-xl border border-border p-8 text-center">
                              <p className="text-muted-foreground mb-4">You have no upcoming matches or recent results in your feed.</p>
-                             {!isAuthenticated ? (
-                                 <Button variant="outline" onClick={() => setShowAuthModal(true)}>Sign In to Follow Teams</Button>
-                             ) : (
-                                 <Button variant="outline" onClick={() => setShowPersonalization(true)}>Discover Sports</Button>
-                             )}
+                              {!isAuthenticated ? (
+                                  <MetalButton variantType="outlined" onClick={() => setShowAuthModal(true)}>Sign In to Follow Teams</MetalButton>
+                              ) : (
+                                  <MetalButton variantType="outlined" onClick={() => setShowPersonalization(true)}>Discover Sports</MetalButton>
+                              )}
                         </div>
                     )}
                 </section>
@@ -369,3 +396,4 @@ export default function Home() {
     </>
   );
 }
+

@@ -49,3 +49,4 @@ export function RoleGuard({
   // Access granted
   return <>{children}</>;
 }
+

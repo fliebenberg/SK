@@ -36,3 +36,4 @@ export const FeedItemCard = ({ item }: FeedItemCardProps) => {
         </div>
     );
 };
+

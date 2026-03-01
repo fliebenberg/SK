@@ -78,3 +78,4 @@ export const PersonalizationModal = ({ open, onOpenChange, userId }: Personaliza
         </Dialog>
     );
 };
+

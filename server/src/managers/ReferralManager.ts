@@ -3,6 +3,7 @@ import pool from '../db';
 import { randomBytes } from 'crypto';
 import { mailManager } from './MailManager';
 import { userManager } from './UserManager';
+import { organizationManager } from './OrganizationManager';
 import { OrgClaimReferral, UserBadge } from '@sk/types';
 
 export class ReferralManager {
@@ -16,14 +17,14 @@ export class ReferralManager {
     return randomBytes(32).toString('hex');
   }
 
-  async createReferrals(organizationId: string, contactEmails: string[], referredByUserId: string): Promise<OrgClaimReferral[]> {
+  async createReferrals(orgId: string, contactEmails: string[], referredByUserId: string): Promise<OrgClaimReferral[]> {
     const client = await this.pool.connect();
     const createdReferrals: OrgClaimReferral[] = [];
 
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query('SELECT name FROM organizations WHERE id = $1', [organizationId]);
+      const orgRes = await client.query('SELECT name FROM organizations WHERE id = $1', [orgId]);
       const orgName = orgRes.rows[0]?.name || 'Organization';
 
       for (const email of contactEmails) {
@@ -32,8 +33,8 @@ export class ReferralManager {
 
         // Check if referral already exists for this org and email
         const existingRes = await client.query(
-          `SELECT id FROM org_claim_referrals WHERE organization_id = $1 AND referred_email = $2`,
-          [organizationId, normalizedEmail]
+          `SELECT id FROM org_claim_referrals WHERE org_id = $1 AND referred_email = $2`,
+          [orgId, normalizedEmail]
         );
 
         if (existingRes.rows.length === 0) {
@@ -42,12 +43,12 @@ export class ReferralManager {
 
           const insertRes = await client.query(
             `INSERT INTO org_claim_referrals 
-            (id, organization_id, referred_email, referred_by_user_id, claim_token, status)
+            (id, org_id, referred_email, referred_by_user_id, claim_token, status)
             VALUES ($1, $2, $3, $4, $5, 'pending')
-            RETURNING id, organization_id as "organizationId", referred_email as "referredEmail", 
+            RETURNING id, org_id as "orgId", referred_email as "referredEmail", 
                       referred_by_user_id as "referredByUserId", claim_token as "claimToken", 
                       status, created_at as "createdAt"`,
-            [id, organizationId, normalizedEmail, referredByUserId, token]
+            [id, orgId, normalizedEmail, referredByUserId, token]
           );
 
           const referral = insertRes.rows[0];
@@ -93,23 +94,23 @@ export class ReferralManager {
     return createdReferrals;
   }
 
-  async getReferralsForOrg(organizationId: string): Promise<OrgClaimReferral[]> {
+  async getReferralsForOrg(orgId: string): Promise<OrgClaimReferral[]> {
     const res = await this.pool.query(
-      `SELECT id, organization_id as "organizationId", referred_email as "referredEmail", 
+      `SELECT id, org_id as "orgId", referred_email as "referredEmail", 
               referred_by_user_id as "referredByUserId", status, 
               claimed_by_user_id as "claimedByUserId", created_at as "createdAt", 
               claimed_at as "claimedAt"
        FROM org_claim_referrals 
-       WHERE organization_id = $1
+       WHERE org_id = $1
        ORDER BY created_at DESC`,
-      [organizationId]
+      [orgId]
     );
     return res.rows;
   }
 
   async getReferralsByUser(userId: string): Promise<OrgClaimReferral[]> {
     const res = await this.pool.query(
-      `SELECT id, organization_id as "organizationId", referred_email as "referredEmail", 
+      `SELECT id, org_id as "orgId", referred_email as "referredEmail", 
               referred_by_user_id as "referredByUserId", status, 
               claimed_by_user_id as "claimedByUserId", created_at as "createdAt", 
               claimed_at as "claimedAt"
@@ -123,7 +124,7 @@ export class ReferralManager {
 
   async getPendingClaimForUser(email: string): Promise<OrgClaimReferral[]> {
      const res = await this.pool.query(
-      `SELECT id, organization_id as "organizationId", referred_email as "referredEmail", 
+      `SELECT id, org_id as "orgId", referred_email as "referredEmail", 
               referred_by_user_id as "referredByUserId", status, 
               created_at as "createdAt", claim_token as "claimToken"
        FROM org_claim_referrals 
@@ -136,10 +137,10 @@ export class ReferralManager {
   async getPendingReferralsByEmails(emails: string[]): Promise<any[]> {
     if (emails.length === 0) return [];
     const res = await this.pool.query(
-      `SELECT r.id, r.organization_id as "organizationId", r.referred_email as "referredEmail", 
+      `SELECT r.id, r.org_id as "orgId", r.referred_email as "referredEmail", 
               r.claim_token as "claimToken", o.name as "organizationName"
        FROM org_claim_referrals r
-       JOIN organizations o ON r.organization_id = o.id
+       JOIN organizations o ON r.org_id = o.id
        WHERE r.referred_email = ANY($1) AND r.status = 'pending'`,
       [emails.map(e => e.toLowerCase().trim())]
     );
@@ -179,7 +180,7 @@ export class ReferralManager {
         
         // Find the ORIGINAL referral content
         const refRes = await client.query(
-            `SELECT id, organization_id, referred_by_user_id FROM org_claim_referrals WHERE claim_token = $1 AND status = 'pending'`,
+            `SELECT id, org_id, referred_by_user_id FROM org_claim_referrals WHERE claim_token = $1 AND status = 'pending'`,
             [token]
         );
 
@@ -214,21 +215,21 @@ export class ReferralManager {
     // Now create the new referrals (outside the previous transaction to avoid nesting issues with createReferrals)
     // We need to re-fetch the data as we released the client, but we have it in `originalReferral`.
     const refRes = await this.pool.query(
-        `SELECT organization_id, referred_by_user_id FROM org_claim_referrals WHERE claim_token = $1`, // Fetching by token again is safe
+        `SELECT org_id, referred_by_user_id FROM org_claim_referrals WHERE claim_token = $1`, // Fetching by token again is safe
         [token]
     );
      if (refRes.rows.length === 0) return []; // Should not happen given above check
 
-    const { organization_id, referred_by_user_id } = refRes.rows[0];
+    const { org_id, referred_by_user_id } = refRes.rows[0];
     
-    return this.createReferrals(organization_id, contactEmails, referred_by_user_id);
+    return this.createReferrals(org_id, contactEmails, referred_by_user_id);
   }
 
   async getClaimInfo(token: string): Promise<any> {
     const res = await this.pool.query(
-      `SELECT r.id, r.organization_id as "organizationId", o.name as "organizationName", o.logo as "organizationLogo", r.status
+      `SELECT r.id, r.org_id as "orgId", o.name as "organizationName", o.logo as "organizationLogo", r.status
        FROM org_claim_referrals r
-       JOIN organizations o ON r.organization_id = o.id
+       JOIN organizations o ON r.org_id = o.id
        WHERE r.claim_token = $1`,
       [token]
     );
@@ -241,12 +242,12 @@ export class ReferralManager {
       await client.query('BEGIN');
 
       const refDataRes = await client.query(
-        `SELECT organization_id, referred_by_user_id FROM org_claim_referrals WHERE claim_token = $1 AND status = 'pending'`,
+        `SELECT org_id, referred_by_user_id FROM org_claim_referrals WHERE claim_token = $1 AND status = 'pending'`,
         [token]
       );
       if (refDataRes.rows.length === 0) throw new Error('Invalid or expired claim token');
       
-      const { organization_id: organizationId, referred_by_user_id: referredByUserId } = refDataRes.rows[0];
+      const { org_id: orgId, referred_by_user_id: referredByUserId } = refDataRes.rows[0];
 
       // Update referral status
       await client.query(
@@ -280,26 +281,29 @@ export class ReferralManager {
       // Update organization ownership
       await client.query(
         `UPDATE organizations SET is_claimed = true, creator_id = $1 WHERE id = $2`,
-        [userId, organizationId]
+        [userId, orgId]
       );
 
       // Add user as Org Admin
-      const personId = await userManager.ensurePersonForUserInOrg(userId, organizationId);
+      const profileId = await userManager.ensureProfileForUserInOrg(userId, orgId);
 
       const membershipId = `om-${randomBytes(8).toString('hex')}`;
       await client.query(
-        `INSERT INTO organization_memberships (id, person_id, organization_id, role_id, start_date)
+        `INSERT INTO org_memberships (id, org_profile_id, org_id, role_id, start_date)
          VALUES ($1, $2, $3, 'role-org-admin', NOW())`,
-        [membershipId, personId, organizationId]
+        [membershipId, profileId, orgId]
       );
 
       await client.query('COMMIT');
+      
+      // Invalidate the cache since we updated the organization manually via SQL
+      organizationManager.invalidateCache();
       
       // Return the updated organization
       const orgRes = await client.query(`
         SELECT id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor",
                is_claimed as "isClaimed", creator_id as "creatorId"
-        FROM organizations WHERE id = $1`, [organizationId]);
+        FROM organizations WHERE id = $1`, [orgId]);
       return orgRes.rows[0];
     } catch (e) {
       await client.query('ROLLBACK');

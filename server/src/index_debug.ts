@@ -40,30 +40,33 @@ io.on('connection', (socket) => {
     });
 
     socket.on('get_data', async (request, callback) => {
-      const { type, organizationId, id, teamId } = request;
+      const { type, orgId, id, teamId } = request;
       
       switch(type) {
           case 'organizations':
-              callback(await dataManager.getOrganizations());
+              callback((await dataManager.getOrganizations()).items);
               break;
           case 'organization':
-          case 'organization_summary':
+          case 'org_summary':
               callback(await dataManager.getOrganization(id));
               break;
           case 'teams':
-              callback(await dataManager.getTeams(organizationId));
+              callback(await dataManager.getTeams(orgId));
               break;
           case 'team':
               callback(await dataManager.getTeam(id) || await dataManager.getTeam(teamId));
               break;
-          case 'venues':
-              callback(await dataManager.getVenues(organizationId));
+          case 'sites':
+              callback(await dataManager.getSites(orgId));
+              break;
+          case 'facilities':
+              callback(await dataManager.getFacilities(orgId));
               break;
           case 'games':
-              callback(await dataManager.getGames(organizationId));
+              callback(await dataManager.getGames(orgId));
               break;
           case 'events':
-              callback(await dataManager.getEvents(organizationId));
+              callback(await dataManager.getEvents(orgId));
               break;
           case 'sports':
               callback(await dataManager.getSports());
@@ -74,18 +77,17 @@ io.on('connection', (socket) => {
                   org: await dataManager.getOrganizationRoles()
               });
               break;
-          case 'persons':
-              // Avoid sending ALL persons. 
-              // Returns empty as we usually fetch via team or organization context
+          case 'org_profiles':
+              // Avoid sending ALL profiles. 
               callback([]); 
               break;
-          case 'organization_members':
-              if (organizationId) {
-                  const members = await dataManager.getOrganizationMembers(organizationId);
-                  console.log(`Server: Returning ${members.length} members for org ${organizationId}`);
+          case 'org_members':
+              if (orgId) {
+                  const members = await dataManager.getOrganizationMembers(orgId);
+                  console.log(`Server: Returning ${members.length} members for org ${orgId}`);
                   callback(members);
               } else {
-                  console.warn("Server: organization_members requested without organizationId");
+                  console.warn("Server: org_members requested without orgId");
                   callback([]);
               }
               break;
@@ -101,7 +103,7 @@ io.on('connection', (socket) => {
                // Deprecated global fetch
                callback([]);
                break;
-          case 'organization_memberships':
+          case 'org_memberships':
                 callback([]); // Deprecated global fetch
                 break;
           case 'user_memberships':
@@ -116,11 +118,7 @@ io.on('connection', (socket) => {
                 }
                 break;
           case 'person_identifiers':
-                if (id) {
-                    callback(await dataManager.getPersonIdentifiers(id));
-                } else {
-                    callback([]);
-                }
+                callback([]); // Deprecated
                 break;
           case 'search_similar_orgs':
                 if (request.name) {
@@ -129,9 +127,9 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
-          case 'search_people':
+          case 'search_profiles':
                 if (request.query) {
-                    callback(await dataManager.searchPeople(request.query, request.organizationId));
+                    callback(await dataManager.searchProfiles(request.query, request.orgId));
                 } else {
                     callback([]);
                 }
@@ -161,9 +159,12 @@ io.on('connection', (socket) => {
                 } else if (type === 'teams') {
                     const teams = await dataManager.getTeams(orgId);
                     socket.emit('update', { type: 'TEAMS_SYNC', data: teams });
-                } else if (type === 'venues') {
-                    const venues = await dataManager.getVenues(orgId);
-                    socket.emit('update', { type: 'VENUES_SYNC', data: venues });
+                } else if (type === 'sites') {
+                    const sites = await dataManager.getSites(orgId);
+                    socket.emit('update', { type: 'SITES_SYNC', data: sites });
+                } else if (type === 'facilities') {
+                    const facilities = await dataManager.getFacilities(orgId);
+                    socket.emit('update', { type: 'FACILITIES_SYNC', data: facilities });
                 } else if (type === 'events') {
                     const events = await dataManager.getEvents(orgId);
                     socket.emit('update', { type: 'EVENTS_SYNC', data: events });
@@ -185,10 +186,14 @@ io.on('connection', (socket) => {
                 const eventId = room.split(':')[1];
                 const event = await dataManager.getEvent(eventId);
                 if (event) socket.emit('update', { type: 'EVENT_UPDATED', data: event });
-            } else if (room.startsWith('venue:')) {
-                const venueId = room.split(':')[1];
-                const venue = await dataManager.getVenue(venueId);
-                if (venue) socket.emit('update', { type: 'VENUE_UPDATED', data: venue });
+            } else if (room.startsWith('site:')) {
+                const siteId = room.split(':')[1];
+                const site = await dataManager.getSite(siteId);
+                if (site) socket.emit('update', { type: 'SITE_UPDATED', data: site });
+            } else if (room.startsWith('facility:')) {
+                const facilityId = room.split(':')[1];
+                const facility = await dataManager.getFacility(facilityId);
+                if (facility) socket.emit('update', { type: 'FACILITY_UPDATED', data: facility });
             } else if (room.startsWith('game:')) {
                 const gameId = room.split(':')[1];
                 const game = await dataManager.getGame(gameId);
@@ -259,45 +264,74 @@ io.on('connection', (socket) => {
             case 'ADD_TEAM':
                 result = await dataManager.addTeam(action.payload);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:teams`, type: 'TEAM_ADDED', data: result });
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_ADDED', data: result });
-                    await broadcastOrgSummaries([result.organizationId]);
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
             case 'UPDATE_TEAM':
                 result = await dataManager.updateTeam(action.payload.id, action.payload.data);
                 if (result) {
                     // Broadcast to the Organization's team list
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:teams`, type: 'TEAM_UPDATED', data: result });
                     // Broadcast to the specific team room
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_UPDATED', data: result });
                 }
                 break;
-            case 'ADD_VENUE':
-                result = await dataManager.addVenue(action.payload);
+            case 'ADD_SITE':
+                result = await dataManager.addSite(action.payload);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_ADDED', data: result });
-                    additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_ADDED', data: result });
-                    await broadcastOrgSummaries([result.organizationId]);
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:sites`, type: 'SITE_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: `site:${result.id}`, type: 'SITE_ADDED', data: result });
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
-            case 'UPDATE_VENUE':
-                result = await dataManager.updateVenue(action.payload.id, action.payload.data);
+            case 'UPDATE_SITE':
+                result = await dataManager.updateSite(action.payload.id, action.payload.data);
                 if (result) {
-                    // Update Org List
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_UPDATED', data: result });
-                    // Update Venue Room
-                    additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:sites`, type: 'SITE_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `site:${result.id}`, type: 'SITE_UPDATED', data: result });
                 }
                 break;
-            case 'DELETE_VENUE':
-                result = await dataManager.deleteVenue(action.payload.id);
+            case 'DELETE_SITE':
+                result = await dataManager.deleteSite(action.payload.id);
                 if (result) {
-                     // Update Org List
-                     additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_DELETED', data: { id: result.id } });
-                     // Notify Venue Room
-                     additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_DELETED', data: { id: result.id } });
-                     await broadcastOrgSummaries([result.organizationId]);
+                     additionalBroadcasts.push({ topic: `org:${result.orgId}:sites`, type: 'SITE_DELETED', data: { id: result.id } });
+                     additionalBroadcasts.push({ topic: `site:${result.id}`, type: 'SITE_DELETED', data: { id: result.id } });
+                     await broadcastOrgSummaries([result.orgId]);
+                }
+                break;
+            case 'ADD_FACILITY':
+                result = await dataManager.addFacility(action.payload);
+                if (result) {
+                    const parentSite = await dataManager.getSite(result.siteId);
+                    if (parentSite && parentSite.orgId) {
+                        additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_ADDED', data: result });
+                    }
+                    additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_ADDED', data: result });
+                }
+                break;
+            case 'UPDATE_FACILITY':
+                result = await dataManager.updateFacility(action.payload.id, action.payload.data);
+                if (result) {
+                    const parentSite = await dataManager.getSite(result.siteId);
+                    if (parentSite && parentSite.orgId) {
+                        additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_UPDATED', data: result });
+                    }
+                    additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_UPDATED', data: result });
+                }
+                break;
+            case 'DELETE_FACILITY':
+                result = await dataManager.deleteFacility(action.payload.id);
+                if (result) {
+                     const parentSite = await dataManager.getSite(result.siteId);
+                     if (parentSite && parentSite.orgId) {
+                         additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_DELETED', data: { id: result.id } });
+                     }
+                     additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_DELETED', data: { id: result.id } });
+                     additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_DELETED', data: { id: result.id } });
                 }
                 break;
             // ... (Games omitted for brevity, keeping as is)
@@ -315,7 +349,7 @@ io.on('connection', (socket) => {
                          // or just the teams involved in the game? 
                          // For now, event room covering the "Schedule" tab is critical.
                          // But if an org is looking at "My Games" dashboard, they need it too.
-                         const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                         const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                          orgIds.forEach(orgId => {
                              additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
                          });
@@ -330,7 +364,7 @@ io.on('connection', (socket) => {
                     
                     const parentEvent = await dataManager.getEvent(result.eventId);
                     if (parentEvent) {
-                        const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                        const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                         orgIds.forEach(orgId => {
                             additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
                         });
@@ -345,7 +379,7 @@ io.on('connection', (socket) => {
 
                      const parentEvent = await dataManager.getEvent(result.eventId);
                      if (parentEvent) {
-                         const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                         const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                          orgIds.forEach(orgId => {
                              additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
                          });
@@ -357,16 +391,15 @@ io.on('connection', (socket) => {
                 if (result) {
                     const parentEvent = await dataManager.getEvent(result.eventId);
                     if (parentEvent) {
-                        const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                        const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                         orgIds.forEach(orgId => {
                             additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
                         });
                     }
                 }
                 break;
-             case 'ADD_PERSON':
-                result = await dataManager.addPerson(action.payload);
-                // Broadcasters handled by caller if they know the org context or wait for ADD_ORG_MEMBER
+             case 'ADD_ORG_PROFILE':
+                result = await dataManager.addOrgProfile(action.payload);
                 break;
              case 'ADD_TEAM_MEMBER':
                 result = await dataManager.addTeamMember(action.payload);
@@ -383,7 +416,7 @@ io.on('connection', (socket) => {
                      // But store needs logic to update count.
                      // Sending TEAM_UPDATED.
                      additionalBroadcasts.push({ 
-                         topic: `org:${teamForAdd.organizationId}:teams`, 
+                         topic: `org:${teamForAdd.orgId}:teams`, 
                          type: 'TEAM_UPDATED', 
                          data: { ...teamForAdd } // Send full team or just ID? Store expects data.
                      });
@@ -392,7 +425,7 @@ io.on('connection', (socket) => {
                 const richMember = (await dataManager.getTeamMembers(result.teamId)).find((m: any) => m.membershipId === result.id);
                 if (richMember) result = richMember;
                 if (teamForAdd) {
-                    await broadcastOrgSummaries([teamForAdd.organizationId]);
+                    await broadcastOrgSummaries([teamForAdd.orgId]);
                 }
                 break;
              case 'REMOVE_TEAM_MEMBER':
@@ -405,11 +438,11 @@ io.on('connection', (socket) => {
                     const teamForRem = await dataManager.getTeam(result.teamId);
                     if (teamForRem) {
                          additionalBroadcasts.push({ 
-                             topic: `org:${teamForRem.organizationId}:teams`, 
+                             topic: `org:${teamForRem.orgId}:teams`, 
                              type: 'TEAM_UPDATED', 
                              data: { ...teamForRem } 
                          });
-                         await broadcastOrgSummaries([teamForRem.organizationId]);
+                         await broadcastOrgSummaries([teamForRem.orgId]);
                     }
                 }
                 break;
@@ -417,10 +450,10 @@ io.on('connection', (socket) => {
                 result = await dataManager.deleteTeam(action.payload.id);
                 if (result) {
                     // Update global org list
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_DELETED', data: { id: result.id } });
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:teams`, type: 'TEAM_DELETED', data: { id: result.id } });
                     // Notify team room (optional, maybe force leave?)
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_DELETED', data: { id: result.id } });
-                    await broadcastOrgSummaries([result.organizationId]);
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
              case 'UPDATE_TEAM_MEMBER':
@@ -434,37 +467,37 @@ io.on('connection', (socket) => {
                 }
                 break;
              case 'ADD_ORG_MEMBER':
-                console.log(`DataManager: Adding org member ${action.payload.personId} to ${action.payload.organizationId}`);
-                result = await dataManager.addOrganizationMember(action.payload.personId, action.payload.organizationId, action.payload.roleId, action.payload.id);
+                console.log(`DataManager: Adding org member ${action.payload.orgProfileId} to ${action.payload.orgId}`);
+                result = await dataManager.addOrganizationMember(action.payload.orgProfileId, action.payload.orgId, action.payload.roleId, action.payload.id);
                 if (result) {
-                    const richMember = (await dataManager.getOrganizationMembers(action.payload.organizationId)).find((m: any) => m.membershipId === result.id);
+                    const richMember = (await dataManager.getOrganizationMembers(action.payload.orgId)).find((m: any) => m.membershipId === result.id);
                     if (richMember) {
                         result = richMember;
                         console.log(`DataManager: Rich member found for broadcast: ${richMember.name}`);
                     }
                     
-                    updateTopic = `org:${action.payload.organizationId}:members`;
+                    updateTopic = `org:${action.payload.orgId}:members`;
                     updateType = 'ORG_MEMBERS_UPDATED';
-                    await broadcastOrgSummaries([action.payload.organizationId]);
+                    await broadcastOrgSummaries([action.payload.orgId]);
                 }
                 break;
              case 'REMOVE_ORG_MEMBER':
                 console.log(`DataManager: Removing org member ${action.payload.id}`);
                 result = await dataManager.removeOrganizationMember(action.payload.id);
                 if (result) {
-                    updateTopic = `org:${result.organizationId}:members`;
+                    updateTopic = `org:${result.orgId}:members`;
                     updateType = 'ORG_MEMBERS_UPDATED';
-                    await broadcastOrgSummaries([result.organizationId]);
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
              case 'UPDATE_ORG_MEMBER':
                 console.log(`DataManager: Updating org member role ${action.payload.id} to ${action.payload.roleId}`);
                 result = await dataManager.updateOrganizationMember(action.payload.id, action.payload.roleId);
                 if (result) {
-                    updateTopic = `org:${result.organizationId}:members`;
+                    updateTopic = `org:${result.orgId}:members`;
                     updateType = 'ORG_MEMBERS_UPDATED';
                     // Re-fetch rich member data for broadcast
-                    const richMember = (await dataManager.getOrganizationMembers(result.organizationId)).find((m: any) => m.membershipId === result.id);
+                    const richMember = (await dataManager.getOrganizationMembers(result.orgId)).find((m: any) => m.membershipId === result.id);
                     if (richMember) result = richMember;
                 }
                 break;
@@ -491,12 +524,12 @@ io.on('connection', (socket) => {
                 result = await dataManager.addEvent(action.payload);
                 if (result) {
                     console.log("Server: Event Added, processing broadcasts. Participating:", result.participatingOrgIds);
-                    const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    const orgIds = [result.orgId, ...(result.participatingOrgIds || [])];
                     orgIds.forEach(orgId => {
                         additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_ADDED', data: result });
                     });
                     additionalBroadcasts.push({ topic: `event:${result.id}`, type: 'EVENT_ADDED', data: result });
-                    await broadcastOrgSummaries([result.organizationId, ...(result.participatingOrgIds || [])]);
+                    await broadcastOrgSummaries([result.orgId, ...(result.participatingOrgIds || [])]);
                 }
                 break;
             case 'UPDATE_EVENT':
@@ -504,8 +537,8 @@ io.on('connection', (socket) => {
                 const oldEvent = await dataManager.getEvent(action.payload.id);
                 result = await dataManager.updateEvent(action.payload.id, action.payload.data);
                 if (result) {
-                    const oldOrgIds = oldEvent ? [oldEvent.organizationId, ...(oldEvent.participatingOrgIds || [])] : [];
-                    const newOrgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    const oldOrgIds = oldEvent ? [oldEvent.orgId, ...(oldEvent.participatingOrgIds || [])] : [];
+                    const newOrgIds = [result.orgId, ...(result.participatingOrgIds || [])];
                     const allAffectedOrgs = [...new Set([...oldOrgIds, ...newOrgIds])];
 
                     newOrgIds.forEach(orgId => {
@@ -524,19 +557,16 @@ io.on('connection', (socket) => {
             case 'DELETE_EVENT':
                 result = await dataManager.deleteEvent(action.payload.id);
                 if (result) {
-                    const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    const orgIds = [result.orgId, ...(result.participatingOrgIds || [])];
                     orgIds.forEach(orgId => {
                         additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_DELETED', data: { id: result.id } });
                     });
-                    await broadcastOrgSummaries([result.organizationId, ...(result.participatingOrgIds || [])]);
+                    await broadcastOrgSummaries([result.orgId, ...(result.participatingOrgIds || [])]);
                 }
                 break;
-             case 'UPDATE_PERSON':
-                console.log(`DataManager: Updating person ${action.payload.id}`, action.payload.data);
-                result = await dataManager.updatePerson(action.payload.id, action.payload.data);
-                break;
-             case 'SET_PERSON_IDENTIFIER':
-                result = await dataManager.setPersonIdentifier(action.payload.personId, action.payload.organizationId, action.payload.identifier);
+             case 'UPDATE_ORG_PROFILE':
+                console.log(`DataManager: Updating profile ${action.payload.id}`, action.payload.data);
+                result = await dataManager.updateOrgProfile(action.payload.id, action.payload.data);
                 break;
              // Add other cases as needed
         }

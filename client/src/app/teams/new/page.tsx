@@ -24,7 +24,7 @@ export default function NewTeamPage() {
         name,
         sportId,
         ageGroup,
-        organizationId: "org-1", // TODO: Get from context if applicable
+        orgId: "org-1", // TODO: Get from context if applicable
       });
       router.push("/teams");
     } catch (e) {
@@ -71,3 +71,4 @@ export default function NewTeamPage() {
     </div>
   );
 }
+

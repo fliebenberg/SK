@@ -10,24 +10,26 @@ import { Users, Trophy, MapPin, Calendar } from "lucide-react";
 import Link from "next/link";
 import { OrgDetailsHeader } from "@/components/admin/OrgDetailsHeader";
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, notFound } from "next/navigation";
 import { Organization } from "@sk/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
 import { toast } from "@/hooks/use-toast";
-import { ShieldCheck, AlertTriangle, Trash2, Power, PowerOff, Flag } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Trash2, Power, PowerOff, Flag, ChevronLeft } from "lucide-react";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ReportDialog } from "@/components/ui/ReportDialog";
 import { Button } from "@/components/ui/button";
+import { OrgNominationSection } from "@/components/admin/organizations/OrgNominationSection";
+import { useOrganization } from "@/hooks/useOrganization";
 
 export default function OrganizationDetailsPage() {
   const params = useParams();
   const id = params.id as string;
   
-  const [org, setOrg] = useState<Organization | undefined>(undefined);
-  const [counts, setCounts] = useState({ teams: 0, venues: 0, events: 0, people: 0 });
+  const { org, isLoading: loading } = useOrganization(id, { subscribeSummary: true });
+  const [counts, setCounts] = useState({ teams: 0, sites: 0, events: 0, people: 0 });
   const { user, isAuthenticated } = useAuth();
   const { hasOwnedOrg } = useAdminNavigation();
   const [isClaiming, setIsClaiming] = useState(false);
@@ -38,33 +40,27 @@ export default function OrganizationDetailsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const updateData = () => {
-        const organization = store.getOrganization(id);
+    if (org) {
+        setCounts({
+            teams: org.teamCount || 0,
+            sites: org.siteCount || 0,
+            events: org.eventCount || 0,
+            people: org.memberCount || 0
+        });
+    }
+  }, [org]);
 
-        if (organization) {
-            setOrg(organization);
-            setCounts({
-                teams: organization.teamCount || 0,
-                venues: organization.venueCount || 0,
-                events: organization.eventCount || 0,
-                people: organization.memberCount || 0
-            });
-        }
-    };
+  if (loading && !org) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="mt-4 text-muted-foreground font-orbitron">Loading organization...</p>
+      </div>
+    );
+  }
 
-    updateData();
-    // Use lightweight summary subscription for dashboard efficiency
-    store.subscribeToOrganizationSummary(id);
-    
-    const unsubscribe = store.subscribe(updateData);
-    
-    return () => {
-        unsubscribe();
-        store.unsubscribeFromOrganizationSummary(id);
-    };
-  }, [id]);
-
-  if (!org) return <div>Loading...</div>;
+  // Handle case where org is still undefined after loading (should be handled by notFound() but just in case)
+  if (!org) return null;
 
   const handleClaim = async () => {
     if (!user) return;
@@ -123,7 +119,7 @@ export default function OrganizationDetailsPage() {
     } catch (e: any) {
         toast({
             title: "Deletion Failed",
-            description: e.message || "Ensure no linked teams, events, or venues exist.",
+            description: e.message || "Ensure no linked teams, events, or sites exist.",
             variant: "destructive"
         });
     } finally {
@@ -131,7 +127,7 @@ export default function OrganizationDetailsPage() {
     }
   };
 
-  const canDelete = counts.teams === 0 && counts.venues === 0 && counts.events === 0 && counts.people === 0;
+  const canDelete = counts.teams === 0 && counts.sites === 0 && counts.events === 0 && counts.people === 0;
   const isAppAdmin = user?.globalRole === 'admin';
 
   const managementSections = [
@@ -150,11 +146,11 @@ export default function OrganizationDetailsPage() {
       count: counts.teams,
     },
     {
-      title: "Venues",
+      title: "Sites",
       description: "Manage fields, courts, and facilities.",
       icon: MapPin,
-      href: `/admin/organizations/${id}/venues`,
-      count: counts.venues,
+      href: `/admin/organizations/${id}/sites`,
+      count: counts.sites,
     },
     {
       title: "Events",
@@ -167,6 +163,15 @@ export default function OrganizationDetailsPage() {
 
   return (
     <div className="space-y-8">
+      {isAppAdmin && (
+        <Link 
+          href="/admin/all-organizations" 
+          className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors mb-2 group"
+        >
+          <ChevronLeft className="h-4 w-4 mr-1 transition-transform group-hover:-translate-x-1" />
+          Back to All Organizations
+        </Link>
+      )}
       <PageHeader
         title="Organization Dashboard"
         description="Overview and management of your organization's resources."
@@ -198,39 +203,37 @@ export default function OrganizationDetailsPage() {
 
       {!org.isClaimed && (
         <Card className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900">
-            <CardHeader className="flex flex-row items-center gap-4 space-y-0">
-                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+            <CardHeader className="flex flex-col sm:flex-row items-center sm:items-start md:items-center text-center sm:text-left gap-4 sm:gap-6 space-y-0">
+                <div className="w-12 h-12 shrink-0 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
                     <ShieldCheck className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 space-y-1.5">
                     <CardTitle className="text-blue-900 dark:text-blue-100">Claim This Organization</CardTitle>
-                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                        This organization is currently a community placeholder. Claim it to become the administrator and manage its teams, venues, and events.
+                    <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">
+                        This organization is currently a community placeholder. Claim it to become the administrator and manage its teams, sites, and events.
                     </p>
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 shrink-0 mt-2 sm:mt-0 w-full sm:w-auto">
                     {isAuthenticated ? (
-                        (hasOwnedOrg && user?.globalRole !== 'admin') ? (
-                            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium italic">
-                                You already own an organization.
-                            </p>
-                        ) : (
+                        <div className="w-full sm:w-auto">
                             <MetalButton 
                                 onClick={handleClaim} 
                                 disabled={isClaiming}
                                 variantType="filled"
                                 glowColor="hsl(var(--primary))"
+                                className="w-full sm:w-auto"
                             >
                                 {isClaiming ? "Claiming..." : "Claim Now"}
                             </MetalButton>
-                        )
+                        </div>
                     ) : (
-                        <Link href={`/login?callbackUrl=/admin/organizations/${id}`}>
-                            <MetalButton variantType="filled" glowColor="hsl(var(--primary))">
+                        <Link href={`/login?callbackUrl=/admin/organizations/${id}`} className="w-full sm:w-auto block">
+                            <MetalButton variantType="filled" glowColor="hsl(var(--primary))" className="w-full sm:w-auto">
                                 Log in to Claim
                             </MetalButton>
                         </Link>
                     )}
+
                 </div>
             </CardHeader>
         </Card>
@@ -267,6 +270,13 @@ export default function OrganizationDetailsPage() {
           </Card>
         ))}
       </div>
+      
+      {isAppAdmin && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold tracking-tight">Nomination management</h2>
+          <OrgNominationSection orgId={id} />
+        </section>
+      )}
 
       {isAppAdmin && (
         <section className="space-y-6 border-t border-destructive/10 pt-12 mt-12">
@@ -317,7 +327,7 @@ export default function OrganizationDetailsPage() {
                 </div>
                 {!canDelete && (
                     <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-center animate-in fade-in slide-in-from-top-1">
-                        Cannot delete organization because it still has linked entities ({counts.teams} teams, {counts.venues} venues, {counts.events} events, {counts.people} people).
+                        Cannot delete organization because it still has linked entities ({counts.teams} teams, {counts.sites} sites, {counts.events} events, {counts.people} people).
                     </p>
                 )}
             </div>

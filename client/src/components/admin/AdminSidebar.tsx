@@ -96,24 +96,11 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
                   </DropdownMenuItem>
                 );
               })}
-              {currentOrg && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => router.push("/admin/organizations/new")}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create New
-                  </DropdownMenuItem>
-                </>
-              )}
-              {!hasOwnedOrg && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => router.push("/admin/organizations/new")}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create New
-                  </DropdownMenuItem>
-                </>
-              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => router.push("/admin/organizations/new")}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create New
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -229,18 +216,14 @@ export function MobileSidebar() {
                                 </DropdownMenuItem>
                             );
                         })}
-                        {!hasOwnedOrg && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onSelect={() => {
-                                router.push("/admin/organizations/new");
-                                setOpen(false);
-                            }}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Create New
-                            </DropdownMenuItem>
-                          </>
-                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => {
+                            router.push("/admin/organizations/new");
+                            setOpen(false);
+                        }}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create New
+                        </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
 
@@ -285,3 +268,4 @@ export function MobileSidebar() {
         </Sheet>
     )
 }
+

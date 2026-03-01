@@ -13,7 +13,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
-import { User, LogIn, UserPlus, LogOut, Settings, Palette } from 'lucide-react';
+import { User, LogIn, UserPlus, LogOut, Settings, Palette, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
@@ -25,7 +25,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 export function UserMenu() {
   const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
-  const { setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [canSeeAdmin, setCanSeeAdmin] = useState(false);
 
   useEffect(() => {
@@ -68,14 +68,21 @@ export function UserMenu() {
               <span>Theme</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent sideOffset={2} alignOffset={-5} collisionPadding={16}>
-              <DropdownMenuItem onClick={() => setTheme("dark-green")} className="cursor-pointer">
-                Dark (Green)
+              <DropdownMenuItem onClick={() => setTheme("system")} className="cursor-pointer flex items-center justify-between">
+                <span>Browser Default</span>
+                {theme === "system" && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("dark-orange")} className="cursor-pointer">
-                Dark (Orange)
+              <DropdownMenuItem onClick={() => setTheme("dark-green")} className="cursor-pointer flex items-center justify-between">
+                <span>Dark (Green)</span>
+                {theme === "dark-green" && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("light-orange")} className="cursor-pointer">
-                Light (Orange)
+              <DropdownMenuItem onClick={() => setTheme("dark-orange")} className="cursor-pointer flex items-center justify-between">
+                <span>Dark (Orange)</span>
+                {theme === "dark-orange" && <Check className="h-4 w-4 text-primary" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("light-orange")} className="cursor-pointer flex items-center justify-between">
+                <span>Light (Orange)</span>
+                {theme === "light-orange" && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -152,14 +159,21 @@ export function UserMenu() {
             <span>Theme</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent sideOffset={2} alignOffset={-5} collisionPadding={16}>
-            <DropdownMenuItem onClick={() => setTheme("dark-green")} className="cursor-pointer">
-              Dark (Green)
+            <DropdownMenuItem onClick={() => setTheme("system")} className="cursor-pointer flex items-center justify-between">
+              <span>Browser Default</span>
+              {theme === "system" && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("dark-orange")} className="cursor-pointer">
-              Dark (Orange)
+            <DropdownMenuItem onClick={() => setTheme("dark-green")} className="cursor-pointer flex items-center justify-between">
+              <span>Dark (Green)</span>
+              {theme === "dark-green" && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("light-orange")} className="cursor-pointer">
-              Light (Orange)
+            <DropdownMenuItem onClick={() => setTheme("dark-orange")} className="cursor-pointer flex items-center justify-between">
+              <span>Dark (Orange)</span>
+              {theme === "dark-orange" && <Check className="h-4 w-4 text-primary" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("light-orange")} className="cursor-pointer flex items-center justify-between">
+              <span>Light (Orange)</span>
+              {theme === "light-orange" && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -177,3 +191,4 @@ export function UserMenu() {
     </DropdownMenu>
   );
 }
+

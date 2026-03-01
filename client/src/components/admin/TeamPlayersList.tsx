@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect } from "react";
-import { TeamMembership, Person } from "@sk/types";
+import { TeamMembership, OrgProfile } from "@sk/types";
 import { PersonnelAutocomplete } from "@/components/ui/PersonnelAutocomplete";
 import { useRouter } from "next/navigation";
 import { useThemeColors } from "@/hooks/useThemeColors";
@@ -21,7 +21,7 @@ import {
 import { store } from "@/app/store/store";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 
-interface TeamMemberWithDetails extends Person {
+interface TeamMemberWithDetails extends OrgProfile {
   roleId: string;
   membershipId: string;
 }
@@ -36,17 +36,17 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
   const { isDark, metalVariant } = useThemeColors();
   const [isAdding, setIsAdding] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<OrgProfile | null>(null);
   const [loading, setLoading] = useState(false);
-  const orgId = store.getTeam(teamId)?.organizationId || "";
+  const orgId = store.getTeam(teamId)?.orgId || "";
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; membershipId: string; name: string }>({
     isOpen: false,
     membershipId: "",
     name: "",
   });
-  const [editingPlayer, setEditingPlayer] = useState<{ isOpen: boolean; personId: string; name: string }>({
+  const [editingPlayer, setEditingPlayer] = useState<{ isOpen: boolean; orgProfileId: string; name: string }>({
     isOpen: false,
-    personId: "",
+    orgProfileId: "",
     name: "",
   });
 
@@ -59,15 +59,15 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
       // For now, we assume simple flow: create new person and add to team
       // Use store for optimistic update
       // 1. Create or Use Person
-      let personId = selectedPerson?.id;
+      let profileId = selectedPerson?.id;
       
-      if (!personId && newPlayerName.trim()) {
-        const newPerson = await store.addPerson({ name: newPlayerName });
-        personId = newPerson.id;
+      if (!profileId && newPlayerName.trim()) {
+        const newProfile = await store.addOrgProfile({ name: newPlayerName, orgId: orgId });
+        profileId = newProfile.id;
       }
       
-      if (personId) {
-        await store.addTeamMember(personId, teamId, "role-player");
+      if (profileId) {
+        await store.addTeamMember(profileId, teamId, "role-player");
       }
 
       setNewPlayerName("");
@@ -103,16 +103,22 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
     }
   };
 
-  const handleEditPlayer = (personId: string, name: string) => {
-    setEditingPlayer({ isOpen: true, personId, name });
+  const handleEditPlayer = (orgProfileId: string, name: string) => {
+    setEditingPlayer({ isOpen: true, orgProfileId, name });
+  };
+
+  const getEditingDirty = () => {
+    const original = players.find(p => p.id === editingPlayer.orgProfileId);
+    if (!original) return false;
+    return editingPlayer.name !== original.name;
   };
 
   const onConfirmEdit = async () => {
-    if (!editingPlayer.personId || !editingPlayer.name.trim()) return;
+    if (!editingPlayer.orgProfileId || !editingPlayer.name.trim()) return;
     
     try {
-      await store.updatePerson(editingPlayer.personId, { name: editingPlayer.name });
-      setEditingPlayer({ isOpen: false, personId: "", name: "" });
+      await store.updateOrgProfile(editingPlayer.orgProfileId, { name: editingPlayer.name });
+      setEditingPlayer({ isOpen: false, orgProfileId: "", name: "" });
     } catch (error) {
       console.error("Failed to update player:", error);
     }
@@ -142,7 +148,7 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
               <div className="flex-1 space-y-2">
                 <Label htmlFor="playerName">Player Name</Label>
                 <PersonnelAutocomplete
-                  organizationId={orgId}
+                  orgId={orgId}
                   value={newPlayerName}
                   onChange={setNewPlayerName}
                   onSelectPerson={setSelectedPerson}
@@ -243,22 +249,36 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
             </div>
           </div>
           <DialogFooter>
-             <MetalButton 
-                variantType="outlined" 
-                onClick={() => setEditingPlayer({ ...editingPlayer, isOpen: false })}
-             >
-                Cancel
-             </MetalButton>
-             <MetalButton 
-                variantType="filled" 
-                glowColor="hsl(var(--primary))"
-                onClick={onConfirmEdit}
-             >
-                Save Changes
-             </MetalButton>
+             {getEditingDirty() ? (
+               <div className="flex gap-2 w-full justify-end animate-in fade-in slide-in-from-right-2">
+                 <MetalButton 
+                    variantType="outlined" 
+                    onClick={() => setEditingPlayer({ isOpen: false, orgProfileId: "", name: "" })}
+                 >
+                    Cancel
+                 </MetalButton>
+                 <MetalButton 
+                    variantType="filled" 
+                    glowColor="hsl(var(--primary))"
+                    onClick={onConfirmEdit}
+                    disabled={!editingPlayer.name.trim()}
+                 >
+                    Save Changes
+                 </MetalButton>
+               </div>
+             ) : (
+                <MetalButton 
+                  variantType="outlined" 
+                  onClick={() => setEditingPlayer({ isOpen: false, orgProfileId: "", name: "" })}
+                  className="w-full sm:w-auto"
+                >
+                  Close
+                </MetalButton>
+             )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
+

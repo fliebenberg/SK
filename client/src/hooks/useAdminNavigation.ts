@@ -11,6 +11,8 @@ import {
   MapPin,
   Calendar,
   Settings,
+  Building2,
+  AlertCircle,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -67,7 +69,7 @@ export function useAdminNavigation() {
   const getSidebarItems = (): SidebarItem[] => {
       if (currentOrg) {
           const isOrgAdmin = user?.globalRole === 'admin' || 
-            store.userOrgMemberships.some(m => m.organizationId === currentOrg.id && m.roleId === 'role-org-admin');
+            store.userOrgMemberships.some(m => m.orgId === currentOrg.id && m.roleId === 'role-org-admin');
 
           const items: SidebarItem[] = [
               {
@@ -96,8 +98,8 @@ export function useAdminNavigation() {
               icon: Trophy,
           });
           items.push({
-              title: "Venues",
-              href: `/admin/organizations/${currentOrg.id}/venues`,
+              title: "Sites",
+              href: `/admin/organizations/${currentOrg.id}/sites`,
               icon: MapPin,
           });
           items.push({
@@ -106,7 +108,35 @@ export function useAdminNavigation() {
               icon: Calendar,
           });
 
+          if (user?.globalRole === 'admin') {
+              items.push({
+                  title: "All Organizations",
+                  href: "/admin/all-organizations",
+                  icon: Building2,
+              });
+              items.push({
+                  title: "Reports",
+                  href: "/admin/reports",
+                  icon: AlertCircle,
+              });
+          }
+
           return items;
+      }
+
+      if (user?.globalRole === 'admin') {
+          return [
+              {
+                  title: "All Organizations",
+                  href: "/admin/all-organizations",
+                  icon: Building2,
+              },
+              {
+                  title: "Reports",
+                  href: "/admin/reports",
+                  icon: AlertCircle,
+              }
+          ];
       }
 
       return [
@@ -126,3 +156,4 @@ export function useAdminNavigation() {
     hasOwnedOrg,
   };
 }
+

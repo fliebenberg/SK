@@ -1,13 +1,14 @@
 
 import { SocketAction } from "../constants/SocketActions";
 import { Organization } from "../models/organization/Organization";
-import { OrganizationMembership } from "../models/organization/OrganizationMembership";
+import { OrgMembership } from "../models/organization/OrgMembership";
 import { Team } from "../models/team/Team";
 import { TeamMembership } from "../models/team/TeamMembership";
-import { Venue } from "../models/venue/Venue";
+import { Site } from "../models/venue/Site";
+import { Facility } from "../models/venue/Facility";
 import { Event } from "../models/event/Event";
 import { Game } from "../models/event/Game";
-import { Person, PersonIdentifier } from "../models/people/Person";
+import { OrgProfile } from "../models/people/OrgProfile";
 import { UserBadge } from "../models/people/UserBadge";
 import { FeedHomeResponse } from "../models/feed/Feed";
 // --- Shared Response Type ---
@@ -18,6 +19,27 @@ export interface ActionResponse<T = any> {
     status: 'ok' | 'error';
     data?: T;
     message?: string;
+}
+
+/**
+ * Parameters for paginated data requests.
+ */
+export interface PaginationParams {
+    page: number;
+    limit: number;
+    search?: string;
+    orgId?: string; // Optional filter by org
+    isClaimed?: boolean;
+}
+
+/**
+ * Standard wrapper for paginated responses.
+ */
+export interface PaginatedResponse<T> {
+    items: T[];
+    total: number;
+    page: number;
+    limit: number;
 }
 
 // --- Specific Payloads ---
@@ -58,14 +80,25 @@ export interface DeleteTeamPayload {
     id: string;
 }
 
-export interface AddVenuePayload extends Omit<Venue, "id"> {}
+export interface AddSitePayload extends Omit<Site, "id"> {}
 
-export interface UpdateVenuePayload {
+export interface UpdateSitePayload {
     id: string;
-    data: Partial<Venue>;
+    data: Partial<Site>;
 }
 
-export interface DeleteVenuePayload {
+export interface DeleteSitePayload {
+    id: string;
+}
+
+export interface AddFacilityPayload extends Omit<Facility, "id"> {}
+
+export interface UpdateFacilityPayload {
+    id: string;
+    data: Partial<Facility>;
+}
+
+export interface DeleteFacilityPayload {
     id: string;
 }
 
@@ -102,33 +135,27 @@ export interface DeleteGamePayload {
     id: string;
 }
 
-export interface AddPersonPayload extends Omit<Person, "id"> {
+export interface AddOrgProfilePayload extends Omit<OrgProfile, "id"> {
     id?: string;
 }
 
-export interface UpdatePersonPayload {
+export interface UpdateOrgProfilePayload {
     id: string;
-    data: Partial<Person>;
+    data: Partial<OrgProfile>;
 }
 
-export interface DeletePersonPayload {
+export interface DeleteOrgProfilePayload {
     id: string;
 }
 
-export interface SetPersonIdentifierPayload {
-    personId: string;
-    organizationId: string;
-    identifier: string;
-}
-
-export interface LinkUserPersonPayload {
+export interface LinkUserProfilePayload {
     email: string;
-    personId: string;
+    orgProfileId: string;
 }
 
 export interface AddOrgMemberPayload {
-    personId: string;
-    organizationId: string;
+    orgProfileId: string;
+    orgId: string;
     roleId: string;
     id?: string; // Optional specific ID
 }
@@ -143,7 +170,7 @@ export interface RemoveOrgMemberPayload {
 }
 
 export interface AddTeamMemberPayload {
-    personId: string;
+    orgProfileId: string;
     teamId: string;
     roleId: string;
 }
@@ -160,7 +187,7 @@ export interface RemoveTeamMemberPayload {
 // --- Referrals & Reports Payloads ---
 
 export interface ReferOrgContactPayload {
-    organizationId: string;
+    orgId: string;
     contactEmails: string[];
     referredByUserId: string;
 }
@@ -224,9 +251,13 @@ export interface ProtocolMap {
     [SocketAction.UPDATE_TEAM]: { payload: UpdateTeamPayload; response: Team };
     [SocketAction.DELETE_TEAM]: { payload: DeleteTeamPayload; response: void };
 
-    [SocketAction.ADD_VENUE]: { payload: AddVenuePayload; response: Venue };
-    [SocketAction.UPDATE_VENUE]: { payload: UpdateVenuePayload; response: Venue };
-    [SocketAction.DELETE_VENUE]: { payload: DeleteVenuePayload; response: void };
+    [SocketAction.ADD_SITE]: { payload: AddSitePayload; response: Site };
+    [SocketAction.UPDATE_SITE]: { payload: UpdateSitePayload; response: Site };
+    [SocketAction.DELETE_SITE]: { payload: DeleteSitePayload; response: void };
+
+    [SocketAction.ADD_FACILITY]: { payload: AddFacilityPayload; response: Facility };
+    [SocketAction.UPDATE_FACILITY]: { payload: UpdateFacilityPayload; response: Facility };
+    [SocketAction.DELETE_FACILITY]: { payload: DeleteFacilityPayload; response: void };
 
     [SocketAction.ADD_EVENT]: { payload: AddEventPayload; response: Event };
     [SocketAction.UPDATE_EVENT]: { payload: UpdateEventPayload; response: Event };
@@ -238,14 +269,13 @@ export interface ProtocolMap {
     [SocketAction.UPDATE_GAME]: { payload: UpdateGamePayload; response: Game };
     [SocketAction.DELETE_GAME]: { payload: DeleteGamePayload; response: void };
 
-    [SocketAction.ADD_PERSON]: { payload: AddPersonPayload; response: Person };
-    [SocketAction.UPDATE_PERSON]: { payload: UpdatePersonPayload; response: Person };
-    [SocketAction.DELETE_PERSON]: { payload: DeletePersonPayload; response: void };
-    [SocketAction.SET_PERSON_IDENTIFIER]: { payload: SetPersonIdentifierPayload; response: any }; // Define PersonIdentifier type if available
-    [SocketAction.LINK_USER_PERSON]: { payload: LinkUserPersonPayload; response: Person };
+    [SocketAction.ADD_ORG_PROFILE]: { payload: AddOrgProfilePayload; response: OrgProfile };
+    [SocketAction.UPDATE_ORG_PROFILE]: { payload: UpdateOrgProfilePayload; response: OrgProfile };
+    [SocketAction.DELETE_ORG_PROFILE]: { payload: DeleteOrgProfilePayload; response: void };
+    [SocketAction.LINK_USER_PROFILE]: { payload: LinkUserProfilePayload; response: OrgProfile };
 
-    [SocketAction.ADD_ORG_MEMBER]: { payload: AddOrgMemberPayload; response: OrganizationMembership };
-    [SocketAction.UPDATE_ORG_MEMBER]: { payload: UpdateOrgMemberPayload; response: OrganizationMembership };
+    [SocketAction.ADD_ORG_MEMBER]: { payload: AddOrgMemberPayload; response: OrgMembership };
+    [SocketAction.UPDATE_ORG_MEMBER]: { payload: UpdateOrgMemberPayload; response: OrgMembership };
     [SocketAction.REMOVE_ORG_MEMBER]: { payload: RemoveOrgMemberPayload; response: void };
 
     [SocketAction.ADD_TEAM_MEMBER]: { payload: AddTeamMemberPayload; response: TeamMembership };

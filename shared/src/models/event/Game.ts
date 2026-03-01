@@ -6,7 +6,8 @@ export interface Game {
   awayTeamName?: string; // For external teams
   startTime?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
-  venueId?: string;
+  siteId?: string;
+  facilityId?: string;
   homeScore: number;
   awayScore: number;
 }

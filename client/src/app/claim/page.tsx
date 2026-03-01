@@ -34,13 +34,23 @@ function ClaimPageContent() {
     if (!token || !user) return;
     setClaiming(true);
     try {
-      await store.claimOrgViaToken(token, user.id);
+      // Check if user has any organizations BEFORE claiming
+      const existingOrgCount = store.getOrganizations().length;
+      
+      const claimedOrg = await store.claimOrgViaToken(token, user.id);
+      
       toast({
         title: "Organization claimed successfully!",
         description: `You are now an administrator for ${claimInfo?.organizationName}.`,
         variant: "success"
       });
-      router.push("/admin/organizations");
+
+      // If this is the user's first organization, take them directly to its detail page
+      if (existingOrgCount === 0 && claimedOrg?.id) {
+          router.push(`/admin/organizations/${claimedOrg.id}`);
+      } else {
+          router.push("/admin/organizations");
+      }
     } catch (error: any) {
       toast({
         title: "Failed to claim organization",
@@ -138,7 +148,7 @@ function ClaimPageContent() {
             <div className="space-y-2">
                 <p className="text-sm font-bold text-primary/60 uppercase tracking-widest">Administrator Rights</p>
                 <p className="text-xs text-muted-foreground px-4">
-                    Full control over teams, venues, scoring, and members.
+                    Full control over teams, sites, scoring, and members.
                 </p>
             </div>
             <MetalButton 
@@ -169,3 +179,4 @@ export default function ClaimPage() {
     </Suspense>
   );
 }
+

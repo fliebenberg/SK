@@ -16,20 +16,21 @@ import { Users, Calendar, Trophy } from "lucide-react";
 
 export default function OrganizationsPage() {
   const router = useRouter();
-  const [organizations, setOrganizations] = useState<Organization[]>(() => store.getOrganizations());
+  const [organizations, setOrganizations] = useState<Organization[]>(() => store.getUserOrganizations());
   const [loading, setLoading] = useState(!store.isLoaded());
 
   useEffect(() => {
     const update = () => {
-        const loaded = store.isLoaded();
-        setOrganizations([...store.getOrganizations()]);
-        if (loaded) setLoading(false);
+        setOrganizations([...store.getUserOrganizations()]);
+        if (store.isLoaded()) setLoading(false);
     };
 
     update();
-    store.fetchOrganizations();
     const unsubscribe = store.subscribe(update);
-    return () => unsubscribe();
+    return () => {
+        unsubscribe();
+        store.unsubscribeFromAllOrganizationSummaries();
+    };
   }, []);
 
   if (loading) {
@@ -163,3 +164,4 @@ export default function OrganizationsPage() {
     </div>
   );
 }
+

@@ -7,7 +7,7 @@ import { MetalButton } from '@/components/ui/MetalButton';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Upload, X, Check, Image as ImageIcon, Pencil } from 'lucide-react';
-import { cn, getOrgInitialsFontSize } from '@/lib/utils';
+import { cn, getOrgInitialsFontSize, getOrgLogoUrl, getUserAvatarUrl } from '@/lib/utils';
 
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -21,6 +21,7 @@ interface ImageUploadProps {
   placeholderSecondary?: string;
   initials?: string;
   rounded?: "sm" | "md" | "lg" | "xl" | "full" | "none";
+  imageType?: 'logo' | 'profile';
 }
 
 export function ImageUpload({ 
@@ -31,7 +32,8 @@ export function ImageUpload({
   placeholderPrimary,
   placeholderSecondary,
   initials,
-  rounded = "md"
+  rounded = "md",
+  imageType = 'profile'
 }: ImageUploadProps) {
   const { isDark, metalVariant, primaryColor } = useThemeColors();
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -39,16 +41,23 @@ export function ImageUpload({
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [preview, setPreview] = useState<string | null>(value || null);
+  
+  const resolveUrl = useCallback((val?: string) => {
+    if (!val) return null;
+    if (val.startsWith('data:') || val.startsWith('http')) return val;
+    return imageType === 'logo' ? getOrgLogoUrl(val, 'medium') : getUserAvatarUrl(val, 'medium');
+  }, [imageType]);
+
+  const [preview, setPreview] = useState<string | null>(resolveUrl(value));
   const uniqueId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync preview with value if it changes externally (e.g. session load)
   useEffect(() => {
     if (value !== undefined) {
-      setPreview(value || null);
+      setPreview(resolveUrl(value));
     }
-  }, [value]);
+  }, [value, resolveUrl]);
 
   const roundedClasses = {
     none: "rounded-none",
@@ -258,3 +267,4 @@ export function ImageUpload({
     </div>
   );
 }
+

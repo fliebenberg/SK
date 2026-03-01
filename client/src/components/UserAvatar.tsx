@@ -91,3 +91,4 @@ export function UserAvatar({ name, image, size = "md", className, rounded = "ful
     </div>
   );
 }
+

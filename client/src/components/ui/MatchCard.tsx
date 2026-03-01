@@ -18,10 +18,10 @@ interface MatchCardProps {
 export function MatchCard({ game, onClick, className, isStandalone = false, highlightTeamId }: MatchCardProps) {
   const homeTeam = store.getTeam(game.homeTeamId);
   const awayTeam = store.getTeam(game.awayTeamId);
-  const homeOrg = (homeTeam ? (store.getOrganization(homeTeam.organizationId) ?? null) : null);
-  const awayOrg = (awayTeam ? (store.getOrganization(awayTeam.organizationId) ?? null) : null);
+  const homeOrg = (homeTeam ? (store.getOrganization(homeTeam.orgId) ?? null) : null);
+  const awayOrg = (awayTeam ? (store.getOrganization(awayTeam.orgId) ?? null) : null);
   const sport = homeTeam ? store.getSport(homeTeam.sportId) : null;
-  const gameVenue = game.venueId ? store.getVenue(game.venueId) : null;
+  const gameSite = game.siteId ? store.getSite(game.siteId) : null;
 
   const isLive = game.status?.toLowerCase() === 'live';
   const isFinished = game.status?.toLowerCase() === 'finished';
@@ -97,7 +97,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
             </span>
           </div>
 
-          {/* Center: Score/Venue/Sport */}
+          {/* Center: Score/Site/Sport */}
           <div className="flex flex-col items-center justify-center min-w-[120px] px-2 text-center py-1">
             {isCancelled ? (
               <span className="text-[10px] font-black uppercase tracking-widest text-destructive mb-1">CANCELLED</span>
@@ -114,10 +114,10 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
             )}
             
             <div className="flex flex-col items-center gap-0.5">
-              {gameVenue && (
+              {gameSite && (
                 <div className="flex items-center gap-1 text-[9px] font-bold text-muted-foreground/60 uppercase tracking-tight truncate max-w-[110px]">
                   <MapPin className="h-2 w-2" />
-                  {gameVenue.name}
+                  {gameSite.name}
                 </div>
               )}
               {sport && (
@@ -151,3 +151,4 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
     </div>
   );
 }
+

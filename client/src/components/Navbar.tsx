@@ -20,6 +20,7 @@ export function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [canSeeAdmin, setCanSeeAdmin] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -28,15 +29,17 @@ export function Navbar() {
   useEffect(() => {
     if (!isAuthenticated || !user) {
       setCanSeeAdmin(false);
+      setUnreadCount(0);
       return;
     }
 
-    const updatePermissions = () => {
+    const updateFromStore = () => {
       setCanSeeAdmin(isAuthenticated);
+      setUnreadCount(store.unreadCount);
     };
 
-    updatePermissions();
-    return store.subscribe(updatePermissions);
+    updateFromStore();
+    return store.subscribe(updateFromStore);
   }, [isAuthenticated, user]);
 
   // Default to silver/light if not mounted or unknown
@@ -59,8 +62,8 @@ export function Navbar() {
             <Link href="/teams" className="transition-colors hover:text-foreground/80 text-foreground/60">
               Teams
             </Link>
-            <Link href="/venues" className="transition-colors hover:text-foreground/80 text-foreground/60">
-              Venues
+            <Link href="/sites" className="transition-colors hover:text-foreground/80 text-foreground/60">
+              Sites
             </Link>
             <Link href="/live" className="transition-colors hover:text-foreground/80 text-foreground/60">
               Live Scores
@@ -95,9 +98,9 @@ export function Navbar() {
           {isAuthenticated && (
             <Link href="/notifications" className="relative p-2 text-foreground/60 hover:text-primary transition-colors">
               <Bell className="w-6 h-6" />
-              {store.unreadCount > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                  {store.unreadCount > 9 ? '9+' : store.unreadCount}
+                  {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </Link>
@@ -119,11 +122,11 @@ export function Navbar() {
               Teams
             </Link>
             <Link 
-              href="/venues" 
+              href="/sites" 
               className="px-4 py-2 hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              Venues
+              Sites
             </Link>
             <Link 
               href="/live" 
@@ -147,3 +150,4 @@ export function Navbar() {
     </nav>
   );
 }
+

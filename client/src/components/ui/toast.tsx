@@ -68,3 +68,4 @@ function ToastItem({ toast }: { toast: ToastType }) {
     </motion.div>
   );
 }
+

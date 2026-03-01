@@ -73,7 +73,7 @@ describe("Organization Lifecycle (Deactivation and Deletion)", () => {
                 payload: { 
                     id: TEAM_ID, 
                     name: "Linked Team", 
-                    organizationId: ORG_WITH_TEAM_ID,
+                    orgId: ORG_WITH_TEAM_ID,
                     sportId: "soccer", // Assuming soccer exists or is ignored
                 }
             }, (res2: any) => {
@@ -96,3 +96,4 @@ describe("Organization Lifecycle (Deactivation and Deletion)", () => {
         });
     });
 });
+

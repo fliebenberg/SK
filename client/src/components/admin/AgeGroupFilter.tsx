@@ -35,3 +35,4 @@ export function AgeGroupFilter({ ageGroups, currentAgeGroup, onFilterChange }: A
     </div>
   );
 }
+

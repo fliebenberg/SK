@@ -12,7 +12,7 @@ export default function TeamEventsPage() {
 
   return (
     <div className="p-6">
-      <EventList organizationId={id} teamId={teamId} />
+      <EventList orgId={id} teamId={teamId} />
     </div>
   );
 }

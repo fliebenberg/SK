@@ -59,3 +59,4 @@ export const HeroGameCard = ({ game }: HeroGameCardProps) => {
         </div>
     );
 };
+

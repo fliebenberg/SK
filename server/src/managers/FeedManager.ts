@@ -42,7 +42,7 @@ class FeedManager {
 
     // 3. Discovery section
     const allOrgs = await organizationManager.getOrganizations();
-    const trendingOrganizations = allOrgs.slice(0, 4); // Just grab first 4 for now
+    const trendingOrganizations = allOrgs.items.slice(0, 4); // Just grab first 4 for now
     // If we had a robust event manager getEvents, we'd grab popular events here.
     const popularTournaments = await eventManager.getEvents(); 
 

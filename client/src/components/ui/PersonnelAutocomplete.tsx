@@ -3,21 +3,21 @@
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { store } from "@/app/store/store";
-import { Person } from "@sk/types";
+import { OrgProfile } from "@sk/types";
 import { Search, UserPlus, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PersonnelAutocompleteProps {
-  organizationId: string;
+  orgId: string;
   value: string;
   onChange: (value: string) => void;
-  onSelectPerson: (person: Person | null) => void;
+  onSelectPerson: (person: OrgProfile | null) => void;
   placeholder?: string;
   className?: string;
 }
 
 export function PersonnelAutocomplete({
-  organizationId,
+  orgId,
   value,
   onChange,
   onSelectPerson,
@@ -25,7 +25,7 @@ export function PersonnelAutocomplete({
   className,
 }: PersonnelAutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<Person[]>([]);
+  const [suggestions, setSuggestions] = useState<OrgProfile[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -39,7 +39,7 @@ export function PersonnelAutocomplete({
     const timeoutId = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const results = await store.searchPeople(value, organizationId);
+        const results = await store.searchProfiles(value, orgId);
         setSuggestions(results);
       } catch (error) {
         console.error("Fuzzy search failed:", error);
@@ -49,7 +49,7 @@ export function PersonnelAutocomplete({
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [organizationId, value]);
+  }, [orgId, value]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -67,7 +67,7 @@ export function PersonnelAutocomplete({
     onSelectPerson(null); // Reset selection when typing
   };
 
-  const handleSelect = (person: Person) => {
+  const handleSelect = (person: OrgProfile) => {
     onChange(person.name);
     onSelectPerson(person);
     setIsOpen(false);
@@ -149,3 +149,4 @@ export function PersonnelAutocomplete({
     </div>
   );
 }
+

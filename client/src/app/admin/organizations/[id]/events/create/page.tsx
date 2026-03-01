@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { store } from "@/app/store/store";
-import { Organization, Sport, Team } from "@sk/types";
+import { Organization, Sport, Team, Address } from "@sk/types";
+import { useOrganization } from "@/hooks/useOrganization";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,12 +29,12 @@ export default function CreateEventPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const organizationId = params.id as string;
+  const orgId = params.id as string;
   const type = searchParams.get("type") as "tournament" | "game" | "sportsday" || "tournament";
 
   const { user } = useAuth();
-
-  const [loading, setLoading] = useState(false);
+  const { org: currentOrg, isLoading: orgLoading } = useOrganization(orgId, { subscribeData: true });
+  const [isProcessing, setIsProcessing] = useState(false);
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState(""); // Initialize empty to avoid hydration mismatch by server/client time difference
   
@@ -45,10 +46,10 @@ export default function CreateEventPage() {
   const [endDate, setEndDate] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
   
-  // Venue State
-  const [venueId, setVenueId] = useState("");
-  const [venueName, setVenueName] = useState("");
-  const [venues, setVenues] = useState<any[]>([]);
+  // Site State
+  const [siteId, setSiteId] = useState("");
+  const [siteName, setSiteName] = useState("");
+  const [sites, setSites] = useState<any[]>([]);
   
   const [sports, setSports] = useState<Sport[]>([]);
   const [allOrgs, setAllOrgs] = useState<Organization[]>([]);
@@ -91,7 +92,6 @@ export default function CreateEventPage() {
 
   const [orgDialogOpen, setOrgDialogOpen] = useState(false);
   const [pendingOrgName, setPendingOrgName] = useState("");
-  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
 
   const nameInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -104,45 +104,41 @@ export default function CreateEventPage() {
 
   useEffect(() => {
     const update = () => {
-        setVenues(store.getVenues(organizationId));
+        setSites(store.getSites(orgId));
         setSports(store.getSports());
         setAllOrgs(store.getOrganizations());
-        const org = store.getOrganization(organizationId);
-        if (org) setCurrentOrg(org);
-        else store.fetchOrganization(organizationId);
     };
     update();
     const unsub = store.subscribe(update);
     return unsub;
-  }, [organizationId]);
+  }, [orgId]);
 
-  const handleCreateVenue = async (name: string) => {
+  const handleCreateSite = async (name: string) => {
       if (!name.trim()) return;
-      setLoading(true);
+      setIsProcessing(true);
       try {
-          const newVenue = await store.addVenue({
+          const newSite = await store.addSite({
               name: name,
-              address: "TBD",
-              organizationId: organizationId 
+              address: { fullAddress: "TBD" } as Address,
+              orgId: orgId 
           });
-          setVenueName(newVenue.name);
-          setVenueId(newVenue.id);
+          setSiteName(newSite.name);
+          setSiteId(newSite.id);
       } catch (e) {
           console.error(e);
           toast({ 
               title: "Error",
-              description: "Failed to create venue",
+              description: "Failed to create site",
               variant: "destructive"
           });
       } finally {
-          setLoading(true); // Wait, this should be false, but following existing logic
-          setLoading(false);
+          setIsProcessing(false);
       }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsProcessing(true);
 
     try {
         if (type === 'tournament' || type === 'sportsday') {
@@ -152,7 +148,7 @@ export default function CreateEventPage() {
                     description: "Event name is required",
                     variant: "warning"
                 });
-                setLoading(false);
+                setIsProcessing(false);
                 return;
             }
 
@@ -162,7 +158,7 @@ export default function CreateEventPage() {
                     description: "End Date cannot be before Start Date",
                     variant: "warning"
                 });
-                setLoading(false);
+                setIsProcessing(false);
                 return;
             }
 
@@ -170,13 +166,13 @@ export default function CreateEventPage() {
                 name,
                 startDate,
                 endDate: isMultiDay ? endDate : undefined,
-                venueId: venueId || "default", 
-                organizationId,
+                siteId: siteId || "default", 
+                orgId,
                 type: type === 'sportsday' ? 'SportsDay' : 'Tournament',
                 participatingOrgIds: selectedOrgIds,
                 sportIds: selectedSportIds
             });
-            router.push(`/admin/organizations/${organizationId}/events`);
+            router.push(`/admin/organizations/${orgId}/events`);
         } else {
             if (!matchFormData?.homeTeamId || !matchFormData?.awayTeamId) {
                 toast({
@@ -184,14 +180,14 @@ export default function CreateEventPage() {
                     description: "Please select both teams",
                     variant: "warning"
                 });
-                setLoading(false);
+                setIsProcessing(false);
                 return;
             }
 
             const homeTeam = store.getTeam(matchFormData.homeTeamId);
-            const homeOrg = store.getOrganization(organizationId);
+            const homeOrg = store.getOrganization(orgId);
             const awayTeam = store.getTeam(matchFormData.awayTeamId);
-            const awayOrg = store.getOrganization(awayTeam?.organizationId || "");
+            const awayOrg = store.getOrganization(awayTeam?.orgId || "");
             
             const homeChunk = `${homeOrg?.shortName || homeOrg?.name || 'Home'} ${homeTeam?.name || 'Team'}`;
             const awayChunk = `${awayOrg?.shortName || awayOrg?.name || 'Away'} ${awayTeam?.name || 'Team'}`;
@@ -200,11 +196,11 @@ export default function CreateEventPage() {
             const newEvent = await store.addEvent({
                 name: name || defaultName,
                 startDate,
-                venueId: venueId || matchFormData.venueId || "default",
-                organizationId,
+                siteId: siteId || matchFormData.siteId || "default",
+                orgId,
                 type: 'SingleMatch',
                 sportIds: matchFormData.sportId ? [matchFormData.sportId] : [],
-                participatingOrgIds: awayTeam ? [awayTeam.organizationId] : []
+                participatingOrgIds: awayTeam ? [awayTeam.orgId] : []
             });
 
             // Handle Referrals
@@ -226,10 +222,10 @@ export default function CreateEventPage() {
                 homeTeamId: matchFormData.homeTeamId,
                 awayTeamId: matchFormData.awayTeamId,
                 startTime: matchFormData.isTbd ? undefined : `${startDate}T${matchFormData.startTime}:00`,
-                venueId: matchFormData.venueId
+                siteId: matchFormData.siteId
             });
             
-            router.push(`/admin/organizations/${organizationId}/events`);
+            router.push(`/admin/organizations/${orgId}/events`);
         }
     } catch (err) {
         console.error(err);
@@ -239,7 +235,7 @@ export default function CreateEventPage() {
             variant: "destructive"
         });
     } finally {
-        setLoading(false);
+        setIsProcessing(false);
     }
   };
 
@@ -259,6 +255,17 @@ export default function CreateEventPage() {
   };
 
   const { metalVariant } = useThemeColors();
+
+  if (orgLoading && !currentOrg) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="mt-4 text-muted-foreground font-orbitron">Loading event creation...</p>
+      </div>
+    );
+  }
+
+  if (!currentOrg) return null;
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-8">
@@ -325,25 +332,25 @@ export default function CreateEventPage() {
                 )}
             </div>
 
-            {/* Venue - Hide for Single Match as it's handled in MatchForm */}
+            {/* Site - Hide for Single Match as it's handled in MatchForm */}
             {type !== 'game' && (
              <div className="space-y-2">
-                <Label htmlFor="venue">Venue</Label>
+                <Label htmlFor="site">Site</Label>
                 <GenericAutocomplete 
-                    items={venues.map(v => ({ id: v.id, label: v.name, data: v }))}
-                    value={venueName}
-                    onChange={setVenueName}
+                    items={sites.map(v => ({ id: v.id, label: v.name, data: v }))}
+                    value={siteName}
+                    onChange={setSiteName}
                     onSelect={(item) => {
                         if (item) {
-                            setVenueId(item.id);
-                            setVenueName(item.label);
+                            setSiteId(item.id);
+                            setSiteName(item.label);
                         } else {
-                            setVenueId("");
+                            setSiteId("");
                         }
                     }}
-                    onCreateNew={handleCreateVenue}
-                    placeholder="Select or create venue..."
-                    createLabel="Create Venue"
+                    onCreateNew={handleCreateSite}
+                    placeholder="Select or create site..."
+                    createLabel="Create Site"
                 />
             </div>
             )}
@@ -387,7 +394,7 @@ export default function CreateEventPage() {
                             })}
                         </div>
                         <GenericAutocomplete 
-                            items={searchedOrgs.filter(o => o.id !== organizationId && !selectedOrgIds.includes(o.id)).map(o => ({ 
+                            items={searchedOrgs.filter(o => o.id !== orgId && !selectedOrgIds.includes(o.id)).map(o => ({ 
                                 id: o.id, 
                                 label: o.name, 
                                 subLabel: o.shortName,
@@ -416,15 +423,15 @@ export default function CreateEventPage() {
             {type === 'game' && (
                 <div className="space-y-6 pt-4 border-t">
                     <MatchForm 
-                        organizationId={organizationId}
+                        orgId={orgId}
                         event={{ 
-                            organizationId, 
+                            orgId, 
                             id: 'temp-create', 
                             type: 'SingleMatch', 
                             name: '', 
                             date: startDate, 
                             startDate: startDate,
-                            venueId: venueId || "default",
+                            siteId: siteId || "default",
                             status: 'Scheduled', 
                             participatingOrgIds: [], 
                             sportIds: [] 
@@ -446,7 +453,7 @@ export default function CreateEventPage() {
                     type="button"
                     variantType="outlined"
                     onClick={() => router.back()}
-                    disabled={loading}
+                    disabled={isProcessing}
                     className="px-8"
                 >
                     Cancel
@@ -456,10 +463,10 @@ export default function CreateEventPage() {
                     variantType="filled"
                     metalVariant={metalVariant}
                     glowColor="hsl(var(--primary))"
-                    disabled={loading || (type === 'game' && (!matchFormData?.homeTeamId || !matchFormData?.awayTeamId))}
+                    disabled={isProcessing || (type === 'game' && (!matchFormData?.homeTeamId || !matchFormData?.awayTeamId))}
                     className="px-8"
                 >
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {type === 'tournament' ? "Create Tournament" : type === 'sportsday' ? "Create Sports Day" : "Schedule Match"}
                 </MetalButton>
             </div>

@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { useRouter, useParams } from "next/navigation";
 import { store } from "@/app/store/store";
 import { Event, Game } from "@sk/types"; 
+import { useOrganization } from "@/hooks/useOrganization";
 import { MatchForm, MatchFormData as FormDataType } from "@/components/admin/games/MatchForm";
 import { Button } from "@/components/ui/button";
 import { MetalButton } from "@/components/ui/MetalButton";
@@ -18,16 +19,17 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 export default function EditGamePage() {
   const router = useRouter();
   const params = useParams();
-  const organizationId = params.id as string;
+  const orgId = params.id as string;
   const eventId = params.eventId as string;
   const gameId = params.gameId as string;
 
   const { user } = useAuth();
   const { metalVariant } = useThemeColors();
 
+  const { org, isLoading: orgLoading } = useOrganization(orgId);
   const [event, setEvent] = useState<Event | null>(null);
   const [game, setGame] = useState<Game | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState<FormDataType | null>(null);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
   const [confirmCancel, setConfirmCancel] = useState({ isOpen: false });
@@ -39,10 +41,10 @@ export default function EditGamePage() {
       awayTeamId: game.awayTeamId,
       startTime: game.startTime ? format(new Date(game.startTime), "HH:mm") : undefined,
       isTbd: !game.startTime,
-      venueId: game.venueId,
+      siteId: game.siteId,
       sportId: store.getTeam(game.homeTeamId)?.sportId
     };
-  }, [game?.id, game?.homeTeamId, game?.awayTeamId, game?.startTime, game?.venueId]);
+  }, [game?.id, game?.homeTeamId, game?.awayTeamId, game?.startTime, game?.siteId]);
 
   // Safety check: ensure game matches event
   useEffect(() => {
@@ -79,7 +81,7 @@ export default function EditGamePage() {
          const proposedDate = new Date(`${dateBase}T${formData.startTime}:00`);
 
          const conflicts = store.getGames().filter(g => {
-             if (g.eventId !== eventId || g.venueId !== formData.venueId || g.status === 'Cancelled' || !g.startTime || g.id === game.id) return false;
+             if (g.eventId !== eventId || g.siteId !== formData.siteId || g.status === 'Cancelled' || !g.startTime || g.id === game.id) return false;
              
              const gameDate = new Date(g.startTime);
              return gameDate.getTime() === proposedDate.getTime();
@@ -95,13 +97,13 @@ export default function EditGamePage() {
          }
     }
 
-    setLoading(true);
+    setIsProcessing(true);
     try {
         await store.updateGame(game.id, {
             homeTeamId: formData.homeTeamId,
             awayTeamId: formData.awayTeamId,
             startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
-            venueId: formData.venueId
+            siteId: formData.siteId
         });
 
         // Handle Referrals
@@ -118,7 +120,7 @@ export default function EditGamePage() {
             }
         }
 
-        router.push(`/admin/organizations/${organizationId}/events/${eventId}`);
+        router.push(`/admin/organizations/${orgId}/events/${eventId}`);
     } catch (e) {
         console.error(e);
         toast({
@@ -127,20 +129,20 @@ export default function EditGamePage() {
             variant: "destructive"
         });
     } finally {
-        setLoading(false);
+        setIsProcessing(false);
     }
   };
 
   const handleDelete = async () => {
       if (!game || !event) return;
-      setLoading(true);
+      setIsProcessing(true);
       try {
           if (event.type === 'SingleMatch') {
               await store.deleteEvent(event.id);
-              router.push(`/admin/organizations/${organizationId}/events`);
+              router.push(`/admin/organizations/${orgId}/events`);
           } else {
               await store.deleteGame(game.id);
-              router.push(`/admin/organizations/${organizationId}/events/${eventId}`);
+              router.push(`/admin/organizations/${orgId}/events/${eventId}`);
           }
       } catch (e) {
           console.error(e);
@@ -150,13 +152,13 @@ export default function EditGamePage() {
               variant: "destructive"
           });
       } finally {
-          setLoading(false);
+          setIsProcessing(false);
       }
   };
 
   const handleCancelGame = async () => {
     if (!game || !event) return;
-    setLoading(true);
+    setIsProcessing(true);
     try {
         await store.updateGame(game.id, { status: 'Cancelled' });
         
@@ -178,7 +180,7 @@ export default function EditGamePage() {
             variant: "destructive"
         });
     } finally {
-        setLoading(false);
+        setIsProcessing(false);
     }
   };
 
@@ -189,12 +191,23 @@ export default function EditGamePage() {
           initialData.awayTeamId !== formData.awayTeamId ||
           initialData.startTime !== formData.startTime ||
           initialData.isTbd !== formData.isTbd ||
-          initialData.venueId !== formData.venueId ||
+          initialData.siteId !== formData.siteId ||
           initialData.sportId !== formData.sportId
       );
   }, [initialData, formData]);
 
-  if (!event || !game) return <div className="p-8 text-center">Loading game details...</div>;
+  if (orgLoading && !org) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="mt-4 text-muted-foreground font-orbitron">Loading game details...</p>
+      </div>
+    );
+  }
+
+  if (!org) return null;
+
+  if (!event || !game) return <div className="p-8 text-center font-orbitron">Loading match info...</div>;
 
   const getMatchName = () => {
       if (!game) return "Edit Game";
@@ -202,8 +215,8 @@ export default function EditGamePage() {
       const away = store.getTeam(game.awayTeamId);
       if (!home || !away) return "Edit Game";
       
-      const homeOrg = store.getOrganization(home.organizationId);
-      const awayOrg = store.getOrganization(away.organizationId);
+      const homeOrg = store.getOrganization(home.orgId);
+      const awayOrg = store.getOrganization(away.orgId);
       
       const homeName = `${homeOrg?.shortName || homeOrg?.name || ''} ${home.name}`.trim();
       const awayName = `${awayOrg?.shortName || awayOrg?.name || ''} ${away.name}`.trim();
@@ -241,7 +254,7 @@ export default function EditGamePage() {
         <div className="space-y-8">
             <MatchForm 
                 key={game?.id || 'new'}
-                organizationId={organizationId}
+                orgId={orgId}
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
                 initialData={initialData}
@@ -254,9 +267,9 @@ export default function EditGamePage() {
                 </Button>
                 <Button 
                     onClick={handleSubmit}
-                    disabled={loading || !formData?.homeTeamId || !formData?.awayTeamId || !hasChanges}
+                    disabled={isProcessing || !formData?.homeTeamId || !formData?.awayTeamId || !hasChanges}
                 >
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Save Changes
                 </Button>
             </div>
@@ -280,7 +293,7 @@ export default function EditGamePage() {
                             className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0" 
                             glowColor="hsl(38, 92%, 50%)" // Orange glow for cancel
                             onClick={() => setConfirmCancel({ isOpen: true })}
-                            disabled={loading || game.status === 'Cancelled'}
+                            disabled={isProcessing || game.status === 'Cancelled'}
                         >
                             Cancel Match
                         </MetalButton>
@@ -301,7 +314,7 @@ export default function EditGamePage() {
                             className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0" 
                             glowColor="hsl(var(--destructive))"
                             onClick={() => setConfirmDelete({ isOpen: true })}
-                            disabled={loading}
+                            disabled={isProcessing}
                         >
                             Delete Match
                         </MetalButton>

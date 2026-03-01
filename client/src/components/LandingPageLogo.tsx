@@ -20,3 +20,4 @@ export function LandingPageLogo() {
     <MetalText size="xl" glowColor="hsl(var(--primary))" glowSize="lg" metalVariant={metalVariant} text="ScoreKeeper" />
   );
 }
+

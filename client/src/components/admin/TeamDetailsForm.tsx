@@ -251,3 +251,4 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
     </div>
   );
 }
+

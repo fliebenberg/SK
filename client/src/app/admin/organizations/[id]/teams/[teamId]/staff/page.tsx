@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { store } from "@/app/store/store";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Person, TeamMembership } from "@sk/types";
+import { OrgProfile, TeamMembership } from "@sk/types";
 import { Plus, Trash2, Briefcase, Pencil } from "lucide-react";
 import { PersonnelAutocomplete } from "@/components/ui/PersonnelAutocomplete";
 import {
@@ -31,20 +31,20 @@ export default function TeamStaffPage() {
   const params = useParams();
   // const teamId = params.teamId as string; is handled in effect usage or by accessing params directly
   
-  const [staff, setStaff] = useState<(Person & { roleId: string; roleName?: string; membershipId: string })[]>([]);
+  const [staff, setStaff] = useState<(OrgProfile & { roleId: string; roleName?: string; membershipId: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newStaffName, setNewStaffName] = useState("");
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<OrgProfile | null>(null);
   const [newStaffRole, setNewStaffRole] = useState<'Coach' | 'Staff'>('Coach');
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; membershipId: string; name: string }>({
     isOpen: false,
     membershipId: "",
     name: "",
   });
-  const [editingStaff, setEditingStaff] = useState<{ isOpen: boolean; personId: string; membershipId: string; name: string; role: 'Coach' | 'Staff' }>({
+  const [editingStaff, setEditingStaff] = useState<{ isOpen: boolean; orgProfileId: string; membershipId: string; name: string; role: 'Coach' | 'Staff' }>({
     isOpen: false,
-    personId: "",
+    orgProfileId: "",
     membershipId: "",
     name: "",
     role: 'Coach',
@@ -81,21 +81,22 @@ export default function TeamStaffPage() {
     if (!newStaffName.trim()) return;
     
     const teamId = params.teamId as string;
-    const orgId = store.getTeam(teamId)?.organizationId || "";
+    const orgId = store.getTeam(teamId)?.orgId || "";
 
-    let personId = selectedPerson?.id;
-    if (!personId) {
-      const person = await store.addPerson({
+    let profileId = selectedPerson?.id;
+    if (!profileId) {
+      const profile = await store.addOrgProfile({
         name: newStaffName,
+        orgId: orgId
       });
-      personId = person.id;
+      profileId = profile.id;
       // Ensure they are in the organization
-      await store.addOrganizationMember(personId, orgId, 'role-org-manager');
+      await store.addOrganizationMember(profileId, orgId, 'role-org-manager');
     }
 
     // Map selection to ID
     const roleId = newStaffRole === 'Coach' ? 'role-coach' : 'role-staff';
-    await store.addTeamMember(personId, teamId, roleId);
+    await store.addTeamMember(profileId, teamId, roleId);
     
     setNewStaffName("");
     setSelectedPerson(null);
@@ -124,10 +125,10 @@ export default function TeamStaffPage() {
     router.refresh();
   };
 
-  const handleEditStaff = (person: Person & { roleId: string; roleName?: string; membershipId: string }) => {
+  const handleEditStaff = (person: OrgProfile & { roleId: string; roleName?: string; membershipId: string }) => {
     setEditingStaff({
       isOpen: true,
-      personId: person.id,
+      orgProfileId: person.id,
       membershipId: person.membershipId,
       name: person.name,
       role: person.roleId === 'role-coach' ? 'Coach' : 'Staff',
@@ -135,11 +136,11 @@ export default function TeamStaffPage() {
   };
 
   const onConfirmEdit = async () => {
-    if (!editingStaff.personId || !editingStaff.name.trim()) return;
+    if (!editingStaff.orgProfileId || !editingStaff.name.trim()) return;
     
     try {
-      // 1. Update Person (Name)
-      await store.updatePerson(editingStaff.personId, { name: editingStaff.name });
+      // 1. Update Profile (Name)
+      await store.updateOrgProfile(editingStaff.orgProfileId, { name: editingStaff.name });
       
       // 2. Update Membership (Role)
       const roleId = editingStaff.role === 'Coach' ? 'role-coach' : 'role-staff';
@@ -185,7 +186,7 @@ export default function TeamStaffPage() {
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
                 <PersonnelAutocomplete
-                  organizationId={store.getTeam(params.teamId as string)?.organizationId || ""}
+                  orgId={store.getTeam(params.teamId as string)?.orgId || ""}
                   value={newStaffName}
                   onChange={setNewStaffName}
                   onSelectPerson={setSelectedPerson}

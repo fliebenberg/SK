@@ -12,10 +12,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 interface TeamListFilterProps {
   sports: { id: string; name: string }[];
   currentSport?: string;
-  organizationId: string;
+  orgId: string;
 }
 
-export function TeamListFilter({ sports, currentSport, organizationId }: TeamListFilterProps) {
+export function TeamListFilter({ sports, currentSport, orgId }: TeamListFilterProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -26,7 +26,7 @@ export function TeamListFilter({ sports, currentSport, organizationId }: TeamLis
     } else {
       params.delete("sport");
     }
-    router.push(`/admin/organizations/${organizationId}/teams?${params.toString()}`);
+    router.push(`/admin/organizations/${orgId}/teams?${params.toString()}`);
   };
 
   // If only one sport, we don't really need to show the filter, or we show it disabled/single option.
@@ -56,3 +56,4 @@ export function TeamListFilter({ sports, currentSport, organizationId }: TeamLis
     </div>
   );
 }
+

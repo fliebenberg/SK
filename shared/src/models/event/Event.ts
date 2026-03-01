@@ -7,8 +7,9 @@ export interface Event {
   date?: string; // Legacy field
   startDate: string;
   endDate?: string;
-  venueId: string;
-  organizationId: string;
+  siteId?: string;
+  facilityId?: string;
+  orgId: string;
   participatingOrgIds?: string[];
   sportIds?: string[];
   settings?: {

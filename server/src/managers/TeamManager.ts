@@ -10,12 +10,12 @@ export class TeamManager extends BaseManager {
     { id: "role-medic", name: "Medic" },
   ];
 
-  async getTeams(organizationId?: string): Promise<Team[]> {
-    let queryText = 'SELECT id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive", creator_id as "creatorId" FROM teams';
+  async getTeams(orgId?: string): Promise<Team[]> {
+    let queryText = 'SELECT id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId" FROM teams';
     const params: any[] = [];
-    if (organizationId) {
-        queryText += ' WHERE organization_id = $1';
-        params.push(organizationId);
+    if (orgId) {
+        queryText += ' WHERE org_id = $1';
+        params.push(orgId);
     }
     const res = await this.query(queryText, params);
     
@@ -45,7 +45,7 @@ export class TeamManager extends BaseManager {
   }
 
   async getTeam(id: string): Promise<Team | undefined> {
-    const res = await this.query('SELECT id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive", creator_id as "creatorId" FROM teams WHERE id = $1', [id]);
+    const res = await this.query('SELECT id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId" FROM teams WHERE id = $1', [id]);
     if (!res.rows[0]) return undefined;
     return this.enrichTeam(res.rows[0]);
   }
@@ -53,11 +53,17 @@ export class TeamManager extends BaseManager {
   async addTeam(team: Omit<Team, "id"> & { id?: string }): Promise<Team> {
     const id = team.id || `team-${Date.now()}`;
     const res = await this.query(
-        `INSERT INTO teams (id, name, age_group, sport_id, organization_id, is_active, creator_id)
+        `INSERT INTO teams (id, name, age_group, sport_id, org_id, is_active, creator_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive", creator_id as "creatorId"`,
-         [id, team.name, team.ageGroup, team.sportId, team.organizationId, true, team.creatorId]
+         RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId"`,
+         [id, team.name, team.ageGroup, team.sportId, team.orgId, true, team.creatorId]
     );
+    if (res.rows[0]) {
+        await this.query(
+            `UPDATE organizations SET team_count = team_count + 1 WHERE id = $1`,
+            [team.orgId]
+        );
+    }
     organizationManager.invalidateCache();
     return res.rows[0];
   }
@@ -67,7 +73,7 @@ export class TeamManager extends BaseManager {
     if (keys.length === 0) return this.getTeam(id).then(r => r || null);
 
     const map: Record<string, string> = {
-        name: 'name', ageGroup: 'age_group', sportId: 'sport_id', organizationId: 'organization_id', isActive: 'is_active', creatorId: 'creator_id'
+        name: 'name', ageGroup: 'age_group', sportId: 'sport_id', orgId: 'org_id', isActive: 'is_active', creatorId: 'creator_id'
     };
 
     const setClauses: string[] = [];
@@ -86,10 +92,20 @@ export class TeamManager extends BaseManager {
     values.push(id);
     
     const res = await this.query(
-        `UPDATE teams SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", organization_id as "organizationId", is_active as "isActive", creator_id as "creatorId"`,
+        `UPDATE teams SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId"`,
         values
     );
     if (!res.rows[0]) return null;
+
+    if (data.isActive !== undefined) {
+        const team = res.rows[0];
+        if (data.isActive) {
+            await this.query(`UPDATE organizations SET team_count = team_count + 1 WHERE id = $1`, [team.orgId]);
+        } else {
+            await this.query(`UPDATE organizations SET team_count = team_count - 1 WHERE id = $1`, [team.orgId]);
+        }
+    }
+
     organizationManager.invalidateCache();
     return this.enrichTeam(res.rows[0]);
   }
@@ -104,6 +120,11 @@ export class TeamManager extends BaseManager {
      if (!team) return null;
 
      await this.query('DELETE FROM teams WHERE id = $1', [id]);
+     
+     if (team.isActive) {
+         await this.query(`UPDATE organizations SET team_count = team_count - 1 WHERE id = $1`, [team.orgId]);
+     }
+
      organizationManager.invalidateCache();
     return team;
   }
@@ -117,7 +138,7 @@ export class TeamManager extends BaseManager {
   }
 
   async getTeamMembership(id: string): Promise<TeamMembership | undefined> {
-    const res = await this.query('SELECT id, person_id as "personId", team_id as "teamId", role_id as "roleId", start_date as "startDate", end_date as "endDate" FROM team_memberships WHERE id = $1', [id]);
+    const res = await this.query('SELECT id, org_profile_id as "orgProfileId", team_id as "teamId", role_id as "roleId", start_date as "startDate", end_date as "endDate" FROM team_memberships WHERE id = $1', [id]);
     return res.rows[0];
   }
 
@@ -128,7 +149,7 @@ export class TeamManager extends BaseManager {
             p.id, p.name,
             tm.team_id as "teamId"
         FROM team_memberships tm
-        JOIN persons p ON tm.person_id = p.id
+        JOIN org_profiles p ON tm.org_profile_id = p.id
         WHERE tm.team_id = $1 AND (tm.end_date IS NULL OR tm.end_date > NOW())
     `, [teamId]);
     
@@ -140,25 +161,22 @@ export class TeamManager extends BaseManager {
 
   async addTeamMember(membership: TeamMembership): Promise<TeamMembership> {
     await this.query(
-        `INSERT INTO team_memberships (id, person_id, team_id, role_id, start_date)
+        `INSERT INTO team_memberships (id, org_profile_id, team_id, role_id, start_date)
          VALUES ($1, $2, $3, $4, NOW())`,
-         [membership.id, membership.personId, membership.teamId, membership.roleId]
+         [membership.id, membership.orgProfileId, membership.teamId, membership.roleId]
     );
 
     const team = await this.getTeam(membership.teamId);
     if (team) {
         const orgMemRes = await this.query(
-            `SELECT * FROM organization_memberships WHERE person_id = $1 AND organization_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
-            [membership.personId, team.organizationId]
+            `SELECT * FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
+            [membership.orgProfileId, team.orgId]
         );
         if (orgMemRes.rowCount === 0) {
-             // Need to call PersonManager/UserManager here? Or just query?
-             // Since we haven't created UserManager yet, I'll do the query directly or wait.
-             // Actually, I'll put this logic in a central place or just keep it simple for now.
              await this.query(
-               `INSERT INTO organization_memberships (id, person_id, organization_id, role_id, start_date)
+               `INSERT INTO org_memberships (id, org_profile_id, org_id, role_id, start_date)
                 VALUES ($1, $2, $3, $4, NOW())`,
-                [`org-mem-${Date.now()}`, membership.personId, team.organizationId, 'role-org-member']
+                [`org-mem-${Date.now()}`, membership.orgProfileId, team.orgId, 'role-org-member']
              );
         }
     }
@@ -170,7 +188,7 @@ export class TeamManager extends BaseManager {
       const keys = Object.keys(data).filter(k => k !== 'id');
       if (keys.length === 0) return null; 
       
-      const map: Record<string, string> = { roleId: 'role_id', startDate: 'start_date', endDate: 'end_date' };
+      const map: Record<string, string> = { roleId: 'role_id', startDate: 'start_date', endDate: 'end_date', orgProfileId: 'org_profile_id' };
       const setClauses: string[] = [];
       const values: any[] = [];
       let idx = 1;
@@ -185,7 +203,7 @@ export class TeamManager extends BaseManager {
       values.push(id);
 
       const res = await this.query(
-          `UPDATE team_memberships SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, person_id as "personId", team_id as "teamId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+          `UPDATE team_memberships SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, org_profile_id as "orgProfileId", team_id as "teamId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
           values
       );
       return res.rows[0] || null;
@@ -193,7 +211,7 @@ export class TeamManager extends BaseManager {
 
   async removeTeamMember(membershipId: string): Promise<TeamMembership | null> {
       const res = await this.query(
-          `UPDATE team_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, person_id as "personId", team_id as "teamId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+          `UPDATE team_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, org_profile_id as "orgProfileId", team_id as "teamId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
           [membershipId]
       );
       organizationManager.invalidateCache();

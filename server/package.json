@@ -6,9 +6,9 @@
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "db:init": "ts-node src/scripts/init-db.ts",
-    "db:reset": "ts-node src/scripts/reset-db.ts && npm run db:init",
-    "db:seed": "ts-node src/scripts/seed-db.ts",
+    "db:init": "ts-node src/scripts/setup/init-db.ts",
+    "db:reset": "ts-node src/scripts/setup/reset-db.ts && npm run db:init",
+    "db:seed": "ts-node src/scripts/setup/seed-db.ts",
     "db:setup": "npm run db:reset && npm run db:seed"
   },
   "dependencies": {
@@ -21,7 +21,8 @@
     "nodemailer": "^8.0.1",
     "pg": "^8.18.0",
     "sharp": "^0.34.5",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -30,6 +31,7 @@
     "@types/node": "^22.10.2",
     "@types/nodemailer": "^7.0.9",
     "@types/pg": "^8.16.0",
+    "@types/uuid": "^10.0.0",
     "socket.io-client": "^4.8.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.2"

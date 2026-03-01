@@ -126,6 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Fetch memberships for RBAC
       store.fetchUserMemberships(user.id);
+      store.fetchNotifications(user.id);
+      store.subscribeToNotifications(user.id);
+
+      return () => {
+        store.unsubscribeFromNotifications(user.id);
+      };
     }
   }, [isAuthenticated, user?.id]);
 
@@ -176,3 +182,4 @@ export function useAuth() {
   }
   return context;
 }
+

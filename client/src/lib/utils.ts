@@ -98,7 +98,8 @@ export function getUserAvatarUrl(image?: string, tier: 'large' | 'medium' | 'thu
   if (!image) return "";
   if (image.startsWith('http') || image.startsWith('data:')) return image;
   
-  return `/uploads/avatars/${image}_${tier}.webp`;
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3001";
+  return `${serverUrl}/uploads/profiles/${image}_${tier}.webp`;
 }
 
 export function formatTime(isoString: string): string {
@@ -115,3 +116,4 @@ export function formatDate(isoString: string, short: boolean = false): string {
     }
     return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 }
+

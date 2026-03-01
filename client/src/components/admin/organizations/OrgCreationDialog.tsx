@@ -87,8 +87,9 @@ export function OrgCreationDialog({
         secondaryColor: formData.secondaryColor,
         logo: formData.logo,
         supportedSportIds,
-        supportedRoleIds: [],
+        creatorId: user?.id,
       });
+
 
       // Process referrals if any valid emails exist
       const validEmails = referralEmails
@@ -148,6 +149,7 @@ export function OrgCreationDialog({
                     placeholderPrimary={formData.primaryColor}
                     placeholderSecondary={formData.secondaryColor}
                     initials={currentInitials}
+                    imageType="logo"
                 />
             </div>
             <div className="flex-1 grid gap-4">
@@ -291,3 +293,4 @@ export function OrgCreationDialog({
     </Dialog>
   );
 }
+

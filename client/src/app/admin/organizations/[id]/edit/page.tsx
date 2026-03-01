@@ -7,29 +7,23 @@ import { useState, useEffect } from "react";
 import { Organization } from "@sk/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 
+import { useOrganization } from "@/hooks/useOrganization";
+
 export default function OrganizationEditPage() {
   const params = useParams();
   const id = params.id as string;
-  const [org, setOrg] = useState<Organization | undefined>(undefined);
-  const [loading, setLoading] = useState(true);
+  const { org, isLoading: loading } = useOrganization(id, { subscribeData: true });
 
-  useEffect(() => {
-    const update = () => {
-        const o = store.getOrganization(id);
-        if (o) {
-            setOrg(o);
-            setLoading(false);
-        }
-    };
-    update(); // Initial check
-    const unsubscribe = store.subscribe(update);
-    return () => unsubscribe();
-  }, [id]);
-
-  if (loading) return <div>Loading...</div>;
-  if (!org) {
-    return <div>Organization not found</div>;
+  if (loading && !org) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="mt-4 text-muted-foreground font-orbitron">Loading settings...</p>
+      </div>
+    );
   }
+
+  if (!org) return null;
 
   return (
     <div className="space-y-6">

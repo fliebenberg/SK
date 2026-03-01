@@ -45,3 +45,4 @@ describe('TeamsPage', () => {
     expect(screen.getByText(/no teams found/i)).toBeInTheDocument();
   });
 });
+

@@ -17,7 +17,7 @@ describe('Store Logic', () => {
       name: 'Test Team',
       sportId: 'sport-tennis',
       ageGroup: 'U14',
-      organizationId: 'org-test'
+      orgId: 'org-test'
     });
 
     expect(newTeam.id).toBeDefined();
@@ -25,17 +25,25 @@ describe('Store Logic', () => {
     expect(store.getTeams().length).toBe(initialCount + 1);
   });
 
-  it('should add a new venue', async () => {
-    const initialCount = store.getVenues().length;
-    const newVenue = await store.addVenue({
-      name: 'Test Venue',
-      address: '123 Test St',
-      organizationId: 'org-test'
+  it('should add a new site', async () => {
+    const initialCount = store.getSites().length;
+    const newSite = await store.addSite({
+      name: 'Test Site',
+      address: {
+        id: 'addr-1',
+        fullAddress: '123 Test St, Test TS 12345 USA',
+        addressLine1: '123 Test St',
+        city: 'Test',
+        province: 'TS',
+        postalCode: '12345',
+        country: 'USA'
+      },
+      orgId: 'org-test'
     });
 
-    expect(newVenue.id).toBeDefined();
-    expect(newVenue.name).toBe('Test Venue');
-    expect(store.getVenues().length).toBe(initialCount + 1);
+    expect(newSite.id).toBeDefined();
+    expect(newSite.name).toBe('Test Site');
+    expect(store.getSites().length).toBe(initialCount + 1);
   });
 
   it('should add and retrieve a game', async () => {
@@ -76,3 +84,4 @@ describe('Store Logic', () => {
     expect(updatedGame?.awayScore).toBe(0);
   });
 });
+

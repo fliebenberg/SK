@@ -1,18 +1,133 @@
-import { Organization, Venue, OrganizationRole, levenshtein } from "@sk/types";
+import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse } from "@sk/types";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
+import { addressManager } from "./AddressManager";
 
 export class OrganizationManager extends BaseManager {
-  private organizationCache: Organization[] | null = null;
+  private organizationCache: Map<string, Organization> = new Map();
+  private cacheLoaded: boolean = false;
 
   organizationRoles: OrganizationRole[] = [
     { id: "role-org-admin", name: "Admin" },
+    { id: "role-org-staff", name: "Staff" },
     { id: "role-org-member", name: "Member" },
   ];
 
-  async getOrganizations(): Promise<Organization[]> {
-    if (this.organizationCache) {
-      return this.organizationCache;
+  async getOrganizations(params?: PaginationParams): Promise<PaginatedResponse<Organization>> {
+    const page = params?.page || 1;
+    const limit = Math.min(params?.limit || 100, 100);
+    const offset = (page - 1) * limit;
+    const search = params?.search?.trim() || '';
+
+    let countQuery = 'SELECT COUNT(*) FROM organizations o';
+    let dataQuery = `
+      SELECT 
+        o.id, 
+        o.name, 
+        o.logo, 
+        o.primary_color as "primaryColor", 
+        o.secondary_color as "secondaryColor", 
+        o.supported_sport_ids as "supportedSportIds", 
+        o.short_name as "shortName", 
+        o.supported_role_ids as "supportedRoleIds",
+        o.is_claimed as "isClaimed",
+        o.creator_id as "creatorId", 
+        o.is_active as "isActive",
+        o.settings,
+        o.address_id as "addressId",
+        a.full_address as "fullAddress",
+        a.city,
+        a.province,
+        a.postal_code as "postalCode",
+        a.country,
+        a.latitude,
+        a.longitude,
+        o.team_count as "teamCount",
+        o.site_count as "siteCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
+        o.member_count as "memberCount"
+      FROM organizations o
+      LEFT JOIN addresses a ON o.address_id = a.id
+    `;
+
+    const queryParams: any[] = [];
+    const whereClauses: string[] = [];
+
+    if (search) {
+        whereClauses.push(`(o.name ILIKE $${queryParams.length + 1} OR o.short_name ILIKE $${queryParams.length + 1})`);
+        queryParams.push(`%${search}%`);
+    }
+
+    if (params?.orgId) {
+        whereClauses.push(`o.id = $${queryParams.length + 1}`);
+        queryParams.push(params.orgId);
+    }
+
+    if (params?.isClaimed !== undefined) {
+        whereClauses.push(`o.is_claimed = $${queryParams.length + 1}`);
+        queryParams.push(params.isClaimed);
+    }
+
+    const whereString = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+    countQuery += whereString;
+    dataQuery += whereString;
+
+    dataQuery += ` ORDER BY o.name ASC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+    
+    try {
+        const [countRes, dataRes] = await Promise.all([
+            this.query(countQuery, queryParams),
+            this.query(dataQuery, [...queryParams, limit, offset])
+        ]);
+
+        const items = dataRes.rows.map(row => this.mapOrg(row));
+        const total = parseInt(countRes.rows[0].count);
+
+        return {
+            items,
+            total,
+            page,
+            limit
+        };
+    } catch (error) {
+        console.error('OrganizationManager.getOrganizations error:', error);
+        console.error('Count Query:', countQuery);
+        console.error('Data Query:', dataQuery);
+        console.error('Params:', queryParams);
+        throw error;
+    }
+  }
+
+  private mapOrg(row: any): Organization {
+    const { 
+      fullAddress, city, province, postalCode, country, latitude, longitude, addressId,
+      ...orgData 
+    } = row;
+    
+    const org: Organization = { ...orgData, addressId };
+    
+    if (addressId) {
+      org.address = {
+        id: addressId,
+        fullAddress,
+        city,
+        province,
+        postalCode,
+        country,
+        latitude,
+        longitude
+      };
+    }
+    
+    return org;
+  }
+
+  async getOrganization(id?: string): Promise<Organization | undefined> {
+    if (!id) return undefined;
+    
+    // Check cache first
+    if (this.organizationCache.has(id)) {
+        return this.organizationCache.get(id);
     }
 
     const res = await this.query(`
@@ -28,19 +143,37 @@ export class OrganizationManager extends BaseManager {
         o.is_claimed as "isClaimed",
         o.creator_id as "creatorId",
         o.is_active as "isActive",
-        (SELECT COUNT(*)::int FROM teams t WHERE t.organization_id = o.id) as "teamCount",
-        (SELECT COUNT(*)::int FROM venues v WHERE v.organization_id = o.id) as "venueCount",
-        (SELECT COUNT(*)::int FROM events e WHERE (e.organization_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
-        (SELECT COUNT(*)::int FROM organization_memberships om WHERE om.organization_id = o.id) as "memberCount"
+        o.settings,
+        o.address_id as "addressId",
+        a.full_address as "fullAddress",
+        a.city,
+        a.province,
+        a.postal_code as "postalCode",
+        a.country,
+        a.latitude,
+        a.longitude,
+        o.team_count as "teamCount",
+        o.site_count as "siteCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
+        o.member_count as "memberCount"
       FROM organizations o
-    `);
+      LEFT JOIN addresses a ON o.address_id = a.id
+      WHERE o.id = $1
+    `, [id]);
     
-    this.organizationCache = res.rows;
-    return res.rows;
+    const org = res.rows[0] ? this.mapOrg(res.rows[0]) : undefined;
+    if (org) {
+        this.organizationCache.set(org.id, org);
+    }
+    return org;
   }
 
-  async getOrganization(id?: string): Promise<Organization | undefined> {
-    if (!id) return undefined;
+  /**
+   * Re-fetches a single organization's summary data (counts) and updates the cache.
+   * This is more efficient than invalidating the entire cache.
+   */
+  async refreshOrgSummary(id: string): Promise<Organization | undefined> {
+    // We bypass the cache check here to force a DB refresh
     const res = await this.query(`
       SELECT 
         o.id, 
@@ -54,18 +187,36 @@ export class OrganizationManager extends BaseManager {
         o.is_claimed as "isClaimed",
         o.creator_id as "creatorId",
         o.is_active as "isActive",
-        (SELECT COUNT(*)::int FROM teams t WHERE t.organization_id = o.id) as "teamCount",
-        (SELECT COUNT(*)::int FROM venues v WHERE v.organization_id = o.id) as "venueCount",
-        (SELECT COUNT(*)::int FROM events e WHERE (e.organization_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
-        (SELECT COUNT(*)::int FROM organization_memberships om WHERE om.organization_id = o.id AND (om.end_date IS NULL OR om.end_date > NOW())) as "memberCount"
+        o.settings,
+        o.address_id as "addressId",
+        a.full_address as "fullAddress",
+        a.city,
+        a.province,
+        a.postal_code as "postalCode",
+        a.country,
+        a.latitude,
+        a.longitude,
+        (SELECT COUNT(*)::int FROM teams t WHERE t.org_id = o.id) as "teamCount",
+        (SELECT COUNT(*)::int FROM sites s WHERE s.org_id = o.id) as "siteCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
+        (SELECT COUNT(*)::int FROM org_memberships om WHERE om.org_id = o.id AND (om.end_date IS NULL OR om.end_date > NOW())) as "memberCount"
       FROM organizations o
+      LEFT JOIN addresses a ON o.address_id = a.id
       WHERE o.id = $1
     `, [id]);
-    return res.rows[0];
+    
+    const org = res.rows[0] ? this.mapOrg(res.rows[0]) : undefined;
+    if (org) {
+        this.organizationCache.set(org.id, org);
+    } else {
+        this.organizationCache.delete(id);
+    }
+    return org;
   }
 
   invalidateCache() {
-    this.organizationCache = null;
+    this.organizationCache.clear();
+    this.cacheLoaded = false;
   }
 
   async addOrganization(org: Omit<Organization, "id"> & { id?: string }): Promise<Organization> {
@@ -77,25 +228,42 @@ export class OrganizationManager extends BaseManager {
     if (logo && logo.startsWith('data:image')) {
       logo = await imageService.processLogo(logo, id);
     }
+
+    let addressId = org.addressId;
+    if (org.address && !addressId) {
+      const newAddr = await addressManager.addAddress(org.address);
+      addressId = newAddr.id;
+    }
     
     const res = await this.query(
-      `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, supported_sport_ids, short_name, supported_role_ids, is_claimed, creator_id, is_active) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds", is_claimed as "isClaimed", creator_id as "creatorId", is_active as "isActive"`,
-      [id, org.name, logo, org.primaryColor, org.secondaryColor, supportedSportIds, org.shortName, supportedRoleIds, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true]
+      `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, supported_sport_ids, short_name, supported_role_ids, is_claimed, creator_id, is_active, settings, address_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds", is_claimed as "isClaimed", creator_id as "creatorId", is_active as "isActive", settings, address_id as "addressId"`,
+      [id, org.name, logo, org.primaryColor, org.secondaryColor, supportedSportIds, org.shortName, supportedRoleIds, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId]
     );
-    this.invalidateCache();
-    return res.rows[0];
+    // Don't fully invalidate, just add the new one or refresh if it exists
+    return this.refreshOrgSummary(res.rows[0].id) as Promise<Organization>;
   }
 
   async updateOrganization(id: string, data: Partial<Organization>): Promise<Organization | null> {
     // If logo is being updated and it's base64, process it
     if (data.logo && data.logo.startsWith('data:image')) {
-        // Optional: delete old logo file if it exists
         const oldOrg = await this.getOrganization(id);
         if (oldOrg && oldOrg.logo) {
             await imageService.deleteLogo(oldOrg.logo);
         }
         data.logo = await imageService.processLogo(data.logo, id);
+    }
+
+    // Handle Address update
+    if (data.address) {
+      const currentOrg = await this.getOrganization(id);
+      if (currentOrg?.addressId) {
+        await addressManager.updateAddress(currentOrg.addressId, data.address);
+      } else {
+        const newAddr = await addressManager.addAddress(data.address);
+        data.addressId = newAddr.id;
+      }
+      delete data.address; // Don't try to update the column directly
     }
 
     const keys = Object.keys(data).filter(k => k !== 'id');
@@ -108,7 +276,7 @@ export class OrganizationManager extends BaseManager {
     const map: Record<string, string> = {
         name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
         supportedSportIds: 'supported_sport_ids', shortName: 'short_name', supportedRoleIds: 'supported_role_ids',
-        isClaimed: 'is_claimed', creatorId: 'creator_id', isActive: 'is_active'
+        isClaimed: 'is_claimed', creatorId: 'creator_id', isActive: 'is_active', settings: 'settings', addressId: 'address_id'
     };
 
     keys.forEach(key => {
@@ -123,60 +291,11 @@ export class OrganizationManager extends BaseManager {
     values.push(id);
     
     const res = await this.query(
-        `UPDATE organizations SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds", is_claimed as "isClaimed", creator_id as "creatorId", is_active as "isActive"`,
+        `UPDATE organizations SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, logo, primary_color as "primaryColor", secondary_color as "secondaryColor", supported_sport_ids as "supportedSportIds", short_name as "shortName", supported_role_ids as "supportedRoleIds", is_claimed as "isClaimed", creator_id as "creatorId", is_active as "isActive", settings`,
         values
     );
-    this.invalidateCache();
-    return res.rows[0] || null;
-  }
-
-  async getVenues(organizationId?: string): Promise<Venue[]> {
-    let queryText = 'SELECT id, name, address, organization_id as "organizationId" FROM venues';
-    const params: any[] = [];
-    if (organizationId) {
-        queryText += ' WHERE organization_id = $1';
-        params.push(organizationId);
-    }
-    const res = await this.query(queryText, params);
-    return res.rows;
-  }
-
-  async addVenue(venue: Omit<Venue, "id" | "organizationId"> & { organizationId: string, id?: string }): Promise<Venue> {
-    const id = venue.id || `venue-${Date.now()}`;
-    const res = await this.query(
-        `INSERT INTO venues (id, name, address, organization_id)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, name, address, organization_id as "organizationId"`,
-          [id, venue.name, venue.address, venue.organizationId]
-    );
-    this.invalidateCache();
-    return res.rows[0];
-  }
-  
-  async getVenue(id: string): Promise<Venue | undefined> {
-    const res = await this.query('SELECT id, name, address, organization_id as "organizationId" FROM venues WHERE id = $1', [id]);
-    return res.rows[0];
-  }
-
-  async updateVenue(id: string, data: Partial<Venue>): Promise<Venue | null> {
-    if (data.name || data.address) {
-         const res = await this.query(
-             `UPDATE venues SET name = COALESCE($1, name), address = COALESCE($2, address) WHERE id = $3 RETURNING id, name, address, organization_id as "organizationId"`,
-             [data.name, data.address, id]
-         );
-         return res.rows[0];
-    }
-    return (await this.getVenues()).find(v => v.id === id) || null;
-  }
-
-  async deleteVenue(id: string): Promise<Venue | null> {
-    const venueRaw = await this.query('SELECT * FROM venues WHERE id = $1', [id]);
-    if (venueRaw.rowCount === 0) return null;
-    const venue = { ...venueRaw.rows[0], organizationId: venueRaw.rows[0].organization_id };
-    
-    await this.query('DELETE FROM venues WHERE id = $1', [id]);
-    this.invalidateCache();
-    return venue;
+    // Only refresh this specific org's summary/cache
+    return this.refreshOrgSummary(id).then(r => r || null);
   }
 
   async getOrganizationRoles(): Promise<OrganizationRole[]> {
@@ -192,9 +311,10 @@ export class OrganizationManager extends BaseManager {
     if (!query) return [];
 
     const queryParts = query.split(/\s+/).filter(p => p.length > 0);
-    const allOrgs = await this.getOrganizations();
+    const paginated = await this.getOrganizations({ page: 1, limit: 1000, search: name });
+    const allOrgs: Organization[] = paginated.items;
 
-    const scored = allOrgs.map(org => {
+    const scored = allOrgs.map((org: Organization) => {
         const orgName = org.name.toLowerCase();
         const shortName = (org.shortName || "").toLowerCase();
         const orgParts = orgName.split(/\s+/).concat(shortName ? [shortName] : []);
@@ -241,46 +361,46 @@ export class OrganizationManager extends BaseManager {
     });
 
     const results = scored
-        .filter(item => item.score > 0)
-        .sort((a, b) => {
+        .filter((item: { org: Organization; score: number }) => item.score > 0)
+        .sort((a: { org: Organization; score: number }, b: { org: Organization; score: number }) => {
             if (b.score !== a.score) return b.score - a.score;
             return a.org.name.length - b.org.name.length; // shorter name first
         })
-        .map(item => item.org)
+        .map((item: { org: Organization; score: number }) => item.org)
         .slice(0, 5);
 
     return results;
   }
 
-  async syncClaimedStatus(organizationId: string): Promise<void> {
+  async syncClaimedStatus(orgId: string): Promise<void> {
     const res = await this.query(`
       SELECT COUNT(*)::int as count 
-      FROM organization_memberships 
-      WHERE organization_id = $1 AND role_id = 'role-org-admin' AND (end_date IS NULL OR end_date > NOW())
-    `, [organizationId]);
+      FROM org_memberships 
+      WHERE org_id = $1 AND role_id = 'role-org-admin' AND (end_date IS NULL OR end_date > NOW())
+    `, [orgId]);
     
     const isClaimed = res.rows[0].count > 0;
-    await this.query('UPDATE organizations SET is_claimed = $1 WHERE id = $2', [isClaimed, organizationId]);
-    this.invalidateCache();
+    await this.query('UPDATE organizations SET is_claimed = $1 WHERE id = $2', [isClaimed, orgId]);
+    await this.refreshOrgSummary(orgId);
   }
 
   async deleteOrganization(id: string): Promise<void> {
     // Dependency checks
     const countsRes = await this.query(`
       SELECT 
-        (SELECT COUNT(*)::int FROM teams WHERE organization_id = $1) as teams,
-        (SELECT COUNT(*)::int FROM venues WHERE organization_id = $1) as venues,
-        (SELECT COUNT(*)::int FROM events WHERE organization_id = $1 OR $1 = ANY(participating_org_ids)) as events,
-        (SELECT COUNT(*)::int FROM organization_memberships WHERE organization_id = $1 AND (end_date IS NULL OR end_date > NOW())) as active_people
+        (SELECT COUNT(*)::int FROM teams WHERE org_id = $1) as teams,
+        (SELECT COUNT(*)::int FROM sites WHERE org_id = $1) as sites,
+        (SELECT COUNT(*)::int FROM events WHERE org_id = $1 OR $1 = ANY(participating_org_ids)) as events,
+        (SELECT COUNT(*)::int FROM org_memberships WHERE org_id = $1 AND (end_date IS NULL OR end_date > NOW())) as active_people
     `, [id]);
 
-    const { teams, venues, events, active_people } = countsRes.rows[0];
+    const { teams, sites, events, active_people } = countsRes.rows[0];
 
-    if (teams > 0 || venues > 0 || events > 0 || active_people > 0) {
+    if (teams > 0 || sites > 0 || events > 0 || active_people > 0) {
       let reason = "it has ";
       const parts = [];
       if (teams > 0) parts.push(`${teams} teams`);
-      if (venues > 0) parts.push(`${venues} venues`);
+      if (sites > 0) parts.push(`${sites} sites`);
       if (events > 0) parts.push(`${events} events`);
       if (active_people > 0) parts.push(`${active_people} linked people`);
       
@@ -288,13 +408,13 @@ export class OrganizationManager extends BaseManager {
     }
 
     // Clean up memberships (even inactive ones) to allow deletion
-    await this.query('DELETE FROM organization_memberships WHERE organization_id = $1', [id]);
+    await this.query('DELETE FROM org_memberships WHERE org_id = $1', [id]);
     
     // Check if there are any other links we missed (like cancelled events that still reference the host org)
     // Actually, if 'events > 0' passed above, it means there are NO events at all.
     
     await this.query('DELETE FROM organizations WHERE id = $1', [id]);
-    this.invalidateCache();
+    this.organizationCache.delete(id);
   }
 }
 

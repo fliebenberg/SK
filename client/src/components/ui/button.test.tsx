@@ -25,3 +25,4 @@ describe('Button', () => {
     expect(link).toHaveAttribute('href', '/test');
   });
 });
+

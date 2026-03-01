@@ -147,3 +147,4 @@ export default function DeclinePage() {
     </Suspense>
   );
 }
+

@@ -11,8 +11,9 @@ import { DeactivatedTeamsSection } from "@/components/admin/DeactivatedTeamsSect
 import { TeamList } from "@/components/admin/TeamList";
 import { GroupedTeamList } from "@/components/admin/GroupedTeamList";
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, notFound } from "next/navigation";
 import { Organization, Team, Sport } from "@sk/types";
+import { useOrganization } from "@/hooks/useOrganization";
 
 // Helper for icons (keep outside component)
 const getSportIcon = (sport: string) => {
@@ -43,9 +44,9 @@ export default function TeamManagementPage() {
   const id = params.id as string;
   const sportParam = searchParams.get('sport');
 
+  const { org, isLoading: loading } = useOrganization(id, { subscribeData: true });
   const [groupBy, setGroupBy] = useState<'none' | 'sport' | 'age'>('none');
   const [ageFilter, setAgeFilter] = useState<string>("all");
-  const [org, setOrg] = useState<Organization | undefined>(undefined);
   const [teams, setTeams] = useState<Team[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
 
@@ -53,14 +54,13 @@ export default function TeamManagementPage() {
 
   useEffect(() => {
     const updateData = () => {
-        setOrg(store.getOrganization(id));
         setTeams(store.getTeams(id));
         setSports(store.getSports());
     };
 
     updateData();
-    store.subscribeToOrganization(id); // For members
-    store.subscribeToOrganizationData(id); // For teams/venues
+    // we still need members for isOrgAdmin check in some components (if applicable)
+    store.subscribeToOrganization(id); 
     const unsubscribe = store.subscribe(updateData);
     return () => unsubscribe();
   }, [id]);
@@ -74,7 +74,16 @@ export default function TeamManagementPage() {
       }
   }, [teams, hasInitialized]);
 
-  if (!org) return <div>Loading...</div>;
+  if (loading && !org) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="mt-4 text-muted-foreground font-orbitron">Loading team data...</p>
+      </div>
+    );
+  }
+
+  if (!org) return null;
 
   // Derived state
   let currentSport = "all";
@@ -131,7 +140,7 @@ export default function TeamManagementPage() {
                 <TeamListFilter 
                     sports={org.supportedSportIds.map(id => store.getSport(id)).filter((s): s is NonNullable<typeof s> => !!s)} 
                     currentSport={currentSport} 
-                    organizationId={id} 
+                    orgId={id} 
                 />
                 
                 <AgeGroupFilter 
@@ -162,7 +171,7 @@ export default function TeamManagementPage() {
         <CardContent className="p-0 md:p-6">
           <GroupedTeamList 
             teams={activeTeams} 
-            organizationId={id} 
+            orgId={id} 
             sports={store.getSports()} 
             groupBy={groupBy}
             isActive={true} 
@@ -172,7 +181,7 @@ export default function TeamManagementPage() {
 
       <DeactivatedTeamsSection 
         teams={deactivatedTeams} 
-        organizationId={id} 
+        orgId={id} 
         sports={store.getSports()} 
         groupBy={groupBy}
       />

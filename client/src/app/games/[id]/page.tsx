@@ -5,7 +5,7 @@ import { store } from "@/app/store/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Game, Team, Sport, Venue } from "@sk/types";
+import { Game, Team, Sport, Site } from "@sk/types";
 
 export default function GamePage() {
   const params = useParams();

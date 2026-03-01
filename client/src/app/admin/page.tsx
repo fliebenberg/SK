@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { store } from "@/app/store/store";
 import { OrgLogo } from "@/components/ui/OrgLogo";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { MetalButton } from "@/components/ui/MetalButton";
 import { ArrowRight, ShieldAlert, Plus } from "lucide-react";
 
 export default function AdminPage() {
@@ -42,7 +42,7 @@ export default function AdminPage() {
     // REDIRECTION LOGIC
     if (user.globalRole === 'admin' && pathname === '/admin') {
        // Global Admins go to the full organizations list if at root admin
-       router.replace('/admin/organizations');
+       router.replace('/admin/all-organizations');
     } else if (orgIds.length === 1 && pathname === '/admin') {
        // Single Org Admins go straight to their dashboard if at root admin
        router.replace(`/admin/organizations/${orgIds[0]}`);
@@ -65,9 +65,21 @@ export default function AdminPage() {
 
   return (
     <div className="container mx-auto py-12 px-4 max-w-4xl min-h-[80vh]">
-      <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
-        <p className="text-muted-foreground">Select an organization to manage</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+        <div className="text-center md:text-left">
+          <h1 className="text-3xl font-bold mb-2 font-orbitron">Admin Dashboard</h1>
+          <p className="text-muted-foreground">Select an organization to manage</p>
+        </div>
+        {adminOrgs.length > 0 && (
+          <MetalButton 
+            variantType="filled" 
+            size="sm"
+            onClick={() => router.push('/admin/organizations/new')}
+            icon={<Plus className="h-4 w-4" />}
+          >
+            Create Organization
+          </MetalButton>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -95,19 +107,21 @@ export default function AdminPage() {
            <p className="text-xl font-medium mb-1">Welcome to ScoreKeeper</p>
            <p className="text-muted-foreground mb-6">You are not part of any organizations yet. Would you like to create your own?</p>
            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                variant="default" 
+              <MetalButton 
+                variantType="filled" 
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => router.push('/admin/organizations/new')}
+                icon={<Plus className="h-4 w-4" />}
               >
                 Create New Organization
-              </Button>
-              <Button variant="outline" onClick={() => router.push('/')}>
+              </MetalButton>
+              <MetalButton variantType="outlined" onClick={() => router.push('/')}>
                 Return Home
-              </Button>
+              </MetalButton>
            </div>
         </div>
       )}
     </div>
   );
 }
+

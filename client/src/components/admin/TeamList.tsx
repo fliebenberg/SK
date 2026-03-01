@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 interface TeamListProps {
   teams: Team[];
-  organizationId: string;
+  orgId: string;
   sports: Sport[];
   isActive?: boolean;
 }
@@ -31,7 +31,7 @@ const getSportIcon = (sport: string) => {
   return <Trophy className="h-4 w-4" />;
 };
 
-export function TeamList({ teams, organizationId, sports, isActive = true }: TeamListProps) {
+export function TeamList({ teams, orgId, sports, isActive = true }: TeamListProps) {
   return (
     <Table>
       <TableHeader>
@@ -99,7 +99,7 @@ export function TeamList({ teams, organizationId, sports, isActive = true }: Tea
                     size="sm" 
                     className="h-8 text-xs px-3 w-fit ml-auto" 
                     glowColor="hsl(var(--primary))"
-                    href={`/admin/organizations/${organizationId}/teams/${team.id}`}
+                    href={`/admin/organizations/${orgId}/teams/${team.id}`}
                   >
                     Manage
                   </MetalButton>
@@ -111,3 +111,4 @@ export function TeamList({ teams, organizationId, sports, isActive = true }: Tea
     </Table>
   );
 }
+

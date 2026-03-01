@@ -5,8 +5,13 @@ import { Organization } from "@sk/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pencil, Save, X, Building2, Flag } from "lucide-react";
+import { 
+  Pencil, Save, X, Building2, Flag, ChevronDown, 
+  PowerOff, Image, MapPin, Globe
+} from "lucide-react";
 import { ImageUpload } from "@/components/ui/ImageUpload";
+import { AddressInput } from "@/components/ui/AddressInput";
+import { AddressMap } from "@/components/ui/AddressMap";
 import { store } from "@/app/store/store";
 import { useRouter } from "next/navigation";
 import { cn, getInitials, isPlaceholderLogo } from "@/lib/utils";
@@ -26,11 +31,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ChevronDown } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { OrgLogo } from "@/components/ui/OrgLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
-import { PowerOff } from "lucide-react";
 
 interface OrgDetailsHeaderProps {
   organization?: Organization;
@@ -49,6 +53,10 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
     supportedSportIds: organization?.supportedSportIds || [],
     shortName: organization?.shortName || "",
     supportedRoleIds: organization?.supportedRoleIds || (isCreating ? ['role-org-admin', 'role-org-member'] : []),
+    settings: {
+      allowUserImageUpdates: organization?.settings?.allowUserImageUpdates || false,
+    },
+    address: organization?.address || undefined
   });
   const [similarOrgs, setSimilarOrgs] = useState<Organization[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -112,14 +120,19 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
   const hasChanges = () => {
       if (isCreating) return true;
       if (!organization) return false;
+      
+      const currentSettings = organization.settings || {};
+      const settingsChanged = formData.settings.allowUserImageUpdates !== (currentSettings.allowUserImageUpdates || false);
+      
       return (
-          formData.name !== organization.name ||
-          formData.logo !== organization.logo ||
-          formData.primaryColor !== organization.primaryColor ||
-          formData.secondaryColor !== organization.secondaryColor ||
-          formData.shortName !== organization.shortName ||
-          JSON.stringify(formData.supportedSportIds) !== JSON.stringify(organization.supportedSportIds) ||
-          JSON.stringify(formData.supportedRoleIds) !== JSON.stringify(organization.supportedRoleIds)
+          formData.name !== (organization.name || "") ||
+          formData.logo !== (organization.logo || "") ||
+          formData.primaryColor !== (organization.primaryColor || "#000000") ||
+          formData.secondaryColor !== (organization.secondaryColor || "#ffffff") ||
+          formData.shortName !== (organization.shortName || "") ||
+          JSON.stringify([...formData.supportedSportIds].sort()) !== JSON.stringify([...(organization.supportedSportIds || [])].sort()) ||
+          settingsChanged ||
+          JSON.stringify(formData.address) !== JSON.stringify(organization.address)
       );
   };
 
@@ -171,6 +184,10 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
             supportedSportIds: organization.supportedSportIds || [],
             shortName: organization.shortName || "",
             supportedRoleIds: organization.supportedRoleIds || [],
+            settings: {
+              allowUserImageUpdates: organization.settings?.allowUserImageUpdates || false,
+            },
+            address: organization.address || undefined
         });
     }
   };
@@ -208,6 +225,7 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                     placeholderPrimary={formData.primaryColor}
                     placeholderSecondary={formData.secondaryColor}
                     initials={currentInitials}
+                    imageType="logo"
                 />
              )}
         </div>
@@ -215,7 +233,7 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
         {/* Box 2: Name and Code */}
         <div className="flex-1 flex flex-col gap-2 pt-1 min-w-0 w-full items-center xl:items-start">
               {isEffectiveReadOnly ? (
-                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight px-2 xl:-ml-2">{formData.name}</h1>
+                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight px-2 xl:-ml-2 text-center xl:text-left w-full">{formData.name}</h1>
               ) : (
                 <div className="relative w-full group/name">
                     <textarea
@@ -226,7 +244,7 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                             e.currentTarget.style.height = 'auto';
                             e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px';
                         }}
-                        className="text-3xl md:text-4xl font-bold tracking-tight bg-transparent border-none p-0 focus:outline-none resize-none overflow-hidden rounded px-2 xl:-ml-2 w-full leading-tight text-center xl:text-left break-words max-h-[6rem] transition-all hover:bg-muted hover:ring-1 hover:ring-ring cursor-text"
+                        className="text-3xl md:text-4xl font-bold tracking-tight bg-transparent border-none p-0 focus:outline-none resize-none overflow-hidden rounded px-2 xl:-ml-2 w-full leading-tight text-center xl:text-left break-words transition-all hover:bg-muted hover:ring-1 hover:ring-ring cursor-text"
                         placeholder="Organization Name"
                         rows={1}
                         style={{ minHeight: '1.2em' }}
@@ -246,8 +264,21 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                                 Before creating a new organization, please check if it already exists in our system.
                             </DialogDescription>
                         </DialogHeader>
-                        
-                        <div className="flex flex-col gap-3 py-4 max-h-[300px] overflow-y-auto pr-2">
+
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="dialog-org-name" className="text-xs uppercase font-bold text-muted-foreground">Continue typing to refine name</Label>
+                                <Input
+                                    id="dialog-org-name"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="Organization Name"
+                                    className="font-semibold"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="flex flex-col gap-3 max-h-[250px] overflow-y-auto pr-2">
                             {similarOrgs.map(org => (
                                 <button
                                     key={org.id}
@@ -269,6 +300,7 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                                     <ChevronDown className="w-4 h-4 text-muted-foreground -rotate-90 group-hover:translate-x-1 transition-transform" />
                                 </button>
                             ))}
+                            </div>
                         </div>
 
                         <DialogFooter className="flex flex-col sm:flex-row gap-2">
@@ -368,41 +400,62 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                 </div>
             </div>
 
-            {/* Box 5: Roles */}
+            {/* Box 6: General Settings */}
             <div className="space-y-4">
-                <h3 className="font-medium text-sm text-foreground">Role Configuration</h3>
-                <div className="flex flex-col gap-1 w-full max-w-xs">
-                    <Label className="text-xs text-muted-foreground">Organization Roles</Label>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="w-full justify-between bg-transparent border-input/50">
-                                {formData.supportedRoleIds?.length || 0 > 0 
-                                    ? `${formData.supportedRoleIds?.length} Selected` 
-                                    : "Select Roles"}
-                                <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-56" align="start">
-                            <DropdownMenuLabel>Available Roles</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {store.getOrganizationRoles().map((role) => (
-                                <DropdownMenuCheckboxItem
-                                    key={role.id}
-                                    checked={(formData.supportedRoleIds || []).includes(role.id)}
-                                    onSelect={(e) => e.preventDefault()}
-                                    onCheckedChange={(checked) => {
-                                        const currentRoles = formData.supportedRoleIds || [];
-                                        const newRoles = checked
-                                            ? [...currentRoles, role.id]
-                                            : currentRoles.filter((r) => r !== role.id);
-                                        setFormData({ ...formData, supportedRoleIds: newRoles });
-                                    }}
-                                >
-                                    {role.name}
-                                </DropdownMenuCheckboxItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                <h3 className="font-medium text-sm text-foreground">General Settings</h3>
+                <div className="flex flex-col gap-4 w-full">
+                    <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="allowUserImageUpdates" className="text-sm font-normal text-muted-foreground cursor-pointer">
+                            Allow members to update their own profile images
+                        </Label>
+                        <Switch
+                            id="allowUserImageUpdates" 
+                            checked={formData.settings.allowUserImageUpdates} 
+                            onCheckedChange={(checked) => setFormData({
+                                ...formData, 
+                                settings: {
+                                    ...formData.settings,
+                                    allowUserImageUpdates: checked
+                                }
+                            })}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Box 7: Physical Address */}
+            <div className="space-y-4 md:col-span-2 border-t pt-6">
+                <div className="flex items-center gap-2 mb-2">
+                    <MapPin className="h-5 w-5 text-primary" />
+                    <h3 className="font-bold text-lg">Physical Location</h3>
+                </div>
+                
+                <div className="grid md:grid-cols-2 gap-8 items-start">
+                    <div className="space-y-4">
+                        <div className="space-y-1">
+                            <Label htmlFor="orgAddress" className="text-sm font-bold uppercase tracking-widest text-muted-foreground/70">
+                                Headquarters Address
+                            </Label>
+                            <AddressInput
+                                id="orgAddress"
+                                value={formData.address?.fullAddress}
+                                onChange={(addr) => setFormData({ ...formData, address: addr })}
+                                placeholder="Search for your organization's address..."
+                                className="bg-background/50 h-11"
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground italic leading-relaxed bg-muted/30 p-3 rounded-lg border border-border/50">
+                            Setting a physical address helps users find your facilities and events. 
+                            We recommend using the official registered address.
+                        </p>
+                    </div>
+                    
+                    <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+                        <AddressMap 
+                            address={formData.address} 
+                            className="w-full"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
@@ -422,3 +475,4 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
     </div>
   );
 }
+

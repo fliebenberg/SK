@@ -6,6 +6,9 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { dataManager } from './DataManager';
 import { SocketAction } from '@sk/types';
+import { jobManager } from './jobs/JobManager';
+import { membershipExpiryJob } from './jobs/handlers/MembershipExpiryJob';
+import { accuracyAuditJob } from './jobs/handlers/AccuracyAuditJob';
 
 dotenv.config();
 
@@ -44,80 +47,95 @@ io.on('connection', (socket) => {
     });
 
     socket.on('get_data', async (request, callback) => {
-      const { type, organizationId, id, teamId } = request;
+      const { type, orgId, id, teamId } = request;
+      console.log(`Server: get_data requested. Type: ${type}, OrgId: ${orgId}, Id: ${id}`);
       
-      switch(type) {
-          case 'organizations':
-              callback(await dataManager.getOrganizations());
-              break;
-          case 'organization':
-          case 'organization_summary':
-              callback(await dataManager.getOrganization(id));
-              break;
-          case 'teams':
-              callback(await dataManager.getTeams(organizationId));
-              break;
-          case 'team':
-              callback(await dataManager.getTeam(id) || await dataManager.getTeam(teamId));
-              break;
-          case 'venues':
-              callback(await dataManager.getVenues(organizationId));
-              break;
-          case 'venue':
-              callback(await dataManager.getVenue(id));
-              break;
-          case 'games':
-              callback(await dataManager.getGames(organizationId));
-              break;
-          case 'game':
-              callback(await dataManager.getGame(id));
-              break;
-          case 'events':
-              callback(await dataManager.getEvents(organizationId));
-              break;
-          case 'event':
-              callback(await dataManager.getEvent(id));
-              break;
-          case 'sports':
-              callback(await dataManager.getSports());
-              break;
-          case 'roles':
-              callback({
-                  team: await dataManager.getTeamRoles(),
-                  org: await dataManager.getOrganizationRoles()
-              });
-              break;
-          case 'persons':
-              // Avoid sending ALL persons. 
-              // Returns empty as we usually fetch via team or organization context
-              callback([]); 
-              break;
-          case 'organization_members':
-              if (organizationId) {
-                  const members = await dataManager.getOrganizationMembers(organizationId);
-                  console.log(`Server: Returning ${members.length} members for org ${organizationId}`);
-                  callback(members);
-              } else {
-                  console.warn("Server: organization_members requested without organizationId");
-                  callback([]);
-              }
-              break;
-          case 'team_members':
-              // Fetch members for a specific team
-              if (teamId) {
-                  callback(await dataManager.getTeamMembers(teamId));
-              } else {
-                  callback([]);
-              }
-              break;
-          case 'team_memberships':
-               // Deprecated global fetch
-               callback([]);
-               break;
-          case 'organization_memberships':
+      try {
+        switch(type) {
+            case 'organizations':
+                callback(await dataManager.getOrganizations(request));
+                break;
+            case 'reports':
+                // Check if user is app admin
+                if (id && await dataManager.isAppAdmin(id)) {
+                    callback(await dataManager.getReports(request.entityType));
+                } else {
+                    callback([]);
+                }
+                break;
+            case 'organization':
+            case 'org_summary':
+                callback(await dataManager.getOrganization(id));
+                break;
+            case 'teams':
+                callback(await dataManager.getTeams(orgId));
+                break;
+            case 'team':
+                callback(await dataManager.getTeam(id) || await dataManager.getTeam(teamId));
+                break;
+            case 'sites':
+                callback(await dataManager.getSites(orgId));
+                break;
+            case 'site':
+                callback(await dataManager.getSite(id));
+                break;
+            case 'facilities':
+                callback(await dataManager.getFacilities(id)); // Assuming id is siteId
+                break;
+            case 'facility':
+                callback(await dataManager.getFacility(id));
+                break;
+            case 'games':
+                callback(await dataManager.getGames(orgId));
+                break;
+            case 'game':
+                callback(await dataManager.getGame(id));
+                break;
+            case 'events':
+                callback(await dataManager.getEvents(orgId));
+                break;
+            case 'event':
+                callback(await dataManager.getEvent(id));
+                break;
+            case 'sports':
+                callback(await dataManager.getSports());
+                break;
+            case 'roles':
+                callback({
+                    team: await dataManager.getTeamRoles(),
+                    org: await dataManager.getOrganizationRoles()
+                });
+                break;
+            case 'org_profiles':
+                // Avoid sending ALL profiles. 
+                callback([]); 
+                break;
+            case 'org_members':
+                if (orgId) {
+                    const members = await dataManager.getOrganizationMembers(orgId);
+                    console.log(`Server: Returning ${members.length} members for org ${orgId}`);
+                    callback(members);
+                } else {
+                    console.warn("Server: org_members requested without orgId");
+                    callback([]);
+                }
+                break;
+            case 'team_members':
+                // Fetch members for a specific team
+                if (teamId) {
+                    callback(await dataManager.getTeamMembers(teamId));
+                } else {
+                    callback([]);
+                }
+                break;
+            case 'team_memberships':
+                // Deprecated global fetch
+                callback([]);
+                break;
+            case 'org_memberships':
                 callback([]); // Deprecated global fetch
                 break;
-          case 'user_memberships':
+            case 'user_memberships':
                 if (id) {
                     const [orgs, teams] = await Promise.all([
                         dataManager.getUserOrgMemberships(id),
@@ -125,37 +143,31 @@ io.on('connection', (socket) => {
                     ]);
                     // Combine into unified list or send separate?
                     // Let's assume client expects list of memberships
-                    // Wait, getUserOrgMemberships returns OrganizationMembership[]
+                    // Wait, getUserOrgMemberships returns OrgMembership[]
                     callback({ orgs, teams }); 
                 } else {
                     callback({});
                 }
                 break;
-          case 'person_identifiers':
-                if (id) {
-                    callback(await dataManager.getPersonIdentifiers(id));
-                } else {
-                    callback([]);
-                }
-                break;
-          case 'search_similar_orgs':
+
+            case 'search_similar_orgs':
                 if (request.name) {
                     callback(await dataManager.searchSimilarOrganizations(request.name));
                 } else {
                     callback([]);
                 }
                 break;
-          case 'search_people':
+            case 'search_people':
                 if (request.query) {
-                    callback(await dataManager.searchPeople(request.query, request.organizationId));
+                    callback(await dataManager.searchPeople(request.query, request.orgId));
                 } else {
                     callback([]);
                 }
                 break;
-          case 'find_matching_user':
+            case 'find_matching_user':
                 callback(await dataManager.findMatchingUser(request.email, request.name, request.birthdate));
                 break;
-          case 'pending_claims':
+            case 'pending_claims':
                 // Check for pending claims for the user's email(s)
                 // Using request.email for now, assuming client sends it
                 if (request.email) {
@@ -164,23 +176,39 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
-          case 'claim_info':
+            case 'claim_info':
                 if (request.token) {
                     callback(await dataManager.getClaimInfo(request.token));
                 } else {
                     callback(null);
                 }
                 break;
-          case 'notifications':
+            case 'notifications':
                 if (id) { // assuming id is userId
                     callback(await dataManager.getNotifications(id));
                 } else {
                     callback([]);
                 }
                 break;
-          default:
-              console.warn('Unknown get_data type:', type);
-              callback(null);
+            case 'org_referrals':
+                console.log(`Server: Processing org_referrals for ${orgId}`);
+                if (orgId) {
+                    const result = await dataManager.getReferralsForOrg(orgId);
+                    console.log(`Server: Found ${result.length} referrals`);
+                    callback(result);
+                } else {
+                    console.warn(`Server: Missing orgId for org_referrals`);
+                    callback([]);
+                }
+                break;
+            default:
+                console.warn('Unknown get_data type:', type);
+                callback(null);
+        }
+        console.log(`Server: get_data completed. Type: ${type}`);
+      } catch (error) {
+        console.error(`Server: Error in get_data handler (${type}):`, error);
+        callback(null);
       }
     });
 
@@ -201,13 +229,12 @@ io.on('connection', (socket) => {
             } else if (type === 'teams') {
                 const teams = await dataManager.getTeams(orgId);
                 socket.emit('update', { type: 'TEAMS_SYNC', data: teams });
-            } else if (type === 'venues') {
-                const venues = await dataManager.getVenues(orgId);
-                socket.emit('update', { type: 'VENUES_SYNC', data: venues }); // Add VENUES_SYNC handling in client if needed, or iterate
-                // Actually client handles individual updates, but bulk sync is better for initial load
-                // For now, let's reuse loop on client side in handleUpdate if we send array
-                // Or just rely on get_data? No, push on join is better.
-                // Client store handleUpdate handles arrays for some types.
+            } else if (type === 'sites') {
+                const sites = await dataManager.getSites(orgId);
+                socket.emit('update', { type: 'SITES_SYNC', data: sites }); 
+            } else if (type === 'facilities') {
+                const facilities = await dataManager.getFacilities(orgId); // Wait, getFacilities takes siteId, not orgId. Actually we don't have a room for all facilities in an org easily, let's just leave it or fetch all sites and their facilities.
+                // For now skip org-level facilities sync, client will fetch per site.
             } else if (type === 'events') {
                 const events = await dataManager.getEvents(orgId);
                 socket.emit('update', { type: 'EVENTS_SYNC', data: events });
@@ -216,7 +243,14 @@ io.on('connection', (socket) => {
                 socket.emit('update', { type: 'GAMES_SYNC', data: games });
             } else if (type === 'summary') {
                 const org = await dataManager.getOrganization(orgId);
-                if (org) socket.emit('update', { type: 'ORGANIZATIONS_UPDATED', data: org });
+                if (org) {
+                    socket.emit('update', { type: 'ORGANIZATIONS_UPDATED', data: org });
+                } else {
+                    socket.emit('update', { type: 'ENTITY_NOT_FOUND', data: { id: orgId, type: 'organization' } });
+                }
+            } else if (type === 'referrals') {
+                const referrals = await dataManager.getReferralsForOrg(orgId);
+                socket.emit('update', { type: 'ORG_REFERRALS_SYNC', data: referrals });
             }
 
         } else if (room.startsWith('team:')) {
@@ -233,14 +267,25 @@ io.on('connection', (socket) => {
             const eventId = room.split(':')[1];
             const event = await dataManager.getEvent(eventId);
             if (event) socket.emit('update', { type: 'EVENT_UPDATED', data: event });
-        } else if (room.startsWith('venue:')) {
-            const venueId = room.split(':')[1];
-            const venue = await dataManager.getVenue(venueId);
-            if (venue) socket.emit('update', { type: 'VENUE_UPDATED', data: venue });
+        } else if (room.startsWith('site:')) {
+            const siteId = room.split(':')[1];
+            const site = await dataManager.getSite(siteId);
+            if (site) socket.emit('update', { type: 'SITE_UPDATED', data: site });
+        } else if (room.startsWith('facility:')) {
+            const facilityId = room.split(':')[1];
+            const facility = await dataManager.getFacility(facilityId);
+            if (facility) socket.emit('update', { type: 'FACILITY_UPDATED', data: facility });
         } else if (room.startsWith('game:')) {
             const gameId = room.split(':')[1];
             const game = await dataManager.getGame(gameId);
             if (game) socket.emit('update', { type: 'GAME_UPDATED', data: game });
+        } else if (room.startsWith('user:')) {
+            const userId = room.split(':')[1];
+            console.log(`Server: User ${userId} joined their notification room`);
+            // 1. Sync any new referral notifications
+            // 2. Push all existing notifications
+            const notifications = await dataManager.getNotifications(userId);
+            socket.emit('update', { type: 'NOTIFICATIONS_SYNC', data: notifications });
         }
     } catch (error) {
         console.error(`Error pushing data for room ${room}:`, error);
@@ -288,14 +333,12 @@ io.on('connection', (socket) => {
         const uniqueOrgIds = [...new Set(orgIds.filter((id): id is string => !!id))];
         console.log(`Server: Requesting summary broadcast for orgs: ${uniqueOrgIds.join(', ')}`);
         for (const orgId of uniqueOrgIds) {
-            const updatedOrg = await dataManager.getOrganization(orgId);
+            const updatedOrg = await dataManager.refreshOrgSummary(orgId);
             if (updatedOrg) {
                 // Emit to the specific organization summary room (for dashboards)
                 const room = `org:${orgId}:summary`;
                 io.to(room).emit('update', { type: 'ORGANIZATIONS_UPDATED', data: updatedOrg });
-                // Also emit to the global organizations list room (for admin overview)
-                io.to('organizations').emit('update', { type: 'ORGANIZATIONS_UPDATED', data: updatedOrg });
-                console.log(`Server: Broadcasted ORGANIZATIONS_UPDATED for ${orgId} to ${room} and global`);
+                console.log(`Server: Broadcasted ORGANIZATIONS_UPDATED for ${orgId} to ${room}`);
             } else {
                 console.warn(`Server: Could not find organization ${orgId} for summary broadcast`);
             }
@@ -306,22 +349,21 @@ io.on('connection', (socket) => {
         switch(action.type) {
             case SocketAction.DELETE_ORG:
                 result = await dataManager.deleteOrganization(action.payload.id);
-                // Broadcast to rooms that the org is gone
+                // Broadcast to room that the org is gone
                 io.to(`org:${action.payload.id}:summary`).emit('update', { type: 'ORGANIZATIONS_UPDATED', data: { id: action.payload.id, deleted: true } });
-                io.to('organizations').emit('update', { type: 'ORGANIZATIONS_UPDATED', data: { id: action.payload.id, deleted: true } });
                 break;
             case SocketAction.ADD_TEAM:
                 result = await dataManager.addTeam(action.payload);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:teams`, type: 'TEAM_ADDED', data: result });
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_ADDED', data: result });
-                    await broadcastOrgSummaries([result.organizationId]);
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
             case SocketAction.UPDATE_TEAM:
                 result = await dataManager.updateTeam(action.payload.id, action.payload.data);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:teams`, type: 'TEAM_UPDATED', data: result });
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_UPDATED', data: result });
                 }
                 break;
@@ -329,44 +371,81 @@ io.on('connection', (socket) => {
                 const teamToDelete = await dataManager.getTeam(action.payload.id);
                 result = await dataManager.deleteTeam(action.payload.id);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:teams`, type: 'TEAM_DELETED', data: { id: result.id } });
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:teams`, type: 'TEAM_DELETED', data: { id: result.id } });
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_DELETED', data: { id: result.id } });
-                    if (teamToDelete) await broadcastOrgSummaries([teamToDelete.organizationId]);
+                    if (teamToDelete) await broadcastOrgSummaries([teamToDelete.orgId]);
                 }
                 break;
 
             case SocketAction.REFER_ORG_CONTACT:
-                const { organizationId, contactEmails, referredByUserId } = action.payload;
-                result = await dataManager.referOrgContact(organizationId, contactEmails, referredByUserId);
-                // No immediate broadcast needed for referrals, they are private to admin/referrer until claimed
-                // But we return the created referrals to the caller
+                const { orgId, contactEmails, referredByUserId } = action.payload;
+                result = await dataManager.referOrgContact(orgId, contactEmails, referredByUserId);
+                if (Array.isArray(result)) {
+                    result.forEach(ref => {
+                        additionalBroadcasts.push({ 
+                            topic: `org:${orgId}:referrals`, 
+                            type: 'ORG_REFERRAL_ADDED', 
+                            data: ref 
+                        });
+                    });
+                }
                 break;
 
-            case SocketAction.ADD_VENUE:
-                result = await dataManager.addVenue(action.payload);
+            case SocketAction.ADD_SITE:
+                result = await dataManager.addSite(action.payload);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_ADDED', data: result });
-                    additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_ADDED', data: result });
-                    await broadcastOrgSummaries([result.organizationId]);
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:sites`, type: 'SITE_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: `site:${result.id}`, type: 'SITE_ADDED', data: result });
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
-            case SocketAction.UPDATE_VENUE:
-                result = await dataManager.updateVenue(action.payload.id, action.payload.data);
+            case SocketAction.UPDATE_SITE:
+                result = await dataManager.updateSite(action.payload.id, action.payload.data);
                 if (result) {
-                    // Update Org List
-                    additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_UPDATED', data: result });
-                    // Update Venue Room
-                    additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:sites`, type: 'SITE_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `site:${result.id}`, type: 'SITE_UPDATED', data: result });
                 }
                 break;
-            case SocketAction.DELETE_VENUE:
-                result = await dataManager.deleteVenue(action.payload.id);
+            case SocketAction.DELETE_SITE:
+                result = await dataManager.deleteSite(action.payload.id);
                 if (result) {
-                     // Update Org List
-                     additionalBroadcasts.push({ topic: `org:${result.organizationId}:venues`, type: 'VENUE_DELETED', data: { id: result.id } });
-                     // Notify Venue Room
-                     additionalBroadcasts.push({ topic: `venue:${result.id}`, type: 'VENUE_DELETED', data: { id: result.id } });
-                     await broadcastOrgSummaries([result.organizationId]);
+                     additionalBroadcasts.push({ topic: `org:${result.orgId}:sites`, type: 'SITE_DELETED', data: { id: result.id } });
+                     additionalBroadcasts.push({ topic: `site:${result.id}`, type: 'SITE_DELETED', data: { id: result.id } });
+                     await broadcastOrgSummaries([result.orgId]);
+                }
+                break;
+
+            case SocketAction.ADD_FACILITY:
+                result = await dataManager.addFacility(action.payload);
+                if (result) {
+                    const parentSite = await dataManager.getSite(result.siteId);
+                    if (parentSite) {
+                        additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_ADDED', data: result });
+                    }
+                    additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_ADDED', data: result });
+                }
+                break;
+            case SocketAction.UPDATE_FACILITY:
+                result = await dataManager.updateFacility(action.payload.id, action.payload.data);
+                if (result) {
+                    const parentSite = await dataManager.getSite(result.siteId);
+                    if (parentSite) {
+                        additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_UPDATED', data: result });
+                    }
+                    additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_UPDATED', data: result });
+                }
+                break;
+            case SocketAction.DELETE_FACILITY:
+                result = await dataManager.deleteFacility(action.payload.id);
+                if (result) {
+                     const parentSite = await dataManager.getSite(result.siteId);
+                     if (parentSite) {
+                         additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_DELETED', data: { id: result.id } });
+                     }
+                     additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_DELETED', data: { id: result.id } });
+                     additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_DELETED', data: { id: result.id } });
                 }
                 break;
 
@@ -377,7 +456,7 @@ io.on('connection', (socket) => {
                     
                     const parentEvent = await dataManager.getEvent(result.eventId);
                     if (parentEvent) {
-                         const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                         const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                          orgIds.forEach(orgId => {
                              additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
                          });
@@ -392,7 +471,7 @@ io.on('connection', (socket) => {
                     
                     const parentEvent = await dataManager.getEvent(result.eventId);
                     if (parentEvent) {
-                        const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                        const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                         orgIds.forEach(orgId => {
                             additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
                         });
@@ -407,7 +486,7 @@ io.on('connection', (socket) => {
 
                      const parentEvent = await dataManager.getEvent(result.eventId);
                      if (parentEvent) {
-                         const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                         const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                          orgIds.forEach(orgId => {
                              additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
                          });
@@ -419,7 +498,7 @@ io.on('connection', (socket) => {
                 if (result) {
                     const parentEvent = await dataManager.getEvent(result.eventId);
                     if (parentEvent) {
-                        const orgIds = [parentEvent.organizationId, ...(parentEvent.participatingOrgIds || [])];
+                        const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                         orgIds.forEach(orgId => {
                             additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
                         });
@@ -438,12 +517,12 @@ io.on('connection', (socket) => {
                 result = await dataManager.addEvent(action.payload);
                 if (result) {
                     console.log("Server: Event Added, processing broadcasts. Participating:", result.participatingOrgIds);
-                    const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    const orgIds = [result.orgId, ...(result.participatingOrgIds || [])];
                     orgIds.forEach(orgId => {
                         additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_ADDED', data: result });
                     });
                     additionalBroadcasts.push({ topic: `event:${result.id}`, type: 'EVENT_ADDED', data: result });
-                    await broadcastOrgSummaries([result.organizationId, ...(result.participatingOrgIds || [])]);
+                    await broadcastOrgSummaries([result.orgId, ...(result.participatingOrgIds || [])]);
                 }
                 break;
             case SocketAction.UPDATE_EVENT:
@@ -451,8 +530,8 @@ io.on('connection', (socket) => {
                 const oldEvent = await dataManager.getEvent(action.payload.id);
                 result = await dataManager.updateEvent(action.payload.id, action.payload.data);
                 if (result) {
-                    const oldOrgIds = oldEvent ? [oldEvent.organizationId, ...(oldEvent.participatingOrgIds || [])] : [];
-                    const newOrgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    const oldOrgIds = oldEvent ? [oldEvent.orgId, ...(oldEvent.participatingOrgIds || [])] : [];
+                    const newOrgIds = [result.orgId, ...(result.participatingOrgIds || [])];
                     const allAffectedOrgs = [...new Set([...oldOrgIds, ...newOrgIds])];
 
                     newOrgIds.forEach(orgId => {
@@ -472,17 +551,20 @@ io.on('connection', (socket) => {
                 const eventToDelete = await dataManager.getEvent(action.payload.id); 
                 result = await dataManager.deleteEvent(action.payload.id);
                 if (result) {
-                    const orgIds = [result.organizationId, ...(result.participatingOrgIds || [])];
+                    const orgIds = [result.orgId, ...(result.participatingOrgIds || [])];
                     orgIds.forEach(orgId => {
                         additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'EVENT_DELETED', data: { id: result.id } });
                     });
-                    await broadcastOrgSummaries([result.organizationId, ...(result.participatingOrgIds || [])]);
+                    await broadcastOrgSummaries([result.orgId, ...(result.participatingOrgIds || [])]);
                 }
                 break;
 
             case SocketAction.ADD_ORG:
                 result = await dataManager.addOrganization(action.payload);
                 if (result) {
+                    if (action.payload.creatorId) {
+                        additionalBroadcasts.push({ topic: `user:${action.payload.creatorId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                    }
                     await broadcastOrgSummaries([result.id]);
                 }
                 break;
@@ -504,16 +586,23 @@ io.on('connection', (socket) => {
                 const teamForAdd = await dataManager.getTeam(result.teamId);
                 if (teamForAdd) {
                      additionalBroadcasts.push({ 
-                         topic: `org:${teamForAdd.organizationId}:teams`, 
+                         topic: `org:${teamForAdd.orgId}:teams`, 
                          type: 'TEAM_UPDATED', 
                          data: { ...teamForAdd } 
                      });
                 }
 
                 const richMemberAdd = (await dataManager.getTeamMembers(result.teamId)).find((m: any) => m.membershipId === result.id);
-                if (richMemberAdd) result = richMemberAdd;
+                if (richMemberAdd) {
+                    result = richMemberAdd;
+                    
+                    // Refresh memberships for the affected user
+                    if (richMemberAdd.userId) {
+                        additionalBroadcasts.push({ topic: `user:${richMemberAdd.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                    }
+                }
                 if (teamForAdd) {
-                    await broadcastOrgSummaries([teamForAdd.organizationId]);
+                    await broadcastOrgSummaries([teamForAdd.orgId]);
                 }
                 break;
             case SocketAction.UPDATE_TEAM_MEMBER:
@@ -536,78 +625,128 @@ io.on('connection', (socket) => {
                     const teamForRem = await dataManager.getTeam(result.teamId);
                     if (teamForRem) {
                          additionalBroadcasts.push({ 
-                             topic: `org:${teamForRem.organizationId}:teams`, 
+                             topic: `org:${teamForRem.orgId}:teams`, 
                              type: 'TEAM_UPDATED', 
                              data: { ...teamForRem } 
                          });
-                         await broadcastOrgSummaries([teamForRem.organizationId]);
+                         await broadcastOrgSummaries([teamForRem.orgId]);
                     }
                 }
                 break;
             case SocketAction.ADD_ORG_MEMBER:
-                console.log(`DataManager: Adding org member ${action.payload.personId} to ${action.payload.organizationId}`);
-                result = await dataManager.addOrganizationMember(action.payload.personId, action.payload.organizationId, action.payload.roleId, action.payload.id);
+                console.log(`DataManager: Adding org member ${action.payload.orgProfileId} to ${action.payload.orgId}`);
+                result = await dataManager.addOrganizationMember(action.payload.orgProfileId, action.payload.orgId, action.payload.roleId, action.payload.id);
                 if (result) {
-                    const richMember = (await dataManager.getOrganizationMembers(action.payload.organizationId)).find((m: any) => m.membershipId === result.id);
+                    const richMember = (await dataManager.getOrganizationMembers(action.payload.orgId)).find((m: any) => m.membershipId === result.id);
                     if (richMember) {
                         result = richMember;
+                        
+                        // Broadcast to user room if linked to an account
+                        if (richMember.userId) {
+                            additionalBroadcasts.push({ topic: `user:${richMember.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                            
+                            // Send notification
+                            const org = await dataManager.getOrganization(action.payload.orgId);
+                            const role = await dataManager.getOrganizationRole(action.payload.roleId);
+                            if (org && role) {
+                                const notification = await dataManager.createNotification(
+                                    richMember.userId,
+                                    'New Organization Added',
+                                    `You have been added to ${org.name} as a ${role.name}.`,
+                                    'org_added',
+                                    `/admin/organizations/${org.id}`
+                                );
+                                if (notification) {
+                                    io.to(`user:${richMember.userId}`).emit('update', { type: 'NOTIFICATION_ADDED', data: notification });
+                                }
+                            }
+                        }
                     }
                     
-                    updateTopic = `org:${action.payload.organizationId}:members`;
+                    updateTopic = `org:${action.payload.orgId}:members`;
                     updateType = 'ORG_MEMBERS_UPDATED';
-                    await broadcastOrgSummaries([action.payload.organizationId]);
+                    await broadcastOrgSummaries([action.payload.orgId]);
                 }
                 break;
             case SocketAction.UPDATE_ORG_MEMBER:
                 console.log(`DataManager: Updating org member role ${action.payload.id} to ${action.payload.roleId}`);
                 result = await dataManager.updateOrganizationMember(action.payload.id, action.payload.roleId);
                 if (result) {
-                    updateTopic = `org:${result.organizationId}:members`;
+                    updateTopic = `org:${result.orgId}:members`;
                     updateType = 'ORG_MEMBERS_UPDATED';
                     // Re-fetch rich member data for broadcast
-                    const richMember = (await dataManager.getOrganizationMembers(result.organizationId)).find((m: any) => m.membershipId === result.id);
+                    const richMember = (await dataManager.getOrganizationMembers(result.orgId)).find((m: any) => m.membershipId === result.id);
                     if (richMember) result = richMember;
                 }
                 break;
             case SocketAction.REMOVE_ORG_MEMBER:
                 console.log(`DataManager: Removing org member ${action.payload.id}`);
-                const orgMembership = await dataManager.getOrganizationMembership(action.payload.id);
+                const orgMembershipToRem = await dataManager.getOrgMembership(action.payload.id);
                 result = await dataManager.removeOrganizationMember(action.payload.id);
-                if (orgMembership) {
-                    updateTopic = `org:${orgMembership.organizationId}:members`;
+                if (orgMembershipToRem) {
+                    // Refresh memberships for the affected user
+                    const profile = await dataManager.getOrgProfile(orgMembershipToRem.orgProfileId);
+                    if (profile && profile.userId) {
+                        additionalBroadcasts.push({ topic: `user:${profile.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                    }
+
+                    updateTopic = `org:${orgMembershipToRem.orgId}:members`;
                     updateType = 'ORG_MEMBERS_UPDATED';
-                    await broadcastOrgSummaries([orgMembership.organizationId]);
+                    await broadcastOrgSummaries([orgMembershipToRem.orgId]);
                 }
                 break;
-            case SocketAction.ADD_PERSON:
-                result = await dataManager.addPerson(action.payload);
+            case SocketAction.ADD_ORG_PROFILE:
+                result = await dataManager.addOrgProfile(action.payload);
                 break;
-            case SocketAction.UPDATE_PERSON:
-                console.log(`DataManager: Updating person ${action.payload.id}`, action.payload.data);
-                result = await dataManager.updatePerson(action.payload.id, action.payload.data);
+            case SocketAction.UPDATE_ORG_PROFILE:
+                console.log(`DataManager: Updating org profile ${action.payload.id}`, action.payload.data);
+                result = await dataManager.updateOrgProfile(action.payload.id, action.payload.data);
                 break;
-            case SocketAction.DELETE_PERSON:
-                console.log(`DataManager: Deleting person ${action.payload.id}`);
-                result = await dataManager.deletePerson(action.payload.id);
+            case SocketAction.DELETE_ORG_PROFILE:
+                console.log(`DataManager: Deleting org profile ${action.payload.id}`);
+                result = await dataManager.deleteOrgProfile(action.payload.id);
                 break;
-            case SocketAction.SET_PERSON_IDENTIFIER:
-                result = await dataManager.setPersonIdentifier(action.payload.personId, action.payload.organizationId, action.payload.identifier);
-                break;
-            case SocketAction.LINK_USER_PERSON:
-                result = await dataManager.linkUserToPerson(action.payload.email, action.payload.personId);
+            case SocketAction.LINK_USER_PROFILE:
+                result = await dataManager.linkUserToProfile(action.payload.email, action.payload.orgProfileId);
                 break;
             case SocketAction.CLAIM_ORG:
                 result = await dataManager.claimOrganization(action.payload.id, action.payload.userId);
                  if (result) {
+                    additionalBroadcasts.push({ topic: `user:${action.payload.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                    
+                    const role = await dataManager.getOrganizationRole('role-org-admin');
+                    const notification = await dataManager.createNotification(
+                        action.payload.userId,
+                        'Organization Claimed',
+                        `You have successfully claimed ${result.name} and are now an ${role?.name || 'Administrator'}.`,
+                        'org_added',
+                        `/admin/organizations/${result.id}`
+                    );
+                    if (notification) {
+                        io.to(`user:${action.payload.userId}`).emit('update', { type: 'NOTIFICATION_ADDED', data: notification });
+                    }
+
                     await broadcastOrgSummaries([result.id]);
                  }
                 break;
             case SocketAction.CLAIM_ORG_VIA_TOKEN:
                 result = await dataManager.claimOrgViaToken(action.payload.token, action.payload.userId);
                 if (result) {
-                    updateTopic = `organizations`;
-                    updateType = 'ORGANIZATIONS_UPDATED';
-                    additionalBroadcasts.push({ topic: `org:${result.id}:summary`, type: 'ORGANIZATIONS_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `user:${action.payload.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                    
+                    const role = await dataManager.getOrganizationRole('role-org-admin');
+                    const notification = await dataManager.createNotification(
+                        action.payload.userId,
+                        'Organization Claimed',
+                        `You have successfully claimed ${result.name} and are now an ${role?.name || 'Administrator'}.`,
+                        'org_added',
+                        `/admin/organizations/${result.id}`
+                    );
+                    if (notification) {
+                        io.to(`user:${action.payload.userId}`).emit('update', { type: 'NOTIFICATION_ADDED', data: notification });
+                    }
+
+                    await broadcastOrgSummaries([result.id]);
                 }
                 break;
             case SocketAction.DECLINE_CLAIM:
@@ -638,6 +777,13 @@ io.on('connection', (socket) => {
             case SocketAction.FEED_GET_HOME:
                 result = await dataManager.getHomeFeed(action.payload.userId, action.payload.timezone);
                 break;
+            case SocketAction.RESET_CACHE:
+            case SocketAction.GLOBAL_CACHE_REFRESH:
+                dataManager.invalidateCache();
+                // Signal all clients to refresh their local organization state
+                io.emit('update', { type: 'GLOBAL_CACHE_REFRESH', data: {} });
+                result = { message: 'Cache invalidated and refresh signal sent' };
+                break;
 
             default:
                 console.warn('Unknown action type:', action.type);
@@ -656,8 +802,8 @@ io.on('connection', (socket) => {
         if (callback) callback({ status: 'ok', data: result });
 
     } catch (error: any) {
-        console.error(`Error handling action ${action.type}:`, error);
-        if (callback) callback({ status: 'error', message: error.message });
+        console.error(`Server: Error handling action ${action.type}:`, error);
+        if (callback) callback({ status: 'error', message: error.message || 'Internal server error' });
     }
   });
 
@@ -668,4 +814,19 @@ io.on('connection', (socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  
+  // Start Jobs
+  jobManager.registerJob({
+      name: 'membership-expiry',
+      intervalMs: 60 * 60 * 1000, // 1 hour
+      handler: membershipExpiryJob
+  });
+  
+  jobManager.registerJob({
+      name: 'accuracy-audit',
+      intervalMs: 24 * 60 * 60 * 1000, // 24 hours
+      handler: accuracyAuditJob
+  });
+  
+  jobManager.start();
 });

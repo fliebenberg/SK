@@ -26,7 +26,7 @@ import { MetalButton } from "@/components/ui/MetalButton";
 interface TeamCreationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  organizationId: string;
+  orgId: string;
   initialName?: string;
   initialSportId?: string;
   initialAgeGroup?: string;
@@ -36,7 +36,7 @@ interface TeamCreationDialogProps {
 export function TeamCreationDialog({
   open,
   onOpenChange,
-  organizationId,
+  orgId,
   initialName = "",
   initialSportId = "",
   initialAgeGroup = "Open",
@@ -54,14 +54,14 @@ export function TeamCreationDialog({
   useEffect(() => {
     const update = () => {
         setSports(store.getSports());
-        const org = store.getOrganization(organizationId);
+        const org = store.getOrganization(orgId);
         if (org) setCurrentOrg(org);
-        else if (organizationId) store.fetchOrganization(organizationId);
+        else if (orgId) store.fetchOrganization(orgId);
     };
     update();
     const unsub = store.subscribe(update);
     return unsub;
-  }, [organizationId]);
+  }, [orgId]);
 
   useEffect(() => {
     if (open) {
@@ -74,13 +74,13 @@ export function TeamCreationDialog({
   }, [open, initialName, initialSportId, initialAgeGroup, sports]);
 
   const handleSave = async () => {
-    if (!formData.name.trim() || !formData.sportId || !organizationId) return;
+    if (!formData.name.trim() || !formData.sportId || !orgId) return;
 
     setLoading(true);
     try {
       const newTeam = await store.addTeam({
         name: formData.name,
-        organizationId,
+        orgId,
         sportId: formData.sportId,
         ageGroup: formData.ageGroup,
       });
@@ -168,3 +168,4 @@ export function TeamCreationDialog({
     </Dialog>
   );
 }
+

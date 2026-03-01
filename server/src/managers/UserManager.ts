@@ -1,7 +1,8 @@
-import { Person, OrganizationMembership, User, UserEmail } from "@sk/types";
+import { OrgProfile, OrgMembership, User, UserEmail } from "@sk/types";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
+import { imageService } from "../services/ImageService";
 
 export class UserManager extends BaseManager {
   // --- Account Management (Users Table) ---
@@ -12,7 +13,6 @@ export class UserManager extends BaseManager {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    // Check primary email in users table, OR secondary emails in user_emails
     const res = await this.query(`
       SELECT u.* FROM users u
       LEFT JOIN user_emails ue ON u.id = ue.user_id
@@ -31,7 +31,6 @@ export class UserManager extends BaseManager {
       [id, user.name, user.email, user.image, user.passwordHash, user.globalRole || 'user']
     );
     
-    // Auto-create primary email entry
     if (user.email) {
       await this.addEmail(id, user.email, true, true);
     }
@@ -85,7 +84,7 @@ export class UserManager extends BaseManager {
       UNION
       SELECT email FROM users WHERE id = $1
     `, [userId]);
-    return res.rows.map(r => r.email);
+    return res.rows.map((r: any) => r.email);
   }
 
   async addEmail(userId: string, email: string, isPrimary = false, verified = false): Promise<UserEmail> {
@@ -112,32 +111,25 @@ export class UserManager extends BaseManager {
   // --- Consolidation / Merging ---
 
   async mergeAccounts(primaryUserId: string, secondaryUserId: string): Promise<void> {
-    // 1. Transfer Emails
     await this.query('UPDATE user_emails SET user_id = $1, is_primary = false WHERE user_id = $2', [primaryUserId, secondaryUserId]);
 
-    // 2. Transfer Memberships (Org & Team)
-    // Avoid duplicates if they are already in the same org/team
     await this.query(`
-      UPDATE organization_memberships 
-      SET person_id = $1 
-      WHERE person_id = $2 
-      AND NOT EXISTS (
-        SELECT 1 FROM organization_memberships om2 
-        WHERE om2.person_id = $1 AND om2.organization_id = organization_memberships.organization_id
-      )
+      UPDATE org_memberships 
+      SET org_profile_id = (SELECT id FROM org_profiles WHERE user_id = $1 AND org_id = org_memberships.org_id LIMIT 1)
+      WHERE org_profile_id IN (SELECT id FROM org_profiles WHERE user_id = $2)
     `, [primaryUserId, secondaryUserId]);
 
     await this.query(`
       UPDATE team_memberships 
-      SET person_id = $1 
-      WHERE person_id = $2 
-      AND NOT EXISTS (
-        SELECT 1 FROM team_memberships tm2 
-        WHERE tm2.person_id = $1 AND tm2.team_id = team_memberships.team_id AND tm2.role_id = team_memberships.role_id
+      SET org_profile_id = (
+          SELECT op.id 
+          FROM org_profiles op
+          JOIN teams t ON t.org_id = op.org_id 
+          WHERE op.user_id = $1 AND t.id = team_memberships.team_id LIMIT 1
       )
+      WHERE org_profile_id IN (SELECT id FROM org_profiles WHERE user_id = $2)
     `, [primaryUserId, secondaryUserId]);
 
-    // 3. Transfer Favorites
     await this.query(`
       UPDATE user_favorites 
       SET user_id = $1 
@@ -148,7 +140,6 @@ export class UserManager extends BaseManager {
       )
     `, [primaryUserId, secondaryUserId]);
 
-    // 4. Delete Secondary User
     await this.query('DELETE FROM users WHERE id = $1', [secondaryUserId]);
   }
 
@@ -200,43 +191,80 @@ export class UserManager extends BaseManager {
     await this.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId]);
   }
 
-  // --- Existing Logic (Persons & Memberships) ---
+  // --- Org Profiles (Replacement for Persons) ---
+  
+  async getOrgProfile(id: string): Promise<OrgProfile | undefined> {
+    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId" FROM org_profiles WHERE id = $1', [id]);
+    return res.rows[0];
+  }
 
-  async addPerson(person: Omit<Person, 'id'> & { id?: string }): Promise<Person> {
-    const id = person.id || `person-${Date.now()}`;
+  async addOrgProfile(profile: Omit<OrgProfile, 'id'> & { id?: string }): Promise<OrgProfile> {
+    const id = profile.id || `op-${Date.now()}`;
+    let processedImage: string | null = null;
+
+    if (profile.image && profile.image.startsWith('data:image')) {
+        processedImage = await imageService.processProfileImage(profile.image, id);
+    } else {
+        processedImage = profile.image || null;
+    }
+
     const res = await this.query(
-      `INSERT INTO persons (id, name, email, birthdate, national_id) 
-       VALUES ($1, $2, $3, $4, $5) 
-       ON CONFLICT (id) DO UPDATE SET 
+      `INSERT INTO org_profiles (id, org_id, user_id, name, email, birthdate, national_id, identifier, image, primary_role_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+       ON CONFLICT (org_id, identifier) DO UPDATE SET 
+         user_id = EXCLUDED.user_id,
          name = EXCLUDED.name,
-         email = COALESCE(persons.email, EXCLUDED.email),
-         birthdate = COALESCE(persons.birthdate, EXCLUDED.birthdate),
-         national_id = COALESCE(persons.national_id, EXCLUDED.national_id)
-       RETURNING id, name, email, birthdate, national_id as "nationalId"`, 
-      [id, person.name, person.email, person.birthdate, person.nationalId]
+         email = COALESCE(org_profiles.email, EXCLUDED.email),
+         birthdate = COALESCE(org_profiles.birthdate, EXCLUDED.birthdate),
+         national_id = COALESCE(org_profiles.national_id, EXCLUDED.national_id),
+         image = COALESCE(EXCLUDED.image, org_profiles.image),
+         primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id)
+       RETURNING id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId"`, 
+      [id, profile.orgId, profile.userId, profile.name, profile.email, profile.birthdate, profile.nationalId, profile.identifier, processedImage, profile.primaryRoleId]
     );
     return res.rows[0];
   }
 
-  async updatePerson(id: string, data: Partial<Person>): Promise<Person | null> {
-    const keys = Object.keys(data).filter(k => k !== 'id');
+  async updateOrgProfile(id: string, data: Partial<OrgProfile>): Promise<OrgProfile | null> {
+    const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'orgId');
     if (keys.length === 0) return null;
 
+    let processedImage: string | undefined = undefined;
+    if (data.image) {
+        if (data.image.startsWith('data:image')) {
+            processedImage = await imageService.processProfileImage(data.image, id);
+        } else {
+            processedImage = data.image; // e.g. a deletion or keeping it same
+        }
+    }
+
     const map: Record<string, string> = {
+      userId: 'user_id',
       name: 'name',
       email: 'email',
       birthdate: 'birthdate',
-      nationalId: 'national_id'
+      nationalId: 'national_id',
+      identifier: 'identifier',
+      image: 'image',
+      primaryRoleId: 'primary_role_id'
     };
 
     const clauses: string[] = [];
     const values: any[] = [];
     let idx = 1;
 
+    // Optional: Delete old image if it changed
+    if (processedImage !== undefined) {
+        const oldProfile = (await this.query('SELECT image FROM org_profiles WHERE id = $1', [id])).rows[0];
+        if (oldProfile && oldProfile.image && oldProfile.image !== processedImage) {
+            await this.safeDeleteProfileImage(oldProfile.image);
+        }
+    }
+
     keys.forEach(key => {
       if (map[key]) {
         clauses.push(`${map[key]} = $${idx}`);
-        values.push((data as any)[key]);
+        values.push(key === 'image' && processedImage !== undefined ? processedImage : (data as any)[key]);
         idx++;
       }
     });
@@ -245,118 +273,109 @@ export class UserManager extends BaseManager {
 
     values.push(id);
     const res = await this.query(
-      `UPDATE persons SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, name, email, birthdate, national_id as "nationalId"`,
+      `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId"`,
       values
     );
     return res.rows[0] || null;
   }
 
-  // --- Person Identifiers (Org-specific IDs) ---
-
-  async getPersonIdentifiers(personId: string): Promise<any[]> {
-    const res = await this.query(
-      `SELECT id, person_id as "personId", organization_id as "organizationId", identifier 
-       FROM person_identifiers WHERE person_id = $1`,
-      [personId]
-    );
-    return res.rows;
-  }
-
-  async setPersonIdentifier(personId: string, organizationId: string, identifier: string): Promise<any> {
-    const id = `pi-${Date.now()}`;
-    const res = await this.query(
-      `INSERT INTO person_identifiers (id, person_id, organization_id, identifier)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (organization_id, identifier) DO UPDATE SET person_id = EXCLUDED.person_id
-       RETURNING id, person_id as "personId", organization_id as "organizationId", identifier`,
-      [id, personId, organizationId, identifier]
-    );
-    return res.rows[0];
-  }
-
-  async getOrganizationMembers(organizationId: string): Promise<any[]> {
+  async getOrganizationMembers(orgId: string): Promise<any[]> {
     const res = await this.query(`
         SELECT 
             om.id as "membershipId", om.role_id as "roleId", om.start_date as "startDate", om.end_date as "endDate",
-            p.id, p.name, p.email, p.birthdate, p.national_id as "nationalId",
-            pi.identifier as "personOrgId",
-            om.organization_id as "organizationId"
-        FROM organization_memberships om
-        JOIN persons p ON om.person_id = p.id
-        LEFT JOIN person_identifiers pi ON p.id = pi.person_id AND pi.organization_id = om.organization_id
-        WHERE om.organization_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
-    `, [organizationId]);
+            op.id, op.name, op.email, op.birthdate, op.national_id as "nationalId",
+            op.identifier as "personOrgId",
+            op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId"
+        FROM org_memberships om
+        JOIN org_profiles op ON om.org_profile_id = op.id
+        WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
+    `, [orgId]);
     
-    const members = res.rows.map(row => ({
+    const members = res.rows.map((row: any) => ({
         ...row,
         roleName: organizationManager.getOrganizationRole(row.roleId)?.name
     }));
-    console.log(`UserManager: Found ${members.length} members for org ${organizationId}`);
     return members;
   }
 
-  async getOrganizationMembership(id: string): Promise<OrganizationMembership | undefined> {
-    const res = await this.query('SELECT id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate" FROM organization_memberships WHERE id = $1', [id]);
+  async getOrgMembership(id: string): Promise<OrgMembership | undefined> {
+    const res = await this.query('SELECT id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate" FROM org_memberships WHERE id = $1', [id]);
     return res.rows[0];
   }
 
-  async addOrganizationMember(personId: string, organizationId: string, roleId: string, id?: string): Promise<OrganizationMembership> {
+  async addOrganizationMember(orgProfileId: string, orgId: string, roleId: string, id?: string): Promise<OrgMembership> {
+    if (!orgProfileId) {
+        throw new Error("Cannot add organization member: orgProfileId is required");
+    }
     const existing = await this.query(
-       `SELECT * FROM organization_memberships WHERE person_id = $1 AND organization_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
-       [personId, organizationId]
+       `SELECT * FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
+       [orgProfileId, orgId]
     );
     if (existing.rowCount! > 0) {
         const mId = existing.rows[0].id;
-        await this.query('UPDATE organization_memberships SET role_id = $1 WHERE id = $2', [roleId, mId]);
-        await organizationManager.syncClaimedStatus(organizationId);
-        return { ...existing.rows[0], roleId };
+        await this.query('UPDATE org_memberships SET role_id = $1 WHERE id = $2', [roleId, mId]);
+        await organizationManager.syncClaimedStatus(orgId);
+        return { ...existing.rows[0], roleId, orgProfileId };
     }
 
     const finalId = id || `org-mem-${Date.now()}`;
     const res = await this.query(
-        `INSERT INTO organization_memberships (id, person_id, organization_id, role_id, start_date)
+        `INSERT INTO org_memberships (id, org_profile_id, org_id, role_id, start_date)
          VALUES ($1, $2, $3, $4, NOW())
-         RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
-         [finalId, personId, organizationId, roleId]
+         RETURNING id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+         [finalId, orgProfileId, orgId, roleId]
     );
-    await organizationManager.syncClaimedStatus(organizationId);
+    await organizationManager.syncClaimedStatus(orgId);
+    
+    // Increment member count
+    await this.query(
+        `UPDATE organizations SET member_count = member_count + 1 WHERE id = $1`,
+        [orgId]
+    );
+
     return res.rows[0];
   }
 
-  async updateOrganizationMember(membershipId: string, roleId: string): Promise<OrganizationMembership | null> {
+  async updateOrganizationMember(membershipId: string, roleId: string): Promise<OrgMembership | null> {
       const res = await this.query(
-          `UPDATE organization_memberships SET role_id = $1 WHERE id = $2 RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+          `UPDATE org_memberships SET role_id = $1 WHERE id = $2 RETURNING id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
           [roleId, membershipId]
     );
     if (res.rows[0]) {
-        await organizationManager.syncClaimedStatus(res.rows[0].organizationId);
+        await organizationManager.syncClaimedStatus(res.rows[0].orgId);
     }
     return res.rows[0] || null;
   }
 
-  async removeOrganizationMember(membershipId: string): Promise<OrganizationMembership | null> {
+  async removeOrganizationMember(membershipId: string): Promise<OrgMembership | null> {
       const res = await this.query(
-          `UPDATE organization_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
+          `UPDATE org_memberships SET end_date = NOW() WHERE id = $1 RETURNING id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"`,
           [membershipId]
       );
       if (res.rows[0]) {
-          await organizationManager.syncClaimedStatus(res.rows[0].organizationId);
+          const membership = res.rows[0];
+          await organizationManager.syncClaimedStatus(membership.orgId);
+          // Decrement member count
+          await this.query(
+              `UPDATE organizations SET member_count = member_count - 1 WHERE id = $1`,
+              [membership.orgId]
+          );
       }
       return res.rows[0] || null;
   }
 
   // --- User-Centric Membership Queries ---
 
-  async getUserOrgMemberships(userId: string): Promise<OrganizationMembership[]> {
+  async getUserOrgMemberships(userId: string): Promise<OrgMembership[]> {
     const res = await this.query(`
-      SELECT id, person_id as "personId", organization_id as "organizationId", role_id as "roleId", start_date as "startDate", end_date as "endDate"
-      FROM organization_memberships
-      WHERE person_id IN (
-        SELECT id FROM persons WHERE email IN (
+      SELECT id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"
+      FROM org_memberships
+      WHERE org_profile_id IN (
+        SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
           SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
           UNION
           SELECT email FROM users WHERE id = $1
-        ) OR id = $1
+        )
       ) AND (end_date IS NULL OR end_date > NOW())
     `, [userId]);
     return res.rows;
@@ -365,16 +384,16 @@ export class UserManager extends BaseManager {
   async getUserTeamMemberships(userId: string): Promise<any[]> {
     const res = await this.query(`
       SELECT 
-        tm.id, tm.person_id as "personId", tm.team_id as "teamId", tm.role_id as "roleId", tm.start_date as "startDate", tm.end_date as "endDate",
-        t.organization_id as "organizationId"
+        tm.id, tm.org_profile_id as "orgProfileId", tm.team_id as "teamId", tm.role_id as "roleId", tm.start_date as "startDate", tm.end_date as "endDate",
+        t.org_id as "orgId"
       FROM team_memberships tm
       JOIN teams t ON tm.team_id = t.id
-      WHERE tm.person_id IN (
-        SELECT id FROM persons WHERE email IN (
+      WHERE tm.org_profile_id IN (
+        SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
           SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
           UNION
           SELECT email FROM users WHERE id = $1
-        ) OR id = $1
+        )
       ) AND (tm.end_date IS NULL OR tm.end_date > NOW())
     `, [userId]);
     return res.rows;
@@ -382,21 +401,20 @@ export class UserManager extends BaseManager {
 
   // --- Search & Matching ---
 
-  async searchPeople(searchTerm: string, organizationId?: string, orgDomain?: string): Promise<any[]> {
-    // Term should be at least 2 chars
+  async searchProfiles(searchTerm: string, orgId?: string, orgDomain?: string): Promise<any[]> {
     if (!searchTerm || searchTerm.trim().length < 2) return [];
 
     const queryStr = `
       WITH search_results AS (
         SELECT 
-          p.id, p.name, p.email, p.birthdate, p.national_id as "nationalId",
-          similarity(p.name, $1) as name_sim,
-          similarity(p.email, $1) as email_sim,
-          EXISTS(SELECT 1 FROM organization_memberships om WHERE om.person_id = p.id AND om.organization_id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())) as is_member,
-          (CASE WHEN p.email ILIKE $4 THEN 1 ELSE 0 END) as domain_match,
-          (SELECT identifier FROM person_identifiers pi WHERE pi.person_id = p.id AND pi.organization_id = $2 LIMIT 1) as "personOrgId"
-        FROM persons p
-        WHERE p.name % $1 OR p.email % $1 OR p.name ILIKE $3 OR p.email ILIKE $3
+          op.id, op.name, op.email, op.birthdate, op.national_id as "nationalId", op.identifier,
+          similarity(op.name, $1) as name_sim,
+          similarity(op.email, $1) as email_sim,
+          EXISTS(SELECT 1 FROM org_memberships om WHERE om.org_profile_id = op.id AND om.org_id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())) as is_member,
+          (CASE WHEN op.email ILIKE $4 THEN 1 ELSE 0 END) as domain_match
+        FROM org_profiles op
+        WHERE (op.name % $1 OR op.email % $1 OR op.name ILIKE $3 OR op.email ILIKE $3)
+          AND (op.org_id = $2 OR $2 IS NULL)
       )
       SELECT *,
         (GREATEST(name_sim, email_sim) + (CASE WHEN is_member THEN 0.5 ELSE 0 END) + (CASE WHEN domain_match = 1 THEN 0.3 ELSE 0 END)) as final_score
@@ -406,20 +424,20 @@ export class UserManager extends BaseManager {
     `;
 
     const domainPattern = orgDomain ? `%@${orgDomain}%` : '%@no-domain.com%';
-    const res = await this.query(queryStr, [searchTerm, organizationId || null, `%${searchTerm}%`, domainPattern]);
+    const res = await this.query(queryStr, [searchTerm, orgId || null, `%${searchTerm}%`, domainPattern]);
     return res.rows;
   }
+
+  searchPeople = this.searchProfiles;
 
   async findMatchingUser(email?: string, name?: string, birthdate?: string): Promise<User | null> {
     if (!email && !birthdate) return null;
 
-    // Primarily match by email
     if (email) {
       const user = await this.getUserByEmail(email);
       if (user) return user;
     }
 
-    // Secondary match: same name AND same birthdate
     if (name && birthdate) {
       const res = await this.query(`
         SELECT * FROM users 
@@ -432,57 +450,88 @@ export class UserManager extends BaseManager {
     return null;
   }
 
-  async linkUserToPerson(email: string, personId: string): Promise<Person | null> {
-    // Explicitly update the person's email to match the user's email, establishing the link
-    return this.updatePerson(personId, { email });
+  async linkUserToProfile(email: string, orgProfileId: string): Promise<OrgProfile | null> {
+    return this.updateOrgProfile(orgProfileId, { email });
   }
 
-  /**
-   * Finds or creates a Person record for a user in the context of a specific organization.
-   * This respects the idea that a user can have multiple identities (one per org).
-   */
-  async ensurePersonForUserInOrg(userId: string, organizationId: string): Promise<string> {
+  async ensureProfileForUserInOrg(userId: string, orgId: string): Promise<string> {
     const user = await this.getUser(userId);
     if (!user) throw new Error("User not found");
 
     const emails = await this.getVerifiedEmails(userId);
     
-    // 1. Look for an existing person with one of these emails ALREADY in this organization
-    const existingPersonRes = await this.query(`
-      SELECT p.id 
-      FROM persons p
-      JOIN organization_memberships om ON p.id = om.person_id
-      WHERE (p.email = ANY($1) OR p.id = $2)
-        AND om.organization_id = $3
+    // Look for an existing profile with user_id or matching emails IN THIS ORG
+    const existingProfileRes = await this.query(`
+      SELECT id FROM org_profiles
+      WHERE (user_id = $1 OR email = ANY($2))
+        AND org_id = $3
       LIMIT 1
-    `, [emails, userId, organizationId]);
+    `, [userId, emails, orgId]);
 
-    if (existingPersonRes.rows.length > 0) {
-      return existingPersonRes.rows[0].id;
+    if (existingProfileRes.rows.length > 0) {
+      // Ensure user_id is set
+      const profileId = existingProfileRes.rows[0].id;
+      await this.updateOrgProfile(profileId, { userId });
+      return profileId;
     }
 
-    // 2. If not found, create a NEW person for this organization context
-    const personId = `p-${randomBytes(8).toString('hex')}`;
-    await this.addPerson({
-      id: personId,
+    // Create a NEW profile for this organization
+    const profile = await this.addOrgProfile({
+      orgId: orgId,
+      userId,
       name: user.name || user.email || "Unknown User",
-      email: user.email // Use primary email
+      email: user.email,
+      image: user.image
     });
 
-    return personId;
+    return profile.id;
   }
 
-  async deletePerson(id: string): Promise<Person | null> {
-      const person = (await this.query('SELECT * FROM persons WHERE id = $1', [id])).rows[0];
-      if (!person) return null;
+  async safeDeleteProfileImage(imagePath: string): Promise<void> {
+    if (!imagePath || imagePath.startsWith('http') || imagePath.startsWith('data:')) return;
+    
+    // Check if any org_profile still uses it
+    const profileRes = await this.query('SELECT 1 FROM org_profiles WHERE image = $1 LIMIT 1', [imagePath]);
+    if (profileRes.rowCount! > 0) return;
 
-      // Clean up dependencies
-      await this.query('DELETE FROM team_memberships WHERE person_id = $1', [id]);
-      await this.query('DELETE FROM organization_memberships WHERE person_id = $1', [id]);
-      await this.query('DELETE FROM person_identifiers WHERE person_id = $1', [id]);
+    // Check if any user still uses it
+    const userRes = await this.query('SELECT 1 FROM users WHERE image = $1 LIMIT 1', [imagePath]);
+    if (userRes.rowCount! > 0) return;
 
-      await this.query('DELETE FROM persons WHERE id = $1', [id]);
-      return person;
+    // Okay to delete
+    await imageService.deleteProfileImage(imagePath);
+  }
+
+  async deleteOrgProfile(id: string): Promise<OrgProfile | null> {
+      const profile = (await this.query('SELECT * FROM org_profiles WHERE id = $1', [id])).rows[0];
+      if (!profile) return null;
+
+      // Get active memberships to decrement count
+      const activeMemberships = await this.query(
+          `SELECT COUNT(*)::int as count FROM org_memberships 
+           WHERE org_profile_id = $1 AND (end_date IS NULL OR end_date > NOW())`,
+          [id]
+      );
+      const activeCount = activeMemberships.rows[0].count;
+
+      await this.query('DELETE FROM team_memberships WHERE org_profile_id = $1', [id]);
+      await this.query('DELETE FROM org_memberships WHERE org_profile_id = $1', [id]);
+
+      await this.query('DELETE FROM org_profiles WHERE id = $1', [id]);
+
+      if (activeCount > 0) {
+          await this.query(
+              `UPDATE organizations SET member_count = member_count - $1 WHERE id = $2`,
+              [activeCount, profile.orgId]
+          );
+      }
+
+      // Attempt safe delete of image
+      if (profile.image) {
+          await this.safeDeleteProfileImage(profile.image);
+      }
+
+      return profile;
   }
 }
 

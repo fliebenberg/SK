@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Settings } from "lucide-react"
+import { Settings, Check } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export function SettingsMenu() {
-  const { setTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
 
   return (
     <DropdownMenu>
@@ -28,16 +28,24 @@ export function SettingsMenu() {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Theme</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => setTheme("dark-green")}>
-          Dark (Green)
+        <DropdownMenuItem onClick={() => setTheme("system")} className="flex items-center justify-between cursor-pointer">
+          <span>Browser Default</span>
+          {theme === "system" && <Check className="h-4 w-4 text-primary" />}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark-orange")}>
-          Dark (Orange)
+        <DropdownMenuItem onClick={() => setTheme("dark-green")} className="flex items-center justify-between cursor-pointer">
+          <span>Dark (Green)</span>
+          {theme === "dark-green" && <Check className="h-4 w-4 text-primary" />}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("light-orange")}>
-          Light (Orange)
+        <DropdownMenuItem onClick={() => setTheme("dark-orange")} className="flex items-center justify-between cursor-pointer">
+          <span>Dark (Orange)</span>
+          {theme === "dark-orange" && <Check className="h-4 w-4 text-primary" />}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("light-orange")} className="flex items-center justify-between cursor-pointer">
+          <span>Light (Orange)</span>
+          {theme === "light-orange" && <Check className="h-4 w-4 text-primary" />}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
+

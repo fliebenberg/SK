@@ -9,3 +9,4 @@ export const AVAILABLE_SPORTS = [
 ] as const;
 
 export type SportType = typeof AVAILABLE_SPORTS[number];
+

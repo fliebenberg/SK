@@ -1,4 +1,4 @@
-import { Organization, Team, Venue, Person, User, Event, Game, ScoreLog, TeamMembership, Sport, OrganizationMembership, TeamRole, OrganizationRole, PersonIdentifier, SocketAction, Notification, UserBadge, levenshtein } from "@sk/types";
+import { Organization, Team, Site, Facility, OrgProfile, User, Event, Game, ScoreLog, TeamMembership, Sport, OrgMembership, TeamRole, OrganizationRole, SocketAction, Notification, UserBadge, levenshtein } from "@sk/types";
 import { socket, socketService } from "../../lib/socketService";
 
   const MOCK_ORG_ID = "org-1";
@@ -8,19 +8,24 @@ import { socket, socketService } from "../../lib/socketService";
     teamRoles: TeamRole[] = [];
     organizationRoles: OrganizationRole[] = [];
     organizations: Organization[] = [];
-    venues: Venue[] = [];
+    sites: Site[] = [];
+    facilities: Facility[] = [];
     teams: Team[] = [];
     // These now act as a cache for subscribed data, not global state
-    persons: Person[] = [];
+    orgProfiles: OrgProfile[] = [];
     teamMemberships: TeamMembership[] = [];
-    organizationMemberships: OrganizationMembership[] = [];
+    organizationMemberships: OrgMembership[] = [];
     events: Event[] = [];
     games: Game[] = [];
     scoreLogs: ScoreLog[] = [];
-    userOrgMemberships: OrganizationMembership[] = [];
+    userOrgMemberships: OrgMembership[] = [];
     userTeamMemberships: any[] = [];
     notifications: Notification[] = [];
     unreadCount: number = 0;
+    orgReferrals: any[] = [];
+    currentUserId: string | null = null;
+    totalOrganizations: number = 0;
+    reports: any[] = [];
     
     private localOrganizationCache: Organization[] = [];
     private readonly MAX_LOCAL_ORGS = 1000;
@@ -34,8 +39,13 @@ import { socket, socketService } from "../../lib/socketService";
     activeOrgDataSubscriptions: Set<string> = new Set(); // New set for data
     activeOrgSummarySubscriptions: Set<string> = new Set(); // New set for lightweight summaries
     activeEventSubscriptions: Set<string> = new Set();
-    activeVenueSubscriptions: Set<string> = new Set();
+    activeSiteSubscriptions: Set<string> = new Set();
+    activeFacilitySubscriptions: Set<string> = new Set();
     activeGameSubscriptions: Set<string> = new Set();
+    activeOrgReferralSubscriptions: Set<string> = new Set();
+
+    // Track explicitly missing entities (e.g. 404s)
+    missingOrganizations: Set<string> = new Set();
 
     constructor() {
         if (typeof window !== 'undefined') {
@@ -48,6 +58,7 @@ import { socket, socketService } from "../../lib/socketService";
 
     isLoaded = () => this.loaded;
     isConnected = () => this.connected;
+    isOrganizationMissing = (id: string) => this.missingOrganizations.has(id);
 
     subscribe(listener: () => void) {
         this.listeners.push(listener);
@@ -87,34 +98,76 @@ import { socket, socketService } from "../../lib/socketService";
         });
     }
 
-    subscribeToOrganization(organizationId: string) {
-        const key = `org:${organizationId}:members`;
+    subscribeToOrganization(orgId: string) {
+        const key = `org:${orgId}:members`;
         if (this.cancelUnsubscribe(key)) return;
 
-        if (this.activeOrgSubscriptions.has(organizationId)) return;
+        if (this.activeOrgSubscriptions.has(orgId)) return;
 
-        console.log(`Store: Subscribing to organization ${organizationId} members`);
-        this.activeOrgSubscriptions.add(organizationId);
-        socket.emit('join_room', `org:${organizationId}:members`);
+        console.log(`Store: Subscribing to organization ${orgId} members`);
+        this.activeOrgSubscriptions.add(orgId);
+        socket.emit('join_room', `org:${orgId}:members`);
 
-        socket.emit('get_data', { type: 'organization_members', organizationId }, (data: any[]) => {
+        socket.emit('get_data', { type: 'org_members', orgId }, (data: any[]) => {
             // Deprecated: Server now pushes ORG_MEMBERS_SYNC on join
             if (data) {
                  // Open to keeping this as a fallback or removing entirely. 
                  // Removing the logic body to rely on push.
-                 console.log(`Store: (Deprecated) Manual fetch for org ${organizationId} members returned ${data.length} items.`);
+                 console.log(`Store: (Deprecated) Manual fetch for org ${orgId} members returned ${data.length} items.`);
             }
         });
     }
 
-    unsubscribeFromOrganization(organizationId: string) {
-        const key = `org:${organizationId}:members`;
-        this.scheduleUnsubscribe(key, () => {
-            if (!this.activeOrgSubscriptions.has(organizationId)) return;
+    subscribeToNotifications(userId: string) {
+        if (!userId) return;
+        const key = `user:${userId}:notifications`;
+        if (this.cancelUnsubscribe(key)) return;
 
-            console.log(`Store: Unsubscribing from organization ${organizationId} members`);
-            this.activeOrgSubscriptions.delete(organizationId);
-            socket.emit('leave_room', `org:${organizationId}:members`);
+        console.log(`Store: Subscribing to notifications for user ${userId}`);
+        socket.emit('join_room', `user:${userId}`);
+    }
+
+    unsubscribeFromNotifications(userId: string) {
+        if (!userId) return;
+        const key = `user:${userId}:notifications`;
+        this.scheduleUnsubscribe(key, () => {
+            console.log(`Store: Unsubscribing from notifications for user ${userId}`);
+            socket.emit('leave_room', `user:${userId}`);
+        });
+    }
+
+    subscribeToOrgReferrals(orgId: string) {
+        if (!orgId) return;
+        const key = `org:${orgId}:referrals`;
+        if (this.cancelUnsubscribe(key)) return;
+
+        if (this.activeOrgReferralSubscriptions.has(orgId)) return;
+
+        console.log(`Store: Subscribing to organization ${orgId} referrals`);
+        this.activeOrgReferralSubscriptions.add(orgId);
+        socket.emit('join_room', `org:${orgId}:referrals`);
+    }
+
+    unsubscribeFromOrgReferrals(orgId: string) {
+        if (!orgId) return;
+        const key = `org:${orgId}:referrals`;
+        this.scheduleUnsubscribe(key, () => {
+            if (!this.activeOrgReferralSubscriptions.has(orgId)) return;
+
+            console.log(`Store: Unsubscribing from organization ${orgId} referrals`);
+            this.activeOrgReferralSubscriptions.delete(orgId);
+            socket.emit('leave_room', `org:${orgId}:referrals`);
+        });
+    }
+
+    unsubscribeFromOrganization(orgId: string) {
+        const key = `org:${orgId}:members`;
+        this.scheduleUnsubscribe(key, () => {
+            if (!this.activeOrgSubscriptions.has(orgId)) return;
+
+            console.log(`Store: Unsubscribing from organization ${orgId} members`);
+            this.activeOrgSubscriptions.delete(orgId);
+            socket.emit('leave_room', `org:${orgId}:members`);
         });
     }
 
@@ -146,10 +199,10 @@ import { socket, socketService } from "../../lib/socketService";
         this.unsubscribeTimers.set(key, timer);
     }
 
-    subscribeToOrganizationData(organizationId: string) {
-        if (!organizationId) return;
+    subscribeToOrganizationData(orgId: string) {
+        if (!orgId) return;
         
-        const key = `org:${organizationId}:data`;
+        const key = `org:${orgId}:data`;
         
         // If we were about to unsubscribe, just cancel it and we are done.
         // We are already subscribed and data is in store.
@@ -162,68 +215,111 @@ import { socket, socketService } from "../../lib/socketService";
         // We reused activeOrgSubscriptions for members? No, activeOrgSubscriptions is for MEMBERS.
         // Let's rely on checking the socket rooms? No, store doesn't know.
         // Let's add a set for data.
-        if (this.activeOrgDataSubscriptions.has(organizationId)) return;
+        if (this.activeOrgDataSubscriptions.has(orgId)) return;
 
-        console.log(`Store: Subscribing to organization ${organizationId} data (teams/venues)`);
-        this.activeOrgDataSubscriptions.add(organizationId);
+        console.log(`Store: Subscribing to organization ${orgId} data (teams/sites)`);
+        this.activeOrgDataSubscriptions.add(orgId);
         
-        socket.emit('join_room', `org:${organizationId}:teams`);
-        socket.emit('join_room', `org:${organizationId}:venues`);
-        socket.emit('join_room', `org:${organizationId}:events`);
-        socket.emit('join_room', `org:${organizationId}:games`);
+        socket.emit('join_room', `org:${orgId}:teams`);
+        socket.emit('join_room', `org:${orgId}:sites`);
+        socket.emit('join_room', `org:${orgId}:facilities`);
+        socket.emit('join_room', `org:${orgId}:events`);
+        socket.emit('join_room', `org:${orgId}:games`);
 
         // Removed manual fetches as server now pushes data on join
     }
 
-    unsubscribeFromOrganizationData(organizationId: string) {
-        if (!organizationId) return;
-        const key = `org:${organizationId}:data`;
+    unsubscribeFromOrganizationData(orgId: string) {
+        if (!orgId) return;
+        const key = `org:${orgId}:data`;
 
         this.scheduleUnsubscribe(key, () => {
-            if (!this.activeOrgDataSubscriptions.has(organizationId)) return;
+            if (!this.activeOrgDataSubscriptions.has(orgId)) return;
 
-            console.log(`Store: Unsubscribing from organization ${organizationId} data`);
-            this.activeOrgDataSubscriptions.delete(organizationId);
-            socket.emit('leave_room', `org:${organizationId}:teams`);
-            socket.emit('leave_room', `org:${organizationId}:venues`);
-            socket.emit('leave_room', `org:${organizationId}:events`);
-            socket.emit('leave_room', `org:${organizationId}:games`);
+            console.log(`Store: Unsubscribing from organization ${orgId} data`);
+            this.activeOrgDataSubscriptions.delete(orgId);
+            socket.emit('leave_room', `org:${orgId}:teams`);
+            socket.emit('leave_room', `org:${orgId}:sites`);
+            socket.emit('leave_room', `org:${orgId}:facilities`);
+            socket.emit('leave_room', `org:${orgId}:events`);
+            socket.emit('leave_room', `org:${orgId}:games`);
         });
     }
 
-    subscribeToOrganizationSummary(organizationId: string) {
-        if (!organizationId) return;
+    subscribeToOrganizationSummary(orgId: string) {
+        if (!orgId) return;
         
-        const key = `org:${organizationId}:summary`;
+        const key = `org:${orgId}:summary`;
         if (this.cancelUnsubscribe(key)) return;
 
-        if (this.activeOrgSummarySubscriptions.has(organizationId)) return;
+        if (this.activeOrgSummarySubscriptions.has(orgId)) return;
 
-        console.log(`Store: Subscribing to organization ${organizationId} summary (lightweight)`);
-        this.activeOrgSummarySubscriptions.add(organizationId);
+        console.log(`Store: Subscribing to organization ${orgId} summary (lightweight)`);
+        this.activeOrgSummarySubscriptions.add(orgId);
         
-        socket.emit('join_room', `org:${organizationId}:summary`);
+        socket.emit('join_room', `org:${orgId}:summary`);
 
         // Fetch just the organization metadata initially -> Handled by ORGANIZATION_SYNC on join
     }
 
-    unsubscribeFromOrganizationSummary(organizationId: string) {
-        if (!organizationId) return;
-        const key = `org:${organizationId}:summary`;
+    subscribeToOrganizationSummaries(orgIds: string[]) {
+        if (!orgIds || orgIds.length === 0) return;
+        console.log(`Store: Batch subscribing to ${orgIds.length} organization summaries`);
+        
+        const newIds = orgIds.filter(id => !this.activeOrgSummarySubscriptions.has(id));
+        if (newIds.length === 0) return;
+
+        newIds.forEach(id => {
+            this.activeOrgSummarySubscriptions.add(id);
+        });
+
+        // Use a single emit for batch join if the server supported it, 
+        // but for now we'll just loop join_room to stay compatible with the current server logic
+        // which handles join_room string by string.
+        newIds.forEach(id => socket.emit('join_room', `org:${id}:summary`));
+    }
+
+    unsubscribeFromOrganizationSummary(orgId: string) {
+        if (!orgId) return;
+        const key = `org:${orgId}:summary`;
 
         this.scheduleUnsubscribe(key, () => {
-            if (!this.activeOrgSummarySubscriptions.has(organizationId)) return;
+            if (!this.activeOrgSummarySubscriptions.has(orgId)) return;
 
-            console.log(`Store: Unsubscribing from organization ${organizationId} summary`);
-            this.activeOrgSummarySubscriptions.delete(organizationId);
-            socket.emit('leave_room', `org:${organizationId}:summary`);
+            console.log(`Store: Unsubscribing from organization ${orgId} summary`);
+            this.activeOrgSummarySubscriptions.delete(orgId);
+            socket.emit('leave_room', `org:${orgId}:summary`);
         });
     }
 
-    subscribeToVenue(venueId: string) {
-        if (!venueId || venueId === 'default' || this.activeVenueSubscriptions.has(venueId)) return;
-        this.activeVenueSubscriptions.add(venueId);
-        socket.emit('join_room', `venue:${venueId}`);
+    unsubscribeFromOrganizationSummaries(orgIds: string[]) {
+        if (!orgIds || orgIds.length === 0) return;
+        console.log(`Store: Batch unsubscribing from ${orgIds.length} organization summaries`);
+        
+        orgIds.forEach(id => {
+            const key = `org:${id}:summary`;
+            this.scheduleUnsubscribe(key, () => {
+                if (!this.activeOrgSummarySubscriptions.has(id)) return;
+                this.activeOrgSummarySubscriptions.delete(id);
+                socket.emit('leave_room', `org:${id}:summary`);
+            });
+        });
+    }
+
+    unsubscribeFromAllOrganizationSummaries() {
+        console.log("Store: Unsubscribing from all organization summaries");
+        this.unsubscribeFromOrganizationSummaries(Array.from(this.activeOrgSummarySubscriptions));
+    }
+
+    subscribeToSite(siteId: string) {
+        if (!siteId || siteId === 'default' || this.activeSiteSubscriptions.has(siteId)) return;
+        this.activeSiteSubscriptions.add(siteId);
+        socket.emit('join_room', `site:${siteId}`);
+    }
+    subscribeToFacility(facilityId: string) {
+        if (!facilityId || facilityId === 'default' || this.activeFacilitySubscriptions.has(facilityId)) return;
+        this.activeFacilitySubscriptions.add(facilityId);
+        socket.emit('join_room', `facility:${facilityId}`);
     }
 
     subscribeToEvent(eventId: string) {
@@ -244,10 +340,15 @@ import { socket, socketService } from "../../lib/socketService";
         socket.emit('leave_room', `event:${eventId}`);
     }
 
-    unsubscribeFromVenue(venueId: string) {
-        if (!this.activeVenueSubscriptions.has(venueId)) return;
-        this.activeVenueSubscriptions.delete(venueId);
-        socket.emit('leave_room', `venue:${venueId}`);
+    unsubscribeFromSite(siteId: string) {
+        if (!this.activeSiteSubscriptions.has(siteId)) return;
+        this.activeSiteSubscriptions.delete(siteId);
+        socket.emit('leave_room', `site:${siteId}`);
+    }
+    unsubscribeFromFacility(facilityId: string) {
+        if (!this.activeFacilitySubscriptions.has(facilityId)) return;
+        this.activeFacilitySubscriptions.delete(facilityId);
+        socket.emit('leave_room', `facility:${facilityId}`);
     }
 
     unsubscribeFromGame(gameId: string) {
@@ -298,12 +399,32 @@ import { socket, socketService } from "../../lib/socketService";
         });
     }
 
-    fetchOrganizations() {
-        if (this.organizations.length > 0) return; // Simple cache check
+    fetchOrganizations(page = 1, limit = 10, search = '', isClaimed?: boolean) {
+        console.log(`Store: Fetching organizations (page: ${page}, limit: ${limit}, search: ${search}, isClaimed: ${isClaimed})`);
+        socket.emit('get_data', { type: 'organizations', page, limit, search, isClaimed }, (res: any) => { 
+            if(res && res.items) {
+                // Determine which orgs we are leaving (the ones on the previous page that aren't on this page)
+                const currentIds = new Set(this.organizations.map(o => o.id));
+                const nextIds = new Set(res.items.map((o: any) => o.id));
+                const toLeave = Array.from(currentIds).filter(id => !nextIds.has(id));
+                
+                this.unsubscribeFromOrganizationSummaries(toLeave);
 
-        socket.emit('get_data', { type: 'organizations' }, (data: Organization[]) => { 
-            if(data) {
-                this.organizations = data;
+                this.organizations = res.items;
+                this.totalOrganizations = res.total;
+                
+                // Automatically subscribe to summaries for currently visible orgs
+                this.subscribeToOrganizationSummaries(res.items.map((org: any) => org.id));
+                this.notifyListeners();
+            }
+        });
+    }
+
+    fetchReports(entityType?: string) {
+        if (!this.currentUserId) return;
+        socket.emit('get_data', { type: 'reports', id: this.currentUserId, entityType }, (data: any[]) => {
+            if (data) {
+                this.reports = data;
                 this.notifyListeners();
             }
         });
@@ -321,7 +442,7 @@ import { socket, socketService } from "../../lib/socketService";
             // socket.emit('subscribe', 'games'); // Moved to on-demand (Live Page)
             // socket.emit('subscribe', 'persons'); // Removed Global Subs
             // socket.emit('subscribe', 'team_memberships'); // Removed Global Subs
-            socket.emit('subscribe', 'organization_memberships');
+            socket.emit('subscribe', 'org_memberships');
             // socket.emit('subscribe', 'organizations'); // Moved to on-demand (Organizations Page)
             
             // Re-subscribe to active entities if re-connecting
@@ -329,12 +450,13 @@ import { socket, socketService } from "../../lib/socketService";
             this.activeOrgSubscriptions.forEach(id => socket.emit('join_room', `org:${id}:members`));
             this.activeOrgDataSubscriptions.forEach(id => {
                 socket.emit('join_room', `org:${id}:teams`);
-                socket.emit('join_room', `org:${id}:venues`);
+                socket.emit('join_room', `org:${id}:sites`);
                 socket.emit('join_room', `org:${id}:events`);
             });
             this.activeOrgSummarySubscriptions.forEach(id => socket.emit('join_room', `org:${id}:summary`));
             this.activeEventSubscriptions.forEach(id => socket.emit('join_room', `event:${id}`));
-            this.activeVenueSubscriptions.forEach(id => socket.emit('join_room', `venue:${id}`));
+            this.activeSiteSubscriptions.forEach(id => socket.emit('join_room', `site:${id}`));
+            this.activeFacilitySubscriptions.forEach(id => socket.emit('join_room', `facility:${id}`));
             this.activeGameSubscriptions.forEach(id => socket.emit('join_room', `game:${id}`));
             
             // Note: Org subscriptions will be re-established by fetchAllData which is called below
@@ -407,8 +529,11 @@ import { socket, socketService } from "../../lib/socketService";
             case 'TEAM_UPDATED': 
                 this.mergeTeam(event.data as Team);
                 break;
-            case 'VENUE_ADDED':
-                this.mergeVenue(event.data as Venue);
+            case 'SITE_ADDED':
+                this.mergeSite(event.data as Site);
+                break;
+            case 'FACILITY_ADDED':
+                this.mergeFacility(event.data as Facility);
                 break;
             case 'NOTIFICATION_ADDED':
                 this.mergeNotification(event.data as Notification);
@@ -421,12 +546,30 @@ import { socket, socketService } from "../../lib/socketService";
                 this.updateUnreadCount();
                 this.notifyListeners();
                 break;
-            case 'VENUES_UPDATED': // Keep for compatibility if needed, using mergeVenue
-            case 'VENUE_UPDATED': // If we add this logic later
-                this.mergeVenue(event.data as Venue);
+            case 'NOTIFICATIONS_SYNC':
+                console.log(`Store: Received NOTIFICATIONS_SYNC with ${event.data.length} notifications`);
+                this.updateUnreadCount();
                 break;
-            case 'VENUE_DELETED':
-                this.venues = this.venues.filter(v => v.id !== event.data.id);
+            case 'ORG_REFERRALS_SYNC':
+                console.log(`Store: Received ORG_REFERRALS_SYNC with ${event.data.length} referrals`);
+                this.orgReferrals = event.data;
+                this.notifyListeners();
+                break;
+            case 'ORG_REFERRAL_ADDED':
+                console.log(`Store: Received ORG_REFERRAL_ADDED for org ${event.data.orgId}`);
+                this.mergeReferral(event.data);
+                break;
+            case 'SITE_UPDATED':
+                this.mergeSite(event.data as Site);
+                break;
+            case 'SITE_DELETED':
+                this.sites = this.sites.filter(s => s.id !== event.data.id);
+                break;
+            case 'FACILITY_UPDATED':
+                this.mergeFacility(event.data as Facility);
+                break;
+            case 'FACILITY_DELETED':
+                this.facilities = this.facilities.filter(f => f.id !== event.data.id);
                 break;
             case 'GAMES_UPDATED':
                 this.mergeGame(event.data as Game);
@@ -443,14 +586,14 @@ import { socket, socketService } from "../../lib/socketService";
                 const raw = event.data;
                 // Check if this is an enriched object (contains Person fields) or standard membership
                 if (raw.name) {
-                     // 1. Merge the Person data
-                     this.mergePerson({ id: raw.id, name: raw.name });
+                     // 1. Merge the OrgProfile data
+                     this.mergeOrgProfile({ id: raw.id, name: raw.name });
                      
                      // 2. Merge the Membership data
                      if (raw.membershipId) {
                          this.mergeTeamMembership({
                              id: raw.membershipId,
-                             personId: raw.id,
+                             orgProfileId: raw.id,
                              roleId: raw.roleId,
                              teamId: raw.teamId || this.findTeamIdForMembership(raw.membershipId), // Fallback?
                              startDate: raw.startDate,
@@ -471,25 +614,35 @@ import { socket, socketService } from "../../lib/socketService";
                 break;
             case 'ORG_MEMBERS_UPDATED':
                 const rawOrg = event.data;
-                console.log(`Store: Received ORG_MEMBERS_UPDATED for person ${rawOrg.id} (${rawOrg.name}) in org ${rawOrg.organizationId}`);
+                console.log(`Store: Received ORG_MEMBERS_UPDATED for person ${rawOrg.id} (${rawOrg.name}) in org ${rawOrg.orgId}`);
                 if (rawOrg.name) {
-                    this.mergePerson({ id: rawOrg.id, name: rawOrg.name });
+                    this.mergeOrgProfile({ id: rawOrg.id, name: rawOrg.name, orgId: rawOrg.orgId });
                     if (rawOrg.membershipId) {
-                        this.mergeOrganizationMembership({
+                        this.mergeOrgMembership({
                             id: rawOrg.membershipId,
-                            personId: rawOrg.id,
-                            organizationId: rawOrg.organizationId,
+                            orgProfileId: rawOrg.id,
+                            orgId: rawOrg.orgId,
                             roleId: rawOrg.roleId,
                             startDate: rawOrg.startDate,
                             endDate: rawOrg.endDate
                         });
                     }
                 } else {
-                    this.mergeOrganizationMembership(rawOrg as OrganizationMembership);
+                    this.mergeOrgMembership(rawOrg as OrgMembership);
                 }
                 break;
             case 'USER_MEMBERSHIPS_UPDATED':
-                // Optional: handle if we add a broadcast for this later
+                console.log(`Store: Received USER_MEMBERSHIPS_UPDATED broadcast`);
+                if (this.currentUserId) {
+                    this.fetchUserMemberships(this.currentUserId);
+                }
+                break;
+            case 'ENTITY_NOT_FOUND':
+                if (event.data && event.data.type === 'organization') {
+                    console.log(`Store: Explicitly marking organization ${event.data.id} as missing.`);
+                    this.missingOrganizations.add(event.data.id);
+                    this.notifyListeners(); // Crucial: trigger re-test by the hook
+                }
                 break;
             case 'BOARD_UPDATED': // example placeholder
                 break;
@@ -498,11 +651,11 @@ import { socket, socketService } from "../../lib/socketService";
             case 'ORG_MEMBERS_SYNC':
                 console.log(`Store: Received ORG_MEMBERS_SYNC with ${event.data.length} members`);
                 event.data.forEach((item: any) => {
-                    this.mergePerson({ id: item.id, name: item.name });
-                    this.mergeOrganizationMembership({
+                    this.mergeOrgProfile({ id: item.id, name: item.name, orgId: item.orgId });
+                    this.mergeOrgMembership({
                         id: item.membershipId,
-                        personId: item.id,
-                        organizationId: item.organizationId,
+                        orgProfileId: item.id,
+                        orgId: item.orgId,
                         roleId: item.roleId,
                         startDate: item.startDate,
                         endDate: item.endDate
@@ -513,9 +666,13 @@ import { socket, socketService } from "../../lib/socketService";
                 console.log(`Store: Received TEAMS_SYNC with ${event.data.length} teams`);
                 event.data.forEach((t: Team) => this.mergeTeam(t));
                 break;
-            case 'VENUES_SYNC':
-                console.log(`Store: Received VENUES_SYNC with ${event.data.length} venues`);
-                event.data.forEach((v: Venue) => this.mergeVenue(v));
+            case 'SITES_SYNC':
+                console.log(`Store: Received SITES_SYNC with ${event.data.length} sites`);
+                event.data.forEach((s: Site) => this.mergeSite(s));
+                break;
+            case 'FACILITIES_SYNC':
+                console.log(`Store: Received FACILITIES_SYNC with ${event.data.length} facilities`);
+                event.data.forEach((f: Facility) => this.mergeFacility(f));
                 break;
             case 'EVENTS_SYNC':
                 console.log(`Store: Received EVENTS_SYNC with ${event.data.length} events`);
@@ -536,10 +693,10 @@ import { socket, socketService } from "../../lib/socketService";
             case 'TEAM_MEMBERS_SYNC':
                 console.log(`Store: Received TEAM_MEMBERS_SYNC with ${event.data.length} members`);
                 event.data.forEach((item: any) => {
-                    this.mergePerson({ id: item.id, name: item.name });
+                    this.mergeOrgProfile({ id: item.id, name: item.name });
                     this.mergeTeamMembership({
                         id: item.membershipId,
-                        personId: item.id,
+                        orgProfileId: item.id,
                         teamId: item.teamId,
                         roleId: item.roleId,
                         startDate: item.startDate,
@@ -547,32 +704,45 @@ import { socket, socketService } from "../../lib/socketService";
                     });
                 });
                 break;
+            case 'GLOBAL_CACHE_REFRESH':
+                console.log("Store: Received GLOBAL_CACHE_REFRESH. Clearing local organization state.");
+                this.organizations = [];
+                this.localOrganizationCache = [];
+                this.totalOrganizations = 0;
+                // Client pages will likely re-fetch on notifyListeners
+                this.notifyListeners();
+                break;
         }
         this.notifyListeners();
     }
 
     fetchUserMemberships(userId: string) {
         if (!userId) return;
+        this.currentUserId = userId;
         console.log(`Store: Fetching memberships for user ${userId}`);
-        socket.emit('get_data', { type: 'user_memberships', id: userId }, (data: { orgs: OrganizationMembership[], teams: any[] }) => {
+        socket.emit('get_data', { type: 'user_memberships', id: userId }, (data: { orgs: OrgMembership[], teams: any[] }) => {
             if (data) {
                 this.userOrgMemberships = data.orgs;
                 this.userTeamMemberships = data.teams;
                 
-                // Automatically fetch organization metadata for unknown orgs
+                // Automatically subscribe to summary rooms for user's organizations
                 const orgIds = new Set<string>();
-                data.orgs.forEach(m => orgIds.add(m.organizationId));
-                data.teams.forEach(m => orgIds.add(m.organizationId));
+                data.orgs.forEach(m => orgIds.add(m.orgId));
+                data.teams.forEach(m => orgIds.add(m.orgId));
 
-                orgIds.forEach(orgId => {
-                    if (!this.getOrganization(orgId)) {
-                        this.fetchOrganization(orgId);
-                    }
-                });
+                this.subscribeToOrganizationSummaries(Array.from(orgIds));
 
                 this.notifyListeners();
             }
         });
+    }
+
+    getUserOrganizations() {
+        const orgIds = new Set([
+            ...this.userOrgMemberships.map(m => m.orgId),
+            ...this.userTeamMemberships.map(m => m.orgId)
+        ]);
+        return this.organizations.filter(o => orgIds.has(o.id));
     }
 
     canSeeAdmin(userId: string, globalRole?: string) {
@@ -589,10 +759,10 @@ import { socket, socketService } from "../../lib/socketService";
         
         const orgIds = new Set<string>();
         this.userOrgMemberships.forEach(m => {
-            if (m.roleId === 'role-org-admin') orgIds.add(m.organizationId);
+            if (m.roleId === 'role-org-admin') orgIds.add(m.orgId);
         });
         this.userTeamMemberships.forEach(m => {
-            if (m.roleId === 'role-coach') orgIds.add(m.organizationId);
+            if (m.roleId === 'role-coach') orgIds.add(m.orgId);
         });
         
         return Array.from(orgIds);
@@ -604,46 +774,58 @@ import { socket, socketService } from "../../lib/socketService";
 
     private mergeSport(sport: Sport) {
         const index = this.sports.findIndex(s => s.id === sport.id);
-        if (index > -1) this.sports[index] = sport;
+        if (index > -1) this.sports[index] = { ...this.sports[index], ...sport };
         else this.sports.push(sport);
         this.notifyListeners();
     }
     
     private mergeTeam(team: Team) {
         const index = this.teams.findIndex(t => t.id === team.id);
-        if (index > -1) this.teams[index] = team;
+        if (index > -1) this.teams[index] = { ...this.teams[index], ...team };
         else this.teams.push(team);
 
         this.subscribeToTeamData(team.id);
         this.notifyListeners();
     }
     
-    private mergeVenue(venue: Venue) {
-        const index = this.venues.findIndex(v => v.id === venue.id);
-        if (index > -1) this.venues[index] = venue;
-        else this.venues.push(venue);
-
+    private mergeSite(site: Site) {
+        const index = this.sites.findIndex(s => s.id === site.id);
+        if (index > -1) this.sites[index] = { ...this.sites[index], ...site };
+        else this.sites.push(site);
+        this.notifyListeners();
+    }
+    private mergeFacility(facility: Facility) {
+        const index = this.facilities.findIndex(f => f.id === facility.id);
+        if (index > -1) this.facilities[index] = { ...this.facilities[index], ...facility };
+        else this.facilities.push(facility);
         this.notifyListeners();
     }
     private mergeGame(game: Game) {
         const index = this.games.findIndex(g => g.id === game.id);
-        if (index > -1) this.games[index] = game;
-        else this.games.push(game);
+        let mergedGame: Game;
+        if (index > -1) {
+            mergedGame = { ...this.games[index], ...game };
+            this.games[index] = mergedGame;
+        } else {
+            mergedGame = game;
+            this.games.push(game);
+        }
 
         this.notifyListeners();
         
         // Discover teams if unknown
-        if (!this.getTeam(game.homeTeamId)) {
-            this.fetchTeam(game.homeTeamId);
+        if (mergedGame.homeTeamId && !this.getTeam(mergedGame.homeTeamId)) {
+            this.fetchTeam(mergedGame.homeTeamId);
         }
-        if (!this.getTeam(game.awayTeamId)) {
-            this.fetchTeam(game.awayTeamId);
+        if (mergedGame.awayTeamId && !this.getTeam(mergedGame.awayTeamId)) {
+            this.fetchTeam(mergedGame.awayTeamId);
         }
     }
-    private mergePerson(person: Person) {
-        const index = this.persons.findIndex(p => p.id === person.id);
-        if (index > -1) this.persons[index] = person;
-        else this.persons.push(person);
+    private mergeOrgProfile(profile: Partial<OrgProfile>) {
+        if (!profile.id) return;
+        const index = this.orgProfiles.findIndex(p => p.id === profile.id);
+        if (index > -1) this.orgProfiles[index] = { ...this.orgProfiles[index], ...profile } as OrgProfile;
+        else this.orgProfiles.push(profile as OrgProfile);
         this.notifyListeners();
     }
     private mergeTeamMembership(membership: TeamMembership) {
@@ -662,7 +844,7 @@ import { socket, socketService } from "../../lib/socketService";
     private mergeOrganization(org: Organization) {
         const index = this.organizations.findIndex(o => o.id === org.id);
         if (index > -1) {
-            this.organizations[index] = org;
+            this.organizations[index] = { ...this.organizations[index], ...org };
         } else {
             this.organizations.push(org);
         }
@@ -680,9 +862,9 @@ import { socket, socketService } from "../../lib/socketService";
 
         this.notifyListeners();
     }
-    private mergeOrganizationMembership(membership: OrganizationMembership) {
+    private mergeOrgMembership(membership: OrgMembership) {
         const index = this.organizationMemberships.findIndex(m => m.id === membership.id);
-        if (index > -1) this.organizationMemberships[index] = membership;
+        if (index > -1) this.organizationMemberships[index] = { ...this.organizationMemberships[index], ...membership };
         else this.organizationMemberships.push(membership);
         this.notifyListeners();
     }
@@ -701,29 +883,31 @@ import { socket, socketService } from "../../lib/socketService";
     getOrganizationRoles = () => this.organizationRoles;
     getOrganizationRole = (id: string) => this.organizationRoles.find(r => r.id === id);
     getOrganizations = () => this.organizations;
-    getTeams = (organizationId?: string) => organizationId ? this.teams.filter(t => t.organizationId === organizationId) : this.teams;
+    getTeams = (orgId?: string) => orgId ? this.teams.filter(t => t.orgId === orgId) : this.teams;
     getTeam = (id: string) => this.teams.find((t) => t.id === id);
-    getVenues = (organizationId?: string) => organizationId ? this.venues.filter(v => v.organizationId === organizationId) : this.venues;
-    getVenue = (id: string) => this.venues.find(v => v.id === id);
-    getGames = (organizationId?: string) => {
-        if (!organizationId) return this.games;
+    getSites = (orgId?: string) => orgId ? this.sites.filter(s => s.orgId === orgId) : this.sites;
+    getSite = (id: string) => this.sites.find(s => s.id === id);
+    getFacilities = (siteId?: string) => siteId ? this.facilities.filter(f => f.siteId === siteId) : this.facilities;
+    getFacility = (id: string) => this.facilities.find(f => f.id === id);
+    getGames = (orgId?: string) => {
+        if (!orgId) return this.games;
         // Filter games where either team belongs to this organization
         return this.games.filter(g => {
             const homeTeam = this.getTeam(g.homeTeamId);
             const awayTeam = this.getTeam(g.awayTeamId);
-            return homeTeam?.organizationId === organizationId || awayTeam?.organizationId === organizationId;
+            return homeTeam?.orgId === orgId || awayTeam?.orgId === orgId;
         });
     }; 
     getGame = (id: string) => this.games.find((g) => g.id === id);
-    getPersons = () => this.persons;
+    getOrgProfiles = () => this.orgProfiles;
     
     // Complex getter
     getTeamMembers = (teamId: string) => {
         const memberships = this.teamMemberships.filter(m => m.teamId === teamId && !m.endDate);
         return memberships.map(m => {
-          const person = this.persons.find(p => p.id === m.personId);
+          const profile = this.orgProfiles.find(p => p.id === m.orgProfileId);
           return {
-            ...person!,
+            ...profile!,
             roleId: m.roleId,
             roleName: this.getTeamRole(m.roleId)?.name,
             membershipId: m.id
@@ -788,6 +972,26 @@ import { socket, socketService } from "../../lib/socketService";
             socket.emit('action', { type: SocketAction.REFER_ORG_CONTACT_VIA_TOKEN, payload: { token, contactEmails } }, (response: any) => {
                 if (response.status === 'ok') resolve();
                 else reject(new Error(response.message || 'Failed to refer contact'));
+            });
+        });
+    };
+    
+    referOrgContact = (orgId: string, contactEmails: string[], referredByUserId: string) => {
+        return new Promise<void>((resolve, reject) => {
+            socket.emit('action', { type: SocketAction.REFER_ORG_CONTACT, payload: { orgId, contactEmails, referredByUserId } }, (response: any) => {
+                if (response.status === 'ok') resolve();
+                else reject(new Error(response.message || 'Failed to nominate contact'));
+            });
+        });
+    };
+
+    fetchOrgReferrals = (orgId: string) => {
+        return new Promise<any[]>((resolve, reject) => {
+            console.log(`Store: Requesting org_referrals for ${orgId}`);
+            socket.emit('get_data', { type: 'org_referrals', orgId }, (data: any[]) => {
+                console.log(`Store: Received org_referrals data:`, data);
+                if (data) resolve(data);
+                else reject(new Error('Failed to fetch organization referrals'));
             });
         });
     };
@@ -935,18 +1139,6 @@ import { socket, socketService } from "../../lib/socketService";
         });
     };
 
-    referOrgContact = (organizationId: string, contactEmails: string[], referredByUserId: string) => {
-        return new Promise<any>((resolve, reject) => {
-             socket.emit('action', { type: SocketAction.REFER_ORG_CONTACT, payload: { organizationId, contactEmails, referredByUserId } }, (response: any) => {
-                if (response.status === 'ok') {
-                    resolve(response.data);
-                } else {
-                    reject(new Error(response.message || 'Failed to refer contact'));
-                }
-             });
-        });
-    };
-
     addTeam = (team: Omit<Team, "id">) => {
         return new Promise<Team>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.ADD_TEAM, payload: team }, (response: any) => {
@@ -976,14 +1168,26 @@ import { socket, socketService } from "../../lib/socketService";
         return Promise.reject(new Error('Team not found'));
     };
     
-    addVenue = (venue: Omit<Venue, "id">) => {
-         return new Promise<Venue>((resolve, reject) => {
-             socket.emit('action', { type: SocketAction.ADD_VENUE, payload: venue }, (response: any) => {
+    addSite = (site: Omit<Site, "id">) => {
+         return new Promise<Site>((resolve, reject) => {
+             socket.emit('action', { type: SocketAction.ADD_SITE, payload: site }, (response: any) => {
                  if (response.status === 'ok') {
-                     this.mergeVenue(response.data);
+                     this.mergeSite(response.data);
                      resolve(response.data);
                  } else {
-                     reject(new Error(response.message || 'Failed to add venue'));
+                     reject(new Error(response.message || 'Failed to add site'));
+                 }
+             });
+         });
+    };
+    addFacility = (facility: Omit<Facility, "id">) => {
+         return new Promise<Facility>((resolve, reject) => {
+             socket.emit('action', { type: SocketAction.ADD_FACILITY, payload: facility }, (response: any) => {
+                 if (response.status === 'ok') {
+                     this.mergeFacility(response.data);
+                     resolve(response.data);
+                 } else {
+                     reject(new Error(response.message || 'Failed to add facility'));
                  }
              });
          });
@@ -1034,22 +1238,10 @@ import { socket, socketService } from "../../lib/socketService";
         });
     };
     
-    addPerson = (person: Omit<Person, "id"> & { id?: string }) => {
-        return new Promise<Person>((resolve, reject) => {
-            socket.emit('action', { type: SocketAction.ADD_PERSON, payload: person }, (response: any) => {
-                if (response.status === 'ok') {
-                    this.mergePerson(response.data);
-                    resolve(response.data);
-                } else {
-                    reject(new Error(response.message || 'Failed to add person'));
-                }
-            });
-        });
-    };
-
-    addTeamMember = (personId: string, teamId: string, roleId: string) => {
+    // addPerson removed in favor of addOrgProfile
+    addTeamMember = (orgProfileId: string, teamId: string, roleId: string) => {
         const payload = {
-            personId,
+            orgProfileId,
             teamId,
             roleId,
             startDate: new Date().toISOString()
@@ -1097,17 +1289,17 @@ import { socket, socketService } from "../../lib/socketService";
         return Promise.reject(new Error('Membership not found'));
     };
 
-    getOrganizationMembers = (organizationId: string) => {
+    getOrganizationMembers = (orgId: string) => {
          // This is a complex getter similar to getTeamMembers
-         const memberships = this.organizationMemberships.filter(m => m.organizationId === organizationId && !m.endDate);
+         const memberships = this.organizationMemberships.filter(m => m.orgId === orgId && !m.endDate);
           const result = memberships.map(m => {
-            const person = this.persons.find(p => p.id === m.personId);
-            if (!person) {
-                console.warn(`Store: Person ${m.personId} not found for membership ${m.id} in org ${organizationId}`);
-                console.log("Current persons in store:", this.persons.map(p => p.id));
+            const profile = this.orgProfiles.find(p => p.id === m.orgProfileId);
+            if (!profile) {
+                console.warn(`Store: Profile ${m.orgProfileId} not found for membership ${m.id} in org ${orgId}`);
+                console.log("Current profiles in store:", this.orgProfiles.map(p => p.id));
             }
             return {
-              ...person!,
+              ...profile!,
               roleId: m.roleId,
               roleName: this.getOrganizationRole(m.roleId)?.name,
               membershipId: m.id,
@@ -1115,18 +1307,18 @@ import { socket, socketService } from "../../lib/socketService";
               endDate: m.endDate
             };
           }).filter(p => p && p.id);
-          console.log(`Store: Returning ${result.length} members for org ${organizationId}`);
+          console.log(`Store: Returning ${result.length} members for org ${orgId}`);
           return result;
     };
 
-    addOrganizationMember = (personId: string, organizationId: string, roleId: string) => {
+    addOrganizationMember = (orgProfileId: string, orgId: string, roleId: string) => {
         const payload = {
-            personId,
-            organizationId,
+            orgProfileId,
+            orgId,
             roleId,
             startDate: new Date().toISOString()
         };
-        return new Promise<OrganizationMembership>((resolve, reject) => {
+        return new Promise<OrgMembership>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.ADD_ORG_MEMBER, payload }, (response: any) => {
                 if (response.status === 'ok') {
                     resolve(response.data);
@@ -1159,7 +1351,7 @@ import { socket, socketService } from "../../lib/socketService";
             this.organizationMemberships[index] = { ...this.organizationMemberships[index], roleId };
             this.notifyListeners();
 
-            return new Promise<OrganizationMembership>((resolve, reject) => {
+            return new Promise<OrgMembership>((resolve, reject) => {
                 socket.emit('action', { type: SocketAction.UPDATE_ORG_MEMBER, payload: { id: membershipId, roleId } }, (response: any) => {
                     if (response.status === 'ok') resolve(response.data);
                     else reject(new Error(response.message || 'Failed to update organization member'));
@@ -1181,75 +1373,67 @@ import { socket, socketService } from "../../lib/socketService";
         });
     }; 
 
-    deletePerson = (id: string) => {
-        const person = this.persons.find(p => p.id === id);
-        if (person) {
-            this.persons = this.persons.filter(p => p.id !== id);
-            this.teamMemberships = this.teamMemberships.filter(m => m.personId !== id);
+    addOrgProfile = (profile: Partial<OrgProfile>) => {
+        return new Promise<OrgProfile>((resolve, reject) => {
+            socket.emit('action', { type: SocketAction.ADD_ORG_PROFILE, payload: profile }, (response: any) => {
+                if (response.status === 'ok') {
+                    this.mergeOrgProfile(response.data);
+                    resolve(response.data);
+                } else reject(new Error(response.message || 'Failed to add organization profile'));
+            });
+        });
+    };
+
+    deleteOrgProfile = (id: string) => {
+        const profile = this.orgProfiles.find(p => p.id === id);
+        if (profile) {
+            this.orgProfiles = this.orgProfiles.filter(p => p.id !== id);
+            this.teamMemberships = this.teamMemberships.filter(m => m.orgProfileId !== id);
+            this.organizationMemberships = this.organizationMemberships.filter(m => m.orgProfileId !== id);
             this.notifyListeners();
 
             return new Promise<void>((resolve, reject) => {
-                socket.emit('action', { type: SocketAction.DELETE_PERSON, payload: { id } }, (response: any) => {
+                socket.emit('action', { type: SocketAction.DELETE_ORG_PROFILE, payload: { id } }, (response: any) => {
                     if (response.status === 'ok') resolve();
-                    else reject(new Error(response.message || 'Failed to delete person'));
+                    else reject(new Error(response.message || 'Failed to delete organization profile'));
                 });
             });
         }
-        return Promise.reject(new Error('Person not found'));
+        return Promise.reject(new Error('Profile not found'));
     };
 
-    updatePerson = (id: string, data: Partial<Person>) => {
-        const index = this.persons.findIndex(p => p.id === id);
+    updateOrgProfile = (id: string, data: Partial<OrgProfile>) => {
+        const index = this.orgProfiles.findIndex(p => p.id === id);
         if (index > -1) {
-            this.persons[index] = { ...this.persons[index], ...data };
+            this.orgProfiles[index] = { ...this.orgProfiles[index], ...data };
             this.notifyListeners();
 
-            return new Promise<Person>((resolve, reject) => {
-                socket.emit('action', { type: SocketAction.UPDATE_PERSON, payload: { id, data } }, (response: any) => {
+            return new Promise<OrgProfile>((resolve, reject) => {
+                socket.emit('action', { type: SocketAction.UPDATE_ORG_PROFILE, payload: { id, data } }, (response: any) => {
                     if (response.status === 'ok') {
-                        this.mergePerson(response.data);
+                        this.mergeOrgProfile(response.data);
                         resolve(response.data);
-                    } else reject(new Error(response.message || 'Failed to update person'));
+                    } else reject(new Error(response.message || 'Failed to update organization profile'));
                 });
             });
         }
 
         // If not in cache, try updating directly via server
-        return new Promise<Person>((resolve, reject) => {
-            socket.emit('action', { type: SocketAction.UPDATE_PERSON, payload: { id, data } }, (response: any) => {
+        return new Promise<OrgProfile>((resolve, reject) => {
+            socket.emit('action', { type: SocketAction.UPDATE_ORG_PROFILE, payload: { id, data } }, (response: any) => {
                 if (response.status === 'ok') {
-                    this.mergePerson(response.data);
+                    this.mergeOrgProfile(response.data);
                     resolve(response.data);
-                } else reject(new Error(response.message || 'Failed to update person'));
+                } else reject(new Error(response.message || 'Failed to update organization profile'));
             });
         });
     };
 
-    getPersonIdentifiers = (personId: string) => {
-        return new Promise<PersonIdentifier[]>((resolve) => {
-            socket.emit('get_data', { type: 'person_identifiers', id: personId }, (data: PersonIdentifier[]) => {
-                resolve(data || []);
-            });
-        });
-    };
-
-    setPersonIdentifier = (personId: string, organizationId: string, identifier: string) => {
-        return new Promise<PersonIdentifier>((resolve, reject) => {
-            socket.emit('action', { type: SocketAction.SET_PERSON_IDENTIFIER, payload: { personId, organizationId, identifier } }, (response: any) => {
-                if (response.status === 'ok') {
-                    resolve(response.data);
-                } else {
-                    reject(new Error(response.message || 'Failed to set person identifier'));
-                }
-            });
-        });
-    };
-
-    searchPeople = (query: string, organizationId?: string): Promise<Person[]> => {
+    searchProfiles = (query: string, orgId?: string): Promise<OrgProfile[]> => {
         return new Promise((resolve) => {
-            socket.emit('get_data', { type: 'search_people', query, organizationId }, (data: Person[]) => {
+            socket.emit('get_data', { type: 'search_people', query, orgId }, (data: OrgProfile[]) => {
                 if (data) {
-                    data.forEach(p => this.mergePerson(p));
+                    data.forEach(p => this.mergeOrgProfile(p));
                 }
                 resolve(data || []);
             });
@@ -1264,43 +1448,74 @@ import { socket, socketService } from "../../lib/socketService";
         });
     };
 
-    updateVenue = (id: string, data: Partial<Venue>) => {
-        const index = this.venues.findIndex(v => v.id === id);
+    updateSite = (id: string, data: Partial<Site>) => {
+        const index = this.sites.findIndex(s => s.id === id);
         if (index > -1) {
-            const updated = { ...this.venues[index], ...data };
-            this.venues[index] = updated;
+            const updated = { ...this.sites[index], ...data };
+            this.sites[index] = updated;
             this.notifyListeners();
 
-            return new Promise<Venue>((resolve, reject) => {
-                socket.emit('action', { type: SocketAction.UPDATE_VENUE, payload: { id, data } }, (response: any) => {
+            return new Promise<Site>((resolve, reject) => {
+                socket.emit('action', { type: SocketAction.UPDATE_SITE, payload: { id, data } }, (response: any) => {
                     if (response.status === 'ok') {
                         resolve(response.data);
                     } else {
-                        reject(new Error(response.message || 'Failed to update venue'));
+                        reject(new Error(response.message || 'Failed to update site'));
                     }
                 });
             });
         }
-        return Promise.reject(new Error('Venue not found'));
+        return Promise.reject(new Error('Site not found'));
+    };
+    updateFacility = (id: string, data: Partial<Facility>) => {
+        const index = this.facilities.findIndex(f => f.id === id);
+        if (index > -1) {
+            const updated = { ...this.facilities[index], ...data };
+            this.facilities[index] = updated;
+            this.notifyListeners();
+
+            return new Promise<Facility>((resolve, reject) => {
+                socket.emit('action', { type: SocketAction.UPDATE_FACILITY, payload: { id, data } }, (response: any) => {
+                    if (response.status === 'ok') {
+                        resolve(response.data);
+                    } else {
+                        reject(new Error(response.message || 'Failed to update facility'));
+                    }
+                });
+            });
+        }
+        return Promise.reject(new Error('Facility not found'));
     };
 
-    deleteVenue = (id: string) => {
-        const venue = this.venues.find(v => v.id === id);
-        if (venue) {
-            this.venues = this.venues.filter(v => v.id !== id);
+    deleteSite = (id: string) => {
+        const site = this.sites.find(s => s.id === id);
+        if (site) {
+            this.sites = this.sites.filter(s => s.id !== id);
             this.notifyListeners();
 
             return new Promise<void>((resolve, reject) => {
-                socket.emit('action', { type: SocketAction.DELETE_VENUE, payload: { id } }, (response: any) => {
-                    if (response.status === 'ok') {
-                        resolve();
-                    } else {
-                        reject(new Error(response.message || 'Failed to delete venue'));
-                    }
+                socket.emit('action', { type: SocketAction.DELETE_SITE, payload: { id } }, (response: any) => {
+                    if (response.status === 'ok') resolve();
+                    else reject(new Error(response.message || 'Failed to delete site'));
                 });
             });
         }
-        return Promise.reject(new Error('Venue not found'));
+        return Promise.reject(new Error('Site not found'));
+    };
+    deleteFacility = (id: string) => {
+        const facility = this.facilities.find(f => f.id === id);
+        if (facility) {
+            this.facilities = this.facilities.filter(f => f.id !== id);
+            this.notifyListeners();
+
+            return new Promise<void>((resolve, reject) => {
+                socket.emit('action', { type: SocketAction.DELETE_FACILITY, payload: { id } }, (response: any) => {
+                    if (response.status === 'ok') resolve();
+                    else reject(new Error(response.message || 'Failed to delete facility'));
+                });
+            });
+        }
+        return Promise.reject(new Error('Facility not found'));
     };
     addEvent = (event: Omit<Event, "id">) => {
         return new Promise<Event>((resolve, reject) => {
@@ -1369,8 +1584,8 @@ import { socket, socketService } from "../../lib/socketService";
         return Promise.reject(new Error('Event not found'));
     };
     
-    getEvents = (organizationId?: string) => organizationId 
-        ? this.events.filter(e => e.organizationId === organizationId || e.participatingOrgIds?.includes(organizationId)) 
+    getEvents = (orgId?: string) => orgId 
+        ? this.events.filter(e => e.orgId === orgId || e.participatingOrgIds?.includes(orgId)) 
         : this.events;
     getEvent = (id: string) => this.events.find(e => e.id === id);
 
@@ -1382,11 +1597,11 @@ import { socket, socketService } from "../../lib/socketService";
 
         // Subscriptions are now handled explicitly by UI components (lazy loading)
         // this.subscribeToEvent(event.id);
-        // if (event.venueId) this.subscribeToVenue(event.venueId);
+        // if (event.siteId) this.subscribeToSite(event.siteId);
 
 
         // Discovery Logic: fetch details for involved organizations if unknown
-        const orgIds = [event.organizationId, ...(event.participatingOrgIds || [])];
+        const orgIds = [event.orgId, ...(event.participatingOrgIds || [])];
         orgIds.forEach(orgId => {
             if (!this.getOrganization(orgId)) {
                 this.fetchOrganization(orgId);
@@ -1415,9 +1630,17 @@ import { socket, socketService } from "../../lib/socketService";
         socket.emit('get_data', { type: 'team', id }, (data: Team) => {
             if (data) {
                 this.mergeTeam(data);
-                if (!this.getOrganization(data.organizationId)) {
-                    this.fetchOrganization(data.organizationId);
+                if (!this.getOrganization(data.orgId)) {
+                    this.fetchOrganization(data.orgId);
                 }
+            }
+        });
+    }
+
+    fetchFacilitiesForSite(siteId: string) {
+        socket.emit('get_data', { type: 'facilities', siteId }, (data: Facility[]) => {
+            if (data && Array.isArray(data)) {
+                data.forEach(f => this.mergeFacility(f));
             }
         });
     }
@@ -1428,7 +1651,6 @@ import { socket, socketService } from "../../lib/socketService";
             if (data) {
                 this.notifications = data;
                 this.updateUnreadCount();
-                this.notifyListeners();
             }
         });
     };
@@ -1441,7 +1663,6 @@ import { socket, socketService } from "../../lib/socketService";
                     if (index > -1) {
                         this.notifications[index].isRead = true;
                         this.updateUnreadCount();
-                        this.notifyListeners();
                     }
                     resolve();
                 } else {
@@ -1457,7 +1678,6 @@ import { socket, socketService } from "../../lib/socketService";
                 if (response.status === 'ok') {
                     this.notifications.forEach(n => n.isRead = true);
                     this.updateUnreadCount();
-                    this.notifyListeners();
                     resolve();
                 } else {
                     reject(new Error(response.message || 'Failed to mark all as read'));
@@ -1472,7 +1692,6 @@ import { socket, socketService } from "../../lib/socketService";
                 if (response.status === 'ok') {
                     this.notifications = this.notifications.filter(n => n.id !== id);
                     this.updateUnreadCount();
-                    this.notifyListeners();
                     resolve();
                 } else {
                     reject(new Error(response.message || 'Failed to delete notification'));
@@ -1484,16 +1703,26 @@ import { socket, socketService } from "../../lib/socketService";
     private mergeNotification(notification: Notification) {
         const index = this.notifications.findIndex(n => n.id === notification.id);
         if (index > -1) {
-            this.notifications[index] = notification;
+            this.notifications[index] = { ...this.notifications[index], ...notification };
         } else {
             this.notifications.unshift(notification); // Newest first
         }
         this.updateUnreadCount();
+    }
+
+    private mergeReferral(referral: any) {
+        const index = this.orgReferrals.findIndex(r => r.id === referral.id);
+        if (index > -1) {
+            this.orgReferrals[index] = { ...this.orgReferrals[index], ...referral };
+        } else {
+            this.orgReferrals.unshift(referral); // Newest first
+        }
         this.notifyListeners();
     }
 
     private updateUnreadCount() {
         this.unreadCount = this.notifications.filter(n => !n.isRead).length;
+        this.notifyListeners();
     }
 }
 

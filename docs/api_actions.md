@@ -48,7 +48,7 @@ All state-changing operations are sent via the `action` event.
 ### 2. Team Members
 
 #### `ADD_TEAM_MEMBER`
-*   **Payload**: `{ personId, teamId, roleId }`
+*   **Payload**: `{ orgProfileId, teamId, roleId }`
 *   **Logic**: Links a person to a team.
 *   **Broadcasts**:
     1.  **Topic**: `team:{teamId}`
@@ -154,7 +154,7 @@ All state-changing operations are sent via the `action` event.
     *   **Data**: The updated `Organization` object.
 
 #### `ADD_ORG_MEMBER`
-*   **Payload**: `{ personId, organizationId, roleId }`
+*   **Payload**: `{ orgProfileId, organizationId, roleId }`
 *   **Logic**: Adds a member to an organization.
 *   **Broadcasts**:
     *   **Topic**: `organization_memberships` (To be scoped)

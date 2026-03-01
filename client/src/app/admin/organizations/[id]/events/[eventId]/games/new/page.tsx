@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { store } from "@/app/store/store";
 import { Event } from "@sk/types"; 
+import { useOrganization } from "@/hooks/useOrganization";
 import { MatchForm, MatchFormData as FormDataType } from "@/components/admin/games/MatchForm";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -13,11 +14,12 @@ import { toast } from "@/hooks/use-toast";
 export default function NewGamePage() {
   const router = useRouter();
   const params = useParams();
-  const organizationId = params.id as string;
+  const orgId = params.id as string;
   const eventId = params.eventId as string;
 
+  const { org, isLoading: orgLoading } = useOrganization(orgId);
   const [event, setEvent] = useState<Event | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState<FormDataType | null>(null);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export default function NewGamePage() {
          const proposedDate = new Date(`${dateBase}T${formData.startTime}:00`);
 
          const conflicts = store.getGames().filter(g => {
-             if (g.eventId !== eventId || g.venueId !== formData.venueId || g.status === 'Cancelled' || !g.startTime) return false;
+             if (g.eventId !== eventId || g.siteId !== formData.siteId || g.status === 'Cancelled' || !g.startTime) return false;
              
              // Compare timestamps to handle timezone differences (UTC vs Local)
              const gameDate = new Date(g.startTime);
@@ -63,16 +65,16 @@ export default function NewGamePage() {
          }
     }
 
-    setLoading(true);
+    setIsProcessing(true);
     try {
         await store.addGame({
             eventId: event.id,
             homeTeamId: formData.homeTeamId,
             awayTeamId: formData.awayTeamId,
             startTime: formData.isTbd ? undefined : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
-            venueId: formData.venueId
+            siteId: formData.siteId
         });
-        router.push(`/admin/organizations/${organizationId}/events/${eventId}`);
+        router.push(`/admin/organizations/${orgId}/events/${eventId}`);
     } catch (e) {
         console.error(e);
         toast({
@@ -81,11 +83,22 @@ export default function NewGamePage() {
             variant: "destructive"
         });
     } finally {
-        setLoading(false);
+        setIsProcessing(false);
     }
   };
 
-  if (!event) return <div className="p-8 text-center">Loading event...</div>;
+  if (orgLoading && !org) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="mt-4 text-muted-foreground font-orbitron">Loading game setup...</p>
+      </div>
+    );
+  }
+
+  if (!org) return null;
+
+  if (!event) return <div className="p-8 text-center font-orbitron">Loading event details...</div>;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -106,7 +119,7 @@ export default function NewGamePage() {
       <main className="container py-8 max-w-3xl">
         <div className="space-y-8">
             <MatchForm 
-                organizationId={organizationId}
+                orgId={orgId}
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
                 onChange={setFormData}
@@ -118,9 +131,9 @@ export default function NewGamePage() {
                 </Button>
                 <Button 
                     onClick={handleSubmit}
-                    disabled={loading || !formData?.homeTeamId || !formData?.awayTeamId}
+                    disabled={isProcessing || !formData?.homeTeamId || !formData?.awayTeamId}
                 >
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Schedule Game
                 </Button>
             </div>

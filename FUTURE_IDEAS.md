@@ -16,7 +16,10 @@ This document is a space to jot down brilliant ideas for the application while w
     - Implement a hybrid search strategy where the autocomplete first searches the client cache.
     - Provide an option to "Expand search to all organizations" which triggers a full fuzzy search on the backend.
     - Ensure fuzzy search logic (like Levenshtein) is implemented on both frontend and backend for a consistent experience.
-
+- [ ] Add leagues feature
+    - any org can create a league
+    - teams can then join a league (league owner can specify if anyone can join or if they need to be approved) and assign specific matches to a league (league owner can choose to approve matches as well)
+    - when setting up a league the owner can specify how points and ranking will work
 
 ---
 *Note: You can ask me to update this list, add details to ideas, or promote them to the main [TODO.md](file:///c:/Fred/Coding/SK/TODO.md) when you're ready to start working on them.*

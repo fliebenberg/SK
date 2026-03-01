@@ -117,3 +117,4 @@ export const MetalText: React.FC<MetalTextProps> = ({
     </div>
   );
 };
+

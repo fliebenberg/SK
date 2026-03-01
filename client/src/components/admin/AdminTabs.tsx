@@ -43,3 +43,4 @@ export function AdminTabs({ tabs }: AdminTabsProps) {
     </nav>
   );
 }
+

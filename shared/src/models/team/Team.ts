@@ -3,7 +3,7 @@ export interface Team {
   name: string;
   ageGroup: string;
   sportId: string;
-  organizationId: string;
+  orgId: string;
   isActive?: boolean;
   playerCount?: number;
   staffCount?: number;

@@ -1,3 +1,5 @@
+import { Address } from "../Address";
+
 export interface Organization {
   id: string;
   name: string;
@@ -7,11 +9,14 @@ export interface Organization {
   supportedSportIds: string[];
   shortName?: string;
   supportedRoleIds?: string[];
+  addressId?: string;
+  address?: Address;
   teamCount?: number;
-  venueCount?: number;
+  siteCount?: number;
   eventCount?: number;
   memberCount?: number;
   isClaimed?: boolean;
   creatorId?: string;
   isActive?: boolean;
+  settings?: Record<string, any>;
 }

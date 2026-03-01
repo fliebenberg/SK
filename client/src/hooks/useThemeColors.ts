@@ -4,26 +4,30 @@ import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 
 export function useThemeColors() {
-  const { theme } = useTheme();
+  const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const isDark = mounted && theme?.includes('dark');
+  // Use resolvedTheme for behavior logic (which reflects actual state including 'system' resolution)
+  const isDark = mounted && (resolvedTheme?.includes('dark') || false);
   const metalVariant: 'silver-dark' | 'silver' = isDark ? 'silver-dark' : 'silver';
   
   // Use a stable default during hydration (before mount) to match SSR
+  // resolvedTheme will be 'dark-orange', 'light-orange', or 'dark-green'
   const primaryColor = mounted 
-    ? (theme?.includes('orange') ? 'hsl(24, 95%, 53%)' : 'hsl(142, 70%, 50%)')
+    ? (resolvedTheme?.includes('orange') ? 'hsl(24, 95%, 53%)' : 'hsl(142, 70%, 50%)')
     : 'hsl(142, 70%, 50%)';
 
   return {
     theme,
+    resolvedTheme,
     isDark,
     metalVariant,
     primaryColor,
     mounted
   };
 }
+

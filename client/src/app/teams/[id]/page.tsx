@@ -8,14 +8,14 @@ import { Input } from "@/components/ui/input";
 
 import { UserPlus, User } from "lucide-react";
 import { useState, useEffect } from "react";
-import { Team, TeamMembership, Person } from "@sk/types";
+import { Team, TeamMembership, OrgProfile } from "@sk/types";
 
 export default function TeamDetailPage() {
   const params = useParams();
   const id = params.id as string;
   
   const [team, setTeam] = useState<Team | undefined>(undefined);
-  const [roster, setRoster] = useState<(Person & { roleId: string; roleName?: string; membershipId: string })[]>([]);
+  const [roster, setRoster] = useState<(OrgProfile & { roleId: string; roleName?: string; membershipId: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingPerson, setIsAddingPerson] = useState(false);
 
@@ -29,8 +29,8 @@ export default function TeamDetailPage() {
 
       try {
           if (name && roleId && teamIdInput) {
-              const newPerson = await store.addPerson({ name });
-              await store.addTeamMember(newPerson.id, teamIdInput, roleId);
+              const newProfile = await store.addOrgProfile({ name, orgId: team?.orgId || "" });
+              await store.addTeamMember(newProfile.id, teamIdInput, roleId);
               (e.target as HTMLFormElement).reset();
           }
       } catch (e) {

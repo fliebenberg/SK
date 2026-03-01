@@ -25,14 +25,14 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { MatchCard } from "@/components/ui/MatchCard";
 
 interface EventListProps {
-  organizationId: string;
+  orgId: string;
   teamId?: string;
 }
 
-export function EventList({ organizationId, teamId }: EventListProps) {
+export function EventList({ orgId, teamId }: EventListProps) {
   const router = useRouter();
   const { metalVariant } = useThemeColors();
-  const [events, setEvents] = useState<Event[]>(store.getEvents(organizationId));
+  const [events, setEvents] = useState<Event[]>(store.getEvents(orgId));
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; eventId: string; name: string }>({
     isOpen: false,
     eventId: "",
@@ -48,16 +48,16 @@ export function EventList({ organizationId, teamId }: EventListProps) {
 
   useEffect(() => {
     const update = () => {
-        setEvents([...store.getEvents(organizationId)]);
+        setEvents([...store.getEvents(orgId)]);
     };
     update(); 
-    store.subscribeToOrganizationData(organizationId);
+    store.subscribeToOrganizationData(orgId);
     const unsub = store.subscribe(update);
     return () => {
         unsub();
-        store.unsubscribeFromOrganizationData(organizationId);
+        store.unsubscribeFromOrganizationData(orgId);
     };
-  }, [organizationId]);
+  }, [orgId]);
 
   const handleDelete = async () => {
     if (confirmDelete.eventId) {
@@ -76,8 +76,8 @@ export function EventList({ organizationId, teamId }: EventListProps) {
           const awayTeam = store.getTeam(game.awayTeamId);
           
           if (homeTeam && awayTeam) {
-              const homeOrg = store.getOrganization(homeTeam.organizationId);
-              const awayOrg = store.getOrganization(awayTeam.organizationId);
+              const homeOrg = store.getOrganization(homeTeam.orgId);
+              const awayOrg = store.getOrganization(awayTeam.orgId);
               
               const homeChunk = `${homeOrg?.shortName || homeOrg?.name || ''} ${homeTeam.name}`;
               const awayChunk = `${awayOrg?.shortName || awayOrg?.name || ''} ${awayTeam.name}`;
@@ -163,7 +163,7 @@ export function EventList({ organizationId, teamId }: EventListProps) {
               <DropdownMenuContent align="end" className="w-56 bg-background/95 backdrop-blur-md border-border/50">
                 <DropdownMenuItem 
                   onClick={() => {
-                      let url = `/admin/organizations/${organizationId}/events/create?type=game`;
+                      let url = `/admin/organizations/${orgId}/events/create?type=game`;
                       if (teamId) {
                           const team = store.getTeam(teamId);
                           if (team) {
@@ -184,7 +184,7 @@ export function EventList({ organizationId, teamId }: EventListProps) {
                 {!teamId && (
                   <>
                     <DropdownMenuItem 
-                      onClick={() => router.push(`/admin/organizations/${organizationId}/events/create?type=sportsday`)}
+                      onClick={() => router.push(`/admin/organizations/${orgId}/events/create?type=sportsday`)}
                       className="gap-2 cursor-pointer py-3"
                     >
                       <Activity className="h-4 w-4 text-primary" />
@@ -195,7 +195,7 @@ export function EventList({ organizationId, teamId }: EventListProps) {
                     </DropdownMenuItem>
                     
                     <DropdownMenuItem 
-                      onClick={() => router.push(`/admin/organizations/${organizationId}/events/create?type=tournament`)}
+                      onClick={() => router.push(`/admin/organizations/${orgId}/events/create?type=tournament`)}
                       className="gap-2 cursor-pointer py-3"
                     >
                       <Trophy className="h-4 w-4 text-primary" />
@@ -275,7 +275,7 @@ export function EventList({ organizationId, teamId }: EventListProps) {
                 relevantGames = games.filter(g => {
                     const homeTeam = store.getTeam(g.homeTeamId);
                     const awayTeam = store.getTeam(g.awayTeamId);
-                    return homeTeam?.organizationId === organizationId || awayTeam?.organizationId === organizationId;
+                    return homeTeam?.orgId === orgId || awayTeam?.orgId === orgId;
                 });
             }
             
@@ -298,7 +298,7 @@ export function EventList({ organizationId, teamId }: EventListProps) {
                 {/* Event Group Header (only for container events or if multiple games) */}
                 {(isContainerEvent || (relevantGames.length > 1 && !teamId)) && (
                   <div 
-                    onClick={() => isContainerEvent && router.push(`/admin/organizations/${organizationId}/events/${event.id}`)}
+                    onClick={() => isContainerEvent && router.push(`/admin/organizations/${orgId}/events/${event.id}`)}
                     className={cn(
                       "flex items-center justify-between gap-4 px-3 py-1.5 transition-all",
                       isContainerEvent 
@@ -316,10 +316,10 @@ export function EventList({ organizationId, teamId }: EventListProps) {
                     </div>
                     <div className="flex items-center gap-4 text-[9px] font-bold text-muted-foreground uppercase opacity-70 shrink-0">
                       <span>{event.type === 'SportsDay' ? 'Sports Day' : event.type}</span>
-                      {event.venueId && (
+                      {event.siteId && (
                         <span className="flex items-center gap-1">
                           <MapPin className="h-2.5 w-2.5" />
-                          {store.getVenue(event.venueId)?.name || "Unknown Venue"}
+                          {store.getSite(event.siteId)?.name || "Unknown Site"}
                         </span>
                       )}
                     </div>
@@ -340,9 +340,9 @@ export function EventList({ organizationId, teamId }: EventListProps) {
                         highlightTeamId={teamId}
                         onClick={() => {
                             if (event.type === 'SingleMatch') {
-                                router.push(`/admin/organizations/${organizationId}/events/${event.id}`);
+                                router.push(`/admin/organizations/${orgId}/events/${event.id}`);
                             } else {
-                                router.push(`/admin/organizations/${organizationId}/events/${event.id}/games/${game.id}/edit`);
+                                router.push(`/admin/organizations/${orgId}/events/${event.id}/games/${game.id}/edit`);
                             }
                         }}
                       />
@@ -365,3 +365,4 @@ export function EventList({ organizationId, teamId }: EventListProps) {
     </div>
   );
 }
+

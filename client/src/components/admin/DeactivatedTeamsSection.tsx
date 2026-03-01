@@ -6,12 +6,12 @@ import { GroupedTeamList } from "@/components/admin/GroupedTeamList";
 
 interface DeactivatedTeamsSectionProps {
   teams: Team[];
-  organizationId: string;
+  orgId: string;
   sports: Sport[];
   groupBy: 'none' | 'sport' | 'age';
 }
 
-export function DeactivatedTeamsSection({ teams, organizationId, sports, groupBy }: DeactivatedTeamsSectionProps) {
+export function DeactivatedTeamsSection({ teams, orgId, sports, groupBy }: DeactivatedTeamsSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   if (teams.length === 0) return null;
@@ -31,7 +31,7 @@ export function DeactivatedTeamsSection({ teams, organizationId, sports, groupBy
           <CardContent className="p-0 md:p-6">
             <GroupedTeamList 
               teams={teams} 
-              organizationId={organizationId} 
+              orgId={orgId} 
               sports={sports} 
               groupBy={groupBy}
               isActive={false} 
@@ -42,3 +42,4 @@ export function DeactivatedTeamsSection({ teams, organizationId, sports, groupBy
     </div>
   );
 }
+

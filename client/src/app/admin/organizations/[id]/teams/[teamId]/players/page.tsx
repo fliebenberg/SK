@@ -4,7 +4,7 @@ import { store } from "@/app/store/store";
 import { TeamPlayersList } from "@/components/admin/TeamPlayersList";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Person } from "@sk/types";
+import { OrgProfile } from "@sk/types";
 
 export default function PlayersPage() {
   const params = useParams();

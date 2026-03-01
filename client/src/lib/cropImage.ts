@@ -96,3 +96,4 @@ export default async function getCroppedImg(
   // As Base64 string
   return canvas.toDataURL('image/jpeg', 0.9)
 }
+

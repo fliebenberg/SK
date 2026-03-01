@@ -5,18 +5,18 @@ import { TeamList } from "@/components/admin/TeamList";
 
 interface GroupedTeamListProps {
   teams: Team[];
-  organizationId: string;
+  orgId: string;
   sports: Sport[];
   groupBy: 'none' | 'sport' | 'age';
   isActive: boolean;
 }
 
-export function GroupedTeamList({ teams, organizationId, sports, groupBy, isActive }: GroupedTeamListProps) {
+export function GroupedTeamList({ teams, orgId, sports, groupBy, isActive }: GroupedTeamListProps) {
   if (groupBy === 'none') {
     return (
       <TeamList 
         teams={teams} 
-        organizationId={organizationId} 
+        orgId={orgId} 
         sports={sports} 
         isActive={isActive} 
       />
@@ -65,7 +65,7 @@ export function GroupedTeamList({ teams, organizationId, sports, groupBy, isActi
                 </div>
                 <TeamList 
                     teams={sortedGroupTeams} 
-                    organizationId={organizationId} 
+                    orgId={orgId} 
                     sports={sports} 
                     isActive={isActive} 
                 />
@@ -75,3 +75,4 @@ export function GroupedTeamList({ teams, organizationId, sports, groupBy, isActi
     </div>
   );
 }
+

@@ -20,7 +20,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface GameDialogProps {
-  organizationId: string;
+  orgId: string;
   event: Event;
   trigger?: React.ReactNode;
   game?: Game;
@@ -28,7 +28,7 @@ interface GameDialogProps {
 }
 
 export function GameDialog({
-  organizationId,
+  orgId,
   event,
   trigger,
   game,
@@ -52,7 +52,7 @@ export function GameDialog({
          const proposedDate = new Date(`${dateBase}T${formData.startTime}:00`);
 
          const conflicts = store.getGames().filter(g => {
-             if (g.eventId !== event.id || g.venueId !== formData.venueId || g.status === 'Cancelled' || !g.startTime || g.id === game?.id) return false;
+             if (g.eventId !== event.id || g.siteId !== formData.siteId || g.status === 'Cancelled' || !g.startTime || g.id === game?.id) return false;
              
              const gameDate = new Date(g.startTime);
              return gameDate.getTime() === proposedDate.getTime();
@@ -77,7 +77,7 @@ export function GameDialog({
                 homeTeamId: formData.homeTeamId,
                 awayTeamId: formData.awayTeamId,
                 startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
-                venueId: formData.venueId,
+                siteId: formData.siteId,
             });
         } else {
             savedGame = await store.addGame({
@@ -85,7 +85,7 @@ export function GameDialog({
                 homeTeamId: formData.homeTeamId,
                 awayTeamId: formData.awayTeamId,
                 startTime: formData.isTbd ? undefined : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
-                venueId: formData.venueId,
+                siteId: formData.siteId,
             });
         }
 
@@ -120,7 +120,7 @@ export function GameDialog({
         awayTeamId: game.awayTeamId,
         startTime: game.startTime ? format(new Date(game.startTime), "HH:mm") : undefined,
         isTbd: !game.startTime,
-        venueId: game.venueId,
+        siteId: game.siteId,
         sportId: store.getTeam(game.homeTeamId)?.sportId
     };
   }, [game]);
@@ -132,7 +132,7 @@ export function GameDialog({
           initialData.awayTeamId !== formData.awayTeamId ||
           initialData.startTime !== formData.startTime ||
           initialData.isTbd !== formData.isTbd ||
-          initialData.venueId !== formData.venueId
+          initialData.siteId !== formData.siteId
       );
   }, [game, initialData, formData]);
 
@@ -150,7 +150,7 @@ export function GameDialog({
         <div className="py-2">
             <MatchForm 
                 key={game?.id || 'new'}
-                organizationId={organizationId}
+                orgId={orgId}
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
                 initialData={initialData}
@@ -159,22 +159,35 @@ export function GameDialog({
         </div>
 
         <DialogFooter className="mt-6">
-          <MetalButton 
-            variantType="outlined" 
-            onClick={() => setOpen(false)}
-            disabled={loading}
-          >
-            Cancel
-          </MetalButton>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={loading || !formData?.homeTeamId || !formData?.awayTeamId || (game && !hasChanges)}
-          >
-             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-             {game ? "Save Changes" : "Schedule Game"}
-          </Button>
+          {(!game || hasChanges) ? (
+            <div className="flex gap-2 w-full justify-end animate-in fade-in slide-in-from-right-2">
+              <MetalButton 
+                variantType="outlined" 
+                onClick={() => setOpen(false)}
+                disabled={loading}
+              >
+                Cancel
+              </MetalButton>
+              <Button 
+                onClick={handleSubmit} 
+                disabled={loading || !formData?.homeTeamId || !formData?.awayTeamId}
+              >
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {game ? "Save Changes" : "Schedule Game"}
+              </Button>
+            </div>
+          ) : (
+            <MetalButton 
+              variantType="outlined" 
+              onClick={() => setOpen(false)}
+              className="w-full sm:w-auto"
+            >
+              Close
+            </MetalButton>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+

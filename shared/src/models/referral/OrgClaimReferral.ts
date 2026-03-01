@@ -1,6 +1,6 @@
 export interface OrgClaimReferral {
     id: string;
-    organizationId: string;
+    orgId: string;
     referredEmail: string;
     referredByUserId: string;
     claimToken?: string; // Private to server usually, but might be needed for debug or specific flows? referManager returns it.

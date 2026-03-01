@@ -43,6 +43,24 @@ export class ReportManager {
     );
     return res.rows;
   }
+
+  async getReports(type?: string): Promise<Report[]> {
+    let query = `
+      SELECT id, reporter_user_id as "reporterUserId", entity_type as "entityType", 
+             entity_id as "entityId", reason, description, status, 
+             resolved_by_user_id as "resolvedByUserId", resolved_at as "resolvedAt", 
+             created_at as "createdAt"
+      FROM reports
+    `;
+    const params: any[] = [];
+    if (type) {
+        query += ' WHERE entity_type = $1';
+        params.push(type);
+    }
+    query += ' ORDER BY created_at DESC';
+    const res = await this.pool.query(query, params);
+    return res.rows;
+  }
 }
 
 export const reportManager = new ReportManager();

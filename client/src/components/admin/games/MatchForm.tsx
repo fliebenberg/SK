@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GenericAutocomplete } from "@/components/ui/GenericAutocomplete";
-import { Event, Organization, Sport, Team } from "@sk/types";
+import { Event, Organization, Sport, Team, Address } from "@sk/types";
 import { store } from "@/app/store/store";
 import { Loader2, Check } from "lucide-react";
 import { OrgCreationDialog } from "../organizations/OrgCreationDialog";
@@ -25,13 +25,14 @@ export interface MatchFormData {
   awayTeamId: string;
   startTime: string;
   isTbd: boolean;
-  venueId: string;
+  siteId: string;
+  facilityId: string;
   sportId: string;
   referrals?: Record<string, string[]>;
 }
 
 interface MatchFormProps {
-  organizationId: string;
+  orgId: string;
   event: Event;
   initialData?: Partial<MatchFormData>;
   onChange: (data: MatchFormData) => void;
@@ -39,7 +40,7 @@ interface MatchFormProps {
 }
 
 export function MatchForm({
-  organizationId,
+  orgId,
   event,
   initialData,
   onChange,
@@ -48,12 +49,13 @@ export function MatchForm({
   const [loading, setLoading] = useState(false);
   const [allSports, setAllSports] = useState<Sport[]>([]);
   const [allOrgs, setAllOrgs] = useState<Organization[]>([]);
-  const [venues, setVenues] = useState<any[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
+  const [facilities, setFacilities] = useState<any[]>([]);
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
 
   // Form State
   const [selectedSportId, setSelectedSportId] = useState(initialData?.sportId || (event.sportIds?.[0] || ""));
-  const [homeOrgId, setHomeOrgId] = useState(organizationId);
+  const [homeOrgId, setHomeOrgId] = useState(orgId);
   const [homeOrgName, setHomeOrgName] = useState("");
   const [homeTeamId, setHomeTeamId] = useState(initialData?.homeTeamId || "");
   const [homeOrgTeams, setHomeOrgTeams] = useState<Team[]>([]);
@@ -72,8 +74,10 @@ export function MatchForm({
     return initialData.startTime;
   });
   const [isTbd, setIsTbd] = useState(initialData?.isTbd || !initialData?.startTime);
-  const [gameVenueId, setGameVenueId] = useState(initialData?.venueId || event.venueId || "");
-  const [gameVenueName, setGameVenueName] = useState("");
+  const [gameSiteId, setGameSiteId] = useState(initialData?.siteId || event.siteId || "");
+  const [gameSiteName, setGameSiteName] = useState("");
+  const [gameFacilityId, setGameFacilityId] = useState(initialData?.facilityId || event.facilityId || "");
+  const [gameFacilityName, setGameFacilityName] = useState("");
 
   const [orgDialogOpen, setOrgDialogOpen] = useState(false);
   const [pendingOrgName, setPendingOrgName] = useState("");
@@ -89,7 +93,7 @@ export function MatchForm({
 
   const [referrals, setReferrals] = useState<Record<string, string[]>>({});
 
-  const participatingOrgIds = [event.organizationId, ...(event.participatingOrgIds || [])];
+  const participatingOrgIds = [event.orgId, ...(event.participatingOrgIds || [])];
   const orgSports = currentOrg?.supportedSportIds && currentOrg.supportedSportIds.length > 0
     ? allSports.filter(s => currentOrg.supportedSportIds.includes(s.id))
     : allSports;
@@ -105,27 +109,39 @@ export function MatchForm({
       awayTeamId: selectedTeamId || "",
       startTime,
       isTbd,
-      venueId: gameVenueId,
+      siteId: gameSiteId,
+      facilityId: gameFacilityId,
       sportId: selectedSportId,
       referrals
     });
-  }, [homeTeamId, selectedTeamId, startTime, isTbd, gameVenueId, selectedSportId, referrals]);
+  }, [homeTeamId, selectedTeamId, startTime, isTbd, gameSiteId, gameFacilityId, selectedSportId, referrals]);
 
   // Initialization & Updates
   useEffect(() => {
     const update = () => {
       setAllOrgs(store.getOrganizations());
       setAllSports(store.getSports());
-      const allVenues = store.getVenues(organizationId);
-      setVenues(allVenues);
+      const allSites = store.getSites(orgId);
+      setSites(allSites);
 
-      const org = store.getOrganization(organizationId);
+      if (gameSiteId) {
+          setFacilities(store.getFacilities(gameSiteId));
+      } else {
+          setFacilities([]);
+      }
+
+      const org = store.getOrganization(orgId);
       if (org) setCurrentOrg(org);
-      else store.fetchOrganization(organizationId);
+      else store.fetchOrganization(orgId);
 
-      if (gameVenueId && !gameVenueName) {
-        const v = store.getVenue(gameVenueId);
-        if (v) setGameVenueName(v.name);
+      if (gameSiteId && !gameSiteName) {
+        const v = store.getSite(gameSiteId);
+        if (v) setGameSiteName(v.name);
+      }
+      
+      if (gameFacilityId && !gameFacilityName) {
+        const f = store.getFacility(gameFacilityId);
+        if (f) setGameFacilityName(f.name);
       }
 
       if (homeOrgId) {
@@ -148,7 +164,7 @@ export function MatchForm({
     update();
     const unsub = store.subscribe(update);
     return unsub;
-  }, [homeOrgId, selectedOrgId, selectedSportId, organizationId, gameVenueId]);
+  }, [homeOrgId, selectedOrgId, selectedSportId, orgId, gameSiteId]);
 
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -186,8 +202,8 @@ export function MatchForm({
     if (initialData?.awayTeamId && (!selectedOrgId || !targetTeamName || !targetOrgName)) {
       const awayTeam = store.getTeam(initialData.awayTeamId);
       if (awayTeam) {
-        if (!selectedOrgId) setSelectedOrgId(awayTeam.organizationId);
-        if (!targetOrgName) setTargetOrgName(store.getOrganization(awayTeam.organizationId)?.name || "");
+        if (!selectedOrgId) setSelectedOrgId(awayTeam.orgId);
+        if (!targetOrgName) setTargetOrgName(store.getOrganization(awayTeam.orgId)?.name || "");
         if (!selectedTeamId) setSelectedTeamId(awayTeam.id);
         if (!targetTeamName) setTargetTeamName(awayTeam.name);
       }
@@ -199,10 +215,10 @@ export function MatchForm({
         if (homeTeam) {
             // Only update ID if strictly needed or if we suspect mismatch (but here we trust initialData)
             // Just update Name if missing
-            if ((!homeOrgId || homeOrgId === organizationId) && homeTeam.organizationId !== homeOrgId) {
-                 setHomeOrgId(homeTeam.organizationId);
+            if ((!homeOrgId || homeOrgId === orgId) && homeTeam.orgId !== homeOrgId) {
+                 setHomeOrgId(homeTeam.orgId);
             }
-            if (!homeOrgName) setHomeOrgName(store.getOrganization(homeTeam.organizationId)?.name || "");
+            if (!homeOrgName) setHomeOrgName(store.getOrganization(homeTeam.orgId)?.name || "");
             if (!homeTeamId) setHomeTeamId(homeTeam.id);
         }
     }
@@ -243,17 +259,37 @@ export function MatchForm({
     }
   };
 
-  const handleCreateVenue = async (name: string) => {
+  const handleCreateSite = async (name: string) => {
     if (!name.trim()) return;
     setLoading(true);
     try {
-      const newVenue = await store.addVenue({
+      const newSite = await store.addSite({
         name: name,
-        address: "TBD",
-        organizationId: organizationId
+        address: { fullAddress: "TBD" } as Address,
+        orgId: orgId
       });
-      setGameVenueName(newVenue.name);
-      setGameVenueId(newVenue.id);
+      setGameSiteName(newSite.name);
+      setGameSiteId(newSite.id);
+      setGameFacilityId("");
+      setGameFacilityName("");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateFacility = async (name: string) => {
+    if (!name.trim() || !gameSiteId) return;
+    setLoading(true);
+    try {
+      const newFacility = await store.addFacility({
+        siteId: gameSiteId,
+        name: name,
+        surfaceType: ""
+      });
+      setGameFacilityName(newFacility.name);
+      setGameFacilityId(newFacility.id);
     } catch (e) {
       console.error(e);
     } finally {
@@ -377,25 +413,54 @@ export function MatchForm({
           </div>
 
           <div className="space-y-2">
-            <Label>Venue</Label>
+            <Label>Site</Label>
             <GenericAutocomplete
-              items={venues.map(v => ({ id: v.id, label: v.name, data: v }))}
-              value={gameVenueName}
-              onChange={setGameVenueName}
+              items={sites.map(v => ({ id: v.id, label: v.name, data: v }))}
+              value={gameSiteName}
+              onChange={setGameSiteName}
               onSelect={(item) => {
                 if (item) {
-                  setGameVenueId(item.id);
-                  setGameVenueName(item.label);
+                  setGameSiteId(item.id);
+                  setGameSiteName(item.label);
+                  if (item.id !== gameSiteId) {
+                      setGameFacilityId("");
+                      setGameFacilityName("");
+                  }
                 } else {
-                  setGameVenueId("");
+                  setGameSiteId("");
+                  setGameFacilityId("");
+                  setGameFacilityName("");
                 }
               }}
-              onCreateNew={handleCreateVenue}
+              onCreateNew={handleCreateSite}
               placeholder="Select match location..."
               createLabel="Add Location"
               isLoading={loading}
             />
           </div>
+
+          {gameSiteId && (
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+              <Label>Facility (Optional)</Label>
+              <GenericAutocomplete
+                items={facilities.map(f => ({ id: f.id, label: f.name, subLabel: f.surfaceType, data: f }))}
+                value={gameFacilityName}
+                onChange={setGameFacilityName}
+                onSelect={(item) => {
+                  if (item) {
+                    setGameFacilityId(item.id);
+                    setGameFacilityName(item.label);
+                  } else {
+                    setGameFacilityId("");
+                  }
+                }}
+                onCreateNew={handleCreateFacility}
+                placeholder="Select field/court..."
+                createLabel="Add Facility"
+                isLoading={loading}
+              />
+            </div>
+          )}
         </div>
 
         {/* TEAM SELECTION */}
@@ -409,7 +474,7 @@ export function MatchForm({
                 {isSportsDay ? (
                   <div className="space-y-2">
                      <GenericAutocomplete 
-                        items={searchedOrgs.filter(o => !isSportsDay || o.id !== organizationId).map(o => ({ 
+                        items={searchedOrgs.filter(o => !isSportsDay || o.id !== orgId).map(o => ({ 
                             id: o.id, 
                             label: o.name, 
                             subLabel: o.shortName,
@@ -540,7 +605,7 @@ export function MatchForm({
       <TeamCreationDialog
         open={teamDialogOpen}
         onOpenChange={setTeamDialogOpen}
-        organizationId={targetOrgIdForTeam}
+        orgId={targetOrgIdForTeam}
         initialName={pendingTeamName}
         initialSportId={selectedSportId}
         initialAgeGroup={(() => {
@@ -556,3 +621,4 @@ export function MatchForm({
     </div>
   );
 }
+

@@ -18,7 +18,7 @@ import {
 
 export default function NewTeamPage() {
   const params = useParams();
-  const organizationId = params?.id as string;
+  const orgId = params?.id as string;
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -27,7 +27,7 @@ export default function NewTeamPage() {
     ageGroup: "",
   });
 
-  const org = store.getOrganization(organizationId);
+  const org = store.getOrganization(orgId);
   const availableSports = (org?.supportedSportIds || []).map(id => store.getSport(id)).filter(Boolean);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,12 +40,12 @@ export default function NewTeamPage() {
             name: formData.name,
             sportId: formData.sportId,
             ageGroup: formData.ageGroup,
-            organizationId: organizationId,
+            orgId: orgId,
         });
 
         if (newTeam) {
-            console.log("Team created (client):", newTeam.id, "for Org:", organizationId);
-            const path = `/admin/organizations/${organizationId}/teams/${newTeam.id}`;
+            console.log("Team created (client):", newTeam.id, "for Org:", orgId);
+            const path = `/admin/organizations/${orgId}/teams/${newTeam.id}`;
             console.log("Redirecting to:", path);
             router.push(path);
         }
@@ -57,7 +57,7 @@ export default function NewTeamPage() {
   };
 
   const handleCancel = () => {
-    router.push(`/admin/organizations/${organizationId}/teams`);
+    router.push(`/admin/organizations/${orgId}/teams`);
   };
 
   return (
