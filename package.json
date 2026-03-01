@@ -3,7 +3,8 @@
   "version": "0.0.2",
   "private": true,
   "scripts": {
-    "release": "commit-and-tag-version"
+    "release": "commit-and-tag-version",
+    "release:push": "npm run release && git push --follow-tags"
   },
   "devDependencies": {
     "commit-and-tag-version": "^12.6.1"

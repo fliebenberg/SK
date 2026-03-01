@@ -28,3 +28,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/en/
    ```bash
    git push --follow-tags
    ```
+   **Tip:** You can perform both the release and push together by running:
+   ```bash
+   npm run release:push
+   ```
