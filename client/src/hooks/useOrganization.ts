@@ -14,7 +14,7 @@ interface UseOrganizationOptions {
 export function useOrganization(id: string, options: UseOrganizationOptions = {}) {
     const { 
         subscribeData = false, 
-        subscribeSummary = false, 
+        subscribeSummary = true, 
         gracePeriodMs = 3000 
     } = options;
 

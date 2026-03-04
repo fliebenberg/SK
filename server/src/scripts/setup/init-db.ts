@@ -71,7 +71,9 @@ const createTables = async () => {
                 site_id TEXT REFERENCES sites(id),
                 primary_sport_id TEXT REFERENCES sports(id),
                 address_id TEXT REFERENCES addresses(id),
-                surface_type TEXT
+                surface_type TEXT,
+                latitude DOUBLE PRECISION,
+                longitude DOUBLE PRECISION
             );
         `);
 

@@ -7,12 +7,9 @@ export class FacilityManager extends BaseManager {
 
   async getFacilities(siteId?: string): Promise<Facility[]> {
     let queryText = `
-        SELECT f.id, f.name, f.site_id as "siteId", f.primary_sport_id as "primarySportId", f.address_id as "addressId", f.surface_type as "surfaceType",
-               a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
-               a.city, a.province, a.postal_code as "postalCode", a.country,
-               a.latitude, a.longitude
+        SELECT f.id, f.name, f.site_id as "siteId", f.primary_sport_id as "primarySportId", 
+               f.surface_type as "surfaceType", f.latitude, f.longitude
         FROM facilities f
-        LEFT JOIN addresses a ON f.address_id = a.id
     `;
     const params: any[] = [];
     if (siteId) {
@@ -20,67 +17,27 @@ export class FacilityManager extends BaseManager {
         params.push(siteId);
     }
     const res = await this.query(queryText, params);
-    return res.rows.map(row => ({
-        ...row,
-        address: row.addressId ? {
-            id: row.addressId,
-            fullAddress: row.fullAddress,
-            addressLine1: row.addressLine1,
-            addressLine2: row.addressLine2,
-            city: row.city,
-            province: row.province,
-            postalCode: row.postalCode,
-            country: row.country,
-            latitude: row.latitude,
-            longitude: row.longitude
-        } : undefined
-    }));
+    return res.rows;
   }
 
   async getFacility(id: string): Promise<Facility | undefined> {
     const res = await this.query(`
-        SELECT f.id, f.name, f.site_id as "siteId", f.primary_sport_id as "primarySportId", f.address_id as "addressId", f.surface_type as "surfaceType",
-               a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
-               a.city, a.province, a.postal_code as "postalCode", a.country,
-               a.latitude, a.longitude
+        SELECT f.id, f.name, f.site_id as "siteId", f.primary_sport_id as "primarySportId", 
+               f.surface_type as "surfaceType", f.latitude, f.longitude
         FROM facilities f
-        LEFT JOIN addresses a ON f.address_id = a.id
         WHERE f.id = $1
     `, [id]);
     
-    const row = res.rows[0];
-    if (!row) return undefined;
-
-    return {
-        ...row,
-        address: row.addressId ? {
-            id: row.addressId,
-            fullAddress: row.fullAddress,
-            addressLine1: row.addressLine1,
-            addressLine2: row.addressLine2,
-            city: row.city,
-            province: row.province,
-            postalCode: row.postalCode,
-            country: row.country,
-            latitude: row.latitude,
-            longitude: row.longitude
-        } : undefined
-    };
+    return res.rows[0];
   }
 
   async addFacility(facility: Omit<Facility, "id" | "siteId"> & { siteId: string, id?: string }): Promise<Facility> {
     const id = facility.id || `facility-${Date.now()}`;
-    let addressId = facility.addressId;
-
-    if (facility.address && !addressId) {
-        const newAddr = await addressManager.addAddress(facility.address);
-        addressId = newAddr.id;
-    }
 
     await this.query(
-        `INSERT INTO facilities (id, name, site_id, primary_sport_id, address_id, surface_type)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-         [id, facility.name, facility.siteId, facility.primarySportId, addressId, facility.surfaceType]
+        `INSERT INTO facilities (id, name, site_id, primary_sport_id, surface_type, latitude, longitude)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         [id, facility.name, facility.siteId, facility.primarySportId, facility.surfaceType, facility.latitude, facility.longitude]
     );
     this.invalidateCache();
     return (await this.getFacility(id))!;
@@ -90,23 +47,16 @@ export class FacilityManager extends BaseManager {
     const currentFacility = await this.getFacility(id);
     if (!currentFacility) return null;
 
-    if (data.address) {
-        if (currentFacility.addressId) {
-            await addressManager.updateAddress(currentFacility.addressId, data.address);
-        } else {
-            const newAddr = await addressManager.addAddress(data.address);
-            data.addressId = newAddr.id;
-        }
-        delete data.address;
-    }
+    // No special address handling needed anymore    
 
     const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'siteId');
     if (keys.length > 0) {
         const map: Record<string, string> = { 
             name: 'name', 
-            addressId: 'address_id', 
             primarySportId: 'primary_sport_id',
-            surfaceType: 'surface_type' 
+            surfaceType: 'surface_type',
+            latitude: 'latitude',
+            longitude: 'longitude'
         };
         const clauses: string[] = [];
         const values: any[] = [];
