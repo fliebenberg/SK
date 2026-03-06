@@ -8,7 +8,7 @@ export class FacilityManager extends BaseManager {
   async getFacilities(siteId?: string): Promise<Facility[]> {
     let queryText = `
         SELECT f.id, f.name, f.site_id as "siteId", f.primary_sport_id as "primarySportId", 
-               f.surface_type as "surfaceType", f.latitude, f.longitude
+               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive"
         FROM facilities f
     `;
     const params: any[] = [];
@@ -23,7 +23,7 @@ export class FacilityManager extends BaseManager {
   async getFacility(id: string): Promise<Facility | undefined> {
     const res = await this.query(`
         SELECT f.id, f.name, f.site_id as "siteId", f.primary_sport_id as "primarySportId", 
-               f.surface_type as "surfaceType", f.latitude, f.longitude
+               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive"
         FROM facilities f
         WHERE f.id = $1
     `, [id]);
@@ -33,11 +33,12 @@ export class FacilityManager extends BaseManager {
 
   async addFacility(facility: Omit<Facility, "id" | "siteId"> & { siteId: string, id?: string }): Promise<Facility> {
     const id = facility.id || `facility-${Date.now()}`;
+    const isActive = facility.isActive !== undefined ? facility.isActive : true;
 
     await this.query(
-        `INSERT INTO facilities (id, name, site_id, primary_sport_id, surface_type, latitude, longitude)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-         [id, facility.name, facility.siteId, facility.primarySportId, facility.surfaceType, facility.latitude, facility.longitude]
+        `INSERT INTO facilities (id, name, site_id, primary_sport_id, surface_type, latitude, longitude, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         [id, facility.name, facility.siteId, facility.primarySportId, facility.surfaceType, facility.latitude, facility.longitude, isActive]
     );
     this.invalidateCache();
     return (await this.getFacility(id))!;
@@ -56,7 +57,8 @@ export class FacilityManager extends BaseManager {
             primarySportId: 'primary_sport_id',
             surfaceType: 'surface_type',
             latitude: 'latitude',
-            longitude: 'longitude'
+            longitude: 'longitude',
+            isActive: 'is_active'
         };
         const clauses: string[] = [];
         const values: any[] = [];

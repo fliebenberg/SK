@@ -157,7 +157,7 @@ All state-changing operations are sent via the `action` event.
 *   **Payload**: `{ orgProfileId, organizationId, roleId }`
 *   **Logic**: Adds a member to an organization.
 *   **Broadcasts**:
-    *   **Topic**: `organization_memberships` (To be scoped)
+    *   **Topic**: `org_memberships` (To be scoped)
     *   **Event**: `ORG_MEMBERSHIPS_UPDATED`
     *   **Data**: The new membership.
 

@@ -104,7 +104,7 @@ export default function CreateEventPage() {
 
   useEffect(() => {
     const update = () => {
-        setSites(store.getSites(orgId));
+        setSites(store.getSites(orgId).filter(s => s.isActive !== false || s.id === siteId));
         setSports(store.getSports());
         setAllOrgs(store.getOrganizations());
     };

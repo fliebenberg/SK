@@ -6,4 +6,5 @@ export interface Site {
   addressId?: string;
   address?: Address;
   orgId: string;
+  isActive?: boolean;
 }

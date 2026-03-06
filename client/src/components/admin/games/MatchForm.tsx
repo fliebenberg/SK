@@ -122,10 +122,10 @@ export function MatchForm({
       setAllOrgs(store.getOrganizations());
       setAllSports(store.getSports());
       const allSites = store.getSites(orgId);
-      setSites(allSites);
+      setSites(allSites.filter(s => s.isActive !== false || s.id === initialData?.siteId || s.id === event.siteId || s.id === gameSiteId));
 
       if (gameSiteId) {
-          setFacilities(store.getFacilities(gameSiteId));
+          setFacilities(store.getFacilities(gameSiteId).filter(f => f.isActive !== false || f.id === initialData?.facilityId || f.id === event.facilityId || f.id === gameFacilityId));
       } else {
           setFacilities([]);
       }
@@ -474,7 +474,7 @@ export function MatchForm({
                 {isSportsDay ? (
                   <div className="space-y-2">
                      <GenericAutocomplete 
-                        items={searchedOrgs.filter(o => !isSportsDay || o.id !== orgId).map(o => ({ 
+                        items={searchedOrgs.map(o => ({ 
                             id: o.id, 
                             label: o.name, 
                             subLabel: o.shortName,
@@ -543,7 +543,7 @@ export function MatchForm({
                 <Label className="uppercase">Team 2</Label>
                 <div className="space-y-2">
                   <GenericAutocomplete
-                    items={searchedOrgs.filter(o => o.id !== homeOrgId).map(o => ({ 
+                    items={searchedOrgs.map(o => ({ 
                         id: o.id, 
                         label: o.name, 
                         subLabel: o.shortName,

@@ -37,6 +37,7 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
   const [formData, setFormData] = useState({
     name: site?.name || "",
     address: site?.address || { fullAddress: "" } as Address,
+    isActive: site?.isActive !== false
   });
 
   // Facilities State
@@ -47,7 +48,8 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
     surfaceType: "", 
     primarySportId: "",
     latitude: undefined as number | undefined,
-    longitude: undefined as number | undefined
+    longitude: undefined as number | undefined,
+    isActive: true
   });
   const [newFacilitySportSearch, setNewFacilitySportSearch] = useState("");
   
@@ -58,6 +60,7 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
     primarySportId: string;
     latitude?: number;
     longitude?: number;
+    isActive?: boolean;
   } | null>(null);
   const [editingFacilitySportSearch, setEditingFacilitySportSearch] = useState("");
 
@@ -108,6 +111,7 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
       
       return (
           formData.name !== (site.name || "") ||
+          formData.isActive !== (site.isActive !== false) ||
           JSON.stringify(formData.address) !== JSON.stringify(site.address || { fullAddress: "" })
       );
   };
@@ -131,13 +135,15 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
             await store.addSite({
                 name: formData.name,
                 address: addressToStore as Address,
-                orgId: orgId
+                orgId: orgId,
+                isActive: formData.isActive
             });
             router.push(`/admin/organizations/${orgId}/sites`);
         } else if (site) {
             await store.updateSite(site.id, {
                 ...formData,
-                address: addressToStore as Address
+                address: addressToStore as Address,
+                isActive: formData.isActive
             });
             router.push(`/admin/organizations/${orgId}/sites`);
         }
@@ -164,14 +170,16 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
           surfaceType: newFacility.surfaceType,
           primarySportId: newFacility.primarySportId || undefined,
           latitude: newFacility.latitude,
-          longitude: newFacility.longitude
+          longitude: newFacility.longitude,
+          isActive: newFacility.isActive
       });
       setNewFacility({ 
           name: "", 
           surfaceType: "", 
           primarySportId: "",
           latitude: undefined,
-          longitude: undefined
+          longitude: undefined,
+          isActive: true
       });
       setNewFacilitySportSearch("");
       setIsAddingFacility(false);
@@ -192,7 +200,8 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
           surfaceType: editingFacility.surfaceType,
           primarySportId: editingFacility.primarySportId || undefined,
           latitude: editingFacility.latitude,
-          longitude: editingFacility.longitude
+          longitude: editingFacility.longitude,
+          isActive: editingFacility.isActive
       });
       setEditingFacility(null);
       setEditingFacilitySportSearch("");
@@ -238,9 +247,20 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
                     style={{ minHeight: '1.2em' }}
                 />
             </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-                <Building2 className="w-4 h-4" />
-                <span className="text-sm font-medium uppercase tracking-wider">Organization Site</span>
+            <div className="flex items-center gap-4 mt-2 text-muted-foreground transition-all">
+                <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    <span className="text-sm font-medium uppercase tracking-wider">Organization Site</span>
+                </div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer border rounded-md px-3 py-1 bg-background/50 hover:bg-muted/80 hover:border-border transition-colors shadow-sm">
+                    <input 
+                        type="checkbox" 
+                        checked={formData.isActive}
+                        onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
+                        className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                    />
+                    <span className={formData.isActive ? "text-primary font-medium" : "text-muted-foreground"}>Active Site</span>
+                </label>
             </div>
         </div>
       </div>
@@ -361,6 +381,21 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
                                             className="w-full"
                                         />
                                     </div>
+
+                                    <div className="col-span-1 sm:col-span-2 flex items-center pt-2">
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer border rounded-md px-3 py-1.5 bg-background/50 hover:bg-muted/80 transition-colors shadow-sm w-fit">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isAddingFacility ? newFacility.isActive : (editingFacility?.isActive !== false)}
+                                                onChange={e => isAddingFacility 
+                                                    ? setNewFacility({...newFacility, isActive: e.target.checked}) 
+                                                    : setEditingFacility({...editingFacility!, isActive: e.target.checked})
+                                                }
+                                                className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                                            />
+                                            <span className={(isAddingFacility ? newFacility.isActive : (editingFacility?.isActive !== false)) ? "text-primary font-medium" : "text-muted-foreground"}>Active Facility</span>
+                                        </label>
+                                    </div>
                                 </div>
                                 <div className="flex justify-end gap-2 pt-2">
                                     <MetalButton 
@@ -407,7 +442,12 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
                                         <TableRow key={f.id} className="group hover:bg-primary/5 transition-colors">
                                             <TableCell className="font-semibold">
                                                 <div className="flex flex-col">
-                                                    <span>{f.name}</span>
+                                                    <span className="flex items-center gap-2">
+                                                        {f.name}
+                                                        {f.isActive === false && (
+                                                            <span className="px-1.5 py-0.5 rounded text-[10px] text-muted-foreground bg-muted font-medium border uppercase tracking-wider">Inactive</span>
+                                                        )}
+                                                    </span>
                                                     {f.latitude != null && f.longitude != null && (
                                                         <span className="text-[10px] text-muted-foreground truncate max-w-[200px]" title={`${f.latitude}, ${f.longitude}`}>
                                                             {f.latitude.toFixed(4)}, {f.longitude.toFixed(4)}
@@ -431,7 +471,8 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
                                                                 surfaceType: f.surfaceType || '',
                                                                 primarySportId: f.primarySportId || '',
                                                                 latitude: f.latitude,
-                                                                longitude: f.longitude
+                                                                longitude: f.longitude,
+                                                                isActive: f.isActive !== false
                                                             });
                                                             setEditingFacilitySportSearch(store.sports.find(s => s.id === f.primarySportId)?.name || '');
                                                         }}

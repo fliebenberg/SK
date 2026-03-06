@@ -7,7 +7,7 @@ export class SiteManager extends BaseManager {
 
   async getSites(orgId?: string): Promise<Site[]> {
     let queryText = `
-        SELECT s.id, s.name, s.org_id as "orgId", s.address_id as "addressId",
+        SELECT s.id, s.name, s.org_id as "orgId", s.address_id as "addressId", s.is_active as "isActive",
                a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
                a.city, a.province, a.postal_code as "postalCode", a.country,
                a.latitude, a.longitude
@@ -39,7 +39,7 @@ export class SiteManager extends BaseManager {
 
   async getSite(id: string): Promise<Site | undefined> {
     const res = await this.query(`
-        SELECT s.id, s.name, s.org_id as "orgId", s.address_id as "addressId",
+        SELECT s.id, s.name, s.org_id as "orgId", s.address_id as "addressId", s.is_active as "isActive",
                a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
                a.city, a.province, a.postal_code as "postalCode", a.country,
                a.latitude, a.longitude
@@ -77,10 +77,12 @@ export class SiteManager extends BaseManager {
         addressId = newAddr.id;
     }
 
+    const isActive = site.isActive !== undefined ? site.isActive : true;
+
     await this.query(
-        `INSERT INTO sites (id, name, address_id, org_id)
-         VALUES ($1, $2, $3, $4)`,
-         [id, site.name, addressId, site.orgId]
+        `INSERT INTO sites (id, name, address_id, org_id, is_active)
+         VALUES ($1, $2, $3, $4, $5)`,
+         [id, site.name, addressId, site.orgId, isActive]
     );
     await this.query(
         `UPDATE organizations SET site_count = site_count + 1 WHERE id = $1`,
@@ -106,7 +108,7 @@ export class SiteManager extends BaseManager {
 
     const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'orgId');
     if (keys.length > 0) {
-        const map: Record<string, string> = { name: 'name', addressId: 'address_id' };
+        const map: Record<string, string> = { name: 'name', addressId: 'address_id', isActive: 'is_active' };
         const clauses: string[] = [];
         const values: any[] = [];
         let idx = 1;

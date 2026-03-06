@@ -59,7 +59,8 @@ const createTables = async () => {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 address_id TEXT REFERENCES addresses(id),
-                org_id TEXT REFERENCES organizations(id)
+                org_id TEXT REFERENCES organizations(id),
+                is_active BOOLEAN DEFAULT true
             );
         `);
 
@@ -73,7 +74,8 @@ const createTables = async () => {
                 address_id TEXT REFERENCES addresses(id),
                 surface_type TEXT,
                 latitude DOUBLE PRECISION,
-                longitude DOUBLE PRECISION
+                longitude DOUBLE PRECISION,
+                is_active BOOLEAN DEFAULT true
             );
         `);
 

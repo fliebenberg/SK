@@ -32,6 +32,7 @@ export default function SiteManagementPage() {
   
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
 
   // Delete State
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; siteId: string; name: string }>({
@@ -95,9 +96,15 @@ export default function SiteManagementPage() {
   };
 
   const filteredSites = sites.filter(v => {
+    if (!showInactive && v.isActive === false) return false;
+
+    const facilities = store.getFacilities(v.id);
+    const facilityMatch = facilities.some(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    
     const matchesSearch = v.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (v.address?.fullAddress || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (v.address?.city || "").toLowerCase().includes(searchQuery.toLowerCase());
+                          (v.address?.city || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          facilityMatch;
     return matchesSearch;
   });
   
@@ -131,7 +138,17 @@ export default function SiteManagementPage() {
         title="Sites"
         description="Manage fields, courts, and facilities."
       >
-             <div className="relative flex-1 md:w-64">
+        <div className="flex items-center gap-4 flex-1 justify-end">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                <input 
+                    type="checkbox" 
+                    checked={showInactive} 
+                    onChange={(e) => setShowInactive(e.target.checked)} 
+                    className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                />
+                Show Inactive
+            </label>
+            <div className="relative flex-1 max-w-xs md:max-w-md">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search sites..."
@@ -139,7 +156,7 @@ export default function SiteManagementPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 bg-background/50 h-9"
                 />
-              </div>
+            </div>
             <Link href={`/admin/organizations/${id}/sites/create`}>
               <MetalButton 
                       variantType="filled" 
@@ -152,94 +169,93 @@ export default function SiteManagementPage() {
                       <span className="md:hidden">Add</span>
               </MetalButton>
             </Link>
+        </div>
       </PageHeader>
 
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-        <CardHeader className="px-4 py-4 md:px-6 md:py-6">
-          <CardTitle>Organization Sites ({sortedSites.length})</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 md:p-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px] pl-4 md:pl-2"></TableHead>
-                <TableHead>
-                    <button 
-                        onClick={() => handleSort('name')}
-                        className="flex items-center hover:text-foreground transition-colors"
-                    >
-                        Name
-                        {getSortIcon('name')}
-                    </button>
-                </TableHead>
-                <TableHead>
-                    <button 
-                        onClick={() => handleSort('address')}
-                        className="flex items-center hover:text-foreground transition-colors"
-                    >
-                        Address
-                        {getSortIcon('address')}
-                    </button>
-                </TableHead>
-                <TableHead className="text-right pr-4 md:pr-2">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedSites.length === 0 ? (
-                <TableRow>
-                    <TableCell colSpan={4} className="text-center py-20 text-muted-foreground">
-                        <div className="flex flex-col items-center gap-2">
-                            <MapPin className="h-12 w-12 opacity-20" />
-                            <p className="text-lg font-medium">No sites found.</p>
-                            {searchQuery && <p className="text-sm">Try adjusting your search query.</p>}
-                            {!searchQuery && <p className="text-sm">Start by adding your first field or facility.</p>}
-                        </div>
-                    </TableCell>
-                </TableRow>
-              ) : (
-                sortedSites.map((site) => (
-                  <TableRow key={site.id} className="group hover:bg-muted/50">
-                    <TableCell className="pl-4 md:pl-2 py-3">
-                         <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
-                              <MapPin className="h-4 w-4" />
-                         </div>
-                    </TableCell>
-                    <TableCell className="font-medium py-3">
-                        {site.name}
-                    </TableCell>
-                    <TableCell className="py-3 text-muted-foreground">
-                        {site.address?.fullAddress || "No address provided"}
-                    </TableCell>
-                    <TableCell className="text-right pr-4 md:pr-2 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                            <Link href={`/admin/organizations/${id}/sites/${site.id}/edit`}>
-                                <MetalButton
-                                    variantType="outlined"
-                                    className="text-muted-foreground hover:text-primary h-8 w-8 p-0"
-                                    title="Edit"
-                                >
-                                    <Pencil className="w-4 h-4" />
-                                </MetalButton>
-                            </Link>
-                            <MetalButton
-                                variantType="outlined"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-                                onClick={() => handleDeleteSite(site.id, site.name)}
-                                glowColor="hsl(var(--destructive))"
-                                title="Delete"
-                                disabled={isProcessing}
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </MetalButton>
-                        </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Grid of Site Cards */}
+      {sortedSites.length === 0 ? (
+        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+          <CardContent className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <MapPin className="h-12 w-12 opacity-20 mb-4" />
+            <p className="text-lg font-medium">No sites found.</p>
+            {searchQuery && <p className="text-sm">Try adjusting your search query.</p>}
+            {!searchQuery && <p className="text-sm">Start by adding your first field or facility.</p>}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sortedSites.map((site) => {
+            const facilities = store.getFacilities(site.id);
+            return (
+              <Card key={site.id} className={`group border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/50 transition-all duration-300 ${site.isActive === false ? 'opacity-60' : ''}`}>
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-xl font-orbitron tracking-tight truncate max-w-[200px]" title={site.name}>
+                          {site.name}
+                        </CardTitle>
+                        {site.isActive === false && (
+                          <span className="px-2 py-0.5 rounded text-xs text-muted-foreground bg-muted font-medium border">Inactive</span>
+                        )}
+                      </div>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <MapPin className="h-3 w-3 mr-1 shrink-0" />
+                        <span className="truncate max-w-[180px]" title={site.address?.fullAddress || "No address provided"}>
+                          {site.address?.fullAddress || "No address provided"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Link href={`/admin/organizations/${id}/sites/${site.id}/edit`}>
+                        <MetalButton
+                          variantType="outlined"
+                          className="text-muted-foreground hover:text-primary h-8 w-8 p-0"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </MetalButton>
+                      </Link>
+                      <MetalButton
+                        variantType="outlined"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                        onClick={() => handleDeleteSite(site.id, site.name)}
+                        glowColor="hsl(var(--destructive))"
+                        title="Delete"
+                        disabled={isProcessing}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </MetalButton>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Facilities ({facilities.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {facilities.length > 0 ? (
+                        facilities.map(f => (
+                          <div 
+                            key={f.id} 
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${f.isActive === false ? 'bg-muted text-muted-foreground ring-border' : 'bg-primary/10 text-primary ring-primary/20'}`}
+                          >
+                            {f.name}
+                            {f.isActive === false && " (Inactive)"}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">No facilities assigned</span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
       
       {/* Confirmation Modal */}
       <ConfirmationModal

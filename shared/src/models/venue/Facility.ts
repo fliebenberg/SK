@@ -6,4 +6,5 @@ export interface Facility {
   surfaceType?: string;
   latitude?: number;
   longitude?: number;
+  isActive?: boolean;
 }
