@@ -74,16 +74,14 @@ export function GameDialog({
         let savedGame: Game;
         if (game) {
             savedGame = await store.updateGame(game.id, {
-                homeTeamId: formData.homeTeamId,
-                awayTeamId: formData.awayTeamId,
+                participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
                 startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
                 siteId: formData.siteId,
             });
         } else {
             savedGame = await store.addGame({
                 eventId: event.id,
-                homeTeamId: formData.homeTeamId,
-                awayTeamId: formData.awayTeamId,
+                participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
                 startTime: formData.isTbd ? undefined : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
                 siteId: formData.siteId,
             });
@@ -115,13 +113,16 @@ export function GameDialog({
 
   const initialData = React.useMemo(() => {
     if (!game) return undefined;
+    const p1 = game.participants?.[0]?.teamId || "";
+    const p2 = game.participants?.[1]?.teamId || "";
+    
     return {
-        homeTeamId: game.homeTeamId,
-        awayTeamId: game.awayTeamId,
+        homeTeamId: p1,
+        awayTeamId: p2,
         startTime: game.startTime ? format(new Date(game.startTime), "HH:mm") : undefined,
         isTbd: !game.startTime,
         siteId: game.siteId,
-        sportId: store.getTeam(game.homeTeamId)?.sportId
+        sportId: p1 ? store.getTeam(p1)?.sportId : undefined
     };
   }, [game]);
 

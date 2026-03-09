@@ -29,11 +29,28 @@ Stores physical locations used by various entities.
 - `latitude` (DOUBLE PRECISION)
 - `longitude` (DOUBLE PRECISION)
 
-### 2. `sports`
+### 2. `sport_categories`
+Table for referential integrity and metadata for grouping sports.
+- `id` (TEXT, PK)
+- `name` (TEXT): e.g., 'Athletics', 'Target Sports'.
+- `icon_url` (TEXT): Optional icon graphic.
+
+### 2b. `sports`
 Metadata for supported sports.
-- `id` (TEXT, PK): Unique identifier (e.g., 'rugby', 'netball').
+- `id` (TEXT, PK): Unique identifier (e.g., 'rugby', '100m').
 - `name` (TEXT): Display name of the sport.
+- `category_id` (TEXT): FK to `sport_categories.id`.
+- `participant_type` (TEXT): 'TEAM' or 'INDIVIDUAL'.
+- `match_topology` (TEXT): 'HEAD_TO_HEAD' or 'MULTI_COMPETITOR'.
+- `default_settings` (JSONB): Contains rules, periods, positions, event types, match resolution logic.
 - `facility_term` (TEXT): Term used for the sport's facility (e.g., 'Field', 'Court').
+
+### 2c. `sport_presets`
+Variation templates for a specific sport.
+- `id` (TEXT, PK)
+- `sport_id` (TEXT): FK to `sports.id`.
+- `name` (TEXT): Name of preset (e.g., 'U13 Rugby').
+- `settings_override` (JSONB)
 
 ### 3. `organizations`
 High-level entities like schools, clubs, or federations.
@@ -200,18 +217,51 @@ Entities a user follows.
 - *Constraint*: UNIQUE(`user_id`, `entity_type`, `entity_id`).
 
 ### 18. `games`
-Specific matches within an event.
+Generic match entity supporting various topologies and participant types.
 - `id` (TEXT, PK)
 - `event_id` (TEXT): FK to `events.id` (ON DELETE CASCADE).
-- `home_team_id` (TEXT): FK to `teams.id`.
-- `away_team_id` (TEXT): FK to `teams.id`.
-- `away_team_name` (TEXT)
 - `start_time` (TIMESTAMPTZ)
 - `status` (TEXT)
 - `site_id` (TEXT): FK to `sites.id`.
 - `facility_id` (TEXT): FK to `facilities.id`.
-- `home_score` (INTEGER)
-- `away_score` (INTEGER)
+- `final_score_data` (JSONB): Flexible summary obj (e.g. {home: 12, away: 5} or {standings: [...]})
+- `custom_settings` (JSONB): Finalized rules copied from sport default.
+- `live_state` (JSONB): Running state of the match avoiding fetching entire event log.
+
+### 18b. `game_participants`
+Links teams or individuals to a generic game.
+- `id` (TEXT, PK)
+- `game_id` (TEXT): FK to `games.id`.
+- `team_id` (TEXT): FK to `teams.id` (null if individual sport).
+- `org_profile_id` (TEXT): FK to `org_profiles.id` (null if team sport).
+- `status` (TEXT): 'active', 'withdrawn', 'disqualified', 'did_not_start'.
+
+### 18c. `game_rosters`
+Explicit tracks of individuals playing in a specific game for a team.
+- `id` (TEXT, PK)
+- `game_participant_id` (TEXT): FK to `game_participants.id`
+- `org_profile_id` (TEXT): FK to `org_profiles.id`.
+- `position` (TEXT)
+- `is_reserve` (BOOLEAN)
+
+### 18d. `game_officials`
+Assigns roles to officials for a game.
+- `id` (TEXT, PK)
+- `game_id` (TEXT): FK to `games.id`
+- `org_profile_id` (TEXT): FK to `org_profiles.id`
+- `role` (TEXT): e.g., 'SCORER', 'REFEREE', 'TIMEKEEPER', 'JUDGE'
+
+### 18e. `game_events`
+The immutable audit log for any events during a game.
+- `id` (TEXT, PK)
+- `game_id` (TEXT): FK to `games.id`
+- `timestamp` (TIMESTAMPTZ)
+- `game_participant_id` (TEXT): FK to `game_participants.id` (the team/side)
+- `actor_org_profile_id` (TEXT): FK to `org_profiles.id` (the individual performing the action)
+- `initiator_org_profile_id` (TEXT): FK to `org_profiles.id` (official recording the action)
+- `type` (TEXT)
+- `sub_type` (TEXT)
+- `event_data` (JSONB)
 
 ### 19. `org_claim_referrals`
 Invites sent to organizations to claim their profile.

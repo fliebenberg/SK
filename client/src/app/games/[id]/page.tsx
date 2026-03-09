@@ -21,8 +21,10 @@ export default function GamePage() {
         const g = store.getGame(id);
         if (g) {
             setGame(g);
-            const h = store.getTeam(g.homeTeamId);
-            const a = store.getTeam(g.awayTeamId);
+            const p1 = g.participants?.[0]?.teamId;
+            const p2 = g.participants?.[1]?.teamId;
+            const h = p1 ? store.getTeam(p1) : undefined;
+            const a = p2 ? store.getTeam(p2) : undefined;
             setHomeTeam(h);
             setAwayTeam(a);
             if (h) setSport(store.getSport(h.sportId));
@@ -63,9 +65,20 @@ export default function GamePage() {
             </div>
             
             <div className="flex items-center gap-8">
-              <div className="text-6xl font-bold tabular-nums">{game.homeScore}</div>
-              <div className="text-2xl text-muted-foreground">:</div>
-              <div className="text-6xl font-bold tabular-nums">{game.awayScore}</div>
+              {(() => {
+                  const getScore = (index: number) => {
+                      if (game.status === 'Finished' && game.finalScoreData) return game.finalScoreData[index === 0 ? 'home' : 'away'] ?? 0;
+                      if (game.liveState) return game.liveState[index === 0 ? 'home' : 'away'] ?? 0;
+                      return 0;
+                  };
+                  return (
+                      <>
+                        <div className="text-6xl font-bold tabular-nums">{getScore(0)}</div>
+                        <div className="text-2xl text-muted-foreground">:</div>
+                        <div className="text-6xl font-bold tabular-nums">{getScore(1)}</div>
+                      </>
+                  )
+              })()}
             </div>
 
             <div className="text-center flex-1">

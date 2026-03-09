@@ -32,8 +32,7 @@ export default function TeamStatsPage({ params }: PageProps) {
       // or better, let's mock some data if none exists.
       
       const allGames = store.getGames();
-      // Filter games where this team is home or away
-      const teamGames = allGames.filter(g => g.homeTeamId === teamId || g.awayTeamId === teamId);
+      const teamGames = allGames.filter(g => g.participants?.some((p: any) => p.teamId === teamId));
       
       setGames(teamGames);
       
@@ -42,9 +41,9 @@ export default function TeamStatsPage({ params }: PageProps) {
         if (game.status !== 'Finished') return acc;
         
         acc.played += 1;
-        const isHome = game.homeTeamId === teamId;
-        const myScore = isHome ? game.homeScore : game.awayScore;
-        const oppScore = isHome ? game.awayScore : game.homeScore;
+        const isHome = game.participants?.[0]?.teamId === teamId;
+        const myScore = isHome ? (game.finalScoreData?.home || 0) : (game.finalScoreData?.away || 0);
+        const oppScore = isHome ? (game.finalScoreData?.away || 0) : (game.finalScoreData?.home || 0);
         
         acc.goalsFor += myScore;
         acc.goalsAgainst += oppScore;
@@ -121,18 +120,17 @@ export default function TeamStatsPage({ params }: PageProps) {
                   <div className="flex items-center gap-4">
                     <div className={`text-sm font-bold ${
                         game.status === 'Finished' 
-                            ? (game.homeScore > game.awayScore ? 'text-green-500' : 'text-red-500')
+                            ? ((game.finalScoreData?.home || 0) > (game.finalScoreData?.away || 0) ? 'text-green-500' : 'text-red-500')
                             : ''
                     }`}>
                         {game.status === 'Finished' ? 'W' : '-'}
                     </div>
                     <div>
-                        <div className="font-semibold">vs {game.awayTeamName || "Opponent"}</div>
                         <div className="text-xs text-muted-foreground">{game.startTime}</div>
                     </div>
                   </div>
                   <div className="text-xl font-bold font-mono">
-                    {game.homeScore} - {game.awayScore}
+                    {game.liveState?.home || 0} - {game.liveState?.away || 0}
                   </div>
                 </div>
               ))}

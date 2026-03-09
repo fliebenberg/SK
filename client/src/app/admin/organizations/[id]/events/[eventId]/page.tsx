@@ -90,8 +90,8 @@ export default function EventDetailsPage() {
           matchFormData.sportId !== (event.sportIds?.[0] || "") ||
           matchFormData.startTime !== (games[0]?.startTime ? format(new Date(games[0].startTime), "HH:mm") : "09:00") ||
           matchFormData.isTbd !== (!games[0]?.startTime) ||
-          matchFormData.homeTeamId !== (games[0]?.homeTeamId || "") ||
-          matchFormData.awayTeamId !== (games[0]?.awayTeamId || "") ||
+          matchFormData.homeTeamId !== (games[0]?.participants?.[0]?.teamId || "") ||
+          matchFormData.awayTeamId !== (games[0]?.participants?.[1]?.teamId || "") ||
           matchFormData.siteId !== (games[0]?.siteId || event.siteId || "")
       ))
   ) : false;
@@ -255,8 +255,7 @@ export default function EventDetailsPage() {
 
         if (event.type === 'SingleMatch' && games.length === 1 && matchFormData) {
             await store.updateGame(games[0].id, {
-                homeTeamId: matchFormData.homeTeamId,
-                awayTeamId: matchFormData.awayTeamId,
+                participants: [{teamId: matchFormData.homeTeamId}, {teamId: matchFormData.awayTeamId}],
                 startTime: matchFormData.isTbd ? "" : `${(event.startDate || event.date || "").split('T')[0]}T${matchFormData.startTime}:00`,
                 siteId: matchFormData.siteId
             });
@@ -349,17 +348,23 @@ export default function EventDetailsPage() {
       }
 
       games.filter(g => g.status === 'Finished').forEach(g => {
-          const homeTeam = store.getTeam(g.homeTeamId);
-          const awayTeam = store.getTeam(g.awayTeamId);
+          const p1 = g.participants?.[0]?.teamId;
+          const p2 = g.participants?.[1]?.teamId;
+          const homeTeam = p1 ? store.getTeam(p1) : undefined;
+          const awayTeam = p2 ? store.getTeam(p2) : undefined;
           if (!homeTeam || !awayTeam) return;
 
           const homeOrgId = homeTeam.orgId;
           const awayOrgId = awayTeam.orgId;
 
-          if (g.homeScore > g.awayScore) {
+          const getScore = (index: number) => g.finalScoreData?.[index === 0 ? 'home' : 'away'] ?? 0;
+          const homeScore = getScore(0);
+          const awayScore = getScore(1);
+
+          if (homeScore > awayScore) {
               if (orgPoints[homeOrgId]) orgPoints[homeOrgId].wins++;
               if (orgPoints[awayOrgId]) orgPoints[awayOrgId].losses++;
-          } else if (g.awayScore > g.homeScore) {
+          } else if (awayScore > homeScore) {
               if (orgPoints[awayOrgId]) orgPoints[awayOrgId].wins++;
               if (orgPoints[homeOrgId]) orgPoints[homeOrgId].losses++;
           } else {
@@ -377,21 +382,29 @@ export default function EventDetailsPage() {
 
       if (event.type === 'SingleMatch' && games.length > 0) {
           const match = games[0];
+          const p1 = match.participants?.[0]?.teamId;
+          const p2 = match.participants?.[1]?.teamId;
+          const getScore = (index: number) => {
+              if (match.status === 'Finished' && match.finalScoreData) return match.finalScoreData[index === 0 ? 'home' : 'away'] ?? 0;
+              if (match.liveState) return match.liveState[index === 0 ? 'home' : 'away'] ?? 0;
+              return 0;
+          };
+          
           return (
               <MetalCard className="p-8 text-center max-w-2xl mx-auto overflow-hidden relative">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
                   <div className="flex items-center justify-between gap-8 py-8">
                       <div className="flex-1 text-right">
-                          <h2 className="text-3xl font-black uppercase mb-2">{getTeamName(match.homeTeamId)}</h2>
-                          <div className="text-6xl font-black font-mono text-primary">{match.homeScore}</div>
+                          <h2 className="text-3xl font-black uppercase mb-2">{p1 ? getTeamName(p1) : "Unknown"}</h2>
+                          <div className="text-6xl font-black font-mono text-primary">{getScore(0)}</div>
                       </div>
                       <div className="flex flex-col items-center gap-4">
                           <Trophy className="w-12 h-12 text-primary/30" />
                           <div className="text-sm font-black uppercase tracking-widest text-muted-foreground">FINAL</div>
                       </div>
                       <div className="flex-1 text-left">
-                          <h2 className="text-3xl font-black uppercase mb-2">{getTeamName(match.awayTeamId, match.awayTeamName)}</h2>
-                          <div className="text-6xl font-black font-mono text-primary">{match.awayScore}</div>
+                          <h2 className="text-3xl font-black uppercase mb-2">{p2 ? getTeamName(p2) : "Unknown"}</h2>
+                          <div className="text-6xl font-black font-mono text-primary">{getScore(1)}</div>
                       </div>
                   </div>
               </MetalCard>
@@ -439,7 +452,8 @@ export default function EventDetailsPage() {
     
     if (filterSportId !== "all") {
          filteredGames = filteredGames.filter(g => {
-             const homeTeam = store.getTeam(g.homeTeamId);
+             const p1 = g.participants?.[0]?.teamId;
+             const homeTeam = p1 ? store.getTeam(p1) : undefined;
              return homeTeam?.sportId === filterSportId;
          });
     }
@@ -487,7 +501,8 @@ export default function EventDetailsPage() {
         let key = "Scheduled";
         if (grouping === 'time') key = g.startTime ? format(new Date(g.startTime), "HH:mm") : "TBD";
         else if (grouping === 'sport') {
-            const homeTeam = store.getTeam(g.homeTeamId);
+            const p1 = g.participants?.[0]?.teamId;
+            const homeTeam = p1 ? store.getTeam(p1) : undefined;
             key = homeTeam ? store.getSport(homeTeam.sportId)?.name || "Unknown Sport" : "Unknown Sport";
         } else if (grouping === 'site') {
             key = g.siteId ? store.getSite(g.siteId)?.name || "Unknown Site" : "No Site";
@@ -578,8 +593,8 @@ export default function EventDetailsPage() {
                                     event={event}
                                     isSportsDay={false}
                                     initialData={games[0] ? {
-                                        homeTeamId: games[0].homeTeamId,
-                                        awayTeamId: games[0].awayTeamId,
+                                        homeTeamId: games[0].participants?.[0]?.teamId || "",
+                                        awayTeamId: games[0].participants?.[1]?.teamId || "",
                                         startTime: games[0].startTime,
                                         isTbd: !games[0].startTime,
                                         siteId: games[0].siteId,

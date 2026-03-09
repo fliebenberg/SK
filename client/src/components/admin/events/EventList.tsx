@@ -72,8 +72,10 @@ export function EventList({ orgId, teamId }: EventListProps) {
       const games = store.getGames().filter(g => g.eventId === event.id);
       if (games.length === 1) {
           const game = games[0];
-          const homeTeam = store.getTeam(game.homeTeamId);
-          const awayTeam = store.getTeam(game.awayTeamId);
+          const homeTeamId = game.participants?.[0]?.teamId;
+          const awayTeamId = game.participants?.[1]?.teamId;
+          const homeTeam = homeTeamId ? store.getTeam(homeTeamId) : undefined;
+          const awayTeam = awayTeamId ? store.getTeam(awayTeamId) : undefined;
           
           if (homeTeam && awayTeam) {
               const homeOrg = store.getOrganization(homeTeam.orgId);
@@ -92,7 +94,7 @@ export function EventList({ orgId, teamId }: EventListProps) {
         // If teamId is provided, only show events involving this team
         if (teamId) {
             const games = store.getGames().filter(g => g.eventId === e.id);
-            const isInvolved = games.some(g => g.homeTeamId === teamId || g.awayTeamId === teamId);
+            const isInvolved = games.some(g => g.participants?.some(p => p.teamId === teamId));
             if (!isInvolved) return false;
         }
 
@@ -104,13 +106,20 @@ export function EventList({ orgId, teamId }: EventListProps) {
         const now = new Date();
         const pastCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+        let datePass = false;
         if (viewMode === 'upcoming') {
             // Include matches with no date or starting within the last 24h/future
-            return !eventDate || eventDate >= pastCutoff;
+            datePass = !eventDate || eventDate >= pastCutoff;
         } else {
             // Only matches that started more than 24h ago
-            return eventDate && eventDate < pastCutoff;
+            datePass = !!(eventDate && eventDate < pastCutoff);
         }
+
+        if (!datePass) {
+            // console.log(`EventList: Event ${e.name || e.id} failed date filter. Date: ${eventDate}, Cutoff: ${pastCutoff}`);
+        }
+
+        return datePass;
     })
     .sort((a, b) => {
         const dateAStr = a.startDate || a.date;
@@ -268,14 +277,21 @@ export function EventList({ orgId, teamId }: EventListProps) {
             
             // For team view, we only care about games involving this specific team
             let relevantGames = games;
+            const isHost = event.orgId === orgId;
+
             if (teamId) {
-                relevantGames = games.filter(g => g.homeTeamId === teamId || g.awayTeamId === teamId);
+                relevantGames = games.filter(g => g.participants?.some(p => p.teamId === teamId));
+            } else if (isHost) {
+                // For Host Org view, show ALL games regardless of team resolution
+                relevantGames = games;
             } else {
-                // For Org view, show games where this org is involved
+                // For Participating Org view, show games where this org is involved
                 relevantGames = games.filter(g => {
-                    const homeTeam = store.getTeam(g.homeTeamId);
-                    const awayTeam = store.getTeam(g.awayTeamId);
-                    return homeTeam?.orgId === orgId || awayTeam?.orgId === orgId;
+                    return g.participants?.some(p => {
+                        if (!p.teamId) return false;
+                        const team = store.getTeam(p.teamId);
+                        return team?.orgId === orgId;
+                    });
                 });
             }
             
@@ -285,7 +301,13 @@ export function EventList({ orgId, teamId }: EventListProps) {
                 return dateA.localeCompare(dateB);
             });
 
-            if (relevantGames.length === 0 && !teamId) return null;
+            // If this organization is the host, we should always show the event 
+            // even if it has no valid games yet (e.g. partial creation or corrupt data)
+            if (relevantGames.length === 0 && !teamId && !isHost) return null;
+            
+            // If it's a SingleMatch but has no games, we still need to show the header 
+            // otherwise the user sees nothing.
+            const showHeader = isContainerEvent || (relevantGames.length > 1 && !teamId) || (relevantGames.length === 0 && isHost);
 
             return (
               <div 
@@ -295,8 +317,8 @@ export function EventList({ orgId, teamId }: EventListProps) {
                   isContainerEvent ? "border border-primary/20 rounded-2xl bg-primary/10 mb-6 shadow-sm" : "space-y-1"
                 )}
               >
-                {/* Event Group Header (only for container events or if multiple games) */}
-                {(isContainerEvent || (relevantGames.length > 1 && !teamId)) && (
+                {/* Event Group Header (only for container events or if multiple games or host seeing empty event) */}
+                {showHeader && (
                   <div 
                     onClick={() => isContainerEvent && router.push(`/admin/organizations/${orgId}/events/${event.id}`)}
                     className={cn(

@@ -1,13 +1,12 @@
 export interface Game {
   id: string;
   eventId: string;
-  homeTeamId: string;
-  awayTeamId: string; // Could be external team name if not in system
-  awayTeamName?: string; // For external teams
   startTime?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
   siteId?: string;
   facilityId?: string;
-  homeScore: number;
-  awayScore: number;
+  finalScoreData?: any;
+  customSettings?: any;
+  liveState?: any;
+  participants?: any[];
 }

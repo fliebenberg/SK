@@ -124,6 +124,24 @@ export enum SocketAction {
     UPDATE_GAME_SCORE = 'UPDATE_GAME_SCORE',
 
     /**
+     * Action to ingest a new game event (score, penalty, substitution).
+     * Expects payload: { gameId: string, initiatorOrgProfileId: string, type: string, subType?: string, eventData?: any, actorOrgProfileId?: string, gameParticipantId?: string }
+     */
+    ADD_GAME_EVENT = 'ADD_GAME_EVENT',
+
+    /**
+     * Action to initiate a consensus vote for an undo.
+     * Expects payload: { gameId: string, eventIdToUndo: string, initiatorId: string }
+     */
+    INITIATE_UNDO_VOTE = 'INITIATE_UNDO_VOTE',
+
+    /**
+     * Action to cast a vote on an active undo consensus.
+     * Expects payload: { gameId: string, officialId: string, vote: 'APPROVE' | 'REJECT' }
+     */
+    CAST_UNDO_VOTE = 'CAST_UNDO_VOTE',
+
+    /**
      * Generic action to update game details.
      * Expects payload: { id: string, data: Partial<Game> }
      */

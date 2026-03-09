@@ -111,7 +111,7 @@ export class TeamManager extends BaseManager {
   }
 
   async deleteTeam(id: string): Promise<Team | null> {
-     const gamesRes = await this.query('SELECT 1 FROM games WHERE home_team_id = $1 OR away_team_id = $1', [id]);
+     const gamesRes = await this.query('SELECT 1 FROM game_participants WHERE team_id = $1', [id]);
      if (gamesRes.rowCount! > 0) {
          throw new Error("Cannot delete team with linked games");
      }

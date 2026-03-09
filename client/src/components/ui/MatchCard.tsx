@@ -16,8 +16,10 @@ interface MatchCardProps {
 }
 
 export function MatchCard({ game, onClick, className, isStandalone = false, highlightTeamId }: MatchCardProps) {
-  const homeTeam = store.getTeam(game.homeTeamId);
-  const awayTeam = store.getTeam(game.awayTeamId);
+  const homeTeamId = game.participants?.[0]?.teamId;
+  const awayTeamId = game.participants?.[1]?.teamId;
+  const homeTeam = homeTeamId ? store.getTeam(homeTeamId) : undefined;
+  const awayTeam = awayTeamId ? store.getTeam(awayTeamId) : undefined;
   const homeOrg = (homeTeam ? (store.getOrganization(homeTeam.orgId) ?? null) : null);
   const awayOrg = (awayTeam ? (store.getOrganization(awayTeam.orgId) ?? null) : null);
   const sport = homeTeam ? store.getSport(homeTeam.sportId) : null;
@@ -26,6 +28,14 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
   const isLive = game.status?.toLowerCase() === 'live';
   const isFinished = game.status?.toLowerCase() === 'finished';
   const isCancelled = game.status?.toLowerCase() === 'cancelled';
+
+  const getScore = (index: number) => {
+    if (isFinished && game.finalScoreData) return game.finalScoreData[index === 0 ? 'home' : 'away'] ?? 0;
+    if (game.liveState) return game.liveState[index === 0 ? 'home' : 'away'] ?? 0;
+    return 0;
+  };
+  const homeScore = getScore(0);
+  const awayScore = getScore(1);
 
   return (
     <div className={cn("group flex items-center gap-3", className)}>
@@ -89,8 +99,8 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
           {/* Home Team */}
           <div className="flex-1 flex items-center justify-end min-w-0">
             <span className={cn(
-              "text-lg font-black line-clamp-2 w-full text-right leading-[1.1] max-w-[40%]",
-              (game.homeScore > game.awayScore && isFinished) || game.homeTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
+              "text-lg font-black line-clamp-2 text-right leading-[1.1]",
+              ((homeScore) > (awayScore) && isFinished) || homeTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
             )}>
               <span className="mr-1.5 opacity-60 text-sm font-bold ml-1">{homeOrg?.shortName || homeOrg?.name?.slice(0,3).toUpperCase() || 'HOM'}</span>
               {homeTeam?.name || 'Unknown'}
@@ -103,9 +113,9 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
               <span className="text-[10px] font-black uppercase tracking-widest text-destructive mb-1">CANCELLED</span>
             ) : (isLive || isFinished) ? (
               <div className="flex items-center gap-1.5 font-mono font-black text-xl tracking-tighter leading-none mb-1">
-                <span className={cn(isFinished && game.homeScore < game.awayScore && "opacity-30")}>{game.homeScore}</span>
+                <span className={cn(isFinished && (homeScore) < (awayScore) && "opacity-30")}>{homeScore}</span>
                 <span className="opacity-20 text-sm">-</span>
-                <span className={cn(isFinished && game.awayScore < game.homeScore && "opacity-30")}>{game.awayScore}</span>
+                <span className={cn(isFinished && (awayScore) < (homeScore) && "opacity-30")}>{awayScore}</span>
               </div>
             ) : (
                 <span className="text-sm font-bold text-muted-foreground tracking-tight mb-1">
@@ -131,10 +141,10 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
           {/* Away Team */}
           <div className="flex-1 flex items-center justify-start min-w-0">
             <span className={cn(
-              "text-lg font-black line-clamp-2 w-full text-left leading-[1.1] max-w-[40%]",
-              (game.awayScore > game.homeScore && isFinished) || game.awayTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
+              "text-lg font-black line-clamp-2 text-left leading-[1.1]",
+              ((awayScore) > (homeScore) && isFinished) || awayTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
             )}>
-              {awayTeam?.name || game.awayTeamName || 'Unknown'}
+              {awayTeam?.name || 'Unknown'}
               <span className="ml-1.5 opacity-60 text-sm font-bold mr-1">{awayOrg?.shortName || awayOrg?.name?.slice(0,3).toUpperCase() || 'AWY'}</span>
             </span>
           </div>

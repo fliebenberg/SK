@@ -34,8 +34,10 @@ export default function GameControlPage() {
   if (loading) return <div className="p-8">Loading...</div>;
   if (!game) return notFound();
 
-  const homeTeam = store.getTeam(game.homeTeamId);
-  const awayTeam = store.getTeam(game.awayTeamId);
+  const p1 = game.participants?.[0]?.teamId;
+  const p2 = game.participants?.[1]?.teamId;
+  const homeTeam = p1 ? store.getTeam(p1) : undefined;
+  const awayTeam = p2 ? store.getTeam(p2) : undefined;
 
   const handleUpdateStatus = (status: "Scheduled" | "Live" | "Finished") => {
       store.updateGameStatus(game.id, status);
@@ -71,11 +73,11 @@ export default function GameControlPage() {
         <Card className="border-t-4 border-t-blue-600">
           <CardHeader className="text-center">
             <CardTitle>{homeTeam?.name || "Home Team"}</CardTitle>
-            <div className="text-6xl font-bold py-4">{game.homeScore}</div>
+            <div className="text-6xl font-bold py-4">{game.liveState?.home || 0}</div>
           </CardHeader>
           <CardContent className="flex justify-center gap-4">
               <Button 
-                onClick={() => handleUpdateScore(Math.max(0, game.homeScore - 1), game.awayScore)} 
+                onClick={() => handleUpdateScore(Math.max(0, (game.liveState?.home || 0) - 1), game.liveState?.away || 0)} 
                 variant="outline" 
                 size="icon" 
                 disabled={game.status !== 'Live'}
@@ -83,14 +85,14 @@ export default function GameControlPage() {
                 <Minus className="h-4 w-4" />
               </Button>
               <Button 
-                onClick={() => handleUpdateScore(game.homeScore + 1, game.awayScore)} 
+                onClick={() => handleUpdateScore((game.liveState?.home || 0) + 1, game.liveState?.away || 0)} 
                 size="icon" 
                 disabled={game.status !== 'Live'}
               >
                 <Plus className="h-4 w-4" />
               </Button>
                <Button 
-                onClick={() => handleUpdateScore(game.homeScore + 5, game.awayScore)} 
+                onClick={() => handleUpdateScore((game.liveState?.home || 0) + 5, game.liveState?.away || 0)} 
                 variant="secondary" 
                 disabled={game.status !== 'Live'}
                >
@@ -103,11 +105,11 @@ export default function GameControlPage() {
         <Card className="border-t-4 border-t-red-600">
           <CardHeader className="text-center">
             <CardTitle>{awayTeam?.name || "Away Team"}</CardTitle>
-            <div className="text-6xl font-bold py-4">{game.awayScore}</div>
+            <div className="text-6xl font-bold py-4">{game.liveState?.away || 0}</div>
           </CardHeader>
           <CardContent className="flex justify-center gap-4">
               <Button 
-                onClick={() => handleUpdateScore(game.homeScore, Math.max(0, game.awayScore - 1))} 
+                onClick={() => handleUpdateScore(game.liveState?.home || 0, Math.max(0, (game.liveState?.away || 0) - 1))} 
                 variant="outline" 
                 size="icon" 
                 disabled={game.status !== 'Live'}
@@ -115,14 +117,14 @@ export default function GameControlPage() {
                 <Minus className="h-4 w-4" />
               </Button>
               <Button 
-                onClick={() => handleUpdateScore(game.homeScore, game.awayScore + 1)} 
+                onClick={() => handleUpdateScore(game.liveState?.home || 0, (game.liveState?.away || 0) + 1)} 
                 size="icon" 
                 disabled={game.status !== 'Live'}
               >
                 <Plus className="h-4 w-4" />
               </Button>
                <Button 
-                onClick={() => handleUpdateScore(game.homeScore, game.awayScore + 5)} 
+                onClick={() => handleUpdateScore(game.liveState?.home || 0, (game.liveState?.away || 0) + 5)} 
                 variant="secondary" 
                 disabled={game.status !== 'Live'}
                >

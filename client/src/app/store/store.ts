@@ -813,12 +813,13 @@ import { socket, socketService } from "../../lib/socketService";
 
         this.notifyListeners();
         
-        // Discover teams if unknown
-        if (mergedGame.homeTeamId && !this.getTeam(mergedGame.homeTeamId)) {
-            this.fetchTeam(mergedGame.homeTeamId);
-        }
-        if (mergedGame.awayTeamId && !this.getTeam(mergedGame.awayTeamId)) {
-            this.fetchTeam(mergedGame.awayTeamId);
+        // Auto-fetch missing teams 
+        if (mergedGame.participants) {
+            mergedGame.participants.forEach(p => {
+                if (p.teamId && !this.getTeam(p.teamId)) {
+                    this.fetchTeam(p.teamId);
+                }
+            });
         }
     }
     private mergeOrgProfile(profile: Partial<OrgProfile>) {
@@ -891,11 +892,15 @@ import { socket, socketService } from "../../lib/socketService";
     getFacility = (id: string) => this.facilities.find(f => f.id === id);
     getGames = (orgId?: string) => {
         if (!orgId) return this.games;
-        // Filter games where either team belongs to this organization
         return this.games.filter(g => {
-            const homeTeam = this.getTeam(g.homeTeamId);
-            const awayTeam = this.getTeam(g.awayTeamId);
-            return homeTeam?.orgId === orgId || awayTeam?.orgId === orgId;
+            if (!g.participants) return false;
+            return g.participants.some(p => {
+                if (p.teamId) {
+                    const team = this.getTeam(p.teamId);
+                    return team?.orgId === orgId;
+                }
+                return false;
+            });
         });
     }; 
     getGame = (id: string) => this.games.find((g) => g.id === id);

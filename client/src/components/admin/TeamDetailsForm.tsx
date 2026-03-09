@@ -52,7 +52,7 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
       setAvailableSports(sports);
       
       const games = store.getGames(organization.id);
-      const teamHasGames = games.some(g => g.homeTeamId === initialTeam.id || g.awayTeamId === initialTeam.id);
+      const teamHasGames = games.some(g => g.participants?.some(p => p.teamId === initialTeam.id));
       setHasGames(teamHasGames);
     };
 

@@ -72,12 +72,13 @@ export class EventManager extends BaseManager {
   }
 
   async getGames(orgId?: string): Promise<Game[]> {
+    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
     if (!orgId) {
-        const res = await this.query('SELECT id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, site_id as "siteId", facility_id as "facilityId", home_score as "homeScore", away_score as "awayScore" FROM games');
+        const res = await this.query(`SELECT ${selectClause} FROM games g`);
         return res.rows;
     }
     const res = await this.query(`
-        SELECT g.id, g.event_id as "eventId", g.home_team_id as "homeTeamId", g.away_team_id as "awayTeamId", g.away_team_name as "awayTeamName", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.home_score as "homeScore", g.away_score as "awayScore"
+        SELECT ${selectClause}
         FROM games g
         JOIN events e ON g.event_id = e.id
         WHERE e.org_id = $1 OR $1 = ANY(e.participating_org_ids)
@@ -86,9 +87,10 @@ export class EventManager extends BaseManager {
   }
 
   async getLiveGames(): Promise<Game[]> {
+    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
     const res = await this.query(`
-        SELECT id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, site_id as "siteId", facility_id as "facilityId", home_score as "homeScore", away_score as "awayScore"
-        FROM games
+        SELECT ${selectClause}
+        FROM games g
         WHERE status = 'Live' 
            OR (status = 'Scheduled' AND start_time > (NOW() - INTERVAL '24 hours') AND start_time < (NOW() + INTERVAL '7 days'))
         ORDER BY status DESC, start_time ASC
@@ -97,35 +99,41 @@ export class EventManager extends BaseManager {
   }
 
   async getGame(id: string): Promise<Game | undefined> {
-    const res = await this.query('SELECT id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, site_id as "siteId", facility_id as "facilityId", home_score as "homeScore", away_score as "awayScore" FROM games WHERE id = $1', [id]);
+    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const res = await this.query(`SELECT ${selectClause} FROM games g WHERE g.id = $1`, [id]);
     return res.rows[0];
   }
 
-  async addGame(game: Omit<Game, "id" | "status" | "homeScore" | "awayScore"> & { id?: string }): Promise<Game> {
+  async addGame(game: Omit<Game, "id" | "status" | "finalScoreData" | "liveState"> & { id?: string }): Promise<Game> {
       const id = game.id || `game-${Date.now()}`;
-      const res = await this.query(
-          `INSERT INTO games (id, event_id, home_team_id, away_team_id, away_team_name, start_time, status, site_id, facility_id, home_score, away_score)
-           VALUES ($1, $2, $3, $4, $5, $6, 'Scheduled', $7, $8, 0, 0)
-           RETURNING id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, site_id as "siteId", facility_id as "facilityId", home_score as "homeScore", away_score as "awayScore"`,
-           [id, game.eventId, game.homeTeamId, game.awayTeamId, game.awayTeamName, game.startTime, game.siteId, game.facilityId]
-      );
-      return res.rows[0];
+      await this.query('BEGIN');
+      try {
+          await this.query(
+              `INSERT INTO games (id, event_id, start_time, status, site_id, facility_id, custom_settings, live_state)
+               VALUES ($1, $2, $3, 'Scheduled', $4, $5, $6, '{}'::jsonb)`,
+               [id, game.eventId, game.startTime, game.siteId, game.facilityId, game.customSettings || {}]
+          );
+
+          if (game.participants && game.participants.length > 0) {
+              for (const p of game.participants) {
+                  const pid = p.id || `gp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                  await this.query(
+                      `INSERT INTO game_participants (id, game_id, team_id, org_profile_id, status) VALUES ($1, $2, $3, $4, 'active')`,
+                      [pid, id, p.teamId || null, p.orgProfileId || null]
+                  );
+              }
+          }
+          await this.query('COMMIT');
+          return await this.getGame(id) as Game;
+      } catch (e) {
+          await this.query('ROLLBACK');
+          throw e;
+      }
   }
 
   async updateGameStatus(id: string, status: Game['status']): Promise<Game | null> {
-      const res = await this.query(
-          `UPDATE games SET status = $1 WHERE id = $2 RETURNING id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, site_id as "siteId", facility_id as "facilityId", home_score as "homeScore", away_score as "awayScore"`,
-          [status, id]
-      );
-      return res.rows[0] || null;
-  }
-
-  async updateScore(id: string, homeScore: number, awayScore: number): Promise<Game | null> {
-      const res = await this.query(
-          `UPDATE games SET home_score = $1, away_score = $2 WHERE id = $3 RETURNING id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, site_id as "siteId", facility_id as "facilityId", home_score as "homeScore", away_score as "awayScore"`,
-          [homeScore, awayScore, id]
-      );
-      return res.rows[0] || null;
+      await this.query(`UPDATE games SET status = $1 WHERE id = $2`, [status, id]);
+      return (await this.getGame(id)) || null;
   }
 
   async updateGame(id: string, data: Partial<Game>): Promise<Game | null> {
@@ -133,7 +141,7 @@ export class EventManager extends BaseManager {
       if (keys.length === 0) return (await this.getGame(id)) || null;
 
       const fullMap: Record<string, string> = {
-            homeTeamId: 'home_team_id', awayTeamId: 'away_team_id', awayTeamName: 'away_team_name', startTime: 'start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', homeScore: 'home_score', awayScore: 'away_score'
+            startTime: 'start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', finalScoreData: 'final_score_data', customSettings: 'custom_settings', liveState: 'live_state'
       };
 
       const setClauses: string[] = [];
@@ -149,11 +157,8 @@ export class EventManager extends BaseManager {
       });
       values.push(id);
       
-      const res = await this.query(
-          `UPDATE games SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, event_id as "eventId", home_team_id as "homeTeamId", away_team_id as "awayTeamId", away_team_name as "awayTeamName", start_time as "startTime", status, site_id as "siteId", facility_id as "facilityId", home_score as "homeScore", away_score as "awayScore"`,
-          values
-      );
-      return res.rows[0] || null;
+      await this.query(`UPDATE games SET ${setClauses.join(', ')} WHERE id = $${idx}`, values);
+      return (await this.getGame(id)) || null;
   }
 
   async deleteGame(id: string): Promise<Game | null> {

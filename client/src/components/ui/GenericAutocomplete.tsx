@@ -79,6 +79,7 @@ export function GenericAutocomplete({
           value={value}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
+          onClick={() => setIsOpen(true)}
           placeholder={placeholder}
           className="pr-10"
         />
@@ -142,9 +143,25 @@ export function GenericAutocomplete({
                 </>
             )}
             
-            {filteredItems.length === 0 && !onCreateNew && (
+            {items.length === 0 && !isLoading && (
+                <div className="py-6 text-center text-sm text-muted-foreground flex flex-col items-center">
+                    <span>No options available.</span>
+                    {onCreateNew && value.trim() === "" && (
+                        <span className="text-xs mt-1">Start typing to add one.</span>
+                    )}
+                </div>
+            )}
+            
+            {items.length > 0 && filteredItems.length === 0 && !isLoading && !onCreateNew && (
                 <div className="py-6 text-center text-sm text-muted-foreground">
                     No results found.
+                </div>
+            )}
+            
+            {items.length > 0 && filteredItems.length === 0 && !isLoading && onCreateNew && value.trim() === "" && (
+                <div className="py-6 text-center text-sm text-muted-foreground flex flex-col items-center">
+                    <span>No results found.</span>
+                    <span className="text-xs mt-1">Start typing to add one.</span>
                 </div>
             )}
           </div>

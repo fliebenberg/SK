@@ -59,6 +59,7 @@ export function MatchForm({
   const [homeOrgName, setHomeOrgName] = useState("");
   const [homeTeamId, setHomeTeamId] = useState(initialData?.homeTeamId || "");
   const [homeOrgTeams, setHomeOrgTeams] = useState<Team[]>([]);
+  const [homeTeamName, setHomeTeamName] = useState("");
 
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [targetOrgName, setTargetOrgName] = useState("");
@@ -220,9 +221,10 @@ export function MatchForm({
             }
             if (!homeOrgName) setHomeOrgName(store.getOrganization(homeTeam.orgId)?.name || "");
             if (!homeTeamId) setHomeTeamId(homeTeam.id);
+            if (!homeTeamName) setHomeTeamName(homeTeam.name);
         }
     }
-  }, [initialData, homeTeamId, selectedOrgId, selectedTeamId, homeOrgName, targetOrgName, targetTeamName, allOrgs]);
+  }, [initialData, homeTeamId, selectedOrgId, selectedTeamId, homeOrgName, targetOrgName, targetTeamName, homeTeamName, allOrgs]);
 
   const handleCreateOrg = (name: string, isHome: boolean) => {
     setPendingOrgName(name);
@@ -492,9 +494,11 @@ export function MatchForm({
                                 setHomeOrgId(item.id);
                                 setHomeOrgName(item.label);
                                 setHomeTeamId("");
+                                setHomeTeamName("");
                             } else {
                                 setHomeOrgId("");
                                 setHomeTeamId("");
+                                setHomeTeamName("");
                             }
                         }}
                         onCreateNew={(name) => handleCreateOrg(name, true)}
@@ -504,10 +508,15 @@ export function MatchForm({
                         disableFiltering={true}
                     />
                     <GenericAutocomplete 
-                        items={homeOrgTeams.map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
-                        value={homeOrgTeams.find(t => t.id === homeTeamId)?.name || ""}
-                        onChange={() => {}} 
-                        onSelect={(item) => setHomeTeamId(item?.id || "")}
+                        items={homeOrgTeams
+                          .filter(t => homeOrgId !== selectedOrgId || t.id !== selectedTeamId)
+                          .map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
+                        value={homeTeamName || homeOrgTeams.find(t => t.id === homeTeamId)?.name || ""}
+                        onChange={setHomeTeamName} 
+                        onSelect={(item) => {
+                          setHomeTeamId(item?.id || "");
+                          if (item) setHomeTeamName(item.label);
+                        }}
                         onCreateNew={(name) => handleCreateTeam(name, true)}
                         placeholder={selectedSportId ? "Select team..." : "Select Sport First"}
                         createLabel="Add Team"
@@ -524,7 +533,9 @@ export function MatchForm({
                       <SelectValue placeholder="Select our team..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {homeOrgTeams.map(t => (
+                      {homeOrgTeams
+                        .filter(t => homeOrgId !== selectedOrgId || t.id !== selectedTeamId)
+                        .map(t => (
                         <SelectItem key={t.id} value={t.id}>{t.name} ({t.ageGroup})</SelectItem>
                       ))}
                     </SelectContent>
@@ -574,7 +585,9 @@ export function MatchForm({
                     disableFiltering={true}
                   />
                   <GenericAutocomplete
-                    items={opponentOrgTeams.map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
+                    items={opponentOrgTeams
+                      .filter(t => selectedOrgId !== homeOrgId || t.id !== homeTeamId)
+                      .map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
                     value={targetTeamName}
                     onChange={setTargetTeamName}
                     onSelect={(item) => setSelectedTeamId(item?.id || null)}

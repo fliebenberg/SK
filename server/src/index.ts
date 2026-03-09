@@ -5,6 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { dataManager } from './DataManager';
+import { gameEventManager } from './managers/GameEventManager';
 import { SocketAction } from '@sk/types';
 import { jobManager } from './jobs/JobManager';
 import { membershipExpiryJob } from './jobs/handlers/MembershipExpiryJob';
@@ -233,8 +234,8 @@ io.on('connection', (socket) => {
                 const sites = await dataManager.getSites(orgId);
                 socket.emit('update', { type: 'SITES_SYNC', data: sites }); 
             } else if (type === 'facilities') {
-                const facilities = await dataManager.getFacilities(orgId); // Wait, getFacilities takes siteId, not orgId. Actually we don't have a room for all facilities in an org easily, let's just leave it or fetch all sites and their facilities.
-                // For now skip org-level facilities sync, client will fetch per site.
+                const facilities = await dataManager.getFacilitiesByOrg(orgId);
+                socket.emit('update', { type: 'FACILITIES_SYNC', data: facilities });
             } else if (type === 'events') {
                 const events = await dataManager.getEvents(orgId);
                 socket.emit('update', { type: 'EVENTS_SYNC', data: events });
@@ -276,7 +277,9 @@ io.on('connection', (socket) => {
             const facility = await dataManager.getFacility(facilityId);
             if (facility) socket.emit('update', { type: 'FACILITY_UPDATED', data: facility });
         } else if (room.startsWith('game:')) {
-            const gameId = room.split(':')[1];
+            const parts = room.split(':');
+            const gameId = parts[1];
+            // If room is game:123:detail or game:123:events, we can send initial data
             const game = await dataManager.getGame(gameId);
             if (game) socket.emit('update', { type: 'GAME_UPDATED', data: game });
         } else if (room.startsWith('user:')) {
@@ -478,20 +481,26 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
-            case SocketAction.UPDATE_GAME_SCORE:
-                result = await dataManager.updateScore(action.payload.id, action.payload.homeScore, action.payload.awayScore);
-                if (result) {
-                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAMES_UPDATED', data: result });
-                     additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAMES_UPDATED', data: result });
-
-                     const parentEvent = await dataManager.getEvent(result.eventId);
-                     if (parentEvent) {
-                         const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
-                         orgIds.forEach(orgId => {
-                             additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAMES_UPDATED', data: result });
-                         });
-                     }
+            case SocketAction.ADD_GAME_EVENT:
+                const eventRes = await gameEventManager.ingestEvent(action.payload);
+                if (!('error' in eventRes)) {
+                    // Broadcast the granular event to the events room
+                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'GAME_EVENT_ADDED', data: eventRes });
+                    
+                    // Broadcast updated game state to the detail room
+                    const updatedGame = await dataManager.getGame(action.payload.gameId);
+                    if (updatedGame) {
+                        io.to(`game:${action.payload.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                    }
                 }
+                break;
+            case SocketAction.INITIATE_UNDO_VOTE:
+                const voteInitRes = await gameEventManager.initiateUndoVote(action.payload.gameId, action.payload.eventIdToUndo, action.payload.initiatorId);
+                io.to(`game:${action.payload.gameId}:detail`).emit('update', { type: 'VOTE_STARTED', data: { eventId: action.payload.eventIdToUndo, ttl: 15 } });
+                break;
+            case SocketAction.CAST_UNDO_VOTE:
+                const castRes = await gameEventManager.castUndoVote(action.payload.gameId, action.payload.officialId, action.payload.vote);
+                // Fully tallying logic would execute after TTL.
                 break;
             case SocketAction.UPDATE_GAME:
                 result = await dataManager.updateGame(action.payload.id, action.payload.data);

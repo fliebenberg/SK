@@ -53,8 +53,7 @@ describe('Store Logic', () => {
     
     const newGame = await store.addGame({
       eventId: 'event-test',
-      homeTeamId: homeTeam.id,
-      awayTeamId: awayTeam.id,
+      participants: [{ teamId: homeTeam.id }, { teamId: awayTeam.id }],
       startTime: '2024-01-01T12:00'
     });
 
@@ -70,8 +69,7 @@ describe('Store Logic', () => {
     const teams = store.getTeams();
     const game = await store.addGame({
       eventId: 'event-test-2',
-      homeTeamId: teams[0].id,
-      awayTeamId: teams[1].id,
+      participants: [{ teamId: teams[0].id }, { teamId: teams[1].id }],
       startTime: '2024-01-01T14:00'
     });
 
@@ -80,8 +78,8 @@ describe('Store Logic', () => {
 
     await store.updateScore(game.id, 1, 0);
     const updatedGame = store.getGame(game.id);
-    expect(updatedGame?.homeScore).toBe(1);
-    expect(updatedGame?.awayScore).toBe(0);
+    expect(updatedGame?.liveState?.home).toBe(1);
+    expect(updatedGame?.liveState?.away).toBe(0);
   });
 });
 

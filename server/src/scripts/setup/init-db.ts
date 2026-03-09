@@ -25,12 +25,35 @@ const createTables = async () => {
             );
         `);
 
+        // Sport Categories Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS sport_categories (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                icon_url TEXT
+            );
+        `);
+
         // Sports Table
         await pool.query(`
             CREATE TABLE IF NOT EXISTS sports (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
+                category_id TEXT REFERENCES sport_categories(id),
+                participant_type TEXT, -- 'TEAM' | 'INDIVIDUAL'
+                match_topology TEXT, -- 'HEAD_TO_HEAD' | 'MULTI_COMPETITOR'
+                default_settings JSONB DEFAULT '{}'::jsonb,
                 facility_term TEXT
+            );
+        `);
+
+        // Sport Presets
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS sport_presets (
+                id TEXT PRIMARY KEY,
+                sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                settings_override JSONB DEFAULT '{}'::jsonb
             );
         `);
 
@@ -245,20 +268,65 @@ const createTables = async () => {
             );
         `);
 
-         // Games
+         // Games (Generic match entity)
          await pool.query(`
             CREATE TABLE IF NOT EXISTS games (
                 id TEXT PRIMARY KEY,
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
-                home_team_id TEXT REFERENCES teams(id),
-                away_team_id TEXT REFERENCES teams(id),
-                away_team_name TEXT,
                 start_time TIMESTAMPTZ,
                 status TEXT,
                 site_id TEXT REFERENCES sites(id),
                 facility_id TEXT REFERENCES facilities(id),
-                home_score INTEGER DEFAULT 0,
-                away_score INTEGER DEFAULT 0
+                final_score_data JSONB,
+                custom_settings JSONB DEFAULT '{}'::jsonb,
+                live_state JSONB DEFAULT '{}'::jsonb
+            );
+        `);
+
+        // Game Participants
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_participants (
+                id TEXT PRIMARY KEY,
+                game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
+                team_id TEXT REFERENCES teams(id),
+                org_profile_id TEXT REFERENCES org_profiles(id),
+                status TEXT DEFAULT 'active' -- 'active', 'withdrawn', 'disqualified', 'did_not_start'
+            );
+        `);
+
+        // Game Rosters
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_rosters (
+                id TEXT PRIMARY KEY,
+                game_participant_id TEXT REFERENCES game_participants(id) ON DELETE CASCADE,
+                org_profile_id TEXT REFERENCES org_profiles(id),
+                position TEXT,
+                is_reserve BOOLEAN DEFAULT false
+            );
+        `);
+
+        // Game Officials
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_officials (
+                id TEXT PRIMARY KEY,
+                game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
+                org_profile_id TEXT REFERENCES org_profiles(id),
+                role TEXT NOT NULL -- 'SCORER', 'REFEREE', 'TIMEKEEPER', 'JUDGE'
+            );
+        `);
+
+        // Game Events
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_events (
+                id TEXT PRIMARY KEY,
+                game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
+                timestamp TIMESTAMPTZ DEFAULT NOW(),
+                game_participant_id TEXT REFERENCES game_participants(id),
+                actor_org_profile_id TEXT REFERENCES org_profiles(id),
+                initiator_org_profile_id TEXT REFERENCES org_profiles(id),
+                type TEXT NOT NULL,
+                sub_type TEXT,
+                event_data JSONB DEFAULT '{}'::jsonb
             );
         `);
 

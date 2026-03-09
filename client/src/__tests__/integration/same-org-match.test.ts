@@ -71,14 +71,13 @@ describe("Same-Org Match Creation", () => {
                             type: SocketAction.ADD_GAME,
                             payload: {
                                 eventId: EVENT_ID,
-                                homeTeamId: TEAM1_ID,
-                                awayTeamId: TEAM2_ID,
+                                participants: [{ teamId: TEAM1_ID }, { teamId: TEAM2_ID }],
                                 startTime: new Date().toISOString()
                             }
                         }, (res5: any) => {
                             expect(res5.status).toBe('ok');
-                            expect(res5.data.homeTeamId).toBe(TEAM1_ID);
-                            expect(res5.data.awayTeamId).toBe(TEAM2_ID);
+                            expect(res5.data.participants[0].teamId).toBe(TEAM1_ID);
+                            expect(res5.data.participants[1].teamId).toBe(TEAM2_ID);
                             done();
                         });
                     });

@@ -76,6 +76,7 @@ export class DataManager {
 
   // Facilities
   getFacilities = (siteId?: string) => facilityManager.getFacilities(siteId);
+  getFacilitiesByOrg = (orgId: string) => facilityManager.getFacilitiesByOrg(orgId);
   getFacility = (id: string) => facilityManager.getFacility(id);
   addFacility = (facility: any) => facilityManager.addFacility(facility);
   updateFacility = (id: string, data: any) => facilityManager.updateFacility(id, data);
@@ -127,7 +128,6 @@ export class DataManager {
   getGame = (id: string) => eventManager.getGame(id);
   addGame = (game: any) => eventManager.addGame(game);
   updateGameStatus = (id: string, status: any) => eventManager.updateGameStatus(id, status);
-  updateScore = (id: string, homeScore: number, awayScore: number) => eventManager.updateScore(id, homeScore, awayScore);
   updateGame = (id: string, data: any) => eventManager.updateGame(id, data);
   deleteGame = (id: string) => eventManager.deleteGame(id);
   getLiveGames = () => eventManager.getLiveGames();

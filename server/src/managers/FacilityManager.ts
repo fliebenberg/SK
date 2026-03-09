@@ -20,6 +20,17 @@ export class FacilityManager extends BaseManager {
     return res.rows;
   }
 
+  async getFacilitiesByOrg(orgId: string): Promise<Facility[]> {
+    const res = await this.query(`
+        SELECT f.id, f.name, f.site_id as "siteId", f.primary_sport_id as "primarySportId", 
+               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive"
+        FROM facilities f
+        JOIN sites s ON f.site_id = s.id
+        WHERE s.org_id = $1
+    `, [orgId]);
+    return res.rows;
+  }
+
   async getFacility(id: string): Promise<Facility | undefined> {
     const res = await this.query(`
         SELECT f.id, f.name, f.site_id as "siteId", f.primary_sport_id as "primarySportId", 

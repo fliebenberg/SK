@@ -84,19 +84,38 @@ export default function LivePage() {
 
                 <div className="text-center mb-8">
                   <div className="flex items-center justify-between text-lg font-bold mb-4" style={{ fontFamily: 'var(--font-orbitron)' }}>
-                    <span className="w-[45%] text-right truncate">{getTeamName(game.homeTeamId)}</span>
-                    <span className="text-muted-foreground text-sm px-2">VS</span>
-                    <span className="w-[45%] text-left truncate">{getTeamName(game.awayTeamId)}</span>
+                    {(() => {
+                        const p1 = game.participants?.[0]?.teamId;
+                        const p2 = game.participants?.[1]?.teamId;
+                        return (
+                            <>
+                                <span className="w-[45%] text-right truncate">{p1 ? getTeamName(p1) : "Unknown"}</span>
+                                <span className="text-muted-foreground text-sm px-2">VS</span>
+                                <span className="w-[45%] text-left truncate">{p2 ? getTeamName(p2) : "Unknown"}</span>
+                            </>
+                        )
+                    })()}
                   </div>
 
                   <div className="flex justify-center items-center gap-4 bg-muted/30 rounded-lg p-4 border border-border/50">
-                    <div className="text-4xl font-bold tabular-nums" style={{ fontFamily: 'var(--font-orbitron)' }}>
-                      {game.homeScore}
-                    </div>
-                    <div className="text-muted-foreground">-</div>
-                    <div className="text-4xl font-bold tabular-nums" style={{ fontFamily: 'var(--font-orbitron)' }}>
-                      {game.awayScore}
-                    </div>
+                    {(() => {
+                        const getScore = (index: number) => {
+                            if (game.status === 'Finished' && game.finalScoreData) return game.finalScoreData[index === 0 ? 'home' : 'away'] ?? 0;
+                            if (game.liveState) return game.liveState[index === 0 ? 'home' : 'away'] ?? 0;
+                            return 0;
+                        };
+                        return (
+                            <>
+                                <div className="text-4xl font-bold tabular-nums" style={{ fontFamily: 'var(--font-orbitron)' }}>
+                                {getScore(0)}
+                                </div>
+                                <div className="text-muted-foreground">-</div>
+                                <div className="text-4xl font-bold tabular-nums" style={{ fontFamily: 'var(--font-orbitron)' }}>
+                                {getScore(1)}
+                                </div>
+                            </>
+                        );
+                    })()}
                   </div>
                 </div>
 

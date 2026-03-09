@@ -219,8 +219,7 @@ export default function CreateEventPage() {
 
             await store.addGame({
                 eventId: newEvent.id,
-                homeTeamId: matchFormData.homeTeamId,
-                awayTeamId: matchFormData.awayTeamId,
+                participants: [{ teamId: matchFormData.homeTeamId }, { teamId: matchFormData.awayTeamId }],
                 startTime: matchFormData.isTbd ? undefined : `${startDate}T${matchFormData.startTime}:00`,
                 siteId: matchFormData.siteId
             });
