@@ -361,10 +361,13 @@ export function EventList({ orgId, teamId }: EventListProps) {
                         isStandalone={!isContainerEvent}
                         highlightTeamId={teamId}
                         onClick={() => {
+                            const queryPrefix = event.type === 'SingleMatch' ? '?' : '&';
+                            const contextQuery = teamId ? `${queryPrefix}fromTeamId=${teamId}` : '';
+                            
                             if (event.type === 'SingleMatch') {
-                                router.push(`/admin/organizations/${orgId}/events/${event.id}`);
+                                router.push(`/admin/organizations/${orgId}/events/${event.id}${contextQuery}`);
                             } else {
-                                router.push(`/admin/organizations/${orgId}/events/${event.id}/games/${game.id}/edit`);
+                                router.push(`/admin/organizations/${orgId}/events/${event.id}/games/${game.id}/edit${contextQuery}`);
                             }
                         }}
                       />

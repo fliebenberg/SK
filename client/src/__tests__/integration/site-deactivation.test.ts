@@ -3,13 +3,15 @@
  */
 import { io, Socket } from "socket.io-client";
 import { SocketAction } from "../../../../shared/src/constants/SocketActions";
+import { TestHelper } from "./TestHelper";
+import { APP_TEST_ORG_ID } from "../../../../shared/src/constants/TestConstants";
 
 describe("Site and Facility Deactivation", () => {
     let socket: Socket;
     const SERVER_URL = "http://localhost:3001";
     
     // Test Data
-    const ORG_ID = `org-site-test-${Date.now()}`;
+    const ORG_ID = APP_TEST_ORG_ID;
     const SITE_ID = `site-test-${Date.now()}`;
     const FACILITY_ID = `facility-test-${Date.now()}`;
 
@@ -21,26 +23,26 @@ describe("Site and Facility Deactivation", () => {
         });
     };
 
-    beforeAll((done) => {
+    beforeAll(async () => {
         socket = createSocket();
-        socket.on("connect", () => {
-            // Setup Org
-            socket.emit("action", { 
-                type: SocketAction.ADD_ORG, 
-                payload: { id: ORG_ID, name: "Site Test Org" } 
-            }, () => done());
+        await new Promise((resolve) => {
+            socket.on("connect", () => {
+                resolve(null);
+            });
+        });
+        // Setup Org
+        await TestHelper.emitAsync(socket, "action", { 
+            type: SocketAction.ADD_ORG, 
+            payload: { id: ORG_ID, name: "Site Test Org" } 
         });
     });
 
-    afterAll((done) => {
-        // Cleanup Org (which cascades or we just delete it)
-        socket.emit("action", {
-            type: SocketAction.DELETE_ORG,
-            payload: { id: ORG_ID }
-        }, () => {
-            if (socket) socket.disconnect();
-            done();
-        });
+    afterAll(async () => {
+        if (socket && socket.connected) {
+            // Cleanup Site and Facility
+            await TestHelper.emitAsync(socket, "action", { type: SocketAction.DELETE_SITE, payload: { id: SITE_ID } });
+            socket.disconnect();
+        }
     });
 
     it("should create a site, deactivate it, and verify isActive flag", (done) => {

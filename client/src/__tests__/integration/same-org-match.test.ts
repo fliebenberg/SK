@@ -3,13 +3,15 @@
  */
 import { io, Socket } from "socket.io-client";
 import { SocketAction } from "../../../../shared/src/constants/SocketActions";
+import { TestHelper } from "./TestHelper";
+import { APP_TEST_ORG_ID } from "../../../../shared/src/constants/TestConstants";
 
 describe("Same-Org Match Creation", () => {
     let socket: Socket;
     const SERVER_URL = "http://localhost:3001";
     
     // Test Data
-    const ORG_ID = `same-org-test-${Date.now()}`;
+    const ORG_ID = APP_TEST_ORG_ID;
     const TEAM1_ID = `team1-${Date.now()}`;
     const TEAM2_ID = `team2-${Date.now()}`;
     const EVENT_ID = `event-${Date.now()}`;
@@ -22,13 +24,28 @@ describe("Same-Org Match Creation", () => {
         });
     };
 
-    beforeAll((done) => {
+    beforeAll(async () => {
         socket = createSocket();
-        socket.on("connect", () => done());
+        await new Promise((resolve) => {
+            socket.on("connect", () => resolve(null));
+        });
+        // Setup Org
+        await TestHelper.emitAsync(socket, "action", { 
+            type: SocketAction.ADD_ORG, 
+            payload: { id: ORG_ID, name: "Same Org Test" } 
+        });
     });
 
-    afterAll(() => {
-        if (socket) socket.disconnect();
+    afterAll(async () => {
+        if (socket && socket.connected) {
+            // Cleanup: Teams and Event
+            // Note: Games are linked to events, usually deleted by event or manually
+            // Since our DELETE_ORG check counts teams, we should at least clean them.
+            await TestHelper.emitAsync(socket, "action", { type: SocketAction.DELETE_EVENT, payload: { id: EVENT_ID } });
+            await TestHelper.emitAsync(socket, "action", { type: SocketAction.DELETE_TEAM, payload: { id: TEAM1_ID } });
+            await TestHelper.emitAsync(socket, "action", { type: SocketAction.DELETE_TEAM, payload: { id: TEAM2_ID } });
+            socket.disconnect();
+        }
     });
 
     it("should allow creating a match between two teams from the same organization", (done) => {

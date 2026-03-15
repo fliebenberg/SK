@@ -5,17 +5,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function getContrastColor(hexcolor: string) {
-  // If no color provided, default to white text
-  if (!hexcolor || hexcolor === 'transparent') return '#ffffff';
+export function getContrastColor(hexcolor: string | undefined): string | undefined {
+  // If no color provided or transparent, signal to use default text color
+  if (!hexcolor || hexcolor === 'transparent' || hexcolor === 'undefined') return undefined;
 
   // Remove the hash if it exists
-  const hex = hexcolor.replace('#', '');
+  let hex = hexcolor.replace('#', '');
+
+  // Handle 3-digit hex codes (e.g. #fff -> #ffffff)
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('');
+  }
+
+  // If not a valid hex now, return undefined
+  if (hex.length !== 6) return undefined;
 
   // Convert to RGB
   const r = parseInt(hex.substr(0, 2), 16);
   const g = parseInt(hex.substr(2, 2), 16);
   const b = parseInt(hex.substr(4, 2), 16);
+
+  // If conversion failed, return undefined
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return undefined;
 
   // Calculate luminance
   const yiq = (r * 299 + g * 587 + b * 114) / 1000;

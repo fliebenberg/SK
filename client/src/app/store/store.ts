@@ -1495,13 +1495,20 @@ import { socket, socketService } from "../../lib/socketService";
     deleteSite = (id: string) => {
         const site = this.sites.find(s => s.id === id);
         if (site) {
+            const previousSites = [...this.sites];
             this.sites = this.sites.filter(s => s.id !== id);
             this.notifyListeners();
 
             return new Promise<void>((resolve, reject) => {
                 socket.emit('action', { type: SocketAction.DELETE_SITE, payload: { id } }, (response: any) => {
-                    if (response.status === 'ok') resolve();
-                    else reject(new Error(response.message || 'Failed to delete site'));
+                    if (response.status === 'ok') {
+                        resolve();
+                    } else {
+                        // Rollback
+                        this.sites = previousSites;
+                        this.notifyListeners();
+                        reject(new Error(response.message || 'Failed to delete site'));
+                    }
                 });
             });
         }

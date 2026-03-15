@@ -131,21 +131,50 @@ export class SiteManager extends BaseManager {
     const site = await this.getSite(id);
     if (!site) return null;
     
-    // Will need to check for dependencies, specifically Facilities linked to this site.
+    // Dependency checks: Events or Games linked directly to this site.
+    // Also need to check if any Facility of this site is used in Games.
     const countsRes = await this.query(`
-        SELECT COUNT(*)::int as facilities 
-        FROM facilities WHERE site_id = $1
+        SELECT 
+            (SELECT COUNT(*)::int FROM events WHERE site_id = $1) as events,
+            (SELECT COUNT(*)::int FROM games WHERE site_id = $1) as games,
+            (SELECT COUNT(*)::int FROM games g JOIN facilities f ON g.facility_id = f.id WHERE f.site_id = $1) as facility_games,
+            (SELECT COUNT(*)::int FROM facilities WHERE site_id = $1) as facilities
     `, [id]);
     
-    if (countsRes.rows[0].facilities > 0) {
-        throw new Error(`Cannot delete site: it has ${countsRes.rows[0].facilities} facilities.`);
+    const { events, games, facility_games, facilities } = countsRes.rows[0];
+
+    if (events > 0 || games > 0 || facility_games > 0) {
+        let reasons = [];
+        if (events > 0) reasons.push(`${events} events`);
+        if (games > 0) reasons.push(`${games} games`);
+        if (facility_games > 0) reasons.push(`${facility_games} games (linked via facilities)`);
+        
+        throw new Error(`Cannot delete site: it is linked to ${reasons.join(', ')}.`);
     }
 
-    await this.query('DELETE FROM sites WHERE id = $1', [id]);
-    await this.query(
-        `UPDATE organizations SET site_count = site_count - 1 WHERE id = $1`,
-        [site.orgId]
-    );
+    // Wrap in transaction
+    await this.query('BEGIN');
+    try {
+        // 1. Delete all facilities associated with the site
+        if (facilities > 0) {
+            await this.query('DELETE FROM facilities WHERE site_id = $1', [id]);
+        }
+
+        // 2. Delete the site itself
+        await this.query('DELETE FROM sites WHERE id = $1', [id]);
+
+        // 3. Update organization site count
+        await this.query(
+            `UPDATE organizations SET site_count = site_count - 1 WHERE id = $1`,
+            [site.orgId]
+        );
+
+        await this.query('COMMIT');
+    } catch (error) {
+        await this.query('ROLLBACK');
+        throw error;
+    }
+
     this.invalidateCache();
     return site;
   }

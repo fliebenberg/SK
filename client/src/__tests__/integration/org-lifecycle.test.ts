@@ -3,6 +3,7 @@
  */
 import { io, Socket } from "socket.io-client";
 import { SocketAction } from "../../../../shared/src/constants/SocketActions";
+import { TestHelper } from "./TestHelper";
 
 describe("Organization Lifecycle (Deactivation and Deletion)", () => {
     let socket: Socket;
@@ -21,13 +22,21 @@ describe("Organization Lifecycle (Deactivation and Deletion)", () => {
         });
     };
 
-    beforeAll((done) => {
+    beforeAll(async () => {
         socket = createSocket();
-        socket.on("connect", () => done());
+        await new Promise((resolve) => {
+            socket.on("connect", () => resolve(null));
+        });
     });
 
-    afterAll(() => {
-        if (socket) socket.disconnect();
+    afterAll(async () => {
+        if (socket && socket.connected) {
+            // Cleanup any created orgs (best effort)
+            await TestHelper.emitAsync(socket, "action", { type: SocketAction.DELETE_TEAM, payload: { id: TEAM_ID } });
+            await TestHelper.emitAsync(socket, "action", { type: SocketAction.DELETE_ORG, payload: { id: ORG_ID } });
+            await TestHelper.emitAsync(socket, "action", { type: SocketAction.DELETE_ORG, payload: { id: ORG_WITH_TEAM_ID } });
+            socket.disconnect();
+        }
     });
 
     it("should create, deactivate, and delete an empty organization", (done) => {

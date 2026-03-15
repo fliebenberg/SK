@@ -303,11 +303,11 @@ export default function CreateEventPage() {
             <CardContent className="p-6 space-y-6">
             
             {/* Common Fields */}
-            <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <Label htmlFor="date">{isMultiDay ? "Start Date" : "Date"}</Label>
-                        {(type === 'tournament' || type === 'sportsday') && (
+            {type !== 'game' && (
+                <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                            <Label htmlFor="date">{isMultiDay ? "Start Date" : "Date"}</Label>
                             <div className="flex items-center gap-2">
                                 <input 
                                     type="checkbox" 
@@ -318,18 +318,18 @@ export default function CreateEventPage() {
                                 />
                                 <Label htmlFor="isMultiDay" className="text-xs cursor-pointer">Multi-day</Label>
                             </div>
-                        )}
+                        </div>
+                        <Input id="date" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
                     </div>
-                    <Input id="date" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
-                </div>
 
-                {isMultiDay && (type === 'tournament' || type === 'sportsday') && (
-                    <div className="space-y-2">
-                        <Label htmlFor="endDate">End Date</Label>
-                        <Input id="endDate" type="date" min={startDate} value={endDate} onChange={e => setEndDate(e.target.value)} required />
-                    </div>
-                )}
-            </div>
+                    {isMultiDay && (
+                        <div className="space-y-2">
+                            <Label htmlFor="endDate">End Date</Label>
+                            <Input id="endDate" type="date" min={startDate} value={endDate} onChange={e => setEndDate(e.target.value)} required />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Site - Hide for Single Match as it's handled in MatchForm */}
             {type !== 'game' && (
@@ -436,6 +436,12 @@ export default function CreateEventPage() {
                             sportIds: [] 
                         }}
                         isSportsDay={false}
+                        dateNode={
+                            <div className="space-y-2">
+                                <Label htmlFor="date">Date</Label>
+                                <Input id="date" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
+                            </div>
+                        }
                         onChange={setMatchFormData}
                         initialData={useMemo(() => ({
                             startTime: "09:00",

@@ -41,7 +41,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
       router.push(`/admin/organizations/${org.id}`);
   };
 
-  const contrastColor = currentOrg ? getContrastColor(currentOrg.primaryColor || '#ffffff') : '#ffffff';
+  const contrastColor = currentOrg?.primaryColor ? getContrastColor(currentOrg.primaryColor) : undefined;
   const hasActualLogo = currentOrg?.logo && !isPlaceholderLogo(currentOrg.logo);
 
   return (
@@ -73,7 +73,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
               <DropdownMenuLabel>My Organizations</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {organizations.map((org) => {
-                const orgContrast = getContrastColor(org.primaryColor || '#ffffff');
+                const orgContrast = org.primaryColor ? getContrastColor(org.primaryColor) : undefined;
                 const orgHasLogo = org.logo && !isPlaceholderLogo(org.logo);
                 return (
                   <DropdownMenuItem
@@ -148,7 +148,7 @@ export function MobileSidebar() {
     const [open, setOpen] = useState(false);
     const router = useRouter();
     const { pathname, organizations, currentOrg, sidebarItems, hasOwnedOrg } = useAdminNavigation();
-    const contrastColor = currentOrg ? getContrastColor(currentOrg.primaryColor || '#ffffff') : '#ffffff';
+    const contrastColor = currentOrg?.primaryColor ? getContrastColor(currentOrg.primaryColor) : undefined;
     const hasActualLogo = currentOrg?.logo && !isPlaceholderLogo(currentOrg.logo);
 
     return (
@@ -190,7 +190,7 @@ export function MobileSidebar() {
                         <DropdownMenuLabel>My Organizations</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {organizations.map((org) => {
-                            const orgContrast = getContrastColor(org.primaryColor || '#ffffff');
+                            const orgContrast = org.primaryColor ? getContrastColor(org.primaryColor) : undefined;
                             const orgHasLogo = org.logo && !isPlaceholderLogo(org.logo);
                             return (
                                 <DropdownMenuItem

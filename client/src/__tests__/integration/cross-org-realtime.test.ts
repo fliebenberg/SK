@@ -2,6 +2,8 @@
  * @jest-environment node
  */
 import { io, Socket } from "socket.io-client";
+import { TestHelper } from "./TestHelper";
+import { SocketAction } from "../../../../shared/src/constants/SocketActions";
 
 describe("Cross-Org Real-Time Updates", () => {
     let socketListener: Socket;
@@ -37,7 +39,12 @@ describe("Cross-Org Real-Time Updates", () => {
         socketActor.on("connect", checkConnected);
     });
 
-    afterAll(() => {
+    afterAll(async () => {
+        if (socketActor && socketActor.connected) {
+            await TestHelper.emitAsync(socketActor, "action", { type: SocketAction.DELETE_EVENT, payload: { id: EVENT_ID } });
+            await TestHelper.emitAsync(socketActor, "action", { type: SocketAction.DELETE_ORG, payload: { id: ORG_LISTENER_ID } });
+            await TestHelper.emitAsync(socketActor, "action", { type: SocketAction.DELETE_ORG, payload: { id: ORG_ACTOR_ID } });
+        }
         if (socketListener) socketListener.disconnect();
         if (socketActor) socketActor.disconnect();
     });

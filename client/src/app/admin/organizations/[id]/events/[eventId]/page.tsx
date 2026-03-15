@@ -191,7 +191,14 @@ export default function EventDetailsPage() {
         <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
             <h2 className="text-2xl font-bold font-orbitron">Event Not Found</h2>
             <p className="text-muted-foreground">The event you are looking for does not exist or has been removed.</p>
-            <MetalButton onClick={() => router.push(`/admin/organizations/${orgId}/events`)}>
+            <MetalButton onClick={() => {
+                const fromTeamId = searchParams.get("fromTeamId");
+                if (fromTeamId) {
+                    router.push(`/admin/organizations/${orgId}/teams/${fromTeamId}/events`);
+                } else {
+                    router.push(`/admin/organizations/${orgId}/events`);
+                }
+            }}>
                 Back to Events
             </MetalButton>
         </div>
@@ -280,7 +287,12 @@ export default function EventDetailsPage() {
     setIsProcessing(true);
     try {
         await store.deleteEvent(event.id);
-        router.push(`/admin/organizations/${orgId}/events`);
+        const fromTeamId = searchParams.get("fromTeamId");
+        if (fromTeamId) {
+            router.push(`/admin/organizations/${orgId}/teams/${fromTeamId}/events`);
+        } else {
+            router.push(`/admin/organizations/${orgId}/events`);
+        }
     } catch (err) {
         console.error(err);
         toast({
@@ -536,7 +548,14 @@ export default function EventDetailsPage() {
         <header className="sticky top-0 z-30 w-full border-b bg-background/80 backdrop-blur-md">
             <div className="container flex h-16 items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/organizations/${orgId}/events`)}>
+                    <Button variant="ghost" size="icon" onClick={() => {
+                        const fromTeamId = searchParams.get("fromTeamId");
+                        if (fromTeamId) {
+                            router.push(`/admin/organizations/${orgId}/teams/${fromTeamId}/events`);
+                        } else {
+                            router.push(`/admin/organizations/${orgId}/events`);
+                        }
+                    }}>
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div>
@@ -563,35 +582,34 @@ export default function EventDetailsPage() {
                         </div>
                         
                         <form onSubmit={handleUpdate} className="space-y-8">
-                            <div className="grid gap-6 md:grid-cols-2">
-                                <div className="space-y-2 col-span-2">
-                                    <Label htmlFor="name">Event Name</Label>
-                                    <Input 
-                                        id="name" 
-                                        value={editName} 
-                                        onChange={e => setEditName(e.target.value)} 
-                                        placeholder="e.g. Friendly Match"
-                                        required 
-                                    />
-                                </div>
-                                
-                                <div className="flex flex-col gap-2 col-span-2">
-                                    <Label>Event Date</Label>
-                                    <Input 
-                                        type="date" 
-                                        value={editStartDate} 
-                                        onChange={e => setEditStartDate(e.target.value)} 
-                                        required 
-                                    />
-                                </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Event Name</Label>
+                                <Input 
+                                    id="name" 
+                                    value={editName} 
+                                    onChange={e => setEditName(e.target.value)} 
+                                    placeholder="e.g. Friendly Match"
+                                    required 
+                                />
                             </div>
 
                             <div className="pt-4 border-t border-border/50">
-                                    <MatchForm 
+                                <MatchForm 
                                     key={games[0]?.id || 'new'}
                                     orgId={orgId}
                                     event={event}
                                     isSportsDay={false}
+                                    dateNode={
+                                        <div className="flex flex-col gap-2">
+                                            <Label>Event Date</Label>
+                                            <Input 
+                                                type="date" 
+                                                value={editStartDate} 
+                                                onChange={e => setEditStartDate(e.target.value)} 
+                                                required 
+                                            />
+                                        </div>
+                                    }
                                     initialData={games[0] ? {
                                         homeTeamId: games[0].participants?.[0]?.teamId || "",
                                         awayTeamId: games[0].participants?.[1]?.teamId || "",
@@ -601,7 +619,7 @@ export default function EventDetailsPage() {
                                         sportId: event.sportIds?.[0]
                                     } : undefined}
                                     onChange={setMatchFormData}
-                                    />
+                                />
                             </div>
 
                             <div className="flex items-center justify-end gap-3 pt-4">

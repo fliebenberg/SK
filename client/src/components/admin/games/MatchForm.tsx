@@ -37,6 +37,7 @@ interface MatchFormProps {
   initialData?: Partial<MatchFormData>;
   onChange: (data: MatchFormData) => void;
   isSportsDay?: boolean;
+  dateNode?: React.ReactNode;
 }
 
 export function MatchForm({
@@ -45,6 +46,7 @@ export function MatchForm({
   initialData,
   onChange,
   isSportsDay = false,
+  dateNode,
 }: MatchFormProps) {
   const [loading, setLoading] = useState(false);
   const [allSports, setAllSports] = useState<Sport[]>([]);
@@ -374,8 +376,9 @@ export function MatchForm({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* SPORT & TIME */}
+        {/* SPORT, DATE & TIME */}
         <div className="space-y-4">
+          {dateNode}
           {eventSports.length > 1 && (
             <div className="space-y-2">
               <Label>Sport</Label>
@@ -413,7 +416,10 @@ export function MatchForm({
               className={isTbd ? "opacity-50" : ""}
             />
           </div>
+        </div>
 
+        {/* SITE & FACILITY */}
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label>Site</Label>
             <GenericAutocomplete
@@ -464,15 +470,15 @@ export function MatchForm({
             </div>
           )}
         </div>
+      </div>
 
-        {/* TEAM SELECTION */}
-        <div className="space-y-4">
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-primary/70">Teams</h3>
-            
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="uppercase">Team 1</Label>
+      {/* TEAM SELECTION */}
+      <div className="space-y-4 pt-4 border-t border-border/50">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-primary/70">Teams</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+          <div className="space-y-1.5">
+            <Label className="uppercase">Team 1</Label>
                 {isSportsDay ? (
                   <div className="space-y-2">
                      <GenericAutocomplete 
@@ -543,15 +549,19 @@ export function MatchForm({
                 )}
               </div>
 
-              <div className="relative py-2 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border/30" />
-                </div>
-                <span className="relative bg-background px-2 text-[10px] font-black italic text-muted-foreground uppercase tracking-widest">vs</span>
-              </div>
+          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center justify-center pointer-events-none mt-2">
+            <span className="bg-background px-2 text-[10px] font-black italic text-muted-foreground uppercase tracking-widest z-10">vs</span>
+          </div>
 
-              <div className="space-y-1.5">
-                <Label className="uppercase">Team 2</Label>
+          <div className="relative py-2 flex items-center justify-center md:hidden">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border/30" />
+            </div>
+            <span className="relative bg-background px-2 text-[10px] font-black italic text-muted-foreground uppercase tracking-widest">vs</span>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="uppercase">Team 2</Label>
                 <div className="space-y-2">
                   <GenericAutocomplete
                     items={searchedOrgs.map(o => ({ 
@@ -602,8 +612,6 @@ export function MatchForm({
                   })()}
                 </div>
               </div>
-            </div>
-          </div>
         </div>
       </div>
 

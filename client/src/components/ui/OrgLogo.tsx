@@ -1,7 +1,7 @@
 "use client";
 
 import { Organization } from "@sk/types";
-import { cn, getInitials, getOrgInitialsFontSize, isPlaceholderLogo, getOrgLogoUrl } from "@/lib/utils";
+import { cn, getInitials, getOrgInitialsFontSize, isPlaceholderLogo, getOrgLogoUrl, getContrastColor } from "@/lib/utils";
 
 interface OrgLogoProps {
   organization: Partial<Organization> | null;
@@ -20,6 +20,7 @@ export function OrgLogo({
 
   const hasActualLogo = organization.logo && !isPlaceholderLogo(organization.logo);
   const initials = getInitials(organization.name || "", organization.shortName);
+  const initialsColor = organization.primaryColor ? getContrastColor(organization.primaryColor) : undefined;
   
   const sizeClasses = {
     xs: "w-6 h-6",
@@ -63,7 +64,7 @@ export function OrgLogo({
       className={containerClasses}
       style={{ 
         backgroundColor: organization.primaryColor || 'var(--muted)',
-        color: organization.secondaryColor || 'inherit'
+        color: initialsColor || 'inherit'
       }}
     >
       <span className={cn(
