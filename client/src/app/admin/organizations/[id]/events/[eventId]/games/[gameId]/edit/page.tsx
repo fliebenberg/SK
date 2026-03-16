@@ -34,17 +34,6 @@ export default function EditGamePage() {
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
   const [confirmCancel, setConfirmCancel] = useState({ isOpen: false });
 
-  const initialData = React.useMemo(() => {
-    if (!game) return undefined;
-    return {
-      homeTeamId: game.homeTeamId,
-      awayTeamId: game.awayTeamId,
-      startTime: game.startTime ? format(new Date(game.startTime), "HH:mm") : undefined,
-      isTbd: !game.startTime,
-      siteId: game.siteId,
-      sportId: store.getTeam(game.homeTeamId)?.sportId
-    };
-  }, [game?.id, game?.homeTeamId, game?.awayTeamId, game?.startTime, game?.siteId]);
 
   // Safety check: ensure game matches event
   useEffect(() => {
@@ -100,10 +89,10 @@ export default function EditGamePage() {
     setIsProcessing(true);
     try {
         await store.updateGame(game.id, {
-            homeTeamId: formData.homeTeamId,
-            awayTeamId: formData.awayTeamId,
+            participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
             startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
-            siteId: formData.siteId
+            siteId: formData.siteId,
+            facilityId: formData.facilityId
         });
 
         // Handle Referrals
@@ -185,16 +174,21 @@ export default function EditGamePage() {
   };
 
   const hasChanges = React.useMemo(() => {
-      if (!initialData || !formData) return false;
+      if (!game || !formData) return false;
+      const p1 = game.participants?.[0]?.teamId || "";
+      const p2 = game.participants?.[1]?.teamId || "";
+      const gTime = game.startTime ? format(new Date(game.startTime), "HH:mm") : "09:00";
+      const gIsTbd = !game.startTime;
+
       return (
-          initialData.homeTeamId !== formData.homeTeamId ||
-          initialData.awayTeamId !== formData.awayTeamId ||
-          initialData.startTime !== formData.startTime ||
-          initialData.isTbd !== formData.isTbd ||
-          initialData.siteId !== formData.siteId ||
-          initialData.sportId !== formData.sportId
+          p1 !== formData.homeTeamId ||
+          p2 !== formData.awayTeamId ||
+          gTime !== formData.startTime ||
+          gIsTbd !== formData.isTbd ||
+          (game.siteId || "") !== (formData.siteId || "") ||
+          (game.facilityId || "") !== (formData.facilityId || "")
       );
-  }, [initialData, formData]);
+  }, [game, formData]);
 
   if (orgLoading && !org) {
     return (
@@ -211,8 +205,12 @@ export default function EditGamePage() {
 
   const getMatchName = () => {
       if (!game) return "Edit Game";
-      const home = store.getTeam(game.homeTeamId);
-      const away = store.getTeam(game.awayTeamId);
+      const p1 = game.participants?.[0]?.teamId;
+      const p2 = game.participants?.[1]?.teamId;
+      if (!p1 || !p2) return "Edit Game";
+
+      const home = store.getTeam(p1);
+      const away = store.getTeam(p2);
       if (!home || !away) return "Edit Game";
       
       const homeOrg = store.getOrganization(home.orgId);
@@ -257,7 +255,7 @@ export default function EditGamePage() {
                 orgId={orgId}
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
-                initialData={initialData}
+                game={game}
                 onChange={setFormData}
             />
 

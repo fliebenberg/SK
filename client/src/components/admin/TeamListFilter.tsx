@@ -7,15 +7,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 
 interface TeamListFilterProps {
   sports: { id: string; name: string }[];
   currentSport?: string;
   orgId: string;
+  className?: string;
 }
 
-export function TeamListFilter({ sports, currentSport, orgId }: TeamListFilterProps) {
+export function TeamListFilter({ sports, currentSport, orgId, className }: TeamListFilterProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -39,7 +41,7 @@ export function TeamListFilter({ sports, currentSport, orgId }: TeamListFilterPr
   if (sports.length === 0) return null;
 
   return (
-    <div className="w-[200px]">
+    <div className={cn("w-full md:w-[200px]", className)}>
       <Select value={value} onValueChange={handleSportChange} disabled={sports.length <= 1}>
         <SelectTrigger>
           <SelectValue placeholder="Filter by sport" />

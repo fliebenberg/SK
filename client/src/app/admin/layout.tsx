@@ -47,7 +47,7 @@ export default function AdminLayout({
         <AdminSidebar />
       </aside>
 
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="flex-1 px-1.5 py-2 md:p-8 overflow-y-auto w-full max-w-[100vw]">
         {children}
       </main>
     </div>

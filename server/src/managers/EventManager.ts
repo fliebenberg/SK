@@ -4,6 +4,7 @@ import { organizationManager } from "./OrganizationManager";
 
 export class EventManager extends BaseManager {
   async getEvents(orgId?: string): Promise<Event[]> {
+    console.log(`EventManager: getEvents called for org ${orgId}`);
     let queryText = 'SELECT id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status FROM events';
     const params: any[] = [];
     if (orgId) {
@@ -11,6 +12,7 @@ export class EventManager extends BaseManager {
         params.push(orgId);
     }
     const res = await this.query(queryText, params);
+    console.log(`EventManager: Found ${res.rows.length} events for org ${orgId}`);
     return res.rows;
   }
 
@@ -137,28 +139,54 @@ export class EventManager extends BaseManager {
   }
 
   async updateGame(id: string, data: Partial<Game>): Promise<Game | null> {
-      const keys = Object.keys(data).filter(k => k !== 'id');
-      if (keys.length === 0) return (await this.getGame(id)) || null;
-
-      const fullMap: Record<string, string> = {
-            startTime: 'start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', finalScoreData: 'final_score_data', customSettings: 'custom_settings', liveState: 'live_state'
-      };
-
-      const setClauses: string[] = [];
-      const values: any[] = [];
-      let idx = 1;
-
-      keys.forEach(key => {
-        if (fullMap[key]) {
-            setClauses.push(`${fullMap[key]} = $${idx}`);
-            values.push((data as any)[key]);
-            idx++;
-        }
-      });
-      values.push(id);
+      console.log(`EventManager: updateGame called for ${id}`, data);
+      const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'participants');
       
-      await this.query(`UPDATE games SET ${setClauses.join(', ')} WHERE id = $${idx}`, values);
-      return (await this.getGame(id)) || null;
+      await this.query('BEGIN');
+      try {
+          if (keys.length > 0) {
+              const fullMap: Record<string, string> = {
+                    startTime: 'start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', finalScoreData: 'final_score_data', customSettings: 'custom_settings', liveState: 'live_state'
+              };
+
+              const setClauses: string[] = [];
+              const values: any[] = [];
+              let idx = 1;
+
+              keys.forEach(key => {
+                if (fullMap[key]) {
+                    setClauses.push(`${fullMap[key]} = $${idx}`);
+                    values.push((data as any)[key]);
+                    idx++;
+                }
+              });
+              values.push(id);
+              
+              const updateQuery = `UPDATE games SET ${setClauses.join(', ')} WHERE id = $${idx}`;
+              console.log(`EventManager: Executing update: ${updateQuery} with values:`, values);
+              await this.query(updateQuery, values);
+          }
+
+          if (data.participants) {
+              console.log(`EventManager: Updating participants for game ${id}`);
+              await this.query('DELETE FROM game_participants WHERE game_id = $1', [id]);
+              for (const p of data.participants) {
+                  const pid = p.id || `gp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                  await this.query(
+                      `INSERT INTO game_participants (id, game_id, team_id, org_profile_id, status) VALUES ($1, $2, $3, $4, 'active')`,
+                      [pid, id, p.teamId || null, p.orgProfileId || null]
+                  );
+              }
+          }
+
+          await this.query('COMMIT');
+          console.log(`EventManager: updateGame successful for ${id}`);
+          return (await this.getGame(id)) || null;
+      } catch (e) {
+          await this.query('ROLLBACK');
+          console.error(`EventManager: Error updating game ${id}:`, e);
+          throw e;
+      }
   }
 
   async deleteGame(id: string): Promise<Game | null> {

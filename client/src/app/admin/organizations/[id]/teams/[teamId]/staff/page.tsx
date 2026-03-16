@@ -162,11 +162,10 @@ export default function TeamStaffPage() {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Staff ({staff.length})</h2>
-        
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <div className="space-y-6 relative pb-20 md:pb-0">
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="hidden md:flex justify-between items-center">
+          <h2 className="text-xl font-semibold">Staff ({staff.length})</h2>
           <DialogTrigger asChild>
             <MetalButton 
               variantType="filled" 
@@ -178,7 +177,23 @@ export default function TeamStaffPage() {
               Add Staff
             </MetalButton>
           </DialogTrigger>
-          <DialogContent>
+        </div>
+
+        {/* Mobile FAB */}
+        <div className="md:hidden fixed bottom-6 right-6 z-50">
+          <MetalButton 
+            onClick={() => setIsDialogOpen(true)}
+            variantType="filled" 
+            glowColor="hsl(var(--primary))" 
+            size="icon"
+            className="h-14 w-14 rounded-full shadow-2xl flex items-center justify-center p-0"
+            icon={<Plus className="h-6 w-6" />}
+          >
+            <span className="sr-only">Add Staff</span>
+          </MetalButton>
+        </div>
+
+        <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Staff Member</DialogTitle>
             </DialogHeader>
@@ -220,7 +235,6 @@ export default function TeamStaffPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {staff.map((person) => (

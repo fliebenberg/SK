@@ -37,20 +37,22 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
   const homeScore = getScore(0);
   const awayScore = getScore(1);
 
+  const showScores = isLive || isFinished;
+
   return (
-    <div className={cn("group flex items-center gap-3", className)}>
-      {/* Date/Status Card */}
+    <div className={cn("group flex items-stretch gap-2 md:gap-3", className)}>
+      {/* Date/Status Card (Left side) */}
       <div className={cn(
-        "flex flex-col items-center justify-center min-w-[60px] h-14 border rounded-xl shadow-sm italic shrink-0 transition-colors relative pt-1",
+        "flex flex-col items-center justify-center min-w-[56px] md:min-w-[80px] border rounded-xl shadow-sm italic shrink-0 transition-colors relative py-1.5",
         isLive ? "bg-primary border-primary text-primary-foreground shadow-md animate-pulse" :
         isFinished ? "bg-secondary border-secondary text-secondary-foreground" :
         isCancelled ? "bg-destructive border-destructive text-destructive-foreground" :
         isStandalone ? "bg-muted/90 border-border shadow-inner" : "bg-muted/40 border-border/80"
       )}>
         {isLive ? (
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none mb-2">LIVE</span>
+          <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] leading-none mb-1">LIVE</span>
         ) : isFinished ? (
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none mb-2 opacity-60">FINAL</span>
+          <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] leading-none mb-1 opacity-60">FINAL</span>
         ) : (
           (() => {
             const date = game.startTime ? new Date(game.startTime) : null;
@@ -58,27 +60,33 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
             if (!isValid) return <span className="text-xs font-black uppercase tracking-widest opacity-40">TBD</span>;
             
             return (
-              <>
-                <span className={cn(
-                  "text-xl font-black leading-none",
-                  isStandalone ? "text-foreground" : "text-foreground/90"
-                )}>
-                  {format(date!, "dd")}
+              <div className="flex flex-col items-center justify-center leading-none gap-1">
+                <div className="flex items-center gap-1">
+                  <span className={cn(
+                    "text-xs md:text-sm font-black",
+                    isStandalone ? "text-foreground" : "text-foreground/90"
+                  )}>
+                    {format(date!, "dd")}
+                  </span>
+                  <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest opacity-60">
+                    {format(date!, "MMM")}
+                  </span>
+                </div>
+                
+                <span className="text-[9px] md:text-xs font-black uppercase tracking-wider opacity-90">
+                  {format(date!, "HH:mm")}
                 </span>
-                <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">
-                  {format(date!, "MMM")}
-                </span>
-              </>
+              </div>
             );
           })()
         )}
       </div>
 
-      {/* Match Details Card */}
+      {/* MATCH CONTENT BLOCK (Teams) */}
       <div 
         onClick={onClick}
         className={cn(
-          "flex-1 flex items-stretch h-14 border rounded-xl shadow-sm transition-all group/card overflow-hidden",
+          "flex-1 flex flex-col md:flex-row md:items-center justify-center gap-1 md:gap-0 p-2 md:p-0 border rounded-xl shadow-sm transition-all group/card overflow-hidden",
           onClick ? "cursor-pointer active:scale-[0.99]" : "cursor-default",
           isLive ? "bg-background border-primary/30 ring-1 ring-primary/10 shadow-md" : 
           isFinished ? "bg-muted/30 border-border/60" :
@@ -86,77 +94,117 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
           "bg-background border-border/80 hover:border-primary/40 hover:shadow-md"
         )}
       >
-        {/* Home Logo */}
-        <OrgLogo 
-          organization={homeOrg} 
-          size="md" 
-          rounded="xl" 
-          className="rounded-r-none border-r border-border/10"
-        />
-
-        {/* Teams pillar */}
-        <div className="flex-1 flex items-center min-w-0 px-4">
-          {/* Home Team */}
-          <div className="flex-1 flex items-center justify-end min-w-0">
-            <span className={cn(
-              "text-lg font-black line-clamp-2 text-right leading-[1.1]",
-              ((homeScore) > (awayScore) && isFinished) || homeTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
-            )}>
-              <span className="mr-1.5 opacity-60 text-sm font-bold ml-1">{homeOrg?.shortName || homeOrg?.name?.slice(0,3).toUpperCase() || 'HOM'}</span>
-              {homeTeam?.name || 'Unknown'}
-            </span>
-          </div>
-
-          {/* Center: Score/Site/Sport */}
-          <div className="flex flex-col items-center justify-center min-w-[120px] px-2 text-center py-1">
-            {isCancelled ? (
-              <span className="text-[10px] font-black uppercase tracking-widest text-destructive mb-1">CANCELLED</span>
-            ) : (isLive || isFinished) ? (
-              <div className="flex items-center gap-1.5 font-mono font-black text-xl tracking-tighter leading-none mb-1">
-                <span className={cn(isFinished && (homeScore) < (awayScore) && "opacity-30")}>{homeScore}</span>
-                <span className="opacity-20 text-sm">-</span>
-                <span className={cn(isFinished && (awayScore) < (homeScore) && "opacity-30")}>{awayScore}</span>
-              </div>
-            ) : (
-                <span className="text-sm font-bold text-muted-foreground tracking-tight mb-1">
-                    {game.startTime ? format(new Date(game.startTime), "HH:mm") : "TBD"}
+        {/* Teams Display - Mobile Adaptive Layout */}
+        <div className="md:hidden flex flex-col justify-center gap-1.5 px-2">
+          {/* Container that tries Row first, but allows wrapping */}
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 min-w-0">
+            {/* Home Team */}
+            <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+              <OrgLogo organization={homeOrg} size="xs" rounded="md" className="shrink-0" />
+              <span className={cn(
+                "text-xs font-black truncate leading-tight",
+                (homeScore > awayScore && isFinished) || homeTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
+              )}>
+                {homeTeam?.name || 'Unknown'}
+              </span>
+              {showScores && (
+                <span className="font-mono font-black text-xs inline-block ml-0.5">
+                  <span className={cn(isFinished && homeScore < awayScore && "opacity-30")}>{homeScore}</span>
                 </span>
+              )}
+            </div>
+
+            {/* Separator / VS (only if scores are hidden to keep it clean) */}
+            {!showScores && (
+              <span className="text-[8px] font-bold opacity-20 uppercase tracking-tighter">vs</span>
             )}
             
-            <div className="flex flex-col items-center gap-0.5">
-              {gameSite && (
-                <div className="flex items-center gap-1 text-[9px] font-bold text-muted-foreground/60 uppercase tracking-tight truncate max-w-[110px]">
-                  <MapPin className="h-2 w-2" />
-                  {gameSite.name}
-                </div>
-              )}
-              {sport && (
-                <span className="text-[8px] font-black uppercase tracking-widest text-primary/30 leading-none">
-                  {sport.name}
+            {showScores && <span className="text-[8px] font-bold opacity-10 mx-[-2px] uppercase">-</span>}
+
+            {/* Away Team */}
+            <div className="flex items-center gap-1.5 min-w-0 max-w-full">
+              <OrgLogo organization={awayOrg} size="xs" rounded="md" className="shrink-0" />
+              <span className={cn(
+                "text-xs font-black truncate leading-tight",
+                (awayScore > homeScore && isFinished) || awayTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
+              )}>
+                {awayTeam?.name || 'Unknown'}
+              </span>
+              {showScores && (
+                <span className="font-mono font-black text-xs inline-block ml-0.5">
+                   <span className={cn(isFinished && awayScore < homeScore && "opacity-30")}>{awayScore}</span>
                 </span>
               )}
             </div>
           </div>
-
-          {/* Away Team */}
-          <div className="flex-1 flex items-center justify-start min-w-0">
-            <span className={cn(
-              "text-lg font-black line-clamp-2 text-left leading-[1.1]",
-              ((awayScore) > (homeScore) && isFinished) || awayTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
-            )}>
-              {awayTeam?.name || 'Unknown'}
-              <span className="ml-1.5 opacity-60 text-sm font-bold mr-1">{awayOrg?.shortName || awayOrg?.name?.slice(0,3).toUpperCase() || 'AWY'}</span>
-            </span>
-          </div>
         </div>
 
-        {/* Away Logo */}
-        <OrgLogo 
-          organization={awayOrg} 
-          size="md" 
-          rounded="xl" 
-          className="rounded-l-none border-l border-border/10"
-        />
+        {/* Teams Display - Desktop Horizontal Pillar Layout */}
+        <div className="hidden md:flex flex-1 items-stretch h-full min-w-0">
+           {/* Home Pillar */}
+           <div className="flex-1 flex items-center justify-end gap-3 px-4 min-w-0">
+              <span className={cn(
+                "text-base font-black truncate text-right",
+                (homeScore > awayScore && isFinished) || homeTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
+              )}>
+                <span className="mr-1.5 opacity-40 text-[10px] font-bold uppercase tracking-wider">{homeOrg?.shortName || 'HOM'}</span>
+                {homeTeam?.name || 'Unknown'}
+              </span>
+              <OrgLogo organization={homeOrg} size="sm" rounded="md" className="shrink-0" />
+           </div>
+
+           {/* Divider / Scores */}
+           <div className="flex flex-col items-center justify-center px-4 border-l border-r border-border/30 bg-muted/10 min-w-[100px]">
+              {showScores ? (
+                <div className="flex items-center gap-2 font-mono font-black text-xl tracking-tighter">
+                   <span className={cn(isFinished && homeScore < awayScore && "opacity-20")}>{homeScore}</span>
+                   <span className="opacity-10 text-sm">-</span>
+                   <span className={cn(isFinished && awayScore < homeScore && "opacity-20")}>{awayScore}</span>
+                </div>
+              ) : (
+                <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">VS</span>
+              )}
+              {sport && (
+                <span className="text-[8px] font-black uppercase tracking-widest text-primary/30 mt-0.5 leading-none">
+                  {sport.name}
+                </span>
+              )}
+           </div>
+
+           {/* Away Pillar */}
+           <div className="flex-1 flex items-center justify-start gap-3 px-4 min-w-0">
+              <OrgLogo organization={awayOrg} size="sm" rounded="md" className="shrink-0" />
+              <span className={cn(
+                "text-base font-black truncate text-left",
+                (awayScore > homeScore && isFinished) || awayTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
+              )}>
+                {awayTeam?.name || 'Unknown'}
+                <span className="ml-1.5 opacity-40 text-[10px] font-bold uppercase tracking-wider">{awayOrg?.shortName || 'AWY'}</span>
+              </span>
+           </div>
+        </div>
+      </div>
+
+
+      {/* Location Card (Right side) */}
+      <div className={cn(
+        "flex flex-col items-center justify-center min-w-[56px] md:min-w-[100px] border rounded-xl shadow-sm italic shrink-0 transition-colors py-1.5 bg-muted/20 border-border/60",
+        isCancelled && "bg-destructive/10 border-destructive/20"
+      )}>
+        <div className="flex flex-col items-center justify-center leading-none gap-1 w-full px-1 text-center">
+            {gameSite ? (
+                <>
+                  <span className="text-xs md:text-sm font-black truncate w-full text-foreground/90 leading-tight">
+                      {gameSite.name}
+                  </span>
+                  <span className="text-[9px] md:text-xs font-bold uppercase tracking-wider opacity-50 truncate w-full">
+                      {game.facilityId ? store.getFacility(game.facilityId)?.name : 'Field'}
+                  </span>
+                </>
+            ) : (
+                <span className="text-xs md:text-sm font-bold uppercase opacity-30">TBD</span>
+            )}
+        </div>
       </div>
     </div>
   );

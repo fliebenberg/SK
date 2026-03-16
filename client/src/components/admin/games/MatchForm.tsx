@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GenericAutocomplete } from "@/components/ui/GenericAutocomplete";
-import { Event, Organization, Sport, Team, Address } from "@sk/types";
+import { Event, Organization, Sport, Team, Address, levenshtein } from "@sk/types";
 import { store } from "@/app/store/store";
 import { Loader2, Check } from "lucide-react";
 import { OrgCreationDialog } from "../organizations/OrgCreationDialog";
@@ -451,7 +451,34 @@ export function MatchForm({
             <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
               <Label>Facility (Optional)</Label>
               <GenericAutocomplete
-                items={facilities.map(f => ({ id: f.id, label: f.name, subLabel: f.surfaceType, data: f }))}
+                items={(() => {
+                  const facilityItems = facilities.map(f => ({ 
+                    id: f.id, 
+                    label: f.name, 
+                    subLabel: f.surfaceType, 
+                    data: f 
+                  }));
+
+                  // 1. If input is empty, sort alphabetically
+                  if (!gameFacilityName.trim()) {
+                    facilityItems.sort((a, b) => a.label.localeCompare(b.label));
+                  } else {
+                    // 2. If input has text, sort by similarity
+                    // But keep the currently selected facility at the top
+                    facilityItems.sort((a, b) => {
+                      if (a.id === gameFacilityId) return -1;
+                      if (b.id === gameFacilityId) return 1;
+
+                      const distA = levenshtein(a.label.toLowerCase(), gameFacilityName.toLowerCase());
+                      const distB = levenshtein(b.label.toLowerCase(), gameFacilityName.toLowerCase());
+                      
+                      if (distA !== distB) return distA - distB;
+                      return a.label.localeCompare(b.label);
+                    });
+                  }
+
+                  return facilityItems.slice(0, 20); // Top 20 facilities
+                })()}
                 value={gameFacilityName}
                 onChange={setGameFacilityName}
                 onSelect={(item) => {
@@ -466,6 +493,7 @@ export function MatchForm({
                 placeholder="Select field/court..."
                 createLabel="Add Facility"
                 isLoading={loading}
+                disableFiltering={true}
               />
             </div>
           )}

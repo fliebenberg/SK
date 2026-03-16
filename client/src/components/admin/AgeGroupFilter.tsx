@@ -7,18 +7,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface AgeGroupFilterProps {
   ageGroups: string[];
   currentAgeGroup: string;
   onFilterChange: (value: string) => void;
+  className?: string;
 }
 
-export function AgeGroupFilter({ ageGroups, currentAgeGroup, onFilterChange }: AgeGroupFilterProps) {
+export function AgeGroupFilter({ ageGroups, currentAgeGroup, onFilterChange, className }: AgeGroupFilterProps) {
   if (ageGroups.length === 0) return null;
 
   return (
-    <div className="w-[160px]">
+    <div className={cn("w-full md:w-[160px]", className)}>
       <Select value={currentAgeGroup} onValueChange={onFilterChange}>
         <SelectTrigger className="h-9">
           <SelectValue placeholder="Filter by age" />

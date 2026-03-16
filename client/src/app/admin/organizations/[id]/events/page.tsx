@@ -21,7 +21,7 @@ export default function EventsPage() {
   if (!org) return null;
 
   return (
-    <div className="p-6">
+    <div className="p-0 md:p-6">
       <EventList orgId={id} />
     </div>
   );

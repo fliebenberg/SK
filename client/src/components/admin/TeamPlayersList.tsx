@@ -125,8 +125,8 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 relative pb-20 md:pb-0">
+      <div className="hidden md:flex justify-between items-center">
         <h3 className="text-xl font-semibold">Players</h3>
         <MetalButton
           onClick={() => setIsAdding(!isAdding)}
@@ -138,7 +138,25 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
           size="sm"
         >
           Add Player
-        </MetalButton >
+        </MetalButton>
+      </div>
+
+      {/* Mobile FAB */}
+      <div className="md:hidden fixed bottom-6 right-6 z-50">
+        <MetalButton
+          onClick={() => {
+            setIsAdding(!isAdding);
+            if (!isAdding) window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          variantType="filled"
+          glowColor="hsl(var(--primary))"
+          metalVariant={metalVariant}
+          size="icon"
+          className="h-14 w-14 rounded-full shadow-2xl flex items-center justify-center p-0"
+          icon={<Plus className="h-6 w-6" />}
+        >
+          <span className="sr-only">Add Player</span>
+        </MetalButton>
       </div>
 
       {isAdding && (

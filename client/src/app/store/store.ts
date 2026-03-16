@@ -1222,8 +1222,7 @@ import { socket, socketService } from "../../lib/socketService";
     updateScore = (id: string, homeScore: number, awayScore: number) => {
         const game = this.games.find(g => g.id === id);
         if (game) {
-          game.homeScore = homeScore;
-          game.awayScore = awayScore;
+          game.liveState = { ...(game.liveState || {}), home: homeScore, away: awayScore };
           socket.emit('action', { type: SocketAction.UPDATE_GAME_SCORE, payload: { id, homeScore, awayScore } });
         }
     };
@@ -1624,17 +1623,23 @@ import { socket, socketService } from "../../lib/socketService";
     }
 
     fetchOrganization(id: string) {
-        socket.emit('get_data', { type: 'organization', id }, (data: Organization) => {
-            if (data) {
-                this.mergeOrganization(data);
-                this.notifyListeners();
-            }
+        return new Promise<Organization | null>((resolve) => {
+            socket.emit('get_data', { type: 'organization', id }, (data: Organization) => {
+                if (data) {
+                    this.mergeOrganization(data);
+                    this.notifyListeners();
+                }
+                resolve(data || null);
+            });
         });
     }
 
     fetchEvent(id: string) {
-        socket.emit('get_data', { type: 'event', id }, (data: Event) => {
-            if (data) this.mergeEvent(data);
+        return new Promise<Event | null>((resolve) => {
+            socket.emit('get_data', { type: 'event', id }, (data: Event) => {
+                if (data) this.mergeEvent(data);
+                resolve(data || null);
+            });
         });
     }
 

@@ -2,7 +2,7 @@
 
 import { MetalButton } from "@/components/ui/MetalButton";
 import { store } from "@/app/store/store";
-import { Plus, Users, Trophy, Circle, Shield, Target, Disc, Activity } from "lucide-react";
+import { Plus, Users, Trophy, Circle, Shield, Target, Disc, Activity, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,12 +27,15 @@ const getSportIcon = (sport: string) => {
 };
 
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
 import { AgeGroupFilter } from "@/components/admin/AgeGroupFilter";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -116,18 +119,18 @@ export default function TeamManagementPage() {
   const deactivatedTeams = sortedTeams.filter(t => !(t.isActive ?? true));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <PageHeader
         title="Team Management"
         description="Manage your organization's teams and rosters."
       >
-             {/* Add Team Button */}
-             <div className="w-full md:w-auto flex justify-end">
+             {/* Desktop Creation Button - Hidden on mobile, replaced by FAB */}
+             <div className="hidden md:flex w-auto justify-end">
                 <MetalButton 
                     variantType="filled" 
                     glowColor="hsl(var(--primary))"
                     size="sm"
-                    className="text-primary-foreground whitespace-nowrap w-full md:w-auto"
+                    className="text-primary-foreground whitespace-nowrap"
                     icon={<Plus className="h-4 w-4" />}
                     href={`/admin/organizations/${id}/teams/new`}
                 >
@@ -135,35 +138,60 @@ export default function TeamManagementPage() {
                 </MetalButton>
              </div>
 
-             {/* Filters & Grouping */}
-             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <TeamListFilter 
-                    sports={org.supportedSportIds.map(id => store.getSport(id)).filter((s): s is NonNullable<typeof s> => !!s)} 
-                    currentSport={currentSport} 
-                    orgId={id} 
-                />
-                
-                <AgeGroupFilter 
-                    ageGroups={availableAgeGroups}
-                    currentAgeGroup={ageFilter}
-                    onFilterChange={setAgeFilter}
-                />
+             {/* Mobile Floating Action Button (FAB) */}
+             <div className="md:hidden fixed bottom-6 right-6 z-50">
+                <MetalButton 
+                    variantType="filled" 
+                    glowColor="hsl(var(--primary))"
+                    size="icon"
+                    className="h-14 w-14 rounded-full shadow-2xl flex items-center justify-center p-0"
+                    icon={<Plus className="h-6 w-6 text-primary-foreground" />}
+                    href={`/admin/organizations/${id}/teams/new`}
+                >
+                    <span className="sr-only">Add Team</span>
+                </MetalButton>
+             </div>
 
-                <div className="flex items-center gap-2">
-                     <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider whitespace-nowrap hidden sm:inline-block">Group By:</span>
-                     <div className="w-[140px]">
-                        <Select value={groupBy} onValueChange={(v: any) => setGroupBy(v)}>
-                            <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Group By" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">No Grouping</SelectItem>
-                                <SelectItem value="sport">Sport</SelectItem>
-                                <SelectItem value="age">Age Group</SelectItem>
-                            </SelectContent>
-                        </Select>
-                     </div>
+             {/* Filters & Grouping */}
+             <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex-1 flex items-center gap-2">
+                    <TeamListFilter 
+                        sports={org.supportedSportIds.map(id => store.getSport(id)).filter((s): s is NonNullable<typeof s> => !!s)} 
+                        currentSport={currentSport} 
+                        orgId={id} 
+                        className="flex-1 md:flex-none"
+                    />
+                    
+                    <AgeGroupFilter 
+                        ageGroups={availableAgeGroups}
+                        currentAgeGroup={ageFilter}
+                        onFilterChange={setAgeFilter}
+                        className="flex-1 md:flex-none"
+                    />
                 </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <MetalButton 
+                        variantType="outlined" 
+                        size="icon" 
+                        className="h-9 w-9 shrink-0" 
+                        glowColor="hsl(var(--foreground))"
+                    >
+                        <SlidersHorizontal className="h-4 w-4" />
+                    </MetalButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 bg-background/95 backdrop-blur-md border-border/50">
+                    <DropdownMenuLabel className="text-[10px] uppercase font-bold text-muted-foreground/70 tracking-widest pb-1">Layout Settings</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs font-semibold">Group Teams By</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={groupBy} onValueChange={(v: any) => setGroupBy(v)}>
+                        <DropdownMenuRadioItem value="none" className="text-sm">No Grouping</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="sport" className="text-sm">Sport</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="age" className="text-sm">Age Group</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
              </div>
       </PageHeader>
 

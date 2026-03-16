@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { store } from "@/app/store/store";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { Event, Game, Organization, Team, Sport, Address } from "@sk/types";
 import { useOrganization } from "@/hooks/useOrganization";
 import { Button } from "@/components/ui/button";
@@ -42,9 +43,15 @@ export default function EventDetailsPage() {
   const { metalVariant } = useThemeColors();
 
   const { org, isLoading: orgLoading } = useOrganization(orgId, { subscribeData: true });
-  const [event, setEvent] = useState<Event | undefined>(undefined);
-  const [games, setGames] = useState<Game[]>([]);
-  const [siteName, setSiteName] = useState("");
+  const [event, setEvent] = useState<Event | undefined>(() => store.getEvent(eventId));
+  const [games, setGames] = useState<Game[]>(() => store.getGames().filter(g => g.eventId === eventId));
+  const [siteName, setSiteName] = useState(() => {
+    const ev = store.getEvent(eventId);
+    if (ev?.siteId) {
+        return store.getSite(ev.siteId)?.name || "Unknown Site";
+    }
+    return "";
+  });
   
   // Helper to resolve team names
   const [teamMap, setTeamMap] = useState<Record<string, string>>({});
@@ -74,6 +81,7 @@ export default function EventDetailsPage() {
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
   const [confirmCancel, setConfirmCancel] = useState({ isOpen: false });
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isEventLoading, setIsEventLoading] = useState(!store.getEvent(eventId));
 
   const [filterSportId, setFilterSportId] = useState<string>("all");
   const [filterSiteId, setFilterSiteId] = useState<string>("all");
@@ -107,7 +115,9 @@ export default function EventDetailsPage() {
   useEffect(() => {
     const update = () => {
         const ev = store.getEvent(eventId);
-        setEvent(ev);
+        if (ev && JSON.stringify(ev) !== JSON.stringify(event)) {
+             setEvent(ev);
+        }
         
         if (ev) {
             // Subscribe to real-time updates for this event and its site
@@ -115,7 +125,8 @@ export default function EventDetailsPage() {
             if (ev.siteId) store.subscribeToSite(ev.siteId);
 
             const v = store.getSite(ev.siteId || "");
-            setSiteName(v ? v.name : "Unknown Site");
+            const newSiteName = v ? v.name : "Unknown Site";
+            if (newSiteName !== siteName) setSiteName(newSiteName);
 
             if (!isInitialized) {
                 setEditName(ev.name);
@@ -129,22 +140,28 @@ export default function EventDetailsPage() {
 
                 setIsInitialized(true);
             }
+            setIsEventLoading(false);
         }
 
-        setSites(store.getSites(orgId));
-        setAllSports(store.getSports());
-        setAllOrgs(store.getOrganizations());
+        const newSites = store.getSites(orgId);
+        if (JSON.stringify(newSites) !== JSON.stringify(sites)) setSites(newSites);
+        
+        const newSports = store.getSports();
+        if (JSON.stringify(newSports) !== JSON.stringify(allSports)) setAllSports(newSports);
+        
+        const newOrgs = store.getOrganizations();
+        if (JSON.stringify(newOrgs) !== JSON.stringify(allOrgs)) setAllOrgs(newOrgs);
 
         const allGames = store.getGames(); // Get all to capture neutral games in event
         const eventGames = allGames.filter(g => g.eventId === eventId);
-        setGames(eventGames);
+        if (JSON.stringify(eventGames) !== JSON.stringify(games)) setGames(eventGames);
 
         const allTeams = store.getTeams(); 
         const mapping: Record<string, string> = {};
         allTeams.forEach(t => {
             mapping[t.id] = t.name;
         });
-        setTeamMap(mapping);
+        if (JSON.stringify(mapping) !== JSON.stringify(teamMap)) setTeamMap(mapping);
     };
 
     update();
@@ -153,7 +170,9 @@ export default function EventDetailsPage() {
 
     // If event is not found, try fetching it (e.g. deep link to shared event)
     if (!store.getEvent(eventId)) {
-        store.fetchEvent(eventId);
+        store.fetchEvent(eventId).finally(() => setIsEventLoading(false));
+    } else {
+        setIsEventLoading(false);
     }
 
     return () => {
@@ -175,7 +194,7 @@ export default function EventDetailsPage() {
     }
   }, [event?.participatingOrgIds]);
 
-  if (orgLoading && !org) {
+  if ((orgLoading && !org) || (isEventLoading && !event)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -259,13 +278,20 @@ export default function EventDetailsPage() {
         }
 
         await store.updateEvent(event.id, payload);
+        console.log("EventDetailsPage: Updated event metadata", payload);
 
         if (event.type === 'SingleMatch' && games.length === 1 && matchFormData) {
-            await store.updateGame(games[0].id, {
-                participants: [{teamId: matchFormData.homeTeamId}, {teamId: matchFormData.awayTeamId}],
-                startTime: matchFormData.isTbd ? "" : `${(event.startDate || event.date || "").split('T')[0]}T${matchFormData.startTime}:00`,
-                siteId: matchFormData.siteId
-            });
+            const gamePayload = {
+                participants: [
+                    { teamId: matchFormData.homeTeamId || null as any }, 
+                    { teamId: matchFormData.awayTeamId || null as any }
+                ],
+                startTime: matchFormData.isTbd ? null as any : `${(editStartDate || event.startDate || event.date || "").split('T')[0]}T${matchFormData.startTime}:00`,
+                siteId: matchFormData.siteId || null as any,
+                facilityId: matchFormData.facilityId || null as any
+            };
+            console.log("EventDetailsPage: Updating game for SingleMatch", gamePayload);
+            await store.updateGame(games[0].id, gamePayload);
         }
 
         setIsInitialized(false);
@@ -544,44 +570,40 @@ export default function EventDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen pb-20">
-        <header className="sticky top-0 z-30 w-full border-b bg-background/80 backdrop-blur-md">
-            <div className="container flex h-16 items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => {
+    <div className="min-h-screen pb-20 px-3 md:px-0">
+        <div className="container py-4 md:py-8 space-y-4 md:space-y-8">
+            <div className="flex flex-col gap-1">
+                <Link 
+                    href={(() => {
                         const fromTeamId = searchParams.get("fromTeamId");
-                        if (fromTeamId) {
-                            router.push(`/admin/organizations/${orgId}/teams/${fromTeamId}/events`);
-                        } else {
-                            router.push(`/admin/organizations/${orgId}/events`);
-                        }
-                    }}>
-                        <ArrowLeft className="h-5 w-5" />
-                    </Button>
+                        return fromTeamId 
+                            ? `/admin/organizations/${orgId}/teams/${fromTeamId}/events`
+                            : `/admin/organizations/${orgId}/events`;
+                    })()}
+                    className="inline-flex items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 hover:text-primary transition-colors w-fit group"
+                >
+                    <ChevronLeft className="h-3 w-3 mr-0.5 group-hover:-translate-x-0.5 transition-transform" />
+                    Back to Events
+                </Link>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                     <div>
-                        <h1 className="text-xl font-black uppercase tracking-tight">{event.name}</h1>
-                        <div className="flex items-center gap-3 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                        <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight leading-tight">{event.name}</h1>
+                        <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> {format(new Date(event.startDate || event.date || ""), "EEE, d MMM yyyy")}</span>
                             <span className="flex items-center gap-1"><MapPin className="w-3 h-3"/> {siteName}</span>
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    {/* Header actions can go here */}
-                </div>
             </div>
-        </header>
-
-        <div className="container py-8 space-y-8">
             {event.type === 'SingleMatch' ? (
-                <div className="max-w-3xl space-y-12">
-                     <section className="space-y-6">
+                <div className="max-w-3xl space-y-8 md:space-y-12">
+                     <section className="space-y-4 md:space-y-6">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-2xl font-black uppercase tracking-tight">Manage Match</h2>
-                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest bg-muted/50 px-2 py-1 rounded">Single Match</span>
+                            <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight hidden md:block">Manage Match</h2>
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/50 px-2 py-1 rounded">Single Match</span>
                         </div>
                         
-                        <form onSubmit={handleUpdate} className="space-y-8">
+                        <form onSubmit={handleUpdate} className="space-y-6 md:space-y-8">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Event Name</Label>
                                 <Input 
@@ -611,27 +633,29 @@ export default function EventDetailsPage() {
                                         </div>
                                     }
                                     initialData={games[0] ? {
+                                        startTime: games[0].startTime ? format(new Date(games[0].startTime), "HH:mm") : "09:00",
+                                        isTbd: !games[0].startTime,
+                                        siteId: games[0].siteId || event.siteId || "",
+                                        facilityId: games[0].facilityId || "",
                                         homeTeamId: games[0].participants?.[0]?.teamId || "",
                                         awayTeamId: games[0].participants?.[1]?.teamId || "",
-                                        startTime: games[0].startTime,
-                                        isTbd: !games[0].startTime,
-                                        siteId: games[0].siteId,
-                                        sportId: event.sportIds?.[0]
+                                        sportId: event.sportIds?.[0] || ""
                                     } : undefined}
                                     onChange={setMatchFormData}
                                 />
                             </div>
 
-                            <div className="flex items-center justify-end gap-3 pt-4">
+                            <div className="flex flex-col md:flex-row md:items-center justify-end gap-3 pt-6">
                                 <MetalButton 
                                     type="button"
                                     variantType="outlined"
+                                    className="w-full md:w-auto"
                                     disabled={!isDirty || isProcessing}
                                     onClick={() => setIsInitialized(false)}
                                 >
                                     Discard Changes
                                 </MetalButton>
-                                <Button disabled={!isDirty || isProcessing} className="px-8">
+                                <Button disabled={!isDirty || isProcessing} className="w-full md:w-auto md:px-8 h-12 md:h-10 order-first md:order-last">
                                     {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Save Changes
                                 </Button>
@@ -650,7 +674,7 @@ export default function EventDetailsPage() {
                                 {event.status === 'Cancelled' ? (
                                         <Badge variant="destructive" className="h-10 px-6 text-sm uppercase font-black">Event Cancelled</Badge>
                                 ) : (
-                                    <MetalButton variantType="outlined" className="border-destructive/50 text-destructive hover:bg-destructive/10" glowColor="hsl(38, 92%, 50%)" onClick={() => setConfirmCancel({ isOpen: true })}>
+                                    <MetalButton variantType="outlined" className="w-full md:w-auto border-destructive/50 text-destructive hover:bg-destructive/10" glowColor="hsl(38, 92%, 50%)" onClick={() => setConfirmCancel({ isOpen: true })}>
                                         Cancel Event
                                     </MetalButton>
                                 )}
@@ -661,7 +685,7 @@ export default function EventDetailsPage() {
                                     <h3 className="font-bold text-lg">Delete Event</h3>
                                     <p className="text-sm text-muted-foreground italic">Permanently removes this event and all associated data. This action cannot be undone.</p>
                                 </div>
-                                <MetalButton variantType="outlined" className="border-destructive/50 text-destructive hover:bg-destructive/10" glowColor="hsl(var(--destructive))" onClick={() => setConfirmDelete({ isOpen: true })} disabled={!canDelete || isProcessing}>
+                                <MetalButton variantType="outlined" className="w-full md:w-auto border-destructive/50 text-destructive hover:bg-destructive/10" glowColor="hsl(var(--destructive))" onClick={() => setConfirmDelete({ isOpen: true })} disabled={!canDelete || isProcessing}>
                                     Delete Event
                                 </MetalButton>
                             </div>

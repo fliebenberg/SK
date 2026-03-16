@@ -77,6 +77,7 @@ export function GameDialog({
                 participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
                 startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
                 siteId: formData.siteId,
+                facilityId: formData.facilityId,
             });
         } else {
             savedGame = await store.addGame({
@@ -84,6 +85,7 @@ export function GameDialog({
                 participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
                 startTime: formData.isTbd ? undefined : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
                 siteId: formData.siteId,
+                facilityId: formData.facilityId,
             });
         }
 
@@ -111,31 +113,23 @@ export function GameDialog({
     }
   };
 
-  const initialData = React.useMemo(() => {
-    if (!game) return undefined;
-    const p1 = game.participants?.[0]?.teamId || "";
-    const p2 = game.participants?.[1]?.teamId || "";
-    
-    return {
-        homeTeamId: p1,
-        awayTeamId: p2,
-        startTime: game.startTime ? format(new Date(game.startTime), "HH:mm") : undefined,
-        isTbd: !game.startTime,
-        siteId: game.siteId,
-        sportId: p1 ? store.getTeam(p1)?.sportId : undefined
-    };
-  }, [game]);
 
   const hasChanges = React.useMemo(() => {
-      if (!game || !initialData || !formData) return true; // Always allow if not editing
-      return (
-          initialData.homeTeamId !== formData.homeTeamId ||
-          initialData.awayTeamId !== formData.awayTeamId ||
-          initialData.startTime !== formData.startTime ||
-          initialData.isTbd !== formData.isTbd ||
-          initialData.siteId !== formData.siteId
-      );
-  }, [game, initialData, formData]);
+    if (!game || !formData) return true; // Always allow if not editing
+    const p1 = game.participants?.[0]?.teamId || "";
+    const p2 = game.participants?.[1]?.teamId || "";
+    const gTime = game.startTime ? format(new Date(game.startTime), "HH:mm") : "09:00";
+    const gIsTbd = !game.startTime;
+
+    return (
+        p1 !== formData.homeTeamId ||
+        p2 !== formData.awayTeamId ||
+        gTime !== formData.startTime ||
+        gIsTbd !== formData.isTbd ||
+        (game.siteId || "") !== (formData.siteId || "") ||
+        (game.facilityId || "") !== (formData.facilityId || "")
+    );
+  }, [game, formData]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -154,7 +148,7 @@ export function GameDialog({
                 orgId={orgId}
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
-                initialData={initialData}
+                game={game}
                 onChange={setFormData}
             />
         </div>

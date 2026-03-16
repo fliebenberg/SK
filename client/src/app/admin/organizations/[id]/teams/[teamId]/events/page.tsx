@@ -11,7 +11,7 @@ export default function TeamEventsPage() {
   if (!teamId) return null;
 
   return (
-    <div className="p-6">
+    <div className="p-0 md:p-6">
       <EventList orgId={id} teamId={teamId} />
     </div>
   );

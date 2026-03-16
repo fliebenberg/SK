@@ -95,7 +95,10 @@ export function EventList({ orgId, teamId }: EventListProps) {
         if (teamId) {
             const games = store.getGames().filter(g => g.eventId === e.id);
             const isInvolved = games.some(g => g.participants?.some(p => p.teamId === teamId));
-            if (!isInvolved) return false;
+            if (!isInvolved) {
+                console.log(`EventList: Event ${e.name || e.id} filtered out because team ${teamId} is not involved.`);
+                return false;
+            }
         }
 
         const displayName = getDisplayName(e).toLowerCase();
@@ -116,7 +119,7 @@ export function EventList({ orgId, teamId }: EventListProps) {
         }
 
         if (!datePass) {
-            // console.log(`EventList: Event ${e.name || e.id} failed date filter. Date: ${eventDate}, Cutoff: ${pastCutoff}`);
+            console.log(`EventList: Event ${e.name || e.id} filtered out by date. mode: ${viewMode}, date: ${eventDate}, cutoff: ${pastCutoff}`);
         }
 
         return datePass;
@@ -150,13 +153,14 @@ export function EventList({ orgId, teamId }: EventListProps) {
     });
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Events"
-        description="Manage matches, tournaments, and schedules."
-      >
-          {/* Creation Button Dropdown */}
-          <div className="flex flex-row items-center justify-end gap-3 w-full">
+    <div className="space-y-3 md:space-y-6">
+      <div className={cn("transition-all duration-300", teamId ? "hidden md:block" : "block")}>
+        <PageHeader
+          title="Events"
+          description="Manage matches, tournaments, and schedules."
+        >
+            {/* Desktop Creation Button Dropdown - Hidden on strict mobile, replaced by FAB */}
+            <div className="hidden md:flex flex-row items-center justify-end gap-3 w-full">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <MetalButton 
@@ -218,43 +222,113 @@ export function EventList({ orgId, teamId }: EventListProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-      </PageHeader>
+        </PageHeader>
+      </div>
+      
+      {/* Mobile Floating Action Button (FAB) */}
+      <div className="md:hidden fixed bottom-6 right-6 z-50">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <MetalButton 
+              variantType="filled" 
+              metalVariant={metalVariant}
+              glowColor="hsl(var(--primary))"
+              size="icon"
+              className="h-14 w-14 rounded-full shadow-2xl flex items-center justify-center p-0"
+              icon={<Plus className="h-6 w-6" />}
+            >
+              <span className="sr-only">Add Event</span>
+            </MetalButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 mb-2 bg-background/95 backdrop-blur-md border-border/50">
+            <DropdownMenuItem 
+              onClick={() => {
+                  let url = `/admin/organizations/${orgId}/events/create?type=game`;
+                  if (teamId) {
+                      const team = store.getTeam(teamId);
+                      if (team) {
+                          url += `&homeTeamId=${teamId}&sportId=${team.sportId}`;
+                      }
+                  }
+                  router.push(url);
+              }}
+              className="gap-2 cursor-pointer py-3"
+            >
+              <Plus className="h-4 w-4 text-primary" />
+              <div className="flex flex-col">
+                <span className="font-bold">Schedule Match</span>
+                <span className="text-[10px] text-muted-foreground">Standard head-to-head game</span>
+              </div>
+            </DropdownMenuItem>
+            
+            {!teamId && (
+              <>
+                <DropdownMenuItem 
+                  onClick={() => router.push(`/admin/organizations/${orgId}/events/create?type=sportsday`)}
+                  className="gap-2 cursor-pointer py-3"
+                >
+                  <Activity className="h-4 w-4 text-primary" />
+                  <div className="flex flex-col">
+                    <span className="font-bold">Create Sports Day</span>
+                    <span className="text-[10px] text-muted-foreground">Multi-org, multi-sport event</span>
+                  </div>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem 
+                  onClick={() => router.push(`/admin/organizations/${orgId}/events/create?type=tournament`)}
+                  className="gap-2 cursor-pointer py-3"
+                >
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <div className="flex flex-col">
+                    <span className="font-bold">Create Tournament</span>
+                    <span className="text-[10px] text-muted-foreground">Bracket or pool-based competition</span>
+                  </div>
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
-      <div className="flex flex-col gap-4">
-        {/* Row 2: Search & Toggle */}
-        <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="relative flex-1 w-full group">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+      <div className="w-full mb-1">
+        {/* Unified Search & View Toggle Row */}
+        <div className="flex items-center gap-2">
+            <div className="relative flex-1 group">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
                 placeholder="Search events..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-background/50 h-11 border-border/50 focus:border-primary/50 transition-all rounded-xl"
+                className="pl-10 bg-background/50 h-10 border-border/50 focus:border-primary/50 transition-all rounded-xl"
               />
             </div>
             
-            <div className="flex bg-muted/30 p-1 rounded-xl border border-border/50 shrink-0 w-full sm:w-auto">
+            <div className="flex bg-muted/40 p-1 rounded-xl border border-border/50 shrink-0 items-center h-10">
               <button
                 onClick={() => setViewMode('upcoming')}
                 className={cn(
-                  "flex-1 sm:flex-none px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all",
+                  "flex items-center justify-center px-3 sm:px-5 h-8 text-[10px] sm:text-xs font-black sm:font-bold uppercase tracking-widest sm:tracking-wider rounded-lg transition-all gap-1.5",
                   viewMode === 'upcoming' 
                     ? "bg-primary text-primary-foreground shadow-sm" 
                     : "text-muted-foreground hover:text-foreground"
                 )}
+                title="Upcoming Events"
               >
-                Upcoming
+                <Calendar className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                <span className="hidden sm:inline">Upcoming</span>
               </button>
               <button
                 onClick={() => setViewMode('past')}
                 className={cn(
-                  "flex-1 sm:flex-none px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all",
+                  "flex items-center justify-center px-3 sm:px-5 h-8 text-[10px] sm:text-xs font-black sm:font-bold uppercase tracking-widest sm:tracking-wider rounded-lg transition-all gap-1.5",
                   viewMode === 'past' 
                     ? "bg-primary text-primary-foreground shadow-sm" 
                     : "text-muted-foreground hover:text-foreground"
                 )}
+                title="Past Events"
               >
-                Past
+                <History className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                <span className="hidden sm:inline">Past</span>
               </button>
             </div>
           </div>

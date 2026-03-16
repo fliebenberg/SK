@@ -3,7 +3,7 @@
 import { store } from "@/app/store/store";
 import { MetalButton } from "@/components/ui/MetalButton";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminTabs } from "@/components/admin/AdminTabs";
 import { useParams } from "next/navigation";
@@ -79,20 +79,27 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href={`/admin/organizations/${id}/teams`}>
-          <MetalButton variantType="outlined" size="icon" className="h-10 w-10 rounded-full" glowColor="hsl(var(--foreground))">
-            <ChevronLeft className="h-5 w-5" />
-          </MetalButton>
+    <div className="space-y-1 md:space-y-6">
+      <div className="flex flex-col gap-0.5">
+        <Link 
+          href={`/admin/organizations/${id}/teams`} 
+          className="inline-flex items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 hover:text-primary transition-colors w-fit group"
+        >
+          <ChevronLeft className="h-3 w-3 mr-0.5 group-hover:-translate-x-0.5 transition-transform" />
+          Back to Teams
         </Link>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-orbitron)' }}>
+        <div className="flex items-center justify-between min-w-0 md:pt-1">
+          <h1 className="text-xl md:text-3xl font-bold tracking-tight truncate leading-none py-1" style={{ fontFamily: 'var(--font-orbitron)' }}>
             {team.name}
           </h1>
-          <p className="text-muted-foreground">
-            {store.getSport(team.sportId)?.name} • {team.ageGroup}
-          </p>
+          <div className="flex items-center gap-2 shrink-0 ml-4">
+            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold font-mono bg-secondary/30 text-secondary-foreground border-secondary/20 transition-all hover:bg-secondary/40">
+              {team.ageGroup}
+            </div>
+            <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 transition-all hover:bg-primary/20 shadow-sm" title={store.getSport(team.sportId)?.name || 'Sport'}>
+              <Trophy className="h-4 w-4" />
+            </div>
+          </div>
         </div>
       </div>
 

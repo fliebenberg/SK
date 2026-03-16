@@ -51,49 +51,51 @@ export function Navbar() {
   return (
     <nav className="border-b bg-background transition-colors duration-300 relative z-50">
       <div className="flex h-16 items-center px-4 container mx-auto">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-lg mr-6">
+        {/* Mobile Menu Button - Left aligned on mobile */}
+        {!pathname?.startsWith('/admin') && (
+          <button 
+            className="md:hidden mr-2 -ml-2 p-2 text-foreground/60 hover:text-foreground transition-colors"
+            onClick={toggleMenu}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        )}
+
+        {/* Admin Mobile Menu - Admin routes */}
+        {pathname?.startsWith('/admin') && (
+          <div className="md:hidden mr-2 -ml-2">
+            <MobileSidebar />
+          </div>
+        )}
+
+        {/* Desktop Logo - Hidden on mobile */}
+        <Link href="/" className="hidden md:flex items-center gap-2 font-semibold text-lg mr-6 flex-shrink-0">
           <Logo size="sm" metalVariant={metalVariant} glowColor="hsl(var(--primary))" />
-          <span className="hidden md:inline">ScoreKeeper</span>
+          <span>ScoreKeeper</span>
         </Link>
         
         {/* Desktop Navigation - Hide on Admin routes */}
         {!pathname?.startsWith('/admin') && (
           <div className="hidden md:flex items-center gap-6 text-sm font-medium">
-            <Link href="/teams" className="transition-colors hover:text-foreground/80 text-foreground/60">
+            <Link href="/teams" className="transition-colors hover:text-foreground/80 text-foreground/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md px-2 py-1 -ml-2">
               Teams
             </Link>
-            <Link href="/sites" className="transition-colors hover:text-foreground/80 text-foreground/60">
+            <Link href="/sites" className="transition-colors hover:text-foreground/80 text-foreground/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md px-2 py-1">
               Sites
             </Link>
-            <Link href="/live" className="transition-colors hover:text-foreground/80 text-foreground/60">
+            <Link href="/live" className="transition-colors hover:text-foreground/80 text-foreground/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md px-2 py-1">
               Live Scores
             </Link>
             {canSeeAdmin && (
-              <Link href="/admin" className="transition-colors hover:text-primary/80 text-primary font-semibold">
+              <Link href="/admin" className="transition-colors hover:text-primary/80 text-primary font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md px-2 py-1">
                 Admin
               </Link>
             )}
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-4">
-          {/* Mobile Menu Button - Public routes */}
-          {!pathname?.startsWith('/admin') && (
-            <button 
-              className="md:hidden p-2 text-foreground/60 hover:text-foreground transition-colors"
-              onClick={toggleMenu}
-              aria-label="Toggle menu"
-            >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          )}
-
-          {/* Admin Mobile Menu - Admin routes */}
-          {pathname?.startsWith('/admin') && (
-            <div className="md:hidden">
-              <MobileSidebar />
-            </div>
-          )}
+        <div className="ml-auto flex items-center gap-2 md:gap-4 shrink-0">
           
           {isAuthenticated && (
             <Link href="/notifications" className="relative p-2 text-foreground/60 hover:text-primary transition-colors">
