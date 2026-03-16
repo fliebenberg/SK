@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -71,10 +72,15 @@ export function MatchForm({
 
   const [startTime, setStartTime] = useState(() => {
     if (!initialData?.startTime) return "09:00";
-    if (initialData.startTime.includes('T')) {
-      return initialData.startTime.split('T')[1].substring(0, 5);
+    try {
+      const date = new Date(initialData.startTime);
+      if (!isNaN(date.getTime())) {
+        return format(date, "HH:mm");
+      }
+    } catch (e) {
+      console.error("MatchForm: Failed to parse startTime", e);
     }
-    return initialData.startTime;
+    return initialData.startTime.includes('T') ? initialData.startTime.split('T')[1].substring(0, 5) : initialData.startTime;
   });
   const [isTbd, setIsTbd] = useState(initialData?.isTbd || !initialData?.startTime);
   const [gameSiteId, setGameSiteId] = useState(initialData?.siteId || event.siteId || "");

@@ -9,7 +9,7 @@ import { Plus, Pencil, Trash2, Calendar, MapPin, Trophy, Clock, Activity, Search
 import { useThemeColors } from "@/hooks/useThemeColors";
 
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -105,21 +105,30 @@ export function EventList({ orgId, teamId }: EventListProps) {
         const matchesSearch = displayName.includes(searchQuery.toLowerCase());
         if (!matchesSearch) return false;
 
-        const eventDate = e.startDate ? new Date(e.startDate) : (e.date ? new Date(e.date) : null);
-        const now = new Date();
-        const pastCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
+        const rawStr = e.startDate || e.date;
+        const eventDate = rawStr ? (() => {
+            // Priority: use specific game's startTime day if available
+            const games = store.getGames().filter(g => g.eventId === e.id);
+            const mainGameWithTime = games.find(g => g.startTime);
+            
+            const sourceStr = mainGameWithTime?.startTime || rawStr;
+            const dStr = sourceStr.split('T')[0];
+            const components = dStr.split('-').map(Number);
+            if (components.length !== 3 || components.some(isNaN)) return null;
+            const [y, m, d] = components;
+            return new Date(y, m - 1, d);
+        })() : null;
+        
+        const now = startOfDay(new Date());
         let datePass = false;
         if (viewMode === 'upcoming') {
-            // Include matches with no date or starting within the last 24h/future
-            datePass = !eventDate || eventDate >= pastCutoff;
+            datePass = !eventDate || eventDate >= now;
         } else {
-            // Only matches that started more than 24h ago
-            datePass = !!(eventDate && eventDate < pastCutoff);
+            datePass = !!(eventDate && eventDate < now);
         }
 
         if (!datePass) {
-            console.log(`EventList: Event ${e.name || e.id} filtered out by date. mode: ${viewMode}, date: ${eventDate}, cutoff: ${pastCutoff}`);
+            console.log(`EventList: Event ${e.name || e.id} filtered out by date. mode: ${viewMode}, date: ${eventDate}, now: ${now}`);
         }
 
         return datePass;

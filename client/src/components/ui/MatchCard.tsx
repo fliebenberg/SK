@@ -49,22 +49,22 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
         isCancelled ? "bg-destructive border-destructive text-destructive-foreground" :
         isStandalone ? "bg-muted/90 border-border shadow-inner" : "bg-muted/40 border-border/80"
       )}>
-        {isLive ? (
-          <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] leading-none mb-1">LIVE</span>
-        ) : isFinished ? (
-          <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] leading-none mb-1 opacity-60">FINAL</span>
-        ) : (
-          (() => {
-            const date = game.startTime ? new Date(game.startTime) : null;
-            const isValid = date && !isNaN(date.getTime());
-            if (!isValid) return <span className="text-xs font-black uppercase tracking-widest opacity-40">TBD</span>;
+        {(() => {
+            // Source of truth prioritized: specific game time -> event anchor date
+            const dateStr = game.startTime || (game.eventId ? store.getEvent(game.eventId)?.startDate : null);
+            if (!dateStr) return <span className="text-xs font-black uppercase tracking-widest opacity-40">TBD</span>;
+
+            const date = new Date(dateStr);
+            const isValid = !isNaN(date.getTime());
             
+            if (!isValid) return <span className="text-xs font-black uppercase tracking-widest opacity-40">TBD</span>;
+
             return (
               <div className="flex flex-col items-center justify-center leading-none gap-1">
                 <div className="flex items-center gap-1">
                   <span className={cn(
                     "text-xs md:text-sm font-black",
-                    isStandalone ? "text-foreground" : "text-foreground/90"
+                    isStandalone || game.startTime ? "text-foreground" : "text-foreground/90"
                   )}>
                     {format(date!, "dd")}
                   </span>
@@ -73,13 +73,14 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
                   </span>
                 </div>
                 
-                <span className="text-[9px] md:text-xs font-black uppercase tracking-wider opacity-90">
-                  {format(date!, "HH:mm")}
-                </span>
+                {game.startTime && (
+                    <span className="text-[9px] md:text-xs font-black uppercase tracking-wider opacity-90">
+                        {format(date!, "HH:mm")}
+                    </span>
+                )}
               </div>
             );
-          })()
-        )}
+        })()}
       </div>
 
       {/* MATCH CONTENT BLOCK (Teams) */}

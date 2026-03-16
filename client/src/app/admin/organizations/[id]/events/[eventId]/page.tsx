@@ -89,8 +89,8 @@ export default function EventDetailsPage() {
   // Dirty Tracking
   const isDirty = event ? (
       editName !== event.name ||
-      editStartDate !== (event.startDate?.split('T')[0] || event.date?.split('T')[0] || "") ||
-      (isMultiDay ? editEndDate !== (event.endDate?.split('T')[0] || "") : (!!event.endDate && event.endDate !== (event.startDate || event.date))) ||
+      editStartDate !== (event.startDate ? event.startDate.split('T')[0] : (event.date ? event.date.split('T')[0] : "")) ||
+      (isMultiDay ? editEndDate !== (event.endDate ? event.endDate.split('T')[0] : "") : (!!event.endDate && event.endDate.split('T')[0] !== (event.startDate || event.date || "").split('T')[0])) ||
       editSiteId !== (event.siteId || "default") ||
       JSON.stringify([...selectedSportIds].sort()) !== JSON.stringify([...(event.sportIds || [])].sort()) ||
       JSON.stringify([...selectedOrgIds].sort()) !== JSON.stringify([...(event.participatingOrgIds || [])].sort()) ||
@@ -98,6 +98,7 @@ export default function EventDetailsPage() {
           matchFormData.sportId !== (event.sportIds?.[0] || "") ||
           matchFormData.startTime !== (games[0]?.startTime ? format(new Date(games[0].startTime), "HH:mm") : "09:00") ||
           matchFormData.isTbd !== (!games[0]?.startTime) ||
+          (games[0]?.startTime && games[0].startTime.split('T')[0] !== editStartDate) ||
           matchFormData.homeTeamId !== (games[0]?.participants?.[0]?.teamId || "") ||
           matchFormData.awayTeamId !== (games[0]?.participants?.[1]?.teamId || "") ||
           matchFormData.siteId !== (games[0]?.siteId || event.siteId || "")
@@ -130,9 +131,10 @@ export default function EventDetailsPage() {
 
             if (!isInitialized) {
                 setEditName(ev.name);
-                setEditStartDate(ev.startDate?.split('T')[0] || ev.date?.split('T')[0] || "");
-                setEditEndDate(ev.endDate?.split('T')[0] || "");
-                setIsMultiDay(!!ev.endDate && ev.endDate.split('T')[0] !== (ev.startDate || ev.date)?.split('T')[0]);
+                // Robustly extract the YYYY-MM-DD part from ISO or simple strings
+                setEditStartDate((ev.startDate || ev.date || "").split('T')[0]);
+                setEditEndDate((ev.endDate || "").split('T')[0]);
+                setIsMultiDay(!!ev.endDate && ev.endDate.split('T')[0] !== (ev.startDate || ev.date || "").split('T')[0]);
                 setEditSiteId(ev.siteId || "default");
                 if (v) setEditSiteName(v.name);
                 setSelectedSportIds(ev.sportIds || []);
@@ -166,7 +168,6 @@ export default function EventDetailsPage() {
 
     update();
     const unsub = store.subscribe(update);
-    update(); // Initial load
 
     // If event is not found, try fetching it (e.g. deep link to shared event)
     if (!store.getEvent(eventId)) {
@@ -183,7 +184,7 @@ export default function EventDetailsPage() {
              event.participatingOrgIds.forEach(id => store.unsubscribeFromOrganizationData(id));
         }
     };
-  }, [eventId, orgId, isInitialized]);
+  }, [eventId, orgId, isInitialized, event, games]);
 
   // Separate effect to handle dynamic subscriptions to participating organizations
   useEffect(() => {
@@ -263,8 +264,9 @@ export default function EventDetailsPage() {
 
         const payload: Partial<Event> = {
             name: editName,
-            startDate: editStartDate,
-            endDate: isMultiDay ? editEndDate : undefined,
+            // Anchor dates at midday UTC for stability
+            startDate: editStartDate ? `${editStartDate}T12:00:00.000Z` : undefined,
+            endDate: isMultiDay && editEndDate ? `${editEndDate}T12:00:00.000Z` : undefined,
             siteId: editSiteId === "default" ? "" : editSiteId,
         };
 
@@ -281,12 +283,15 @@ export default function EventDetailsPage() {
         console.log("EventDetailsPage: Updated event metadata", payload);
 
         if (event.type === 'SingleMatch' && games.length === 1 && matchFormData) {
+            // Combine the local date and local time selected by user
+            const dateObj = new Date(`${editStartDate}T${matchFormData.startTime}:00`);
             const gamePayload = {
                 participants: [
                     { teamId: matchFormData.homeTeamId || null as any }, 
                     { teamId: matchFormData.awayTeamId || null as any }
                 ],
-                startTime: matchFormData.isTbd ? null as any : `${(editStartDate || event.startDate || event.date || "").split('T')[0]}T${matchFormData.startTime}:00`,
+                // toISOString handles the local-to-UTC conversion
+                startTime: matchFormData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${editStartDate}T${matchFormData.startTime}:00`),
                 siteId: matchFormData.siteId || null as any,
                 facilityId: matchFormData.facilityId || null as any
             };
@@ -589,7 +594,24 @@ export default function EventDetailsPage() {
                     <div>
                         <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight leading-tight">{event.name}</h1>
                         <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> {format(new Date(event.startDate || event.date || ""), "EEE, d MMM yyyy")}</span>
+                            {/* Prioritize Game Start Time for display, fallback to Midday-Anchored Event Date */}
+                            {(() => {
+                                // 1. Attempt using the specific game time if available and not TBD
+                                const mainGame = games[0];
+                                const hasSpecificTime = mainGame && mainGame.startTime;
+                                
+                                const dateSource = hasSpecificTime ? mainGame.startTime : (event.startDate || event.date || "");
+                                if (!dateSource) return null;
+
+                                const dateObj = new Date(dateSource);
+                                if (isNaN(dateObj.getTime())) return null;
+
+                                return <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3"/> 
+                                    {format(dateObj, "EEE, d MMM yyyy")}
+                                    {hasSpecificTime && <span className="ml-1 opacity-60">@ {format(dateObj, "HH:mm")}</span>}
+                                </span>
+                            })()}
                             <span className="flex items-center gap-1"><MapPin className="w-3 h-3"/> {siteName}</span>
                         </div>
                     </div>

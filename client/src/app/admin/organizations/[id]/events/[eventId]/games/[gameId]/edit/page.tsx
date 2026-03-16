@@ -61,36 +61,38 @@ export default function EditGamePage() {
     return unsub;
   }, [eventId, gameId]);
 
+  const hasChanges = React.useMemo(() => {
+    if (!game || !formData || !event) return false;
+    const p1 = game.participants?.[0]?.teamId || "";
+    const p2 = game.participants?.[1]?.teamId || "";
+    const gTime = game.startTime ? format(new Date(game.startTime), "HH:mm") : "09:00";
+    const gDate = game.startTime ? format(new Date(game.startTime), "yyyy-MM-dd") : format(new Date(event.startDate || event.date || ""), "yyyy-MM-dd");
+    const gIsTbd = !game.startTime;
+
+    const targetDate = (event.startDate || event.date || "").split('T')[0];
+
+    return (
+        p1 !== formData.homeTeamId ||
+        p2 !== formData.awayTeamId ||
+        gTime !== formData.startTime ||
+        gDate !== targetDate ||
+        gIsTbd !== formData.isTbd ||
+        (game.siteId || "") !== (formData.siteId || "") ||
+        (game.facilityId || "") !== (formData.facilityId || "")
+    );
+  }, [game, formData, event]);
+
   const handleSubmit = async () => {
     if (!event || !game || !formData || !formData.homeTeamId || !formData.awayTeamId) return;
 
-    if (!formData.isTbd && formData.startTime) {
-         // Construct full date string for proposed time (Local Time interpretation)
-         const dateBase = (event.startDate || event.date || "").split('T')[0];
-         const proposedDate = new Date(`${dateBase}T${formData.startTime}:00`);
-
-         const conflicts = store.getGames().filter(g => {
-             if (g.eventId !== eventId || g.siteId !== formData.siteId || g.status === 'Cancelled' || !g.startTime || g.id === game.id) return false;
-             
-             const gameDate = new Date(g.startTime);
-             return gameDate.getTime() === proposedDate.getTime();
-         });
-
-         if (conflicts.length > 0) {
-             toast({
-                 title: "Scheduling Conflict",
-                 description: "A game is already scheduled on this field at this time.",
-                 variant: "destructive"
-             });
-             return;
-         }
-    }
-
     setIsProcessing(true);
     try {
+        const dateBase = (event.startDate || event.date || "").split('T')[0];
+        const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
+
         await store.updateGame(game.id, {
             participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
-            startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
+            startTime: formData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
             siteId: formData.siteId,
             facilityId: formData.facilityId
         });
@@ -173,23 +175,6 @@ export default function EditGamePage() {
     }
   };
 
-  const hasChanges = React.useMemo(() => {
-      if (!game || !formData) return false;
-      const p1 = game.participants?.[0]?.teamId || "";
-      const p2 = game.participants?.[1]?.teamId || "";
-      const gTime = game.startTime ? format(new Date(game.startTime), "HH:mm") : "09:00";
-      const gIsTbd = !game.startTime;
-
-      return (
-          p1 !== formData.homeTeamId ||
-          p2 !== formData.awayTeamId ||
-          gTime !== formData.startTime ||
-          gIsTbd !== formData.isTbd ||
-          (game.siteId || "") !== (formData.siteId || "") ||
-          (game.facilityId || "") !== (formData.facilityId || "")
-      );
-  }, [game, formData]);
-
   if (orgLoading && !org) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -255,7 +240,15 @@ export default function EditGamePage() {
                 orgId={orgId}
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
-                game={game}
+                initialData={game ? {
+                    startTime: game.startTime,
+                    isTbd: !game.startTime,
+                    siteId: game.siteId || "",
+                    facilityId: game.facilityId || "",
+                    homeTeamId: game.participants?.[0]?.teamId || "",
+                    awayTeamId: game.participants?.[1]?.teamId || "",
+                    sportId: event.sportIds?.[0] || ""
+                } : undefined}
                 onChange={setFormData}
             />
 

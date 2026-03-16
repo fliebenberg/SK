@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
 import { useRouter, useParams } from "next/navigation";
 import { store } from "@/app/store/store";
 import { Event } from "@sk/types"; 
@@ -44,8 +45,8 @@ export default function NewGamePage() {
 
     if (!formData.isTbd && formData.startTime) {
          // Construct full date string for proposed time (Local Time interpretation)
-         const dateBase = (event.startDate || event.date || "").split('T')[0];
-         const proposedDate = new Date(`${dateBase}T${formData.startTime}:00`);
+          const dateBase = (event.startDate || event.date || "").split('T')[0];
+          const proposedDate = new Date(`${dateBase}T${formData.startTime}:00`);
 
          const conflicts = store.getGames().filter(g => {
              if (g.eventId !== eventId || g.siteId !== formData.siteId || g.status === 'Cancelled' || !g.startTime) return false;
@@ -67,11 +68,14 @@ export default function NewGamePage() {
 
     setIsProcessing(true);
     try {
+        const dateBase = (event.startDate || event.date || "").split('T')[0];
+        const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
         await store.addGame({
             eventId: event.id,
             participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
-            startTime: formData.isTbd ? undefined : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
-            siteId: formData.siteId
+            startTime: formData.isTbd ? undefined : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
+            siteId: formData.siteId,
+            facilityId: formData.facilityId
         });
         router.push(`/admin/organizations/${orgId}/events/${eventId}`);
     } catch (e) {

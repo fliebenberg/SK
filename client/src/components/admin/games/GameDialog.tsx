@@ -48,7 +48,7 @@ export function GameDialog({
     if (!formData || !formData.homeTeamId || !formData.awayTeamId) return;
 
     if (!formData.isTbd && formData.startTime) {
-         const dateBase = (event.startDate || event.date || "").split('T')[0];
+         const dateBase = format(new Date(event.startDate || event.date || ""), "yyyy-MM-dd");
          const proposedDate = new Date(`${dateBase}T${formData.startTime}:00`);
 
          const conflicts = store.getGames().filter(g => {
@@ -71,11 +71,13 @@ export function GameDialog({
     const { user } = useAuth();
     setLoading(true);
     try {
+        const dateBase = (event.startDate || event.date || "").split('T')[0];
+        const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
         let savedGame: Game;
         if (game) {
             savedGame = await store.updateGame(game.id, {
                 participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
-                startTime: formData.isTbd ? null as any : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
+                startTime: formData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
                 siteId: formData.siteId,
                 facilityId: formData.facilityId,
             });
@@ -83,7 +85,7 @@ export function GameDialog({
             savedGame = await store.addGame({
                 eventId: event.id,
                 participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
-                startTime: formData.isTbd ? undefined : `${(event.startDate || event.date || "").split('T')[0]}T${formData.startTime}:00`,
+                startTime: formData.isTbd ? undefined : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
                 siteId: formData.siteId,
                 facilityId: formData.facilityId,
             });
@@ -148,7 +150,15 @@ export function GameDialog({
                 orgId={orgId}
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
-                game={game}
+                initialData={game ? {
+                    startTime: game.startTime,
+                    isTbd: !game.startTime,
+                    siteId: game.siteId || "",
+                    facilityId: game.facilityId || "",
+                    homeTeamId: game.participants?.[0]?.teamId || "",
+                    awayTeamId: game.participants?.[1]?.teamId || "",
+                    sportId: event.sportIds?.[0] || ""
+                } : undefined}
                 onChange={setFormData}
             />
         </div>
