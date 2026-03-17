@@ -6,6 +6,7 @@ export class TeamManager extends BaseManager {
   teamRoles: TeamRole[] = [
     { id: "role-player", name: "Player" },
     { id: "role-coach", name: "Coach" },
+    { id: "role-scorer", name: "Scorer" },
     { id: "role-staff", name: "Staff" },
     { id: "role-medic", name: "Medic" },
   ];

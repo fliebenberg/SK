@@ -128,9 +128,11 @@ export class DataManager {
   getGame = (id: string) => eventManager.getGame(id);
   addGame = (game: any) => eventManager.addGame(game);
   updateGameStatus = (id: string, status: any) => eventManager.updateGameStatus(id, status);
+  updateGameClock = (id: string, action: any) => eventManager.updateGameClock(id, action);
   updateGame = (id: string, data: any) => eventManager.updateGame(id, data);
   deleteGame = (id: string) => eventManager.deleteGame(id);
   getLiveGames = () => eventManager.getLiveGames();
+  resetGame = (id: string) => eventManager.resetGame(id);
 
   // Search
   searchProfiles = async (query: string, orgId?: string) => {

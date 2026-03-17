@@ -279,7 +279,9 @@ const createTables = async () => {
                 facility_id TEXT REFERENCES facilities(id),
                 final_score_data JSONB,
                 custom_settings JSONB DEFAULT '{}'::jsonb,
-                live_state JSONB DEFAULT '{}'::jsonb
+                live_state JSONB DEFAULT '{}'::jsonb,
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                finish_time TIMESTAMPTZ
             );
         `);
 

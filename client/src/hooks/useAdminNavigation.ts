@@ -57,6 +57,47 @@ export function useAdminNavigation() {
             if (found) setCurrentOrg(found);
           }
         } else {
+            const gameMatch = pathname.match(/\/admin\/games\/([^\/]+)/);
+            if (gameMatch) {
+                const gameId = gameMatch[1];
+                const game = store.getGame(gameId);
+                if (game) {
+                    const event = store.getEvent(game.eventId);
+                    if (event) {
+                        const adminOrgIds = store.getAdminOrgIds(user.id, user.globalRole);
+                        const involvedOrgIds = new Set([event.orgId, ...(event.participatingOrgIds || [])]);
+                        
+                        game.participants?.forEach(p => {
+                            const team = store.getTeam(p.teamId);
+                            if (team) involvedOrgIds.add(team.orgId);
+                        });
+
+                        // 1. Keep currently selected org if valid
+                        if (currentOrg && involvedOrgIds.has(currentOrg.id) && adminOrgIds.includes(currentOrg.id)) {
+                            return;
+                        }
+
+                        // 2. Resolve first accessible involved org
+                        const firstAccessibleInvolved = Array.from(involvedOrgIds).find(id => adminOrgIds.includes(id));
+                        if (firstAccessibleInvolved) {
+                            const org = allOrgs.find(o => o.id === firstAccessibleInvolved);
+                            if (org) {
+                                setCurrentOrg(org);
+                                return;
+                            }
+                        }
+
+                        // 3. Fallback for global admins
+                        if (user.globalRole === 'admin') {
+                            const org = allOrgs.find(o => o.id === event.orgId);
+                            if (org) {
+                                setCurrentOrg(org);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
             setCurrentOrg(null);
         }
     };
@@ -64,7 +105,7 @@ export function useAdminNavigation() {
     update(); // Initial check
     const unsubscribe = store.subscribe(update);
     return () => unsubscribe();
-  }, [pathname, user]);
+  }, [pathname, user, currentOrg]); // Added currentOrg to dependency to allow sticky logic if it's already set
 
   const getSidebarItems = (): SidebarItem[] => {
       if (currentOrg) {
@@ -156,4 +197,3 @@ export function useAdminNavigation() {
     hasOwnedOrg,
   };
 }
-

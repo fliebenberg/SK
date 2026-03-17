@@ -347,7 +347,9 @@ export function EventList({ orgId, teamId }: EventListProps) {
         {filteredEvents.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-2xl text-muted-foreground bg-muted/5">
             <Calendar className="h-12 w-12 mb-4 opacity-20" />
-            <p className="font-medium">No matches scheduled yet.</p>
+            <p className="font-medium">
+              {viewMode === 'upcoming' ? "No matches scheduled yet." : "No past matches found."}
+            </p>
           </div>
         ) : !hasMounted ? (
           <div className="flex items-center justify-center p-12">

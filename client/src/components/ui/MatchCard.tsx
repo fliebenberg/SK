@@ -4,8 +4,10 @@ import { store } from "@/app/store/store";
 import { Game } from "@sk/types";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { MapPin } from "lucide-react";
+import { MapPin, Trophy } from "lucide-react";
 import { OrgLogo } from "./OrgLogo";
+import { useRouter } from "next/navigation";
+import { MetalButton } from "./MetalButton";
 
 interface MatchCardProps {
   game: Game;
@@ -16,6 +18,7 @@ interface MatchCardProps {
 }
 
 export function MatchCard({ game, onClick, className, isStandalone = false, highlightTeamId }: MatchCardProps) {
+  const router = useRouter();
   const homeTeamId = game.participants?.[0]?.teamId;
   const awayTeamId = game.participants?.[1]?.teamId;
   const homeTeam = homeTeamId ? store.getTeam(homeTeamId) : undefined;
@@ -38,6 +41,16 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
   const awayScore = getScore(1);
 
   const showScores = isLive || isFinished;
+  const canScore = store.canScoreGame(game.id);
+
+  const isWithinOneHour = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    const now = new Date();
+    return (now.getTime() - date.getTime()) < 3600000;
+  };
+
+  const showScoreButton = store.globalRole === 'admin' || (canScore && (!isFinished || isWithinOneHour(game.finishTime) || isWithinOneHour(game.updatedAt)));
 
   return (
     <div className={cn("group flex items-stretch gap-2 md:gap-3", className)}>
@@ -50,7 +63,6 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
         isStandalone ? "bg-muted/90 border-border shadow-inner" : "bg-muted/40 border-border/80"
       )}>
         {(() => {
-            // Source of truth prioritized: specific game time -> event anchor date
             const dateStr = game.startTime || (game.eventId ? store.getEvent(game.eventId)?.startDate : null);
             if (!dateStr) return <span className="text-xs font-black uppercase tracking-widest opacity-40">TBD</span>;
 
@@ -97,9 +109,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
       >
         {/* Teams Display - Mobile Adaptive Layout */}
         <div className="md:hidden flex flex-col justify-center gap-1.5 px-2">
-          {/* Container that tries Row first, but allows wrapping */}
           <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 min-w-0">
-            {/* Home Team */}
             <div className="flex items-center gap-1.5 min-w-0 max-w-full">
               <OrgLogo organization={homeOrg} size="xs" rounded="md" className="shrink-0" />
               <span className={cn(
@@ -115,14 +125,12 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
               )}
             </div>
 
-            {/* Separator / VS (only if scores are hidden to keep it clean) */}
             {!showScores && (
               <span className="text-[8px] font-bold opacity-20 uppercase tracking-tighter">vs</span>
             )}
             
             {showScores && <span className="text-[8px] font-bold opacity-10 mx-[-2px] uppercase">-</span>}
 
-            {/* Away Team */}
             <div className="flex items-center gap-1.5 min-w-0 max-w-full">
               <OrgLogo organization={awayOrg} size="xs" rounded="md" className="shrink-0" />
               <span className={cn(
@@ -142,7 +150,6 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
 
         {/* Teams Display - Desktop Horizontal Pillar Layout */}
         <div className="hidden md:flex flex-1 items-stretch h-full min-w-0">
-           {/* Home Pillar */}
            <div className="flex-1 flex items-center justify-end gap-3 px-4 min-w-0">
               <span className={cn(
                 "text-base font-black truncate text-right",
@@ -154,7 +161,6 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
               <OrgLogo organization={homeOrg} size="sm" rounded="md" className="shrink-0" />
            </div>
 
-           {/* Divider / Scores */}
            <div className="flex flex-col items-center justify-center px-4 border-l border-r border-border/30 bg-muted/10 min-w-[100px]">
               {showScores ? (
                 <div className="flex items-center gap-2 font-mono font-black text-xl tracking-tighter">
@@ -172,7 +178,6 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
               )}
            </div>
 
-           {/* Away Pillar */}
            <div className="flex-1 flex items-center justify-start gap-3 px-4 min-w-0">
               <OrgLogo organization={awayOrg} size="sm" rounded="md" className="shrink-0" />
               <span className={cn(
@@ -185,7 +190,6 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
            </div>
         </div>
       </div>
-
 
       {/* Location Card (Right side) */}
       <div className={cn(
@@ -206,6 +210,22 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
                 <span className="text-xs md:text-sm font-bold uppercase opacity-30">TBD</span>
             )}
         </div>
+
+        {showScoreButton && !isCancelled && (
+            <div className="mt-2 w-full px-1.5 pt-1.5 border-t border-border/40">
+                <MetalButton 
+                    size="sm"
+                    className="w-full h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-1.5"
+                    icon={<Trophy className="w-4 h-4" />}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/admin/games/${game.id}`);
+                    }}
+                >
+                    Score
+                </MetalButton>
+            </div>
+        )}
       </div>
     </div>
   );

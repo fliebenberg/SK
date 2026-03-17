@@ -290,7 +290,19 @@ export enum SocketAction {
     GLOBAL_CACHE_REFRESH = 'GLOBAL_CACHE_REFRESH',
 
     /**
+     * Action to update a game's clock (start, pause, resume, reset).
+     * Expects payload: { id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' }
+     */
+    UPDATE_GAME_CLOCK = 'UPDATE_GAME_CLOCK',
+
+    /**
      * @deprecated Use GLOBAL_CACHE_REFRESH instead.
      */
     RESET_CACHE = 'RESET_CACHE',
+
+    /**
+     * Action to reset a game's state and clear its scoring data.
+     * Expects payload: { id: string }
+     */
+    RESET_GAME = 'RESET_GAME',
 }

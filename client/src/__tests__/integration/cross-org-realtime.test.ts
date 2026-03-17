@@ -57,7 +57,7 @@ describe("Cross-Org Real-Time Updates", () => {
         // Setup the expectation: Wait for ORGANIZATIONS_UPDATED
         socketListener.on("update", (event: any) => {
             try {
-                if (event.type === 'ORGANIZATIONS_UPDATED' && event.data.id === ORG_LISTENER_ID) {
+                if (event.type === 'ORGANIZATION_UPDATED' && event.data.id === ORG_LISTENER_ID) {
                    // Verify we received the update with CORRECT data
                    expect(event.data.id).toBe(ORG_LISTENER_ID);
                    expect(event.data.eventCount).toBe(1); // Expect exactly 1 event

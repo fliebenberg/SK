@@ -1,4 +1,4 @@
-import { Organization, Team, Site, Facility, OrgProfile, User, Event, Game, ScoreLog, TeamMembership, Sport, OrgMembership, TeamRole, OrganizationRole, SocketAction, Notification, UserBadge, levenshtein } from "@sk/types";
+import { Organization, Team, Site, Facility, OrgProfile, User, Event, Game, GameClockState, ScoreLog, TeamMembership, Sport, OrgMembership, TeamRole, OrganizationRole, SocketAction, Notification, UserBadge, levenshtein } from "@sk/types";
 import { socket, socketService } from "../../lib/socketService";
 
   const MOCK_ORG_ID = "org-1";
@@ -24,6 +24,7 @@ import { socket, socketService } from "../../lib/socketService";
     unreadCount: number = 0;
     orgReferrals: any[] = [];
     currentUserId: string | null = null;
+    globalRole: string | null = null;
     totalOrganizations: number = 0;
     reports: any[] = [];
     
@@ -571,8 +572,13 @@ import { socket, socketService } from "../../lib/socketService";
             case 'FACILITY_DELETED':
                 this.facilities = this.facilities.filter(f => f.id !== event.data.id);
                 break;
-            case 'GAMES_UPDATED':
+            case 'GAME_ADDED':
+            case 'GAME_UPDATED':
                 this.mergeGame(event.data as Game);
+                break;
+            case 'GAME_DELETED':
+                this.games = this.games.filter(g => g.id !== event.data.id);
+                this.notifyListeners();
                 break;
             case 'EVENT_ADDED':
             case 'EVENT_UPDATED':
@@ -582,7 +588,8 @@ import { socket, socketService } from "../../lib/socketService";
                 this.events = this.events.filter(e => e.id !== event.data.id);
                 break;
             // PERSONS_UPDATED removed
-            case 'TEAM_MEMBERS_UPDATED':
+            case 'ORG_MEMBER_UPDATED':
+            case 'TEAM_MEMBER_UPDATED':
                 const raw = event.data;
                 // Check if this is an enriched object (contains Person fields) or standard membership
                 if (raw.name) {
@@ -599,13 +606,24 @@ import { socket, socketService } from "../../lib/socketService";
                              startDate: raw.startDate,
                              endDate: raw.endDate
                          });
+                     } else if (raw.orgId) {
+                         // Likely an Org Membership
+                         this.mergeOrgMembership({
+                             id: raw.id, // Assuming id is membershipId here or handled in merge
+                             orgProfileId: raw.orgProfileId,
+                             roleId: raw.roleId,
+                             orgId: raw.orgId
+                         });
                      }
-                } else {
-                    // Standard membership object
+                } else if (raw.teamId) {
+                    // Standard team membership object
                     this.mergeTeamMembership(raw as TeamMembership);
+                } else if (raw.orgId) {
+                    // Standard org membership object
+                    this.mergeOrgMembership(raw as OrgMembership);
                 }
                 break;
-            case 'ORGANIZATIONS_UPDATED':
+            case 'ORGANIZATION_UPDATED':
                 this.mergeOrganization(event.data as Organization);
                 break;
             case 'TEAM_DELETED':
@@ -716,10 +734,11 @@ import { socket, socketService } from "../../lib/socketService";
         this.notifyListeners();
     }
 
-    fetchUserMemberships(userId: string) {
+    fetchUserMemberships(userId: string, globalRole?: string) {
         if (!userId) return;
         this.currentUserId = userId;
-        console.log(`Store: Fetching memberships for user ${userId}`);
+        if (globalRole) this.globalRole = globalRole;
+        console.log(`Store: Fetching memberships for user ${userId} (role: ${this.globalRole})`);
         socket.emit('get_data', { type: 'user_memberships', id: userId }, (data: { orgs: OrgMembership[], teams: any[] }) => {
             if (data) {
                 this.userOrgMemberships = data.orgs;
@@ -1198,7 +1217,7 @@ import { socket, socketService } from "../../lib/socketService";
          });
     };
     
-    addGame = (game: Omit<Game, "id" | "status" | "homeScore" | "awayScore">) => {
+    addGame = (game: Omit<Game, "id" | "status" | "finalScoreData" | "liveState">) => {
         return new Promise<Game>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.ADD_GAME, payload: game }, (response: any) => {
                 if (response.status === 'ok') {
@@ -1216,6 +1235,52 @@ import { socket, socketService } from "../../lib/socketService";
         if (game) {
           game.status = status;
           socket.emit('action', { type: SocketAction.UPDATE_GAME_STATUS, payload: { id, status } });
+        }
+    };
+
+    resetGame(id: string) {
+        socket.emit('action', { type: SocketAction.RESET_GAME, payload: { id } });
+    }
+
+    updateGameClock = (id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD') => {
+        const game = this.games.find(g => g.id === id);
+        if (game) {
+            // Optimistic Update
+            const clock: GameClockState = game.liveState?.clock || {
+                isRunning: false,
+                elapsedMS: 0,
+                periodLengthMS: 40 * 60 * 1000
+            };
+
+            const now = new Date().toISOString();
+            const nowMS = new Date(now).getTime();
+
+            switch (action) {
+                case 'START':
+                case 'RESUME':
+                    if (!clock.isRunning) {
+                        clock.isRunning = true;
+                        clock.lastStartedAt = now;
+                    }
+                    break;
+                case 'PAUSE':
+                    if (clock.isRunning && clock.lastStartedAt) {
+                        const startedAtMS = new Date(clock.lastStartedAt).getTime();
+                        clock.elapsedMS += (nowMS - startedAtMS);
+                        clock.isRunning = false;
+                        clock.lastStartedAt = undefined;
+                    }
+                    break;
+                case 'RESET':
+                    clock.isRunning = false;
+                    clock.elapsedMS = 0;
+                    clock.lastStartedAt = undefined;
+                    break;
+            }
+
+            game.liveState = { ...(game.liveState || {}), clock };
+            this.notifyListeners();
+            socket.emit('action', { type: SocketAction.UPDATE_GAME_CLOCK, payload: { id, action } });
         }
     };
 
@@ -1599,6 +1664,34 @@ import { socket, socketService } from "../../lib/socketService";
         ? this.events.filter(e => e.orgId === orgId || e.participatingOrgIds?.includes(orgId)) 
         : this.events;
     getEvent = (id: string) => this.events.find(e => e.id === id);
+    
+    canScoreGame(gameId: string) {
+        if (!this.currentUserId) return false;
+        if (this.globalRole === 'admin') return true;
+
+        const game = this.games.find(g => g.id === gameId);
+        if (!game) return false;
+
+        // 1. Check if user is an Org Admin for any participating organization
+        const teamIds = game.participants?.map(p => p.teamId).filter(Boolean) as string[] || [];
+        const orgIds = new Set<string>();
+        teamIds.forEach(tid => {
+            const team = this.getTeam(tid);
+            if (team) orgIds.add(team.orgId);
+        });
+
+        const isOrgAdmin = this.userOrgMemberships.some(m => 
+            m.roleId === 'role-org-admin' && orgIds.has(m.orgId)
+        );
+        if (isOrgAdmin) return true;
+
+        // 2. Check if user is a Coach or Scorer for any participating team
+        const isTeamOfficial = this.userTeamMemberships.some(m => 
+            (m.roleId === 'role-coach' || m.roleId === 'role-scorer') && teamIds.includes(m.teamId)
+        );
+        
+        return isTeamOfficial;
+    }
 
     
     mergeEvent(event: Event) {

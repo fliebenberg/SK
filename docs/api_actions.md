@@ -63,7 +63,7 @@ All state-changing operations are sent via the `action` event.
 *   **Logic**: Updates membership details (e.g., role, dates).
 *   **Broadcasts**:
     *   **Topic**: `team:{teamId}`
-    *   **Event**: `TEAM_MEMBERS_UPDATED`
+    *   **Event**: `TEAM_MEMBER_UPDATED`
     *   **Data**: The updated enriched member object.
 
 #### `REMOVE_TEAM_MEMBER`
@@ -71,7 +71,7 @@ All state-changing operations are sent via the `action` event.
 *   **Logic**: Soft-deletes the membership (sets `endDate`).
 *   **Broadcasts**:
     1.  **Topic**: `team:{teamId}`
-        *   **Event**: `TEAM_MEMBERS_UPDATED`
+        *   **Event**: `TEAM_MEMBER_UPDATED`
         *   **Data**: The updated membership object.
     2.  **Topic**: `org:{orgId}:teams`
         *   **Event**: `TEAM_UPDATED`
@@ -116,23 +116,24 @@ All state-changing operations are sent via the `action` event.
 *   **Logic**: Schedules a new game.
 *   **Broadcasts**:
     *   **Topic**: `games` (Global List - To be scoped later)
-    *   **Event**: `GAMES_UPDATED`
+    *   *Topic**: `event:{eventId}`
+    *   **Event**: `GAME_ADDED`
     *   **Data**: The new `Game` object.
 
 #### `UPDATE_GAME_STATUS`
 *   **Payload**: `{ id, status }`
 *   **Logic**: Updates status (e.g., 'Scheduled', 'In Progress', 'Finished').
 *   **Broadcasts**:
-    *   **Topic**: `games`
-    *   **Event**: `GAMES_UPDATED`
+    *   **Topic**: `game:{id}`
+    *   **Event**: `GAME_UPDATED`
     *   **Data**: Result of update.
 
 #### `UPDATE_SCORE`
 *   **Payload**: `{ id, homeScore, awayScore }`
 *   **Logic**: Updates the score.
 *   **Broadcasts**:
-    *   **Topic**: `games`
-    *   **Event**: `GAMES_UPDATED`
+    *   **Topic**: `game:{id}`
+    *   **Event**: `GAME_UPDATED`
     *   **Data**: Result of update.
 
 ### 5. Organizations
@@ -142,7 +143,7 @@ All state-changing operations are sent via the `action` event.
 *   **Logic**: Creates a new organization.
 *   **Broadcasts**:
     *   **Topic**: `organizations`
-    *   **Event**: `ORGANIZATIONS_UPDATED`
+    *   **Event**: `ORGANIZATION_UPDATED`
     *   **Data**: The new `Organization` object.
 
 #### `UPDATE_ORG`
@@ -150,7 +151,7 @@ All state-changing operations are sent via the `action` event.
 *   **Logic**: Updates organization details.
 *   **Broadcasts**:
     *   **Topic**: `organizations`
-    *   **Event**: `ORGANIZATIONS_UPDATED`
+    *   **Event**: `ORGANIZATION_UPDATED`
     *   **Data**: The updated `Organization` object.
 
 #### `ADD_ORG_MEMBER`

@@ -1,3 +1,10 @@
+export interface GameClockState {
+  isRunning: boolean;
+  lastStartedAt?: string; // ISO UTC
+  elapsedMS: number;
+  periodLengthMS: number;
+}
+
 export interface Game {
   id: string;
   eventId: string;
@@ -7,6 +14,13 @@ export interface Game {
   facilityId?: string;
   finalScoreData?: any;
   customSettings?: any;
-  liveState?: any;
+  liveState?: {
+    clock?: GameClockState;
+    score?: { home: number, away: number };
+    periodLabel?: string;
+    [key: string]: any;
+  };
   participants?: any[];
+  updatedAt?: string;
+  finishTime?: string;
 }

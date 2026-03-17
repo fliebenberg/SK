@@ -1,6 +1,7 @@
 import { Game } from "@sk/types";
 import { formatTime } from "@/lib/utils";
 import { Trophy } from "lucide-react";
+import { store } from "@/app/store/store";
 
 interface HeroGameCardProps {
     game: Game;
@@ -8,6 +9,15 @@ interface HeroGameCardProps {
 
 export const HeroGameCard = ({ game }: HeroGameCardProps) => {
     const isLive = game.status === 'Live';
+    
+    const homeTeamId = game.participants?.[0]?.teamId;
+    const awayTeamId = game.participants?.[1]?.teamId;
+    
+    const homeTeam = homeTeamId ? store.getTeam(homeTeamId) : null;
+    const awayTeam = awayTeamId ? store.getTeam(awayTeamId) : null;
+
+    const homeScore = game.liveState?.score?.home ?? game.finalScoreData?.home ?? 0;
+    const awayScore = game.liveState?.score?.away ?? game.finalScoreData?.away ?? 0;
 
     return (
         <div className="relative overflow-hidden rounded-xl border border-border bg-card p-6 shadow-md transition-all hover:shadow-lg w-full max-w-sm flex-shrink-0 snap-center">
@@ -38,12 +48,12 @@ export const HeroGameCard = ({ game }: HeroGameCardProps) => {
                            {/* Placeholder for Home Team Logo */}
                            <Trophy className="h-6 w-6 text-muted-foreground/50" />
                         </div>
-                        <span className="text-sm font-bold line-clamp-2">Home Team</span>
+                        <span className="text-sm font-bold line-clamp-2">{homeTeam?.name || 'Home Team'}</span>
                     </div>
 
                     <div className="flex flex-col items-center justify-center px-4">
                         <div className="text-3xl font-black tabular-nums tracking-tighter" style={{ fontFamily: 'var(--font-orbitron)' }}>
-                            {game.homeScore} - {game.awayScore}
+                            {homeScore} - {awayScore}
                         </div>
                     </div>
 
@@ -52,7 +62,7 @@ export const HeroGameCard = ({ game }: HeroGameCardProps) => {
                            {/* Placeholder for Away Team Logo */}
                            <Trophy className="h-6 w-6 text-muted-foreground/50" />
                         </div>
-                        <span className="text-sm font-bold line-clamp-2">{game.awayTeamName || 'Away Team'}</span>
+                        <span className="text-sm font-bold line-clamp-2">{awayTeam?.name || 'Away Team'}</span>
                     </div>
                 </div>
             </div>

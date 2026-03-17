@@ -35,8 +35,11 @@ export default function NewGamePage() {
 
       await store.addGame({
         eventId: "event-1", // Simplified for MVP
-        homeTeamId,
-        awayTeamId,
+        participants: [
+          { teamId: homeTeamId, status: 'active' },
+          { teamId: awayTeamId, status: 'active' }
+        ],
+        siteId,
         startTime: `${date}T${time}`,
       });
       router.push("/admin");

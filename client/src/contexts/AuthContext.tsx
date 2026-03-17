@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Fetch memberships for RBAC
-      store.fetchUserMemberships(user.id);
+      store.fetchUserMemberships(user.id, user.globalRole);
       store.fetchNotifications(user.id);
       store.subscribeToNotifications(user.id);
 

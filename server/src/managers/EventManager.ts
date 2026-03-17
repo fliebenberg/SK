@@ -74,7 +74,7 @@ export class EventManager extends BaseManager {
   }
 
   async getGames(orgId?: string): Promise<Game[]> {
-    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
     if (!orgId) {
         const res = await this.query(`SELECT ${selectClause} FROM games g`);
         return res.rows;
@@ -89,7 +89,7 @@ export class EventManager extends BaseManager {
   }
 
   async getLiveGames(): Promise<Game[]> {
-    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
     const res = await this.query(`
         SELECT ${selectClause}
         FROM games g
@@ -101,7 +101,7 @@ export class EventManager extends BaseManager {
   }
 
   async getGame(id: string): Promise<Game | undefined> {
-    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status)) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
     const res = await this.query(`SELECT ${selectClause} FROM games g WHERE g.id = $1`, [id]);
     return res.rows[0];
   }
@@ -134,8 +134,65 @@ export class EventManager extends BaseManager {
   }
 
   async updateGameStatus(id: string, status: Game['status']): Promise<Game | null> {
-      await this.query(`UPDATE games SET status = $1 WHERE id = $2`, [status, id]);
+      if (status === 'Finished') {
+          await this.query(`UPDATE games SET status = $1, finish_time = NOW(), updated_at = NOW() WHERE id = $2`, [status, id]);
+      } else {
+          await this.query(`UPDATE games SET status = $1, updated_at = NOW() WHERE id = $2`, [status, id]);
+      }
       return (await this.getGame(id)) || null;
+  }
+
+  async resetGame(id: string): Promise<Game | null> {
+      await this.query(`
+          UPDATE games 
+          SET status = 'Scheduled', 
+              final_score_data = NULL, 
+              live_state = '{}'::jsonb, 
+              finish_time = NULL, 
+              updated_at = NOW() 
+          WHERE id = $1
+      `, [id]);
+      return (await this.getGame(id)) || null;
+  }
+
+  async updateGameClock(id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD'): Promise<Game | null> {
+      const game = await this.getGame(id);
+      if (!game) return null;
+
+      const clock = game.liveState?.clock || {
+          isRunning: false,
+          elapsedMS: 0,
+          periodLengthMS: 40 * 60 * 1000 // Default 40m for rugby
+      };
+
+      const now = new Date().toISOString();
+      const nowMS = new Date(now).getTime();
+
+      switch (action) {
+          case 'START':
+          case 'RESUME':
+              if (!clock.isRunning) {
+                  clock.isRunning = true;
+                  clock.lastStartedAt = now;
+              }
+              break;
+          case 'PAUSE':
+              if (clock.isRunning && clock.lastStartedAt) {
+                  const startedAtMS = new Date(clock.lastStartedAt).getTime();
+                  clock.elapsedMS += (nowMS - startedAtMS);
+                  clock.isRunning = false;
+                  clock.lastStartedAt = undefined;
+              }
+              break;
+          case 'RESET':
+              clock.isRunning = false;
+              clock.elapsedMS = 0;
+              clock.lastStartedAt = undefined;
+              break;
+      }
+
+      const liveState = { ...(game.liveState || {}), clock };
+      return this.updateGame(id, { liveState });
   }
 
   async updateGame(id: string, data: Partial<Game>): Promise<Game | null> {
@@ -162,7 +219,7 @@ export class EventManager extends BaseManager {
               });
               values.push(id);
               
-              const updateQuery = `UPDATE games SET ${setClauses.join(', ')} WHERE id = $${idx}`;
+              const updateQuery = `UPDATE games SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${idx}`;
               console.log(`EventManager: Executing update: ${updateQuery} with values:`, values);
               await this.query(updateQuery, values);
           }
