@@ -290,8 +290,8 @@ export enum SocketAction {
     GLOBAL_CACHE_REFRESH = 'GLOBAL_CACHE_REFRESH',
 
     /**
-     * Action to update a game's clock (start, pause, resume, reset).
-     * Expects payload: { id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' }
+     * Action to update a game's clock (start, pause, resume, reset, end period).
+     * Expects payload: { id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' | 'END_PERIOD' }
      */
     UPDATE_GAME_CLOCK = 'UPDATE_GAME_CLOCK',
 

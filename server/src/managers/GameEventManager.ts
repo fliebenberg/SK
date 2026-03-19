@@ -9,7 +9,7 @@ export class GameEventManager extends BaseManager {
     gameId: string;
     gameParticipantId?: string;
     actorOrgProfileId?: string;
-    initiatorOrgProfileId: string;
+    initiatorOrgProfileId?: string;
     type: string;
     subType?: string;
     eventData?: any;

@@ -3,6 +3,10 @@ export interface GameClockState {
   lastStartedAt?: string; // ISO UTC
   elapsedMS: number;
   periodLengthMS: number;
+  isPeriodActive: boolean;
+  periodIndex?: number; // 0-indexed
+  scheduledPeriods?: number;
+  totalActualElapsedMS?: number;
 }
 
 export interface Game {

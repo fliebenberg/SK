@@ -21,21 +21,21 @@ export default function RugbyScoreboard({ game }: { game: Game }) {
     const startTimeStr = game.startTime ? new Date(game.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
 
     return (
-        <div className="relative overflow-hidden bg-muted/30 dark:bg-card text-foreground p-2 sm:p-4 border-b border-border/50 shadow-inner">
+        <div className="relative overflow-hidden bg-muted/30 dark:bg-card text-foreground p-1 sm:p-2 border-b border-border/50 shadow-inner">
             {/* Adaptive Background Gradient/Glow */}
             <div className="absolute inset-0 opacity-[0.03] dark:opacity-10 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.3),transparent_70%)]"></div>
             <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
             
             <div className="relative flex flex-col gap-2 sm:gap-4">
                 {/* 1. Header Section: Logos & Wrapped Names */}
-                <div className="flex justify-between items-stretch w-full sm:px-2">
+                <div className="flex justify-between items-stretch w-full sm:px-2 gap-4">
                     {/* Home Side */}
                     <div className="flex items-center gap-2 sm:gap-4 flex-1 justify-start">
                         <div className="h-10 w-10 sm:h-20 sm:w-20 bg-muted/30 dark:bg-white/10 rounded-lg sm:rounded-xl flex items-center justify-center p-1 sm:p-2 border border-border/50 dark:border-white/10 shadow-sm backdrop-blur-sm overflow-hidden shrink-0">
                             <OrgLogo organization={homeOrg || null} className="w-full h-full border-none shadow-none bg-transparent" />
                         </div>
-                        <div className="flex flex-col justify-center min-w-0">
-                            <span className="text-[8px] sm:text-[10px] font-black text-muted-foreground dark:text-muted-foreground/70 uppercase tracking-[0.1em] leading-tight mb-0.5 max-w-[100px] sm:max-w-[240px]">
+                        <div className="flex flex-col justify-center min-w-0 flex-1">
+                            <span className="text-[8px] sm:text-[10px] font-black text-muted-foreground dark:text-muted-foreground/70 uppercase tracking-[0.1em] leading-tight mb-0.5 line-clamp-2">
                                 {homeOrg?.name || "Home Organization"}
                             </span>
                             <span className="text-sm sm:text-4xl font-black text-foreground uppercase tracking-tighter leading-none truncate max-w-[120px] sm:max-w-[320px]">
@@ -46,8 +46,8 @@ export default function RugbyScoreboard({ game }: { game: Game }) {
 
                     {/* Away Side */}
                     <div className="flex items-center gap-2 sm:gap-4 flex-1 justify-end text-right">
-                        <div className="flex flex-col justify-center min-w-0 items-end">
-                            <span className="text-[8px] sm:text-[10px] font-black text-muted-foreground dark:text-muted-foreground/70 uppercase tracking-[0.1em] leading-tight mb-0.5 max-w-[100px] sm:max-w-[240px]">
+                        <div className="flex flex-col justify-center min-w-0 items-end flex-1">
+                            <span className="text-[8px] sm:text-[10px] font-black text-muted-foreground dark:text-muted-foreground/70 uppercase tracking-[0.1em] leading-tight mb-0.5 line-clamp-2">
                                 {awayOrg?.name || "Away Organization"}
                             </span>
                             <span className="text-sm sm:text-4xl font-black text-foreground uppercase tracking-tighter leading-none truncate max-w-[120px] sm:max-w-[320px]">

@@ -1,4 +1,4 @@
-import { Event, Game } from "@sk/types";
+import { Event, Game, GameClockState } from "@sk/types";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 
@@ -134,8 +134,18 @@ export class EventManager extends BaseManager {
   }
 
   async updateGameStatus(id: string, status: Game['status']): Promise<Game | null> {
+      const game = await this.getGame(id);
+      if (!game) return null;
+
       if (status === 'Finished') {
           await this.query(`UPDATE games SET status = $1, finish_time = NOW(), updated_at = NOW() WHERE id = $2`, [status, id]);
+      } else if (status === 'Live') {
+          // Set startTime if it doesn't exist
+          if (!game.startTime) {
+              await this.query(`UPDATE games SET status = $1, start_time = NOW(), updated_at = NOW() WHERE id = $2`, [status, id]);
+          } else {
+              await this.query(`UPDATE games SET status = $1, updated_at = NOW() WHERE id = $2`, [status, id]);
+          }
       } else {
           await this.query(`UPDATE games SET status = $1, updated_at = NOW() WHERE id = $2`, [status, id]);
       }
@@ -146,6 +156,7 @@ export class EventManager extends BaseManager {
       await this.query(`
           UPDATE games 
           SET status = 'Scheduled', 
+              start_time = NULL,
               final_score_data = NULL, 
               live_state = '{}'::jsonb, 
               finish_time = NULL, 
@@ -155,14 +166,38 @@ export class EventManager extends BaseManager {
       return (await this.getGame(id)) || null;
   }
 
-  async updateGameClock(id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD'): Promise<Game | null> {
+  async updateGameClock(id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' | 'END_PERIOD' | 'START_PERIOD'): Promise<Game | null> {
       const game = await this.getGame(id);
       if (!game) return null;
 
-      const clock = game.liveState?.clock || {
+      const event = await this.getEvent(game.eventId);
+      const sportId = event?.sportIds?.[0]; // Assuming single sport for simple lookup
+      let sport = null;
+      if (sportId) {
+          const sportRes = await this.query('SELECT id, name, default_settings as "defaultSettings" FROM sports WHERE id = $1', [sportId]);
+          sport = sportRes.rows[0];
+      }
+
+      // Resolve Configuration (Game > Event > Sport > Default)
+      const periodLengthMS = game.customSettings?.periodLengthMS 
+          || (event as any)?.settings?.periodLengthMS 
+          || sport?.defaultSettings?.periodLengthMS 
+          || 40 * 60 * 1000;
+          
+      const scheduledPeriods = game.customSettings?.scheduledPeriods 
+          || (event as any)?.settings?.scheduledPeriods 
+          || sport?.defaultSettings?.periods 
+          || 2;
+
+      const clock: GameClockState = game.liveState?.clock || {
           isRunning: false,
           elapsedMS: 0,
-          periodLengthMS: 40 * 60 * 1000 // Default 40m for rugby
+          periodLengthMS,
+          isPeriodActive: false,
+          lastStartedAt: undefined,
+          periodIndex: 0,
+          scheduledPeriods,
+          totalActualElapsedMS: 0
       };
 
       const now = new Date().toISOString();
@@ -170,24 +205,55 @@ export class EventManager extends BaseManager {
 
       switch (action) {
           case 'START':
+              if (!game.startTime) {
+                  await this.query(`UPDATE games SET start_time = NOW() WHERE id = $1`, [id]);
+              }
+              if (!clock.isRunning) {
+                  clock.isRunning = true;
+                  clock.lastStartedAt = now;
+              }
+              clock.isPeriodActive = true;
+              clock.periodIndex = 0;
+              clock.elapsedMS = 0;
+              clock.totalActualElapsedMS = 0;
+              break;
+          case 'START_PERIOD':
+              if (!clock.isRunning) {
+                  clock.periodIndex = (clock.periodIndex ?? 0) + 1;
+                  clock.elapsedMS = (clock.periodIndex ?? 0) * clock.periodLengthMS;
+                  clock.isRunning = true;
+                  clock.lastStartedAt = now;
+                  clock.isPeriodActive = true;
+              }
+              break;
           case 'RESUME':
               if (!clock.isRunning) {
                   clock.isRunning = true;
                   clock.lastStartedAt = now;
               }
+              clock.isPeriodActive = true;
               break;
           case 'PAUSE':
+          case 'END_PERIOD':
               if (clock.isRunning && clock.lastStartedAt) {
                   const startedAtMS = new Date(clock.lastStartedAt).getTime();
-                  clock.elapsedMS += (nowMS - startedAtMS);
+                  const delta = (nowMS - startedAtMS);
+                  clock.elapsedMS += delta;
+                  clock.totalActualElapsedMS = (clock.totalActualElapsedMS ?? 0) + delta;
                   clock.isRunning = false;
                   clock.lastStartedAt = undefined;
+              }
+              if (action === 'END_PERIOD') {
+                  clock.isPeriodActive = false;
               }
               break;
           case 'RESET':
               clock.isRunning = false;
               clock.elapsedMS = 0;
               clock.lastStartedAt = undefined;
+              clock.isPeriodActive = false;
+              clock.periodIndex = 0;
+              clock.totalActualElapsedMS = 0;
               break;
       }
 
