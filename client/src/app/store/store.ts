@@ -1,4 +1,4 @@
-import { Team, Site, Facility, Event, Game, SocketAction, Notification, Sport, OrgMembership, TeamMembership, Organization } from "@sk/types";
+import { Team, Site, Facility, Event, Game, SocketAction, Notification, Sport, OrgMembership, TeamMembership, Organization, GameEvent } from "@sk/types";
 import { socket, socketService } from "../../lib/socketService";
 import { UserStore } from "./UserStore";
 
@@ -82,6 +82,9 @@ class Store extends UserStore {
             case 'ORG_REFERRAL_ADDED': this.mergeReferral(event.data); break;
             case 'GAME_ADDED':
             case 'GAME_UPDATED': this.mergeGame(event.data as Game); break;
+            case 'GAME_EVENT_ADDED': this.mergeGameEvent(event.data as GameEvent); break;
+            case 'GAME_EVENTS_SYNC': this.mergeEvents(event.data as GameEvent[]); break;
+            case 'GAME_RESET': this.handleGameReset(event.data.gameId); break;
             case 'GAME_DELETED': this.games = this.games.filter(g => g.id !== event.data.id); break;
             case 'EVENT_ADDED':
             case 'EVENT_UPDATED': this.mergeEvent(event.data as Event); break;

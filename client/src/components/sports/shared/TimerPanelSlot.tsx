@@ -54,7 +54,13 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
             gameId: game.id,
             initiatorOrgProfileId: initiatorProfile,
             type,
-            eventData: { status, reason, timestamp: new Date().toISOString() }
+            eventData: { 
+                status, 
+                reason, 
+                timestamp: new Date().toISOString(),
+                elapsedMS: currentMS,
+                period: game.liveState?.periodLabel || `${(clock?.periodIndex ?? 0) + 1}${getOrdinalSuffix((clock?.periodIndex ?? 0) + 1)} Period`
+            }
         });
         
         if (status === 'Cancelled') {
@@ -66,6 +72,10 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
     const handleClockAction = async (action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' | 'END_PERIOD' | 'START_PERIOD', eventType?: string) => {
         if (isDebouncing) return;
         
+        // Capture the current live time BEFORE the action changes the state
+        const actionElapsedMS = currentMS;
+        const currentPeriodLabel = game.liveState?.periodLabel || `${(clock?.periodIndex ?? 0) + 1}${getOrdinalSuffix((clock?.periodIndex ?? 0) + 1)} Period`;
+
         await store.updateGameClock(game.id, action);
         
         // Record event if type provided
@@ -76,8 +86,8 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                 type: eventType,
                 eventData: { 
                     action, 
-                    period: game.liveState?.periodLabel || `${(clock?.periodIndex ?? 0) + 1}${getOrdinalSuffix((clock?.periodIndex ?? 0) + 1)} Period`,
-                    elapsedMS: clock?.elapsedMS || 0
+                    period: currentPeriodLabel,
+                    elapsedMS: actionElapsedMS
                 }
             });
         }

@@ -1,6 +1,7 @@
 export interface GameEvent {
   id: string;
   gameId: string;
+  sequence?: number;
   timestamp: string;
   gameParticipantId?: string;
   actorOrgProfileId?: string;

@@ -153,17 +153,28 @@ export class EventManager extends BaseManager {
   }
 
   async resetGame(id: string): Promise<Game | null> {
-      await this.query(`
-          UPDATE games 
-          SET status = 'Scheduled', 
-              start_time = NULL,
-              final_score_data = NULL, 
-              live_state = '{}'::jsonb, 
-              finish_time = NULL, 
-              updated_at = NOW() 
-          WHERE id = $1
-      `, [id]);
-      return (await this.getGame(id)) || null;
+      await this.query('BEGIN');
+      try {
+          await this.query(`
+              UPDATE games 
+              SET status = 'Scheduled', 
+                  start_time = NULL,
+                  final_score_data = NULL, 
+                  live_state = '{}'::jsonb, 
+                  finish_time = NULL, 
+                  updated_at = NOW() 
+              WHERE id = $1
+          `, [id]);
+          
+          // Also delete all game events
+          await this.query(`DELETE FROM game_events WHERE game_id = $1`, [id]);
+          
+          await this.query('COMMIT');
+          return (await this.getGame(id)) || null;
+      } catch (e) {
+          await this.query('ROLLBACK');
+          throw e;
+      }
   }
 
   async updateGameClock(id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' | 'END_PERIOD' | 'START_PERIOD'): Promise<Game | null> {

@@ -1,8 +1,13 @@
 import { Event, Game, SocketAction, GameClockState } from "@sk/types";
 import { socket } from "../../lib/socketService";
 import { SiteStore } from "./SiteStore";
+import { GameEvent } from "@sk/types";
 
 export class GameStore extends SiteStore {
+    gameEvents: GameEvent[] = [];
+    private lastSequence: number = 0;
+    private isSyncing: boolean = false;
+
     // --- Subscriptions ---
     subscribeToEvent(eventId: string) {
         if (!eventId || this.activeEventSubscriptions.has(eventId)) return;
@@ -17,7 +22,22 @@ export class GameStore extends SiteStore {
     }
 
     subscribeToGame(gameId: string) {
-        if (!gameId || this.activeGameSubscriptions.has(gameId)) return;
+        if (!gameId) return;
+        
+        // If switching games, clear the previous events
+        // Note: In a larger app we might keep a map of gameId -> events[]
+        if (this.gameEvents.length > 0 && this.gameEvents[0].gameId !== gameId) {
+            this.gameEvents = [];
+            this.lastSequence = 0;
+        }
+
+        if (this.activeGameSubscriptions.has(gameId)) {
+            // Even if already in the set, we might need a re-sync if the component just mounted
+            // and we want the server-pushed state.
+            socket.emit('join_room', `game:${gameId}`);
+            return;
+        }
+
         this.activeGameSubscriptions.add(gameId);
         socket.emit('join_room', `game:${gameId}`);
     }
@@ -68,6 +88,19 @@ export class GameStore extends SiteStore {
             socket.emit('get_data', { type: 'event', id }, (data: Event) => {
                 if (data) this.mergeEvent(data);
                 resolve(data || null);
+            });
+        });
+    }
+
+    fetchGameEvents(gameId: string, fromSequence?: number) {
+        return new Promise<GameEvent[]>((resolve) => {
+            this.isSyncing = true;
+            socket.emit('get_data', { type: 'game_events', id: gameId, fromSequence }, (data: GameEvent[]) => {
+                if (data) {
+                    this.mergeEvents(data);
+                }
+                this.isSyncing = false;
+                resolve(data || []);
             });
         });
     }
@@ -348,6 +381,7 @@ export class GameStore extends SiteStore {
         
         if (index > -1) {
             const existing = this.games[index];
+            const existingStatus = existing.status;
             
             // Deep merge liveState to prevent partial updates from wiping out clock
             const mergedLiveState = {
@@ -373,6 +407,64 @@ export class GameStore extends SiteStore {
             mergedGame.participants.forEach(p => {
                 if (p.teamId && !this.getTeam(p.teamId)) this.fetchTeam(p.teamId);
             });
+        }
+    }
+
+    protected mergeGameEvent(event: GameEvent) {
+        // Gap Detection
+        const seq = event.sequence || 0;
+        if (seq > this.lastSequence + 1 && this.lastSequence !== 0 && !this.isSyncing) {
+            console.warn(`Gap detected in game events sequence (last: ${this.lastSequence}, received: ${seq}). Triggering re-sync.`);
+            this.fetchGameEvents(event.gameId, this.lastSequence + 1);
+        }
+
+        const index = this.gameEvents.findIndex(e => e.id === event.id);
+        if (index > -1) {
+            this.gameEvents[index] = event;
+        } else {
+            // Insert and sort by sequence (preferred) or timestamp
+            this.gameEvents.push(event);
+            this.gameEvents.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+        }
+
+        if (seq > this.lastSequence) {
+            this.lastSequence = seq;
+        }
+
+        this.notifyListeners();
+    }
+
+    protected mergeEvents(events: GameEvent[]) {
+        if (!events) return;
+        
+        if (events.length === 0) {
+            this.gameEvents = [];
+            this.lastSequence = 0;
+            this.notifyListeners();
+            return;
+        }
+        
+        events.forEach(evt => {
+            const index = this.gameEvents.findIndex(e => e.id === evt.id);
+            if (index > -1) {
+                this.gameEvents[index] = evt;
+            } else {
+                this.gameEvents.push(evt);
+            }
+            if ((evt.sequence || 0) > this.lastSequence) {
+                this.lastSequence = evt.sequence || 0;
+            }
+        });
+        
+        this.gameEvents.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+        this.notifyListeners();
+    }
+
+    protected handleGameReset(gameId: string) {
+        if (this.gameEvents.length === 0 || this.gameEvents[0].gameId === gameId) {
+            this.gameEvents = [];
+            this.lastSequence = 0;
+            this.notifyListeners();
         }
     }
 }

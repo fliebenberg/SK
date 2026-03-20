@@ -93,6 +93,9 @@ io.on('connection', (socket) => {
             case 'game':
                 callback(await dataManager.getGame(id));
                 break;
+            case 'game_events':
+                callback(await dataManager.getGameEvents(id, request.fromSequence, request.limit));
+                break;
             case 'events':
                 callback(await dataManager.getEvents(orgId));
                 break;
@@ -282,7 +285,11 @@ io.on('connection', (socket) => {
             const gameId = parts[1];
             // If room is game:123:detail or game:123:events, we can send initial data
             const game = await dataManager.getGame(gameId);
-            if (game) socket.emit('update', { type: 'GAME_UPDATED', data: game });
+            if (game) {
+                socket.emit('update', { type: 'GAME_UPDATED', data: game });
+                const events = await dataManager.getGameEvents(gameId); 
+                socket.emit('update', { type: 'GAME_EVENTS_SYNC', data: events });
+            }
         } else if (room.startsWith('user:')) {
             const userId = room.split(':')[1];
             console.log(`Server: User ${userId} joined their notification room`);
@@ -501,14 +508,18 @@ io.on('connection', (socket) => {
             case SocketAction.ADD_GAME_EVENT:
                 const eventRes = await gameEventManager.ingestEvent(action.payload);
                 if (!('error' in eventRes)) {
-                    // Broadcast the granular event to the events room
+                    // Broadcast the granular event to the base game room and detail room
+                    io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_EVENT_ADDED', data: eventRes });
                     io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'GAME_EVENT_ADDED', data: eventRes });
                     
-                    // Broadcast updated game state to the detail room
+                    // Broadcast updated game state to the detail room and base game room
                     const updatedGame = await dataManager.getGame(action.payload.gameId);
                     if (updatedGame) {
+                        io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
                         io.to(`game:${action.payload.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
                     }
+                } else {
+                    console.error('Server: Failed to ingest game event:', eventRes.error);
                 }
                 break;
             case SocketAction.INITIATE_UNDO_VOTE:
@@ -533,10 +544,11 @@ io.on('connection', (socket) => {
                 break;
             case SocketAction.RESET_GAME:
                 await dataManager.resetGame(action.payload.id);
-                // Also clear all game events
+                // Also clear all game events (redundant if EventManager does it, but safe)
                 await pool.query('DELETE FROM game_events WHERE game_id = $1', [action.payload.id]);
                 result = await dataManager.getGame(action.payload.id);
                 if (result) {
+                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_RESET', data: { gameId: result.id } });
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
                     additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_UPDATED', data: result });
                     

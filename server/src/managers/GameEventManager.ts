@@ -29,13 +29,21 @@ export class GameEventManager extends BaseManager {
       return { error: 'Deduplicated: Identical event recently submitted.' };
     }
 
-    // 2. Insert into game_events
+    // 2. Compute next sequence
+    const seqRes = await this.query(`
+      SELECT COALESCE(MAX(sequence), 0) + 1 as next_seq 
+      FROM game_events 
+      WHERE game_id = $1
+    `, [data.gameId]);
+    const nextSeq = seqRes.rows[0].next_seq;
+
+    // 3. Insert into game_events
     const eventId = `ge-${Date.now()}`;
     const insertRes = await this.query(`
-      INSERT INTO game_events (id, game_id, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, game_id as "gameId", timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"
-    `, [eventId, data.gameId, data.gameParticipantId, data.actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, data.eventData || {}]);
+      INSERT INTO game_events (id, game_id, sequence, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"
+    `, [eventId, data.gameId, nextSeq, data.gameParticipantId, data.actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, data.eventData || {}]);
 
     const newEvent = insertRes.rows[0] as GameEvent;
 
@@ -73,6 +81,35 @@ export class GameEventManager extends BaseManager {
       RETURNING id, game_id as "gameId", timestamp, initiator_org_profile_id as "initiatorOrgProfileId", type, event_data as "eventData"
     `, [id, gameId, officialId, JSON.stringify({ vote })]);
     return res.rows[0] as GameEvent;
+  }
+
+  /**
+   * Fetches all events for a specific game, ordered by sequence.
+   * Can be filtered by sequence and limited.
+   */
+  async getGameEvents(gameId: string, fromSequence?: number, limit: number = 20): Promise<GameEvent[]> {
+    let sql = `
+      SELECT id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", 
+             actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", 
+             type, sub_type as "subType", event_data as "eventData"
+      FROM game_events
+      WHERE game_id = $1
+    `;
+    const params: any[] = [gameId];
+
+    if (fromSequence !== undefined) {
+      sql += ` AND sequence >= $2 ORDER BY sequence ASC`;
+      params.push(fromSequence);
+    } else {
+      // Get the last N events
+      sql += ` ORDER BY sequence DESC LIMIT $2`;
+      params.push(limit);
+    }
+
+    const res = await this.query(sql, params);
+    
+    // If we fetched "last N", they are desc. Re-sort to asc for the client.
+    return fromSequence === undefined ? res.rows.reverse() : res.rows;
   }
 }
 

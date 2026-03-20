@@ -10,6 +10,7 @@ import { referralManager } from "./managers/ReferralManager";
 import { notificationManager } from "./managers/NotificationManager";
 import { reportManager } from "./managers/ReportManager";
 import { feedManager } from "./managers/FeedManager";
+import { gameEventManager } from "./managers/GameEventManager";
 
 export class DataManager {
   constructor() {
@@ -133,6 +134,7 @@ export class DataManager {
   deleteGame = (id: string) => eventManager.deleteGame(id);
   getLiveGames = () => eventManager.getLiveGames();
   resetGame = (id: string) => eventManager.resetGame(id);
+  getGameEvents = (gameId: string, fromSequence?: number, limit?: number) => gameEventManager.getGameEvents(gameId, fromSequence, limit);
 
   // Search
   searchProfiles = async (query: string, orgId?: string) => {

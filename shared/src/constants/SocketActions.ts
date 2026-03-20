@@ -305,4 +305,9 @@ export enum SocketAction {
      * Expects payload: { id: string }
      */
     RESET_GAME = 'RESET_GAME',
+
+    /**
+     * Broadcast when a game is reset to clear client state.
+     */
+    GAME_RESET = 'GAME_RESET',
 }
