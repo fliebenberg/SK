@@ -1,4 +1,5 @@
 import { Event, Game, SocketAction, GameClockState } from "@sk/types";
+import { getPeriodLabel } from "@sk/types";
 import { socket } from "../../lib/socketService";
 import { SiteStore } from "./SiteStore";
 import { GameEvent } from "@sk/types";
@@ -198,9 +199,11 @@ export class GameStore extends SiteStore {
                 startTime = now;
             }
 
-            this.updateGame(id, { status, startTime, finishTime });
+            const promise = this.updateGame(id, { status, startTime, finishTime });
             socket.emit('action', { type: SocketAction.UPDATE_GAME_STATUS, payload: { id, status } });
+            return promise;
         }
+        return Promise.resolve(null);
     };
 
     resetGame(id: string) {
@@ -240,7 +243,6 @@ export class GameStore extends SiteStore {
         const now = new Date().toISOString();
         const nowMS = new Date(now).getTime();
         let startTime = game.startTime;
-
         switch (action) {
             case 'START':
                 if (!startTime) startTime = now;
@@ -293,16 +295,32 @@ export class GameStore extends SiteStore {
                 break;
         }
 
-        this.updateGame(id, { liveState: { ...(game.liveState || {}), clock }, startTime });
-        socket.emit('action', { type: SocketAction.UPDATE_GAME_CLOCK, payload: { id, action } });
+      // Update periodLabel in liveState
+      const periodTerm = sport?.periodTerm || 'Period';
+      const periodLabel = getPeriodLabel(clock.periodIndex ?? 0, periodTerm);
+
+      const updatePromise = this.updateGame(id, { 
+          liveState: { 
+              ...(game.liveState || {}), 
+              clock,
+              periodLabel
+          }, 
+          startTime 
+      });
+      socket.emit('action', { type: SocketAction.UPDATE_GAME_CLOCK, payload: { id, action } });
+      return updatePromise;
     };
 
     updateScore = (id: string, homeScore: number, awayScore: number) => {
         const game = this.games.find(g => g.id === id);
         if (game) {
-          game.liveState = { ...(game.liveState || {}), home: homeScore, away: awayScore };
+          const promise = this.updateGame(id, { 
+              liveState: { ...(game.liveState || {}), home: homeScore, away: awayScore } 
+          });
           socket.emit('action', { type: SocketAction.UPDATE_GAME_SCORE, payload: { id, homeScore, awayScore } });
+          return promise;
         }
+        return Promise.resolve(null);
     };
 
     addGameEvent = (payload: { 
@@ -381,13 +399,11 @@ export class GameStore extends SiteStore {
         
         if (index > -1) {
             const existing = this.games[index];
-            const existingStatus = existing.status;
-            
             // Deep merge liveState to prevent partial updates from wiping out clock
             const mergedLiveState = {
                 ...(existing.liveState || {}),
                 ...(game.liveState || {}),
-                clock: game.liveState?.clock ?? existing.liveState?.clock
+                clock: game.liveState?.clock ?? (game.status === 'Scheduled' ? undefined : existing.liveState?.clock)
             };
 
             mergedGame = { 

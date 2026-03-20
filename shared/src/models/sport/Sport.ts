@@ -6,4 +6,5 @@ export interface Sport {
   matchTopology?: 'HEAD_TO_HEAD' | 'MULTI_COMPETITOR';
   defaultSettings?: any;
   facilityTerm?: string;
+  periodTerm?: string;
 }

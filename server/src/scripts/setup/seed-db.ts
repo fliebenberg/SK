@@ -13,16 +13,16 @@ const seedDb = async () => {
 
         // 1. Core Data: Sports (Core even in production)
         const sports = [
-            { id: "sport-soccer", name: "Soccer", facilityTerm: "Field" },
-            { id: "sport-rugby", name: "Rugby", facilityTerm: "Field" },
-            { id: "sport-netball", name: "Netball", facilityTerm: "Court" },
-            { id: "sport-hockey", name: "Hockey", facilityTerm: "Field" },
-            { id: "sport-cricket", name: "Cricket", facilityTerm: "Field" },
-            { id: "sport-basketball", name: "Basketball", facilityTerm: "Court" },
+            { id: "sport-soccer", name: "Soccer", facilityTerm: "Field", periodTerm: "Half" },
+            { id: "sport-rugby", name: "Rugby", facilityTerm: "Field", periodTerm: "Half" },
+            { id: "sport-netball", name: "Netball", facilityTerm: "Court", periodTerm: "Period" },
+            { id: "sport-hockey", name: "Hockey", facilityTerm: "Field", periodTerm: "Period" },
+            { id: "sport-cricket", name: "Cricket", facilityTerm: "Field", periodTerm: "Period" },
+            { id: "sport-basketball", name: "Basketball", facilityTerm: "Court", periodTerm: "Quarter" },
         ];
         
         for (const sport of sports) {
-            await pool.query('INSERT INTO sports (id, name, facility_term) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET facility_term = EXCLUDED.facility_term', [sport.id, sport.name, sport.facilityTerm]);
+            await pool.query('INSERT INTO sports (id, name, facility_term, period_term) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET facility_term = EXCLUDED.facility_term, period_term = EXCLUDED.period_term', [sport.id, sport.name, sport.facilityTerm, sport.periodTerm]);
         }
 
         // 2. Initial App Admin (Always create if env vars exist)

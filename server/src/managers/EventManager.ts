@@ -1,4 +1,5 @@
 import { Event, Game, GameClockState } from "@sk/types";
+import { getPeriodLabel } from "@sk/types";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 
@@ -160,7 +161,7 @@ export class EventManager extends BaseManager {
               SET status = 'Scheduled', 
                   start_time = NULL,
                   final_score_data = NULL, 
-                  live_state = '{}'::jsonb, 
+                  live_state = '{"home": 0, "away": 0, "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb, 
                   finish_time = NULL, 
                   updated_at = NOW() 
               WHERE id = $1
@@ -213,7 +214,6 @@ export class EventManager extends BaseManager {
 
       const now = new Date().toISOString();
       const nowMS = new Date(now).getTime();
-
       switch (action) {
           case 'START':
               if (!game.startTime) {
@@ -267,8 +267,16 @@ export class EventManager extends BaseManager {
               clock.totalActualElapsedMS = 0;
               break;
       }
+      
+      // Update periodLabel in liveState
+      const periodTerm = (sport as any)?.periodTerm || 'Period';
+      const periodLabel = getPeriodLabel(clock.periodIndex ?? 0, periodTerm);
 
-      const liveState = { ...(game.liveState || {}), clock };
+      const liveState = { 
+          ...(game.liveState || {}), 
+          clock,
+          periodLabel
+      };
       return this.updateGame(id, { liveState });
   }
 

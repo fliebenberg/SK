@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { Play, Pause, RotateCcw, Square, MoreHorizontal, XCircle } from 'lucide-react';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import { useAuth } from '@/contexts/AuthContext';
+import { getPeriodLabel } from '@sk/types';
 import {
     Dialog,
     DialogContent,
@@ -44,6 +45,9 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
     const handleUpdateStatus = async (status: Game['status'], reason?: string) => {
         await store.updateGameStatus(game.id, status);
         
+        // Fetch updated game state from store to get correct period/state
+        const updatedGame = store.getGame(game.id);
+
         // Record event
         let type = 'GAME_UPDATED';
         if (status === 'Live') type = 'GAME_STARTED';
@@ -59,7 +63,7 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                 reason, 
                 timestamp: new Date().toISOString(),
                 elapsedMS: currentMS,
-                period: game.liveState?.periodLabel || `${(clock?.periodIndex ?? 0) + 1}${getOrdinalSuffix((clock?.periodIndex ?? 0) + 1)} Period`
+                period: updatedGame?.liveState?.periodLabel || game.liveState?.periodLabel
             }
         });
         
@@ -74,10 +78,14 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
         
         // Capture the current live time BEFORE the action changes the state
         const actionElapsedMS = currentMS;
-        const currentPeriodLabel = game.liveState?.periodLabel || `${(clock?.periodIndex ?? 0) + 1}${getOrdinalSuffix((clock?.periodIndex ?? 0) + 1)} Period`;
+        const currentPeriodLabel = game.liveState?.periodLabel || getPeriodLabel(clock?.periodIndex ?? 0, 'Period');
 
         await store.updateGameClock(game.id, action);
         
+        // Fetch updated game state from store (it should have been updated optimistically)
+        const updatedGame = store.getGame(game.id);
+        const updatedPeriodLabel = updatedGame?.liveState?.periodLabel || currentPeriodLabel;
+
         // Record event if type provided
         if (eventType) {
             store.addGameEvent({
@@ -86,7 +94,7 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                 type: eventType,
                 eventData: { 
                     action, 
-                    period: currentPeriodLabel,
+                    period: updatedPeriodLabel,
                     elapsedMS: actionElapsedMS
                 }
             });
@@ -96,13 +104,7 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
         setTimeout(() => setIsDebouncing(false), 1000);
     };
 
-    function getOrdinalSuffix(i: number) {
-        const j = i % 10, k = i % 100;
-        if (j === 1 && k !== 11) return "st";
-        if (j === 2 && k !== 12) return "nd";
-        if (j === 3 && k !== 13) return "rd";
-        return "th";
-    }
+    // getOrdinalSuffix removed as it is now in shared gameUtils
 
     return (
         <>

@@ -46,7 +46,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
     const getTeamInfo = (event: GameEvent) => {
         // For now, these system/timer events aren't team-specific.
         // We might later add actorTeamId to GameEvent.
-        return { name: 'System', color: 'bg-muted-foreground/30', label: 'SYS' };
+        return { name: 'Timing', color: 'bg-muted-foreground/30', label: 'TIM' };
     };
 
     return (
@@ -64,19 +64,25 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                     ) : (
                         events.map(evt => {
                             const team = getTeamInfo(evt);
-                            const displayTime = evt.eventData?.elapsedMS !== undefined 
+                            const matchTime = evt.eventData?.elapsedMS !== undefined 
                                 ? formatMatchTime(evt.eventData.elapsedMS)
-                                : new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                : null;
+                            const actualTime = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                             
                             return (
                                 <div key={evt.id} className="text-sm flex gap-4 items-center p-3 bg-card border border-border/40 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5">
                                     <div className="flex flex-col items-center w-12 shrink-0">
-                                        <span className="font-mono text-muted-foreground text-[10px] font-bold leading-none mb-1">
-                                            {displayTime}
+                                        <span className="font-mono text-muted-foreground text-[10px] font-bold leading-none mb-1 text-center">
+                                            {matchTime || actualTime}
                                         </span>
                                         {evt.eventData?.period && (
                                             <span className="text-[7px] font-black text-primary/60 uppercase leading-none truncate w-full text-center">
                                                 {evt.eventData.period}
+                                            </span>
+                                        )}
+                                        {matchTime && (
+                                            <span className="text-[8px] font-medium text-muted-foreground/50 leading-none mt-1 text-center">
+                                                {actualTime}
                                             </span>
                                         )}
                                     </div>
