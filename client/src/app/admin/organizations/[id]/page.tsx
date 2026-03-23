@@ -23,6 +23,7 @@ import { ReportDialog } from "@/components/ui/ReportDialog";
 import { Button } from "@/components/ui/button";
 import { OrgNominationSection } from "@/components/admin/organizations/OrgNominationSection";
 import { useOrganization } from "@/hooks/useOrganization";
+import { BackLink } from "@/components/ui/BackLink";
 
 export default function OrganizationDetailsPage() {
   const params = useParams();
@@ -164,13 +165,9 @@ export default function OrganizationDetailsPage() {
   return (
     <div className="space-y-8">
       {isAppAdmin && (
-        <Link 
-          href="/admin/all-organizations" 
-          className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors mb-2 group"
-        >
-          <ChevronLeft className="h-4 w-4 mr-1 transition-transform group-hover:-translate-x-1" />
+        <BackLink href="/admin/all-organizations" variant="default" className="mb-2">
           Back to All Organizations
-        </Link>
+        </BackLink>
       )}
       <PageHeader
         title="Organization Dashboard"

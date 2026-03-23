@@ -109,9 +109,17 @@ export function EventList({ orgId, teamId }: EventListProps) {
         const eventDate = rawStr ? (() => {
             // Priority: use specific game's startTime day if available
             const games = store.getGames().filter(g => g.eventId === e.id);
-            const mainGameWithTime = games.find(g => g.startTime);
+            const mainGameWithTime = games.find(g => g.scheduledStartTime || g.startTime);
             
-            const sourceStr = mainGameWithTime?.startTime || rawStr;
+            let sourceStr = mainGameWithTime?.scheduledStartTime || mainGameWithTime?.startTime || rawStr;
+            
+            // For SingleMatch, combine event date and game time
+            if (e.type === 'SingleMatch' && rawStr && (mainGameWithTime?.scheduledStartTime || mainGameWithTime?.startTime)) {
+                const datePart = rawStr.split('T')[0];
+                const timePart = (mainGameWithTime?.scheduledStartTime || mainGameWithTime?.startTime || "").split('T')[1] || '00:00:00';
+                sourceStr = `${datePart}T${timePart}`;
+            }
+
             const dStr = sourceStr.split('T')[0];
             const components = dStr.split('-').map(Number);
             if (components.length !== 3 || components.some(isNaN)) return null;
@@ -152,7 +160,18 @@ export function EventList({ orgId, teamId }: EventListProps) {
         const getStartTime = (event: Event) => {
             const games = store.getGames().filter(g => g.eventId === event.id);
             if (games.length === 0) return "23:59";
-            return games.sort((g1, g2) => (g1.startTime || "23:59").localeCompare(g2.startTime || "23:59"))[0].startTime || "23:59";
+            const mainGameWithTime = games.sort((g1, g2) => (g1.scheduledStartTime || g1.startTime || "23:59").localeCompare(g2.scheduledStartTime || g2.startTime || "23:59"))[0];
+            
+            let timeSource = mainGameWithTime.scheduledStartTime || mainGameWithTime.startTime || "23:59";
+            const rawStr = event.startDate || event.date;
+            
+            if (event.type === 'SingleMatch' && rawStr && (mainGameWithTime.scheduledStartTime || mainGameWithTime.startTime)) {
+                const datePart = rawStr.split('T')[0];
+                const timePart = (mainGameWithTime.scheduledStartTime || mainGameWithTime.startTime || "").split('T')[1] || '00:00:00';
+                timeSource = `${datePart}T${timePart}`;
+            }
+            
+            return timeSource;
         };
 
         const timeA = getStartTime(a);
@@ -381,8 +400,19 @@ export function EventList({ orgId, teamId }: EventListProps) {
             }
             
             relevantGames = relevantGames.sort((a, b) => {
-                const dateA = a.startTime || event.startDate || "";
-                const dateB = b.startTime || event.startDate || "";
+                let dateA = a.scheduledStartTime || a.startTime || event.startDate || "";
+                let dateB = b.scheduledStartTime || b.startTime || event.startDate || "";
+                
+                if (event.type === 'SingleMatch' && (event.startDate || event.date)) {
+                    const datePart = (event.startDate || event.date || "").split('T')[0];
+                    if (a.scheduledStartTime || a.startTime) {
+                        dateA = `${datePart}T${(a.scheduledStartTime || a.startTime || "").split('T')[1] || '00:00:00'}`;
+                    }
+                    if (b.scheduledStartTime || b.startTime) {
+                        dateB = `${datePart}T${(b.scheduledStartTime || b.startTime || "").split('T')[1] || '00:00:00'}`;
+                    }
+                }
+                
                 return dateA.localeCompare(dateB);
             });
 

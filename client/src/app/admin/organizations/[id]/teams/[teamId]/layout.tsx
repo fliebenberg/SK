@@ -4,34 +4,21 @@ import { store } from "@/app/store/store";
 import { MetalButton } from "@/components/ui/MetalButton";
 import Link from "next/link";
 import { ChevronLeft, Trophy } from "lucide-react";
+import { BackLink } from "@/components/ui/BackLink";
 import { cn } from "@/lib/utils";
 import { AdminTabs } from "@/components/admin/AdminTabs";
 import { useParams } from "next/navigation";
-import { useState, useEffect } from "react";
 import { Team } from "@sk/types";
+import { useTeam } from "@/hooks/useEntity";
 
 export default function TeamLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const id = params.id as string;
   const teamId = params.teamId as string;
   
-  const [team, setTeam] = useState<Team | undefined>(undefined);
-  const [loading, setLoading] = useState(true);
+  const { team, isLoading } = useTeam(teamId);
 
-  useEffect(() => {
-    const update = () => {
-        const t = store.getTeam(teamId);
-        setTeam(t); // Always update state
-        if (store.isLoaded() || t) {
-             setLoading(false);
-        }
-    };
-    update();
-    const unsubscribe = store.subscribe(update);
-    return () => unsubscribe();
-  }, [teamId]);
-
-  if (loading) {
+  if (isLoading) {
       return (
         <div className="space-y-6">
             <div className="flex items-center gap-4 animate-pulse">
@@ -81,13 +68,9 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="space-y-1 md:space-y-6">
       <div className="flex flex-col gap-0.5">
-        <Link 
-          href={`/admin/organizations/${id}/teams`} 
-          className="inline-flex items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 hover:text-primary transition-colors w-fit group"
-        >
-          <ChevronLeft className="h-3 w-3 mr-0.5 group-hover:-translate-x-0.5 transition-transform" />
+        <BackLink href={`/admin/organizations/${id}/teams`} className="mb-0.5">
           Back to Teams
-        </Link>
+        </BackLink>
         <div className="flex items-center justify-between min-w-0 md:pt-1">
           <h1 className="text-xl md:text-3xl font-bold tracking-tight truncate leading-none py-1" style={{ fontFamily: 'var(--font-orbitron)' }}>
             {team.name}

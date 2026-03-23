@@ -112,7 +112,7 @@ export class OrganizationStore extends SubscriptionStore {
         return new Promise<Organization | null>((resolve) => {
             socket.emit('get_data', { type: 'organization', id }, (data: Organization) => {
                 if (data) {
-                    this.mergeOrganization(data);
+                    this.mergeOrganization(data, false);
                     this.notifyListeners();
                 }
                 resolve(data || null);
@@ -178,7 +178,7 @@ export class OrganizationStore extends SubscriptionStore {
     getOrganization = (id?: string) => id ? this.organizations.find(o => o.id === id) : this.organizations[0];
 
     // --- Helpers ---
-    protected mergeOrganization(org: Organization) {
+    protected mergeOrganization(org: Organization, notify = true) {
         const index = this.organizations.findIndex(o => o.id === org.id);
         if (index > -1) this.organizations[index] = { ...this.organizations[index], ...org };
         else this.organizations.push(org);
@@ -189,7 +189,7 @@ export class OrganizationStore extends SubscriptionStore {
             this.localOrganizationCache.unshift(org);
             if (this.localOrganizationCache.length > this.MAX_LOCAL_ORGS) this.localOrganizationCache.pop();
         }
-        this.notifyListeners();
+        if (notify) this.notifyListeners();
     }
 
     // --- Search ---
@@ -296,10 +296,10 @@ export class OrganizationStore extends SubscriptionStore {
         return Promise.reject(new Error('Membership not found'));
     };
 
-    protected mergeOrgMembership(membership: OrgMembership) {
+    protected mergeOrgMembership(membership: OrgMembership, notify = true) {
         const index = this.organizationMemberships.findIndex(m => m.id === membership.id);
         if (index > -1) this.organizationMemberships[index] = { ...this.organizationMemberships[index], ...membership };
         else this.organizationMemberships.push(membership);
-        this.notifyListeners();
+        if (notify) this.notifyListeners();
     }
 }

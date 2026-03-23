@@ -28,9 +28,48 @@ export class StateStore extends BaseStore {
     protected localOrganizationCache: Organization[] = [];
     protected readonly MAX_LOCAL_ORGS = 1000;
 
-    // Track explicitly missing entities (e.g. 404s)
-    missingOrganizations: Set<string> = new Set();
-    isOrganizationMissing = (id: string) => this.missingOrganizations.has(id);
+    // Track explicitly missing entities (e.g. 404s) by type
+    missingEntities: Record<string, Set<string>> = {
+        organization: new Set(),
+        team: new Set(),
+        event: new Set(),
+        game: new Set(),
+        site: new Set(),
+        facility: new Set()
+    };
+
+    isMissing = (type: string, id: string) => this.missingEntities[type]?.has(id) || false;
+    
+    // Legacy helper for organization
+    isOrganizationMissing = (id: string) => this.isMissing('organization', id);
+    isTeamMissing = (id: string) => this.isMissing('team', id);
+    isEventMissing = (id: string) => this.isMissing('event', id);
+
+    clear = () => {
+        this.sports = [];
+        this.teamRoles = [];
+        this.organizationRoles = [];
+        this.organizations = [];
+        this.sites = [];
+        this.facilities = [];
+        this.teams = [];
+        this.orgProfiles = [];
+        this.teamMemberships = [];
+        this.organizationMemberships = [];
+        this.events = [];
+        this.games = [];
+        this.scoreLogs = [];
+        this.userOrgMemberships = [];
+        this.userTeamMemberships = [];
+        this.notifications = [];
+        this.unreadCount = 0;
+        this.orgReferrals = [];
+        this.totalOrganizations = 0;
+        this.reports = [];
+        this.loaded = false;
+        Object.keys(this.missingEntities).forEach(type => this.missingEntities[type].clear());
+        this.notifyListeners();
+    };
 
     getSports = () => this.sports;
     getSport = (id: string) => this.sports.find(s => s.id === id);

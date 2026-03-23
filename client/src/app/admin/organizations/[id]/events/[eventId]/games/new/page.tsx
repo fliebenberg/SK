@@ -8,6 +8,7 @@ import { Event } from "@sk/types";
 import { useOrganization } from "@/hooks/useOrganization";
 import { MatchForm, MatchFormData as FormDataType } from "@/components/admin/games/MatchForm";
 import { Button } from "@/components/ui/button";
+import { MetalButton } from "@/components/ui/MetalButton";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { MetalCard } from "@/components/ui/metal-card";
 import { toast } from "@/hooks/use-toast";
@@ -19,7 +20,8 @@ export default function NewGamePage() {
   const eventId = params.eventId as string;
 
   const { org, isLoading: orgLoading } = useOrganization(orgId);
-  const [event, setEvent] = useState<Event | null>(null);
+  const [event, setEvent] = useState<Event | null>(() => store.getEvent(eventId) || null);
+  const [eventNotFound, setEventNotFound] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState<FormDataType | null>(null);
 
@@ -28,14 +30,24 @@ export default function NewGamePage() {
     if (!event) {
         const e = store.getEvent(eventId);
         if (e) setEvent(e);
-        else {
+        else if (store.isLoaded()) {
+             // Basic timeout for 404
+             const timer = setTimeout(() => {
+                 if (!store.getEvent(eventId)) setEventNotFound(true);
+             }, 3000);
+             
              store.fetchEvent(eventId);
-             // Subscribe effectively
              const unsub = store.subscribe(() => {
                  const updated = store.getEvent(eventId);
-                 if (updated) setEvent(updated);
+                 if (updated) {
+                     setEvent(updated);
+                     clearTimeout(timer);
+                 }
              });
-             return unsub;
+             return () => {
+                 unsub();
+                 clearTimeout(timer);
+             };
         }
     }
   }, [eventId, event]);
@@ -101,7 +113,25 @@ export default function NewGamePage() {
 
   if (!org) return null;
 
-  if (!event) return <div className="p-8 text-center font-orbitron">Loading event details...</div>;
+  if (!event) {
+      if (eventNotFound) {
+          return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+                <h2 className="text-2xl font-bold font-orbitron">Event Not Found</h2>
+                <p className="text-muted-foreground">The event you are looking for does not exist or has been removed.</p>
+                <MetalButton onClick={() => router.push(`/admin/organizations/${orgId}/events`)}>
+                    Back to Events
+                </MetalButton>
+            </div>
+          );
+      }
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="mt-4 text-muted-foreground font-orbitron">Loading event details...</p>
+        </div>
+      );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20">

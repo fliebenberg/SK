@@ -32,6 +32,11 @@ class Store extends UserStore {
             this.activeFacilitySubscriptions.forEach(id => socket.emit('join_room', `facility:${id}`));
             this.activeGameSubscriptions.forEach(id => socket.emit('join_room', `game:${id}`));
             
+            // Reset missing entities on reconnect to allow retries
+            Object.keys(this.missingEntities).forEach(type => {
+                this.missingEntities[type].clear();
+            });
+
             this.notifyListeners();
             this.fetchAllData();
         };
@@ -92,8 +97,12 @@ class Store extends UserStore {
             case 'ORGANIZATION_UPDATED': this.mergeOrganization(event.data as Organization); break;
             case 'USER_MEMBERSHIPS_UPDATED': if (this.currentUserId) this.fetchUserMemberships(this.currentUserId); break;
             case 'ENTITY_NOT_FOUND':
-                if (event.data && event.data.type === 'organization') {
-                    this.missingOrganizations.add(event.data.id);
+                if (event.data && event.data.type && event.data.id) {
+                    const type = event.data.type;
+                    if (!this.missingEntities[type]) {
+                        this.missingEntities[type] = new Set();
+                    }
+                    this.missingEntities[type].add(event.data.id);
                 }
                 break;
             

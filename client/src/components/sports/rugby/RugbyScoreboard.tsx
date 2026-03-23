@@ -4,6 +4,7 @@ import { store } from '@/app/store/store';
 import { OrgLogo } from '@/components/ui/OrgLogo';
 import { cn } from '@/lib/utils';
 import { useGameTimer } from '@/hooks/useGameTimer';
+import { getPeriodLabel } from '@sk/types';
 
 export default function RugbyScoreboard({ game }: { game: Game }) {
     const { formattedTime } = useGameTimer(game.liveState?.clock);
@@ -38,7 +39,7 @@ export default function RugbyScoreboard({ game }: { game: Game }) {
                             <span className="text-[8px] sm:text-[10px] font-black text-muted-foreground dark:text-muted-foreground/70 uppercase tracking-[0.1em] leading-tight mb-0.5 line-clamp-2">
                                 {homeOrg?.name || "Home Organization"}
                             </span>
-                            <span className="text-sm sm:text-4xl font-black text-foreground uppercase tracking-tighter leading-none truncate max-w-[120px] sm:max-w-[320px]">
+                            <span className="text-sm sm:text-4xl font-black text-foreground uppercase tracking-tighter leading-tight line-clamp-2">
                                 {homeTeam?.name || "Home"}
                             </span>
                         </div>
@@ -50,7 +51,7 @@ export default function RugbyScoreboard({ game }: { game: Game }) {
                             <span className="text-[8px] sm:text-[10px] font-black text-muted-foreground dark:text-muted-foreground/70 uppercase tracking-[0.1em] leading-tight mb-0.5 line-clamp-2">
                                 {awayOrg?.name || "Away Organization"}
                             </span>
-                            <span className="text-sm sm:text-4xl font-black text-foreground uppercase tracking-tighter leading-none truncate max-w-[120px] sm:max-w-[320px]">
+                            <span className="text-sm sm:text-4xl font-black text-foreground uppercase tracking-tighter leading-tight line-clamp-2">
                                 {awayTeam?.name || "Away"}
                             </span>
                         </div>
@@ -79,7 +80,7 @@ export default function RugbyScoreboard({ game }: { game: Game }) {
                         {!isScheduled && (
                             <div className="px-3 py-1 bg-muted/50 dark:bg-slate-800/80 border border-border dark:border-slate-700/50 rounded-full backdrop-blur-md shadow-sm">
                                 <span className="text-[8px] sm:text-[10px] font-black text-muted-foreground dark:text-slate-300 uppercase tracking-widest whitespace-nowrap">
-                                    {game.liveState?.periodLabel || "1st Half"}
+                                    {game.liveState?.periodLabel || getPeriodLabel(game.liveState?.clock?.periodIndex ?? 0, 'Period')}
                                 </span>
                             </div>
                         )}

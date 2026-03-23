@@ -6,15 +6,17 @@ import { useRouter, useParams } from "next/navigation";
 import { store } from "@/app/store/store";
 import { Event, Game } from "@sk/types"; 
 import { useOrganization } from "@/hooks/useOrganization";
+import { useGame, useEvent } from "@/hooks/useEntity";
 import { MatchForm, MatchFormData as FormDataType } from "@/components/admin/games/MatchForm";
 import { Button } from "@/components/ui/button";
 import { MetalButton } from "@/components/ui/MetalButton";
-import { ArrowLeft, Loader2, Trash2, AlertTriangle, Ban } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, AlertTriangle, Ban, Calendar, MapPin } from "lucide-react";
 import { MetalCard } from "@/components/ui/metal-card";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 export default function EditGamePage() {
   const router = useRouter();
@@ -27,13 +29,23 @@ export default function EditGamePage() {
   const { metalVariant } = useThemeColors();
 
   const { org, isLoading: orgLoading } = useOrganization(orgId);
-  const [event, setEvent] = useState<Event | null>(null);
-  const [game, setGame] = useState<Game | null>(null);
+  const { event: hookedEvent, isLoading: eventLoading, isNotFound: eventNotFound } = useEvent(eventId, { redirectOnNotFound: false });
+  const { game: hookedGame, isLoading: gameLoading, isNotFound: gameNotFound } = useGame(gameId, { redirectOnNotFound: false });
+
+  const [event, setEvent] = useState<Event | null>(() => store.getEvent(eventId) || null);
+  const [game, setGame] = useState<Game | null>(() => store.getGame(gameId) || null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState<FormDataType | null>(null);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
   const [confirmCancel, setConfirmCancel] = useState({ isOpen: false });
 
+  useEffect(() => {
+      if (hookedEvent) setEvent(hookedEvent);
+  }, [hookedEvent]);
+
+  useEffect(() => {
+      if (hookedGame) setGame(hookedGame);
+  }, [hookedGame]);
 
   // Safety check: ensure game matches event
   useEffect(() => {
@@ -42,45 +54,27 @@ export default function EditGamePage() {
      }
   }, [game, eventId]);
 
-  const update = () => {
-    const e = store.getEvent(eventId);
-    if (e) setEvent(e);
-    
-    const g = store.getGame(gameId);
-    if (g) setGame(g);
-  };
-
-  useEffect(() => {
-    if (!event || !game) {
-         store.fetchEvent(eventId);
-    }
-    
-    // Subscribe
-    const unsub = store.subscribe(update);
-    update(); // Initial check
-    return unsub;
-  }, [eventId, gameId]);
+  const loading = orgLoading || eventLoading || gameLoading;
 
   const hasChanges = React.useMemo(() => {
     if (!game || !formData || !event) return false;
     const p1 = game.participants?.[0]?.teamId || "";
     const p2 = game.participants?.[1]?.teamId || "";
-    const gTime = game.startTime ? format(new Date(game.startTime), "HH:mm") : "09:00";
-    const gDate = game.startTime ? format(new Date(game.startTime), "yyyy-MM-dd") : format(new Date(event.startDate || event.date || ""), "yyyy-MM-dd");
-    const gIsTbd = !game.startTime;
-
-    const targetDate = (event.startDate || event.date || "").split('T')[0];
+    const displayTimeStr = game.scheduledStartTime || game.startTime;
+    const gTime = displayTimeStr ? format(new Date(displayTimeStr), "HH:mm") : "09:00";
+    const gIsTbd = !game.scheduledStartTime && !game.startTime;
 
     return (
         p1 !== formData.homeTeamId ||
         p2 !== formData.awayTeamId ||
         gTime !== formData.startTime ||
-        gDate !== targetDate ||
         gIsTbd !== formData.isTbd ||
         (game.siteId || "") !== (formData.siteId || "") ||
         (game.facilityId || "") !== (formData.facilityId || "")
     );
   }, [game, formData, event]);
+
+  useUnsavedChanges(hasChanges);
 
   const handleSubmit = async () => {
     if (!event || !game || !formData || !formData.homeTeamId || !formData.awayTeamId) return;
@@ -90,17 +84,24 @@ export default function EditGamePage() {
         const dateBase = (event.startDate || event.date || "").split('T')[0];
         const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
 
-        await store.updateGame(game.id, {
+        const gamePayload = {
             participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
-            startTime: formData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
+            scheduledStartTime: formData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
             siteId: formData.siteId,
             facilityId: formData.facilityId
-        });
+        };
+
+        // If it's still Scheduled, also update startTime (as fallback/legacy)
+        if (game.status === 'Scheduled') {
+          (gamePayload as any).startTime = gamePayload.scheduledStartTime;
+        }
+
+        await store.updateGame(game.id, gamePayload);
 
         // Handle Referrals
         if (formData.referrals && user?.id) {
             for (const [orgId, emails] of Object.entries(formData.referrals)) {
-                const validEmails = emails.map(e => e.trim()).filter(e => e && e.includes('@'));
+                const validEmails = (emails as string[]).map(e => e.trim()).filter(e => e && e.includes('@'));
                 if (validEmails.length > 0) {
                     try {
                         await store.referOrgContact(orgId, validEmails, user.id);
@@ -175,7 +176,7 @@ export default function EditGamePage() {
     }
   };
 
-  if (orgLoading && !org) {
+  if (loading && (!org || (!event && !hookedEvent && !eventNotFound) || (!game && !hookedGame && !gameNotFound))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -186,7 +187,20 @@ export default function EditGamePage() {
 
   if (!org) return null;
 
-  if (!event || !game) return <div className="p-8 text-center font-orbitron">Loading match info...</div>;
+  if (!event || !game) {
+      if (eventNotFound || gameNotFound) {
+          return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+                <h2 className="text-2xl font-bold font-orbitron">Match Not Found</h2>
+                <p className="text-muted-foreground">The match or event you are looking for does not exist or has been removed.</p>
+                <MetalButton onClick={() => router.push(`/admin/organizations/${orgId}/events`)}>
+                    Back to Events
+                </MetalButton>
+            </div>
+          );
+      }
+      return null;
+  }
 
   const getMatchName = () => {
       if (!game) return "Edit Game";
@@ -216,8 +230,41 @@ export default function EditGamePage() {
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div>
-                        <h1 className="text-xl font-black uppercase tracking-tight">{getMatchName()}</h1>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{event.name}</p>
+                        <h1 className="text-xl font-black uppercase tracking-tight leading-tight">{getMatchName()}</h1>
+                        <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
+                            {(() => {
+                                const status = game.status || 'Scheduled';
+                                
+                                // Always show scheduled time
+                                const dateSource = game.scheduledStartTime || game.startTime || event.startDate || event.date || "";
+
+                                if (!dateSource) return null;
+                                const dateObj = new Date(dateSource);
+                                if (isNaN(dateObj.getTime())) return null;
+
+                                return <div className="flex items-center gap-3">
+                                    <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-black tracking-tighter ${
+                                        status === 'Live' ? 'bg-red-500 text-white animate-pulse' :
+                                        status === 'Finished' ? 'bg-secondary text-secondary-foreground' :
+                                        'bg-primary/10 text-primary'
+                                    }`}>
+                                        {status}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3"/> 
+                                        {format(dateObj, "EEE, d MMM yyyy")}
+                                        {(game.scheduledStartTime || game.startTime) && <span className="ml-1 opacity-60">@ {format(dateObj, "HH:mm")}</span>}
+                                    </span>
+                                </div>
+                            })()}
+                            {(() => {
+                                const site = game.siteId ? store.getSite(game.siteId) : store.getSite(event.siteId || "");
+                                const facility = game.facilityId ? store.getFacility(game.facilityId) : null;
+                                const locString = [site?.name, facility?.name].filter(Boolean).join(" - ");
+                                if (!locString) return null;
+                                return <span className="flex items-center gap-1"><MapPin className="w-3 h-3"/> {locString}</span>
+                            })()}
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -241,8 +288,8 @@ export default function EditGamePage() {
                 event={event}
                 isSportsDay={event.type === 'SportsDay'}
                 initialData={game ? {
-                    startTime: game.startTime,
-                    isTbd: !game.startTime,
+                    startTime: game.scheduledStartTime || game.startTime,
+                    isTbd: !game.scheduledStartTime && !game.startTime,
                     siteId: game.siteId || "",
                     facilityId: game.facilityId || "",
                     homeTeamId: game.participants?.[0]?.teamId || "",
@@ -252,18 +299,20 @@ export default function EditGamePage() {
                 onChange={setFormData}
             />
 
-            <div className="flex justify-end gap-3 pt-6 border-t border-border/10">
-                <Button variant="ghost" onClick={() => router.back()}>
-                    Cancel
-                </Button>
-                <Button 
-                    onClick={handleSubmit}
-                    disabled={isProcessing || !formData?.homeTeamId || !formData?.awayTeamId || !hasChanges}
-                >
-                    {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Changes
-                </Button>
-            </div>
+            {hasChanges && (
+                <div className="flex justify-end gap-3 pt-6 border-t border-border/10">
+                    <Button variant="ghost" onClick={() => router.back()}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleSubmit}
+                        disabled={isProcessing || !formData?.homeTeamId || !formData?.awayTeamId}
+                    >
+                        {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Changes
+                    </Button>
+                </div>
+            )}
 
             {/* Danger Zone */}
             <section className="mt-12 pt-12 border-t border-destructive/10 space-y-6">

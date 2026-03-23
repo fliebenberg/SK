@@ -51,12 +51,12 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
 
     return (
         <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2 sm:mb-4">
                 <h3 className="font-black text-sm text-muted-foreground uppercase tracking-[0.2em]">Play-by-Play</h3>
                 <div className="h-1 flex-1 bg-border/30 ml-4 rounded-full"></div>
             </div>
-            <div className="flex-1 bg-sunken-bg/50 border border-border/30 rounded-2xl p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
-                <div className="flex flex-col gap-3">
+            <div className="flex-1 bg-sunken-bg/50 border border-border/30 rounded-2xl p-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                <div className="flex flex-col gap-1">
                     {events.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/40">
                              <span className="text-[10px] font-black uppercase tracking-widest italic">Waiting for kickoff...</span>
@@ -67,11 +67,11 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                             const matchTime = evt.eventData?.elapsedMS !== undefined 
                                 ? formatMatchTime(evt.eventData.elapsedMS)
                                 : null;
-                            const actualTime = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            const actualTime = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
                             
                             return (
-                                <div key={evt.id} className="text-sm flex gap-4 items-center p-3 bg-card border border-border/40 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5">
-                                    <div className="flex flex-col items-center w-12 shrink-0">
+                                <div key={evt.id} className="text-sm flex gap-2 sm:gap-4 items-center p-1.5 bg-card border border-border/40 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5">
+                                    <div className="flex flex-col items-center w-10 sm:w-12 shrink-0">
                                         <span className="font-mono text-muted-foreground text-[10px] font-bold leading-none mb-1 text-center">
                                             {matchTime || actualTime}
                                         </span>

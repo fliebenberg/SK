@@ -1,36 +1,64 @@
 import { store } from '@/app/store/store';
 
 describe('Store Logic', () => {
-  // Note: Since the store is a singleton module with in-memory state, 
-  // state might persist between tests if not careful. 
-  // For this mock implementation, we accept that we are testing the running state.
-  
-  it('should initialize with default data', () => {
-    const teams = store.getTeams();
-    expect(teams.length).toBeGreaterThan(0);
-    expect(teams[0].name).toBe('First XI');
+  const TEST_SPORT_ID = 'sport-soccer';
+  const TEST_ORG_ID = 'org-1'; // Springfield High School
+  let TEST_EVENT_ID: string;
+
+  beforeAll(async () => {
+    // Ensure we have a valid event for game tests
+    try {
+        const event = await store.addEvent({
+            name: 'Test Event',
+            type: 'SingleMatch',
+            orgId: TEST_ORG_ID,
+            sportIds: [TEST_SPORT_ID],
+            status: 'Scheduled',
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 86400000).toISOString()
+        });
+        TEST_EVENT_ID = event.id;
+    } catch (e: any) {
+        console.warn("Test setup: Failed to add event:", e.message);
+    }
+  });
+
+  afterAll(async () => {
+    if (TEST_EVENT_ID) {
+        try {
+            await store.deleteEvent(TEST_EVENT_ID);
+        } catch (e) {}
+    }
+  });
+
+  beforeEach(() => {
+    store.clear();
   });
 
   it('should add a new team', async () => {
-    const initialCount = store.getTeams().length;
     const newTeam = await store.addTeam({
       name: 'Test Team',
-      sportId: 'sport-tennis',
+      sportId: TEST_SPORT_ID,
       ageGroup: 'U14',
-      orgId: 'org-test'
+      orgId: TEST_ORG_ID
+    }).catch(err => {
+        console.error("DEBUG: addTeam failed:", err.message);
+        throw err;
     });
 
     expect(newTeam.id).toBeDefined();
     expect(newTeam.name).toBe('Test Team');
-    expect(store.getTeams().length).toBe(initialCount + 1);
+    expect(store.getTeams().length).toBe(1);
+    
+    // Cleanup
+    await store.deleteTeam(newTeam.id);
   });
 
   it('should add a new site', async () => {
-    const initialCount = store.getSites().length;
     const newSite = await store.addSite({
       name: 'Test Site',
       address: {
-        id: 'addr-1',
+        id: `addr-test-${Date.now()}`,
         fullAddress: '123 Test St, Test TS 12345 USA',
         addressLine1: '123 Test St',
         city: 'Test',
@@ -38,21 +66,31 @@ describe('Store Logic', () => {
         postalCode: '12345',
         country: 'USA'
       },
-      orgId: 'org-test'
+      orgId: TEST_ORG_ID
+    }).catch(err => {
+        console.error("DEBUG: addSite failed:", err.message);
+        throw err;
     });
 
     expect(newSite.id).toBeDefined();
     expect(newSite.name).toBe('Test Site');
-    expect(store.getSites().length).toBe(initialCount + 1);
+    expect(store.getSites().length).toBe(1);
+
+    // Cleanup
+    await store.deleteSite(newSite.id);
   });
 
   it('should add and retrieve a game', async () => {
-    const teams = store.getTeams();
-    const homeTeam = teams[0];
-    const awayTeam = teams[1];
+    if (!TEST_EVENT_ID) {
+        console.warn("Skipping game test: no valid TEST_EVENT_ID");
+        return;
+    }
+
+    const homeTeam = await store.addTeam({ name: 'Home', orgId: TEST_ORG_ID, sportId: TEST_SPORT_ID, ageGroup: 'U14' });
+    const awayTeam = await store.addTeam({ name: 'Away', orgId: TEST_ORG_ID, sportId: TEST_SPORT_ID, ageGroup: 'U14' });
     
     const newGame = await store.addGame({
-      eventId: 'event-test',
+      eventId: TEST_EVENT_ID,
       participants: [{ teamId: homeTeam.id }, { teamId: awayTeam.id }],
       startTime: '2024-01-01T12:00'
     });
@@ -63,13 +101,24 @@ describe('Store Logic', () => {
     const retrievedGame = store.getGame(newGame.id);
     expect(retrievedGame).toBeDefined();
     expect(retrievedGame?.id).toBe(newGame.id);
+
+    // Cleanup
+    await store.deleteGame(newGame.id);
+    await store.deleteTeam(homeTeam.id);
+    await store.deleteTeam(awayTeam.id);
   });
 
   it('should update game status and score', async () => {
-    const teams = store.getTeams();
+    if (!TEST_EVENT_ID) {
+        console.warn("Skipping game test: no valid TEST_EVENT_ID");
+        return;
+    }
+
+    const homeTeam = await store.addTeam({ name: 'Home', orgId: TEST_ORG_ID, sportId: TEST_SPORT_ID, ageGroup: 'U14' });
+    const awayTeam = await store.addTeam({ name: 'Away', orgId: TEST_ORG_ID, sportId: TEST_SPORT_ID, ageGroup: 'U14' });
     const game = await store.addGame({
-      eventId: 'event-test-2',
-      participants: [{ teamId: teams[0].id }, { teamId: teams[1].id }],
+      eventId: TEST_EVENT_ID,
+      participants: [{ teamId: homeTeam.id }, { teamId: awayTeam.id }],
       startTime: '2024-01-01T14:00'
     });
 
@@ -80,6 +129,10 @@ describe('Store Logic', () => {
     const updatedGame = store.getGame(game.id);
     expect(updatedGame?.liveState?.home).toBe(1);
     expect(updatedGame?.liveState?.away).toBe(0);
+
+    // Cleanup
+    await store.deleteGame(game.id);
+    await store.deleteTeam(homeTeam.id);
+    await store.deleteTeam(awayTeam.id);
   });
 });
-

@@ -40,7 +40,7 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
                         </div>
                         <div className="flex flex-col">
                             <span className="text-[8px] font-bold text-blue-500/60 uppercase leading-none">{homeOrg?.name || "Home Org"}</span>
-                            <span className="text-[10px] font-black uppercase tracking-tight text-blue-600 truncate max-w-[100px] sm:max-w-full">
+                            <span className="text-[10px] font-black uppercase tracking-tight text-blue-600 line-clamp-2 leading-tight">
                                 {homeTeam?.name || "Home Team"}
                             </span>
                         </div>
@@ -73,7 +73,7 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
                         </div>
                         <div className="flex flex-col items-end">
                             <span className="text-[8px] font-bold text-red-500/60 uppercase leading-none">{awayOrg?.name || "Away Org"}</span>
-                            <span className="text-[10px] font-black uppercase tracking-tight text-red-600 truncate max-w-[100px] sm:max-w-full">
+                            <span className="text-[10px] font-black uppercase tracking-tight text-red-600 line-clamp-2 leading-tight">
                                 {awayTeam?.name || "Away Team"}
                             </span>
                         </div>

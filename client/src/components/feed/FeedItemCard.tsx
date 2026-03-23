@@ -36,7 +36,7 @@ export const FeedItemCard = ({ item }: FeedItemCardProps) => {
                          Final Score
                      </div>
                  )}
-                <h4 className="font-semibold text-base truncate">
+                <h4 className="font-semibold text-base line-clamp-2 leading-tight">
                     {homeTeam?.name || 'Home'} vs {awayTeam?.name || 'Away'}
                 </h4>
                 <p className="text-sm text-muted-foreground truncate">{item.event?.name || 'Friendly Match'}</p>

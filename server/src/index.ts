@@ -82,7 +82,7 @@ io.on('connection', (socket) => {
                 callback(await dataManager.getSite(id));
                 break;
             case 'facilities':
-                callback(await dataManager.getFacilities(id)); // Assuming id is siteId
+                callback(await dataManager.getFacilities(id || request.siteId));
                 break;
             case 'facility':
                 callback(await dataManager.getFacility(id));

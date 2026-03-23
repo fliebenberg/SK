@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 interface SiteDetailsHeaderProps {
   site?: Site;
@@ -115,6 +116,8 @@ export function SiteDetailsHeader({ site, orgId, isCreating = false }: SiteDetai
           JSON.stringify(formData.address) !== JSON.stringify(site.address || { fullAddress: "" })
       );
   };
+
+  useUnsavedChanges(hasChanges());
 
   const handleSave = async () => {
     if (!formData.name.trim()) return;

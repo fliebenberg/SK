@@ -4,30 +4,17 @@ import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SiteDetailsHeader } from "@/components/admin/sites/SiteDetailsHeader";
 import { useOrganization } from "@/hooks/useOrganization";
-import { store } from "@/app/store/store";
-import { useState, useEffect } from "react";
-import { Site } from "@sk/types";
+import { useSite } from "@/hooks/useEntity";
 
 export default function SiteEditPage() {
   const params = useParams();
   const id = params.id as string;
   const siteId = params.siteId as string;
   
-  const { org, isLoading } = useOrganization(id, { subscribeData: true });
-  const [site, setSite] = useState<Site | undefined>(undefined);
+  const { org, isLoading: orgLoading } = useOrganization(id, { subscribeData: true });
+  const { site, isLoading: siteLoading } = useSite(siteId);
 
-  useEffect(() => {
-    const updateSite = () => {
-        setSite(store.getSite(siteId));
-    };
-
-    updateSite();
-    const unsubscribe = store.subscribe(updateSite);
-    
-    return () => {
-        unsubscribe();
-    };
-  }, [siteId]);
+  const isLoading = orgLoading || siteLoading;
 
   if (isLoading || !site) {
     return (

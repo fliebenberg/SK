@@ -99,6 +99,7 @@ export function MatchForm({
 
   const [searchedOrgs, setSearchedOrgs] = useState<Organization[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const lastFetchedOrgId = useRef<string | null>(null);
 
   const [referrals, setReferrals] = useState<Record<string, string[]>>({});
 
@@ -140,8 +141,12 @@ export function MatchForm({
       }
 
       const org = store.getOrganization(orgId);
-      if (org) setCurrentOrg(org);
-      else store.fetchOrganization(orgId);
+      if (org) {
+          setCurrentOrg(org);
+      } else if (orgId && lastFetchedOrgId.current !== orgId) {
+          store.fetchOrganization(orgId);
+          lastFetchedOrgId.current = orgId;
+      }
 
       if (gameSiteId && !gameSiteName) {
         const v = store.getSite(gameSiteId);

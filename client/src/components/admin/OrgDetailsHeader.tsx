@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { OrgLogo } from "@/components/ui/OrgLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 interface OrgDetailsHeaderProps {
   organization?: Organization;
@@ -135,6 +136,8 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
           JSON.stringify(formData.address) !== JSON.stringify(organization.address)
       );
   };
+
+  useUnsavedChanges(hasChanges());
 
   const handleSave = async () => {
     if (!formData.name.trim()) return;

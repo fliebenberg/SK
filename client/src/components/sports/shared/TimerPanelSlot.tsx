@@ -2,10 +2,8 @@ import React, { useState } from 'react';
 import { Game } from '@sk/types';
 import { store } from '@/app/store/store';
 import { MetalButton } from '@/components/ui/MetalButton';
-import { cn } from '@/lib/utils';
-import { Play, Pause, RotateCcw, Square, MoreHorizontal, XCircle } from 'lucide-react';
+import { Play, Pause, RotateCcw, Square, XCircle } from 'lucide-react';
 import { useGameTimer } from '@/hooks/useGameTimer';
-import { useAuth } from '@/contexts/AuthContext';
 import { getPeriodLabel } from '@sk/types';
 import {
     Dialog,
@@ -17,11 +15,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean }) {
-    const { user } = useAuth();
     const { 
-        formattedTime, 
-        formattedActualTime, 
-        formattedTotalDuration, 
         isRunning,
         currentMS
     } = useGameTimer(game.liveState?.clock, game.startTime, game.finishTime);
@@ -171,30 +165,6 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                 </div>
             )}
             
-            <div className="flex items-center gap-2">
-                {/* Timer Display */}
-                <div className="flex flex-col items-end mr-2">
-                     <span className="font-mono text-[10px] font-black text-muted-foreground/40 leading-none mb-0.5 uppercase">
-                        {game.status === 'Live' ? (isPeriodActive ? "Elapsed" : "Break") : game.status}
-                     </span>
-                     <div className="flex items-baseline gap-2">
-                        {game.status !== 'Scheduled' && (
-                            <div className="flex flex-col items-end leading-tight opacity-40 hover:opacity-100 transition-opacity">
-                                <span className="text-[7px] font-bold uppercase tracking-tighter">Act / Tot</span>
-                                <span className="text-[8px] font-mono font-bold tracking-tighter">
-                                    {formattedActualTime} / {formattedTotalDuration}
-                                </span>
-                            </div>
-                        )}
-                        <span className={cn(
-                            "font-mono text-xs font-bold leading-none",
-                            isRunning ? "text-primary dark:text-primary-foreground/90" : "text-muted-foreground"
-                        )}>
-                            {formattedTime}
-                        </span>
-                     </div>
-                </div>
-
                 {canEdit && (
                     <div className="flex items-center gap-2">
                         {/* RIGHT SIDE BUTTONS */}
@@ -258,7 +228,6 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                     </div>
                 )}
             </div>
-        </div>
 
         {/* Cancel Modal */}
         <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>

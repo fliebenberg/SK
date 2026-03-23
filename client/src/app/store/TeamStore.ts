@@ -28,10 +28,11 @@ export class TeamStore extends OrganizationStore {
     fetchTeam(id: string) {
         socket.emit('get_data', { type: 'team', id }, (data: Team) => {
             if (data) {
-                this.mergeTeam(data);
+                this.mergeTeam(data, false);
                 if (!this.getOrganization(data.orgId)) {
                     this.fetchOrganization(data.orgId);
                 }
+                this.notifyListeners();
             }
         });
     }
@@ -134,12 +135,12 @@ export class TeamStore extends OrganizationStore {
     getTeam = (id: string) => this.teams.find((t) => t.id === id);
 
     // --- Helpers ---
-    protected mergeTeam(team: Team) {
+    protected mergeTeam(team: Team, notify = true) {
         const index = this.teams.findIndex(t => t.id === team.id);
         if (index > -1) this.teams[index] = { ...this.teams[index], ...team };
         else this.teams.push(team);
         this.subscribeToTeamData(team.id);
-        this.notifyListeners();
+        if (notify) this.notifyListeners();
     }
 
     protected mergeTeamMembership(membership: TeamMembership) {

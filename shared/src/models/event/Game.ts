@@ -13,6 +13,7 @@ export interface Game {
   id: string;
   eventId: string;
   startTime?: string;
+  scheduledStartTime?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
   siteId?: string;
   facilityId?: string;

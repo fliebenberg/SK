@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { store } from "@/app/store/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Event, Game, Organization, Team, Sport, Address } from "@sk/types";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useEvent } from "@/hooks/useEntity";
 import { Button } from "@/components/ui/button";
 import { LayoutGrid, List, MapPin as MapPinIcon, Trophy, Trophy as TrophyIcon, X, Loader2, Check, Settings as SettingsIcon, ArrowLeft, Clock, MapPin, Calendar, ChevronLeft, Pencil, Search } from "lucide-react";
+import { BackLink } from "@/components/ui/BackLink";
 import { 
   Select, 
   SelectContent, 
@@ -33,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MatchForm, MatchFormData } from "@/components/admin/games/MatchForm";
 import { toast } from "@/hooks/use-toast";
 import { OrgCreationDialog } from "@/components/admin/organizations/OrgCreationDialog";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 
 export default function EventDetailsPage() {
   const params = useParams();
@@ -42,16 +45,13 @@ export default function EventDetailsPage() {
   const router = useRouter();
   const { metalVariant } = useThemeColors();
 
-  const { org, isLoading: orgLoading } = useOrganization(orgId, { subscribeData: true });
-  const [event, setEvent] = useState<Event | undefined>(() => store.getEvent(eventId));
-  const [games, setGames] = useState<Game[]>(() => store.getGames().filter(g => g.eventId === eventId));
-  const [siteName, setSiteName] = useState(() => {
-    const ev = store.getEvent(eventId);
-    if (ev?.siteId) {
-        return store.getSite(ev.siteId)?.name || "Unknown Site";
-    }
-    return "";
-  });
+  const { org, isLoading: orgLoading } = useOrganization(orgId);
+  const { event: hookedEvent, isLoading: eventLoading, isNotFound: eventNotFound } = useEvent(eventId, { redirectOnNotFound: false });
+  const [event, setEvent] = useState<Event | null>(() => store.getEvent(eventId) || null);
+  const lastFetchedSiteId = useRef<string | null>(null);
+
+  const [games, setGames] = useState<Game[]>([]);
+  const [siteName, setSiteName] = useState("");
   
   // Helper to resolve team names
   const [teamMap, setTeamMap] = useState<Record<string, string>>({});
@@ -81,7 +81,6 @@ export default function EventDetailsPage() {
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
   const [confirmCancel, setConfirmCancel] = useState({ isOpen: false });
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isEventLoading, setIsEventLoading] = useState(!store.getEvent(eventId));
 
   const [filterSportId, setFilterSportId] = useState<string>("all");
   const [filterSiteId, setFilterSiteId] = useState<string>("all");
@@ -96,14 +95,20 @@ export default function EventDetailsPage() {
       JSON.stringify([...selectedOrgIds].sort()) !== JSON.stringify([...(event.participatingOrgIds || [])].sort()) ||
       (event.type === 'SingleMatch' && matchFormData && (
           matchFormData.sportId !== (event.sportIds?.[0] || "") ||
-          matchFormData.startTime !== (games[0]?.startTime ? format(new Date(games[0].startTime), "HH:mm") : "09:00") ||
-          matchFormData.isTbd !== (!games[0]?.startTime) ||
-          (games[0]?.startTime && games[0].startTime.split('T')[0] !== editStartDate) ||
+          (() => {
+              const gameTime = games[0]?.scheduledStartTime || games[0]?.startTime;
+              const formattedTime = gameTime ? format(new Date(gameTime), "HH:mm") : "09:00";
+              return matchFormData.startTime !== formattedTime;
+          })() ||
+          matchFormData.isTbd !== (!games[0]?.scheduledStartTime && !games[0]?.startTime) ||
           matchFormData.homeTeamId !== (games[0]?.participants?.[0]?.teamId || "") ||
           matchFormData.awayTeamId !== (games[0]?.participants?.[1]?.teamId || "") ||
-          matchFormData.siteId !== (games[0]?.siteId || event.siteId || "")
+          matchFormData.siteId !== (games[0]?.siteId || event.siteId || "") ||
+          matchFormData.facilityId !== (games[0]?.facilityId || "")
       ))
   ) : false;
+
+  useUnsavedChanges(!!isDirty);
 
   const canDelete = event && (() => {
       const today = startOfDay(new Date());
@@ -114,37 +119,38 @@ export default function EventDetailsPage() {
   })();
 
   useEffect(() => {
-    const update = () => {
-        const ev = store.getEvent(eventId);
-        if (ev && JSON.stringify(ev) !== JSON.stringify(event)) {
-             setEvent(ev);
+    if (hookedEvent) {
+        if (JSON.stringify(hookedEvent) !== JSON.stringify(event)) {
+            setEvent(hookedEvent);
         }
         
-        if (ev) {
-            // Subscribe to real-time updates for this event and its site
-            store.subscribeToEvent(ev.id);
-            if (ev.siteId) store.subscribeToSite(ev.siteId);
-
-            const v = store.getSite(ev.siteId || "");
-            const newSiteName = v ? v.name : "Unknown Site";
-            if (newSiteName !== siteName) setSiteName(newSiteName);
-
-            if (!isInitialized) {
-                setEditName(ev.name);
-                // Robustly extract the YYYY-MM-DD part from ISO or simple strings
-                setEditStartDate((ev.startDate || ev.date || "").split('T')[0]);
-                setEditEndDate((ev.endDate || "").split('T')[0]);
-                setIsMultiDay(!!ev.endDate && ev.endDate.split('T')[0] !== (ev.startDate || ev.date || "").split('T')[0]);
-                setEditSiteId(ev.siteId || "default");
-                if (v) setEditSiteName(v.name);
-                setSelectedSportIds(ev.sportIds || []);
-                setSelectedOrgIds(ev.participatingOrgIds || []);
-
-                setIsInitialized(true);
+        if (hookedEvent.siteId) {
+            store.subscribeToSite(hookedEvent.siteId);
+            if (hookedEvent.siteId !== lastFetchedSiteId.current) {
+                store.fetchFacilitiesForSite(hookedEvent.siteId);
+                lastFetchedSiteId.current = hookedEvent.siteId;
             }
-            setIsEventLoading(false);
         }
 
+        const site = store.getSite(hookedEvent.siteId || "");
+        const newSiteName = site ? site.name : "Unknown Site";
+        if (newSiteName !== siteName) setSiteName(newSiteName);
+
+        if (!isInitialized) {
+            setEditName(hookedEvent.name);
+            setEditStartDate((hookedEvent.startDate || hookedEvent.date || "").split('T')[0]);
+            setEditEndDate((hookedEvent.endDate || "").split('T')[0]);
+            setIsMultiDay(!!hookedEvent.endDate && hookedEvent.endDate.split('T')[0] !== (hookedEvent.startDate || hookedEvent.date || "").split('T')[0]);
+            setEditSiteId(hookedEvent.siteId || "default");
+            if (site) setEditSiteName(site.name);
+            setSelectedSportIds(hookedEvent.sportIds || []);
+            setSelectedOrgIds(hookedEvent.participatingOrgIds || []);
+
+            setIsInitialized(true);
+        }
+    }
+
+    const update = () => {
         const newSites = store.getSites(orgId);
         if (JSON.stringify(newSites) !== JSON.stringify(sites)) setSites(newSites);
         
@@ -154,7 +160,7 @@ export default function EventDetailsPage() {
         const newOrgs = store.getOrganizations();
         if (JSON.stringify(newOrgs) !== JSON.stringify(allOrgs)) setAllOrgs(newOrgs);
 
-        const allGames = store.getGames(); // Get all to capture neutral games in event
+        const allGames = store.getGames(); 
         const eventGames = allGames.filter(g => g.eventId === eventId);
         if (JSON.stringify(eventGames) !== JSON.stringify(games)) setGames(eventGames);
 
@@ -169,22 +175,14 @@ export default function EventDetailsPage() {
     update();
     const unsub = store.subscribe(update);
 
-    // If event is not found, try fetching it (e.g. deep link to shared event)
-    if (!store.getEvent(eventId)) {
-        store.fetchEvent(eventId).finally(() => setIsEventLoading(false));
-    } else {
-        setIsEventLoading(false);
-    }
-
     return () => {
-        store.unsubscribe(update);
-        store.unsubscribeFromEvent(eventId);
+        unsub();
         if (event?.siteId) store.unsubscribeFromSite(event.siteId);
         if (event?.participatingOrgIds) {
              event.participatingOrgIds.forEach(id => store.unsubscribeFromOrganizationData(id));
         }
     };
-  }, [eventId, orgId, isInitialized, event, games]);
+  }, [eventId, orgId, isInitialized, event, games, allOrgs, allSports, sites, teamMap, siteName, hookedEvent]);
 
   // Separate effect to handle dynamic subscriptions to participating organizations
   useEffect(() => {
@@ -195,7 +193,7 @@ export default function EventDetailsPage() {
     }
   }, [event?.participatingOrgIds]);
 
-  if ((orgLoading && !org) || (isEventLoading && !event)) {
+  if ((orgLoading && !org) || (eventLoading && !event && !hookedEvent && !eventNotFound)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -207,22 +205,25 @@ export default function EventDetailsPage() {
   if (!org) return null;
 
   if (!event) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-            <h2 className="text-2xl font-bold font-orbitron">Event Not Found</h2>
-            <p className="text-muted-foreground">The event you are looking for does not exist or has been removed.</p>
-            <MetalButton onClick={() => {
-                const fromTeamId = searchParams.get("fromTeamId");
-                if (fromTeamId) {
-                    router.push(`/admin/organizations/${orgId}/teams/${fromTeamId}/events`);
-                } else {
-                    router.push(`/admin/organizations/${orgId}/events`);
-                }
-            }}>
-                Back to Events
-            </MetalButton>
-        </div>
-      );
+      if (eventNotFound) {
+          return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+                <h2 className="text-2xl font-bold font-orbitron">Event Not Found</h2>
+                <p className="text-muted-foreground">The event you are looking for does not exist or has been removed.</p>
+                <MetalButton onClick={() => {
+                    const fromTeamId = searchParams.get("fromTeamId");
+                    if (fromTeamId) {
+                        router.push(`/admin/organizations/${orgId}/teams/${fromTeamId}/events`);
+                    } else {
+                        router.push(`/admin/organizations/${orgId}/events`);
+                    }
+                }}>
+                    Back to Events
+                </MetalButton>
+            </div>
+          );
+      }
+      return null;
   }
 
   const getTeamName = (id: string, name?: string) => {
@@ -286,15 +287,18 @@ export default function EventDetailsPage() {
             // Combine the local date and local time selected by user
             const dateObj = new Date(`${editStartDate}T${matchFormData.startTime}:00`);
             const gamePayload = {
-                participants: [
-                    { teamId: matchFormData.homeTeamId || null as any }, 
-                    { teamId: matchFormData.awayTeamId || null as any }
-                ],
-                // toISOString handles the local-to-UTC conversion
-                startTime: matchFormData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${editStartDate}T${matchFormData.startTime}:00`),
-                siteId: matchFormData.siteId || null as any,
-                facilityId: matchFormData.facilityId || null as any
+                participants: [{ teamId: matchFormData.homeTeamId }, { teamId: matchFormData.awayTeamId }],
+                scheduledStartTime: matchFormData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${editStartDate}T${matchFormData.startTime}:00`),
+                siteId: matchFormData.siteId,
+                facilityId: matchFormData.facilityId,
+                sportId: matchFormData.sportId
             };
+            
+            // If it's still Scheduled, also update startTime (as fallback/legacy)
+            if (games[0].status === 'Scheduled') {
+              (gamePayload as any).startTime = gamePayload.scheduledStartTime;
+            }
+            
             console.log("EventDetailsPage: Updating game for SingleMatch", gamePayload);
             await store.updateGame(games[0].id, gamePayload);
         }
@@ -535,14 +539,21 @@ export default function EventDetailsPage() {
 
     const groups: Record<string, Game[]> = {};
     const sortedGames = [...filteredGames].sort((a, b) => {
-        if (!a.startTime) return 1;
-        if (!b.startTime) return -1;
-        return a.startTime.localeCompare(b.startTime);
+        if (!a.scheduledStartTime && !a.startTime) return 1;
+        if (!b.scheduledStartTime && !b.startTime) return -1;
+        const timeA = a.scheduledStartTime || a.startTime;
+        const timeB = b.scheduledStartTime || b.startTime;
+        if (!timeA) return 1;
+        if (!timeB) return -1;
+        return timeA.localeCompare(timeB);
     });
 
     sortedGames.forEach(g => {
         let key = "Scheduled";
-        if (grouping === 'time') key = g.startTime ? format(new Date(g.startTime), "HH:mm") : "TBD";
+        if (grouping === 'time') {
+            const timeStr = g.scheduledStartTime || g.startTime;
+            key = timeStr ? format(new Date(timeStr), "HH:mm") : "TBD";
+        }
         else if (grouping === 'sport') {
             const p1 = g.participants?.[0]?.teamId;
             const homeTeam = p1 ? store.getTeam(p1) : undefined;
@@ -578,41 +589,63 @@ export default function EventDetailsPage() {
     <div className="min-h-screen pb-20 px-3 md:px-0">
         <div className="container py-4 md:py-8 space-y-4 md:space-y-8">
             <div className="flex flex-col gap-1">
-                <Link 
+                <BackLink 
                     href={(() => {
                         const fromTeamId = searchParams.get("fromTeamId");
                         return fromTeamId 
                             ? `/admin/organizations/${orgId}/teams/${fromTeamId}/events`
                             : `/admin/organizations/${orgId}/events`;
                     })()}
-                    className="inline-flex items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 hover:text-primary transition-colors w-fit group"
                 >
-                    <ChevronLeft className="h-3 w-3 mr-0.5 group-hover:-translate-x-0.5 transition-transform" />
                     Back to Events
-                </Link>
+                </BackLink>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                     <div>
                         <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight leading-tight">{event.name}</h1>
                         <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                             {/* Prioritize Game Start Time for display, fallback to Midday-Anchored Event Date */}
                             {(() => {
-                                // 1. Attempt using the specific game time if available and not TBD
+                                // Always show scheduled time, even if Live or Finished
                                 const mainGame = games[0];
-                                const hasSpecificTime = mainGame && mainGame.startTime;
+                                const status = mainGame?.status || 'Scheduled';
                                 
-                                const dateSource = hasSpecificTime ? mainGame.startTime : (event.startDate || event.date || "");
+                                // Prioritize scheduledStartTime, fallback to event date
+                                // For SingleMatch, combine event date and game time to avoid sync discrepancies
+                                let dateSource = (mainGame?.scheduledStartTime || mainGame?.startTime || event.startDate || event.date || "");
+                                
+                                if (event.type === 'SingleMatch' && (event.startDate || event.date) && (mainGame?.scheduledStartTime || mainGame?.startTime)) {
+                                    const datePart = (event.startDate || event.date || "").split('T')[0];
+                                    const timePart = (mainGame?.scheduledStartTime || mainGame?.startTime || "").split('T')[1] || '00:00:00';
+                                    dateSource = `${datePart}T${timePart}`;
+                                }
+
                                 if (!dateSource) return null;
 
                                 const dateObj = new Date(dateSource);
                                 if (isNaN(dateObj.getTime())) return null;
 
-                                return <span className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3"/> 
-                                    {format(dateObj, "EEE, d MMM yyyy")}
-                                    {hasSpecificTime && <span className="ml-1 opacity-60">@ {format(dateObj, "HH:mm")}</span>}
-                                </span>
+                                return <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                    <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-black tracking-tighter ${
+                                        status === 'Live' ? 'bg-red-500 text-white animate-pulse' :
+                                        status === 'Finished' ? 'bg-secondary text-secondary-foreground' :
+                                        'bg-primary/10 text-primary'
+                                    }`}>
+                                        {status}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3"/> 
+                                        {format(dateObj, "EEE, d MMM yyyy")}
+                                        {(mainGame?.scheduledStartTime || mainGame?.startTime) && <span className="ml-1 opacity-60">@ {format(dateObj, "HH:mm")}</span>}
+                                    </span>
+                                </div>
                             })()}
-                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3"/> {siteName}</span>
+                            {(() => {
+                                const site = games[0]?.siteId ? store.getSite(games[0].siteId) : store.getSite(event.siteId || "");
+                                const facility = games[0]?.facilityId ? store.getFacility(games[0].facilityId) : null;
+                                const locString = [site?.name, facility?.name].filter(Boolean).join(" - ");
+                                if (!locString) return null;
+                                return <span className="flex items-center gap-1"><MapPin className="w-3 h-3"/> {locString}</span>
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -655,8 +688,8 @@ export default function EventDetailsPage() {
                                         </div>
                                     }
                                     initialData={games[0] ? {
-                                        startTime: games[0].startTime ? format(new Date(games[0].startTime), "HH:mm") : "09:00",
-                                        isTbd: !games[0].startTime,
+                                        startTime: games[0].scheduledStartTime || games[0].startTime,
+                                        isTbd: !games[0].scheduledStartTime && !games[0].startTime,
                                         siteId: games[0].siteId || event.siteId || "",
                                         facilityId: games[0].facilityId || "",
                                         homeTeamId: games[0].participants?.[0]?.teamId || "",
@@ -667,21 +700,23 @@ export default function EventDetailsPage() {
                                 />
                             </div>
 
-                            <div className="flex flex-col md:flex-row md:items-center justify-end gap-3 pt-6">
-                                <MetalButton 
-                                    type="button"
-                                    variantType="outlined"
-                                    className="w-full md:w-auto"
-                                    disabled={!isDirty || isProcessing}
-                                    onClick={() => setIsInitialized(false)}
-                                >
-                                    Discard Changes
-                                </MetalButton>
-                                <Button disabled={!isDirty || isProcessing} className="w-full md:w-auto md:px-8 h-12 md:h-10 order-first md:order-last">
-                                    {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Save Changes
-                                </Button>
-                            </div>
+                            {isDirty && (
+                                <div className="flex flex-col md:flex-row md:items-center justify-end gap-3 pt-6">
+                                    <MetalButton 
+                                        type="button"
+                                        variantType="outlined"
+                                        className="w-full md:w-auto"
+                                        disabled={isProcessing}
+                                        onClick={() => setIsInitialized(false)}
+                                    >
+                                        Discard Changes
+                                    </MetalButton>
+                                    <Button disabled={isProcessing} className="w-full md:w-auto md:px-8 h-12 md:h-10 order-first md:order-last">
+                                        {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Save Changes
+                                    </Button>
+                                </div>
+                            )}
                         </form>
                     </section>
 

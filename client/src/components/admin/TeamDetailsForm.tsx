@@ -8,6 +8,7 @@ import { store } from "@/app/store/store";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Team, Organization, Game } from "@sk/types";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import {
   Select,
   SelectContent,
@@ -128,6 +129,8 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
     formData.sportId !== team.sportId ||
     formData.ageGroup !== team.ageGroup
   );
+
+  useUnsavedChanges(isDirty);
 
   const isActive = team.isActive ?? true;
 

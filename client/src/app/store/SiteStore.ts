@@ -118,7 +118,10 @@ export class SiteStore extends TeamStore {
 
     fetchFacilitiesForSite(siteId: string) {
         socket.emit('get_data', { type: 'facilities', siteId }, (data: Facility[]) => {
-            if (data && Array.isArray(data)) data.forEach(f => this.mergeFacility(f));
+            if (data && Array.isArray(data)) {
+                data.forEach(f => this.mergeFacility(f, false));
+                this.notifyListeners();
+            }
         });
     }
 
@@ -129,17 +132,17 @@ export class SiteStore extends TeamStore {
     getFacility = (id: string) => this.facilities.find(f => f.id === id);
 
     // --- Helpers ---
-    protected mergeSite(site: Site) {
+    protected mergeSite(site: Site, notify = true) {
         const index = this.sites.findIndex(s => s.id === site.id);
         if (index > -1) this.sites[index] = { ...this.sites[index], ...site };
         else this.sites.push(site);
-        this.notifyListeners();
+        if (notify) this.notifyListeners();
     }
 
-    protected mergeFacility(facility: Facility) {
+    protected mergeFacility(facility: Facility, notify = true) {
         const index = this.facilities.findIndex(f => f.id === facility.id);
         if (index > -1) this.facilities[index] = { ...this.facilities[index], ...facility };
         else this.facilities.push(facility);
-        this.notifyListeners();
+        if (notify) this.notifyListeners();
     }
 }

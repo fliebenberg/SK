@@ -63,7 +63,15 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
         isStandalone ? "bg-muted/90 border-border shadow-inner" : "bg-muted/40 border-border/80"
       )}>
         {(() => {
-            const dateStr = game.startTime || (game.eventId ? store.getEvent(game.eventId)?.startDate : null);
+            const event = game.eventId ? store.getEvent(game.eventId) : null;
+            let dateStr = game.scheduledStartTime || game.startTime || (event?.startDate || event?.date || null);
+            
+            if (event?.type === 'SingleMatch' && (event.startDate || event.date) && (game.scheduledStartTime || game.startTime)) {
+                const datePart = (event.startDate || event.date || "").split('T')[0];
+                const timePart = (game.scheduledStartTime || game.startTime || "").split('T')[1] || '00:00:00';
+                dateStr = `${datePart}T${timePart}`;
+            }
+
             if (!dateStr) return <span className="text-xs font-black uppercase tracking-widest opacity-40">TBD</span>;
 
             const date = new Date(dateStr);
@@ -85,7 +93,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
                   </span>
                 </div>
                 
-                {game.startTime && (
+                {(game.scheduledStartTime || game.startTime) && (
                     <span className="text-[9px] md:text-xs font-black uppercase tracking-wider opacity-90">
                         {format(date!, "HH:mm")}
                     </span>
@@ -108,43 +116,35 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
         )}
       >
         {/* Teams Display - Mobile Adaptive Layout */}
-        <div className="md:hidden flex flex-col justify-center gap-1.5 px-2">
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0 max-w-full">
-              <OrgLogo organization={homeOrg} size="xs" rounded="md" className="shrink-0" />
-              <span className={cn(
-                "text-xs font-black truncate leading-tight",
-                (homeScore > awayScore && isFinished) || homeTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
-              )}>
-                {homeTeam?.name || 'Unknown'}
+        <div className="md:hidden flex flex-col justify-center items-center py-1 px-4 min-w-0 flex-1">
+          <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1.5 items-center w-fit max-w-full min-w-0">
+            {/* Home Team Row */}
+            <OrgLogo organization={homeOrg} size="xs" rounded="md" className="shrink-0" />
+            <span className={cn(
+              "text-xs font-black line-clamp-2 leading-tight",
+              (homeScore > awayScore && isFinished) || homeTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
+            )}>
+              {homeTeam?.name || 'Unknown'}
+            </span>
+            {showScores ? (
+              <span className="font-mono font-black text-xs min-w-[1rem] text-right">
+                <span className={cn(isFinished && homeScore < awayScore && "opacity-30")}>{homeScore}</span>
               </span>
-              {showScores && (
-                <span className="font-mono font-black text-xs inline-block ml-0.5">
-                  <span className={cn(isFinished && homeScore < awayScore && "opacity-30")}>{homeScore}</span>
-                </span>
-              )}
-            </div>
+            ) : <div />}
 
-            {!showScores && (
-              <span className="text-[8px] font-bold opacity-20 uppercase tracking-tighter">vs</span>
-            )}
-            
-            {showScores && <span className="text-[8px] font-bold opacity-10 mx-[-2px] uppercase">-</span>}
-
-            <div className="flex items-center gap-1.5 min-w-0 max-w-full">
-              <OrgLogo organization={awayOrg} size="xs" rounded="md" className="shrink-0" />
-              <span className={cn(
-                "text-xs font-black truncate leading-tight",
-                (awayScore > homeScore && isFinished) || awayTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
-              )}>
-                {awayTeam?.name || 'Unknown'}
+            {/* Away Team Row */}
+            <OrgLogo organization={awayOrg} size="xs" rounded="md" className="shrink-0" />
+            <span className={cn(
+              "text-xs font-black line-clamp-2 leading-tight",
+              (awayScore > homeScore && isFinished) || awayTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
+            )}>
+              {awayTeam?.name || 'Unknown'}
+            </span>
+            {showScores ? (
+              <span className="font-mono font-black text-xs min-w-[1rem] text-right">
+                <span className={cn(isFinished && awayScore < homeScore && "opacity-30")}>{awayScore}</span>
               </span>
-              {showScores && (
-                <span className="font-mono font-black text-xs inline-block ml-0.5">
-                   <span className={cn(isFinished && awayScore < homeScore && "opacity-30")}>{awayScore}</span>
-                </span>
-              )}
-            </div>
+            ) : <div />}
           </div>
         </div>
 
@@ -152,7 +152,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
         <div className="hidden md:flex flex-1 items-stretch h-full min-w-0">
            <div className="flex-1 flex items-center justify-end gap-3 px-4 min-w-0">
               <span className={cn(
-                "text-base font-black truncate text-right",
+                "text-base font-black line-clamp-2 text-right leading-tight",
                 (homeScore > awayScore && isFinished) || homeTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
               )}>
                 <span className="mr-1.5 opacity-40 text-[10px] font-bold uppercase tracking-wider">{homeOrg?.shortName || 'HOM'}</span>
@@ -181,7 +181,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
            <div className="flex-1 flex items-center justify-start gap-3 px-4 min-w-0">
               <OrgLogo organization={awayOrg} size="sm" rounded="md" className="shrink-0" />
               <span className={cn(
-                "text-base font-black truncate text-left",
+                "text-base font-black line-clamp-2 text-left leading-tight",
                 (awayScore > homeScore && isFinished) || awayTeamId === highlightTeamId ? "text-primary" : "text-foreground/90"
               )}>
                 {awayTeam?.name || 'Unknown'}

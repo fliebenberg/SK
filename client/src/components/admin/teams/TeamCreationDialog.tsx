@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -50,13 +50,18 @@ export function TeamCreationDialog({
     ageGroup: initialAgeGroup,
   });
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
+  const lastFetchedOrgId = useRef<string | null>(null);
 
   useEffect(() => {
     const update = () => {
         setSports(store.getSports());
         const org = store.getOrganization(orgId);
-        if (org) setCurrentOrg(org);
-        else if (orgId) store.fetchOrganization(orgId);
+        if (org) {
+            setCurrentOrg(org);
+        } else if (orgId && lastFetchedOrgId.current !== orgId) {
+            store.fetchOrganization(orgId);
+            lastFetchedOrgId.current = orgId;
+        }
     };
     update();
     const unsub = store.subscribe(update);

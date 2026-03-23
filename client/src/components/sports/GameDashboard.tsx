@@ -7,6 +7,7 @@ import { MetalButton } from '../ui/MetalButton';
 import { RotateCcw } from 'lucide-react';
 import { store } from '@/app/store/store';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { BackLink } from '../ui/BackLink';
 
 interface GameDashboardProps {
     game: Game;
@@ -27,11 +28,22 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
     const ParticipantListModule = SportComponentRegistry.getParticipantList(sportCategory);
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 p-4 md:p-8 max-w-[1600px] mx-auto bg-background min-h-screen">
+        <div className="flex flex-col lg:flex-row gap-8 p-2 sm:p-4 md:p-8 max-w-[1600px] mx-auto bg-background min-h-screen">
             
             {/* Left Column: Active Management - Scoreboard, Timing, Scoring */}
-            <div className="flex-[1.5] flex flex-col gap-6">
+            <div className="flex-[1.2] flex flex-col gap-6">
                 
+                {/* Back Navigation */}
+                {(() => {
+                    const event = store.getEvent(game.eventId);
+                    if (!event) return null;
+                    return (
+                        <BackLink href={`/admin/organizations/${event.orgId}/events/${game.eventId}`}>
+                            Back to Event
+                        </BackLink>
+                    );
+                })()}
+
                 {/* Header with Reset Action */}
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex flex-col">
@@ -101,9 +113,8 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                 </div>
             </div>
 
-            {/* Right Column: Event Log Feed (Game Events) */}
             <div className="flex-1 flex flex-col gap-8 min-h-[600px]">
-                <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-6 flex-1 flex flex-col overflow-hidden">
+                <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-1.5 flex-1 flex flex-col overflow-hidden">
                      <EventLogFeed gameId={game.id} />
                 </div>
             </div>

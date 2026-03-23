@@ -8,6 +8,8 @@ import { NavigationLoader } from "@/components/NavigationLoader";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { Toaster } from "@/components/ui/toast";
 import { Suspense, ReactNode } from "react";
+import { NavigationGuardProvider } from "@/contexts/NavigationGuardContext";
+import { NavigationGuard } from "@/components/NavigationGuard";
 
 export function ClientProviders({ children }: { children: ReactNode }) {
   return (
@@ -28,12 +30,15 @@ export function ClientProviders({ children }: { children: ReactNode }) {
       >
         <ThemeInitializer />
         <AuthProvider>
-          <Suspense fallback={null}>
-            <NavigationLoader />
-          </Suspense>
-          <OfflineIndicator />
-          {children}
-          <Toaster />
+          <NavigationGuardProvider>
+            <Suspense fallback={null}>
+              <NavigationLoader />
+            </Suspense>
+            <OfflineIndicator />
+            <NavigationGuard />
+            {children}
+            <Toaster />
+          </NavigationGuardProvider>
         </AuthProvider>
       </ThemeProvider>
     </SessionProvider>

@@ -73,7 +73,7 @@ export class GameStore extends SiteStore {
             if (games) {
                 this.games = games;
                 games.forEach(g => {
-                    this.mergeGame(g);
+                    this.mergeGame(g, false);
                     if (!this.activeGameSubscriptions.has(g.id)) {
                         this.activeGameSubscriptions.add(g.id);
                         socket.emit('join_room', `game:${g.id}`);
@@ -87,7 +87,10 @@ export class GameStore extends SiteStore {
     fetchEvent(id: string) {
         return new Promise<Event | null>((resolve) => {
             socket.emit('get_data', { type: 'event', id }, (data: Event) => {
-                if (data) this.mergeEvent(data);
+                if (data) {
+                    this.mergeEvent(data, false);
+                    this.notifyListeners();
+                }
                 resolve(data || null);
             });
         });
@@ -382,7 +385,7 @@ export class GameStore extends SiteStore {
     }
 
     // --- Helpers ---
-    protected mergeEvent(event: Event) {
+    protected mergeEvent(event: Event, notify = true) {
         const index = this.events.findIndex(e => e.id === event.id);
         if (index > -1) this.events[index] = event;
         else this.events.push(event);
@@ -390,10 +393,10 @@ export class GameStore extends SiteStore {
         orgIds.forEach(orgId => {
             if (!this.getOrganization(orgId)) this.fetchOrganization(orgId);
         });
-        this.notifyListeners();
+        if (notify) this.notifyListeners();
     }
 
-    protected mergeGame(game: Game) {
+    protected mergeGame(game: Game, notify = true) {
         const index = this.games.findIndex(g => g.id === game.id);
         let mergedGame: Game;
         
@@ -403,6 +406,7 @@ export class GameStore extends SiteStore {
             const mergedLiveState = {
                 ...(existing.liveState || {}),
                 ...(game.liveState || {}),
+                periodLabel: game.liveState?.periodLabel || existing.liveState?.periodLabel || getPeriodLabel(game.liveState?.clock?.periodIndex ?? existing.liveState?.clock?.periodIndex ?? 0, 'Period'),
                 clock: game.liveState?.clock ?? (game.status === 'Scheduled' ? undefined : existing.liveState?.clock)
             };
 
@@ -416,14 +420,14 @@ export class GameStore extends SiteStore {
             mergedGame = game;
             this.games.push(game);
         }
-        
-        this.notifyListeners();
-        
+                
         if (mergedGame.participants) {
             mergedGame.participants.forEach(p => {
                 if (p.teamId && !this.getTeam(p.teamId)) this.fetchTeam(p.teamId);
             });
         }
+
+        if (notify) this.notifyListeners();
     }
 
     protected mergeGameEvent(event: GameEvent) {
