@@ -30,23 +30,46 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const getEventLabel = (type: string) => {
-        switch (type) {
-            case 'GAME_STARTED': return 'Match Started';
-            case 'GAME_ENDED': return 'Match Finished';
-            case 'GAME_CANCELLED': return 'Match Cancelled';
-            case 'PERIOD_STARTED': return 'Period Started';
-            case 'PERIOD_ENDED': return 'Period Ended';
-            case 'CLOCK_PAUSED': return 'Clock Paused';
-            case 'CLOCK_RESUMED': return 'Clock Resumed';
-            default: return type.replace(/_/g, ' ');
+    const getEventLabel = (evt: GameEvent) => {
+        if (evt.type === 'SCORE' && evt.subType) {
+            return evt.subType.toUpperCase();
+        }
+        
+        switch (evt.type) {
+            case 'GAME_STARTED': return 'MATCH STARTED';
+            case 'GAME_ENDED': return 'MATCH FINISHED';
+            case 'GAME_CANCELLED': return 'MATCH CANCELLED';
+            case 'PERIOD_STARTED': return 'PERIOD STARTED';
+            case 'PERIOD_ENDED': return 'PERIOD ENDED';
+            case 'CLOCK_PAUSED': return 'CLOCK PAUSED';
+            case 'CLOCK_RESUMED': return 'CLOCK RESUMED';
+            default: return evt.type.replace(/_/g, ' ').toUpperCase();
         }
     };
 
     const getTeamInfo = (event: GameEvent) => {
-        // For now, these system/timer events aren't team-specific.
-        // We might later add actorTeamId to GameEvent.
-        return { name: 'Timing', color: 'bg-muted-foreground/30', label: 'TIM' };
+        const isScore = event.type === 'SCORE';
+        const typeCode = isScore ? 'SCO' : 'TIM';
+        
+        if (event.gameParticipantId) {
+            const game = store.getGame(gameId);
+            const participant = game?.participants?.find(p => p.id === event.gameParticipantId);
+            if (participant?.teamId) {
+                const index = game?.participants?.indexOf(participant) ?? 0;
+                
+                return {
+                    color: index === 0 ? 'bg-blue-500' : 'bg-red-500',
+                    label: typeCode,
+                    typeLabel: isScore ? 'SCORE' : 'ACTION'
+                };
+            }
+        }
+
+        return { 
+            color: 'bg-sunken-bg', 
+            label: typeCode, 
+            typeLabel: isScore ? 'SCORE' : 'TIMING' 
+        };
     };
 
     return (
@@ -64,8 +87,10 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                     ) : (
                         events.map(evt => {
                             const team = getTeamInfo(evt);
-                            const matchTime = evt.eventData?.elapsedMS !== undefined 
-                                ? formatMatchTime(evt.eventData.elapsedMS)
+                            const eventData = evt.eventData || (evt as any).event_data || {};
+                            const snapshot = eventData.scoreSnapshot;
+                            const matchTime = eventData.elapsedMS !== undefined 
+                                ? formatMatchTime(eventData.elapsedMS)
                                 : null;
                             const actualTime = new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
                             
@@ -75,9 +100,9 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                         <span className="font-mono text-muted-foreground text-[10px] font-bold leading-none mb-1 text-center">
                                             {matchTime || actualTime}
                                         </span>
-                                        {evt.eventData?.period && (
+                                        {eventData.period && (
                                             <span className="text-[7px] font-black text-primary/60 uppercase leading-none truncate w-full text-center">
-                                                {evt.eventData.period}
+                                                {eventData.period}
                                             </span>
                                         )}
                                         {matchTime && (
@@ -91,15 +116,34 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     
                                     <div className="flex flex-col flex-1 min-w-0">
                                         <span className="font-black text-[10px] uppercase tracking-wider text-foreground/80 leading-none mb-1 truncate">
-                                            {getEventLabel(evt.type)}
+                                            {getEventLabel(evt)}
                                         </span>
                                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight truncate">
-                                            {evt.eventData?.reason || team.name}
+                                            {team.typeLabel}
                                         </span>
                                     </div>
                                     
+                                    {snapshot && (
+                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-sunken-bg/50 rounded-lg border border-border/20 mx-2">
+                                            {(() => {
+                                                const game = store.getGame(gameId);
+                                                const p1 = game?.participants?.[0];
+                                                const p2 = game?.participants?.[1];
+                                                const s1 = (snapshot as any)[p1?.id || ''] || 0;
+                                                const s2 = (snapshot as any)[p2?.id || ''] || 0;
+                                                return (
+                                                    <>
+                                                        <span className="font-black text-xs text-blue-500">{s1}</span>
+                                                        <span className="text-[8px] font-black opacity-30">—</span>
+                                                        <span className="font-black text-xs text-red-500">{s2}</span>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
+                                    
                                     <span className={cn(
-                                        "ml-auto font-black text-[9px] px-2 py-1 rounded italic shrink-0",
+                                        "ml-auto font-black text-[9px] px-2 py-1 rounded italic shrink-0 min-w-[32px] text-center",
                                         "bg-muted-foreground/10 text-muted-foreground/60"
                                     )}>
                                         {team.label}

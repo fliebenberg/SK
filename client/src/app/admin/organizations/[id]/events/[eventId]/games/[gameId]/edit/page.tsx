@@ -10,7 +10,7 @@ import { useGame, useEvent } from "@/hooks/useEntity";
 import { MatchForm, MatchFormData as FormDataType } from "@/components/admin/games/MatchForm";
 import { Button } from "@/components/ui/button";
 import { MetalButton } from "@/components/ui/MetalButton";
-import { ArrowLeft, Loader2, Trash2, AlertTriangle, Ban, Calendar, MapPin } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, AlertTriangle, Ban, Calendar, MapPin, Trophy } from "lucide-react";
 import { MetalCard } from "@/components/ui/metal-card";
 import { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 import { toast } from "@/hooks/use-toast";
@@ -267,7 +267,17 @@ export default function EditGamePage() {
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    {(store.globalRole === 'admin' || store.canScoreGame(game.id)) && (
+                        <MetalButton 
+                            size="sm"
+                            icon={<Trophy className="w-4 h-4" />}
+                            onClick={() => router.push(`/admin/games/${game.id}`)}
+                            className="text-[10px] font-black uppercase tracking-wider h-8 px-3"
+                        >
+                            Score Match
+                        </MetalButton>
+                    )}
                     <Button 
                         variant="ghost" 
                         size="icon" 

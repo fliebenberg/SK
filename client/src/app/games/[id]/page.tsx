@@ -3,13 +3,16 @@
 import { notFound, useParams } from "next/navigation";
 import { store } from "@/app/store/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, MapPin } from "lucide-react";
+import { Clock, MapPin, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Game, Team, Sport, Site } from "@sk/types";
+import { MetalButton } from "@/components/ui/MetalButton";
+import { useRouter } from "next/navigation";
 
 export default function GamePage() {
   const params = useParams();
   const id = params.id as string;
+  const router = useRouter();
   
   const [game, setGame] = useState<Game | undefined>(undefined);
   const [homeTeam, setHomeTeam] = useState<Team | undefined>(undefined);
@@ -36,13 +39,35 @@ export default function GamePage() {
     return () => unsubscribe();
   }, [id]);
 
+  const isFinished = game?.status?.toLowerCase() === 'finished';
+  const isWithinOneHour = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    const now = new Date();
+    return (now.getTime() - date.getTime()) < 3600000;
+  };
+
+  const showScoreButton = game && (store.globalRole === 'admin' || (store.canScoreGame(game.id) && (!isFinished || isWithinOneHour(game.finishTime) || isWithinOneHour(game.updatedAt))));
+
   if (!game) {
     return <div>Loading...</div>; // Or handle not found
   }
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <div className="mb-8 text-center">
+      <div className="mb-8 text-center relative">
+        {showScoreButton && (
+          <div className="absolute right-0 top-0">
+            <MetalButton 
+              size="sm"
+              icon={<Trophy className="w-4 h-4" />}
+              onClick={() => router.push(`/admin/games/${game.id}`)}
+              className="text-[10px] font-black uppercase tracking-wider"
+            >
+              Score Match
+            </MetalButton>
+          </div>
+        )}
         <div className={`inline-block px-3 py-1 rounded-full text-sm font-bold mb-4 ${
           game.status === 'Live' ? 'bg-red-100 text-red-600 animate-pulse' : 
           game.status === 'Finished' ? 'bg-gray-100 text-gray-600' : 

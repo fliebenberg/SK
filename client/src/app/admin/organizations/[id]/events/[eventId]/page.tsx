@@ -454,6 +454,18 @@ export default function EventDetailsPage() {
                           <div className="text-6xl font-black font-mono text-primary">{getScore(1)}</div>
                       </div>
                   </div>
+                  {(store.globalRole === 'admin' || store.canScoreGame(match.id)) && (
+                      <div className="pt-4 border-t border-border/10">
+                          <MetalButton 
+                              onClick={() => router.push(`/admin/games/${match.id}`)}
+                              icon={<Trophy className="w-4 h-4" />}
+                              variantType="outlined"
+                              className="text-[10px] font-black uppercase tracking-widest"
+                          >
+                              Score Match
+                          </MetalButton>
+                      </div>
+                  )}
               </MetalCard>
           );
       }
@@ -648,6 +660,18 @@ export default function EventDetailsPage() {
                             })()}
                         </div>
                     </div>
+                    {event.type === 'SingleMatch' && games[0] && (store.globalRole === 'admin' || store.canScoreGame(games[0].id)) && (
+                        <div className="shrink-0">
+                            <MetalButton 
+                                size="sm"
+                                icon={<Trophy className="w-4 h-4" />}
+                                onClick={() => router.push(`/admin/games/${games[0].id}`)}
+                                className="text-[10px] font-black uppercase tracking-wider h-9"
+                            >
+                                Score Match
+                            </MetalButton>
+                        </div>
+                    )}
                 </div>
             </div>
             {event.type === 'SingleMatch' ? (

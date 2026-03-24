@@ -314,13 +314,13 @@ export class GameStore extends SiteStore {
       return updatePromise;
     };
 
-    updateScore = (id: string, homeScore: number, awayScore: number) => {
+    updateScore = (id: string, scores: { [participantId: string]: number }) => {
         const game = this.games.find(g => g.id === id);
         if (game) {
           const promise = this.updateGame(id, { 
-              liveState: { ...(game.liveState || {}), home: homeScore, away: awayScore } 
+              liveState: { ...(game.liveState || {}), scores } 
           });
-          socket.emit('action', { type: SocketAction.UPDATE_GAME_SCORE, payload: { id, homeScore, awayScore } });
+          socket.emit('action', { type: SocketAction.UPDATE_GAME_SCORE, payload: { id, scores } });
           return promise;
         }
         return Promise.resolve(null);
@@ -406,6 +406,10 @@ export class GameStore extends SiteStore {
             const mergedLiveState = {
                 ...(existing.liveState || {}),
                 ...(game.liveState || {}),
+                scores: {
+                    ...(existing.liveState?.scores || {}),
+                    ...(game.liveState?.scores || {})
+                },
                 periodLabel: game.liveState?.periodLabel || existing.liveState?.periodLabel || getPeriodLabel(game.liveState?.clock?.periodIndex ?? existing.liveState?.clock?.periodIndex ?? 0, 'Period'),
                 clock: game.liveState?.clock ?? (game.status === 'Scheduled' ? undefined : existing.liveState?.clock)
             };

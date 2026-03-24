@@ -8,7 +8,14 @@ import { getPeriodLabel } from '@sk/types';
 
 export default function RugbyScoreboard({ game }: { game: Game }) {
     const { formattedTime } = useGameTimer(game.liveState?.clock);
-    const scoreData = game.liveState?.score || { home: 0, away: 0 };
+    
+    const homeParticipant = game.participants?.[0];
+    const awayParticipant = game.participants?.[1];
+    
+    const scoreData = {
+        home: homeParticipant ? (game.liveState?.scores?.[homeParticipant.id] || 0) : 0,
+        away: awayParticipant ? (game.liveState?.scores?.[awayParticipant.id] || 0) : 0
+    };
     
     // Fetch team and org info
     const homeTeamId = game.participants?.[0]?.teamId;

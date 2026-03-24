@@ -542,6 +542,18 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
+            case SocketAction.UPDATE_GAME_SCORE:
+                const gameToUpdate = await dataManager.getGame(action.payload.id);
+                if (gameToUpdate) {
+                    const updatedLiveState = { ...(gameToUpdate.liveState || {}), scores: action.payload.scores };
+                    result = await dataManager.updateGame(action.payload.id, { liveState: updatedLiveState });
+                    if (result) {
+                        // Broadcast update to game rooms
+                        io.to(`game:${result.id}`).emit('update', { type: 'GAME_UPDATED', data: result });
+                        io.to(`game:${result.id}:detail`).emit('update', { type: 'GAME_UPDATED', data: result });
+                    }
+                }
+                break;
             case SocketAction.RESET_GAME:
                 await dataManager.resetGame(action.payload.id);
                 // Also clear all game events (redundant if EventManager does it, but safe)

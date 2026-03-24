@@ -292,7 +292,8 @@ const createTables = async () => {
                 game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
                 team_id TEXT REFERENCES teams(id),
                 org_profile_id TEXT REFERENCES org_profiles(id),
-                status TEXT DEFAULT 'active' -- 'active', 'withdrawn', 'disqualified', 'did_not_start'
+                status TEXT DEFAULT 'active', -- 'active', 'withdrawn', 'disqualified', 'did_not_start'
+                sort_order INTEGER DEFAULT 0
             );
         `);
 

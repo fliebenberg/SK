@@ -47,10 +47,47 @@ export class GameEventManager extends BaseManager {
 
     const newEvent = insertRes.rows[0] as GameEvent;
 
-    // 3. Trigger live_state mutation in games table
-    // For a real implementation, we would inspect the event type and mutate JSONB
-    // As a generic framework, we just log it for now or rely on specific sport handlers.
-    // Example: appending to a "recent_events" array in live_state
+    // 4. Trigger live_state mutation in games table for scoring
+    if (data.type === 'SCORE') {
+      let latestScores = null;
+
+      if (data.gameParticipantId) {
+        // Individual participant score increment
+        const points = data.eventData?.pointsDelta || 0;
+        if (points !== 0) {
+          const updateRes = await this.query(`
+            UPDATE games 
+            SET live_state = jsonb_set(
+              live_state, 
+              '{scores}', 
+              COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) + $2)::numeric)
+            ),
+            updated_at = NOW()
+            WHERE id = $3
+            RETURNING live_state
+          `, [data.gameParticipantId, points, data.gameId]);
+
+          if (updateRes.rows.length > 0) {
+            latestScores = updateRes.rows[0].live_state.scores;
+          }
+        }
+      } else if (data.eventData?.scores) {
+        // Total score override (e.g. Final Score)
+        // Use the scores provided in the event data to avoid race conditions with the DB update
+        latestScores = data.eventData.scores;
+      }
+
+      if (latestScores) {
+        await this.query(`
+          UPDATE game_events 
+          SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{scoreSnapshot}', $1::jsonb)
+          WHERE id = $2
+        `, [JSON.stringify(latestScores), newEvent.id]);
+        
+        if (!newEvent.eventData) newEvent.eventData = {};
+        newEvent.eventData.scoreSnapshot = latestScores;
+      }
+    }
     
     // Broadcast via socket occurs in the route/controller layer after this manager returns.
     

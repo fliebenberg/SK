@@ -198,7 +198,7 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                             </MetalButton>
                         )}
 
-                        {game.status === 'Live' && !isPeriodActive && periodIndex + 1 >= scheduledPeriods && (
+                        {(game.status === 'Scheduled' || (game.status === 'Live' && !isPeriodActive && periodIndex + 1 >= scheduledPeriods)) && (
                             <MetalButton 
                                 variantType="filled" 
                                 size="sm"
