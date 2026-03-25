@@ -335,6 +335,16 @@ export class GameStore extends SiteStore {
         actorOrgProfileId?: string, 
         gameParticipantId?: string 
     }) => {
+        // Automatically inject current game clock info if not provided
+        const liveInfo = this.getLiveClockInfo(payload.gameId);
+        if (liveInfo) {
+            payload.eventData = {
+                elapsedMS: liveInfo.elapsedMS,
+                period: liveInfo.period,
+                ...payload.eventData
+            };
+        }
+
         return new Promise<any>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.ADD_GAME_EVENT, payload }, (response: any) => {
                 if (response.status === 'ok') resolve(response.data);
@@ -342,6 +352,28 @@ export class GameStore extends SiteStore {
             });
         });
     };
+
+    getLiveClockInfo(gameId: string) {
+        // Direct access to games array to avoid any 'this' context issues with getters
+        const game = this.games.find(g => g.id === gameId);
+        if (!game || !game.liveState?.clock) return null;
+        
+        const clock = game.liveState.clock;
+        const periodLabel = game.liveState.periodLabel || '1st Period';
+        
+        let elapsedMS = clock.elapsedMS || 0;
+        
+        if (clock.isRunning && clock.lastStartedAt) {
+            const startedAtMS = new Date(clock.lastStartedAt).getTime();
+            const nowMS = Date.now();
+            elapsedMS += (nowMS - startedAtMS);
+        }
+        
+        return {
+            elapsedMS,
+            period: periodLabel
+        };
+    }
 
     // --- Getters ---
     getEvents = (orgId?: string) => orgId 
@@ -406,10 +438,7 @@ export class GameStore extends SiteStore {
             const mergedLiveState = {
                 ...(existing.liveState || {}),
                 ...(game.liveState || {}),
-                scores: {
-                    ...(existing.liveState?.scores || {}),
-                    ...(game.liveState?.scores || {})
-                },
+                scores: game.liveState?.scores ?? existing.liveState?.scores,
                 periodLabel: game.liveState?.periodLabel || existing.liveState?.periodLabel || getPeriodLabel(game.liveState?.clock?.periodIndex ?? existing.liveState?.clock?.periodIndex ?? 0, 'Period'),
                 clock: game.liveState?.clock ?? (game.status === 'Scheduled' ? undefined : existing.liveState?.clock)
             };
@@ -485,10 +514,30 @@ export class GameStore extends SiteStore {
     }
 
     protected handleGameReset(gameId: string) {
-        if (this.gameEvents.length === 0 || this.gameEvents[0].gameId === gameId) {
+        if (this.gameEvents.length > 0 && this.gameEvents[0].gameId === gameId) {
             this.gameEvents = [];
             this.lastSequence = 0;
-            this.notifyListeners();
         }
+
+        // Explicitly clear scores for the game in the store
+        const game = this.getGame(gameId);
+        if (game) {
+            game.liveState = {
+                ...game.liveState,
+                scores: {},
+                clock: {
+                    ...(game.liveState?.clock || {
+                        periodLengthMS: 40 * 60 * 1000,
+                        scheduledPeriods: 2
+                    }),
+                    isRunning: false,
+                    elapsedMS: 0,
+                    isPeriodActive: false,
+                    periodIndex: 0,
+                    totalActualElapsedMS: 0
+                }
+            };
+        }
+        this.notifyListeners();
     }
 }

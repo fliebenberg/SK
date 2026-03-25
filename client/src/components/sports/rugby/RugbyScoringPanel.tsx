@@ -4,6 +4,7 @@ import { MetalButton } from '@/components/ui/MetalButton';
 import { store } from '@/app/store/store';
 import { OrgLogo } from '@/components/ui/OrgLogo';
 import { Trophy, AlertTriangle } from 'lucide-react';
+import { useGameTimer } from '@/hooks/useGameTimer';
 import {
     Dialog,
     DialogContent,
@@ -20,6 +21,9 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
     const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
     const [isSaving, setIsSaving] = useState(false);
 
+    const { currentMS } = useGameTimer(game.liveState?.clock, game.startTime, game.finishTime);
+    const periodLabel = game.liveState?.periodLabel || '1st Period';
+
     const handleScore = (points: number, side: 'home' | 'away', type: string) => {
         const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
         if (!participant) return;
@@ -29,7 +33,11 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
             type: 'SCORE',
             subType: type,
             gameParticipantId: participant.id,
-            eventData: { pointsDelta: points }
+            eventData: { 
+                pointsDelta: points,
+                elapsedMS: currentMS,
+                period: periodLabel
+            }
         });
     };
 
@@ -47,7 +55,12 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
                 gameId: game.id,
                 type: 'SCORE',
                 subType: 'Final Score',
-                eventData: { scores, reason: 'Manual Final Score' }
+                eventData: { 
+                    scores, 
+                    reason: 'Manual Final Score',
+                    elapsedMS: currentMS,
+                    period: periodLabel
+                }
             });
             
             setIsFinalScoreOpen(false);
@@ -107,13 +120,15 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
             <div className="grid grid-cols-2 gap-4 sm:gap-8">
                 {/* Home Scoring */}
                 <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2 mb-1 p-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
-                        <div className="h-6 w-6 bg-white/10 rounded flex items-center justify-center p-1 border border-white/10 shadow-sm overflow-hidden">
-                            <OrgLogo organization={homeOrg || null} size="xs" />
+                    <div className="flex items-center gap-2 mb-1 p-1.5 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                        <div className="h-12 w-12 bg-white/10 rounded-lg flex items-center justify-center border border-white/10 shadow-sm overflow-hidden">
+                            <OrgLogo organization={homeOrg || null} size="sm" className="w-full h-full" />
                         </div>
-                        <div className="flex flex-col">
-                            <span className="text-[8px] font-bold text-blue-500/60 uppercase leading-none">{homeOrg?.name || "Home Org"}</span>
-                            <span className="text-[10px] font-black uppercase tracking-tight text-blue-600 line-clamp-2 leading-tight">
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-xs font-bold text-blue-500/60 uppercase leading-none truncate">
+                                {homeOrg?.shortName || homeOrg?.name || "Home Org"}
+                            </span>
+                            <span className="text-sm font-black uppercase tracking-tight text-blue-600 line-clamp-2 leading-tight">
                                 {homeTeam?.name || "Home Team"}
                             </span>
                         </div>
@@ -141,13 +156,15 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
 
                 {/* Away Scoring */}
                 <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2 mb-1 p-2 rounded-lg bg-red-500/5 border border-red-500/10 flex-row-reverse">
-                        <div className="h-6 w-6 bg-white/10 rounded flex items-center justify-center p-1 border border-white/10 shadow-sm overflow-hidden">
-                            <OrgLogo organization={awayOrg || null} size="xs" />
+                    <div className="flex items-center gap-2 mb-1 p-1.5 rounded-xl bg-red-500/5 border border-red-500/10 flex-row-reverse">
+                        <div className="h-12 w-12 bg-white/10 rounded-lg flex items-center justify-center border border-white/10 shadow-sm overflow-hidden">
+                            <OrgLogo organization={awayOrg || null} size="sm" className="w-full h-full" />
                         </div>
-                        <div className="flex flex-col items-end">
-                            <span className="text-[8px] font-bold text-red-500/60 uppercase leading-none">{awayOrg?.name || "Away Org"}</span>
-                            <span className="text-[10px] font-black uppercase tracking-tight text-red-600 line-clamp-2 leading-tight">
+                        <div className="flex flex-col items-end min-w-0">
+                            <span className="text-xs font-bold text-red-500/60 uppercase leading-none truncate">
+                                {awayOrg?.shortName || awayOrg?.name || "Away Org"}
+                            </span>
+                            <span className="text-sm font-black uppercase tracking-tight text-red-600 line-clamp-2 leading-tight">
                                 {awayTeam?.name || "Away Team"}
                             </span>
                         </div>
