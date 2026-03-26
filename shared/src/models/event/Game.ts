@@ -21,7 +21,7 @@ export interface Game {
   customSettings?: any;
   liveState?: {
     clock?: GameClockState;
-    score?: { home: number, away: number };
+    scores?: Record<string, number>;
     periodLabel?: string;
     [key: string]: any;
   };

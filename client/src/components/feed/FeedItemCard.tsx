@@ -14,8 +14,10 @@ export const FeedItemCard = ({ item }: FeedItemCardProps) => {
     const homeTeam = homeTeamId ? store.getTeam(homeTeamId) : null;
     const awayTeam = awayTeamId ? store.getTeam(awayTeamId) : null;
 
-    const homeScore = item.game.liveState?.score?.home ?? item.game.finalScoreData?.home ?? 0;
-    const awayScore = item.game.liveState?.score?.away ?? item.game.finalScoreData?.away ?? 0;
+    const homeParticipantId = item.game.participants?.[0]?.id;
+    const awayParticipantId = item.game.participants?.[1]?.id;
+    const homeScore = (homeParticipantId && item.game.liveState?.scores?.[homeParticipantId]) ?? item.game.finalScoreData?.home ?? 0;
+    const awayScore = (awayParticipantId && item.game.liveState?.scores?.[awayParticipantId]) ?? item.game.finalScoreData?.away ?? 0;
 
     return (
         <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50 cursor-pointer flex gap-4 items-center">

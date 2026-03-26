@@ -93,7 +93,10 @@ export default function GamePage() {
               {(() => {
                   const getScore = (index: number) => {
                       if (game.status === 'Finished' && game.finalScoreData) return game.finalScoreData[index === 0 ? 'home' : 'away'] ?? 0;
-                      if (game.liveState) return game.liveState[index === 0 ? 'home' : 'away'] ?? 0;
+                      if (game.liveState?.scores) {
+                          const participant = game.participants?.[index];
+                          return participant ? (game.liveState.scores[participant.id] ?? 0) : 0;
+                      }
                       return 0;
                   };
                   return (

@@ -6,6 +6,8 @@ export class TeamManager extends BaseManager {
   teamRoles: TeamRole[] = [
     { id: "role-player", name: "Player" },
     { id: "role-coach", name: "Coach" },
+    { id: "role-assistant-coach", name: "Assistant Coach" },
+    { id: "role-manager", name: "Manager" },
     { id: "role-scorer", name: "Scorer" },
     { id: "role-staff", name: "Staff" },
     { id: "role-medic", name: "Medic" },
@@ -161,10 +163,11 @@ export class TeamManager extends BaseManager {
   }
 
   async addTeamMember(membership: TeamMembership): Promise<TeamMembership> {
+    const finalId = membership.id || `tm-${Date.now()}`;
     await this.query(
         `INSERT INTO team_memberships (id, org_profile_id, team_id, role_id, start_date)
          VALUES ($1, $2, $3, $4, NOW())`,
-         [membership.id, membership.orgProfileId, membership.teamId, membership.roleId]
+         [finalId, membership.orgProfileId, membership.teamId, membership.roleId]
     );
 
     const team = await this.getTeam(membership.teamId);
@@ -182,7 +185,7 @@ export class TeamManager extends BaseManager {
         }
     }
     organizationManager.invalidateCache();
-    return membership;
+    return { ...membership, id: finalId };
   }
 
   async updateTeamMember(id: string, data: Partial<TeamMembership>): Promise<TeamMembership | null> {

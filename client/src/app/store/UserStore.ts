@@ -187,7 +187,7 @@ export class UserStore extends GameStore {
             if (m.roleId === 'role-org-admin') orgIds.add(m.orgId);
         });
         this.userTeamMemberships.forEach(m => {
-            if (m.roleId === 'role-coach') orgIds.add(m.orgId);
+            if (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach' || m.roleId === 'role-manager') orgIds.add(m.orgId);
         });
         return Array.from(orgIds);
     }
@@ -301,7 +301,7 @@ export class UserStore extends GameStore {
     canSeeAdmin(userId: string, globalRole?: string) {
         if (globalRole === 'admin') return true;
         const hasOrgAdmin = this.userOrgMemberships.some(m => m.roleId === 'role-org-admin');
-        const hasCoach = this.userTeamMemberships.some(m => m.roleId === 'role-coach');
+        const hasCoach = this.userTeamMemberships.some(m => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach' || m.roleId === 'role-manager');
         return hasOrgAdmin || hasCoach;
     }
 

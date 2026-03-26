@@ -125,10 +125,14 @@ describe('Store Logic', () => {
     await store.updateGameStatus(game.id, 'Live');
     expect(store.getGame(game.id)?.status).toBe('Live');
 
-    await store.updateScore(game.id, 1, 0);
-    const updatedGame = store.getGame(game.id);
-    expect(updatedGame?.liveState?.home).toBe(1);
-    expect(updatedGame?.liveState?.away).toBe(0);
+    const homeParticipantId = game.participants?.[0]?.id;
+    const awayParticipantId = game.participants?.[1]?.id;
+    if (homeParticipantId && awayParticipantId) {
+        await store.updateScore(game.id, { [homeParticipantId]: 1, [awayParticipantId]: 0 });
+        const updatedGame = store.getGame(game.id);
+        expect(updatedGame?.liveState?.scores?.[homeParticipantId]).toBe(1);
+        expect(updatedGame?.liveState?.scores?.[awayParticipantId]).toBe(0);
+    }
 
     // Cleanup
     await store.deleteGame(game.id);

@@ -16,8 +16,10 @@ export const HeroGameCard = ({ game }: HeroGameCardProps) => {
     const homeTeam = homeTeamId ? store.getTeam(homeTeamId) : null;
     const awayTeam = awayTeamId ? store.getTeam(awayTeamId) : null;
 
-    const homeScore = game.liveState?.score?.home ?? game.finalScoreData?.home ?? 0;
-    const awayScore = game.liveState?.score?.away ?? game.finalScoreData?.away ?? 0;
+    const homeParticipantId = game.participants?.[0]?.id;
+    const awayParticipantId = game.participants?.[1]?.id;
+    const homeScore = (homeParticipantId && game.liveState?.scores?.[homeParticipantId]) ?? game.finalScoreData?.home ?? 0;
+    const awayScore = (awayParticipantId && game.liveState?.scores?.[awayParticipantId]) ?? game.finalScoreData?.away ?? 0;
 
     return (
         <div className="relative overflow-hidden rounded-xl border border-border bg-card p-6 shadow-md transition-all hover:shadow-lg w-full max-w-sm flex-shrink-0 snap-center">

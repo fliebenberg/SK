@@ -24,7 +24,7 @@ Below the global User is the **Organization Profile** (`org_profile`). This is t
 Specific relationships and permissions are attached to the `org_profile`, not directly to the global `user`.
 
 *   **`org_memberships`:** Links an `org_profile` to specific overarching organization roles (e.g., "Org Admin", "Member"). An individual might have multiple entries here if they hold multiple distinct administrative roles.
-*   **`team_memberships`:** Links an `org_profile` to a specific team with a specific role (e.g., "Coach", "Player", "Manager"). It tracks the `startDate` and `endDate` of when that persona was active on the team.
+*   **`team_memberships`:** Links an `org_profile` to a specific team with a specific role (e.g., "Coach", "Assistant Coach", "Player", "Manager"). It tracks the `startDate` and `endDate` of when that persona was active on the team.
 
 *Note: The system supports individuals holding multiple concurrent roles (e.g., returning as both a Coach for one team and a Player on another).*
 

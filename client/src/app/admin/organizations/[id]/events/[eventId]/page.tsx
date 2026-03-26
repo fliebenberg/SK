@@ -433,7 +433,10 @@ export default function EventDetailsPage() {
           const p2 = match.participants?.[1]?.teamId;
           const getScore = (index: number) => {
               if (match.status === 'Finished' && match.finalScoreData) return match.finalScoreData[index === 0 ? 'home' : 'away'] ?? 0;
-              if (match.liveState) return match.liveState[index === 0 ? 'home' : 'away'] ?? 0;
+              if (match.liveState?.scores) {
+                  const participant = match.participants?.[index];
+                  return participant ? (match.liveState.scores[participant.id] ?? 0) : 0;
+              }
               return 0;
           };
           

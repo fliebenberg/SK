@@ -36,18 +36,18 @@ export default function TeamStaffPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newStaffName, setNewStaffName] = useState("");
   const [selectedPerson, setSelectedPerson] = useState<OrgProfile | null>(null);
-  const [newStaffRole, setNewStaffRole] = useState<'Coach' | 'Staff'>('Coach');
+  const [newStaffRole, setNewStaffRole] = useState<string>('role-coach');
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; membershipId: string; name: string }>({
     isOpen: false,
     membershipId: "",
     name: "",
   });
-  const [editingStaff, setEditingStaff] = useState<{ isOpen: boolean; orgProfileId: string; membershipId: string; name: string; role: 'Coach' | 'Staff' }>({
+  const [editingStaff, setEditingStaff] = useState<{ isOpen: boolean; orgProfileId: string; membershipId: string; name: string; role: string }>({
     isOpen: false,
     orgProfileId: "",
     membershipId: "",
     name: "",
-    role: 'Coach',
+    role: 'role-coach',
   });
   const router = useRouter();
 
@@ -58,7 +58,7 @@ export default function TeamStaffPage() {
     store.subscribeToTeamData(teamId);
 
     const update = () => {
-        const data = store.getTeamMembers(teamId).filter(p => p.roleId === 'role-coach' || p.roleId === 'role-staff');
+        const data = store.getTeamMembers(teamId).filter(p => p.roleId !== 'role-player');
         setStaff(data);
         // We can consider 'loading' done if we have data or if the store has processed the subscription response.
         // For now, let's just turn off loading on first update callback or timeout?
@@ -91,20 +91,18 @@ export default function TeamStaffPage() {
       });
       profileId = profile.id;
       // Ensure they are in the organization
-      await store.addOrganizationMember(profileId, orgId, 'role-org-manager');
+      await store.addOrganizationMember(profileId, orgId, 'role-org-member');
     }
 
-    // Map selection to ID
-    const roleId = newStaffRole === 'Coach' ? 'role-coach' : 'role-staff';
-    await store.addTeamMember(profileId, teamId, roleId);
+    await store.addTeamMember(profileId, teamId, newStaffRole);
     
     setNewStaffName("");
     setSelectedPerson(null);
-    setNewStaffRole('Coach');
+    setNewStaffRole('role-coach');
     setIsDialogOpen(false);
     
     // Reload local state
-    const data = store.getTeamMembers(teamId).filter(p => p.roleId === 'role-coach' || p.roleId === 'role-staff');
+    const data = store.getTeamMembers(teamId).filter(p => p.roleId !== 'role-player');
     setStaff(data);
     router.refresh();
   };
@@ -119,7 +117,7 @@ export default function TeamStaffPage() {
     await store.removeTeamMember(confirmDelete.membershipId);
     
     const teamId = params.teamId as string;
-    const data = store.getTeamMembers(teamId).filter(p => p.roleId === 'role-coach' || p.roleId === 'role-staff');
+    const data = store.getTeamMembers(teamId).filter(p => p.roleId !== 'role-player');
     setStaff(data);
     setConfirmDelete({ isOpen: false, membershipId: "", name: "" });
     router.refresh();
@@ -131,7 +129,7 @@ export default function TeamStaffPage() {
       orgProfileId: person.id,
       membershipId: person.membershipId,
       name: person.name,
-      role: person.roleId === 'role-coach' ? 'Coach' : 'Staff',
+      role: person.roleId,
     });
   };
 
@@ -143,14 +141,13 @@ export default function TeamStaffPage() {
       await store.updateOrgProfile(editingStaff.orgProfileId, { name: editingStaff.name });
       
       // 2. Update Membership (Role)
-      const roleId = editingStaff.role === 'Coach' ? 'role-coach' : 'role-staff';
-      await store.updateTeamMember(editingStaff.membershipId, { roleId });
+      await store.updateTeamMember(editingStaff.membershipId, { roleId: editingStaff.role });
       
       setEditingStaff({ ...editingStaff, isOpen: false });
       
       // Reload local state
       const teamId = params.teamId as string;
-      const data = store.getTeamMembers(teamId).filter(p => p.roleId === 'role-coach' || p.roleId === 'role-staff');
+      const data = store.getTeamMembers(teamId).filter(p => p.roleId !== 'role-player');
       setStaff(data);
       router.refresh();
 
@@ -160,6 +157,8 @@ export default function TeamStaffPage() {
   };
 
   if (loading) return <div>Loading...</div>;
+
+  const availableRoles = store.getTeamRoles().filter(r => r.id !== 'role-player');
 
   return (
     <div className="space-y-6 relative pb-20 md:pb-0">
@@ -210,13 +209,14 @@ export default function TeamStaffPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
-                <Select value={newStaffRole} onValueChange={(v: 'Coach' | 'Staff') => setNewStaffRole(v)}>
+                <Select value={newStaffRole} onValueChange={(v: string) => setNewStaffRole(v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Coach">Coach</SelectItem>
-                    <SelectItem value="Staff">Staff</SelectItem>
+                    {availableRoles.map(role => (
+                      <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -302,13 +302,14 @@ export default function TeamStaffPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="editStaffRole">Role</Label>
-              <Select value={editingStaff.role} onValueChange={(v: 'Coach' | 'Staff') => setEditingStaff({ ...editingStaff, role: v })}>
+              <Select value={editingStaff.role} onValueChange={(v: string) => setEditingStaff({ ...editingStaff, role: v })}>
                 <SelectTrigger className="bg-background/50">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Coach">Coach</SelectItem>
-                  <SelectItem value="Staff">Staff</SelectItem>
+                  {availableRoles.map(role => (
+                    <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

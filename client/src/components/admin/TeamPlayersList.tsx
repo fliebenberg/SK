@@ -195,7 +195,7 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
         </Card>
       )}
 
-      <div className="grid gap-4">
+      <div className="grid gap-2">
         {players.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
             <UserPlus className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -205,8 +205,8 @@ export function TeamPlayersList({ teamId, players }: TeamPlayersListProps) {
         ) : (
           players.map((player) => (
             <Card key={player.membershipId} className="border-border/50 bg-card/30 hover:bg-card/50 transition-colors">
-              <CardContent className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-4">
+              <CardContent className="flex items-center justify-between p-2 px-3">
+                <div className="flex items-center gap-3">
                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
                       {player.name.charAt(0).toUpperCase()}
                    </div>
