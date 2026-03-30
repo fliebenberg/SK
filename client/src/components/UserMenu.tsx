@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigationGuardContext } from '@/contexts/NavigationGuardContext';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -26,6 +27,7 @@ export function UserMenu() {
   const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { confirmNavigation } = useNavigationGuardContext();
   const [canSeeAdmin, setCanSeeAdmin] = useState(false);
 
   useEffect(() => {
@@ -68,19 +70,19 @@ export function UserMenu() {
               <span>Theme</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent sideOffset={2} alignOffset={-5} collisionPadding={16}>
-              <DropdownMenuItem onClick={() => setTheme("system")} className="cursor-pointer flex items-center justify-between">
+              <DropdownMenuItem onClick={() => confirmNavigation(() => setTheme("system"))} className="cursor-pointer flex items-center justify-between">
                 <span>Browser Default</span>
                 {theme === "system" && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("dark-green")} className="cursor-pointer flex items-center justify-between">
+              <DropdownMenuItem onClick={() => confirmNavigation(() => setTheme("dark-green"))} className="cursor-pointer flex items-center justify-between">
                 <span>Dark (Green)</span>
                 {theme === "dark-green" && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("dark-orange")} className="cursor-pointer flex items-center justify-between">
+              <DropdownMenuItem onClick={() => confirmNavigation(() => setTheme("dark-orange"))} className="cursor-pointer flex items-center justify-between">
                 <span>Dark (Orange)</span>
                 {theme === "dark-orange" && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("light-orange")} className="cursor-pointer flex items-center justify-between">
+              <DropdownMenuItem onClick={() => confirmNavigation(() => setTheme("light-orange"))} className="cursor-pointer flex items-center justify-between">
                 <span>Light (Orange)</span>
                 {theme === "light-orange" && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
@@ -159,19 +161,19 @@ export function UserMenu() {
             <span>Theme</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent sideOffset={2} alignOffset={-5} collisionPadding={16}>
-            <DropdownMenuItem onClick={() => setTheme("system")} className="cursor-pointer flex items-center justify-between">
+            <DropdownMenuItem onClick={() => confirmNavigation(() => setTheme("system"))} className="cursor-pointer flex items-center justify-between">
               <span>Browser Default</span>
               {theme === "system" && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("dark-green")} className="cursor-pointer flex items-center justify-between">
+            <DropdownMenuItem onClick={() => confirmNavigation(() => setTheme("dark-green"))} className="cursor-pointer flex items-center justify-between">
               <span>Dark (Green)</span>
               {theme === "dark-green" && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("dark-orange")} className="cursor-pointer flex items-center justify-between">
+            <DropdownMenuItem onClick={() => confirmNavigation(() => setTheme("dark-orange"))} className="cursor-pointer flex items-center justify-between">
               <span>Dark (Orange)</span>
               {theme === "dark-orange" && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("light-orange")} className="cursor-pointer flex items-center justify-between">
+            <DropdownMenuItem onClick={() => confirmNavigation(() => setTheme("light-orange"))} className="cursor-pointer flex items-center justify-between">
               <span>Light (Orange)</span>
               {theme === "light-orange" && <Check className="h-4 w-4 text-primary" />}
             </DropdownMenuItem>

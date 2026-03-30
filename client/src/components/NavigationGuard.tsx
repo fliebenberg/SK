@@ -9,9 +9,16 @@ import { ConfirmationModal } from './ui/ConfirmationModal';
  * Global component that intercepts navigation when there are unsaved changes.
  */
 export function NavigationGuard() {
-  const { isDirty, setIsDirty } = useNavigationGuardContext();
+  const { 
+    isDirty, 
+    setIsDirty, 
+    isModalOpen, 
+    setIsModalOpen, 
+    pendingAction, 
+    setPendingAction 
+  } = useNavigationGuardContext();
+  
   const router = useRouter();
-  const [showModal, setShowModal] = useState(false);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
 
   // 1. External navigation (tab closure, refresh, external links)
@@ -44,7 +51,7 @@ export function NavigationGuard() {
             e.preventDefault();
             e.stopPropagation();
             setPendingUrl(anchor.href);
-            setShowModal(true);
+            setIsModalOpen(true);
           }
         } catch (err) {
           // Ignore invalid URLs
@@ -55,52 +62,54 @@ export function NavigationGuard() {
     // Capture phase to intercept before Next.js Link handles it
     window.addEventListener('click', handleAnchorClick, true);
     return () => window.removeEventListener('click', handleAnchorClick, true);
-  }, [isDirty]);
+  }, [isDirty, setIsModalOpen]);
 
   // 3. Browser Back/Forward (Popstate)
-  // Note: Handling popstate perfectly in App Router is complex without custom routers.
-  // This is a best-effort warning.
   useEffect(() => {
     const handlePopState = () => {
       if (isDirty) {
         // The URL has already changed. We push the current URL back onto the stack 
         // to "stay" on the page, then show the warning.
         window.history.pushState(null, '', window.location.href);
-        setShowModal(true);
+        setIsModalOpen(true);
       }
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [isDirty]);
+  }, [isDirty, setIsModalOpen]);
 
   const handleConfirm = () => {
-    setIsDirty(false); // Reset dirty state to allow navigation
-    setShowModal(false);
+    setIsDirty(false); // Reset dirty state to allow action
+    setIsModalOpen(false);
     
-    // If we have a pending URL from a click, navigate to it
+    // 1. If we have a pending context action (like theme change)
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+      return;
+    }
+
+    // 2. If we have a pending URL from a click
     if (pendingUrl) {
       router.push(pendingUrl);
       setPendingUrl(null);
     } else {
-        // If it was a popstate (back button), we've already pushState'd back.
-        // Ideally we would trigger the back action again, but NEXT.JS router.back()
-        // might conflict with our history manipulation. 
-        // For now, Discard & Leave on a back button will just reset isDirty 
-        // and user will have to click back again, or we can try router.back().
+        // 3. If it was a popstate (back button)
         router.back();
     }
   };
 
   const handleCancel = () => {
-    setShowModal(false);
+    setIsModalOpen(false);
     setPendingUrl(null);
+    setPendingAction(null);
   };
 
   return (
     <ConfirmationModal
-      isOpen={showModal}
-      onOpenChange={setShowModal}
+      isOpen={isModalOpen}
+      onOpenChange={setIsModalOpen}
       title="Unsaved Changes"
       description="You have unsaved changes that will be lost if you leave this page. Are you sure you want to discard them?"
       confirmText="Discard & Leave"
