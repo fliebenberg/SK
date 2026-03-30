@@ -96,6 +96,9 @@ io.on('connection', (socket) => {
             case 'game_events':
                 callback(await dataManager.getGameEvents(id, request.fromSequence, request.limit));
                 break;
+            case 'game_roster':
+                callback(await dataManager.getGameRoster(id));
+                break;
             case 'events':
                 callback(await dataManager.getEvents(orgId));
                 break;
@@ -206,9 +209,8 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
-                break;
             default:
-                console.warn('Unknown get_data type:', type);
+                console.error(`[get_data] ⚠️  UNHANDLED type: "${type}" — no case exists for this request. Full request:`, JSON.stringify(request));
                 callback(null);
         }
         console.log(`Server: get_data completed. Type: ${type}`);

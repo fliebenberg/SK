@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { store } from "@/app/store/store";
 import { Game, Team, OrgProfile, Sport } from "@sk/types";
 import { Button } from "@/components/ui/button";
+import { MetalButton } from "@/components/ui/MetalButton";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, Save, User, Users, CheckCircle2, Circle } from "lucide-react";
+import { ChevronLeft, Save, User, Users, Circle, X, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
@@ -35,13 +36,15 @@ export default function SelectionPage() {
     const [activePositionId, setActivePositionId] = useState<string | null>(null);
     const [dragOverPositionId, setDragOverPositionId] = useState<string | null>(null);
     const [isOverReserves, setIsOverReserves] = useState(false);
+    const [pickerSearch, setPickerSearch] = useState("");
 
+    // Effect 1: subscribe to live store updates for non-roster data only
     useEffect(() => {
-        const update = async () => {
+        const update = () => {
             const g = store.getGame(gameId);
             if (g) {
                 setGame(g);
-                
+
                 const participant = g.participants?.[0];
                 if (participant && !selectedParticipantId) {
                     setSelectedParticipantId(participant.id);
@@ -53,23 +56,13 @@ export default function SelectionPage() {
                         const t = store.getTeam(p.teamId);
                         setTeam(t);
                         setAvailablePlayers(store.getTeamMembers(p.teamId));
-                        
+
                         const sport = t ? store.getSport(t.sportId) : null;
-                        const resolvedPositions = 
-                            g.customSettings?.positions || 
-                            store.getEvent(g.eventId || "")?.settings?.positions || 
+                        const resolvedPositions =
+                            g.customSettings?.positions ||
+                            store.getEvent(g.eventId || "")?.settings?.positions ||
                             sport?.defaultSettings?.positions || [];
                         setPositions(resolvedPositions);
-
-                        // Load current roster
-                        const currentRoster = await store.fetchGameRoster(selectedParticipantId);
-                        const mappedRoster = currentRoster.map(r => ({
-                            orgProfileId: r.orgProfileId,
-                            position: r.position,
-                            isReserve: r.isReserve
-                        }));
-                        setRoster(mappedRoster);
-                        setOriginalRoster(mappedRoster);
                     }
                 }
                 setLoading(false);
@@ -84,6 +77,24 @@ export default function SelectionPage() {
             store.unsubscribeFromGame(gameId);
         };
     }, [gameId, selectedParticipantId]);
+
+    // Effect 2: fetch roster exactly once when we have a participantId
+    useEffect(() => {
+        if (!selectedParticipantId) return;
+        let cancelled = false;
+        store.fetchGameRoster(selectedParticipantId).then(currentRoster => {
+            if (cancelled) return;
+            const mappedRoster = currentRoster.map(r => ({
+                orgProfileId: r.orgProfileId,
+                position: r.position,
+                isReserve: r.isReserve
+            }));
+            setRoster(mappedRoster);
+            setOriginalRoster(mappedRoster);
+        });
+        return () => { cancelled = true; };
+    }, [selectedParticipantId]);
+
 
     const handlePlayerClick = (profileId: string) => {
         setRoster(prev => {
@@ -153,6 +164,10 @@ export default function SelectionPage() {
         setRoster(prev => prev.filter(item => item.orgProfileId !== profileId));
     };
 
+    const handleCancel = () => {
+        setRoster(originalRoster);
+    };
+
     const handleSave = async () => {
         if (!selectedParticipantId) return;
         setSaving(true);
@@ -196,13 +211,31 @@ export default function SelectionPage() {
                             {team.name} • {game.status}
                         </p>
                     </div>
-                    <Button 
-                        onClick={handleSave} 
-                        disabled={saving}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest text-[10px] h-9 px-4 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95"
-                    >
-                        {saving ? "Saving..." : <><Save className="w-3.5 h-3.5 mr-2" /> Save</>}
-                    </Button>
+                    {isDirty && (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2 duration-200">
+                            <MetalButton
+                                type="button"
+                                variantType="outlined"
+                                icon={<X className="w-4 h-4" />}
+                                onClick={handleCancel}
+                                disabled={saving}
+                                className="text-muted-foreground hover:text-foreground"
+                            >
+                                Cancel
+                            </MetalButton>
+                            <MetalButton
+                                type="button"
+                                variantType="filled"
+                                icon={<Save className="w-3.5 h-3.5" />}
+                                glowColor="hsl(var(--primary))"
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="text-primary-foreground"
+                            >
+                                {saving ? "Saving..." : "Save"}
+                            </MetalButton>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -227,7 +260,7 @@ export default function SelectionPage() {
                                 return (
                                     <div 
                                         key={pos.id}
-                                        onClick={() => setActivePositionId(isActive ? null : pos.id)}
+                                        onClick={() => { setActivePositionId(isActive ? null : pos.id); setPickerSearch(""); }}
                                         onDragOver={(e) => handleDragOverPosition(e, pos.id)}
                                         onDragLeave={() => setDragOverPositionId(null)}
                                         onDrop={(e) => handleDropOnPosition(e, pos.id)}
@@ -258,15 +291,25 @@ export default function SelectionPage() {
                                             )}
                                         </div>
                                         {player && (
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                onClick={(e) => { e.stopPropagation(); removeFromRoster(player.id); }}
-                                                className="h-7 px-2 text-[9px] font-black uppercase tracking-widest text-destructive hover:text-destructive hover:bg-destructive/10 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                                            >
-                                                Clear
-                                            </Button>
+                                            <div className="ml-auto relative shrink-0">
+                                                <div className="w-9 h-9 rounded-full border-2 border-primary/20 overflow-hidden shadow-sm bg-muted flex items-center justify-center">
+                                                    {player.image ? (
+                                                        <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <User className="w-4 h-4 text-muted-foreground/50" />
+                                                    )}
+                                                </div>
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    onClick={(e) => { e.stopPropagation(); removeFromRoster(player.id); }}
+                                                    className="absolute inset-0 w-full h-full rounded-full p-0 text-[8px] font-black uppercase tracking-widest text-destructive hover:text-destructive hover:bg-destructive/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    ✕
+                                                </Button>
+                                            </div>
                                         )}
+
                                     </div>
                                 );
                             })}
@@ -370,7 +413,15 @@ export default function SelectionPage() {
                                             </p>
                                         </div>
                                         {isSelected ? (
-                                            isReserve ? <Users className="w-4 h-4 text-emerald-500" /> : <CheckCircle2 className="w-4 h-4 text-primary" />
+                                            isReserve
+                                                ? <Users className="w-4 h-4 text-emerald-500" />
+                                                : (
+                                                    <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/30">
+                                                        <span className="text-[10px] font-black text-primary-foreground leading-none">
+                                                            {rosterItem?.position}
+                                                        </span>
+                                                    </div>
+                                                )
                                         ) : <Circle className="w-4 h-4 text-muted-foreground/20" />}
                                     </CardContent>
                                 </Card>
@@ -379,17 +430,112 @@ export default function SelectionPage() {
                     </div>
                 </div>
             </div>
-            
+
+            {/* Mobile Player Picker Bottom Sheet */}
+            {activePositionId && (
+                <div className="fixed lg:hidden inset-0 z-50 flex flex-col justify-end">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+                        onClick={() => { setActivePositionId(null); setPickerSearch(""); }}
+                    />
+                    {/* Sheet */}
+                    <div className="relative bg-background rounded-t-3xl shadow-2xl flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300">
+                        {/* Sheet Header */}
+                        <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Assigning position</p>
+                                <p className="text-lg font-black uppercase tracking-tight">
+                                    {positions.find(p => p.id === activePositionId)?.id}
+                                    <span className="text-muted-foreground font-medium normal-case tracking-normal text-base ml-2">
+                                        {positions.find(p => p.id === activePositionId)?.name}
+                                    </span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setActivePositionId(null); setPickerSearch(""); }}
+                                className="w-8 h-8 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        {/* Search */}
+                        <div className="px-5 pb-3 shrink-0">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder="Search players..."
+                                    value={pickerSearch}
+                                    onChange={e => setPickerSearch(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-muted/40 border border-border/30 text-sm font-medium placeholder:text-muted-foreground/40 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition-all"
+                                />
+                            </div>
+                        </div>
+                        {/* Player List */}
+                        <div className="overflow-y-auto flex-1 px-3 pb-6">
+                            {availablePlayers
+                                .filter(p => !roster.find(r => r.orgProfileId === p.id))
+                                .filter(p => p.name.toLowerCase().includes(pickerSearch.toLowerCase()))
+                                .map(player => (
+                                    <button
+                                        key={player.id}
+                                        onClick={() => { handlePlayerClick(player.id); setPickerSearch(""); }}
+                                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-primary/5 active:bg-primary/10 transition-colors text-left group"
+                                    >
+                                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 border border-border/20 overflow-hidden">
+                                            {player.image
+                                                ? <img src={player.image} alt={player.name} className="w-full h-full object-cover" />
+                                                : <User className="w-5 h-5 text-muted-foreground" />}
+                                        </div>
+                                        <p className="flex-1 text-sm font-black text-foreground/90">{player.name}</p>
+                                        <div className="w-7 h-7 rounded-lg bg-primary/10 group-hover:bg-primary group-active:bg-primary flex items-center justify-center shrink-0 transition-colors">
+                                            <span className="text-[10px] font-black text-primary group-hover:text-primary-foreground group-active:text-primary-foreground transition-colors leading-none">
+                                                {activePositionId}
+                                            </span>
+                                        </div>
+                                    </button>
+                                ))
+                            }
+                            {availablePlayers.filter(p => !roster.find(r => r.orgProfileId === p.id)).filter(p => p.name.toLowerCase().includes(pickerSearch.toLowerCase())).length === 0 && (
+                                <p className="text-center text-[11px] font-bold text-muted-foreground/40 uppercase tracking-widest py-8">
+                                    {pickerSearch ? "No players match" : "All players assigned"}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Mobile Sticky Footer */}
-            <div className="fixed lg:hidden bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t border-border/10 z-40">
-                <Button 
-                    onClick={handleSave} 
-                    disabled={saving}
-                    className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest shadow-xl shadow-primary/20 rounded-2xl active:scale-[0.98] transition-all"
-                >
-                    {saving ? "Saving Selection..." : <><Save className="w-5 h-5 mr-3" /> Save Selection</>}
-                </Button>
-            </div>
+            {isDirty && (
+                <div className="fixed lg:hidden bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t border-border/10 z-40 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    <div className="flex gap-3">
+                        <MetalButton
+                            type="button"
+                            variantType="outlined"
+                            icon={<X className="w-4 h-4" />}
+                            onClick={handleCancel}
+                            disabled={saving}
+                            className="text-muted-foreground hover:text-foreground"
+                        >
+                            Cancel
+                        </MetalButton>
+                        <MetalButton
+                            type="button"
+                            variantType="filled"
+                            icon={<Save className="w-4 h-4" />}
+                            glowColor="hsl(var(--primary))"
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="flex-1 text-primary-foreground"
+                        >
+                            {saving ? "Saving..." : "Save Selection"}
+                        </MetalButton>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
