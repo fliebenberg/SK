@@ -135,6 +135,8 @@ export class DataManager {
   getLiveGames = () => eventManager.getLiveGames();
   resetGame = (id: string) => eventManager.resetGame(id);
   getGameEvents = (gameId: string, fromSequence?: number, limit?: number) => gameEventManager.getGameEvents(gameId, fromSequence, limit);
+  getGameRoster = (participantId: string) => eventManager.getGameRoster(participantId);
+  saveGameRoster = (gameId: string, participantId: string, items: any[]) => eventManager.saveGameRoster(gameId, participantId, items);
 
   // Search
   searchProfiles = async (query: string, orgId?: string) => {

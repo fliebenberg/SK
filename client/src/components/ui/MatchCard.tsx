@@ -4,7 +4,7 @@ import { store } from "@/app/store/store";
 import { Game } from "@sk/types";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { MapPin, Trophy } from "lucide-react";
+import { MapPin, Trophy, Users } from "lucide-react";
 import { OrgLogo } from "./OrgLogo";
 import { useRouter } from "next/navigation";
 import { MetalButton } from "./MetalButton";
@@ -49,6 +49,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
 
   const showScores = isLive || isFinished;
   const canScore = store.canScoreGame(game.id);
+  const canSelectTeam = store.canSelectTeam(game.id);
 
   const isWithinOneHour = (dateStr?: string) => {
     if (!dateStr) return false;
@@ -58,6 +59,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
   };
 
   const showScoreButton = store.globalRole === 'admin' || (canScore && (!isFinished || isWithinOneHour(game.finishTime) || isWithinOneHour(game.updatedAt)));
+  const showSelectButton = (store.globalRole === 'admin' || canSelectTeam) && !isFinished;
 
   return (
     <div className={cn("group flex items-stretch gap-2 md:gap-3", className)}>
@@ -137,11 +139,11 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
       <div 
         onClick={onClick}
         className={cn(
-          "flex-1 flex flex-col md:flex-row md:items-center justify-center gap-1 md:gap-0 p-[2px] md:p-0 border rounded-xl shadow-sm transition-all group/card overflow-hidden",
+          "flex-1 flex flex-col md:flex-row md:items-center justify-center gap-1 md:gap-0 p-1.5 md:p-0 border rounded-xl shadow-sm transition-all group/card overflow-hidden",
           onClick ? "cursor-pointer active:scale-[0.99]" : "cursor-default",
           isLive ? "bg-background border-primary/30 ring-1 ring-primary/10 shadow-md" : 
           isFinished ? "bg-muted/30 border-border/60" :
-          isCancelled ? "bg-destructive/5 border-destructive/20 opacity-80" :
+          isCancelled ? "bg-destructive/10 border-destructive/20 opacity-80" :
           "bg-background border-border/80 hover:border-primary/40 hover:shadow-md"
         )}
       >
@@ -209,28 +211,69 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
         </div>
       </div>
 
-      {/* Location Card (Right side) */}
+      {/* Location / Logic Card (Right side) */}
       <div className={cn(
-        "flex flex-col items-center justify-center min-w-[56px] md:min-w-[100px] border rounded-xl shadow-sm italic shrink-0 transition-colors py-1 bg-muted/20 border-border/60",
+        "flex flex-col items-center justify-center min-w-[64px] md:min-w-[100px] border rounded-xl shadow-sm italic shrink-0 transition-colors py-1 bg-muted/20 border-border/60",
         isCancelled && "bg-destructive/10 border-destructive/20"
       )}>
         <div className="flex flex-col items-center justify-center leading-none gap-1 w-full px-1 text-center">
             {gameSite ? (
                 <>
-                  <span className="text-xs md:text-sm font-black truncate w-full text-foreground/90 leading-tight">
+                  <span className="text-[10px] md:text-[11px] font-black truncate w-full text-foreground/90 leading-tight px-1">
                       {gameSite.name}
                   </span>
-                  <span className="text-[9px] md:text-xs font-bold uppercase tracking-wider opacity-50 truncate w-full">
+                  <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-wider opacity-50 truncate w-full">
                       {game.facilityId ? store.getFacility(game.facilityId)?.name : 'Field'}
                   </span>
                 </>
             ) : (
-                <span className="text-xs md:text-sm font-bold uppercase opacity-30">TBD</span>
+                <span className="text-[10px] md:text-sm font-bold uppercase opacity-30">TBD</span>
             )}
         </div>
 
-        {showScoreButton && !isCancelled && (
-            <div className="mt-2 w-full px-1.5 pt-1.5 border-t border-border/40">
+        {/* Mobile Small Icon Actions - Displayed side-by-side at bottom */}
+        {(showScoreButton || showSelectButton) && !isCancelled && (
+            <div className="md:hidden mt-1.5 flex gap-1 w-full px-1 pt-1.5 border-t border-border/20 justify-center">
+                {showSelectButton && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); router.push(`/admin/games/${game.id}/selection`); }}
+                        className="p-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors shadow-[0_0_5px_rgba(var(--primary),0.2)]"
+                    >
+                        <Users className="w-3.5 h-3.5" />
+                    </button>
+                )}
+                {showScoreButton && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); router.push(`/admin/games/${game.id}`); }}
+                        className="p-1 rounded-md bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors shadow-[0_0_5px_rgba(16,185,129,0.2)]"
+                    >
+                        <Trophy className="w-3.5 h-3.5" />
+                    </button>
+                )}
+            </div>
+        )}
+      </div>
+
+      {/* Actions Card (Desktop Only column) */}
+      <div className="hidden md:flex">
+          {(showScoreButton || showSelectButton) && !isCancelled && (
+            <div className={cn(
+              "flex flex-col items-center justify-center md:min-w-[100px] border rounded-xl shadow-sm italic shrink-0 transition-colors gap-1.5 py-1.5 px-1 bg-muted/30 border-border/80",
+            )}>
+              {showSelectButton && (
+                <MetalButton 
+                    size="sm"
+                    className="w-full h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-1.5"
+                    icon={<Users className="w-4 h-4" />}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/admin/games/${game.id}/selection`);
+                    }}
+                >
+                    Selection
+                </MetalButton>
+              )}
+              {showScoreButton && (
                 <MetalButton 
                     size="sm"
                     className="w-full h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-1.5"
@@ -242,8 +285,9 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
                 >
                     Score
                 </MetalButton>
+              )}
             </div>
-        )}
+          )}
       </div>
     </div>
   );

@@ -213,6 +213,23 @@ export class GameStore extends SiteStore {
         socket.emit('action', { type: SocketAction.RESET_GAME, payload: { id } });
     }
 
+    saveGameRoster(gameId: string, participantId: string, items: any[]) {
+        return new Promise<void>((resolve, reject) => {
+            socket.emit('action', { type: SocketAction.SAVE_GAME_ROSTER, payload: { gameId, participantId, items } }, (response: any) => {
+                if (response.status === 'ok') resolve();
+                else reject(new Error(response.message || 'Failed to save roster'));
+            });
+        });
+    }
+
+    fetchGameRoster(participantId: string) {
+        return new Promise<any[]>((resolve) => {
+            socket.emit('get_data', { type: 'game_roster', id: participantId }, (data: any[]) => {
+                resolve(data || []);
+            });
+        });
+    }
+
     updateGameClock = (id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' | 'END_PERIOD' | 'START_PERIOD') => {
         const game = this.games.find(g => g.id === id);
         if (!game) return;
@@ -412,6 +429,27 @@ export class GameStore extends SiteStore {
         if (isOrgAdmin) return true;
         const isTeamOfficial = this.userTeamMemberships.some(m => 
             (m.roleId === 'role-coach' || m.roleId === 'role-scorer') && teamIds.includes(m.teamId)
+        );
+        return isTeamOfficial;
+    }
+
+    canSelectTeam(gameId: string) {
+        if (!this.currentUserId) return false;
+        if (this.globalRole === 'admin') return true;
+        const game = this.games.find(g => g.id === gameId);
+        if (!game) return false;
+        const teamIds = game.participants?.map(p => p.teamId).filter(Boolean) as string[] || [];
+        const orgIds = new Set<string>();
+        teamIds.forEach(tid => {
+            const team = this.getTeam(tid);
+            if (team) orgIds.add(team.orgId);
+        });
+        const isOrgAdmin = this.userOrgMemberships.some(m => 
+            m.roleId === 'role-org-admin' && orgIds.has(m.orgId)
+        );
+        if (isOrgAdmin) return true;
+        const isTeamOfficial = this.userTeamMemberships.some(m => 
+            (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach' || m.roleId === 'role-manager') && teamIds.includes(m.teamId)
         );
         return isTeamOfficial;
     }

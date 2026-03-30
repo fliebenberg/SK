@@ -17,6 +17,7 @@ export interface Event {
     pointsPerWin?: number;
     pointsPerDraw?: number;
     levelWeighting?: Record<string, number>;
+    positions?: { id: string; name: string }[];
   };
   status?: 'Scheduled' | 'Cancelled' | 'Finished';
 }

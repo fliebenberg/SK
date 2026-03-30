@@ -310,4 +310,10 @@ export enum SocketAction {
      * Broadcast when a game is reset to clear client state.
      */
     GAME_RESET = 'GAME_RESET',
+
+    /**
+     * Action to save the team roster (players and positions) for a game participant.
+     * Expects payload: { gameId: string, participantId: string, items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }> }
+     */
+    SAVE_GAME_ROSTER = 'SAVE_GAME_ROSTER',
 }

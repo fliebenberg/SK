@@ -13,8 +13,65 @@ const seedDb = async () => {
 
         // 1. Core Data: Sports (Core even in production)
         const sports = [
-            { id: "sport-soccer", name: "Soccer", facilityTerm: "Field", periodTerm: "Half" },
-            { id: "sport-rugby", name: "Rugby", facilityTerm: "Field", periodTerm: "Half" },
+            { 
+                id: "sport-soccer", 
+                name: "Soccer", 
+                facilityTerm: "Field", 
+                periodTerm: "Half",
+                defaultSettings: {
+                    positions: [
+                        { id: "GK", name: "Goalkeeper" },
+                        { id: "DF1", name: "Defender" },
+                        { id: "DF2", name: "Defender" },
+                        { id: "DF3", name: "Defender" },
+                        { id: "DF4", name: "Defender" },
+                        { id: "MF1", name: "Midfielder" },
+                        { id: "MF2", name: "Midfielder" },
+                        { id: "MF3", name: "Midfielder" },
+                        { id: "FW1", name: "Forward" },
+                        { id: "FW2", name: "Forward" },
+                        { id: "FW3", name: "Forward" },
+                        { id: "S1", name: "Substitute" },
+                        { id: "S2", name: "Substitute" },
+                        { id: "S3", name: "Substitute" },
+                        { id: "S4", name: "Substitute" },
+                        { id: "S5", name: "Substitute" }
+                    ]
+                }
+            },
+            { 
+                id: "sport-rugby", 
+                name: "Rugby", 
+                facilityTerm: "Field", 
+                periodTerm: "Half",
+                defaultSettings: {
+                    positions: [
+                        { id: "1", name: "Loosehead Prop" },
+                        { id: "2", name: "Hooker" },
+                        { id: "3", name: "Tighthead Prop" },
+                        { id: "4", name: "Lock" },
+                        { id: "5", name: "Lock" },
+                        { id: "6", name: "Blindside Flanker" },
+                        { id: "7", name: "Openside Flanker" },
+                        { id: "8", name: "Number 8" },
+                        { id: "9", name: "Scrum-half" },
+                        { id: "10", name: "Fly-half" },
+                        { id: "11", name: "Left Wing" },
+                        { id: "12", name: "Inside Center" },
+                        { id: "13", name: "Outside Center" },
+                        { id: "14", name: "Right Wing" },
+                        { id: "15", name: "Full-back" },
+                        { id: "16", name: "Reserve" },
+                        { id: "17", name: "Reserve" },
+                        { id: "18", name: "Reserve" },
+                        { id: "19", name: "Reserve" },
+                        { id: "20", name: "Reserve" },
+                        { id: "21", name: "Reserve" },
+                        { id: "22", name: "Reserve" },
+                        { id: "23", name: "Reserve" }
+                    ]
+                }
+            },
             { id: "sport-netball", name: "Netball", facilityTerm: "Court", periodTerm: "Period" },
             { id: "sport-hockey", name: "Hockey", facilityTerm: "Field", periodTerm: "Period" },
             { id: "sport-cricket", name: "Cricket", facilityTerm: "Field", periodTerm: "Period" },
@@ -22,7 +79,14 @@ const seedDb = async () => {
         ];
         
         for (const sport of sports) {
-            await pool.query('INSERT INTO sports (id, name, facility_term, period_term) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET facility_term = EXCLUDED.facility_term, period_term = EXCLUDED.period_term', [sport.id, sport.name, sport.facilityTerm, sport.periodTerm]);
+            await pool.query(`
+                INSERT INTO sports (id, name, facility_term, period_term, default_settings) 
+                VALUES ($1, $2, $3, $4, $5) 
+                ON CONFLICT (id) DO UPDATE SET 
+                    facility_term = EXCLUDED.facility_term, 
+                    period_term = EXCLUDED.period_term,
+                    default_settings = EXCLUDED.default_settings
+            `, [sport.id, sport.name, sport.facilityTerm, sport.periodTerm, JSON.stringify(sport.defaultSettings || {})]);
         }
 
         // 2. Initial App Admin (Always create if env vars exist)

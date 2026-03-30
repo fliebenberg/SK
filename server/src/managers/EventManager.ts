@@ -349,6 +349,41 @@ export class EventManager extends BaseManager {
       await this.query('DELETE FROM games WHERE id = $1', [id]);
       return game;
   }
+
+  async getGameRoster(participantId: string): Promise<any[]> {
+    const res = await this.query(
+        `SELECT id, game_participant_id as "participantId", org_profile_id as "orgProfileId", position, is_reserve as "isReserve" 
+         FROM game_rosters 
+         WHERE game_participant_id = $1`, 
+        [participantId]
+    );
+    return res.rows;
+  }
+
+  async saveGameRoster(gameId: string, participantId: string, items: { orgProfileId: string, position?: string, isReserve: boolean }[]): Promise<boolean> {
+    await this.query('BEGIN');
+    try {
+        // Clear existing roster for this participant
+        await this.query('DELETE FROM game_rosters WHERE game_participant_id = $1', [participantId]);
+
+        // Insert new items
+        for (const item of items) {
+            const id = `gr-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+            await this.query(
+                `INSERT INTO game_rosters (id, game_participant_id, org_profile_id, position, is_reserve)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [id, participantId, item.orgProfileId, item.position || null, item.isReserve]
+            );
+        }
+
+        await this.query('COMMIT');
+        return true;
+    } catch (e) {
+        await this.query('ROLLBACK');
+        console.error('Error saving game roster:', e);
+        throw e;
+    }
+  }
 }
 
 export const eventManager = new EventManager();

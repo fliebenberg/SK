@@ -206,6 +206,7 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+                break;
             default:
                 console.warn('Unknown get_data type:', type);
                 callback(null);
@@ -574,6 +575,14 @@ io.on('connection', (socket) => {
                 }
                 break;
 
+            case SocketAction.SAVE_GAME_ROSTER:
+                const { gameId, participantId, items } = action.payload;
+                result = await dataManager.saveGameRoster(gameId, participantId, items);
+                if (result) {
+                    // Broadcast update to the game rooms
+                    io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: await dataManager.getGame(gameId) });
+                }
+                break;
             case SocketAction.DELETE_GAME:
                 result = await dataManager.deleteGame(action.payload.id);
                 if (result) {
