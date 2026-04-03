@@ -316,4 +316,16 @@ export enum SocketAction {
      * Expects payload: { gameId: string, participantId: string, items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }> }
      */
     SAVE_GAME_ROSTER = 'SAVE_GAME_ROSTER',
+
+    /**
+     * Action to undo a game event.
+     * Expects payload: { gameId: string, eventId: string, initiatorId: string }
+     */
+    UNDO_GAME_EVENT = 'UNDO_GAME_EVENT',
+
+    /**
+     * Action to get global system settings.
+     * Expects payload: {}
+     */
+    GET_SYSTEM_SETTINGS = 'GET_SYSTEM_SETTINGS',
 }

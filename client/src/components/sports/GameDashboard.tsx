@@ -92,15 +92,21 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                 </div>
 
                 {/* Combined Timing & Scoring area */}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 mt-2">
                     {/* Timing Bar Slot - Compacted as per user request */}
-                    <div className="bg-card rounded-2xl shadow-sm border border-border/40 px-2 py-1">
-                         <TimerPanelSlot game={game} canEdit={canTimekeep} />
+                    <div className="relative bg-card rounded-2xl shadow-sm border-2 border-primary/40 px-3 py-1.5">
+                        <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
+                            Timing
+                        </div>
+                        <TimerPanelSlot game={game} canEdit={canTimekeep} />
                     </div>
 
                     {/* Scoring Actions Slot */}
                     {canScore && (
-                        <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-3 sm:p-4">
+                        <div className="relative bg-card rounded-2xl shadow-lg border-2 border-primary/40 p-3 sm:p-4 mt-2">
+                            <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
+                                Scoring
+                            </div>
                             <SlotWrapper>
                                 <ScoringPanelModule game={game} role={userRole} />
                             </SlotWrapper>

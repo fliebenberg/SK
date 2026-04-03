@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Game } from '@sk/types';
-import { MetalButton } from '@/components/ui/MetalButton';
+import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 import { OrgLogo } from '@/components/ui/OrgLogo';
 import { Trophy, AlertTriangle } from 'lucide-react';
@@ -16,6 +16,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 
+function ScoringActionButton({ label, points, onClick, disabled, className, title }: { label: string, points?: number, onClick: () => void, disabled?: boolean, className?: string, title?: string }) {
+    return (
+        <button 
+            onClick={onClick}
+            disabled={disabled}
+            title={title}
+            className={cn(
+                "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none",
+                className
+            )}
+        >
+            <span className="font-black uppercase tracking-tight text-foreground text-[10.5px] sm:text-[13.5px] leading-none">{label}</span>
+        </button>
+    );
+}
+
 export default function RugbyScoringPanel({ game }: { game: Game }) {
     const [isFinalScoreOpen, setIsFinalScoreOpen] = useState(false);
     const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
@@ -28,8 +44,12 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
         const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
         if (!participant) return;
 
+        const team = participant.teamId ? store.getTeam(participant.teamId) : null;
+        const initiatorOrgProfileId = store.getOrgProfileId(team?.orgId || '');
+
         store.addGameEvent({
             gameId: game.id,
+            initiatorOrgProfileId,
             type: 'SCORE',
             subType: type,
             gameParticipantId: participant.id,
@@ -51,8 +71,14 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
             });
             await store.updateScore(game.id, scores);
             
+            // For final score, use the first participant's org (or tournament org)
+            const firstParticipant = game.participants?.[0];
+            const firstTeam = firstParticipant?.teamId ? store.getTeam(firstParticipant.teamId) : null;
+            const initiatorOrgProfileId = store.getOrgProfileId(firstTeam?.orgId || '');
+
             store.addGameEvent({
                 gameId: game.id,
+                initiatorOrgProfileId,
                 type: 'SCORE',
                 subType: 'Final Score',
                 eventData: { 
@@ -92,100 +118,55 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
     const awayOrg = awayTeam?.orgId ? store.getOrganization(awayTeam.orgId) : null;
 
     return (
-        <div className="flex flex-col gap-4 sm:gap-6">
-            <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                <h3 className="font-black text-base sm:text-lg uppercase tracking-tighter text-foreground/80">Scoring Actions</h3>
-                <div className="px-2 py-0.5 rounded-md bg-primary/5 text-[9px] font-bold text-primary uppercase tracking-widest border border-primary/10">Manual Override</div>
-            </div>
-
+        <div className="-m-3 sm:-m-4 overflow-hidden rounded-xl sm:rounded-[14px] flex flex-col min-h-0">
             {isFinished && (
-                <MetalButton 
-                    onClick={() => {
-                        const initial: { [key: string]: string } = {};
-                        game.participants?.forEach(p => {
-                            initial[p.id] = (game.liveState?.scores?.[p.id] || 0).toString();
-                        });
-                        setFinalScores(initial);
-                        setIsFinalScoreOpen(true);
-                    }}
-                    variantType="outlined"
-                    glowColor="hsl(var(--primary))"
-                    className="w-full h-12 rounded-xl border-primary/20 hover:bg-primary/5 uppercase font-black tracking-widest text-primary gap-2"
-                    icon={<Trophy className="w-5 h-5" />}
-                >
-                    Enter Final Score
-                </MetalButton>
+                <div className="p-2 bg-secondary/5 border-b border-white/5">
+                    <ScoringActionButton 
+                        onClick={() => {
+                            const initial: { [key: string]: string } = {};
+                            game.participants?.forEach(p => {
+                                initial[p.id] = (game.liveState?.scores?.[p.id] || 0).toString();
+                            });
+                            setFinalScores(initial);
+                            setIsFinalScoreOpen(true);
+                        }}
+                        label="ENTER FINAL SCORE"
+                        className="w-full h-10 bg-primary/40 border-primary/50 hover:bg-primary/65 text-foreground transition-all duration-200"
+                    />
+                </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4 sm:gap-8">
+            <div className="flex divide-x divide-white/10">
                 {/* Home Scoring */}
-                <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1 p-1 sm:p-1.5 rounded-lg sm:rounded-xl bg-blue-500/5 border border-blue-500/10">
-                        <div className="h-8 w-8 sm:h-12 sm:w-12 bg-white/10 rounded-md sm:rounded-lg flex items-center justify-center border border-white/10 shadow-sm overflow-hidden shrink-0">
-                            <OrgLogo organization={homeOrg || null} size="sm" className="w-full h-full" />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                            <span className="text-[10px] font-bold text-blue-500/60 uppercase leading-none truncate mb-0.5">
-                                {homeOrg?.shortName || homeOrg?.name || "Home"}
-                            </span>
-                            <span className="text-xs sm:text-sm font-black uppercase tracking-tight text-blue-600 line-clamp-1 leading-tight">
-                                {homeTeam?.name || "Home Team"}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2">
+                <div className="flex-1 flex flex-col gap-2 p-1.5 sm:p-2.5 bg-blue-600/20 transition-colors">
+                    <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
                         {rugbyScoreTypes.map((type) => (
-                            <div key={type.label} className="relative group">
-                                <MetalButton 
-                                    onClick={() => handleScore(type.points, 'home', type.label)}
-                                    disabled={isScoringDisabled}
-                                    variantType="filled"
-                                    glowColor={isScoringDisabled ? undefined : type.glow}
-                                    size="sm"
-                                    className="w-full justify-between px-2 sm:px-3 h-8 sm:h-10 rounded-lg"
-                                    title={`Award ${type.points} points (${type.label}) to ${homeTeam?.name || "home team"}`}
-                                    icon={null}
-                                >
-                                    <span className="font-bold text-slate-900 text-[9px] sm:text-xs">{type.label}</span>
-                                    <span className="text-slate-900/60 text-[8px] sm:text-xs">+{type.points}</span>
-                                </MetalButton>
-                            </div>
+                            <ScoringActionButton 
+                                key={type.label}
+                                onClick={() => handleScore(type.points, 'home', type.label)}
+                                disabled={isScoringDisabled}
+                                label={type.label}
+                                points={type.points}
+                                className="h-8 sm:h-12 bg-blue-600/40 border-blue-600/40 hover:bg-blue-600/65 hover:border-blue-600/70"
+                                title={`Award ${type.points} points (${type.label}) to ${homeTeam?.name || "home team"}`}
+                            />
                         ))}
                     </div>
                 </div>
 
                 {/* Away Scoring */}
-                <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1 p-1 sm:p-1.5 rounded-lg sm:rounded-xl bg-red-500/5 border border-red-500/10 flex-row-reverse">
-                        <div className="h-8 w-8 sm:h-12 sm:w-12 bg-white/10 rounded-md sm:rounded-lg flex items-center justify-center border border-white/10 shadow-sm overflow-hidden shrink-0">
-                            <OrgLogo organization={awayOrg || null} size="sm" className="w-full h-full" />
-                        </div>
-                        <div className="flex flex-col items-end min-w-0">
-                            <span className="text-[10px] font-bold text-red-500/60 uppercase leading-none truncate mb-0.5">
-                                {awayOrg?.shortName || awayOrg?.name || "Away"}
-                            </span>
-                            <span className="text-xs sm:text-sm font-black uppercase tracking-tight text-red-600 line-clamp-1 leading-tight text-right">
-                                {awayTeam?.name || "Away Team"}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2">
+                <div className="flex-1 flex flex-col gap-2 p-1.5 sm:p-2.5 bg-red-600/20 transition-colors">
+                    <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
                         {rugbyScoreTypes.map((type) => (
-                            <div key={type.label} className="relative group">
-                                <MetalButton 
-                                    onClick={() => handleScore(type.points, 'away', type.label)}
-                                    disabled={isScoringDisabled}
-                                    variantType="filled"
-                                    glowColor={isScoringDisabled ? undefined : type.glow}
-                                    size="sm"
-                                    className="w-full justify-between px-2 sm:px-3 h-8 sm:h-10 rounded-lg"
-                                    title={`Award ${type.points} points (${type.label}) to ${awayTeam?.name || "away team"}`}
-                                    icon={null}
-                                >
-                                    <span className="font-bold text-slate-900 text-[9px] sm:text-xs">{type.label}</span>
-                                    <span className="text-slate-900/60 text-[8px] sm:text-xs">+{type.points}</span>
-                                </MetalButton>
-                            </div>
+                            <ScoringActionButton 
+                                key={type.label}
+                                onClick={() => handleScore(type.points, 'away', type.label)}
+                                disabled={isScoringDisabled}
+                                label={type.label}
+                                points={type.points}
+                                className="h-8 sm:h-12 bg-red-600/40 border-red-600/40 hover:bg-red-600/65 hover:border-red-600/70"
+                                title={`Award ${type.points} points (${type.label}) to ${awayTeam?.name || "away team"}`}
+                            />
                         ))}
                     </div>
                 </div>
@@ -241,23 +222,18 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
                             </p>
                         </div>
                     </div>
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <MetalButton 
-                            variantType="secondary" 
+                    <DialogFooter className="gap-2 sm:gap-2">
+                        <ScoringActionButton 
                             onClick={() => setIsFinalScoreOpen(false)}
-                            className="bg-background hover:bg-muted font-bold text-xs"
-                        >
-                            Cancel
-                        </MetalButton>
-                        <MetalButton 
-                            variantType="filled"
-                            glowColor="hsl(var(--primary))"
-                            disabled={isSaving}
+                            label="Cancel"
+                            className="h-9 px-4 bg-background hover:bg-muted font-bold text-xs border-border/40"
+                        />
+                        <ScoringActionButton 
                             onClick={handleFinalScoreSubmit}
-                            className="font-black text-xs uppercase tracking-widest"
-                        >
-                            {isSaving ? "Saving..." : "Apply Final Score"}
-                        </MetalButton>
+                            disabled={isSaving}
+                            label={isSaving ? "Saving..." : "Apply Final Score"}
+                            className="h-9 px-4 font-black text-xs uppercase tracking-widest bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
+                        />
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

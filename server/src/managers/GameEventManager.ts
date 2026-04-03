@@ -148,6 +148,67 @@ export class GameEventManager extends BaseManager {
     // If we fetched "last N", they are desc. Re-sort to asc for the client.
     return fromSequence === undefined ? res.rows.reverse() : res.rows;
   }
+
+  /**
+   * Undoes a game event by reversing its effects and deleting it.
+   * Currently only supports SCORE events.
+   */
+  async undoEvent(gameId: string, eventId: string, initiatorId: string): Promise<{ success: boolean; error?: string }> {
+    // 1. Fetch the event to undo
+    const eventRes = await this.query(`
+      SELECT id, type, initiator_org_profile_id as "initiatorId", timestamp, event_data as "eventData", game_participant_id as "gameParticipantId"
+      FROM game_events
+      WHERE id = $1 AND game_id = $2
+    `, [eventId, gameId]);
+
+    if (eventRes.rows.length === 0) {
+      console.log(`[Undo] Failed: Event not found (${eventId})`);
+      return { success: false, error: 'Event not found.' };
+    }
+
+    const event = eventRes.rows[0];
+
+    // 2. Verify it's a SCORE event
+    if (event.type !== 'SCORE') {
+      console.log(`[Undo] Failed: Not a SCORE event (${event.type})`);
+      return { success: false, error: 'Only scoring events can be undone.' };
+    }
+
+    // 3. Verify initiator
+    if (event.initiatorId !== initiatorId) {
+      console.log(`[Undo] Failed: Initiator mismatch. DB: ${event.initiatorId}, Client: ${initiatorId}`);
+      return { success: false, error: 'Only the initiator can undo this event.' };
+    }
+
+    // 4. Verify age (Fetch delay from settings)
+    const settingsRes = await this.query(`SELECT value FROM system_settings WHERE key = 'undo_delay_ms'`);
+    const delayMs = settingsRes.rows[0]?.value || 15000;
+    const eventTime = new Date(event.timestamp).getTime();
+    if (Date.now() - eventTime > delayMs) {
+      console.log(`[Undo] Failed: Window expired. Age: ${Date.now() - eventTime}, Delay: ${delayMs}`);
+      return { success: false, error: 'Undo window has expired.' };
+    }
+
+    // 5. Reverse Score Effect
+    const pointsDelta = event.eventData?.pointsDelta || 0;
+    if (pointsDelta !== 0 && event.gameParticipantId) {
+       await this.query(`
+        UPDATE games 
+        SET live_state = jsonb_set(
+          live_state, 
+          '{scores}', 
+          COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) - $2)::numeric)
+        ),
+        updated_at = NOW()
+        WHERE id = $3
+      `, [event.gameParticipantId, pointsDelta, gameId]);
+    }
+
+    // 6. Delete Event
+    await this.query(`DELETE FROM game_events WHERE id = $1`, [eventId]);
+
+    return { success: true };
+  }
 }
 
 export const gameEventManager = new GameEventManager();

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Game } from '@sk/types';
 import { store } from '@/app/store/store';
-import { MetalButton } from '@/components/ui/MetalButton';
+import { cn } from '@/lib/utils';
 import { Play, Pause, RotateCcw, Square, XCircle } from 'lucide-react';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import { getPeriodLabel } from '@sk/types';
@@ -13,6 +13,24 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+
+function TimingActionButton({ label, onClick, disabled, className, icon, title }: { label: string, onClick: () => void, disabled?: boolean, className?: string, icon?: React.ReactNode, title?: string }) {
+    return (
+        <button 
+            onClick={onClick}
+            disabled={disabled}
+            title={title}
+            className={cn(
+                "group relative flex items-center justify-center gap-1.5 rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none px-3 h-8 sm:h-9",
+                "text-foreground",
+                className
+            )}
+        >
+            {icon && <div className="shrink-0">{icon}</div>}
+            <span className="font-black uppercase tracking-tight text-[10px] sm:text-[11.5px] leading-tight">{label}</span>
+        </button>
+    );
+}
 
 export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean }) {
     const { 
@@ -107,59 +125,43 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                 <div className="flex items-center gap-2 flex-1 min-w-fit">
                     {/* LEFT SIDE BUTTONS */}
                     {game.status === 'Scheduled' && (
-                        <MetalButton 
-                            variantType="filled" 
-                            size="sm"
+                        <TimingActionButton 
                             disabled={isDebouncing}
                             onClick={() => {
                                 handleUpdateStatus('Live');
                                 handleClockAction('START');
                             }}
-                            glowColor="hsl(var(--success))"
-                            className="h-8 px-4 rounded-md"
+                            className="bg-green-600/55 border-green-600/50 hover:bg-green-600/75 hover:border-green-600/80"
                             title="Start Game & Match Clock"
                             icon={<Play className="h-3.5 w-3.5 fill-current" />}
-                        >
-                            <span className="text-[10px] font-black uppercase tracking-widest">
-                                Start Game
-                            </span>
-                        </MetalButton>
+                            label="Start Game"
+                        />
                     )}
 
                     {game.status === 'Live' && (
                         isPeriodActive ? (
-                            <MetalButton 
-                                variantType={isRunning ? "secondary" : "filled"} 
-                                size="sm"
+                            <TimingActionButton 
                                 disabled={isDebouncing}
                                 onClick={() => handleClockAction(
                                     isRunning ? 'PAUSE' : 'RESUME',
                                     isRunning ? 'CLOCK_PAUSED' : 'CLOCK_RESUMED'
                                 )}
-                                glowColor={isRunning ? undefined : "hsl(var(--primary))"}
-                                className="h-8 px-4 rounded-md"
+                                className={cn(
+                                    isRunning ? "bg-slate-400/40 border-slate-400/50 hover:bg-slate-400/65" : "bg-green-600/55 border-green-600/50 hover:bg-green-600/75"
+                                )}
                                 title={isRunning ? "Stop the clock temporarily" : "Continue timing"}
                                 icon={isRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-                            >
-                                <span className="text-[10px] font-black uppercase tracking-widest">
-                                    {isRunning ? "Pause" : "Resume"}
-                                </span>
-                            </MetalButton>
+                                label={isRunning ? "Pause" : "Resume"}
+                            />
                         ) : (
-                            <MetalButton 
-                                variantType="filled" 
-                                size="sm"
+                            <TimingActionButton 
                                 disabled={isDebouncing}
                                 onClick={() => handleClockAction('START_PERIOD', 'PERIOD_STARTED')}
-                                glowColor="hsl(var(--primary))"
-                                className="h-8 px-4 rounded-md"
+                                className="bg-green-600/55 border-green-600/50 hover:bg-green-600/75 hover:border-green-600/80"
                                 title="Start Next Period"
                                 icon={<Play className="h-3.5 w-3.5 fill-current" />}
-                            >
-                                <span className="text-[10px] font-black uppercase tracking-widest">
-                                    Start Period
-                                </span>
-                            </MetalButton>
+                                label="Start Period"
+                            />
                         )
                     )}
                 </div>
@@ -171,59 +173,44 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                     <div className="hidden sm:block w-[1px] h-4 bg-border/40 mx-1" />
                         
                         {(game.status === 'Scheduled' || (game.status === 'Live' && !isPeriodActive && periodIndex + 1 < scheduledPeriods)) && (
-                            <MetalButton 
-                                variantType="outlined" 
-                                size="sm"
+                            <TimingActionButton 
                                 onClick={() => setShowCancelModal(true)}
-                                glowColor="hsl(var(--destructive))"
-                                className="h-8 px-3 rounded-md border-destructive/30 hover:bg-destructive/10 text-destructive"
+                                className="bg-red-500/10 border-red-500/30 hover:bg-red-500/20"
                                 title="Cancel Game"
                                 icon={<Square className="h-3 w-3" />}
-                            >
-                                <span className="text-[9px] font-black uppercase tracking-wider">Cancel Game</span>
-                            </MetalButton>
+                                label="Cancel Game"
+                            />
                         )}
 
                         {game.status === 'Live' && isPeriodActive && (!isRunning || currentMS >= (clock?.periodLengthMS || 0)) && (
-                            <MetalButton 
-                                variantType="outlined" 
-                                size="sm"
+                            <TimingActionButton 
                                 disabled={isDebouncing}
                                 onClick={() => handleClockAction('END_PERIOD', 'PERIOD_ENDED')}
-                                className="h-8 px-3 rounded-md border-amber-500/40 text-amber-600 hover:bg-amber-500/5"
+                                className="bg-orange-500/55 border-orange-500/50 hover:bg-orange-500/75"
                                 title="End Current Period"
                                 icon={<Square className="h-3 w-3 fill-current" />}
-                            >
-                                <span className="text-[9px] font-bold uppercase tracking-wider">End Half</span>
-                            </MetalButton>
+                                label="End Half"
+                            />
                         )}
 
                         {(game.status === 'Scheduled' || (game.status === 'Live' && !isPeriodActive && periodIndex + 1 >= scheduledPeriods)) && (
-                            <MetalButton 
-                                variantType="filled" 
-                                size="sm"
+                            <TimingActionButton 
                                 onClick={() => handleUpdateStatus('Finished')}
-                                glowColor="hsl(var(--destructive))"
-                                className="h-8 px-3 rounded-md bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                className="bg-red-600/55 border-red-600/50 hover:bg-red-600/75"
                                 title="Finalize Match"
                                 icon={<Square className="h-3 w-3 fill-current" />}
-                            >
-                                <span className="text-[9px] font-black uppercase tracking-wider">End Game</span>
-                            </MetalButton>
+                                label="End Game"
+                            />
                         )}
 
                         {game.status === 'Finished' && (
-                             <MetalButton 
-                                variantType="outlined" 
-                                size="sm"
+                             <TimingActionButton 
                                 onClick={() => setShowCancelModal(true)}
-                                glowColor="hsl(var(--destructive))"
-                                className="h-8 px-3 rounded-md border-destructive/30 hover:bg-destructive/10 text-destructive"
+                                className="bg-red-500/10 border-red-500/30 text-red-600 hover:bg-red-500/20"
                                 title="Cancel Finished Game"
                                 icon={<RotateCcw className="h-3 w-3" />}
-                            >
-                                <span className="text-[9px] font-black uppercase tracking-wider">Cancel Game</span>
-                            </MetalButton>
+                                label="Cancel Game"
+                            />
                         )}
                     </div>
                 )}
@@ -251,23 +238,18 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                         />
                     </div>
                 </div>
-                <DialogFooter>
-                    <MetalButton 
-                        variantType="secondary" 
+                <DialogFooter className="gap-2 sm:gap-2">
+                    <TimingActionButton 
                         onClick={() => setShowCancelModal(false)}
-                        className="h-9 px-4 rounded-md"
-                    >
-                        Keep Game
-                    </MetalButton>
-                    <MetalButton 
-                        variantType="filled"
-                        glowColor="hsl(var(--destructive))"
+                        label="Keep Game"
+                        className="bg-secondary/10 border-secondary/20 hover:bg-secondary/20 px-4"
+                    />
+                    <TimingActionButton 
                         disabled={!cancelReason.trim()}
                         onClick={() => handleUpdateStatus('Cancelled', cancelReason)}
-                        className="h-9 px-4 rounded-md bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                    >
-                        Confirm Cancellation
-                    </MetalButton>
+                        label="Confirm Cancellation"
+                        className="bg-red-600/55 border-red-600/50 hover:bg-red-600/75 px-4"
+                    />
                 </DialogFooter>
             </DialogContent>
         </Dialog>

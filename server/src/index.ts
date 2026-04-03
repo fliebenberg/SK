@@ -592,6 +592,32 @@ io.on('connection', (socket) => {
                     additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_UPDATED', data: result });
                 }
                 break;
+            case SocketAction.UNDO_GAME_EVENT:
+                const undoRes = await gameEventManager.undoEvent(action.payload.gameId, action.payload.eventId, action.payload.initiatorId);
+                if (undoRes.success) {
+                    // Broadcast removal
+                    io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: action.payload.eventId } });
+                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: action.payload.eventId } });
+                    
+                    // Broadcast updated game state
+                    const updatedGameAfterUndo = await dataManager.getGame(action.payload.gameId);
+                    if (updatedGameAfterUndo) {
+                        io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGameAfterUndo });
+                        io.to(`game:${action.payload.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGameAfterUndo });
+                    }
+                    result = { success: true };
+                } else {
+                    result = { error: undoRes.error };
+                }
+                break;
+            case SocketAction.GET_SYSTEM_SETTINGS:
+                const sysSettingsRes = await pool.query('SELECT key, value FROM system_settings');
+                const settings: Record<string, any> = {};
+                sysSettingsRes.rows.forEach(row => {
+                    settings[row.key] = row.value;
+                });
+                result = settings;
+                break;
 
             case SocketAction.ADD_EVENT:
                 result = await dataManager.addEvent(action.payload);

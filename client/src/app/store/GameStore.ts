@@ -109,6 +109,63 @@ export class GameStore extends SiteStore {
         });
     }
 
+    // --- System Settings ---
+    systemSettings: Record<string, any> = {};
+
+    fetchSystemSettings() {
+        return new Promise<void>((resolve) => {
+            socket.emit('action', { type: SocketAction.GET_SYSTEM_SETTINGS, payload: {} }, (settings: any) => {
+                if (settings) {
+                    this.systemSettings = settings;
+                    this.notifyListeners();
+                }
+                resolve();
+            });
+        });
+    }
+
+    get undoDelay() {
+        return this.systemSettings.undo_delay_ms || 15000;
+    }
+
+    // --- Interaction Actions ---
+    undoGameEvent(gameId: string, eventId: string, initiatorId: string | null) {
+        return new Promise<{ success: boolean; error?: string }>((resolve) => {
+            socket.emit('action', { 
+                type: SocketAction.UNDO_GAME_EVENT, 
+                payload: { gameId, eventId, initiatorId } 
+            }, (response: any) => {
+                if (response.status === 'ok' && response.data) {
+                    resolve(response.data);
+                } else {
+                    resolve({ success: false, error: response.message || 'Unknown server error.' });
+                }
+            });
+        });
+    }
+
+    initiateUndoVote(gameId: string, eventIdToUndo: string, initiatorId: string) {
+        return new Promise<void>((resolve) => {
+            socket.emit('action', { 
+                type: SocketAction.INITIATE_UNDO_VOTE, 
+                payload: { gameId, eventIdToUndo, initiatorId } 
+            }, (response: any) => {
+                resolve();
+            });
+        });
+    }
+
+    getOrgProfileId(orgId: string) {
+        // Find the org profile for the current user in this organization
+        const membership = this.userOrgMemberships.find(m => m.orgId === orgId);
+        return membership?.orgProfileId;
+    }
+
+    isMyOrgProfileId(profileId: string) {
+        if (!profileId) return false;
+        return this.myOrgProfileIds.has(profileId);
+    }
+
     addEvent = (event: Omit<Event, "id">) => {
         return new Promise<Event>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.ADD_EVENT, payload: event }, (response: any) => {
@@ -362,6 +419,11 @@ export class GameStore extends SiteStore {
             };
         }
 
+        // Fallback: Ensure we attach an identity even if the prior lookup failed
+        if (!payload.initiatorOrgProfileId && this.myOrgProfileIds.size > 0) {
+            payload.initiatorOrgProfileId = Array.from(this.myOrgProfileIds)[0];
+        }
+
         return new Promise<any>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.ADD_GAME_EVENT, payload }, (response: any) => {
                 if (response.status === 'ok') resolve(response.data);
@@ -548,6 +610,11 @@ export class GameStore extends SiteStore {
         });
         
         this.gameEvents.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+        this.notifyListeners();
+    }
+
+    protected removeGameEvent(eventId: string) {
+        this.gameEvents = this.gameEvents.filter(e => e.id !== eventId);
         this.notifyListeners();
     }
 

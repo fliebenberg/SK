@@ -163,6 +163,10 @@ export class UserStore extends GameStore {
             if (data) {
                 this.userOrgMemberships = data.orgs;
                 this.userTeamMemberships = data.teams;
+                this.myOrgProfileIds = new Set([
+                    ...data.orgs.map(m => m.orgProfileId),
+                    ...data.teams.map(m => m.orgProfileId)
+                ]);
                 const orgIds = new Set<string>();
                 data.orgs.forEach(m => orgIds.add(m.orgId));
                 data.teams.forEach(m => orgIds.add(m.orgId));

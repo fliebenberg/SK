@@ -88,6 +88,7 @@ class Store extends UserStore {
             case 'GAME_ADDED':
             case 'GAME_UPDATED': this.mergeGame(event.data as Game); break;
             case 'GAME_EVENT_ADDED': this.mergeGameEvent(event.data as GameEvent); break;
+            case 'GAME_EVENT_REMOVED': this.removeGameEvent(event.data.id); break;
             case 'GAME_EVENTS_SYNC': this.mergeEvents(event.data as GameEvent[]); break;
             case 'GAME_RESET': this.handleGameReset(event.data.gameId); break;
             case 'GAME_DELETED': this.games = this.games.filter(g => g.id !== event.data.id); break;

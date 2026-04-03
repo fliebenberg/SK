@@ -17,6 +17,7 @@ export class StateStore extends BaseStore {
     scoreLogs: ScoreLog[] = [];
     userOrgMemberships: OrgMembership[] = [];
     userTeamMemberships: any[] = [];
+    myOrgProfileIds: Set<string> = new Set();
     notifications: Notification[] = [];
     unreadCount: number = 0;
     orgReferrals: any[] = [];
@@ -61,6 +62,7 @@ export class StateStore extends BaseStore {
         this.scoreLogs = [];
         this.userOrgMemberships = [];
         this.userTeamMemberships = [];
+        this.myOrgProfileIds = new Set();
         this.notifications = [];
         this.unreadCount = 0;
         this.orgReferrals = [];
