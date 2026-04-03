@@ -102,9 +102,9 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
 
     return (
         <>
-        <div className="flex items-center justify-between w-full h-10">
+        <div className="flex flex-wrap items-center justify-between w-full h-auto min-h-[40px] gap-y-3 py-1 sm:py-0">
             {canEdit && (
-                <div className="flex items-center gap-2 flex-1">
+                <div className="flex items-center gap-2 flex-1 min-w-fit">
                     {/* LEFT SIDE BUTTONS */}
                     {game.status === 'Scheduled' && (
                         <MetalButton 
@@ -165,10 +165,10 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
                 </div>
             )}
             
-                {canEdit && (
-                    <div className="flex items-center gap-2">
-                        {/* RIGHT SIDE BUTTONS */}
-                        <div className="w-[1px] h-4 bg-border/40 mx-1" />
+            {canEdit && (
+                <div className="flex items-center gap-2 justify-end flex-wrap sm:flex-nowrap">
+                    {/* RIGHT SIDE BUTTONS */}
+                    <div className="hidden sm:block w-[1px] h-4 bg-border/40 mx-1" />
                         
                         {(game.status === 'Scheduled' || (game.status === 'Live' && !isPeriodActive && periodIndex + 1 < scheduledPeriods)) && (
                             <MetalButton 

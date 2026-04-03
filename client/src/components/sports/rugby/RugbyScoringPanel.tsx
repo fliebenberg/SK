@@ -120,15 +120,15 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
             <div className="grid grid-cols-2 gap-4 sm:gap-8">
                 {/* Home Scoring */}
                 <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2 mb-1 p-1.5 rounded-xl bg-blue-500/5 border border-blue-500/10">
-                        <div className="h-12 w-12 bg-white/10 rounded-lg flex items-center justify-center border border-white/10 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1 p-1 sm:p-1.5 rounded-lg sm:rounded-xl bg-blue-500/5 border border-blue-500/10">
+                        <div className="h-8 w-8 sm:h-12 sm:w-12 bg-white/10 rounded-md sm:rounded-lg flex items-center justify-center border border-white/10 shadow-sm overflow-hidden shrink-0">
                             <OrgLogo organization={homeOrg || null} size="sm" className="w-full h-full" />
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-bold text-blue-500/60 uppercase leading-none truncate">
-                                {homeOrg?.shortName || homeOrg?.name || "Home Org"}
+                            <span className="text-[10px] font-bold text-blue-500/60 uppercase leading-none truncate mb-0.5">
+                                {homeOrg?.shortName || homeOrg?.name || "Home"}
                             </span>
-                            <span className="text-sm font-black uppercase tracking-tight text-blue-600 line-clamp-2 leading-tight">
+                            <span className="text-xs sm:text-sm font-black uppercase tracking-tight text-blue-600 line-clamp-1 leading-tight">
                                 {homeTeam?.name || "Home Team"}
                             </span>
                         </div>
@@ -142,12 +142,12 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
                                     variantType="filled"
                                     glowColor={isScoringDisabled ? undefined : type.glow}
                                     size="sm"
-                                    className="w-full justify-between px-3 h-9 sm:h-10 rounded-lg"
+                                    className="w-full justify-between px-2 sm:px-3 h-8 sm:h-10 rounded-lg"
                                     title={`Award ${type.points} points (${type.label}) to ${homeTeam?.name || "home team"}`}
                                     icon={null}
                                 >
-                                    <span className="font-bold text-slate-900 text-[10px] sm:text-xs">{type.label}</span>
-                                    <span className="text-slate-900/60 text-[9px] sm:text-xs">+{type.points}</span>
+                                    <span className="font-bold text-slate-900 text-[9px] sm:text-xs">{type.label}</span>
+                                    <span className="text-slate-900/60 text-[8px] sm:text-xs">+{type.points}</span>
                                 </MetalButton>
                             </div>
                         ))}
@@ -156,15 +156,15 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
 
                 {/* Away Scoring */}
                 <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2 mb-1 p-1.5 rounded-xl bg-red-500/5 border border-red-500/10 flex-row-reverse">
-                        <div className="h-12 w-12 bg-white/10 rounded-lg flex items-center justify-center border border-white/10 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1 p-1 sm:p-1.5 rounded-lg sm:rounded-xl bg-red-500/5 border border-red-500/10 flex-row-reverse">
+                        <div className="h-8 w-8 sm:h-12 sm:w-12 bg-white/10 rounded-md sm:rounded-lg flex items-center justify-center border border-white/10 shadow-sm overflow-hidden shrink-0">
                             <OrgLogo organization={awayOrg || null} size="sm" className="w-full h-full" />
                         </div>
                         <div className="flex flex-col items-end min-w-0">
-                            <span className="text-xs font-bold text-red-500/60 uppercase leading-none truncate">
-                                {awayOrg?.shortName || awayOrg?.name || "Away Org"}
+                            <span className="text-[10px] font-bold text-red-500/60 uppercase leading-none truncate mb-0.5">
+                                {awayOrg?.shortName || awayOrg?.name || "Away"}
                             </span>
-                            <span className="text-sm font-black uppercase tracking-tight text-red-600 line-clamp-2 leading-tight">
+                            <span className="text-xs sm:text-sm font-black uppercase tracking-tight text-red-600 line-clamp-1 leading-tight text-right">
                                 {awayTeam?.name || "Away Team"}
                             </span>
                         </div>
@@ -178,12 +178,12 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
                                     variantType="filled"
                                     glowColor={isScoringDisabled ? undefined : type.glow}
                                     size="sm"
-                                    className="w-full justify-between px-3 h-9 sm:h-10 rounded-lg"
+                                    className="w-full justify-between px-2 sm:px-3 h-8 sm:h-10 rounded-lg"
                                     title={`Award ${type.points} points (${type.label}) to ${awayTeam?.name || "away team"}`}
                                     icon={null}
                                 >
-                                    <span className="font-bold text-slate-900 text-[10px] sm:text-xs">{type.label}</span>
-                                    <span className="text-slate-900/60 text-[9px] sm:text-xs">+{type.points}</span>
+                                    <span className="font-bold text-slate-900 text-[9px] sm:text-xs">{type.label}</span>
+                                    <span className="text-slate-900/60 text-[8px] sm:text-xs">+{type.points}</span>
                                 </MetalButton>
                             </div>
                         ))}

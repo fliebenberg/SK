@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useNavigationGuardContext } from '@/contexts/NavigationGuardContext';
 import { Game } from '@sk/types';
 import { SportComponentRegistry, SlotWrapper } from './SportComponentRegistry';
 import { TimerPanelSlot } from './shared/TimerPanelSlot';
 import { EventLogFeed } from './shared/EventLogFeed';
+import { Button } from '@/components/ui/button';
 import { MetalButton } from '../ui/MetalButton';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, ChevronLeft } from 'lucide-react';
 import { store } from '@/app/store/store';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { BackLink } from '../ui/BackLink';
 
 interface GameDashboardProps {
     game: Game;
@@ -16,6 +18,8 @@ interface GameDashboardProps {
 }
 
 export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDashboardProps) {
+    const router = useRouter();
+    const { confirmNavigation } = useNavigationGuardContext();
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
     // Determine accessible tools based on role
@@ -28,31 +32,30 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
     const ParticipantListModule = SportComponentRegistry.getParticipantList(sportCategory);
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 p-2 sm:p-4 md:p-8 max-w-[1600px] mx-auto bg-background min-h-screen">
+        <div className="flex flex-col items-center lg:items-start lg:flex-row lg:justify-center gap-2 p-1 sm:p-2 md:p-2 md:pl-0 w-full max-w-full bg-background min-h-screen overflow-x-hidden">
             
             {/* Left Column: Active Management - Scoreboard, Timing, Scoring */}
-            <div className="flex-[1.2] flex flex-col gap-6">
+            <div className="w-full max-w-[512px] lg:flex-1 flex flex-col gap-2 min-w-0">
                 
-                {/* Back Navigation */}
-                {(() => {
-                    const event = store.getEvent(game.eventId);
-                    if (!event) return null;
-                    return (
-                        <BackLink href={`/admin/organizations/${event.orgId}/events/${game.eventId}`}>
-                            Back to Event
-                        </BackLink>
-                    );
-                })()}
-
-                {/* Header with Reset Action */}
+                {/* Header with Back Navigation & Reset Action */}
                 <div className="flex items-center justify-between gap-4">
-                    <div className="flex flex-col">
-                        <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight text-foreground/90">
-                            Game Control
-                        </h1>
-                        <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-widest">
-                            {sportCategory} • {game.status}
-                        </p>
+                    <div className="flex items-center gap-1.5">
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => confirmNavigation(() => router.back())} 
+                            className="shrink-0 -ml-3 text-muted-foreground hover:text-primary transition-colors"
+                        >
+                            <ChevronLeft className="w-6 h-6" />
+                        </Button>
+                        <div className="flex flex-col">
+                            <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight text-foreground/90">
+                                Game Control
+                            </h1>
+                            <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-widest">
+                                {sportCategory} • {game.status}
+                            </p>
+                        </div>
                     </div>
 
                     {(store.globalRole === 'admin' || ['SCORER', 'JUDGE'].includes(userRole)) && (
@@ -60,7 +63,7 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                             variantType="secondary"
                             size="sm"
                             icon={<RotateCcw className="w-3.5 h-3.5" />}
-                            className="bg-destructive/5 hover:bg-destructive/10 text-destructive border-destructive/20 hover:border-destructive/40"
+                            className="bg-destructive/5 hover:bg-destructive/10 text-destructive border-destructive/20 hover:border-destructive/40 px-2 py-1.5 sm:px-4 sm:py-2 text-[10px] sm:text-sm"
                             onClick={() => setIsResetModalOpen(true)}
                         >
                             Reset Game
@@ -89,15 +92,15 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                 </div>
 
                 {/* Combined Timing & Scoring area */}
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-2">
                     {/* Timing Bar Slot - Compacted as per user request */}
-                    <div className="bg-card rounded-2xl shadow-sm border border-border/40 px-4 py-2">
+                    <div className="bg-card rounded-2xl shadow-sm border border-border/40 px-2 py-1">
                          <TimerPanelSlot game={game} canEdit={canTimekeep} />
                     </div>
 
                     {/* Scoring Actions Slot */}
                     {canScore && (
-                        <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-6">
+                        <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-3 sm:p-4">
                             <SlotWrapper>
                                 <ScoringPanelModule game={game} role={userRole} />
                             </SlotWrapper>
@@ -106,14 +109,14 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                 </div>
 
                 {/* Rosters / Participant Lists - Collapsible or scrollable? */}
-                <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-6">
+                <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-3 sm:p-4">
                      <SlotWrapper>
                          <ParticipantListModule game={game} role={userRole} />
                      </SlotWrapper>
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col gap-8 min-h-[600px]">
+            <div className="w-full max-w-[512px] lg:w-[256px] lg:flex-none flex flex-col gap-2 min-h-[600px] min-w-0">
                 <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-1.5 flex-1 flex flex-col overflow-hidden">
                      <EventLogFeed gameId={game.id} />
                 </div>

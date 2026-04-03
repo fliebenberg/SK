@@ -19,6 +19,7 @@ const seedDb = async () => {
                 facilityTerm: "Field", 
                 periodTerm: "Half",
                 defaultSettings: {
+                    maxReserves: 5,
                     positions: [
                         { id: "GK", name: "Goalkeeper" },
                         { id: "DF1", name: "Defender" },
@@ -30,12 +31,7 @@ const seedDb = async () => {
                         { id: "MF3", name: "Midfielder" },
                         { id: "FW1", name: "Forward" },
                         { id: "FW2", name: "Forward" },
-                        { id: "FW3", name: "Forward" },
-                        { id: "S1", name: "Substitute" },
-                        { id: "S2", name: "Substitute" },
-                        { id: "S3", name: "Substitute" },
-                        { id: "S4", name: "Substitute" },
-                        { id: "S5", name: "Substitute" }
+                        { id: "FW3", name: "Forward" }
                     ]
                 }
             },
@@ -45,6 +41,7 @@ const seedDb = async () => {
                 facilityTerm: "Field", 
                 periodTerm: "Half",
                 defaultSettings: {
+                    maxReserves: 8,
                     positions: [
                         { id: "1", name: "Loosehead Prop" },
                         { id: "2", name: "Hooker" },
@@ -60,15 +57,7 @@ const seedDb = async () => {
                         { id: "12", name: "Inside Center" },
                         { id: "13", name: "Outside Center" },
                         { id: "14", name: "Right Wing" },
-                        { id: "15", name: "Full-back" },
-                        { id: "16", name: "Reserve" },
-                        { id: "17", name: "Reserve" },
-                        { id: "18", name: "Reserve" },
-                        { id: "19", name: "Reserve" },
-                        { id: "20", name: "Reserve" },
-                        { id: "21", name: "Reserve" },
-                        { id: "22", name: "Reserve" },
-                        { id: "23", name: "Reserve" }
+                        { id: "15", name: "Full-back" }
                     ]
                 }
             },
