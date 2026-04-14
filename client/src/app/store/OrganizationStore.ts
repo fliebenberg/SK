@@ -109,8 +109,12 @@ export class OrganizationStore extends SubscriptionStore {
 
     // --- Actions ---
     fetchOrganization(id: string) {
+        if (this.isFetching('organization', id)) return Promise.resolve(null);
+        this.markFetching('organization', id);
+
         return new Promise<Organization | null>((resolve) => {
             socket.emit('get_data', { type: 'organization', id }, (data: Organization) => {
+                this.completeFetching('organization', id);
                 if (data) {
                     this.mergeOrganization(data, false);
                     this.notifyListeners();

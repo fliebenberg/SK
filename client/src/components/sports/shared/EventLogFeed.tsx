@@ -4,7 +4,7 @@ import { store } from '@/app/store/store';
 import { GameEvent } from '@sk/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { RotateCcw, Scale } from 'lucide-react';
-import { UndoVoteDialog } from './UndoVoteDialog';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { toast } from '@/hooks/use-toast';
 
 export function EventLogFeed({ gameId }: { gameId: string }) {
@@ -85,12 +85,18 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         }
     };
 
-    const handleVote = async (vote: 'APPROVE' | 'REJECT') => {
+    const handleDisputeInitiate = async () => {
         if (!disputeEvent) return;
-        // In a real implementation, we'd emit CAST_UNDO_VOTE here.
-        // For now, we just close the dialog.
+        const myProfileIds = Array.from(store.myOrgProfileIds);
+        const initiatorId = myProfileIds[0] || (store.globalRole === 'admin' ? store.currentUserId || 'admin' : null);
+        
+        if (initiatorId) {
+            await store.initiateUndoVote(gameId, disputeEvent.id, initiatorId);
+            toast({ title: "Dispute Started", description: `You have challenged the score. The vote is now open.` });
+        } else {
+            toast({ title: "Error", description: "You must have an official profile to dispute a score.", variant: "destructive" });
+        }
         setDisputeEvent(null);
-        toast({ title: "Vote Cast", description: `You voted to ${vote.toLowerCase()} the undo.` });
     };
 
     return (
@@ -118,7 +124,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                             const undoDelay = store.undoDelay;
                             const inUndoWindow = age < undoDelay;
                             
-                            // Permission & Identity
                             const game = store.getGame(gameId);
                             let isInitiator = store.isMyOrgProfileId(evt.initiatorOrgProfileId || '');
                             if (!evt.initiatorOrgProfileId && store.globalRole === 'admin') {
@@ -126,11 +131,20 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                             }
                             const canScore = store.canScoreGame(gameId);
 
-                            const showUndo = isScore && isInitiator && inUndoWindow;
-                            const showDispute = isScore && !inUndoWindow && canScore;
+                            const isRemoved = eventData.status === 'REMOVED';
+                            
+                            // Check if this event is currently disputed
+                            const isCurrentlyDisputed = store.activeDisputes.some(d => d.gameEventId === evt.id);
+
+                            const showUndo = isScore && isInitiator && inUndoWindow && !isRemoved && !isCurrentlyDisputed;
+                            const showDispute = isScore && !inUndoWindow && canScore && !isRemoved && !isCurrentlyDisputed;
 
                             return (
-                                <div key={evt.id} className="text-sm flex gap-1.5 items-center p-1 px-1 bg-card border border-border/40 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5 min-h-[44px]">
+                                <div key={evt.id} className={cn(
+                                    "text-sm flex gap-1.5 items-center p-1 px-1 rounded-xl transition-all duration-300 min-h-[44px] shadow-sm hover:shadow-md transform hover:-translate-y-0.5",
+                                    isCurrentlyDisputed ? "bg-amber-500/10 border-2 border-amber-500/30" : "bg-card border border-border/40",
+                                    isRemoved ? "opacity-50 grayscale" : ""
+                                )}>
                                     <div className="flex flex-col items-center min-w-[34px] w-fit px-1 shrink-0 bg-muted/20 py-1 rounded-lg border border-border/10">
                                         <span className="font-mono text-primary text-[10px] sm:text-xs font-black leading-none mb-0.5 text-center">
                                             {matchTime || "--:--"}
@@ -145,10 +159,10 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     <div className={cn("h-6 w-0.5 rounded-full shrink-0", getTeamColor(evt))} />
                                     
                                     <div className="flex flex-col min-w-0 flex-1 overflow-hidden px-0.5 gap-0">
-                                        <span className="font-black text-[clamp(10.5px,4cqw,13px)] uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-2">
+                                        <span className={cn("font-black text-[clamp(10.5px,4cqw,13px)] uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-2", isRemoved && "line-through text-muted-foreground")}>
                                             {getEventLabel(evt)}
                                         </span>
-                                        <span className="text-[clamp(10.5px,4cqw,13px)] font-medium text-muted-foreground/60 uppercase tracking-tight truncate leading-none">
+                                        <span className={cn("text-[clamp(10.5px,4cqw,13px)] font-medium text-muted-foreground/60 uppercase tracking-tight truncate leading-none", isRemoved && "line-through")}>
                                             {isScore ? 'SCORE' : (evt.type.includes('CLOCK') ? 'TIMING' : 'ACTION')}
                                         </span>
                                     </div>
@@ -194,6 +208,13 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 </svg>
                                                 <RotateCcw className="w-3.5 h-3.5 relative z-10" />
                                             </button>
+                                        ) : isCurrentlyDisputed ? (
+                                            <div 
+                                                className="w-[28px] h-[28px] flex items-center justify-center rounded bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                                                title="Under Review"
+                                            >
+                                                <Scale className="w-3.5 h-3.5 animate-pulse" />
+                                            </div>
                                         ) : showDispute ? (
                                             <button 
                                                 onClick={() => setDisputeEvent(evt)}
@@ -210,12 +231,14 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                     )}
                 </div>
             </div>
-
-            <UndoVoteDialog 
-                isOpen={!!disputeEvent} 
-                onClose={() => setDisputeEvent(null)}
-                event={disputeEvent}
-                onVote={handleVote}
+            <ConfirmationModal 
+                isOpen={!!disputeEvent}
+                onOpenChange={(open) => !open && setDisputeEvent(null)}
+                title="Dispute Score"
+                description={`Are you sure you want to dispute this ${disputeEvent?.subType?.toUpperCase() || 'SCORE'}? This will initiate a ${store.disputeDurationMinutes}-minute vote among all officials. It will automatically cast an 'Approve' vote for you.`}
+                confirmText="Yes, start dispute"
+                onConfirm={handleDisputeInitiate}
+                variant="destructive"
             />
         </div>
     );

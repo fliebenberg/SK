@@ -169,37 +169,44 @@ export class OrganizationManager extends BaseManager {
   }
 
   /**
-   * Re-fetches a single organization's summary data (counts) and updates the cache.
-   * This is more efficient than invalidating the entire cache.
+   * Re-fetches a single organization's summary data (counts) and updates the database and cache.
+   * This is the authoritative source of truth for organization counts.
    */
   async refreshOrgSummary(id: string): Promise<Organization | undefined> {
-    // We bypass the cache check here to force a DB refresh
+    // 1. Calculate fresh counts from the database
+    const calcRes = await this.query(`
+      SELECT 
+        (SELECT COUNT(*)::int FROM teams t WHERE t.org_id = o.id AND t.is_active = true) as "teamCount",
+        (SELECT COUNT(*)::int FROM sites s WHERE s.org_id = o.id) as "siteCount",
+        (SELECT COUNT(*)::int FROM org_memberships om WHERE om.org_id = o.id AND (om.end_date IS NULL OR om.end_date > NOW())) as "memberCount"
+      FROM organizations o
+      WHERE o.id = $1
+    `, [id]);
+
+    if (calcRes.rows.length === 0) {
+        this.organizationCache.delete(id);
+        return undefined;
+    }
+
+    const { teamCount, siteCount, memberCount } = calcRes.rows[0];
+
+    // 2. Persist the accurate counts back to the organizations table
+    await this.query(`
+      UPDATE organizations 
+      SET team_count = $1, site_count = $2, member_count = $3 
+      WHERE id = $4
+    `, [teamCount, siteCount, memberCount, id]);
+
+    // 3. Fetch the full organization record (now with updated counts) for cache and return
     const res = await this.query(`
       SELECT 
-        o.id, 
-        o.name, 
-        o.logo, 
-        o.primary_color as "primaryColor", 
-        o.secondary_color as "secondaryColor", 
-        o.supported_sport_ids as "supportedSportIds", 
-        o.short_name as "shortName", 
-        o.supported_role_ids as "supportedRoleIds",
-        o.is_claimed as "isClaimed",
-        o.creator_id as "creatorId",
-        o.is_active as "isActive",
-        o.settings,
-        o.address_id as "addressId",
-        a.full_address as "fullAddress",
-        a.city,
-        a.province,
-        a.postal_code as "postalCode",
-        a.country,
-        a.latitude,
-        a.longitude,
-        (SELECT COUNT(*)::int FROM teams t WHERE t.org_id = o.id) as "teamCount",
-        (SELECT COUNT(*)::int FROM sites s WHERE s.org_id = o.id) as "siteCount",
+        o.id, o.name, o.logo, o.primary_color as "primaryColor", o.secondary_color as "secondaryColor", 
+        o.supported_sport_ids as "supportedSportIds", o.short_name as "shortName", o.supported_role_ids as "supportedRoleIds",
+        o.is_claimed as "isClaimed", o.creator_id as "creatorId", o.is_active as "isActive", o.settings,
+        o.address_id as "addressId", a.full_address as "fullAddress", a.city, a.province, a.postal_code as "postalCode",
+        a.country, a.latitude, a.longitude, o.team_count as "teamCount", o.site_count as "siteCount",
         (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
-        (SELECT COUNT(*)::int FROM org_memberships om WHERE om.org_id = o.id AND (om.end_date IS NULL OR om.end_date > NOW())) as "memberCount"
+        o.member_count as "memberCount"
       FROM organizations o
       LEFT JOIN addresses a ON o.address_id = a.id
       WHERE o.id = $1

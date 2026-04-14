@@ -65,7 +65,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
     <div className={cn("group flex items-stretch gap-2 md:gap-3", className)}>
       {/* Date/Status Card (Left side) */}
       <div className={cn(
-        "flex flex-col items-center justify-center min-w-[56px] md:min-w-[80px] border rounded-xl shadow-sm italic shrink-0 transition-colors relative py-1 bg-muted/40 border-border/80"
+        "flex flex-col items-center justify-center min-w-[56px] md:min-w-[75px] border rounded-xl shadow-sm italic shrink-0 transition-colors relative py-1 bg-muted/40 border-border/80"
       )}>
         {(() => {
             const event = game.eventId ? store.getEvent(game.eventId) : null;
@@ -213,7 +213,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
 
       {/* Location / Logic Card (Right side) */}
       <div className={cn(
-        "flex flex-col items-center justify-center min-w-[64px] md:min-w-[100px] border rounded-xl shadow-sm italic shrink-0 transition-colors py-1 bg-muted/20 border-border/60",
+        "flex flex-col items-center justify-center min-w-[64px] md:min-w-[90px] border rounded-xl shadow-sm italic shrink-0 transition-colors py-1 bg-muted/20 border-border/60",
         isCancelled && "bg-destructive/10 border-destructive/20"
       )}>
         <div className="flex flex-col items-center justify-center leading-none gap-1 w-full px-1 text-center">
@@ -258,32 +258,32 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
       <div className="hidden md:flex">
           {(showScoreButton || showSelectButton) && !isCancelled && (
             <div className={cn(
-              "flex flex-col items-center justify-center md:min-w-[100px] border rounded-xl shadow-sm italic shrink-0 transition-colors gap-1.5 py-1.5 px-1 bg-muted/30 border-border/80",
+              "flex flex-col items-center justify-center md:min-w-[44px] lg:min-w-[100px] border rounded-xl shadow-sm italic shrink-0 transition-colors gap-1.5 py-1.5 px-1 bg-muted/30 border-border/80",
             )}>
               {showSelectButton && (
                 <MetalButton 
                     size="sm"
-                    className="w-full h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-1.5"
+                    className="w-full h-8 lg:h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-0 lg:gap-1.5 px-0 lg:px-2"
                     icon={<Users className="w-4 h-4" />}
                     onClick={(e) => {
                         e.stopPropagation();
                         router.push(`/admin/games/${game.id}/selection`);
                     }}
                 >
-                    Selection
+                    <span className="hidden lg:inline">Selection</span>
                 </MetalButton>
               )}
               {showScoreButton && (
                 <MetalButton 
                     size="sm"
-                    className="w-full h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-1.5"
+                    className="w-full h-8 lg:h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-0 lg:gap-1.5 px-0 lg:px-2"
                     icon={<Trophy className="w-4 h-4" />}
                     onClick={(e) => {
                         e.stopPropagation();
                         router.push(`/admin/games/${game.id}`);
                     }}
                 >
-                    Score
+                    <span className="hidden lg:inline">Score</span>
                 </MetalButton>
               )}
             </div>

@@ -32,10 +32,11 @@ class Store extends UserStore {
             this.activeFacilitySubscriptions.forEach(id => socket.emit('join_room', `facility:${id}`));
             this.activeGameSubscriptions.forEach(id => socket.emit('join_room', `game:${id}`));
             
-            // Reset missing entities on reconnect to allow retries
+            // Reset missing entities and pending fetches on reconnect to allow retries
             Object.keys(this.missingEntities).forEach(type => {
                 this.missingEntities[type].clear();
             });
+            this.pendingFetches.clear();
 
             this.notifyListeners();
             this.fetchAllData();
@@ -87,7 +88,8 @@ class Store extends UserStore {
             case 'ORG_REFERRAL_ADDED': this.mergeReferral(event.data); break;
             case 'GAME_ADDED':
             case 'GAME_UPDATED': this.mergeGame(event.data as Game); break;
-            case 'GAME_EVENT_ADDED': this.mergeGameEvent(event.data as GameEvent); break;
+            case 'GAME_EVENT_ADDED':
+            case 'GAME_EVENT_UPDATED': this.mergeGameEvent(event.data as GameEvent); break;
             case 'GAME_EVENT_REMOVED': this.removeGameEvent(event.data.id); break;
             case 'GAME_EVENTS_SYNC': this.mergeEvents(event.data as GameEvent[]); break;
             case 'GAME_RESET': this.handleGameReset(event.data.gameId); break;
@@ -104,6 +106,28 @@ class Store extends UserStore {
                         this.missingEntities[type] = new Set();
                     }
                     this.missingEntities[type].add(event.data.id);
+                }
+                break;
+            case 'DISPUTE_STARTED':
+                console.log('[Store] Received DISPUTE_STARTED:', event.data);
+                if (event.data.gameId) {
+                   this.fetchActiveDisputes(event.data.gameId);
+                } else if (event.data.eventId) {
+                   const evt = this.gameEvents.find(e => e.id === event.data.eventId);
+                   if (evt) this.fetchActiveDisputes(evt.gameId);
+                }
+                break;
+            case 'DISPUTE_VOTE_UPDATED':
+            case 'DISPUTE_RESOLVED':
+                if (event.data.dispute) {
+                   this.mergeDispute(event.data.dispute);
+                }
+                break;
+            case 'GAME_RESET':
+                if (event.data.gameId) {
+                    this.activeDisputes = this.activeDisputes.filter(d => d.gameId !== event.data.gameId);
+                    this.gameEvents = this.gameEvents.filter(e => e.gameId !== event.data.gameId);
+                    this.notifyListeners();
                 }
                 break;
             

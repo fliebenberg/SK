@@ -1,7 +1,15 @@
 import { BaseManager } from "./BaseManager";
 import { GameEvent } from "@sk/types";
+import { Server } from "socket.io";
+import { dataManager } from "../DataManager";
 
 export class GameEventManager extends BaseManager {
+  private activeTimers = new Map<string, NodeJS.Timeout>();
+  private io: Server | null = null;
+
+  setIo(io: Server) {
+    this.io = io;
+  }
   /**
    * Ingests a new game event, applies deduplication, and updates live state.
    */
@@ -15,15 +23,15 @@ export class GameEventManager extends BaseManager {
     eventData?: any;
   }): Promise<GameEvent | { error: string }> {
     // 1. Deduplication check
-    // Silently ignore if an identical event was submitted by the same initiator within the last 5 seconds
+    // Silently ignore if an identical event was submitted within the last 5 seconds
     const dedupRes = await this.query(`
       SELECT id FROM game_events 
       WHERE game_id = $1 
-        AND initiator_org_profile_id = $2
-        AND type = $3
+        AND type = $2
+        AND sub_type = $3
         AND timestamp > (NOW() - INTERVAL '5 seconds')
       LIMIT 1
-    `, [data.gameId, data.initiatorOrgProfileId, data.type]);
+    `, [data.gameId, data.type, data.subType]);
 
     if (dedupRes.rows.length > 0) {
       return { error: 'Deduplicated: Identical event recently submitted.' };
@@ -97,28 +105,468 @@ export class GameEventManager extends BaseManager {
   /**
    * Initiates a consensus vote for an undo action.
    */
-  async initiateUndoVote(gameId: string, eventIdToUndo: string, initiatorId: string): Promise<GameEvent> {
-    const id = `ge-undo-${Date.now()}`;
-    const res = await this.query(`
-      INSERT INTO game_events (id, game_id, initiator_org_profile_id, type, event_data)
-      VALUES ($1, $2, $3, 'UNDO_INITIATED', $4)
-      RETURNING id, game_id as "gameId", timestamp, initiator_org_profile_id as "initiatorOrgProfileId", type, event_data as "eventData"
-    `, [id, gameId, initiatorId, JSON.stringify({ target_event_id: eventIdToUndo })]);
-    return res.rows[0] as GameEvent;
+  async initiateUndoVote(gameId: string, eventIdToUndo: string, initiatorId: string): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
+    // Check if an open dispute already exists for this event
+    const existingRes = await this.query(`
+      SELECT id FROM game_disputes 
+      WHERE game_id = $1 AND game_event_id = $2 AND status = 'OPEN'
+    `, [gameId, eventIdToUndo]);
+
+    if ((existingRes.rowCount ?? 0) > 0) {
+      return { success: false, error: 'A dispute is already active for this event.' };
+    }
+
+    const id = `gd-${Date.now()}`;
+    
+    let durationMinutes = 5; // Default
+    try {
+        const settingsRes = await this.query(`SELECT value FROM system_settings WHERE key = 'dispute_duration_minutes'`);
+        if (settingsRes.rows.length > 0) {
+            durationMinutes = parseInt(settingsRes.rows[0].value) || 5;
+        }
+    } catch (e) {
+        console.error("Failed to read dispute_duration_minutes from settings", e);
+    }
+    
+    // TEMPORARY OVERRIDE FOR TESTING (1 MINUTE):
+    durationMinutes = 1; 
+
+    const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
+
+    let res;
+    try {
+      res = await this.query(`
+        INSERT INTO game_disputes (id, game_id, game_event_id, initiator_org_profile_id, expires_at, status)
+        VALUES ($1, $2, $3, $4, $5, 'OPEN')
+        RETURNING id
+      `, [id, gameId, eventIdToUndo, initiatorId, expiresAt]);
+      console.log(`[Dispute] DB expires_at set to: ${expiresAt.toISOString()}`);
+    } catch (err: any) {
+      console.error(`[Dispute] SQL Error during initiation:`, err.message);
+      return { success: false, error: `Database error: ${err.message}` };
+    }
+
+    if((res.rowCount ?? 0) === 0) {
+      console.error(`[Dispute] Failed to insert dispute row for game ${gameId}`);
+      return { success: false, error: 'Failed to initiate dispute.'};
+    }
+    console.log(`[Dispute] Created dispute ${id} for game ${gameId}`);
+
+    // Auto-cast APPROVE vote for the initiator
+    const castRes = await this.castUndoVote(gameId, id, initiatorId, 'APPROVE');
+    
+    // Schedule proactive resolution timer
+    this.scheduleResolution(id, expiresAt);
+    
+    return { success: true, dispute: castRes.dispute, resolved: castRes.resolved };
+  }
+
+  private scheduleResolution(disputeId: string, expiresAt: Date) {
+    // Prevent duplicate timers
+    if (this.activeTimers.has(disputeId)) {
+        return;
+    }
+
+    const delay = Math.max(0, expiresAt.getTime() - Date.now());
+    console.log(`[Dispute] Scheduling resolution for ${disputeId} in ${Math.round(delay/1000)}s`);
+
+    const timer = setTimeout(async () => {
+        console.log(`[Dispute] Timer fired for ${disputeId}`);
+        this.activeTimers.delete(disputeId);
+        const result = await this.checkDisputeResolution(disputeId);
+        
+        if (result.resolved && this.io) {
+            this.io.to(`game:${result.dispute.gameId}:events`).emit('update', { 
+                type: 'DISPUTE_RESOLVED', 
+                data: { dispute: result.dispute } 
+            });
+            console.log(`[Dispute] Timer-based resolution broadcasted for ${disputeId}`);
+        }
+    }, delay);
+
+    this.activeTimers.set(disputeId, timer);
+  }
+
+  async rehydrateDisputes(): Promise<number> {
+    console.log(`[Dispute System] Rehydrating disputes from database...`);
+    const expiredRes = await this.query(`
+        SELECT id, game_id as "gameId", expires_at as "expiresAt" 
+        FROM game_disputes 
+        WHERE status = 'OPEN' OR status IS NULL
+    `);
+    
+    let resolvedCount = 0;
+    for (const row of expiredRes.rows) {
+        const expiresAt = new Date(row.expiresAt);
+        if (expiresAt.getTime() <= Date.now()) {
+            console.log(`[Dispute System] Resolving expired dispute ${row.id} found at startup/sweep`);
+            const result = await this.checkDisputeResolution(row.id);
+            if (result.resolved && this.io) {
+                this.io.to(`game:${row.gameId}:events`).emit('update', { 
+                    type: 'DISPUTE_RESOLVED', 
+                    data: { dispute: result.dispute } 
+                });
+                resolvedCount++;
+            }
+        } else {
+            // Still active, schedule it
+            this.scheduleResolution(row.id, expiresAt);
+        }
+    }
+    return resolvedCount;
   }
 
   /**
    * Cast a vote for an active undo.
    */
-  async castUndoVote(gameId: string, officialId: string, vote: 'APPROVE' | 'REJECT'): Promise<GameEvent> {
-    const id = `ge-vote-${Date.now()}`;
-    const res = await this.query(`
-      INSERT INTO game_events (id, game_id, initiator_org_profile_id, type, event_data)
-      VALUES ($1, $2, $3, 'UNDO_VOTE_CAST', $4)
-      RETURNING id, game_id as "gameId", timestamp, initiator_org_profile_id as "initiatorOrgProfileId", type, event_data as "eventData"
-    `, [id, gameId, officialId, JSON.stringify({ vote })]);
-    return res.rows[0] as GameEvent;
+  async castUndoVote(gameId: string, disputeId: string, officialId: string, vote: 'APPROVE' | 'REJECT'): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
+    const id = `gdv-${Date.now()}`;
+    
+    // Upsert the vote (so they can change it if they want)
+    await this.query(`
+      INSERT INTO game_dispute_votes (id, dispute_id, voter_org_profile_id, vote)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (dispute_id, voter_org_profile_id) 
+      DO UPDATE SET vote = EXCLUDED.vote, updated_at = NOW()
+    `, [id, disputeId, officialId, vote]);
+
+    // Check tally for early resolution
+    return await this.checkDisputeResolution(disputeId);
   }
+
+  /**
+   * Checks the current tally of a dispute and resolves it if criteria are met.
+   */
+
+  /**
+   * Internal helper to calculate the tally and categorize votes for a dispute.
+   */
+  private async calculateTally(gameId: string, disputeId: string, rawDispute: any): Promise<any> {
+     // 1. Fetch participants and officials to determine fixed eligible slots
+     const gamePartsRes = await this.query(`SELECT team_id as "teamId" FROM game_participants WHERE game_id = $1`, [gameId]);
+     const participantTeamIds = gamePartsRes.rows.map(r => r.teamId);
+
+     const neutralsRes = await this.query(`
+        SELECT op.id as "profileId", go.role 
+        FROM game_officials go
+        JOIN org_profiles op ON go.org_profile_id = op.id
+        WHERE go.game_id = $1
+     `, [gameId]);
+     const neutralOfficials = neutralsRes.rows;
+
+     // 2. Determine which teams have coaches/scorers assigned
+     const staffRes = await this.query(`
+        SELECT tm.team_id as "teamId", tm.role_id as "roleId", tm.org_profile_id as "profileId"
+        FROM team_memberships tm
+        WHERE tm.team_id = ANY($1) AND (tm.end_date IS NULL OR tm.end_date > NOW())
+          AND tm.role_id IN ('role-coach', 'role-assistant-coach', 'role-scorer')
+     `, [participantTeamIds]);
+     const teamStaff = staffRes.rows;
+
+     // 3. Fetch all votes with voter categorization data
+     const votesRes = await this.query(`
+        SELECT 
+          v.voter_org_profile_id as "voterId", 
+          v.vote, 
+          v.updated_at as "updatedAt",
+          COALESCE(op.name, u_direct.name, 'Admin') as "voterName",
+          COALESCE(u.global_role, u_direct.global_role) as "globalRole"
+        FROM game_dispute_votes v
+        LEFT JOIN org_profiles op ON v.voter_org_profile_id = op.id
+        LEFT JOIN users u ON op.user_id = u.id
+        LEFT JOIN users u_direct ON v.voter_org_profile_id = u_direct.id
+        WHERE v.dispute_id = $1
+        ORDER BY v.updated_at ASC
+     `, [disputeId]);
+     const rawVotes = votesRes.rows;
+
+     // 4. Calculate Tally
+     const slots: Record<string, { vote: string, voterName: string, voterId?: string }> = {};
+     let adminApprove = 0;
+     let adminReject = 0;
+     let adminVoterCount = 0;
+
+     for (const v of rawVotes) {
+        // A. Is App Admin? (Special dynamic category)
+        if (v.globalRole === 'admin') {
+            if (v.vote === 'APPROVE') adminApprove++; else adminReject++;
+            adminVoterCount++;
+            // Include admin votes in the flattened list so the client can identify them
+            slots[`admin-${v.voterId}`] = { vote: v.vote, voterName: v.voterName, voterId: v.voterId };
+            continue; 
+        }
+
+         // B. Is Neutral Official? (Individual slots)
+         const neutral = neutralOfficials.find(n => n.profileId === v.voterId);
+         if (neutral) {
+             slots[`neutral-${v.voterId}`] = { vote: v.vote, voterName: v.voterName };
+         }
+
+         // C. Is Team Staff? (Grouped slots: 1 per team/role)
+         const staffPositions = teamStaff.filter(s => s.profileId === v.voterId);
+         for (const pos of staffPositions) {
+             const isCoach = ['role-coach', 'role-assistant-coach'].includes(pos.roleId);
+             const type = isCoach ? 'coach' : 'scorer';
+             const slotKey = `team-${pos.teamId}-${type}`;
+             slots[slotKey] = { vote: v.vote, voterName: v.voterName };
+         }
+     }
+
+     let approveCount = adminApprove;
+     let rejectCount = adminReject;
+     Object.values(slots).forEach(s => {
+         if (s.vote === 'APPROVE') approveCount++; else rejectCount++;
+     });
+
+     const teamsWithCoaches = new Set(teamStaff.filter(s => ['role-coach', 'role-assistant-coach'].includes(s.roleId)).map(s => s.teamId));
+     const teamsWithScorers = new Set(teamStaff.filter(s => s.roleId === 'role-scorer').map(s => s.teamId));
+     
+     const totalEligible = neutralOfficials.length + teamsWithCoaches.size + teamsWithScorers.size + adminVoterCount;
+
+      const tally = {
+          ...rawDispute,
+          votes: Object.values(slots),
+          adminVotes: { approve: adminApprove, reject: adminReject },
+          totalEligibleVoters: Math.max(totalEligible, 1),
+          approveCount,
+          rejectCount
+      };
+      
+      console.log(`[Dispute Tally] Dispute: ${disputeId}, gameEventId: ${tally.gameEventId}, totalEligible: ${tally.totalEligibleVoters}, adminVotes: ${JSON.stringify(tally.adminVotes)}`);
+      return tally;
+  }
+
+  /**
+   * Checks the current tally of a dispute and resolves it if criteria are met.
+   */
+  async checkDisputeResolution(disputeId: string): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
+     const disputeGet = await this.query(`
+        SELECT 
+          id, 
+          game_id as "gameId", 
+          game_event_id as "gameEventId", 
+          initiator_org_profile_id as "initiatorOrgProfileId", 
+          status, 
+          expires_at as "expiresAt", 
+          created_at as "createdAt", 
+          resolved_at as "resolvedAt"
+        FROM game_disputes 
+        WHERE id = $1
+     `, [disputeId]);
+     if ((disputeGet.rowCount ?? 0) === 0) return { success: false, error: 'Dispute not found' };
+     let dispute = disputeGet.rows[0];
+
+     if (dispute.status !== 'OPEN') return { success: true, dispute, resolved: true };
+
+     dispute = await this.calculateTally(dispute.gameId, dispute.id, dispute);
+     
+     const majorityThreshold = Math.floor(dispute.totalEligibleVoters / 2) + 1;
+     const { approveCount, rejectCount } = dispute;
+
+
+     const isExpired = Date.now() > new Date(dispute.expiresAt).getTime();
+
+     let outcome: string | null = null;
+
+     // Early Resolution Condition
+     // We only resolve early if there's more than 1 eligible voter to avoid instant-locking in single-admin test scenarios
+     if (dispute.totalEligibleVoters > 1) {
+         if (approveCount >= majorityThreshold) outcome = 'RESOLVED_APPROVED';
+         else if (rejectCount >= majorityThreshold) outcome = 'RESOLVED_REJECTED';
+     }
+     
+     // Expiry Resolution Condition
+     if (!outcome && isExpired) {
+         if (approveCount > rejectCount) outcome = 'RESOLVED_APPROVED';
+         else outcome = 'RESOLVED_REJECTED'; // Tie = reject
+     }
+
+     if (outcome) {
+         // Clear active timer if it exists
+         const timer = this.activeTimers.get(disputeId);
+         if (timer) {
+             clearTimeout(timer);
+             this.activeTimers.delete(disputeId);
+             console.log(`[Dispute] Cleared resolution timer for ${disputeId} (early resolution)`);
+         }
+
+         await this.query(`UPDATE game_disputes SET status = $1, resolved_at = NOW() WHERE id = $2`, [outcome, disputeId]);
+         dispute.status = outcome;
+
+         if (outcome === 'RESOLVED_APPROVED') {
+             try {
+                 const eventRes = await this.query(`SELECT sub_type, game_participant_id, event_data FROM game_events WHERE id = $1`, [dispute.gameEventId]);
+                 const evt = eventRes.rows[0];
+                 
+                 if (!evt) return { success: true, dispute, resolved: true, error: 'Target event not found' };
+
+                 let childEventId: string | null = null;
+                 const isConversionToggle = evt.sub_type === 'Conversion' || evt.sub_type === 'Conversion Missed';
+
+             if (isConversionToggle) {
+                 // Toggle Conversion
+                 const wasConverted = evt.sub_type === 'Conversion';
+                 const newSubType = wasConverted ? 'Conversion Missed' : 'Conversion';
+                 const newSuccessful = !wasConverted;
+                 const newPoints = wasConverted ? 0 : 2;
+                 const diff = wasConverted ? -2 : 2;
+
+                 // Update game event
+                 await this.query(`
+                     UPDATE game_events 
+                     SET sub_type = $1, 
+                         event_data = jsonb_set(
+                             jsonb_set(COALESCE(event_data, '{}'::jsonb), '{successful}', $2::jsonb),
+                             '{pointsDelta}', $3::jsonb
+                         )
+                     WHERE id = $4
+                 `, [newSubType, newSuccessful ? 'true' : 'false', newPoints.toString(), dispute.gameEventId]);
+
+                 // Adjust game score
+                 if (evt.game_participant_id) {
+                     await this.query(`
+                         UPDATE games 
+                         SET live_state = jsonb_set(
+                           live_state, 
+                           '{scores}', 
+                           COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) + $2)::numeric)
+                         ),
+                         updated_at = NOW()
+                         WHERE id = $3
+                     `, [evt.game_participant_id, diff, dispute.gameId]);
+                 }
+             } else {
+                 // Standard Remove (with cascade for Tries)
+                 let childPoints = 0;
+                 
+                 if (evt.sub_type === 'Try' || evt.sub_type === 'Penalty Try') {
+                     const childRes = await this.query(`
+                         SELECT id, event_data
+                         FROM game_events
+                         WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
+                     `, [dispute.gameId, dispute.gameEventId]);
+                     
+                     if (childRes.rows.length > 0) {
+                         childEventId = childRes.rows[0].id;
+                         childPoints = childRes.rows[0].event_data?.pointsDelta || 0;
+                     }
+                 }
+
+                 // Soft-delete main event
+                 await this.query(`
+                    UPDATE game_events 
+                    SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
+                    WHERE id = $1
+                 `, [dispute.gameEventId]);
+
+                 // Soft-delete child event if present
+                 if (childEventId) {
+                     await this.query(`
+                        UPDATE game_events 
+                        SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
+                        WHERE id = $1
+                     `, [childEventId]);
+                 }
+
+                 // Reverse combined score
+                 const pts = evt.event_data?.pointsDelta || 0;
+                 const totalPointsToReverse = pts + childPoints;
+                 
+                 if (totalPointsToReverse !== 0 && evt.game_participant_id) {
+                    await this.query(`
+                        UPDATE games 
+                        SET live_state = jsonb_set(
+                          live_state, 
+                          '{scores}', 
+                          COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) - $2)::numeric)
+                        ),
+                        updated_at = NOW()
+                        WHERE id = $3
+                    `, [evt.game_participant_id, totalPointsToReverse, dispute.gameId]);
+                 }
+             }
+
+             // --- BROADCAST UPDATES ---
+             if (this.io) {
+                 // 1. Notify :events about the event change
+                 if (isConversionToggle) {
+                     const updatedEvtRes = await this.query(`SELECT id, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
+                     this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvtRes.rows[0] });
+                 } else {
+                     this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: dispute.gameEventId } });
+                     if (childEventId) {
+                         this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
+                     }
+                 }
+
+                 // 2. Notify game rooms about score change
+                 const updatedGame = await dataManager.getGame(dispute.gameId);
+                 if (updatedGame) {
+                     this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                     this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                 }
+             }
+         } catch (err: any) {
+             console.error(`[Dispute Sync Error] Failed to process database update during dispute resolution:`, err);
+             // Return false so we don't accidentally broadcast a success
+             return { success: false, dispute, resolved: false, error: err.message };
+         }
+         }
+         return { success: true, dispute, resolved: true };
+     }
+
+     // Still OPEN
+     return { success: true, dispute, resolved: false };
+  }
+
+  /**
+   * Fetches active disputes for a specific game.
+   */
+   async getActiveDisputes(gameId: string): Promise<any[]> {
+      const res = await this.query(`
+         SELECT 
+           id, 
+           game_id as "gameId",
+           game_event_id as "gameEventId", 
+           initiator_org_profile_id as "initiatorOrgProfileId", 
+           status, 
+           expires_at as "expiresAt", 
+           created_at as "createdAt", 
+           resolved_at as "resolvedAt"
+         FROM game_disputes
+         WHERE game_id = $1 AND (status = 'OPEN' OR status IS NULL)
+      `, [gameId]);
+      
+       const disputes = [];
+        for (const d of res.rows) {
+            const expTime = new Date(d.expiresAt).getTime();
+            const nowTime = Date.now();
+            console.log(`[Dispute Fetch] Processing ${d.id}. Now: ${nowTime}, Exp: ${expTime}, Diff: ${expTime - nowTime}ms`);
+            
+            // JIT (Just-In-Time) Check
+            if (expTime < nowTime) {
+               console.log(`[Dispute JIT] Resolving expired dispute ${d.id} on fetch`);
+               const checkRes = await this.checkDisputeResolution(d.id);
+               if (checkRes.success && checkRes.dispute.status === 'OPEN') {
+                  disputes.push(checkRes.dispute);
+               }
+           } else {
+              // Not expired, ensure a timer is running
+              if (!this.activeTimers.has(d.id)) {
+                  console.log(`[Dispute JIT] Rehydrating timer for active dispute ${d.id}`);
+                  this.scheduleResolution(d.id, new Date(d.expiresAt));
+              }
+              const enriched = await this.calculateTally(d.gameId, d.id, d);
+              disputes.push(enriched);
+           }
+       }
+
+      console.log(`[Dispute Fetch] Game: ${gameId}, found ${disputes.length} active disputes.`);
+      if (disputes.length > 0) {
+          console.log(`[Dispute Fetch] IDs: ${disputes.map(d => d.id).join(', ')}`);
+      }
+      return disputes;
+   }
 
   /**
    * Fetches all events for a specific game, ordered by sequence.
@@ -156,7 +604,7 @@ export class GameEventManager extends BaseManager {
   async undoEvent(gameId: string, eventId: string, initiatorId: string): Promise<{ success: boolean; error?: string }> {
     // 1. Fetch the event to undo
     const eventRes = await this.query(`
-      SELECT id, type, initiator_org_profile_id as "initiatorId", timestamp, event_data as "eventData", game_participant_id as "gameParticipantId"
+      SELECT id, type, sub_type as "subType", initiator_org_profile_id as "initiatorId", timestamp, event_data as "eventData", game_participant_id as "gameParticipantId"
       FROM game_events
       WHERE id = $1 AND game_id = $2
     `, [eventId, gameId]);
@@ -189,9 +637,27 @@ export class GameEventManager extends BaseManager {
       return { success: false, error: 'Undo window has expired.' };
     }
 
-    // 5. Reverse Score Effect
+    // 5. Reverse Score Effect (including children)
+    let childPoints = 0;
+    let childEventId = null;
+    if (event.subType === 'Try' || event.subType === 'Penalty Try') {
+        const childRes = await this.query(`
+            SELECT id, event_data
+            FROM game_events
+            WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
+        `, [gameId, eventId]);
+        
+        if (childRes.rows.length > 0) {
+            const childEvt = childRes.rows[0];
+            childEventId = childEvt.id;
+            childPoints = childEvt.event_data?.pointsDelta || 0;
+        }
+    }
+
     const pointsDelta = event.eventData?.pointsDelta || 0;
-    if (pointsDelta !== 0 && event.gameParticipantId) {
+    const totalPointsToReverse = pointsDelta + childPoints;
+    
+    if (totalPointsToReverse !== 0 && event.gameParticipantId) {
        await this.query(`
         UPDATE games 
         SET live_state = jsonb_set(
@@ -201,11 +667,30 @@ export class GameEventManager extends BaseManager {
         ),
         updated_at = NOW()
         WHERE id = $3
-      `, [event.gameParticipantId, pointsDelta, gameId]);
+      `, [event.gameParticipantId, totalPointsToReverse, gameId]);
     }
 
-    // 6. Delete Event
+    // 6. Delete Event and linked child Event
+    if (childEventId) {
+        await this.query(`DELETE FROM game_events WHERE id = $1`, [childEventId]);
+    }
     await this.query(`DELETE FROM game_events WHERE id = $1`, [eventId]);
+
+    // 7. BROADCAST UPDATES
+    if (this.io) {
+        // Broadcast removals to :events
+        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: eventId } });
+        if (childEventId) {
+            this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
+        }
+
+        // Broadcast score update to game summary/detail
+        const updatedGame = await dataManager.getGame(gameId);
+        if (updatedGame) {
+            this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+            this.io.to(`game:${gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+        }
+    }
 
     return { success: true };
   }

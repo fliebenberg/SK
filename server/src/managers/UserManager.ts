@@ -326,12 +326,6 @@ export class UserManager extends BaseManager {
          [finalId, orgProfileId, orgId, roleId]
     );
     await organizationManager.syncClaimedStatus(orgId);
-    
-    // Increment member count
-    await this.query(
-        `UPDATE organizations SET member_count = member_count + 1 WHERE id = $1`,
-        [orgId]
-    );
 
     return res.rows[0];
   }
@@ -355,11 +349,6 @@ export class UserManager extends BaseManager {
       if (res.rows[0]) {
           const membership = res.rows[0];
           await organizationManager.syncClaimedStatus(membership.orgId);
-          // Decrement member count
-          await this.query(
-              `UPDATE organizations SET member_count = member_count - 1 WHERE id = $1`,
-              [membership.orgId]
-          );
       }
       return res.rows[0] || null;
   }
@@ -520,10 +509,7 @@ export class UserManager extends BaseManager {
       await this.query('DELETE FROM org_profiles WHERE id = $1', [id]);
 
       if (activeCount > 0) {
-          await this.query(
-              `UPDATE organizations SET member_count = member_count - $1 WHERE id = $2`,
-              [activeCount, profile.orgId]
-          );
+          // No manual decrement needed, refreshOrgSummary will handle it
       }
 
       // Attempt safe delete of image

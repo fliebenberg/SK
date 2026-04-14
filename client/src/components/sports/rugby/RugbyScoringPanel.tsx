@@ -32,22 +32,55 @@ function ScoringActionButton({ label, points, onClick, disabled, className, titl
     );
 }
 
+type ScoringFlowState = {
+    status: 'IDLE';
+} | {
+    status: 'TRY_TYPE_SELECTION';
+    side: 'home' | 'away';
+};
+
 export default function RugbyScoringPanel({ game }: { game: Game }) {
     const [isFinalScoreOpen, setIsFinalScoreOpen] = useState(false);
     const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
     const [isSaving, setIsSaving] = useState(false);
+    const [scoringState, setScoringState] = useState<ScoringFlowState>({ status: 'IDLE' });
 
     const { currentMS } = useGameTimer(game.liveState?.clock, game.startTime, game.finishTime);
     const periodLabel = game.liveState?.periodLabel || '1st Period';
 
-    const handleScore = (points: number, side: 'home' | 'away', type: string) => {
+    // ------------------------------------------------------------------------
+    // Derived Global State for Active Conversions
+    // ------------------------------------------------------------------------
+    const gameEvents = store.gameEvents.filter(e => e.gameId === game.id);
+    const mostRecentScore = gameEvents
+        .filter(e => e.type === 'SCORE' && (e.eventData?.pointsDelta ?? 0) > 0)
+        .sort((a, b) => {
+            if (a.sequence !== undefined && b.sequence !== undefined) {
+                return b.sequence - a.sequence;
+            }
+            return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        })[0];
+
+    let pendingConversionSide: 'home' | 'away' | null = null;
+    let pendingTryEventId: string | null = null;
+
+    if (mostRecentScore && mostRecentScore.subType === 'Try') {
+        const hasLinkedConversion = gameEvents.some(e => e.eventData?.linkedEventId === mostRecentScore.id);
+        if (!hasLinkedConversion) {
+            pendingTryEventId = mostRecentScore.id;
+            pendingConversionSide = mostRecentScore.gameParticipantId === game.participants?.[0]?.id ? 'home' : 'away';
+        }
+    }
+    // ------------------------------------------------------------------------
+
+    const handleScore = async (points: number, side: 'home' | 'away', type: string, extraData?: any) => {
         const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
         if (!participant) return;
 
         const team = participant.teamId ? store.getTeam(participant.teamId) : null;
         const initiatorOrgProfileId = store.getOrgProfileId(team?.orgId || '');
 
-        store.addGameEvent({
+        return store.addGameEvent({
             gameId: game.id,
             initiatorOrgProfileId,
             type: 'SCORE',
@@ -56,9 +89,54 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
             eventData: { 
                 pointsDelta: points,
                 elapsedMS: currentMS,
-                period: periodLabel
+                period: periodLabel,
+                ...extraData
             }
         });
+    };
+
+    const handleTryClick = (side: 'home' | 'away') => {
+        setScoringState({ status: 'TRY_TYPE_SELECTION', side });
+    };
+
+    const handleNormalTry = async (side: 'home' | 'away') => {
+        try {
+            await handleScore(5, side, 'Try');
+            setScoringState({ status: 'IDLE' });
+        } catch (e) {
+            console.error(e);
+            setScoringState({ status: 'IDLE' });
+        }
+    };
+
+    const handlePenaltyTry = async (side: 'home' | 'away') => {
+        await handleScore(7, side, 'Penalty Try');
+        setScoringState({ status: 'IDLE' });
+    };
+
+    const handleConversion = async (points: number, isMissed: boolean) => {
+        if (!pendingTryEventId || !pendingConversionSide) return;
+        
+        await handleScore(points, pendingConversionSide, isMissed ? 'Conversion Missed' : 'Conversion', {
+            linkedEventId: pendingTryEventId,
+            successful: !isMissed
+        });
+        setScoringState({ status: 'IDLE' });
+    };
+
+    const handleUndoTry = async () => {
+        if (!pendingTryEventId || !pendingConversionSide) return;
+        
+        const participant = pendingConversionSide === 'home' ? game.participants?.[0] : game.participants?.[1];
+        const team = participant?.teamId ? store.getTeam(participant.teamId) : null;
+        const initiatorOrgProfileId = store.getOrgProfileId(team?.orgId || '');
+        
+        try {
+            await store.undoGameEvent(game.id, pendingTryEventId, initiatorOrgProfileId || null);
+        } catch (e) {
+            console.error('Failed to undo try', e);
+        }
+        setScoringState({ status: 'IDLE' });
     };
 
     const handleFinalScoreSubmit = async () => {
@@ -105,10 +183,89 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
 
     const rugbyScoreTypes = [
         { label: 'Try', points: 5, glow: '#eab308' }, // yellow-500
-        { label: 'Conversion', points: 2, glow: '#94a3b8' }, // slate-400
         { label: 'Penalty', points: 3, glow: '#f97316' }, // orange-500
         { label: 'Drop Goal', points: 3, glow: '#f97316' }, // orange-500
     ];
+
+    const renderActionButtons = (side: 'home' | 'away') => {
+        const isLocallyActive = scoringState.status !== 'IDLE' && scoringState.side === side;
+        const isPendingConversionHere = pendingConversionSide === side;
+        const isSomeSidePendingConversion = pendingConversionSide !== null;
+        const org = side === 'home' ? homeOrg : awayOrg;
+        const team = side === 'home' ? homeTeam : awayTeam;
+        
+        const teamColorStr = side === 'home' ? 'blue' : 'red';
+        const teamColorClass = side === 'home' ? 'bg-blue-600/40 border-blue-600/40 hover:bg-blue-600/65 hover:border-blue-600/70' : 'bg-red-600/40 border-red-600/40 hover:bg-red-600/65 hover:border-red-600/70';
+
+        if (scoringState.status === 'TRY_TYPE_SELECTION' && isLocallyActive) {
+            // Cancel out of TRY_TYPE_SELECTION if a pending conversion somehow pops up (e.g. from another client)
+            if (isSomeSidePendingConversion) {
+                 setScoringState({ status: 'IDLE' });
+            } else {
+                return (
+                    <div className="grid grid-cols-2 gap-1 sm:gap-1.5 h-full">
+                        <ScoringActionButton 
+                            onClick={() => handleNormalTry(side)}
+                            label="Normal Try (5)"
+                            className={`h-8 sm:h-12 ${teamColorClass}`}
+                        />
+                        <ScoringActionButton 
+                            onClick={() => handlePenaltyTry(side)}
+                            label="Penalty Try (7)"
+                            className={`h-8 sm:h-12 ${teamColorClass}`}
+                        />
+                        <ScoringActionButton 
+                            onClick={() => setScoringState({ status: 'IDLE' })}
+                            label="Cancel"
+                            className="h-8 sm:h-12 bg-white/10 hover:bg-white/20 border-white/20 col-span-2"
+                        />
+                    </div>
+                );
+            }
+        }
+
+        if (isPendingConversionHere) {
+            return (
+                <div className="grid grid-cols-2 gap-1 sm:gap-1.5 h-full">
+                    <ScoringActionButton 
+                        onClick={() => handleConversion(2, false)}
+                        label="Conversion (+2)"
+                        className={`h-8 sm:h-12 ${teamColorClass}`}
+                    />
+                    <ScoringActionButton 
+                        onClick={() => handleConversion(0, true)}
+                        label="Missed"
+                        className="h-8 sm:h-12 bg-white/10 hover:bg-white/20 border-white/20"
+                    />
+                    <ScoringActionButton 
+                        onClick={handleUndoTry}
+                        label="Undo Try"
+                        className="h-8 sm:h-12 bg-amber-500/20 hover:bg-amber-500/40 border-amber-500/30 col-span-2 text-amber-500"
+                    />
+                </div>
+            );
+        }
+
+        // Default IDLE State or the other side's panel when this side is inactive
+        // Usually, to maintain layout, we might fade the inactive side
+        const disabled = isScoringDisabled || isSomeSidePendingConversion || (scoringState.status !== 'IDLE' && scoringState.side !== side);
+
+        return (
+            <div className="grid grid-cols-2 gap-1 sm:gap-1.5 h-full opacity-100 transition-opacity">
+                {rugbyScoreTypes.map((type) => (
+                    <ScoringActionButton 
+                        key={type.label}
+                        onClick={() => type.label === 'Try' ? handleTryClick(side) : handleScore(type.points, side, type.label)}
+                        disabled={disabled}
+                        label={type.label}
+                        points={type.points}
+                        className={`h-8 sm:h-12 ${teamColorClass} ${disabled ? 'opacity-30' : ''}`}
+                        title={`Award ${type.points} points (${type.label}) to ${team?.name || side + " team"}`}
+                    />
+                ))}
+            </div>
+        );
+    };
 
     const homeTeamId = game.participants?.[0]?.teamId;
     const awayTeamId = game.participants?.[1]?.teamId;
@@ -138,37 +295,17 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
 
             <div className="flex divide-x divide-white/10">
                 {/* Home Scoring */}
-                <div className="flex-1 flex flex-col gap-2 p-1.5 sm:p-2.5 bg-blue-600/20 transition-colors">
-                    <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
-                        {rugbyScoreTypes.map((type) => (
-                            <ScoringActionButton 
-                                key={type.label}
-                                onClick={() => handleScore(type.points, 'home', type.label)}
-                                disabled={isScoringDisabled}
-                                label={type.label}
-                                points={type.points}
-                                className="h-8 sm:h-12 bg-blue-600/40 border-blue-600/40 hover:bg-blue-600/65 hover:border-blue-600/70"
-                                title={`Award ${type.points} points (${type.label}) to ${homeTeam?.name || "home team"}`}
-                            />
-                        ))}
-                    </div>
+                <div className={cn("flex-1 flex flex-col gap-2 p-1.5 sm:p-2.5 bg-blue-600/20 transition-all", 
+                    scoringState.status !== 'IDLE' && scoringState.side === 'away' ? 'opacity-40 grayscale' : ''
+                )}>
+                    {renderActionButtons('home')}
                 </div>
 
                 {/* Away Scoring */}
-                <div className="flex-1 flex flex-col gap-2 p-1.5 sm:p-2.5 bg-red-600/20 transition-colors">
-                    <div className="grid grid-cols-2 gap-1 sm:gap-1.5">
-                        {rugbyScoreTypes.map((type) => (
-                            <ScoringActionButton 
-                                key={type.label}
-                                onClick={() => handleScore(type.points, 'away', type.label)}
-                                disabled={isScoringDisabled}
-                                label={type.label}
-                                points={type.points}
-                                className="h-8 sm:h-12 bg-red-600/40 border-red-600/40 hover:bg-red-600/65 hover:border-red-600/70"
-                                title={`Award ${type.points} points (${type.label}) to ${awayTeam?.name || "away team"}`}
-                            />
-                        ))}
-                    </div>
+                <div className={cn("flex-1 flex flex-col gap-2 p-1.5 sm:p-2.5 bg-red-600/20 transition-all", 
+                    scoringState.status !== 'IDLE' && scoringState.side === 'home' ? 'opacity-40 grayscale' : ''
+                )}>
+                    {renderActionButtons('away')}
                 </div>
             </div>
 

@@ -44,7 +44,11 @@ export class UserStore extends GameStore {
 
     // --- Notifications Actions ---
     fetchNotifications = (userId: string) => {
+        if (this.isFetching('notifications', userId)) return;
+        this.markFetching('notifications', userId);
+
         socket.emit('get_data', { type: 'notifications', id: userId }, (data: Notification[]) => {
+            this.completeFetching('notifications', userId);
             if (data) {
                 this.notifications = data;
                 this.updateUnreadCount();
@@ -159,7 +163,12 @@ export class UserStore extends GameStore {
         if (!userId) return;
         this.currentUserId = userId;
         if (globalRole) this.globalRole = globalRole;
+
+        if (this.isFetching('user_memberships', userId)) return;
+        this.markFetching('user_memberships', userId);
+
         socket.emit('get_data', { type: 'user_memberships', id: userId }, (data: { orgs: OrgMembership[], teams: any[] }) => {
+            this.completeFetching('user_memberships', userId);
             if (data) {
                 this.userOrgMemberships = data.orgs;
                 this.userTeamMemberships = data.teams;

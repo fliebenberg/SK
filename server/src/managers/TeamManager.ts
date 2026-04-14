@@ -61,12 +61,6 @@ export class TeamManager extends BaseManager {
          RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId"`,
          [id, team.name, team.ageGroup, team.sportId, team.orgId, true, team.creatorId]
     );
-    if (res.rows[0]) {
-        await this.query(
-            `UPDATE organizations SET team_count = team_count + 1 WHERE id = $1`,
-            [team.orgId]
-        );
-    }
     organizationManager.invalidateCache();
     return res.rows[0];
   }
@@ -100,15 +94,7 @@ export class TeamManager extends BaseManager {
     );
     if (!res.rows[0]) return null;
 
-    if (data.isActive !== undefined) {
-        const team = res.rows[0];
-        if (data.isActive) {
-            await this.query(`UPDATE organizations SET team_count = team_count + 1 WHERE id = $1`, [team.orgId]);
-        } else {
-            await this.query(`UPDATE organizations SET team_count = team_count - 1 WHERE id = $1`, [team.orgId]);
-        }
-    }
-
+    // No manual count update needed, refreshOrgSummary will handle it
     organizationManager.invalidateCache();
     return this.enrichTeam(res.rows[0]);
   }
@@ -124,10 +110,6 @@ export class TeamManager extends BaseManager {
 
      await this.query('DELETE FROM teams WHERE id = $1', [id]);
      
-     if (team.isActive) {
-         await this.query(`UPDATE organizations SET team_count = team_count - 1 WHERE id = $1`, [team.orgId]);
-     }
-
      organizationManager.invalidateCache();
     return team;
   }

@@ -96,6 +96,9 @@ io.on('connection', (socket) => {
             case 'game_events':
                 callback(await dataManager.getGameEvents(id, request.fromSequence, request.limit));
                 break;
+            case 'active_disputes':
+                callback(await gameEventManager.getActiveDisputes(id));
+                break;
             case 'game_roster':
                 callback(await dataManager.getGameRoster(id));
                 break;
@@ -381,6 +384,7 @@ io.on('connection', (socket) => {
                 if (result) {
                     additionalBroadcasts.push({ topic: `org:${result.orgId}:teams`, type: 'TEAM_UPDATED', data: result });
                     additionalBroadcasts.push({ topic: `team:${result.id}`, type: 'TEAM_UPDATED', data: result });
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
             case SocketAction.DELETE_TEAM:
@@ -420,6 +424,7 @@ io.on('connection', (socket) => {
                 if (result) {
                     additionalBroadcasts.push({ topic: `org:${result.orgId}:sites`, type: 'SITE_UPDATED', data: result });
                     additionalBroadcasts.push({ topic: `site:${result.id}`, type: 'SITE_UPDATED', data: result });
+                    await broadcastOrgSummaries([result.orgId]);
                 }
                 break;
             case SocketAction.DELETE_SITE:
@@ -521,17 +526,32 @@ io.on('connection', (socket) => {
                         io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
                         io.to(`game:${action.payload.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
                     }
+                    result = eventRes;
                 } else {
                     console.error('Server: Failed to ingest game event:', eventRes.error);
+                    throw new Error(eventRes.error);
                 }
                 break;
             case SocketAction.INITIATE_UNDO_VOTE:
                 const voteInitRes = await gameEventManager.initiateUndoVote(action.payload.gameId, action.payload.eventIdToUndo, action.payload.initiatorId);
-                io.to(`game:${action.payload.gameId}:detail`).emit('update', { type: 'VOTE_STARTED', data: { eventId: action.payload.eventIdToUndo, ttl: 15 } });
+                if (voteInitRes.success) {
+                    console.log(`Server: Broadcasting DISPUTE_STARTED for game ${action.payload.gameId}, dispute: ${voteInitRes.dispute?.id}`);
+                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_STARTED', data: { eventId: action.payload.eventIdToUndo, gameId: action.payload.gameId, dispute: voteInitRes.dispute } });
+                    if (voteInitRes.resolved) {
+                        // Resolution logic (broadcasts for DISPUTE_RESOLVED and GAME_UPDATED) 
+                        // is now handled internally by gameEventManager.checkDisputeResolution
+                    }
+                }
                 break;
             case SocketAction.CAST_UNDO_VOTE:
-                const castRes = await gameEventManager.castUndoVote(action.payload.gameId, action.payload.officialId, action.payload.vote);
-                // Fully tallying logic would execute after TTL.
+                const castRes = await gameEventManager.castUndoVote(action.payload.gameId, action.payload.disputeId, action.payload.officialId, action.payload.vote);
+                if (castRes.success) {
+                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_VOTE_UPDATED', data: { dispute: castRes.dispute } });
+                    
+                    if (castRes.resolved) {
+                        // Resolution logic is now handled internally by gameEventManager.checkDisputeResolution
+                    }
+                }
                 break;
             case SocketAction.UPDATE_GAME:
                 result = await dataManager.updateGame(action.payload.id, action.payload.data);
@@ -916,6 +936,13 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
   });
+});
+
+gameEventManager.setIo(io);
+
+// Rehydrate active disputes immediately on start
+gameEventManager.rehydrateDisputes().catch(err => {
+  console.error('[Dispute System] Failed to rehydrate disputes on startup:', err);
 });
 
 httpServer.listen(PORT, () => {

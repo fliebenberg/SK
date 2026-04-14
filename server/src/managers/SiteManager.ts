@@ -84,10 +84,6 @@ export class SiteManager extends BaseManager {
          VALUES ($1, $2, $3, $4, $5)`,
          [id, site.name, addressId, site.orgId, isActive]
     );
-    await this.query(
-        `UPDATE organizations SET site_count = site_count + 1 WHERE id = $1`,
-        [site.orgId]
-    );
     this.invalidateCache();
     return (await this.getSite(id))!;
   }
@@ -162,12 +158,6 @@ export class SiteManager extends BaseManager {
 
         // 2. Delete the site itself
         await this.query('DELETE FROM sites WHERE id = $1', [id]);
-
-        // 3. Update organization site count
-        await this.query(
-            `UPDATE organizations SET site_count = site_count - 1 WHERE id = $1`,
-            [site.orgId]
-        );
 
         await this.query('COMMIT');
     } catch (error) {

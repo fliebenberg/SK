@@ -8,8 +8,9 @@ import { EventLogFeed } from './shared/EventLogFeed';
 import { Button } from '@/components/ui/button';
 import { MetalButton } from '../ui/MetalButton';
 import { RotateCcw, ChevronLeft } from 'lucide-react';
+import { ActiveDisputesPanel } from './shared/ActiveDisputesPanel';
 import { store } from '@/app/store/store';
-import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 interface GameDashboardProps {
     game: Game;
@@ -103,14 +104,17 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
 
                     {/* Scoring Actions Slot */}
                     {canScore && (
-                        <div className="relative bg-card rounded-2xl shadow-lg border-2 border-primary/40 p-3 sm:p-4 mt-2">
-                            <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
-                                Scoring
-                            </div>
+                        <>
+                            <ActiveDisputesPanel gameId={game.id} />
+                            <div className="relative bg-card rounded-2xl shadow-lg border-2 border-primary/40 p-3 sm:p-4 mt-2">
+                                <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
+                                    Scoring
+                                </div>
                             <SlotWrapper>
                                 <ScoringPanelModule game={game} role={userRole} />
                             </SlotWrapper>
                         </div>
+                        </>
                     )}
                 </div>
 

@@ -26,7 +26,11 @@ export class TeamStore extends OrganizationStore {
 
     // --- Actions ---
     fetchTeam(id: string) {
+        if (this.isFetching('team', id)) return;
+        this.markFetching('team', id);
+
         socket.emit('get_data', { type: 'team', id }, (data: Team) => {
+            this.completeFetching('team', id);
             if (data) {
                 this.mergeTeam(data, false);
                 if (!this.getOrganization(data.orgId)) {

@@ -13,6 +13,24 @@ export class SubscriptionStore extends StateStore {
     protected activeGameSubscriptions: Set<string> = new Set();
     protected activeOrgReferralSubscriptions: Set<string> = new Set();
 
+    // Track active get_data requests to avoid redundant network traffic
+    protected pendingFetches: Set<string> = new Set();
+
+    isFetching(type: string, id?: string) {
+        const key = id ? `${type}:${id}` : type;
+        return this.pendingFetches.has(key);
+    }
+
+    protected markFetching(type: string, id?: string) {
+        const key = id ? `${type}:${id}` : type;
+        this.pendingFetches.add(key);
+    }
+
+    protected completeFetching(type: string, id?: string) {
+        const key = id ? `${type}:${id}` : type;
+        this.pendingFetches.delete(key);
+    }
+
     // Subscription Timer Management
     protected unsubscribeTimers: Map<string, any> = new Map();
     protected readonly DEBOUNCE_MS = 2 * 60 * 1000; // 2 minutes

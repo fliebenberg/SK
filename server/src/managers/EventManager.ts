@@ -172,7 +172,8 @@ export class EventManager extends BaseManager {
               WHERE id = $1
           `, [id]);
           
-          // Also delete all game events
+          // Also delete all game events and disputes
+          await this.query(`DELETE FROM game_disputes WHERE game_id = $1`, [id]);
           await this.query(`DELETE FROM game_events WHERE game_id = $1`, [id]);
           
           await this.query('COMMIT');

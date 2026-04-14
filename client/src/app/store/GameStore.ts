@@ -6,6 +6,7 @@ import { GameEvent } from "@sk/types";
 
 export class GameStore extends SiteStore {
     gameEvents: GameEvent[] = [];
+    activeDisputes: any[] = [];
     private lastSequence: number = 0;
     private isSyncing: boolean = false;
 
@@ -30,23 +31,26 @@ export class GameStore extends SiteStore {
         if (this.gameEvents.length > 0 && this.gameEvents[0].gameId !== gameId) {
             this.gameEvents = [];
             this.lastSequence = 0;
-        }
-
-        if (this.activeGameSubscriptions.has(gameId)) {
-            // Even if already in the set, we might need a re-sync if the component just mounted
-            // and we want the server-pushed state.
-            socket.emit('join_room', `game:${gameId}`);
-            return;
+            this.activeDisputes = [];
         }
 
         this.activeGameSubscriptions.add(gameId);
         socket.emit('join_room', `game:${gameId}`);
+        socket.emit('join_room', `game:${gameId}:events`);
+        socket.emit('join_room', `game:${gameId}:detail`);
+        
+        // Only fetch disputes if not already doing so
+        if (!this.isFetching('active_disputes', gameId)) {
+            this.fetchActiveDisputes(gameId);
+        }
     }
 
     unsubscribeFromGame(gameId: string) {
         if (!this.activeGameSubscriptions.has(gameId)) return;
         this.activeGameSubscriptions.delete(gameId);
         socket.emit('leave_room', `game:${gameId}`);
+        socket.emit('leave_room', `game:${gameId}:events`);
+        socket.emit('leave_room', `game:${gameId}:detail`);
     }
 
     subscribeToLiveGames() {
@@ -85,8 +89,12 @@ export class GameStore extends SiteStore {
     }
 
     fetchEvent(id: string) {
+        if (this.isFetching('event', id)) return Promise.resolve(null);
+        this.markFetching('event', id);
+
         return new Promise<Event | null>((resolve) => {
             socket.emit('get_data', { type: 'event', id }, (data: Event) => {
+                this.completeFetching('event', id);
                 if (data) {
                     this.mergeEvent(data, false);
                     this.notifyListeners();
@@ -97,9 +105,14 @@ export class GameStore extends SiteStore {
     }
 
     fetchGameEvents(gameId: string, fromSequence?: number) {
+        const key = `game_events:${gameId}${fromSequence ? `:${fromSequence}` : ''}`;
+        if (this.pendingFetches.has(key)) return Promise.resolve([]);
+        this.pendingFetches.add(key);
+
         return new Promise<GameEvent[]>((resolve) => {
             this.isSyncing = true;
             socket.emit('get_data', { type: 'game_events', id: gameId, fromSequence }, (data: GameEvent[]) => {
+                this.pendingFetches.delete(key);
                 if (data) {
                     this.mergeEvents(data);
                 }
@@ -109,12 +122,36 @@ export class GameStore extends SiteStore {
         });
     }
 
+    fetchActiveDisputes(gameId: string) {
+        if (this.isFetching('active_disputes', gameId)) {
+            console.log(`[GameStore] Redundant fetch ignored for ${gameId}, returning current data.`);
+            return Promise.resolve(this.activeDisputes);
+        }
+        this.markFetching('active_disputes', gameId);
+
+        return new Promise<any[]>((resolve) => {
+            socket.emit('get_data', { type: 'active_disputes', id: gameId }, (data: any[]) => {
+                this.completeFetching('active_disputes', gameId);
+                console.log(`[GameStore] Fetched active disputes for ${gameId}:`, data);
+                if (data) {
+                    this.activeDisputes = data;
+                    this.notifyListeners();
+                }
+                resolve(data || []);
+            });
+        });
+    }
+
     // --- System Settings ---
     systemSettings: Record<string, any> = {};
 
     fetchSystemSettings() {
+        if (this.isFetching('system_settings')) return Promise.resolve();
+        this.markFetching('system_settings');
+
         return new Promise<void>((resolve) => {
             socket.emit('action', { type: SocketAction.GET_SYSTEM_SETTINGS, payload: {} }, (settings: any) => {
+                this.completeFetching('system_settings');
                 if (settings) {
                     this.systemSettings = settings;
                     this.notifyListeners();
@@ -126,6 +163,10 @@ export class GameStore extends SiteStore {
 
     get undoDelay() {
         return this.systemSettings.undo_delay_ms || 15000;
+    }
+
+    get disputeDurationMinutes() {
+        return parseInt(this.systemSettings.dispute_duration_minutes) || 1; // 1 minute (TESTING)
     }
 
     // --- Interaction Actions ---
@@ -454,6 +495,17 @@ export class GameStore extends SiteStore {
         };
     }
 
+    castUndoVote(gameId: string, disputeId: string, officialId: string, vote: 'APPROVE' | 'REJECT') {
+        return new Promise<void>((resolve) => {
+            socket.emit('action', { 
+                type: SocketAction.CAST_UNDO_VOTE, 
+                payload: { gameId, disputeId, officialId, vote } 
+            }, () => {
+                resolve();
+            });
+        });
+    }
+
     // --- Getters ---
     getEvents = (orgId?: string) => orgId 
         ? this.events.filter(e => e.orgId === orgId || e.participatingOrgIds?.includes(orgId)) 
@@ -587,6 +639,28 @@ export class GameStore extends SiteStore {
         this.notifyListeners();
     }
 
+    mergeDispute(dispute: any) {
+        if (!dispute) return;
+        console.log(`[GameStore] Merging dispute:`, dispute.id, dispute.status);
+        if (!this.activeDisputes) this.activeDisputes = [];
+        
+        const index = this.activeDisputes.findIndex(d => d.id === dispute.id);
+        
+        if (dispute.status !== 'OPEN') {
+            // Remove resolved disputes from active store
+            if (index > -1) {
+                this.activeDisputes.splice(index, 1);
+            }
+        } else {
+            if (index > -1) {
+                this.activeDisputes[index] = dispute;
+            } else {
+                this.activeDisputes.push(dispute);
+            }
+        }
+        this.notifyListeners();
+    }
+
     protected mergeEvents(events: GameEvent[]) {
         if (!events) return;
         
@@ -645,4 +719,5 @@ export class GameStore extends SiteStore {
         }
         this.notifyListeners();
     }
+
 }
