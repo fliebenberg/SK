@@ -43,18 +43,24 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
 
     const getEventLabel = (evt: GameEvent) => {
         if (evt.type === 'SCORE' && evt.subType) {
+            if (evt.subType === 'Conversion') {
+                return evt.eventData?.successful ? 'CONVERSION' : 'CONVERSION MISSED';
+            }
             return evt.subType.toUpperCase();
         }
         
-        switch (evt.type) {
+        // For STATUS and TIME events, the readable label lives in subType
+        const key = evt.subType || evt.type;
+        switch (key) {
             case 'GAME_STARTED': return 'MATCH STARTED';
             case 'GAME_ENDED': return 'MATCH FINISHED';
             case 'GAME_CANCELLED': return 'MATCH CANCELLED';
+            case 'GAME_UPDATED': return 'MATCH UPDATED';
             case 'PERIOD_STARTED': return 'PERIOD STARTED';
             case 'PERIOD_ENDED': return 'PERIOD ENDED';
             case 'CLOCK_PAUSED': return 'CLOCK PAUSED';
             case 'CLOCK_RESUMED': return 'CLOCK RESUMED';
-            default: return evt.type.replace(/_/g, ' ').toUpperCase();
+            default: return key.replace(/_/g, ' ').toUpperCase();
         }
     };
 
@@ -163,7 +169,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                             {getEventLabel(evt)}
                                         </span>
                                         <span className={cn("text-[clamp(10.5px,4cqw,13px)] font-medium text-muted-foreground/60 uppercase tracking-tight truncate leading-none", isRemoved && "line-through")}>
-                                            {isScore ? 'SCORE' : (evt.type.includes('CLOCK') ? 'TIMING' : 'ACTION')}
+                                            {isScore ? 'SCORE' : (evt.type === 'TIME' ? 'TIMING' : 'ACTION')}
                                         </span>
                                     </div>
                                     

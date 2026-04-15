@@ -2,6 +2,7 @@ import { BaseManager } from "./BaseManager";
 import { GameEvent } from "@sk/types";
 import { Server } from "socket.io";
 import { dataManager } from "../DataManager";
+import { getDisputeConfig } from "../config/rugbyEventConfig";
 
 export class GameEventManager extends BaseManager {
   private activeTimers = new Map<string, NodeJS.Timeout>();
@@ -314,7 +315,8 @@ export class GameEventManager extends BaseManager {
 
      let approveCount = adminApprove;
      let rejectCount = adminReject;
-     Object.values(slots).forEach(s => {
+     Object.entries(slots).forEach(([key, s]) => {
+         if (key.startsWith('admin-')) return; // already counted in adminApprove/adminReject
          if (s.vote === 'APPROVE') approveCount++; else rejectCount++;
      });
 
@@ -323,13 +325,28 @@ export class GameEventManager extends BaseManager {
      
      const totalEligible = neutralOfficials.length + teamsWithCoaches.size + teamsWithScorers.size + adminVoterCount;
 
+      // Fetch target event to compute dispute display config
+      let disputeConfig = { heading: 'Remove Event', approveLabel: 'Approve', rejectLabel: 'Reject' };
+      try {
+          const targetEvtRes = await this.query(
+              `SELECT type, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1`,
+              [rawDispute.gameEventId]
+          );
+          if (targetEvtRes.rows.length > 0) {
+              disputeConfig = getDisputeConfig(targetEvtRes.rows[0] as GameEvent);
+          }
+      } catch (e) {
+          console.error('[Dispute Tally] Failed to fetch target event for disputeConfig:', e);
+      }
+
       const tally = {
           ...rawDispute,
           votes: Object.values(slots),
           adminVotes: { approve: adminApprove, reject: adminReject },
           totalEligibleVoters: Math.max(totalEligible, 1),
           approveCount,
-          rejectCount
+          rejectCount,
+          disputeConfig,
       };
       
       console.log(`[Dispute Tally] Dispute: ${disputeId}, gameEventId: ${tally.gameEventId}, totalEligible: ${tally.totalEligibleVoters}, adminVotes: ${JSON.stringify(tally.adminVotes)}`);
@@ -401,26 +418,24 @@ export class GameEventManager extends BaseManager {
                  if (!evt) return { success: true, dispute, resolved: true, error: 'Target event not found' };
 
                  let childEventId: string | null = null;
-                 const isConversionToggle = evt.sub_type === 'Conversion' || evt.sub_type === 'Conversion Missed';
+                 const isConversionToggle = evt.sub_type === 'Conversion';
 
              if (isConversionToggle) {
-                 // Toggle Conversion
-                 const wasConverted = evt.sub_type === 'Conversion';
-                 const newSubType = wasConverted ? 'Conversion Missed' : 'Conversion';
-                 const newSuccessful = !wasConverted;
-                 const newPoints = wasConverted ? 0 : 2;
-                 const diff = wasConverted ? -2 : 2;
+                 // Toggle Conversion outcome — sub_type stays 'Conversion', only flip successful + pointsDelta
+                 const wasSuccessful = evt.event_data?.successful === true || evt.event_data?.successful === 'true';
+                 const newSuccessful = !wasSuccessful;
+                 const newPoints = newSuccessful ? 2 : 0;
+                 const diff = newSuccessful ? 2 : -2;
 
                  // Update game event
                  await this.query(`
                      UPDATE game_events 
-                     SET sub_type = $1, 
-                         event_data = jsonb_set(
-                             jsonb_set(COALESCE(event_data, '{}'::jsonb), '{successful}', $2::jsonb),
-                             '{pointsDelta}', $3::jsonb
+                     SET event_data = jsonb_set(
+                             jsonb_set(COALESCE(event_data, '{}'::jsonb), '{successful}', $1::jsonb),
+                             '{pointsDelta}', $2::jsonb
                          )
-                     WHERE id = $4
-                 `, [newSubType, newSuccessful ? 'true' : 'false', newPoints.toString(), dispute.gameEventId]);
+                     WHERE id = $3
+                 `, [newSuccessful ? 'true' : 'false', newPoints.toString(), dispute.gameEventId]);
 
                  // Adjust game score
                  if (evt.game_participant_id) {

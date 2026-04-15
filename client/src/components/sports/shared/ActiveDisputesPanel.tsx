@@ -100,22 +100,17 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                 const rejectCount = dispute.rejectCount || 0;
                 const totalEligible = dispute.totalEligibleVoters || 1;
 
-                const isConversion = targetEvent?.subType === 'Conversion';
-                const isMissedConversion = targetEvent?.subType === 'Conversion Missed';
-
-                let rejectLabel = "Reject";
-                let approveLabel = "Approve";
-
-                if (isConversion) {
-                    approveLabel = "Vote: Missed";
-                    rejectLabel = "Vote: Converted";
-                } else if (isMissedConversion) {
-                    approveLabel = "Vote: Converted";
-                    rejectLabel = "Vote: Missed";
-                }
+                // Read display config from the server — fully data-driven, no sport-specific logic here
+                const config = dispute.disputeConfig ?? {
+                    heading: 'Remove Event',
+                    approveLabel: 'Approve',
+                    rejectLabel: 'Reject',
+                };
+                const approveLabel = config.approveLabel;
+                const rejectLabel = config.rejectLabel;
 
                 const mySlots = store.userTeamMemberships
-                    .filter(m => game.participants.some((p: any) => p.teamId === m.teamId))
+                    .filter(m => game.participants?.some((p: any) => p.teamId === m.teamId))
                     .map(m => ({
                         teamId: m.teamId,
                         role: ['role-coach', 'role-assistant-coach'].includes(m.roleId) ? 'Coach' : (m.roleId === 'role-scorer' ? 'Scorer' : null)
@@ -140,7 +135,7 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                             <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-border/20">
                                 <div className="flex items-center gap-2 text-amber-500">
                                     <AlertTriangle className="w-4 h-4" />
-                                    <span className="font-black text-[10px] sm:text-xs uppercase tracking-[0.2em]">Active Dispute</span>
+                                    <span className="font-black text-[10px] sm:text-xs uppercase tracking-[0.2em]">{config.heading}</span>
                                 </div>
                                 <div className={cn(
                                     "font-mono font-black text-xs",
@@ -159,7 +154,10 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                                         <div className="flex items-center gap-1.5 mt-1.5 py-1 px-2 rounded-md bg-amber-500/5 border border-amber-500/10 w-fit">
                                             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                             <span className="text-[10px] sm:text-[11px] text-amber-500 font-bold uppercase tracking-tight">
-                                                {isMyOwnVote ? 'You voted' : `${voterName} voted`} {myVote === 'APPROVE' ? 'Approve' : 'Reject'}
+                                                {isMyOwnVote
+                                                    ? `You voted ${myVote === 'APPROVE' ? approveLabel : rejectLabel}`
+                                                    : `${voterName} voted ${myVote === 'APPROVE' ? approveLabel : rejectLabel}`
+                                                }
                                             </span>
                                         </div>
                                     )}

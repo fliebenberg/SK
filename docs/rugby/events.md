@@ -40,43 +40,33 @@ These events directly affect the match points of the participants and are genera
 
 ### Conversion
 * **subType:** `Conversion`
-* **Description:** A successful conversion kick following a standard Try.
+* **Description:** A conversion kick attempt following a standard Try.
 * **Event Data Saved:**
-  * `pointsDelta`: `2`
+  * `successful`: Boolean value indicating if the kick was successful (`true`) or missed (`false`).
+  * `pointsDelta`: `2` if successful, `0` if missed.
   * `elapsedMS`: The time elapsed in the match.
   * `period`: Current period label.
   * `linkedEventId`: The unique `eventId` of the corresponding `Try`.
-  * `successful`: `true`
-
-### Conversion Missed
-* **subType:** `Conversion Missed`
-* **Description:** An unsuccessful conversion kick following a Try.
-* **Event Data Saved:**
-  * `pointsDelta`: `0`
-  * `elapsedMS`: The time elapsed in the match.
-  * `period`: Current period label.
-  * `linkedEventId`: The unique `eventId` of the corresponding `Try`.
-  * `successful`: `false`
 
 ### Final Score
 * **subType:** `Final Score`
-* **Description:** A manual override defining the final score of the match, typically triggered at the end of the game to sync up the official scores.
+* **Description:** A manual override defining the final score of the match.
 * **Event Data Saved:**
   * `scores`: An object mapping each `participantId` to their total manually assigned score (e.g., `{ "part-1": 15, "part-2": 10 }`).
-  * `reason`: `"Manual Final Score"`
+  * `reason`: An optional description providing context for the manual override/sync.
   * `elapsedMS`: The time elapsed in the match.
   * `period`: Current period label.
-  * `scoreSnapshot`: The DB trigger injects this snapshot into all score events.
-  
+
 ---
 
-## Timeline & Status Events
+## Game Timing & Status Events
 
-While these events are shared across all sports, they are heavily integrated into a Rugby match timeline. They lack a `subType` but have a distinct primary `type`.
+These events track the progression and administrative state of the match.
 
-### Game State Events
-* **type:** `GAME_STARTED`, `GAME_ENDED`, `GAME_CANCELLED`, `GAME_UPDATED`
-* **Description:** Triggers when the top-level status of the match changes (e.g., an official moves it from Scheduled to Live, or cancels it).
+### Game Status Events
+* **type:** `STATUS`
+* **subType:** `GAME_STARTED`, `GAME_ENDED`, `GAME_CANCELLED`, `GAME_UPDATED`
+* **Description:** Triggers when the top-level status of the match changes.
 * **Event Data Saved:**
   * `status`: The new resulting status (`Live`, `Finished`, or `Cancelled`).
   * `reason`: Optional reason logged for cancellation.
@@ -85,7 +75,8 @@ While these events are shared across all sports, they are heavily integrated int
   * `period`: Current period label.
 
 ### Clock Action Events
-* **type:** `CLOCK_PAUSED`, `CLOCK_RESUMED`, `PERIOD_STARTED`, `PERIOD_ENDED`
+* **type:** `TIME`
+* **subType:** `CLOCK_PAUSED`, `CLOCK_RESUMED`, `PERIOD_STARTED`, `PERIOD_ENDED`
 * **Description:** Triggers when the official match timer is paused, resumed, or when halves respectively begin and end.
 * **Event Data Saved:**
   * `action`: The system interpretation of what happened (`START`, `PAUSE`, `RESUME`, `END_PERIOD`, etc.).

@@ -117,7 +117,7 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
     const handleConversion = async (points: number, isMissed: boolean) => {
         if (!pendingTryEventId || !pendingConversionSide) return;
         
-        await handleScore(points, pendingConversionSide, isMissed ? 'Conversion Missed' : 'Conversion', {
+        await handleScore(points, pendingConversionSide, 'Conversion', {
             linkedEventId: pendingTryEventId,
             successful: !isMissed
         });

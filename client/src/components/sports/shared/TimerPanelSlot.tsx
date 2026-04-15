@@ -61,15 +61,16 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
         const updatedGame = store.getGame(game.id);
 
         // Record event
-        let type = 'GAME_UPDATED';
-        if (status === 'Live') type = 'GAME_STARTED';
-        else if (status === 'Finished') type = 'GAME_ENDED';
-        else if (status === 'Cancelled') type = 'GAME_CANCELLED';
+        let subType = 'GAME_UPDATED';
+        if (status === 'Live') subType = 'GAME_STARTED';
+        else if (status === 'Finished') subType = 'GAME_ENDED';
+        else if (status === 'Cancelled') subType = 'GAME_CANCELLED';
 
         store.addGameEvent({
             gameId: game.id,
             initiatorOrgProfileId: initiatorProfile,
-            type,
+            type: 'STATUS',
+            subType,
             eventData: { 
                 status, 
                 reason, 
@@ -103,7 +104,8 @@ export function TimerPanelSlot({ game, canEdit }: { game: Game, canEdit: boolean
             store.addGameEvent({
                 gameId: game.id,
                 initiatorOrgProfileId: initiatorProfile,
-                type: eventType,
+                type: 'TIME',
+                subType: eventType,
                 eventData: { 
                     action, 
                     period: updatedPeriodLabel,
