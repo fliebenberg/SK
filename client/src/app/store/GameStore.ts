@@ -3,6 +3,7 @@ import { getPeriodLabel } from "@sk/types";
 import { socket } from "../../lib/socketService";
 import { SiteStore } from "./SiteStore";
 import { GameEvent } from "@sk/types";
+import { toast } from "@/hooks/use-toast";
 
 export class GameStore extends SiteStore {
     gameEvents: GameEvent[] = [];
@@ -467,8 +468,21 @@ export class GameStore extends SiteStore {
 
         return new Promise<any>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.ADD_GAME_EVENT, payload }, (response: any) => {
-                if (response.status === 'ok') resolve(response.data);
-                else reject(new Error(response.message || 'Failed to add game event'));
+                if (response.status === 'ok') {
+                    resolve(response.data);
+                } else {
+                    const message = response.message || 'Failed to add game event';
+                    if (message.includes('Deduplicated')) {
+                        toast({
+                            title: "Event Ignored",
+                            description: "This event was recently submitted and has been ignored to prevent duplicates.",
+                            variant: "warning"
+                        });
+                        resolve({ deduplicated: true });
+                    } else {
+                        reject(new Error(message));
+                    }
+                }
             });
         });
     };

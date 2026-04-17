@@ -2,11 +2,63 @@ import { BaseManager } from "./BaseManager";
 import { GameEvent } from "@sk/types";
 import { Server } from "socket.io";
 import { dataManager } from "../DataManager";
-import { getDisputeConfig } from "../config/rugbyEventConfig";
+import { DisputeResolutionHandler } from "../sports/core/SportDisputeHandler";
+
+const SPORT_MODULES: Record<string, string> = {
+  'sport-rugby': '../sports/rugby/rugbyDisputeHandlers',
+};
 
 export class GameEventManager extends BaseManager {
   private activeTimers = new Map<string, NodeJS.Timeout>();
-  private io: Server | null = null;
+  public io: Server | null = null;
+
+  private async getGameSportId(gameId: string): Promise<string | null> {
+      try {
+          const res = await this.query(`
+              SELECT COALESCE(
+                 g.custom_settings->>'sportId', 
+                 (e.sport_ids)[1]
+              ) as "sportId"
+              FROM games g
+              JOIN events e ON g.event_id = e.id
+              WHERE g.id = $1
+          `, [gameId]);
+          return res.rows[0]?.sportId || null;
+      } catch (err) {
+          console.error('[Dispute Handlers] Failed to fetch game sportId:', err);
+          return null;
+      }
+  }
+
+  private async getCustomHandler(gameId: string, subType: string): Promise<DisputeResolutionHandler | null> {
+      const sportId = await this.getGameSportId(gameId);
+      if (!sportId) return null;
+      
+      const path = SPORT_MODULES[sportId];
+      if (!path) return null;
+      try {
+          // console.log(`[Dispute Handlers] Attempting to load module from ${path} for sport: ${sportId}`);
+          const module = await import(path);
+          const handlers = module.default;
+          
+          if (!handlers) return null;
+          
+          // Case A: Map of handlers (Preferred)
+          if (handlers[subType]) {
+              return handlers[subType];
+          }
+          
+          // Case B: Single handler (Fallback for simpler sports)
+          if (handlers.getDisputeConfig || handlers.handleApprovedDispute) {
+              return handlers;
+          }
+          
+          return null;
+      } catch (e) {
+          console.error(`[Dispute Handlers] Failed to lazy load handler for sport: ${sportId} at path: ${path}`, e);
+          return null;
+      }
+  }
 
   setIo(io: Server) {
     this.io = io;
@@ -29,10 +81,11 @@ export class GameEventManager extends BaseManager {
       SELECT id FROM game_events 
       WHERE game_id = $1 
         AND type = $2
-        AND sub_type = $3
+        AND (sub_type = $3 OR (sub_type IS NULL AND $3 IS NULL))
+        AND (game_participant_id = $4 OR (game_participant_id IS NULL AND $4 IS NULL))
         AND timestamp > (NOW() - INTERVAL '5 seconds')
       LIMIT 1
-    `, [data.gameId, data.type, data.subType]);
+    `, [data.gameId, data.type, data.subType, data.gameParticipantId]);
 
     if (dedupRes.rows.length > 0) {
       return { error: 'Deduplicated: Identical event recently submitted.' };
@@ -333,7 +386,12 @@ export class GameEventManager extends BaseManager {
               [rawDispute.gameEventId]
           );
           if (targetEvtRes.rows.length > 0) {
-              disputeConfig = getDisputeConfig(targetEvtRes.rows[0] as GameEvent);
+              const evtRow = targetEvtRes.rows[0];
+              const customHandler = await this.getCustomHandler(rawDispute.gameId, evtRow.subType);
+              if (customHandler && customHandler.getDisputeConfig) {
+                  const customConfig = customHandler.getDisputeConfig(evtRow.eventData, evtRow.subType);
+                  if (customConfig) disputeConfig = customConfig;
+              }
           }
       } catch (e) {
           console.error('[Dispute Tally] Failed to fetch target event for disputeConfig:', e);
@@ -418,109 +476,90 @@ export class GameEventManager extends BaseManager {
                  if (!evt) return { success: true, dispute, resolved: true, error: 'Target event not found' };
 
                  let childEventId: string | null = null;
-                 const isConversionToggle = evt.sub_type === 'Conversion';
-
-             if (isConversionToggle) {
-                 // Toggle Conversion outcome — sub_type stays 'Conversion', only flip successful + pointsDelta
-                 const wasSuccessful = evt.event_data?.successful === true || evt.event_data?.successful === 'true';
-                 const newSuccessful = !wasSuccessful;
-                 const newPoints = newSuccessful ? 2 : 0;
-                 const diff = newSuccessful ? 2 : -2;
-
-                 // Update game event
-                 await this.query(`
-                     UPDATE game_events 
-                     SET event_data = jsonb_set(
-                             jsonb_set(COALESCE(event_data, '{}'::jsonb), '{successful}', $1::jsonb),
-                             '{pointsDelta}', $2::jsonb
-                         )
-                     WHERE id = $3
-                 `, [newSuccessful ? 'true' : 'false', newPoints.toString(), dispute.gameEventId]);
-
-                 // Adjust game score
-                 if (evt.game_participant_id) {
-                     await this.query(`
-                         UPDATE games 
-                         SET live_state = jsonb_set(
-                           live_state, 
-                           '{scores}', 
-                           COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) + $2)::numeric)
-                         ),
-                         updated_at = NOW()
-                         WHERE id = $3
-                     `, [evt.game_participant_id, diff, dispute.gameId]);
-                 }
-             } else {
-                 // Standard Remove (with cascade for Tries)
-                 let childPoints = 0;
                  
-                 if (evt.sub_type === 'Try' || evt.sub_type === 'Penalty Try') {
-                     const childRes = await this.query(`
-                         SELECT id, event_data
-                         FROM game_events
-                         WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
-                     `, [dispute.gameId, dispute.gameEventId]);
-                     
-                     if (childRes.rows.length > 0) {
-                         childEventId = childRes.rows[0].id;
-                         childPoints = childRes.rows[0].event_data?.pointsDelta || 0;
-                     }
+                 const customHandler = await this.getCustomHandler(dispute.gameId, evt.sub_type);
+                 let handled = false;
+                 
+                 if (customHandler) {
+                     handled = await customHandler.handleApprovedDispute(dispute, evt, this);
                  }
+                 
+                 if (handled) {
+                     // Broadcasting logic for custom updates
+                     if (this.io) {
+                         const updatedEvtRes = await this.query(`SELECT id, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
+                         this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvtRes.rows[0] });
+                         
+                         const updatedGame = await dataManager.getGame(dispute.gameId);
+                         if (updatedGame) {
+                             this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                             this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                         }
+                     }
+                 } else {
+                     // Standard Remove (with cascade for Tries)
+                     let childPoints = 0;
+                     
+                     if (evt.sub_type === 'Try' || evt.sub_type === 'Penalty Try') {
+                         const childRes = await this.query(`
+                             SELECT id, event_data
+                             FROM game_events
+                             WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
+                         `, [dispute.gameId, dispute.gameEventId]);
+                         
+                         if (childRes.rows.length > 0) {
+                             childEventId = childRes.rows[0].id;
+                             childPoints = childRes.rows[0].event_data?.pointsDelta || 0;
+                         }
+                     }
 
-                 // Soft-delete main event
-                 await this.query(`
-                    UPDATE game_events 
-                    SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
-                    WHERE id = $1
-                 `, [dispute.gameEventId]);
-
-                 // Soft-delete child event if present
-                 if (childEventId) {
+                     // Soft-delete main event
                      await this.query(`
                         UPDATE game_events 
                         SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
                         WHERE id = $1
-                     `, [childEventId]);
-                 }
+                     `, [dispute.gameEventId]);
 
-                 // Reverse combined score
-                 const pts = evt.event_data?.pointsDelta || 0;
-                 const totalPointsToReverse = pts + childPoints;
-                 
-                 if (totalPointsToReverse !== 0 && evt.game_participant_id) {
-                    await this.query(`
-                        UPDATE games 
-                        SET live_state = jsonb_set(
-                          live_state, 
-                          '{scores}', 
-                          COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) - $2)::numeric)
-                        ),
-                        updated_at = NOW()
-                        WHERE id = $3
-                    `, [evt.game_participant_id, totalPointsToReverse, dispute.gameId]);
-                 }
-             }
-
-             // --- BROADCAST UPDATES ---
-             if (this.io) {
-                 // 1. Notify :events about the event change
-                 if (isConversionToggle) {
-                     const updatedEvtRes = await this.query(`SELECT id, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
-                     this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvtRes.rows[0] });
-                 } else {
-                     this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: dispute.gameEventId } });
+                     // Soft-delete child event if present
                      if (childEventId) {
-                         this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
+                         await this.query(`
+                            UPDATE game_events 
+                            SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
+                            WHERE id = $1
+                         `, [childEventId]);
+                     }
+
+                     // Reverse combined score
+                     const pts = evt.event_data?.pointsDelta || 0;
+                     const totalPointsToReverse = pts + childPoints;
+                     
+                     if (totalPointsToReverse !== 0 && evt.game_participant_id) {
+                        await this.query(`
+                            UPDATE games 
+                            SET live_state = jsonb_set(
+                              live_state, 
+                              '{scores}', 
+                              COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) - $2)::numeric)
+                            ),
+                            updated_at = NOW()
+                            WHERE id = $3
+                        `, [evt.game_participant_id, totalPointsToReverse, dispute.gameId]);
+                     }
+                     
+                     // --- BROADCAST UPDATES ---
+                     if (this.io) {
+                         this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: dispute.gameEventId } });
+                         if (childEventId) {
+                             this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
+                         }
+                         
+                         const updatedGame = await dataManager.getGame(dispute.gameId);
+                         if (updatedGame) {
+                             this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                             this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                         }
                      }
                  }
-
-                 // 2. Notify game rooms about score change
-                 const updatedGame = await dataManager.getGame(dispute.gameId);
-                 if (updatedGame) {
-                     this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                     this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                 }
-             }
          } catch (err: any) {
              console.error(`[Dispute Sync Error] Failed to process database update during dispute resolution:`, err);
              // Return false so we don't accidentally broadcast a success

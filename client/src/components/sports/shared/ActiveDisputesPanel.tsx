@@ -74,7 +74,6 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
     if (!canScore) return null;
 
     const myProfileIds = Array.from(store.myOrgProfileIds);
-    console.log(`[ActiveDisputesPanel] Permissions check: globalRole=${store.globalRole}, canScore=${canScore}, myProfileIds=`, myProfileIds);
 
     const handleVote = async (disputeId: string, vote: 'APPROVE' | 'REJECT') => {
         const officialId = myProfileIds[0] || (store.globalRole === 'admin' ? store.currentUserId || 'admin' : null);
