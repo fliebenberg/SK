@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Game } from '@sk/types';
 import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 import { OrgLogo } from '@/components/ui/OrgLogo';
-import { Trophy, AlertTriangle } from 'lucide-react';
+import { Trophy, AlertTriangle, User, UserPlus } from 'lucide-react';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import {
     Dialog,
@@ -37,6 +37,12 @@ type ScoringFlowState = {
 } | {
     status: 'TRY_TYPE_SELECTION';
     side: 'home' | 'away';
+} | {
+    status: 'PLAYER_SELECTION';
+    side: 'home' | 'away';
+    points: number;
+    type: string;
+    extraData?: any;
 };
 
 export default function RugbyScoringPanel({ game }: { game: Game }) {
@@ -44,6 +50,15 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
     const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
     const [isSaving, setIsSaving] = useState(false);
     const [scoringState, setScoringState] = useState<ScoringFlowState>({ status: 'IDLE' });
+    const [rosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
+
+    useEffect(() => {
+        game.participants?.forEach(p => {
+            store.fetchGameRoster(p.id).then(roster => {
+                setRosters(prev => ({ ...prev, [p.id]: roster }));
+            });
+        });
+    }, [game.id, game.participants]);
 
     const { currentMS } = useGameTimer(game.liveState?.clock, game.startTime, game.finishTime);
     const periodLabel = game.liveState?.periodLabel || '1st Period';
@@ -73,7 +88,7 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
     }
     // ------------------------------------------------------------------------
 
-    const handleScore = async (points: number, side: 'home' | 'away', type: string, extraData?: any) => {
+    const handleScore = async (points: number, side: 'home' | 'away', type: string, extraData?: any, playerId?: string) => {
         const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
         if (!participant) return;
 
@@ -83,6 +98,7 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
         return store.addGameEvent({
             gameId: game.id,
             initiatorOrgProfileId,
+            actorOrgProfileId: playerId,
             type: 'SCORE',
             subType: type,
             gameParticipantId: participant.id,
@@ -95,14 +111,27 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
         });
     };
 
+    const startScoringFlow = async (points: number, side: 'home' | 'away', type: string, extraData?: any) => {
+        const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
+        const roster = participant ? rosters[participant.id] : null;
+
+        if (roster && roster.length > 0 && type !== 'Penalty Try') {
+            setScoringState({ status: 'PLAYER_SELECTION', side, points, type, extraData });
+            return true;
+        } else {
+            await handleScore(points, side, type, extraData);
+            return false;
+        }
+    };
+
     const handleTryClick = (side: 'home' | 'away') => {
         setScoringState({ status: 'TRY_TYPE_SELECTION', side });
     };
 
     const handleNormalTry = async (side: 'home' | 'away') => {
         try {
-            await handleScore(5, side, 'Try');
-            setScoringState({ status: 'IDLE' });
+            const handled = await startScoringFlow(5, side, 'Try');
+            if (!handled) setScoringState({ status: 'IDLE' });
         } catch (e) {
             console.error(e);
             setScoringState({ status: 'IDLE' });
@@ -117,11 +146,24 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
     const handleConversion = async (points: number, isMissed: boolean) => {
         if (!pendingTryEventId || !pendingConversionSide) return;
         
-        await handleScore(points, pendingConversionSide, 'Conversion', {
-            linkedEventId: pendingTryEventId,
-            successful: !isMissed
-        });
-        setScoringState({ status: 'IDLE' });
+        try {
+            if (!isMissed) {
+                const handled = await startScoringFlow(points, pendingConversionSide, 'Conversion', {
+                    linkedEventId: pendingTryEventId,
+                    successful: true
+                });
+                if (!handled) setScoringState({ status: 'IDLE' });
+            } else {
+                await handleScore(points, pendingConversionSide, 'Conversion', {
+                    linkedEventId: pendingTryEventId,
+                    successful: false
+                });
+                setScoringState({ status: 'IDLE' });
+            }
+        } catch (e) {
+            console.error(e);
+            setScoringState({ status: 'IDLE' });
+        }
     };
 
     const handleUndoTry = async () => {
@@ -255,7 +297,13 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
                 {rugbyScoreTypes.map((type) => (
                     <ScoringActionButton 
                         key={type.label}
-                        onClick={() => type.label === 'Try' ? handleTryClick(side) : handleScore(type.points, side, type.label)}
+                        onClick={() => {
+                            if (type.label === 'Try') {
+                                handleTryClick(side);
+                            } else {
+                                startScoringFlow(type.points, side, type.label);
+                            }
+                        }}
                         disabled={disabled}
                         label={type.label}
                         points={type.points}
@@ -370,6 +418,104 @@ export default function RugbyScoringPanel({ game }: { game: Game }) {
                             disabled={isSaving}
                             label={isSaving ? "Saving..." : "Apply Final Score"}
                             className="h-9 px-4 font-black text-xs uppercase tracking-widest bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
+                        />
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Player Selection Dialog */}
+            <Dialog 
+                open={scoringState.status === 'PLAYER_SELECTION'} 
+                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
+            >
+                <DialogContent className="sm:max-w-lg bg-card border-border/50">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 font-black uppercase tracking-tight text-primary">
+                            <UserPlus className="h-5 w-5" />
+                            Who {scoringState.status === 'PLAYER_SELECTION' && (scoringState.type === 'Conversion' ? 'attempted' : 'scored')} the {scoringState.status === 'PLAYER_SELECTION' && scoringState.type}?
+                        </DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="py-2">
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-x-1 gap-y-2 sm:gap-x-1.5 sm:gap-y-3 max-h-[50vh] overflow-y-auto pr-1.5 custom-scrollbar">
+                            {scoringState.status === 'PLAYER_SELECTION' && (() => {
+                                const participant = scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1];
+                                const rawRoster = participant ? rosters[participant.id] : [];
+
+                                // Sort roster: 1-15 first, then reserves by position, then by name
+                                const sortedRoster = [...rawRoster].sort((a, b) => {
+                                    if (a.isReserve !== b.isReserve) return a.isReserve ? 1 : -1;
+                                    const aPos = parseInt(a.position || '999', 10);
+                                    const bPos = parseInt(b.position || '999', 10);
+                                    if (aPos !== bPos) return aPos - bPos;
+                                    
+                                    const aName = store.orgProfiles.find(p => p.id === a.orgProfileId)?.name || '';
+                                    const bName = store.orgProfiles.find(p => p.id === b.orgProfileId)?.name || '';
+                                    return aName.localeCompare(bName);
+                                });
+                                
+                                return sortedRoster.map(item => {
+                                    const profile = store.orgProfiles.find(p => p.id === item.orgProfileId);
+                                    if (!profile) return null;
+                                    
+                                    return (
+                                        <button
+                                            key={item.orgProfileId}
+                                            onClick={() => {
+                                                handleScore(scoringState.points, scoringState.side, scoringState.type, scoringState.extraData, item.orgProfileId);
+                                                setScoringState({ status: 'IDLE' });
+                                            }}
+                                            className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-primary/10 transition-all border border-transparent hover:border-primary/20 group relative"
+                                        >
+                                            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-muted border border-border/50 flex items-center justify-center overflow-hidden relative shadow-sm group-hover:scale-105 transition-all">
+                                                <div className={cn(
+                                                    "w-full h-full transition-opacity duration-300 flex items-center justify-center",
+                                                    item.position ? "opacity-20 group-hover:opacity-100" : "opacity-100"
+                                                )}>
+                                                    {profile.image ? (
+                                                        <img src={profile.image} alt={profile.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <User className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground/40" />
+                                                    )}
+                                                </div>
+                                                
+                                                {item.position && (
+                                                    <div className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity duration-300 bg-primary/10">
+                                                        <span className="text-primary text-xl sm:text-2xl font-black drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
+                                                            {item.isReserve ? `R${item.position || ''}` : item.position}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-tight text-center truncate w-full leading-tight text-foreground/70 group-hover:text-primary transition-colors">
+                                                    {profile.name.split(' ')[0]}
+                                                    {profile.name.split(' ').length > 1 && <><br />{profile.name.split(' ').slice(1).join(' ')}</>}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                });
+                            })()}
+                        </div>
+                    </div>
+
+                    <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-border/10">
+                        <ScoringActionButton 
+                            onClick={() => {
+                                if (scoringState.status === 'PLAYER_SELECTION') {
+                                    handleScore(scoringState.points, scoringState.side, scoringState.type, scoringState.extraData);
+                                    setScoringState({ status: 'IDLE' });
+                                }
+                            }}
+                            label="SKIP / SCORE ONLY"
+                            className="h-10 px-4 bg-muted hover:bg-muted/80 text-foreground/70 font-black text-xs border-border/40 flex-1 sm:flex-none"
+                        />
+                        <ScoringActionButton 
+                            onClick={() => setScoringState({ status: 'IDLE' })}
+                            label="CANCEL"
+                            className="h-10 px-4 bg-background hover:bg-muted font-bold text-xs border-border/40 flex-1 sm:flex-none"
                         />
                     </DialogFooter>
                 </DialogContent>

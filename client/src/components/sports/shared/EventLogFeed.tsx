@@ -165,31 +165,37 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     <div className={cn("h-6 w-0.5 rounded-full shrink-0", getTeamColor(evt))} />
                                     
                                     <div className="flex flex-col min-w-0 flex-1 overflow-hidden px-0.5 gap-0">
-                                        <span className={cn("font-black text-[clamp(10.5px,4cqw,13px)] uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-2", isRemoved && "line-through text-muted-foreground")}>
+                                        <span className={cn("font-black text-[clamp(10.5px,4cqw,13px)] uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-1", isRemoved && "line-through text-muted-foreground")}>
                                             {getEventLabel(evt)}
                                         </span>
-                                        <span className={cn("text-[clamp(10.5px,4cqw,13px)] font-medium text-muted-foreground/60 uppercase tracking-tight truncate leading-none", isRemoved && "line-through")}>
-                                            {isScore ? 'SCORE' : (evt.type === 'TIME' ? 'TIMING' : 'ACTION')}
-                                        </span>
-                                    </div>
-                                    
-                                    {snapshot && (
-                                        <div className="flex items-center gap-1 px-1 py-0.5 bg-sunken-bg/50 rounded-md border border-border/20 shrink-0 mx-0.5">
+                                        <div className="flex items-center justify-between gap-2 overflow-hidden">
                                             {(() => {
-                                                const p1 = game?.participants?.[0];
-                                                const p2 = game?.participants?.[1];
-                                                const s1 = (snapshot as any)[p1?.id || ''] || 0;
-                                                const s2 = (snapshot as any)[p2?.id || ''] || 0;
+                                                const actorProfile = evt.actorOrgProfileId ? store.orgProfiles.find(p => p.id === evt.actorOrgProfileId) : null;
                                                 return (
-                                                    <>
-                                                        <span className="font-black text-[10px] text-blue-500">{s1}</span>
-                                                        <span className="text-[8px] font-black opacity-20">—</span>
-                                                        <span className="font-black text-[10px] text-red-500">{s2}</span>
-                                                    </>
+                                                    <span className={cn("text-[clamp(10.5px,4cqw,13px)] font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none", isRemoved && "line-through")}>
+                                                        {actorProfile?.name || ''}
+                                                    </span>
                                                 );
                                             })()}
+                                            {snapshot && (
+                                                <div className="flex items-center gap-1 px-1 py-0.5 bg-sunken-bg/50 rounded-md border border-border/20 shrink-0">
+                                                    {(() => {
+                                                        const p1 = game?.participants?.[0];
+                                                        const p2 = game?.participants?.[1];
+                                                        const s1 = (snapshot as any)[p1?.id || ''] || 0;
+                                                        const s2 = (snapshot as any)[p2?.id || ''] || 0;
+                                                        return (
+                                                            <>
+                                                                <span className="font-black text-[10px] text-blue-500 leading-none">{s1}</span>
+                                                                <span className="text-[8px] font-black opacity-20 leading-none">—</span>
+                                                                <span className="font-black text-[10px] text-red-500 leading-none">{s2}</span>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                    </div>
                                     
                                     <div className="ml-auto shrink-0 w-[28px] h-[28px] flex items-center justify-center relative">
                                         {showUndo ? (
