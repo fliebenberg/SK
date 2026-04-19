@@ -30,6 +30,7 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
     // Resolve specific slots
     const ScoreboardModule = SportComponentRegistry.getScoreboard(sportCategory);
     const ScoringPanelModule = SportComponentRegistry.getScoringPanel(sportCategory);
+    const GameEventsPanelModule = SportComponentRegistry.getGameEventsPanel(sportCategory);
     const ParticipantListModule = SportComponentRegistry.getParticipantList(sportCategory);
 
     return (
@@ -92,7 +93,7 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                     </div>
                 </div>
 
-                {/* Combined Timing & Scoring area */}
+                {/* Combined Timing, Scoring & Events area */}
                 <div className="flex flex-col gap-2 mt-2">
                     {/* Timing Bar Slot - Compacted as per user request */}
                     <div className="relative bg-card rounded-2xl shadow-sm border-2 border-primary/40 px-3 py-1.5">
@@ -106,15 +107,27 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                     {canScore && (
                         <>
                             <ActiveDisputesPanel gameId={game.id} />
-                            <div className="relative bg-card rounded-2xl shadow-lg border-2 border-primary/40 p-3 sm:p-4 mt-2">
+                            <div className="relative bg-card rounded-2xl shadow-lg border-2 border-primary/40 px-3 py-1.5 mt-2">
                                 <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
                                     Scoring
                                 </div>
+                                <SlotWrapper>
+                                    <ScoringPanelModule game={game} role={userRole} />
+                                </SlotWrapper>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Game Events Actions Slot */}
+                    {canScore && GameEventsPanelModule && (
+                        <div className="relative bg-card rounded-2xl shadow-lg border-2 border-primary/40 px-3 py-1.5 mt-2">
+                            <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
+                                Game Events
+                            </div>
                             <SlotWrapper>
-                                <ScoringPanelModule game={game} role={userRole} />
+                                <GameEventsPanelModule game={game} role={userRole} />
                             </SlotWrapper>
                         </div>
-                        </>
                     )}
                 </div>
 

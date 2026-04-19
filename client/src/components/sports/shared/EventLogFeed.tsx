@@ -3,12 +3,14 @@ import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 import { GameEvent } from '@sk/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { RotateCcw, Scale } from 'lucide-react';
+import { RotateCcw, Scale, Clock, Trophy, Activity } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { toast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 
 export function EventLogFeed({ gameId }: { gameId: string }) {
     const [events, setEvents] = useState<GameEvent[]>([]);
+    const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['TIME', 'SCORE', 'DETAIL']));
     const { user } = useAuth();
     const [now, setNow] = useState(Date.now());
     const [disputeEvent, setDisputeEvent] = useState<GameEvent | null>(null);
@@ -46,8 +48,26 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
             if (evt.subType === 'Conversion') {
                 return evt.eventData?.successful ? 'CONVERSION' : 'CONVERSION MISSED';
             }
+            if (evt.subType === 'Penalty Kick') {
+                return evt.eventData?.successful ? 'PENALTY KICK' : 'PENALTY KICK MISSED';
+            }
             return evt.subType.toUpperCase();
         }
+
+        if (evt.type === 'GAME_EVENT') {
+            if (evt.subType === 'Line Kick') {
+                return evt.eventData?.successful ? 'LINE KICK (OUT)' : 'LINE KICK (MISSED)';
+            }
+            if (evt.subType === 'Penalty Awarded') {
+                const decision = evt.eventData?.decision;
+                return decision ? `PENALTY → ${decision.toUpperCase()}` : 'PENALTY AWARDED';
+            }
+            if (evt.subType === 'Replacement') {
+                return 'SUBSTITUTION';
+            }
+            return evt.subType.toUpperCase();
+        }
+
         
         // For STATUS and TIME events, the readable label lives in subType
         const key = evt.subType || evt.type;
@@ -104,21 +124,78 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         }
         setDisputeEvent(null);
     };
+    const toggleFilter = (filter: string) => {
+        const next = new Set(activeFilters);
+        if (next.has(filter)) {
+            next.delete(filter);
+        } else {
+            next.add(filter);
+        }
+        setActiveFilters(next);
+    };
+
+    const filteredEvents = useMemo(() => {
+        return events.filter(evt => {
+            if (evt.type === 'SCORE' && activeFilters.has('SCORE')) return true;
+            if ((evt.type === 'STATUS' || evt.type === 'TIME') && activeFilters.has('TIME')) return true;
+            if (evt.type === 'GAME_EVENT' && activeFilters.has('DETAIL')) return true;
+            return false;
+        });
+    }, [events, activeFilters]);
 
     return (
         <div className="flex flex-col h-full [container-type:inline-size] [@container/playbyplay]">
-            <div className="flex items-center justify-between mb-2 sm:mb-4">
-                <h3 className="font-black text-sm text-muted-foreground uppercase tracking-[0.2em]">Play-by-Play</h3>
-                <div className="h-1 flex-1 bg-border/30 ml-4 rounded-full"></div>
+            <div className="flex items-center justify-between mb-2">
+                <h3 className="font-black text-[10px] text-muted-foreground uppercase tracking-[0.2em] whitespace-nowrap">Play-by-Play</h3>
+                <div className="flex gap-0.5 items-center ml-4">
+                    <Button 
+                        size="icon" 
+                        variant={activeFilters.has('TIME') ? 'default' : 'ghost'}
+                        className={cn(
+                            "h-7 w-7", 
+                            !activeFilters.has('TIME') && "text-muted-foreground/40"
+                        )}
+                        title="Time Events"
+                        onClick={() => toggleFilter('TIME')}
+                    >
+                        <Clock className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button 
+                        size="icon" 
+                        variant={activeFilters.has('SCORE') ? 'default' : 'ghost'}
+                        className={cn(
+                            "h-7 w-7", 
+                            activeFilters.has('SCORE') ? "bg-amber-500 hover:bg-amber-600 text-white" : "text-muted-foreground/40"
+                        )}
+                        title="Scoring Events"
+                        onClick={() => toggleFilter('SCORE')}
+                    >
+                        <Trophy className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button 
+                        size="icon" 
+                        variant={activeFilters.has('DETAIL') ? 'default' : 'ghost'}
+                        className={cn(
+                            "h-7 w-7", 
+                            activeFilters.has('DETAIL') ? "bg-blue-500 hover:bg-blue-600 text-white" : "text-muted-foreground/40"
+                        )}
+                        title="Game Events"
+                        onClick={() => toggleFilter('DETAIL')}
+                    >
+                        <Activity className="w-3.5 h-3.5" />
+                    </Button>
+                </div>
             </div>
             <div className="flex-1 bg-sunken-bg/50 border border-border/30 rounded-2xl p-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                 <div className="flex flex-col gap-1">
-                    {events.length === 0 ? (
+                    {filteredEvents.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/40">
-                             <span className="text-[10px] font-black uppercase tracking-widest italic">Waiting for kickoff...</span>
+                             <span className="text-[10px] font-black uppercase tracking-widest italic">
+                                 {events.length === 0 ? 'Waiting for kickoff...' : 'No events match filters'}
+                             </span>
                         </div>
                     ) : (
-                        events.map(evt => {
+                        filteredEvents.map(evt => {
                             const eventData = evt.eventData || (evt as any).event_data || {};
                             const snapshot = eventData.scoreSnapshot;
                             const matchTime = eventData.elapsedMS !== undefined 
@@ -171,10 +248,34 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                         <div className="flex items-center justify-between gap-2 overflow-hidden">
                                             {(() => {
                                                 const actorProfile = evt.actorOrgProfileId ? store.orgProfiles.find(p => p.id === evt.actorOrgProfileId) : null;
+                                                
+                                                if (evt.subType === 'Replacement') {
+                                                    const offName = evt.eventData?.playerOffName || 'Unknown';
+                                                    const onName = evt.eventData?.playerOnName || 'Unknown';
+                                                    return (
+                                                        <span className={cn("text-[clamp(9px,3.5cqw,11px)] font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none")}>
+                                                            {offName} <span className="text-amber-500/50">↔</span> {onName}
+                                                        </span>
+                                                    );
+                                                }
+
+                                                const details: string[] = [];
+                                                if (evt.eventData?.reason) details.push(evt.eventData.reason);
+                                                if (evt.eventData?.winnerName) details.push(`Won by ${evt.eventData.winnerName}`);
+
                                                 return (
-                                                    <span className={cn("text-[clamp(10.5px,4cqw,13px)] font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none", isRemoved && "line-through")}>
-                                                        {actorProfile?.name || ''}
-                                                    </span>
+                                                    <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                                        {actorProfile && (
+                                                            <span className={cn("text-[clamp(10.5px,4cqw,13px)] font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none", isRemoved && "line-through")}>
+                                                                {actorProfile.name}
+                                                            </span>
+                                                        )}
+                                                        {details.length > 0 && (
+                                                            <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap overflow-hidden">
+                                                                {details.join(' • ')}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 );
                                             })()}
                                             {snapshot && (

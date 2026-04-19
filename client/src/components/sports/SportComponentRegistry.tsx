@@ -4,6 +4,7 @@ import { Game } from '@sk/types';
 // Lazy load sport specific components
 const RugbyScoreboard = lazy(() => import('./rugby/RugbyScoreboard'));
 const RugbyScoringPanel = lazy(() => import('./rugby/RugbyScoringPanel'));
+const RugbyGameEventsPanel = lazy(() => import('./rugby/RugbyGameEventsPanel'));
 
 const AthleticsStartList = lazy(() => import('./athletics/AthleticsStartList'));
 const AthleticsScoringGrid = lazy(() => import('./athletics/AthleticsScoringGrid'));
@@ -28,6 +29,13 @@ export const SportComponentRegistry = {
             case 'rugby': return (props: SlotProps) => <RugbyScoringPanel {...props} />;
             case 'athletics': return (props: SlotProps) => <AthleticsScoringGrid {...props} />;
             default: return () => <div>Default Scoring Panel</div>;
+        }
+    },
+
+    getGameEventsPanel: (categoryStr: string) => {
+        switch (categoryStr.toLowerCase()) {
+            case 'rugby': return (props: SlotProps) => <RugbyGameEventsPanel {...props} />;
+            default: return () => null; // Most sports might not have a separate game events panel
         }
     },
 
