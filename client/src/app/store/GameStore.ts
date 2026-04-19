@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 export class GameStore extends SiteStore {
     gameEvents: GameEvent[] = [];
     activeDisputes: any[] = [];
+    eventLogFilters: Set<string> = new Set(['TIME', 'SCORE', 'DETAIL']);
     private lastSequence: number = 0;
     private isSyncing: boolean = false;
 
@@ -141,6 +142,11 @@ export class GameStore extends SiteStore {
                 resolve(data || []);
             });
         });
+    }
+
+    setEventLogFilters(filters: Set<string>) {
+        this.eventLogFilters = filters;
+        this.notifyListeners();
     }
 
     // --- System Settings ---

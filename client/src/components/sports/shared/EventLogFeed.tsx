@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 
 export function EventLogFeed({ gameId }: { gameId: string }) {
     const [events, setEvents] = useState<GameEvent[]>([]);
-    const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['TIME', 'SCORE', 'DETAIL']));
+    const [, setTick] = useState(0);
     const { user } = useAuth();
     const [now, setNow] = useState(Date.now());
     const [disputeEvent, setDisputeEvent] = useState<GameEvent | null>(null);
@@ -23,6 +23,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         // Sync local state with store
         const sync = () => {
             setEvents([...store.gameEvents].reverse());
+            setTick(t => t + 1);
         };
 
         sync();
@@ -125,23 +126,24 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         setDisputeEvent(null);
     };
     const toggleFilter = (filter: string) => {
-        const next = new Set(activeFilters);
+        const next = new Set(store.eventLogFilters);
         if (next.has(filter)) {
             next.delete(filter);
         } else {
             next.add(filter);
         }
-        setActiveFilters(next);
+        store.setEventLogFilters(next);
     };
 
     const filteredEvents = useMemo(() => {
+        const activeFilters = store.eventLogFilters;
         return events.filter(evt => {
             if (evt.type === 'SCORE' && activeFilters.has('SCORE')) return true;
             if ((evt.type === 'STATUS' || evt.type === 'TIME') && activeFilters.has('TIME')) return true;
             if (evt.type === 'GAME_EVENT' && activeFilters.has('DETAIL')) return true;
             return false;
         });
-    }, [events, activeFilters]);
+    }, [events, store.eventLogFilters]);
 
     return (
         <div className="flex flex-col h-full [container-type:inline-size] [@container/playbyplay]">
@@ -150,10 +152,10 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                 <div className="flex gap-0.5 items-center ml-4">
                     <Button 
                         size="icon" 
-                        variant={activeFilters.has('TIME') ? 'default' : 'ghost'}
+                        variant={store.eventLogFilters.has('TIME') ? 'default' : 'ghost'}
                         className={cn(
                             "h-7 w-7", 
-                            !activeFilters.has('TIME') && "text-muted-foreground/40"
+                            !store.eventLogFilters.has('TIME') && "text-muted-foreground/40"
                         )}
                         title="Time Events"
                         onClick={() => toggleFilter('TIME')}
@@ -162,10 +164,10 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                     </Button>
                     <Button 
                         size="icon" 
-                        variant={activeFilters.has('SCORE') ? 'default' : 'ghost'}
+                        variant={store.eventLogFilters.has('SCORE') ? 'default' : 'ghost'}
                         className={cn(
                             "h-7 w-7", 
-                            activeFilters.has('SCORE') ? "bg-amber-500 hover:bg-amber-600 text-white" : "text-muted-foreground/40"
+                            store.eventLogFilters.has('SCORE') ? "bg-amber-500 hover:bg-amber-600 text-white" : "text-muted-foreground/40"
                         )}
                         title="Scoring Events"
                         onClick={() => toggleFilter('SCORE')}
@@ -174,10 +176,10 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                     </Button>
                     <Button 
                         size="icon" 
-                        variant={activeFilters.has('DETAIL') ? 'default' : 'ghost'}
+                        variant={store.eventLogFilters.has('DETAIL') ? 'default' : 'ghost'}
                         className={cn(
                             "h-7 w-7", 
-                            activeFilters.has('DETAIL') ? "bg-blue-500 hover:bg-blue-600 text-white" : "text-muted-foreground/40"
+                            store.eventLogFilters.has('DETAIL') ? "bg-blue-500 hover:bg-blue-600 text-white" : "text-muted-foreground/40"
                         )}
                         title="Game Events"
                         onClick={() => toggleFilter('DETAIL')}

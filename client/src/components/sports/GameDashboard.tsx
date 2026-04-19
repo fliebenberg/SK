@@ -11,6 +11,9 @@ import { RotateCcw, ChevronLeft } from 'lucide-react';
 import { ActiveDisputesPanel } from './shared/ActiveDisputesPanel';
 import { store } from '@/app/store/store';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TeamRosterPanel } from './shared/TeamRosterPanel';
+import { Users, Activity } from 'lucide-react';
 
 interface GameDashboardProps {
     game: Game;
@@ -31,7 +34,13 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
     const ScoreboardModule = SportComponentRegistry.getScoreboard(sportCategory);
     const ScoringPanelModule = SportComponentRegistry.getScoringPanel(sportCategory);
     const GameEventsPanelModule = SportComponentRegistry.getGameEventsPanel(sportCategory);
-    const ParticipantListModule = SportComponentRegistry.getParticipantList(sportCategory);
+
+    const p1 = game.participants?.[0];
+    const p2 = game.participants?.[1];
+    const team1 = p1?.teamId ? store.getTeam(p1.teamId) : null;
+    const team2 = p2?.teamId ? store.getTeam(p2.teamId) : null;
+    const team1Name = team1?.shortName || team1?.name || 'Home';
+    const team2Name = team2?.shortName || team2?.name || 'Away';
 
     return (
         <div className="flex flex-col items-center lg:items-start lg:flex-row lg:justify-center gap-2 p-1 sm:p-2 md:p-2 md:pl-0 w-full max-w-full bg-background min-h-screen overflow-x-hidden">
@@ -130,18 +139,36 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                         </div>
                     )}
                 </div>
-
-                {/* Rosters / Participant Lists - Collapsible or scrollable? */}
-                <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-3 sm:p-4">
-                     <SlotWrapper>
-                         <ParticipantListModule game={game} role={userRole} />
-                     </SlotWrapper>
-                </div>
             </div>
 
-            <div className="w-full max-w-[512px] lg:w-[256px] lg:flex-none flex flex-col gap-2 min-h-[600px] min-w-0">
-                <div className="bg-card rounded-2xl shadow-lg border border-border/50 p-1.5 flex-1 flex flex-col overflow-hidden">
-                     <EventLogFeed gameId={game.id} />
+            <div className="w-full max-w-[512px] lg:w-[320px] xl:w-[380px] lg:flex-none flex flex-col gap-2 min-h-[600px] min-w-0">
+                <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-2 flex-1 flex flex-col overflow-hidden relative">
+                    <Tabs defaultValue="feed" className="flex-1 flex flex-col overflow-hidden">
+                        <TabsList className="grid grid-cols-3 bg-muted/50 p-1 mb-2">
+                            <TabsTrigger value="team1" className="text-[10px] font-black uppercase tracking-tight py-1.5 flex gap-1.5 items-center">
+                                <Users className="w-3 h-3" />
+                                <span className="truncate">{team1Name}</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="team2" className="text-[10px] font-black uppercase tracking-tight py-1.5 flex gap-1.5 items-center">
+                                <Users className="w-3 h-3" />
+                                <span className="truncate">{team2Name}</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="feed" className="text-[10px] font-black uppercase tracking-tight py-1.5 flex gap-1.5 items-center">
+                                <Activity className="w-3 h-3" />
+                                <span className="truncate">Feed</span>
+                            </TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="team1" className="flex-1 overflow-hidden mt-0">
+                            {p1 && <TeamRosterPanel gameId={game.id} participantId={p1.id} />}
+                        </TabsContent>
+                        <TabsContent value="team2" className="flex-1 overflow-hidden mt-0">
+                            {p2 && <TeamRosterPanel gameId={game.id} participantId={p2.id} />}
+                        </TabsContent>
+                        <TabsContent value="feed" className="flex-1 overflow-hidden mt-0">
+                            <EventLogFeed gameId={game.id} />
+                        </TabsContent>
+                    </Tabs>
                 </div>
             </div>
         </div>
