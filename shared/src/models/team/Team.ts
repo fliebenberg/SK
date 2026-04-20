@@ -8,4 +8,5 @@ export interface Team {
   playerCount?: number;
   staffCount?: number;
   creatorId?: string;
+  shortName?: string;
 }

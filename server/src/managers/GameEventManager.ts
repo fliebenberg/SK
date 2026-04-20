@@ -241,6 +241,24 @@ export class GameEventManager extends BaseManager {
     this.activeTimers.set(disputeId, timer);
   }
 
+  /**
+   * Updates an existing game event's data.
+   */
+  async updateEvent(gameId: string, eventId: string, data: { eventData: any }): Promise<GameEvent | { error: string }> {
+    const res = await this.query(`
+      UPDATE game_events 
+      SET event_data = event_data || $1::jsonb
+      WHERE id = $2 AND game_id = $3
+      RETURNING id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"
+    `, [JSON.stringify(data.eventData), eventId, gameId]);
+
+    if (res.rows.length === 0) {
+      return { error: 'Event not found or not part of this game.' };
+    }
+
+    return res.rows[0] as GameEvent;
+  }
+
   async rehydrateDisputes(): Promise<number> {
     console.log(`[Dispute System] Rehydrating disputes from database...`);
     const expiredRes = await this.query(`

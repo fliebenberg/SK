@@ -493,6 +493,21 @@ export class GameStore extends SiteStore {
         });
     };
 
+    updateGameEvent = (gameId: string, eventId: string, eventData: any) => {
+        return new Promise<any>((resolve, reject) => {
+            socket.emit('action', { 
+                type: SocketAction.UPDATE_GAME_EVENT, 
+                payload: { gameId, eventId, eventData } 
+            }, (response: any) => {
+                if (response.status === 'ok') {
+                    resolve(response.data);
+                } else {
+                    reject(new Error(response.message || 'Failed to update game event'));
+                }
+            });
+        });
+    };
+
     getLiveClockInfo(gameId: string) {
         // Direct access to games array to avoid any 'this' context issues with getters
         const game = this.games.find(g => g.id === gameId);

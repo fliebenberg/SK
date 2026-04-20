@@ -15,43 +15,51 @@ interface SlotProps {
     // other shared props could be injected here
 }
 
+// Stable fallback components to ensure consistent references
+const DefaultScoreboard = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500">Default Scoreboard</div>;
+const DefaultScoringPanel = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500">Default Scoring Panel</div>;
+const DefaultParticipantList = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500">Default Participant List</div>;
+const AthleticsScoreboardNotice = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500">Athletics does not use a standard head-to-head scoreboard.</div>;
+const RugbyRosterNotice = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500 font-black uppercase tracking-widest text-[10px]">Rugby Team Roster Slot</div>;
+
 export const SportComponentRegistry = {
     getScoreboard: (categoryStr: string) => {
         switch (categoryStr.toLowerCase()) {
-            case 'rugby': return (props: SlotProps) => <RugbyScoreboard {...props} />;
-            case 'athletics': return () => <div className="p-4 border rounded text-center text-gray-500">Athletics does not use a standard head-to-head scoreboard.</div>;
-            default: return () => <div>Default Scoreboard</div>;
+            case 'rugby': return RugbyScoreboard;
+            case 'athletics': return AthleticsScoreboardNotice;
+            default: return DefaultScoreboard;
         }
     },
     
     getScoringPanel: (categoryStr: string) => {
         switch (categoryStr.toLowerCase()) {
-            case 'rugby': return (props: SlotProps) => <RugbyScoringPanel {...props} />;
-            case 'athletics': return (props: SlotProps) => <AthleticsScoringGrid {...props} />;
-            default: return () => <div>Default Scoring Panel</div>;
+            case 'rugby': return RugbyScoringPanel;
+            case 'athletics': return AthleticsScoringGrid;
+            default: return DefaultScoringPanel;
         }
     },
 
     getGameEventsPanel: (categoryStr: string) => {
         switch (categoryStr.toLowerCase()) {
-            case 'rugby': return (props: SlotProps) => <RugbyGameEventsPanel {...props} />;
-            default: return () => null; // Most sports might not have a separate game events panel
+            case 'rugby': return RugbyGameEventsPanel;
+            default: return null; 
         }
     },
 
     getParticipantList: (categoryStr: string) => {
         switch (categoryStr.toLowerCase()) {
-            case 'rugby': return () => <div>Rugby Team Roster Slot</div>;
-            case 'athletics': return (props: SlotProps) => <AthleticsStartList {...props} />;
-            default: return () => <div>Default Participant List</div>;
+            case 'rugby': return RugbyRosterNotice;
+            case 'athletics': return AthleticsStartList;
+            default: return DefaultParticipantList;
         }
     }
 };
 
 export const SlotWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return (
-        <Suspense fallback={<div className="animate-pulse bg-gray-200 h-32 rounded flex items-center justify-center">Loading Module...</div>}>
+        <Suspense fallback={<div className="animate-pulse bg-primary/10 h-32 rounded-2xl border border-primary/20 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-primary/40">Loading Module...</div>}>
             {children}
         </Suspense>
     );
 };
+

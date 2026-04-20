@@ -1,5 +1,5 @@
 import { query } from '../db';
-import { TEST_ORG_ID_PATTERNS, APP_TEST_ORG_ID } from '../../../shared/src/constants/TestConstants';
+import { TEST_ORG_ID_PATTERNS, APP_TEST_ORG_ID } from '@sk/types';
 
 async function cleanupTestOrgs() {
     console.log('--- Starting Test Organization Cleanup ---');

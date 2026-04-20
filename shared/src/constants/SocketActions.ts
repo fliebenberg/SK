@@ -128,6 +128,11 @@ export enum SocketAction {
      * Expects payload: { gameId: string, initiatorOrgProfileId: string, type: string, subType?: string, eventData?: any, actorOrgProfileId?: string, gameParticipantId?: string }
      */
     ADD_GAME_EVENT = 'ADD_GAME_EVENT',
+    /**
+     * Action to update an existing game event.
+     * Expects payload: { gameId: string, eventId: string, eventData: any }
+     */
+    UPDATE_GAME_EVENT = 'UPDATE_GAME_EVENT',
 
     /**
      * Action to initiate a consensus vote for an undo.

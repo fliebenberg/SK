@@ -29,6 +29,7 @@ export type ScoringFlowState = {
     reason?: string;
     winnerSide?: 'home' | 'away';
     isFromPenalty?: boolean;
+    pendingEventId?: string;
 } | {
     status: 'EVENT_REASON_SELECTION';
     side: 'home' | 'away';
@@ -37,6 +38,10 @@ export type ScoringFlowState = {
     nextStatus: ScoringFlowState['status'];
 } | {
     status: 'PENALTY_DECISION_SELECTION';
+    side: 'home' | 'away';
+    reason?: string;
+} | {
+    status: 'FREE_KICK_DECISION_SELECTION';
     side: 'home' | 'away';
     reason?: string;
 } | {
@@ -52,12 +57,28 @@ export const RUGBY_EVENT_REASONS = {
     SCRUM: ['Knock-on', 'Forward Pass', 'Accidental Offside', 'Unplayable'],
     PENALTY: ['Offside', 'High Tackle', 'Hands in Ruck', 'Side Entry', 'Not Releasing', 'Obstruction', 'Dangerous Tackle', 'Other'],
     DROPOUT_22M: ['Kicked Dead by Opponent', 'Missed Kick'],
-    DROPOUT_GOALLINE: ['Held up in Goal', 'Grounded in Goal']
+    DROPOUT_GOALLINE: ['Held up in Goal', 'Grounded in Goal'],
+    FREE_KICK: [
+        'Scrum - Early Push', 
+        'Scrum - Delaying the Feed', 
+        'Scrum - Pre-engagement', 
+        'Scrum - Illegal Feed',
+        'Lineout - Closing the Gap', 
+        'Lineout - Delaying the Lineout', 
+        'Lineout - Early Lift', 
+        'Lineout - Too Many Players',
+        'Lineout - Faking a Throw',
+        'Mark',
+        'Wasting Time',
+        'Kicking ball away',
+        'Other'
+    ]
 };
 
 export function useRugbyScoring(game: Game) {
     const [scoringState, setScoringState] = useState<ScoringFlowState>({ status: 'IDLE' });
     const [rosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
+    const [actionedTryIds, setActionedTryIds] = useState<Set<string>>(new Set());
     const { currentMS } = useGameTimer(game.liveState?.clock, game.startTime, game.finishTime);
     const periodLabel = game.liveState?.periodLabel || '1st Period';
 
@@ -68,6 +89,7 @@ export function useRugbyScoring(game: Game) {
             });
         });
     }, [game.id, game.participants]);
+
 
     const gameEvents = store.gameEvents.filter(e => e.gameId === game.id);
     const mostRecentScore = useMemo(() => {
@@ -82,7 +104,7 @@ export function useRugbyScoring(game: Game) {
     }, [gameEvents]);
 
     const pendingConversion = useMemo(() => {
-        if (mostRecentScore && mostRecentScore.subType === 'Try') {
+        if (mostRecentScore && mostRecentScore.subType === 'Try' && !actionedTryIds.has(mostRecentScore.id)) {
             const hasLinkedConversion = gameEvents.some(e => e.eventData?.linkedEventId === mostRecentScore.id);
             if (!hasLinkedConversion) {
                 return {
@@ -92,7 +114,20 @@ export function useRugbyScoring(game: Game) {
             }
         }
         return null;
-    }, [mostRecentScore, gameEvents, game.participants]);
+    }, [mostRecentScore, gameEvents, game.participants, actionedTryIds]);
+
+    // Automatically trigger conversion flow if one is pending
+    useEffect(() => {
+        if (scoringState.status === 'IDLE' && pendingConversion) {
+            setScoringState({
+                status: 'KICK_FLOW',
+                side: pendingConversion.side,
+                type: 'Conversion',
+                points: 2,
+                extraData: { linkedEventId: pendingConversion.tryId }
+            });
+        }
+    }, [pendingConversion, scoringState.status]);
 
     const handleScore = async (points: number, side: 'home' | 'away', type: string, extraData?: any, playerId?: string) => {
         const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
@@ -138,6 +173,10 @@ export function useRugbyScoring(game: Game) {
         });
     };
 
+    const handleUpdateGameEvent = async (eventId: string, extraData: any) => {
+        return store.updateGameEvent(game.id, eventId, extraData);
+    };
+
     const handleKickResult = async (type: 'Conversion' | 'Penalty Kick' | 'Line Kick', points: number, isMissed: boolean, side: 'home' | 'away', playerId?: string, extraData?: any) => {
         if (type === 'Line Kick') {
             await handleAddGameEvent('GAME_EVENT', 'Line Kick', side, {
@@ -147,6 +186,10 @@ export function useRugbyScoring(game: Game) {
             }, playerId);
         } else {
             await handleScore(isMissed ? 0 : points, side, type, { ...extraData, successful: !isMissed }, playerId);
+        }
+
+        if (type === 'Conversion' && extraData?.linkedEventId) {
+            setActionedTryIds(prev => new Set(prev).add(extraData.linkedEventId));
         }
         setScoringState({ status: 'IDLE' });
     };
@@ -173,6 +216,7 @@ export function useRugbyScoring(game: Game) {
         pendingConversion,
         handleScore,
         handleAddGameEvent,
+        handleUpdateGameEvent,
         handleKickResult,
         startScoringFlow
     };

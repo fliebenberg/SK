@@ -532,6 +532,17 @@ io.on('connection', (socket) => {
                     throw new Error(eventRes.error);
                 }
                 break;
+            case SocketAction.UPDATE_GAME_EVENT:
+                const updatedEvent = await gameEventManager.updateEvent(action.payload.gameId, action.payload.eventId, { eventData: action.payload.eventData });
+                if (!('error' in updatedEvent)) {
+                    io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvent });
+                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvent });
+                    result = updatedEvent;
+                } else {
+                    console.error('Server: Failed to update game event:', updatedEvent.error);
+                    throw new Error(updatedEvent.error);
+                }
+                break;
             case SocketAction.INITIATE_UNDO_VOTE:
                 const voteInitRes = await gameEventManager.initiateUndoVote(action.payload.gameId, action.payload.eventIdToUndo, action.payload.initiatorId);
                 if (voteInitRes.success) {

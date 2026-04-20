@@ -1,7 +1,7 @@
 import React from 'react';
 import { Game } from '@sk/types';
 
-export default function AthleticsStartList({ game }: { game: Game }) {
+export default function AthleticsStartList({ game, role }: { game: Game, role?: string }) {
     // Mock athletes list for the multi-competitor layout
     const athletes = [
         { lane: 1, name: 'S. Kiptoo', org: 'Nairobi AC', pb: '13:05' },

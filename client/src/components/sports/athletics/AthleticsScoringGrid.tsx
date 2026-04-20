@@ -2,7 +2,7 @@ import React from 'react';
 import { Game } from '@sk/types';
 import { Button } from '@/components/ui/button';
 
-export default function AthleticsScoringGrid({ game }: { game: Game }) {
+export default function AthleticsScoringGrid({ game, role }: { game: Game, role?: string }) {
     // In Athletics, the "scoring" panel is often just tracking lap completions 
     // or registering final times per competitor as they cross the line.
 

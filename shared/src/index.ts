@@ -28,3 +28,4 @@ export * from './constants/SocketActions';
 export * from './types/Protocol';
 export * from './utils/stringUtils';
 export * from './utils/gameUtils';
+export * from './constants/TestConstants';

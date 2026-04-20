@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import { getPeriodLabel } from '@sk/types';
 
-export default function RugbyScoreboard({ game }: { game: Game }) {
+export default function RugbyScoreboard({ game, role }: { game: Game, role?: string }) {
     const { formattedTime } = useGameTimer(game.liveState?.clock);
     const [, setTick] = useState(0);
 

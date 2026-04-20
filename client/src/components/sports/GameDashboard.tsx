@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNavigationGuardContext } from '@/contexts/NavigationGuardContext';
 import { Game } from '@sk/types';
@@ -31,9 +31,9 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
     const canTimekeep = userRole === 'TIMEKEEPER' || (userRole === 'SCORER' /* fallback */) || store.globalRole === 'admin';
 
     // Resolve specific slots
-    const ScoreboardModule = SportComponentRegistry.getScoreboard(sportCategory);
-    const ScoringPanelModule = SportComponentRegistry.getScoringPanel(sportCategory);
-    const GameEventsPanelModule = SportComponentRegistry.getGameEventsPanel(sportCategory);
+    const ScoreboardModule = useMemo(() => SportComponentRegistry.getScoreboard(sportCategory), [sportCategory]);
+    const ScoringPanelModule = useMemo(() => SportComponentRegistry.getScoringPanel(sportCategory), [sportCategory]);
+    const GameEventsPanelModule = useMemo(() => SportComponentRegistry.getGameEventsPanel(sportCategory), [sportCategory]);
 
     const p1 = game.participants?.[0];
     const p2 = game.participants?.[1];

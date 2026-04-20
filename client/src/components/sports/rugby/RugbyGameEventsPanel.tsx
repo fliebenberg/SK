@@ -12,30 +12,18 @@ import {
 } from "@/components/ui/dialog";
 import { useRugbyScoring, RUGBY_EVENT_REASONS } from './useRugbyScoring';
 
-function ScoringActionButton({ label, onClick, disabled, className, title }: { label: string, onClick: () => void, disabled?: boolean, className?: string, title?: string }) {
-    return (
-        <button 
-            onClick={onClick}
-            disabled={disabled}
-            title={title}
-            className={cn(
-                "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none p-2",
-                className
-            )}
-        >
-            <span className="font-black uppercase tracking-tight text-foreground text-[10px] sm:text-[12px] leading-tight text-center">{label}</span>
-        </button>
-    );
-}
+import { ScoringActionButton, DialogSectionHeader, RosterGrid } from '../shared/ScoringActionButton';
 
-export default function RugbyGameEventsPanel({ game }: { game: Game }) {
+export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?: string }) {
     const { 
         scoringState, 
         setScoringState, 
         rosters, 
         handleAddGameEvent, 
+        handleUpdateGameEvent,
         handleKickResult 
     } = useRugbyScoring(game);
+    const participant = scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1];
 
     const isScoringDisabled = game.status === 'Scheduled';
     const homeTeamId = game.participants?.[0]?.teamId;
@@ -52,10 +40,11 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
             { label: 'Penalty', title: 'Penalty Awarded', action: () => setScoringState({ status: 'EVENT_REASON_SELECTION', side, type: 'Penalty Awarded', reasons: RUGBY_EVENT_REASONS.PENALTY, nextStatus: 'PENALTY_DECISION_SELECTION' }) },
             { label: 'Scrum', title: 'Scrum', action: () => setScoringState({ status: 'EVENT_REASON_SELECTION', side, type: 'Scrum', reasons: RUGBY_EVENT_REASONS.SCRUM, nextStatus: 'SCRUM_FLOW' }) },
             { label: 'Lineout', title: 'Lineout', action: () => setScoringState({ status: 'LINEOUT_FLOW', side }) },
+            { label: 'Free Kick', title: 'Free Kick Awarded', action: () => setScoringState({ status: 'EVENT_REASON_SELECTION', side, type: 'Free Kick Awarded', reasons: RUGBY_EVENT_REASONS.FREE_KICK, nextStatus: 'FREE_KICK_DECISION_SELECTION' }) },
             // Row 2
-            { label: 'Kick-Off', title: 'Kick-off', action: () => handleAddGameEvent('GAME_EVENT', 'Kick-off', side) },
-            { label: '22m Drop', title: '22m Dropout', action: () => setScoringState({ status: 'EVENT_REASON_SELECTION', side, type: '22m Dropout', reasons: RUGBY_EVENT_REASONS.DROPOUT_22M, nextStatus: 'IDLE' }) },
-            { label: 'GL Drop', title: 'Goal-line Dropout', action: () => setScoringState({ status: 'EVENT_REASON_SELECTION', side, type: 'Goalline Dropout', reasons: RUGBY_EVENT_REASONS.DROPOUT_GOALLINE, nextStatus: 'IDLE' }) },
+            { label: 'Kick-Off', title: 'Kick-off', action: () => setScoringState({ status: 'PLAYER_SELECTION', side, points: 0, type: 'Kick-off' }) },
+            { label: '22m Drop', title: '22m Dropout', action: () => setScoringState({ status: 'EVENT_REASON_SELECTION', side, type: '22m Dropout', reasons: RUGBY_EVENT_REASONS.DROPOUT_22M, nextStatus: 'PLAYER_SELECTION' }) },
+            { label: 'GL Drop', title: 'Goal-line Dropout', action: () => setScoringState({ status: 'EVENT_REASON_SELECTION', side, type: 'Goalline Dropout', reasons: RUGBY_EVENT_REASONS.DROPOUT_GOALLINE, nextStatus: 'PLAYER_SELECTION' }) },
             // Row 3
             { label: 'Sub', title: 'Replacement / Substitution', action: () => setScoringState({ status: 'REPLACEMENT_OFF_SELECTION', side }) },
             { label: 'Yellow Card', title: 'Yellow Card', action: () => setScoringState({ status: 'PLAYER_SELECTION', side, points: 0, type: 'Yellow Card', isInfringer: true }) },
@@ -74,6 +63,7 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                         disabled={disabled}
                         label={evt.label}
                         title={evt.title}
+                        variant="none"
                         className={cn(teamColorClass, disabled ? 'opacity-30' : '', "h-8 sm:h-11")}
                     />
                 ))}
@@ -104,26 +94,52 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                         </DialogTitle>
                     </DialogHeader>
                     <div className="grid grid-cols-2 gap-2 py-4">
-                        {scoringState.status === 'EVENT_REASON_SELECTION' && scoringState.reasons.map(reason => (
-                            <ScoringActionButton 
-                                key={reason}
-                                onClick={() => {
-                                    const next = scoringState.nextStatus;
-                                    if (next === 'IDLE') {
-                                        handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, { reason });
-                                        setScoringState({ status: 'IDLE' });
-                                    } else if (next === 'SCRUM_FLOW') {
-                                        setScoringState({ status: 'SCRUM_FLOW', side: scoringState.side, reason });
-                                    } else if (next === 'PENALTY_DECISION_SELECTION') {
-                                        setScoringState({ status: 'PENALTY_DECISION_SELECTION', side: scoringState.side, reason });
-                                    }
-                                }}
-                                label={reason}
-                                className="h-12 bg-white/5 hover:bg-white/10 border-white/10"
-                            />
-                        ))}
+                        {scoringState.status === 'EVENT_REASON_SELECTION' && (() => {
+                            let lastCategory = '';
+                            return scoringState.reasons.map((reason) => {
+                                let category = '';
+                                if (reason.startsWith('Scrum -')) category = 'SCRUM';
+                                else if (reason.startsWith('Lineout -')) category = 'LINEOUT';
+                                else if (scoringState.type === 'Free Kick Awarded') category = 'OTHER';
+
+                                const showHeader = category && category !== lastCategory;
+                                if (showHeader) lastCategory = category;
+
+                                return (
+                                    <React.Fragment key={reason}>
+                                        {showHeader && (
+                                            <div className="col-span-2 mt-3 mb-1 px-1 border-b border-white/10 flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase text-primary/70 tracking-[0.2em]">{category}</span>
+                                            </div>
+                                        )}
+                                        <ScoringActionButton 
+                                            onClick={() => {
+                                                const next = scoringState.nextStatus;
+                                                if (next === 'IDLE') {
+                                                    handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, { reason });
+                                                    setScoringState({ status: 'IDLE' });
+                                                } else if (next === 'PLAYER_SELECTION') {
+                                                    setScoringState({ status: 'PLAYER_SELECTION', side: scoringState.side, points: 0, type: scoringState.type, extraData: { reason } });
+                                                } else if (next === 'SCRUM_FLOW' || next === 'LINEOUT_FLOW') {
+                                                    handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, { reason }).then(res => {
+                                                        setScoringState({ status: next, side: scoringState.side, reason, pendingEventId: res.id });
+                                                    });
+                                                } else if (next === 'PENALTY_DECISION_SELECTION') {
+                                                    setScoringState({ status: 'PENALTY_DECISION_SELECTION', side: scoringState.side, reason });
+                                                } else if (next === 'FREE_KICK_DECISION_SELECTION') {
+                                                    setScoringState({ status: 'FREE_KICK_DECISION_SELECTION', side: scoringState.side, reason });
+                                                }
+                                            }}
+                                            label={reason.includes(' - ') ? reason.split(' - ')[1] : reason}
+                                            variant="muted"
+                                            className="h-12"
+                                        />
+                                    </React.Fragment>
+                                );
+                            });
+                        })()}
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="pt-4 border-t border-white/5">
                         <ScoringActionButton 
                             onClick={() => {
                                 if (scoringState.status === 'EVENT_REASON_SELECTION') {
@@ -131,15 +147,22 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                                     if (next === 'IDLE') {
                                         handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side);
                                         setScoringState({ status: 'IDLE' });
-                                    } else if (next === 'SCRUM_FLOW') {
-                                        setScoringState({ status: 'SCRUM_FLOW', side: scoringState.side });
+                                    } else if (next === 'PLAYER_SELECTION') {
+                                        setScoringState({ status: 'PLAYER_SELECTION', side: scoringState.side, points: 0, type: scoringState.type });
+                                    } else if (next === 'SCRUM_FLOW' || next === 'LINEOUT_FLOW') {
+                                        handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side).then(res => {
+                                            setScoringState({ status: next, side: scoringState.side, pendingEventId: res.id });
+                                        });
                                     } else if (next === 'PENALTY_DECISION_SELECTION') {
                                         setScoringState({ status: 'PENALTY_DECISION_SELECTION', side: scoringState.side });
+                                    } else if (next === 'FREE_KICK_DECISION_SELECTION') {
+                                        setScoringState({ status: 'FREE_KICK_DECISION_SELECTION', side: scoringState.side });
                                     }
                                 }
                             }}
                             label="SKIP REASON"
-                            className="h-10 px-4 bg-muted hover:bg-muted/80 text-foreground/70 font-black text-xs border-border/40 w-full"
+                            variant="muted"
+                            className="h-10 w-full"
                         />
                     </DialogFooter>
                 </DialogContent>
@@ -165,6 +188,7 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                                 }
                             }}
                             label="PENALTY KICK"
+                            variant="none"
                             className="h-16 bg-blue-600/30 border-blue-600/40 hover:bg-blue-600/50"
                         />
                         <ScoringActionButton 
@@ -175,30 +199,111 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                                 }
                             }}
                             label="LINE KICK"
+                            variant="none"
                             className="h-16 bg-green-600/30 border-green-600/40 hover:bg-green-600/50"
                         />
                         <ScoringActionButton 
                             onClick={() => {
                                 if (scoringState.status === 'PENALTY_DECISION_SELECTION') {
-                                    handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Scrum' });
-                                    setScoringState({ status: 'SCRUM_FLOW', side: scoringState.side, reason: 'Penalty', isFromPenalty: true });
+                                    handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Scrum' }).then(res => {
+                                        setScoringState({ status: 'SCRUM_FLOW', side: scoringState.side, reason: 'Penalty', isFromPenalty: true, pendingEventId: res.id });
+                                    });
                                 }
                             }}
                             label="SCRUM"
+                            variant="none"
                             className="h-16 bg-amber-600/30 border-amber-600/40 hover:bg-amber-600/50"
                         />
                         <ScoringActionButton 
                             onClick={() => {
                                 if (scoringState.status === 'PENALTY_DECISION_SELECTION') {
                                     handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Tap n Go' });
-                                    handleAddGameEvent('GAME_EVENT', 'Tap n Go', scoringState.side);
-                                    setScoringState({ status: 'IDLE' });
+                                    setScoringState({ status: 'PLAYER_SELECTION', side: scoringState.side, points: 0, type: 'Tap n Go' });
                                 }
                             }}
                             label="TAP 'N GO"
+                            variant="none"
                             className="h-16 bg-purple-600/30 border-purple-600/40 hover:bg-purple-600/50"
                         />
                     </div>
+                    <DialogFooter className="pt-4 border-t border-white/5">
+                        <ScoringActionButton 
+                            onClick={() => setScoringState({ status: 'IDLE' })}
+                            label="CANCEL"
+                            variant="ghost"
+                            className="h-10 w-full"
+                        />
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Free Kick Decision Dialog */}
+            <Dialog 
+                open={scoringState.status === 'FREE_KICK_DECISION_SELECTION'} 
+                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
+            >
+                <DialogContent className="sm:max-w-md bg-card border-border/50">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 font-black uppercase tracking-tight text-primary">
+                            Free Kick Decision
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-2 py-4">
+                        <ScoringActionButton 
+                            onClick={() => {
+                                if (scoringState.status === 'FREE_KICK_DECISION_SELECTION') {
+                                    handleAddGameEvent('GAME_EVENT', 'Free Kick Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Line Kick' });
+                                    setScoringState({ status: 'KICK_FLOW', side: scoringState.side, type: 'Line Kick', points: 0 });
+                                }
+                            }}
+                            label="LINE KICK"
+                            variant="none"
+                            className="h-16 bg-blue-600/30 border-blue-600/40 hover:bg-blue-600/50"
+                        />
+                        <ScoringActionButton 
+                            onClick={() => {
+                                if (scoringState.status === 'FREE_KICK_DECISION_SELECTION') {
+                                    handleAddGameEvent('GAME_EVENT', 'Free Kick Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Scrum' }).then(res => {
+                                        setScoringState({ status: 'SCRUM_FLOW', side: scoringState.side, reason: 'Free Kick', isFromPenalty: true, pendingEventId: res.id });
+                                    });
+                                }
+                            }}
+                            label="SCRUM"
+                            variant="none"
+                            className="h-16 bg-amber-600/30 border-amber-600/40 hover:bg-amber-600/50"
+                        />
+                        <ScoringActionButton 
+                            onClick={() => {
+                                if (scoringState.status === 'FREE_KICK_DECISION_SELECTION') {
+                                    handleAddGameEvent('GAME_EVENT', 'Free Kick Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Tap n Go' });
+                                    // Go to player selection for the Tap 'n Go
+                                    setScoringState({ status: 'PLAYER_SELECTION', side: scoringState.side, points: 0, type: 'Tap n Go' });
+                                }
+                            }}
+                            label="TAP 'N GO"
+                            variant="none"
+                            className="h-16 bg-purple-600/30 border-purple-600/40 hover:bg-purple-600/50"
+                        />
+                    </div>
+                    <DialogFooter className="pt-4 border-t border-white/5 flex flex-col gap-2">
+                        <ScoringActionButton 
+                            onClick={() => {
+                                if (scoringState.status === 'FREE_KICK_DECISION_SELECTION') {
+                                    handleAddGameEvent('GAME_EVENT', 'Free Kick Awarded', scoringState.side, { reason: scoringState.reason });
+                                    setScoringState({ status: 'IDLE' });
+                                }
+                            }}
+                            label="SKIP DECISION"
+                            variant="muted"
+                            className="h-10 w-full"
+                        />
+                        <ScoringActionButton 
+                            onClick={() => setScoringState({ status: 'IDLE' })}
+                            label="CANCEL"
+                            variant="ghost"
+                            className="h-10 w-full"
+                        />
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -215,53 +320,55 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                     </DialogHeader>
                     <div className="grid grid-cols-2 gap-4 py-6">
                         <div className="flex flex-col gap-2">
-                            <div className="text-[10px] font-black uppercase text-center text-blue-500 tracking-widest">Home Team</div>
+                            <div className="text-[10px] font-black uppercase text-center text-blue-500 tracking-widest">{homeTeam?.name || 'Home Team'}</div>
                             <ScoringActionButton 
                                 onClick={() => {
                                     if (scoringState.status === 'SCRUM_FLOW' || scoringState.status === 'LINEOUT_FLOW') {
-                                        const type = scoringState.status === 'SCRUM_FLOW' ? 'Scrum' : 'Lineout';
-                                        handleAddGameEvent('GAME_EVENT', type, scoringState.side, { 
-                                            reason: scoringState.reason,
-                                            winnerSide: 'home',
-                                            winnerName: homeTeam?.name || 'Home'
-                                        });
+                                        if (scoringState.pendingEventId) {
+                                            handleUpdateGameEvent(scoringState.pendingEventId, { 
+                                                winnerSide: 'home',
+                                                winnerName: homeTeam?.name || 'Home'
+                                            });
+                                        }
                                         setScoringState({ status: 'IDLE' });
                                     }
                                 }}
                                 label="HOME WON"
-                                className="h-20 bg-blue-600/20 border-blue-600/40 hover:bg-blue-600/40"
+                                variant="none"
+                                className="h-14 bg-blue-600/20 border-blue-600/40 hover:bg-blue-600/40"
                             />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <div className="text-[10px] font-black uppercase text-center text-red-500 tracking-widest">Away Team</div>
+                            <div className="text-[10px] font-black uppercase text-center text-red-500 tracking-widest">{awayTeam?.name || 'Away Team'}</div>
                             <ScoringActionButton 
                                 onClick={() => {
                                     if (scoringState.status === 'SCRUM_FLOW' || scoringState.status === 'LINEOUT_FLOW') {
-                                        const type = scoringState.status === 'SCRUM_FLOW' ? 'Scrum' : 'Lineout';
-                                        handleAddGameEvent('GAME_EVENT', type, scoringState.side, { 
-                                            reason: scoringState.reason,
-                                            winnerSide: 'away',
-                                            winnerName: awayTeam?.name || 'Away'
-                                        });
+                                        if (scoringState.pendingEventId) {
+                                            handleUpdateGameEvent(scoringState.pendingEventId, { 
+                                                winnerSide: 'away',
+                                                winnerName: awayTeam?.name || 'Away'
+                                            });
+                                        }
                                         setScoringState({ status: 'IDLE' });
                                     }
                                 }}
                                 label="AWAY WON"
-                                className="h-20 bg-red-600/20 border-red-600/40 hover:bg-red-600/40"
+                                variant="none"
+                                className="h-14 bg-red-600/20 border-red-600/40 hover:bg-red-600/40"
                             />
                         </div>
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="pt-4 border-t border-white/5">
                         <ScoringActionButton 
                             onClick={() => {
                                 if (scoringState.status === 'SCRUM_FLOW' || scoringState.status === 'LINEOUT_FLOW') {
-                                    const type = scoringState.status === 'SCRUM_FLOW' ? 'Scrum' : 'Lineout';
-                                    handleAddGameEvent('GAME_EVENT', type, scoringState.side, { reason: scoringState.reason });
+                                    // No update needed, the base event is already sent
                                     setScoringState({ status: 'IDLE' });
                                 }
                             }}
                             label="SKIP WINNER"
-                            className="h-10 px-4 bg-muted hover:bg-muted/80 text-foreground/70 font-black text-xs border-border/40 w-full"
+                            variant="muted"
+                            className="h-10 w-full"
                         />
                     </DialogFooter>
                 </DialogContent>
@@ -286,30 +393,12 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                                 {/* Player Selection Section */}
                                 {!scoringState.playerId ? (
                                     <div className="space-y-4">
-                                        <div className="text-xs font-black uppercase text-muted-foreground tracking-widest">Select Kicker</div>
-                                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                                            {(() => {
-                                                const participant = scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1];
-                                                const rawRoster = participant ? rosters[participant.id] : [];
-                                                return [...rawRoster].sort((a, b) => (parseInt(a.position || '999') - parseInt(b.position || '999'))).map(item => {
-                                                    const profile = store.orgProfiles.find(p => p.id === item.orgProfileId);
-                                                    if (!profile) return null;
-                                                    return (
-                                                        <button
-                                                            key={item.orgProfileId}
-                                                            onClick={() => setScoringState({ ...scoringState, playerId: item.orgProfileId })}
-                                                            className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all group"
-                                                        >
-                                                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-muted border border-border/50 flex items-center justify-center relative overflow-hidden">
-                                                                <span className="text-primary font-black text-sm absolute inset-0 flex items-center justify-center group-hover:opacity-0">{item.position}</span>
-                                                                {profile.image && <img src={profile.image} className="w-full h-full object-cover opacity-0 group-hover:opacity-100" />}
-                                                            </div>
-                                                            <span className="text-[8px] font-bold uppercase truncate w-full text-center">{profile.name.split(' ')[0]}</span>
-                                                        </button>
-                                                    );
-                                                });
-                                            })()}
-                                        </div>
+                                        <DialogSectionHeader label="Select Kicker" />
+                                        <RosterGrid 
+                                            roster={participant ? (rosters[participant.id] || []) : []}
+                                            selectedPlayerId={scoringState.playerId}
+                                            onSelect={(id) => setScoringState({ ...scoringState, playerId: id })}
+                                        />
                                     </div>
                                 ) : (
                                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between">
@@ -327,30 +416,58 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                                         <ScoringActionButton 
                                             onClick={() => setScoringState({ ...scoringState, playerId: undefined })}
                                             label="CHANGE"
-                                            className="h-8 px-4 text-[10px] bg-white/5 border-white/10"
+                                            variant="muted"
+                                            className="h-8 px-4"
                                         />
                                     </div>
                                 )}
 
                                 {/* Outcome Section */}
-                                <div className="space-y-4 pt-6 border-t border-white/10">
-                                    <div className="text-xs font-black uppercase text-muted-foreground tracking-widest">Outcome</div>
+                                <div className="space-y-4 pt-6 border-t border-white/5">
+                                    <DialogSectionHeader label="Outcome" />
                                     <div className="grid grid-cols-2 gap-4">
                                         <ScoringActionButton 
                                             onClick={() => handleKickResult(scoringState.type, scoringState.points, false, scoringState.side, scoringState.playerId, scoringState.extraData)}
                                             label={scoringState.type === 'Line Kick' ? 'OUT' : 'SUCCESSFUL'}
-                                            className="h-24 bg-green-600/30 border-green-600/40 hover:bg-green-600/50 text-xl"
+                                            variant="success"
+                                            className="h-14"
                                         />
                                         <ScoringActionButton 
                                             onClick={() => handleKickResult(scoringState.type, 0, true, scoringState.side, scoringState.playerId, scoringState.extraData)}
                                             label="MISSED"
-                                            className="h-24 bg-red-600/30 border-red-600/40 hover:bg-red-600/50 text-xl"
+                                            variant="danger"
+                                            className="h-14"
                                         />
                                     </div>
                                 </div>
                             </div>
                         )}
                     </div>
+                    <DialogFooter className="pt-4 border-t border-white/5">
+                        {scoringState.status === 'KICK_FLOW' && scoringState.type === 'Line Kick' && (
+                            <ScoringActionButton 
+                                onClick={() => {
+                                    handleAddGameEvent('GAME_EVENT', 'Line Kick', scoringState.side, { outcome: 'Skipped' }, scoringState.playerId);
+                                    setScoringState({ status: 'IDLE' });
+                                }}
+                                label="SKIP KICK DETAILS"
+                                variant="muted"
+                                className="h-10 w-full"
+                            />
+                        )}
+                        <ScoringActionButton 
+                            onClick={() => {
+                                if (scoringState.status === 'KICK_FLOW' && scoringState.type === 'Conversion') {
+                                    handleKickResult(scoringState.type, 0, true, scoringState.side, scoringState.playerId, scoringState.extraData);
+                                } else {
+                                    setScoringState({ status: 'IDLE' });
+                                }
+                            }}
+                            label="CANCEL"
+                            variant="ghost"
+                            className="h-10 w-full"
+                        />
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -368,48 +485,24 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                     </DialogHeader>
                     
                     <div className="flex-1 overflow-y-auto py-4">
-                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                            {(() => {
-                                if (scoringState.status !== 'REPLACEMENT_OFF_SELECTION' && scoringState.status !== 'REPLACEMENT_ON_SELECTION') return null;
-                                const participant = scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1];
-                                const rawRoster = participant ? rosters[participant.id] : [];
-                                
-                                // For "ON", we might want to prioritize reserves, but rugby subs can be anyone
-                                return [...rawRoster].sort((a, b) => (parseInt(a.position || '999') - parseInt(b.position || '999'))).map(item => {
-                                    const profile = store.orgProfiles.find(p => p.id === item.orgProfileId);
-                                    if (!profile) return null;
-                                    if (scoringState.status === 'REPLACEMENT_ON_SELECTION' && item.orgProfileId === scoringState.playerOffId) return null;
-
-                                    return (
-                                        <button
-                                            key={item.orgProfileId}
-                                            onClick={() => {
-                                                if (scoringState.status === 'REPLACEMENT_OFF_SELECTION') {
-                                                    setScoringState({ status: 'REPLACEMENT_ON_SELECTION', side: scoringState.side, playerOffId: item.orgProfileId });
-                                                } else if (scoringState.status === 'REPLACEMENT_ON_SELECTION') {
-                                                    handleAddGameEvent('GAME_EVENT', 'Replacement', scoringState.side, {
-                                                        playerOffId: scoringState.playerOffId,
-                                                        playerOffName: store.orgProfiles.find(p => p.id === scoringState.playerOffId)?.name,
-                                                        playerOnId: item.orgProfileId,
-                                                        playerOnName: profile.name
-                                                    });
-                                                    setScoringState({ status: 'IDLE' });
-                                                }
-                                            }}
-                                            className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all group"
-                                        >
-                                            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-muted border border-border/50 flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
-                                                <span className="text-primary font-black text-sm absolute inset-0 flex items-center justify-center group-hover:opacity-0">
-                                                    {item.isReserve ? `R${item.position}` : item.position}
-                                                </span>
-                                                {profile.image && <img src={profile.image} className="w-full h-full object-cover opacity-0 group-hover:opacity-100" />}
-                                            </div>
-                                            <span className="text-[9px] font-bold uppercase truncate w-full text-center">{profile.name.split(' ')[0]}</span>
-                                        </button>
-                                    );
-                                });
-                            })()}
-                        </div>
+                            <RosterGrid 
+                                roster={participant ? (rosters[participant.id] || []) : []}
+                                selectedPlayerId={scoringState.status === 'REPLACEMENT_OFF_SELECTION' ? undefined : scoringState.playerOffId}
+                                onSelect={(playerId) => {
+                                    const profile = store.orgProfiles.find(p => p.id === playerId);
+                                    if (scoringState.status === 'REPLACEMENT_OFF_SELECTION') {
+                                        setScoringState({ status: 'REPLACEMENT_ON_SELECTION', side: scoringState.side, playerOffId: playerId });
+                                    } else if (scoringState.status === 'REPLACEMENT_ON_SELECTION') {
+                                        handleAddGameEvent('GAME_EVENT', 'Replacement', scoringState.side, {
+                                            playerOffId: scoringState.playerOffId,
+                                            playerOffName: store.orgProfiles.find(p => p.id === scoringState.playerOffId)?.name,
+                                            playerOnId: playerId,
+                                            playerOnName: profile?.name || 'Unknown'
+                                        });
+                                        setScoringState({ status: 'IDLE' });
+                                    }
+                                }}
+                            />
                     </div>
                 </DialogContent>
             </Dialog>
@@ -423,42 +516,45 @@ export default function RugbyGameEventsPanel({ game }: { game: Game }) {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 font-black uppercase tracking-tight text-primary">
                             <UserPlus className="h-5 w-5" />
-                            {scoringState.status === 'PLAYER_SELECTION' && (scoringState.isInfringer ? `Who committed the ${scoringState.type}?` : `Who scored the ${scoringState.type}?`)}
+                            {scoringState.status === 'PLAYER_SELECTION' && (() => {
+                                if (scoringState.type === 'Tap n Go') return `Who took the Tap 'n Go?`;
+                                return scoringState.isInfringer ? `Who committed the ${scoringState.type}?` : `Who scored the ${scoringState.type}?`;
+                            })()}
                         </DialogTitle>
                     </DialogHeader>
                     
                     <div className="py-2">
-                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-x-1 gap-y-2 sm:gap-x-1.5 sm:gap-y-3 max-h-[50vh] overflow-y-auto pr-1.5 custom-scrollbar">
-                            {scoringState.status === 'PLAYER_SELECTION' && (() => {
-                                const participant = scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1];
-                                const rawRoster = participant ? rosters[participant.id] : [];
-
-                                return [...rawRoster].sort((a, b) => (parseInt(a.position || '999') - parseInt(b.position || '999'))).map(item => {
-                                    const profile = store.orgProfiles.find(p => p.id === item.orgProfileId);
-                                    if (!profile) return null;
-                                    
-                                    return (
-                                        <button
-                                            key={item.orgProfileId}
-                                            onClick={() => {
-                                                if (scoringState.status === 'PLAYER_SELECTION') {
-                                                    handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, {}, item.orgProfileId);
-                                                    setScoringState({ status: 'IDLE' });
-                                                }
-                                            }}
-                                            className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-primary/10 transition-all border border-transparent hover:border-primary/20 group relative"
-                                        >
-                                            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-muted border border-border/50 flex items-center justify-center overflow-hidden relative shadow-sm group-hover:scale-105 transition-all">
-                                                <span className="text-primary text-xl sm:text-2xl font-black">{item.position}</span>
-                                                {profile.image && <img src={profile.image} className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100" />}
-                                            </div>
-                                            <span className="text-[9px] font-bold uppercase truncate w-full text-center">{profile.name.split(' ')[0]}</span>
-                                        </button>
-                                    );
-                                });
-                            })()}
+                        <div className="max-h-[50vh] overflow-y-auto pr-1.5 custom-scrollbar">
+                            <RosterGrid 
+                                roster={participant ? (rosters[participant.id] || []) : []}
+                                onSelect={(id) => {
+                                    if (scoringState.status === 'PLAYER_SELECTION') {
+                                        handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, {}, id);
+                                        setScoringState({ status: 'IDLE' });
+                                    }
+                                }}
+                            />
                         </div>
                     </div>
+                    <DialogFooter className="pt-4 border-t border-white/5">
+                        <ScoringActionButton 
+                            onClick={() => {
+                                if (scoringState.status === 'PLAYER_SELECTION') {
+                                    handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side);
+                                    setScoringState({ status: 'IDLE' });
+                                }
+                            }}
+                            label="SKIP PLAYER"
+                            variant="muted"
+                            className="h-10 w-full"
+                        />
+                        <ScoringActionButton 
+                            onClick={() => setScoringState({ status: 'IDLE' })}
+                            label="CANCEL"
+                            variant="ghost"
+                            className="h-10 w-full"
+                        />
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

@@ -82,3 +82,38 @@ These events track the progression and administrative state of the match.
   * `action`: The system interpretation of what happened (`START`, `PAUSE`, `RESUME`, `END_PERIOD`, etc.).
   * `elapsedMS`: The recorded clock time when the action was taken to sync local client states and provide an audit.
   * `period`: The precise period in which the clock change occurred.
+85: 
+86: ---
+87: 
+88: ## Game Action Events (type: `GAME_EVENT`)
+89: 
+90: These events track specific actions and infringements during the match.
+91: 
+92: ### Penalty Awarded
+93: * **subType:** `Penalty Awarded`
+94: * **Event Data:**
+95:   * `reason`: The reason for the penalty (e.g., "High Tackle").
+96:   * `decision`: The chosen option ("Penalty Kick", "Line Kick", "Scrum", or "Tap n Go").
+97: 
+98: ### Free Kick Awarded
+99: * **subType:** `Free Kick Awarded`
+100: * **Event Data:**
+101:   * `reason`: The reason for the free kick (e.g., "Scrum - Early Push").
+102:   * `decision`: The chosen option ("Line Kick", "Scrum", or "Tap n Go").
+103: 
+104: ### Scrum
+105: * **subType:** `Scrum`
+106: * **Event Data:**
+107:   * `reason`: The reason the scrum was called (e.g., "Knock-on").
+108:   * `winnerSide`: "home" or "away" (if recorded).
+109:   * `winnerName`: The name of the winning team (if recorded).
+110: 
+111: ### Lineout
+112: * **subType:** `Lineout`
+113: * **Event Data:**
+114:   * `winnerSide`: "home" or "away" (if recorded).
+115:   * `winnerName`: The name of the winning team (if recorded).
+116: 
+117: ### Miscellaneous Actions
+118: * **subType:** `Yellow Card`, `Red Card`, `Knock-on`, `Turnover`, `Replacement`, `Kick-off`, `22m Dropout`, `Goalline Dropout`
+119: * **Event Data:** Varies by event (e.g., `actorId` for cards, `playerOffId`/`playerOnId` for replacements).

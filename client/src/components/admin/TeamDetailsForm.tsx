@@ -39,6 +39,7 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
   const router = useRouter();
   const [formData, setFormData] = useState({
     name: initialTeam.name,
+    shortName: initialTeam.shortName || "",
     sportId: initialTeam.sportId,
     ageGroup: initialTeam.ageGroup,
   });
@@ -69,6 +70,7 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
             // Sync form data to prevent "ghost" dirty state
             setFormData({
                 name: updatedTeam.name,
+                shortName: updatedTeam.shortName || "",
                 sportId: updatedTeam.sportId,
                 ageGroup: updatedTeam.ageGroup,
             });
@@ -92,6 +94,7 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
   const handleCancel = () => {
     setFormData({
       name: team.name,
+      shortName: team.shortName || "",
       sportId: team.sportId,
       ageGroup: team.ageGroup,
     });
@@ -126,6 +129,7 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
 
   const isDirty = (
     formData.name !== team.name ||
+    formData.shortName !== (team.shortName || "") ||
     formData.sportId !== team.sportId ||
     formData.ageGroup !== team.ageGroup
   );
@@ -173,14 +177,27 @@ export function TeamDetailsForm({ initialTeam, organization }: TeamDetailsFormPr
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="name">Team Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="bg-background/50"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Team Name</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="bg-background/50"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="shortName">Short Name / Abbreviation</Label>
+                <Input
+                  id="shortName"
+                  value={formData.shortName}
+                  onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
+                  className="bg-background/50"
+                  placeholder="e.g. 1ST"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between pt-4">

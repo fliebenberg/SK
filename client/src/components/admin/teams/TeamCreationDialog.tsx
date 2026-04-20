@@ -46,6 +46,7 @@ export function TeamCreationDialog({
   const [sports, setSports] = useState<Sport[]>([]);
   const [formData, setFormData] = useState({
     name: initialName,
+    shortName: "",
     sportId: initialSportId,
     ageGroup: initialAgeGroup,
   });
@@ -72,6 +73,7 @@ export function TeamCreationDialog({
     if (open) {
       setFormData({
         name: initialName,
+        shortName: "",
         sportId: initialSportId || (sports[0]?.id || ""),
         ageGroup: initialAgeGroup,
       });
@@ -85,6 +87,7 @@ export function TeamCreationDialog({
     try {
       const newTeam = await store.addTeam({
         name: formData.name,
+        shortName: formData.shortName,
         orgId,
         sportId: formData.sportId,
         ageGroup: formData.ageGroup,
@@ -117,6 +120,16 @@ export function TeamCreationDialog({
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g. 1st Team"
               autoFocus
+            />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="team-short-name">Short Name / Abbreviation</Label>
+            <Input
+              id="team-short-name"
+              value={formData.shortName}
+              onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
+              placeholder="e.g. 1ST"
             />
           </div>
 

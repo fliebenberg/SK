@@ -1,4 +1,4 @@
-import pool from '../../db';
+import pool from '../db';
 
 async function fix() {
     console.log('Updating counts Authoritatively...');

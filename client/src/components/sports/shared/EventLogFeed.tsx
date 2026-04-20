@@ -66,7 +66,16 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
             if (evt.subType === 'Replacement') {
                 return 'SUBSTITUTION';
             }
-            return evt.subType.toUpperCase();
+            if (evt.subType === 'Scrum') {
+                const winnerSide = evt.eventData?.winnerSide;
+                if (winnerSide) {
+                    const game = store.getGame(gameId);
+                    const homeParticipantId = game?.participants?.[0]?.id;
+                    const awardedSide = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
+                    return winnerSide === awardedSide ? 'SCRUM → WON' : 'SCRUM → LOST';
+                }
+            }
+            return evt.subType?.toUpperCase() || '';
         }
 
         
