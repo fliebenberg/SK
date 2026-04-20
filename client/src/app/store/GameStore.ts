@@ -9,6 +9,18 @@ export class GameStore extends SiteStore {
     gameEvents: GameEvent[] = [];
     activeDisputes: any[] = [];
     eventLogFilters: Set<string> = new Set(['TIME', 'SCORE', 'DETAIL']);
+    pendingManualFlow: { 
+        type: string, 
+        side: 'home' | 'away', 
+        points: number, 
+        extraData?: any,
+        eventId?: string,
+        actorId?: string,
+        successful?: boolean,
+        reason?: string,
+        decision?: string,
+        winnerSide?: 'home' | 'away'
+    } | null = null;
     private lastSequence: number = 0;
     private isSyncing: boolean = false;
 
@@ -146,6 +158,11 @@ export class GameStore extends SiteStore {
 
     setEventLogFilters(filters: Set<string>) {
         this.eventLogFilters = filters;
+        this.notifyListeners();
+    }
+
+    startManualFlow(config: { type: string, side: 'home' | 'away', points: number, extraData?: any } | null) {
+        this.pendingManualFlow = config;
         this.notifyListeners();
     }
 
@@ -493,11 +510,11 @@ export class GameStore extends SiteStore {
         });
     };
 
-    updateGameEvent = (gameId: string, eventId: string, eventData: any) => {
+    updateGameEvent = (gameId: string, eventId: string, payload: any) => {
         return new Promise<any>((resolve, reject) => {
             socket.emit('action', { 
                 type: SocketAction.UPDATE_GAME_EVENT, 
-                payload: { gameId, eventId, eventData } 
+                payload: { gameId, eventId, ...payload } 
             }, (response: any) => {
                 if (response.status === 'ok') {
                     resolve(response.data);

@@ -3,7 +3,8 @@ import { Game } from '@sk/types';
 import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 import { OrgLogo } from '@/components/ui/OrgLogo';
-import { Trophy, AlertTriangle, User, UserPlus } from 'lucide-react';
+import { Trophy, AlertTriangle, User, UserPlus, Pencil, Check, X } from 'lucide-react';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import {
     Dialog,
     DialogContent,
@@ -24,11 +25,15 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
         setScoringState, 
         rosters, 
         pendingConversion,
-        handleScore,
         handleKickResult,
-        startScoringFlow
+        startScoringFlow,
+        pendingDispute,
+        resolveDispute,
+        handleScore
     } = useRugbyScoring(game);
     const participant = scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1];
+
+    const [showDiscardConfirmation, setShowDiscardConfirmation] = useState(false);
 
     const [isFinalScoreOpen, setIsFinalScoreOpen] = useState(false);
     const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
@@ -45,6 +50,12 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
     const handlePlayerSelection = async (playerId?: string) => {
         if (scoringState.status !== 'PLAYER_SELECTION') return;
         
+        // If editing, only update local state
+        if (scoringState.editingId) {
+            setScoringState({ ...scoringState, playerId } as any);
+            return;
+        }
+
         const isTry = scoringState.type === 'Try';
         const res = await handleScore(scoringState.points, scoringState.side, scoringState.type, scoringState.extraData, playerId);
         
@@ -191,9 +202,8 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                 </div>
             </div>
 
-            {/* Final Score Dialog */}
             <Dialog open={isFinalScoreOpen} onOpenChange={setIsFinalScoreOpen}>
-                <DialogContent className="sm:max-w-md bg-card border-border/50">
+                <DialogContent hideCloseButton className="sm:max-w-lg bg-card border-border/50">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 font-black uppercase tracking-tight text-primary">
                             <Trophy className="h-5 w-5" />
@@ -202,8 +212,10 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                     </DialogHeader>
                     <div className="space-y-6 py-6">
                         <div className="grid grid-cols-2 gap-6">
-                            {game.participants?.slice(0, 2).map((p, idx) => {
+                            {game.participants?.slice(0, 2).map((p: any, idx: number) => {
+                                // @ts-ignore
                                 const team = p.teamId ? store.getTeam(p.teamId) : null;
+                                // @ts-ignore
                                 const org = team?.orgId ? store.getOrganization(team.orgId) : null;
                                 const orgName = org?.shortName || org?.name || (idx === 0 ? 'Home' : 'Away');
 
@@ -257,67 +269,92 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                 </DialogContent>
             </Dialog>
 
-            {/* Kick Flow Dialog */}
             <Dialog 
                 open={scoringState.status === 'KICK_FLOW'} 
-                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        const state = scoringState as any;
+                        const isDirty = (state.playerId !== state.initialPlayerId) || (state.successful !== state.initialSuccessful);
+                        if (isDirty && scoringState.editingId) {
+                            setShowDiscardConfirmation(true);
+                            return;
+                        }
+                        setScoringState({ status: 'IDLE' });
+                    }
+                }}
             >
-                <DialogContent className="sm:max-w-2xl bg-card border-border/50 max-h-[90vh] flex flex-col">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 font-black uppercase tracking-tight text-primary">
-                            <UserPlus className="h-5 w-5" />
-                            {scoringState.status === 'KICK_FLOW' && scoringState.type}
+                <DialogContent hideCloseButton className="sm:max-w-lg bg-card border-border/50 flex flex-col overflow-hidden">
+                    <DialogHeader className="relative pr-12">
+                        <DialogTitle className="text-xl font-black italic tracking-tighter flex items-center gap-2">
+                            {scoringState.status === 'KICK_FLOW' && scoringState.editingId ? <Pencil className="h-5 w-5 text-primary" /> : <UserPlus className="h-5 w-5 text-primary" />}
+                            {scoringState.status === 'KICK_FLOW' && (scoringState.editingId ? `Edit ${scoringState.type}` : scoringState.type)}
                         </DialogTitle>
+                        <div className="absolute right-0 top-0 flex items-center gap-1">
+                            {scoringState.editingId && (scoringState as any).playerId !== (scoringState as any).initialPlayerId || (scoringState as any).successful !== (scoringState as any).initialSuccessful ? (
+                                <button 
+                                    onClick={() => handleKickResult(scoringState.type, (scoringState as any).successful ? scoringState.points : 0, !(scoringState as any).successful, scoringState.side, scoringState.playerId, scoringState.extraData)}
+                                    className="p-2 text-success hover:bg-success/10 rounded-full transition-colors"
+                                    title="Save Changes"
+                                >
+                                    <Check className="w-6 h-6" />
+                                </button>
+                            ) : null}
+                            <button 
+                                onClick={() => {
+                                    const state = scoringState as any;
+                                    const isDirty = (state.playerId !== state.initialPlayerId) || (state.successful !== state.initialSuccessful);
+                                    if (isDirty && scoringState.editingId) {
+                                        setShowDiscardConfirmation(true);
+                                    } else {
+                                        setScoringState({ status: 'IDLE' });
+                                    }
+                                }}
+                                className="p-2 text-muted-foreground hover:bg-white/10 rounded-full transition-colors"
+                                title="Close"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
                     </DialogHeader>
                     
-                    <div className="flex-1 overflow-y-auto py-4">
+                    <div className="flex-1 overflow-y-auto py-4 custom-scrollbar">
                         {scoringState.status === 'KICK_FLOW' && (
                             <div className="space-y-6">
-                                {/* Player Selection Section */}
-                                {!scoringState.playerId ? (
-                                    <div className="space-y-4">
-                                        <DialogSectionHeader label="Select Kicker" />
-                                        <RosterGrid 
-                                            roster={participant ? (rosters[participant.id] || []) : []}
-                                            selectedPlayerId={scoringState.playerId}
-                                            onSelect={(id) => setScoringState({ ...scoringState, playerId: id })}
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
-                                                <User className="w-6 h-6 text-primary" />
-                                            </div>
-                                            <div>
-                                                <div className="text-[10px] font-black uppercase text-primary tracking-widest">Kicker Selected</div>
-                                                <div className="font-black uppercase text-lg leading-none">
-                                                    {store.orgProfiles.find(p => p.id === scoringState.playerId)?.name}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <ScoringActionButton 
-                                            onClick={() => setScoringState({ ...scoringState, playerId: undefined })}
-                                            label="CHANGE"
-                                            variant="muted"
-                                            className="h-8 px-4"
-                                        />
-                                    </div>
-                                )}
+                                <div className="space-y-4">
+                                    <DialogSectionHeader label="Select Kicker" />
+                                    <RosterGrid 
+                                        roster={participant ? (rosters[participant.id] || []) : []}
+                                        selectedPlayerId={scoringState.playerId}
+                                        onSelect={(id) => setScoringState({ ...scoringState, playerId: id })}
+                                    />
+                                </div>
 
-                                {/* Outcome Section */}
                                 <div className="space-y-4 pt-6 border-t border-white/5">
                                     <DialogSectionHeader label="Outcome" />
                                     <div className="grid grid-cols-2 gap-4">
                                         <ScoringActionButton 
-                                            onClick={() => handleKickResult(scoringState.type, scoringState.points, false, scoringState.side, scoringState.playerId, scoringState.extraData)}
+                                            onClick={() => {
+                                                if (scoringState.editingId) {
+                                                    setScoringState({ ...scoringState, successful: true } as any);
+                                                } else {
+                                                    handleKickResult(scoringState.type, scoringState.points, false, scoringState.side, scoringState.playerId, scoringState.extraData);
+                                                }
+                                            }}
                                             label={scoringState.type === 'Line Kick' ? 'OUT' : 'SUCCESSFUL'}
+                                            selected={scoringState.editingId ? (scoringState as any).successful === true : (scoringState as any).originalSuccessful === true}
                                             variant="success"
                                             className="h-14"
                                         />
                                         <ScoringActionButton 
-                                            onClick={() => handleKickResult(scoringState.type, 0, true, scoringState.side, scoringState.playerId, scoringState.extraData)}
+                                            onClick={() => {
+                                                if (scoringState.editingId) {
+                                                    setScoringState({ ...scoringState, successful: false } as any);
+                                                } else {
+                                                    handleKickResult(scoringState.type, 0, true, scoringState.side, scoringState.playerId, scoringState.extraData);
+                                                }
+                                            }}
                                             label="MISSED"
+                                            selected={scoringState.editingId ? (scoringState as any).successful === false : (scoringState as any).originalSuccessful === false}
                                             variant="danger"
                                             className="h-14"
                                         />
@@ -326,63 +363,112 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                             </div>
                         )}
                     </div>
+                    <DialogFooter className="pt-4 border-t border-white/5" />
                 </DialogContent>
             </Dialog>
 
             <Dialog 
                 open={scoringState.status === 'PLAYER_SELECTION'} 
-                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        const isDirty = (scoringState as any).playerId !== (scoringState as any).initialPlayerId;
+                        if (isDirty && scoringState.editingId) {
+                            setShowDiscardConfirmation(true);
+                            return;
+                        }
+                        setScoringState({ status: 'IDLE' });
+                    }
+                }}
             >
-                <DialogContent className="sm:max-w-lg bg-card border-border/50">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 font-black uppercase tracking-tight text-primary">
-                            <UserPlus className="h-5 w-5" />
-                            {scoringState.status === 'PLAYER_SELECTION' && `Who scored the ${scoringState.type}?`}
+                <DialogContent hideCloseButton className="sm:max-w-lg bg-card border-border/50 overflow-hidden">
+                    <DialogHeader className="relative pr-12">
+                        <DialogTitle className="text-xl font-black italic tracking-tighter flex items-center gap-2">
+                            {scoringState.status === 'PLAYER_SELECTION' && scoringState.editingId ? <Pencil className="h-5 w-5 text-primary" /> : <UserPlus className="h-5 w-5 text-primary" />}
+                            {scoringState.status === 'PLAYER_SELECTION' && (scoringState.editingId ? scoringState.type : 'Select Player')}
                         </DialogTitle>
+                        <div className="absolute right-0 top-0 flex items-center gap-1">
+                            {scoringState.editingId && (scoringState as any).playerId !== (scoringState as any).initialPlayerId && (
+                                <button 
+                                    onClick={() => handleScore(scoringState.points, scoringState.side, scoringState.type, scoringState.extraData, scoringState.playerId)}
+                                    className="p-2 text-success hover:bg-success/10 rounded-full transition-colors"
+                                    title="Save Changes"
+                                >
+                                    <Check className="w-6 h-6" />
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => {
+                                    const isDirty = (scoringState as any).playerId !== (scoringState as any).initialPlayerId;
+                                    if (isDirty && scoringState.editingId) {
+                                        setShowDiscardConfirmation(true);
+                                    } else {
+                                        setScoringState({ status: 'IDLE' });
+                                    }
+                                }}
+                                className="p-2 text-muted-foreground hover:bg-white/10 rounded-full transition-colors"
+                                title="Close"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
                     </DialogHeader>
                     
                     <div className="py-2">
                         <div className="max-h-[50vh] overflow-y-auto pr-1.5 custom-scrollbar">
                             <RosterGrid 
                                 roster={participant ? (rosters[participant.id] || []) : []}
+                                selectedPlayerId={scoringState.playerId}
                                 onSelect={handlePlayerSelection}
                             />
                         </div>
                     </div>
 
-                    <DialogFooter className="flex-col sm:flex-row gap-2 pt-4 border-t border-white/5">
-                        <div className="flex-1 flex gap-2">
-                            <ScoringActionButton 
-                                onClick={() => handlePlayerSelection()}
-                                label="SKIP PLAYER"
-                                variant="muted"
-                                className="flex-1 h-10"
-                            />
-                            
-                            {scoringState.status === 'PLAYER_SELECTION' && scoringState.type === 'Try' && (
+                    <DialogFooter className="pt-4 border-t border-white/5 flex flex-col sm:flex-row gap-2">
+                        {!scoringState.editingId && (
+                            <>
                                 <ScoringActionButton 
-                                    onClick={() => handlePenaltyTry(scoringState.side)}
-                                    label="PENALTY TRY"
+                                    onClick={() => handlePlayerSelection()}
+                                    label="SKIP PLAYER"
+                                    variant="muted"
                                     className="flex-1 h-10"
                                 />
-                            )}
-                        </div>
-
-                        <ScoringActionButton 
-                            onClick={() => {
-                                if (scoringState.status === 'KICK_FLOW' && scoringState.type === 'Conversion') {
-                                    handleKickResult(scoringState.type, 0, true, scoringState.side, scoringState.playerId, scoringState.extraData);
-                                } else {
-                                    setScoringState({ status: 'IDLE' });
-                                }
-                            }}
-                            label="CANCEL"
-                            variant="ghost"
-                            className="h-10 px-6"
-                        />
+                                {scoringState.status === 'PLAYER_SELECTION' && scoringState.type === 'Try' && (
+                                    <ScoringActionButton 
+                                        onClick={() => handlePenaltyTry(scoringState.side)}
+                                        label="PENALTY TRY"
+                                        variant="warning"
+                                        className="flex-1 h-10"
+                                    />
+                                )}
+                            </>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmationModal 
+                isOpen={!!pendingDispute}
+                onOpenChange={(open) => !open && resolveDispute(false)}
+                title="Dispute Score"
+                description={`Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'SCORE'}? This will reserve the score and initiate a 5-minute vote among all officials.`}
+                confirmText="Yes, start dispute"
+                onConfirm={() => resolveDispute(true)}
+                variant="destructive"
+            />
+
+            <ConfirmationModal 
+                isOpen={showDiscardConfirmation}
+                onOpenChange={setShowDiscardConfirmation}
+                title="Unsaved Changes"
+                description="You have unsaved changes. Are you sure you want to discard them?"
+                confirmText="Yes, discard"
+                cancelText="No, stay"
+                onConfirm={() => {
+                    setShowDiscardConfirmation(false);
+                    setScoringState({ status: 'IDLE' });
+                }}
+                variant="destructive"
+            />
         </div>
     );
 }

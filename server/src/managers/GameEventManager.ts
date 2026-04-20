@@ -99,13 +99,31 @@ export class GameEventManager extends BaseManager {
     `, [data.gameId]);
     const nextSeq = seqRes.rows[0].next_seq;
 
-    // 3. Insert into game_events
-    const eventId = `ge-${Date.now()}`;
+    const newEventId = `ge-${Date.now()}`;
+
+    // 3. Rugby-specific check: Prevent double conversions
+    if (data.type === 'SCORE' && data.subType === 'Conversion' && data.eventData?.linkedEventId) {
+      const existingConv = await this.query(`
+        SELECT id FROM game_events 
+        WHERE game_id = $1 
+          AND type = 'SCORE'
+          AND sub_type = 'Conversion'
+          AND event_data->>'linkedEventId' = $2
+          AND (event_data->>'status' IS NULL OR event_data->>'status' != 'REMOVED')
+        LIMIT 1
+      `, [data.gameId, data.eventData.linkedEventId]);
+
+      if (existingConv.rows.length > 0) {
+        return { error: 'Validation failed: A conversion already exists for this try.' };
+      }
+    }
+
+    // 4. Insert into game_events
     const insertRes = await this.query(`
       INSERT INTO game_events (id, game_id, sequence, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"
-    `, [eventId, data.gameId, nextSeq, data.gameParticipantId, data.actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, data.eventData || {}]);
+    `, [newEventId, data.gameId, nextSeq, data.gameParticipantId, data.actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, data.eventData || {}]);
 
     const newEvent = insertRes.rows[0] as GameEvent;
 
@@ -244,19 +262,48 @@ export class GameEventManager extends BaseManager {
   /**
    * Updates an existing game event's data.
    */
-  async updateEvent(gameId: string, eventId: string, data: { eventData: any }): Promise<GameEvent | { error: string }> {
-    const res = await this.query(`
-      UPDATE game_events 
-      SET event_data = event_data || $1::jsonb
-      WHERE id = $2 AND game_id = $3
-      RETURNING id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"
-    `, [JSON.stringify(data.eventData), eventId, gameId]);
+  async updateEvent(gameId: string, eventId: string, data: { actorOrgProfileId?: string; gameParticipantId?: string; eventData?: any }): Promise<GameEvent | { error: string }> {
+    let updateSql = 'UPDATE game_events SET ';
+    const params: any[] = [];
+    let count = 1;
+
+    if (data.actorOrgProfileId !== undefined) {
+      updateSql += `actor_org_profile_id = $${count++}, `;
+      params.push(data.actorOrgProfileId);
+    }
+
+    if (data.gameParticipantId !== undefined) {
+      updateSql += `game_participant_id = $${count++}, `;
+      params.push(data.gameParticipantId);
+    }
+
+    if (data.eventData !== undefined) {
+      updateSql += `event_data = event_data || $${count++}::jsonb, `;
+      params.push(JSON.stringify(data.eventData));
+    }
+
+    // Remove trailing comma and space
+    updateSql = updateSql.slice(0, -2);
+    
+    updateSql += ` WHERE id = $${count++} AND game_id = $${count++}
+      RETURNING id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"`;
+    
+    params.push(eventId, gameId);
+
+    const res = await this.query(updateSql, params);
 
     if (res.rows.length === 0) {
       return { error: 'Event not found or not part of this game.' };
     }
 
-    return res.rows[0] as GameEvent;
+    const updatedEvent = res.rows[0] as GameEvent;
+
+    // Broadcast if IO is available
+    if (this.io) {
+        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvent });
+    }
+
+    return updatedEvent;
   }
 
   async rehydrateDisputes(): Promise<number> {

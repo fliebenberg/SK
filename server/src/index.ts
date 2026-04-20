@@ -533,7 +533,11 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.UPDATE_GAME_EVENT:
-                const updatedEvent = await gameEventManager.updateEvent(action.payload.gameId, action.payload.eventId, { eventData: action.payload.eventData });
+                const updatedEvent = await gameEventManager.updateEvent(action.payload.gameId, action.payload.eventId, { 
+                    eventData: action.payload.eventData,
+                    actorOrgProfileId: action.payload.actorOrgProfileId,
+                    gameParticipantId: action.payload.gameParticipantId
+                });
                 if (!('error' in updatedEvent)) {
                     io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvent });
                     io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvent });

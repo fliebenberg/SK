@@ -1,4 +1,5 @@
 import React from 'react';
+import { User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 
@@ -9,6 +10,7 @@ interface ScoringActionButtonProps {
     className?: string;
     title?: string;
     variant?: 'primary' | 'success' | 'danger' | 'muted' | 'ghost' | 'scrim' | 'none';
+    selected?: boolean;
 }
 
 export function ScoringActionButton({ 
@@ -17,15 +19,26 @@ export function ScoringActionButton({
     disabled, 
     className, 
     title,
-    variant = 'primary'
+    variant = 'primary',
+    selected = false
 }: ScoringActionButtonProps) {
     const variants = {
-        primary: "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 hover:border-primary/30",
-        success: "bg-green-600/20 border-green-600/30 text-green-500 hover:bg-green-600/30 hover:border-green-600/40",
-        danger: "bg-red-600/20 border-red-600/30 text-red-500 hover:bg-red-600/30 hover:border-red-600/40",
-        muted: "bg-white/5 border-white/10 text-foreground/70 hover:bg-white/10 hover:border-white/20",
+        primary: selected 
+            ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25" 
+            : "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 hover:border-primary/30",
+        success: selected
+            ? "bg-green-600 text-white border-green-700 shadow-lg shadow-green-900/20"
+            : "bg-green-600/20 border-green-600/30 text-green-500 hover:bg-green-600/30 hover:border-green-600/40",
+        danger: selected
+            ? "bg-red-600 text-white border-red-700 shadow-lg shadow-red-900/20"
+            : "bg-red-600/20 border-red-600/30 text-red-500 hover:bg-red-600/30 hover:border-red-600/40",
+        muted: selected
+            ? "bg-white/20 text-white border-white/30"
+            : "bg-white/5 border-white/10 text-foreground/70 hover:bg-white/10 hover:border-white/20",
         ghost: "bg-transparent border-white/10 hover:bg-white/5 text-foreground/60 focus-visible:ring-0",
-        scrim: "bg-sunken-bg/50 border-border/20 text-foreground/70 hover:bg-sunken-bg hover:border-border/30",
+        scrim: selected
+            ? "bg-sunken-bg border-primary/50 text-foreground shadow-inner"
+            : "bg-sunken-bg/50 border-border/20 text-foreground/70 hover:bg-sunken-bg hover:border-border/30",
         none: "",
     };
 
@@ -37,6 +50,7 @@ export function ScoringActionButton({
             className={cn(
                 "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none p-2",
                 variant !== 'none' && variants[variant],
+                selected && "scale-[1.02] z-10",
                 className
             )}
         >
@@ -67,6 +81,15 @@ export function RosterGrid({
     selectedPlayerId?: string,
     className?: string
 }) {
+    if (roster.length === 0) {
+        return (
+            <div className="py-12 flex flex-col items-center justify-center text-muted-foreground/60 border border-dashed border-white/10 rounded-xl bg-white/5">
+                <User className="w-8 h-8 mb-2 opacity-20" />
+                <span className="text-xs font-bold uppercase tracking-wider">No players provided for this team</span>
+            </div>
+        );
+    }
+
     return (
         <div className={cn("grid grid-cols-4 sm:grid-cols-6 gap-x-2 gap-y-3", className)}>
             {[...roster].sort((a, b) => (parseInt(a.position || '999') - parseInt(b.position || '999'))).map(item => {

@@ -3,17 +3,24 @@ import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 import { GameEvent } from '@sk/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { RotateCcw, Scale, Clock, Trophy, Activity } from 'lucide-react';
-import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { RotateCcw, Scale, Clock, Trophy, Activity, Pencil, User } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { 
+    Dialog, 
+    DialogContent, 
+    DialogHeader, 
+    DialogTitle, 
+    DialogFooter 
+} from "@/components/ui/dialog";
+import { DialogSectionHeader, RosterGrid, ScoringActionButton } from './ScoringActionButton';
 
 export function EventLogFeed({ gameId }: { gameId: string }) {
     const [events, setEvents] = useState<GameEvent[]>([]);
     const [, setTick] = useState(0);
     const { user } = useAuth();
     const [now, setNow] = useState(Date.now());
-    const [disputeEvent, setDisputeEvent] = useState<GameEvent | null>(null);
+    const [roosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
 
     useEffect(() => {
         // Subscribe to live updates (Server will push last 20 events on join)
@@ -29,6 +36,14 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         sync();
         const interval = setInterval(() => setNow(Date.now()), 1000);
         const unsubscribe = store.subscribe(sync);
+
+        // Fetch rosters for editing
+        const game = store.getGame(gameId);
+        game?.participants?.forEach(p => {
+            store.fetchGameRoster(p.id).then(roster => {
+                setRosters(prev => ({ ...prev, [p.id]: roster }));
+            });
+        });
 
         return () => {
             clearInterval(interval);
@@ -121,19 +136,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         }
     };
 
-    const handleDisputeInitiate = async () => {
-        if (!disputeEvent) return;
-        const myProfileIds = Array.from(store.myOrgProfileIds);
-        const initiatorId = myProfileIds[0] || (store.globalRole === 'admin' ? store.currentUserId || 'admin' : null);
-        
-        if (initiatorId) {
-            await store.initiateUndoVote(gameId, disputeEvent.id, initiatorId);
-            toast({ title: "Dispute Started", description: `You have challenged the score. The vote is now open.` });
-        } else {
-            toast({ title: "Error", description: "You must have an official profile to dispute a score.", variant: "destructive" });
-        }
-        setDisputeEvent(null);
-    };
+
     const toggleFilter = (filter: string) => {
         const next = new Set(store.eventLogFilters);
         if (next.has(filter)) {
@@ -232,13 +235,36 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
 
                             const showUndo = isScore && isInitiator && inUndoWindow && !isRemoved && !isCurrentlyDisputed;
                             const showDispute = isScore && !inUndoWindow && canScore && !isRemoved && !isCurrentlyDisputed;
+                            const showEdit = canScore && !isRemoved && !isCurrentlyDisputed;
 
                             return (
-                                <div key={evt.id} className={cn(
-                                    "text-sm flex gap-1.5 items-center p-1 px-1 rounded-xl transition-all duration-300 min-h-[44px] shadow-sm hover:shadow-md transform hover:-translate-y-0.5",
-                                    isCurrentlyDisputed ? "bg-amber-500/10 border-2 border-amber-500/30" : "bg-card border border-border/40",
-                                    isRemoved ? "opacity-50 grayscale" : ""
-                                )}>
+                                <div 
+                                    key={evt.id} 
+                                    onClick={() => {
+                                        if (!canScore || isRemoved || isCurrentlyDisputed) return;
+                                        const game = store.getGame(gameId);
+                                        const side = evt.gameParticipantId === game?.participants?.[0]?.id ? 'home' : 'away';
+                                        
+                                        store.startManualFlow({
+                                            type: evt.subType || evt.type,
+                                            side,
+                                            points: eventData.pointsDelta || 0,
+                                            extraData: eventData,
+                                            eventId: evt.id,
+                                            actorId: evt.actorOrgProfileId,
+                                            successful: eventData.successful,
+                                            reason: eventData.reason,
+                                            decision: eventData.decision,
+                                            winnerSide: eventData.winnerSide
+                                        });
+                                    }}
+                                    className={cn(
+                                        "text-sm flex gap-1.5 items-center p-1 px-1 rounded-xl transition-all duration-300 min-h-[44px] shadow-sm hover:shadow-md transform hover:-translate-y-0.5",
+                                        isCurrentlyDisputed ? "bg-amber-500/10 border-2 border-amber-500/30" : "bg-card border border-border/40",
+                                        isRemoved ? "opacity-50 grayscale" : "",
+                                        canScore && !isRemoved && !isCurrentlyDisputed && "cursor-pointer hover:border-primary/30"
+                                    )}
+                                >
                                     <div className="flex flex-col items-center min-w-[34px] w-fit px-1 shrink-0 bg-muted/20 py-1 rounded-lg border border-border/10">
                                         <span className="font-mono text-primary text-[10px] sm:text-xs font-black leading-none mb-0.5 text-center">
                                             {matchTime || "--:--"}
@@ -312,7 +338,10 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     <div className="ml-auto shrink-0 w-[28px] h-[28px] flex items-center justify-center relative">
                                         {showUndo ? (
                                             <button 
-                                                onClick={() => handleUndo(evt)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleUndo(evt);
+                                                }}
                                                 className="relative w-full h-full flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors group"
                                             >
                                                 {/* Circular Progress */}
@@ -339,14 +368,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                             >
                                                 <Scale className="w-3.5 h-3.5 animate-pulse" />
                                             </div>
-                                        ) : showDispute ? (
-                                            <button 
-                                                onClick={() => setDisputeEvent(evt)}
-                                                className="w-[28px] h-[28px] flex items-center justify-center rounded bg-amber-500/10 text-amber-600 border border-amber-500/20 hover:bg-amber-500/20 transition-all cursor-pointer"
-                                                title="Dispute this score"
-                                            >
-                                                <Scale className="w-3.5 h-3.5" />
-                                            </button>
                                         ) : null}
                                     </div>
                                 </div>
@@ -355,15 +376,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                     )}
                 </div>
             </div>
-            <ConfirmationModal 
-                isOpen={!!disputeEvent}
-                onOpenChange={(open) => !open && setDisputeEvent(null)}
-                title="Dispute Score"
-                description={`Are you sure you want to dispute this ${disputeEvent?.subType?.toUpperCase() || 'SCORE'}? This will initiate a ${store.disputeDurationMinutes}-minute vote among all officials. It will automatically cast an 'Approve' vote for you.`}
-                confirmText="Yes, start dispute"
-                onConfirm={handleDisputeInitiate}
-                variant="destructive"
-            />
         </div>
     );
 }
