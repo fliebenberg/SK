@@ -161,7 +161,7 @@ export class GameStore extends SiteStore {
         this.notifyListeners();
     }
 
-    startManualFlow(config: { type: string, side: 'home' | 'away', points: number, extraData?: any } | null) {
+    startManualFlow(config: GameStore['pendingManualFlow']) {
         this.pendingManualFlow = config;
         this.notifyListeners();
     }

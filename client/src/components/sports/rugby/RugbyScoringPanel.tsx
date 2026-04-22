@@ -3,22 +3,17 @@ import { Game } from '@sk/types';
 import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 import { OrgLogo } from '@/components/ui/OrgLogo';
-import { Trophy, AlertTriangle, User, UserPlus, Pencil, Check, X } from 'lucide-react';
-import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
+import { Trophy, AlertTriangle } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { useRugbyScoring } from './useRugbyScoring';
-import { RugbyEventDialog } from './RugbyEventDialog';
+import { useRugbyScoring, RUGBY_OUTCOMES } from './useRugbyScoring';
 
-import { ScoringActionButton, DialogSectionHeader, RosterGrid } from '../shared/ScoringActionButton';
+import { ScoringActionButton } from '../shared/ScoringActionButton';
+import { BaseEventDialog } from '../shared/dialogs/BaseEventDialog';
+import { PlayerSelectionDialog } from '../shared/dialogs/PlayerSelectionDialog';
+import { RugbyOutcomeDialog } from '../shared/dialogs/RugbyOutcomeDialog';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 export default function RugbyScoringPanel({ game, role }: { game: Game, role?: string }) {
     const { 
@@ -28,19 +23,18 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
         pendingConversion,
         handleKickResult,
         startScoringFlow,
-        triggerRemovalDispute,
         pendingDispute,
         resolveDispute,
-        handleScore,
-        handleAddGameEvent,
-        handleUpdateGameEvent
+        handleScore
     } = useRugbyScoring(game);
+    const participant = scoringState.status !== 'IDLE' && 'side' in scoringState ? (scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1]) : null;
 
     const [isFinalScoreOpen, setIsFinalScoreOpen] = useState(false);
     const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
     const [isSaving, setIsSaving] = useState(false);
 
     const isScheduled = game.status === 'Scheduled';
+    const isFinished = game.status === 'Finished';
     const isScoringDisabled = isScheduled;
 
     const handleTryClick = (side: 'home' | 'away') => {
@@ -123,11 +117,14 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
     const renderActionButtons = (side: 'home' | 'away') => {
         const isSomeSidePendingConversion = pendingConversion !== null;
         const teamColorClass = side === 'home' ? 'bg-blue-600/40 border-blue-600/40 hover:bg-blue-600/65 hover:border-blue-600/70' : 'bg-red-600/40 border-red-600/40 hover:bg-red-600/65 hover:border-red-600/70';
+        
+        // Disable inactive side completely when scoring flow is active
+        const isActiveSideDisabled = scoringState.status !== 'IDLE' && scoringState.side !== side;
 
         return (
             <div className="grid grid-cols-2 gap-1 sm:gap-1.5 h-full">
                 {rugbyScoreTypes.map((type) => {
-                    const disabled = isScoringDisabled || isSomeSidePendingConversion;
+                    const disabled = isScoringDisabled || isSomeSidePendingConversion || isActiveSideDisabled;
                     
                     return (
                         <ScoringActionButton 
@@ -152,8 +149,6 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
         );
     };
 
-    const isFinished = game.status === 'Finished';
-
     return (
         <div className="flex flex-col min-h-0">
             {isFinished && (
@@ -174,14 +169,12 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
             )}
 
             <div className="flex divide-x divide-white/10">
-                {/* Home Scoring */}
                 <div className={cn("flex-1 flex flex-col gap-2 p-1.5 bg-blue-600/20 transition-all", 
                     scoringState.status !== 'IDLE' && scoringState.side === 'away' ? 'opacity-40 grayscale' : ''
                 )}>
                     {renderActionButtons('home')}
                 </div>
 
-                {/* Away Scoring */}
                 <div className={cn("flex-1 flex flex-col gap-1.5 p-1.5 bg-red-600/20 transition-all", 
                     scoringState.status !== 'IDLE' && scoringState.side === 'home' ? 'opacity-40 grayscale' : ''
                 )}>
@@ -189,94 +182,148 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                 </div>
             </div>
 
-            <Dialog open={isFinalScoreOpen} onOpenChange={setIsFinalScoreOpen}>
-                <DialogContent hideCloseButton className="sm:max-w-lg bg-card border-border/50">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 font-black uppercase tracking-tight text-primary">
-                            <Trophy className="h-5 w-5" />
-                            Final Score Override
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-6 py-6">
-                        <div className="grid grid-cols-2 gap-6">
-                            {game.participants?.slice(0, 2).map((p: any, idx: number) => {
-                                // @ts-ignore
-                                const team = p.teamId ? store.getTeam(p.teamId) : null;
-                                // @ts-ignore
-                                const org = team?.orgId ? store.getOrganization(team.orgId) : null;
-                                const orgName = org?.shortName || org?.name || (idx === 0 ? 'Home' : 'Away');
-
-                                return (
-                                    <div key={p.id} className="space-y-3 p-3 rounded-xl bg-sunken-bg/20 border border-border/10">
-                                        <div className="flex items-start gap-3">
-                                            <div className="shrink-0 h-10 w-10 bg-white/10 rounded-lg flex items-center justify-center p-1 border border-white/10 shadow-sm overflow-hidden">
-                                                <OrgLogo organization={org || null} size="sm" />
-                                            </div>
-                                            <div className="flex flex-col min-w-0">
-                                                <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest truncate mb-0.5">
-                                                    {orgName}
-                                                </Label>
-                                                <span className="text-xs font-black uppercase truncate text-foreground/90 leading-tight">
-                                                    {team?.name || 'Team'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="pt-2 border-t border-border/5">
-                                            <Input
-                                                type="number"
-                                                value={finalScores[p.id] || ""}
-                                                onChange={(e) => setFinalScores({ ...finalScores, [p.id]: e.target.value })}
-                                                className="bg-sunken-bg/50 border-border/30 h-10 text-xl font-bold font-mono text-center focus-visible:ring-primary/30"
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 flex gap-3 italic">
-                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                            <p className="text-[10px] text-amber-500/80 leading-relaxed font-bold uppercase tracking-tight">
-                                This will override the live scoreboard.
-                            </p>
-                        </div>
-                    </div>
-                    <DialogFooter className="gap-2 sm:gap-2">
+            <BaseEventDialog
+                open={isFinalScoreOpen}
+                onOpenChange={setIsFinalScoreOpen}
+                title="Final Score Override"
+                icon={<Trophy className="h-5 w-5 text-primary" />}
+                footer={
+                    <>
                         <ScoringActionButton 
                             onClick={() => setIsFinalScoreOpen(false)}
                             label="Cancel"
-                            className="h-9 px-4 bg-background hover:bg-muted font-bold text-xs border-border/40"
+                            variant="muted"
+                            className="h-9 px-4"
                         />
                         <ScoringActionButton 
                             onClick={handleFinalScoreSubmit}
                             disabled={isSaving}
                             label={isSaving ? "Saving..." : "Apply Final Score"}
-                            className="h-9 px-4 font-black text-xs uppercase tracking-widest bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
+                            className="h-9 px-4 bg-primary/10"
                         />
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    </>
+                }
+            >
+                <div className="space-y-6 pt-2 pb-6">
+                    <div className="grid grid-cols-2 gap-6">
+                        {game.participants?.slice(0, 2).map((p: any, idx: number) => {
+                            const team = p.teamId ? store.getTeam(p.teamId) : null;
+                            const org = team?.orgId ? store.getOrganization(team.orgId) : null;
+                            const orgName = org?.shortName || org?.name || (idx === 0 ? 'Home' : 'Away');
 
-            <RugbyEventDialog 
-                state={scoringState}
-                rosters={rosters}
-                game={game}
-                onSetState={setScoringState}
-                onSelectPlayer={handlePlayerSelection}
-                onSave={() => {
-                    if (scoringState.status === 'PLAYER_SELECTION') {
-                        handleScore(scoringState.points, scoringState.side, scoringState.type, scoringState.extraData, scoringState.playerId);
-                    } else if (scoringState.status === 'KICK_FLOW') {
-                        handleKickResult(scoringState.type, (scoringState as any).successful ? scoringState.points : 0, !(scoringState as any).successful, scoringState.side, scoringState.playerId, scoringState.extraData);
+                            return (
+                                <div key={p.id} className="space-y-3 p-3 rounded-xl bg-sunken-bg/20 border border-border/10">
+                                    <div className="flex items-start gap-3">
+                                        <div className="shrink-0 h-10 w-10 bg-white/10 rounded-lg flex items-center justify-center p-1 border border-white/10 shadow-sm overflow-hidden">
+                                            <OrgLogo organization={org || null} size="sm" />
+                                        </div>
+                                        <div className="flex flex-col min-w-0">
+                                            <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest truncate mb-0.5">
+                                                {orgName}
+                                            </Label>
+                                            <span className="text-xs font-black uppercase truncate text-foreground/90 leading-tight">
+                                                {team?.name || 'Team'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="pt-2 border-t border-border/5">
+                                        <Input
+                                            type="number"
+                                            value={finalScores[p.id] || ""}
+                                            onChange={(e) => setFinalScores({ ...finalScores, [p.id]: e.target.value })}
+                                            className="bg-sunken-bg/50 border-border/30 h-10 text-xl font-bold font-mono text-center focus-visible:ring-primary/30"
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 flex gap-3 italic">
+                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-amber-500/80 leading-relaxed font-bold uppercase tracking-tight">
+                            This will override the live scoreboard.
+                        </p>
+                    </div>
+                </div>
+            </BaseEventDialog>
+
+            {/* Shared Modular Dialogs */}
+
+            <RugbyOutcomeDialog
+                open={scoringState.status === 'KICK_FLOW'}
+                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
+                title={scoringState.status === 'KICK_FLOW' ? scoringState.type : ''}
+                roster={participant ? (rosters[participant.id] || []) : []}
+                selectedPlayerId={scoringState.status === 'KICK_FLOW' ? scoringState.playerId : undefined}
+                initialPlayerId={scoringState.status === 'KICK_FLOW' ? (scoringState as any).initialPlayerId : undefined}
+                outcomes={scoringState.status === 'KICK_FLOW' ? (RUGBY_OUTCOMES[scoringState.type] || []) : []}
+                selectedOutcomeId={scoringState.status === 'KICK_FLOW' ? (scoringState as any).outcome : undefined}
+                initialOutcomeId={scoringState.status === 'KICK_FLOW' ? (scoringState as any).initialOutcome : undefined}
+                isEditing={!!(scoringState as any).editingId}
+                onPlayerSelect={(id) => {
+                    if (scoringState.status === 'KICK_FLOW') setScoringState({ ...scoringState, playerId: id });
+                }}
+                onOutcomeSelect={(outcome) => {
+                    if (scoringState.status !== 'KICK_FLOW') return;
+                    const successful = outcome.isSuccessful;
+                    const outcomeStr = outcome.id;
+                    if (scoringState.editingId) {
+                        setScoringState({ ...scoringState, successful, outcome: outcomeStr } as any);
+                    } else {
+                        handleKickResult(scoringState.type, scoringState.points, !successful, scoringState.side, scoringState.playerId, { ...scoringState.extraData, outcome: outcomeStr });
                     }
                 }}
+                onSave={scoringState.status === 'KICK_FLOW' && scoringState.editingId ? () => {
+                    const outcome = (RUGBY_OUTCOMES[scoringState.type!]?.find(o => o.id === (scoringState as any).outcome));
+                    const successful = outcome ? outcome.isSuccessful : (scoringState as any).successful;
+                    handleKickResult(scoringState.type!, successful ? scoringState.points : 0, !successful, scoringState.side, scoringState.playerId, { ...scoringState.extraData, outcome: (scoringState as any).outcome });
+                } : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
-                onRemove={(eventId, type, side) => triggerRemovalDispute(eventId, type, side)}
-                onPenaltyTry={handlePenaltyTry}
-                onAddGameEvent={handleAddGameEvent}
-                onKickResult={handleKickResult}
-                onUpdateGameEvent={handleUpdateGameEvent}
-                pendingDispute={pendingDispute}
-                resolveDispute={resolveDispute}
+                onSkip={scoringState.status === 'KICK_FLOW' && !scoringState.editingId ? () => {
+                    if (scoringState.type === 'Conversion' || scoringState.type === 'Penalty Kick') {
+                        handleKickResult(scoringState.type as any, 0, true, scoringState.side, scoringState.playerId, scoringState.extraData);
+                    } else {
+                        handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, scoringState.extraData, scoringState.playerId);
+                    }
+                    setScoringState({ status: 'IDLE' });
+                } : undefined}
+                columns={(scoringState.status === 'KICK_FLOW' && (scoringState.type === 'Kick-off' || scoringState.type === '22m Dropout' || scoringState.type === 'Goalline Dropout')) ? 3 : 2}
+            />
+
+            <PlayerSelectionDialog
+                open={scoringState.status === 'PLAYER_SELECTION'}
+                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
+                title={scoringState.status === 'PLAYER_SELECTION' ? scoringState.type : 'Select Player'}
+                roster={participant ? (rosters[participant.id] || []) : []}
+                selectedPlayerId={scoringState.status === 'PLAYER_SELECTION' ? scoringState.playerId : undefined}
+                initialPlayerId={scoringState.status === 'PLAYER_SELECTION' ? (scoringState as any).initialPlayerId : undefined}
+                isEditing={!!(scoringState as any).editingId}
+                onSelect={handlePlayerSelection}
+                onSave={scoringState.status === 'PLAYER_SELECTION' && scoringState.editingId ? () => {
+                    handleScore(scoringState.points, scoringState.side, scoringState.type, scoringState.extraData, scoringState.playerId);
+                } : undefined}
+                onClose={() => setScoringState({ status: 'IDLE' })}
+                onSkip={() => handlePlayerSelection()}
+                customFooterActions={
+                    scoringState.status === 'PLAYER_SELECTION' && scoringState.type === 'Try' && !(scoringState as any).editingId ? (
+                        <ScoringActionButton 
+                            onClick={() => handlePenaltyTry(scoringState.side)}
+                            label="PENALTY TRY"
+                            variant="danger"
+                            className="flex-1 h-10"
+                        />
+                    ) : undefined
+                }
+            />
+
+            <ConfirmationModal 
+                isOpen={!!pendingDispute}
+                onOpenChange={(open) => !open && resolveDispute(false)}
+                title="Dispute Score"
+                description={`Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'SCORE'}? This will reserve the score and initiate a 5-minute vote among all officials.`}
+                confirmText="Yes, start dispute"
+                onConfirm={() => resolveDispute(true)}
+                variant="destructive"
             />
         </div>
     );

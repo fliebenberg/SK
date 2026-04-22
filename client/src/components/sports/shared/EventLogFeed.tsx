@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 import { GameEvent } from '@sk/types';
+import { RUGBY_OUTCOMES, OutcomeDefinition } from '../rugby/useRugbyScoring';
 import { useAuth } from '@/contexts/AuthContext';
 import { RotateCcw, Scale, Clock, Trophy, Activity, Pencil, User } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -60,29 +61,44 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
     };
 
     const getEventLabel = (evt: GameEvent) => {
-        if (evt.type === 'SCORE' && evt.subType) {
-            if (evt.subType === 'Conversion') {
-                return evt.eventData?.successful ? 'CONVERSION' : 'CONVERSION MISSED';
+        const subType = evt.subType || '';
+        const eventData = evt.eventData || (evt as any).event_data || {};
+        const outcomeId = eventData.outcome;
+        
+        // Search for rich outcome metadata
+        const outcomesConfig = RUGBY_OUTCOMES[subType];
+        const outcomeDef = outcomesConfig?.find(o => o.id === outcomeId);
+        const listText = outcomeDef?.listText;
+
+        if (evt.type === 'SCORE' && subType) {
+            if (listText) {
+                return `${subType.toUpperCase()} → ${listText.toUpperCase()}`;
             }
-            if (evt.subType === 'Penalty Kick') {
-                return evt.eventData?.successful ? 'PENALTY KICK' : 'PENALTY KICK MISSED';
+            if (subType === 'Conversion') {
+                return eventData.successful ? 'CONVERSION' : 'CONVERSION MISSED';
             }
-            return evt.subType.toUpperCase();
+            if (subType === 'Penalty Kick') {
+                return eventData.successful ? 'PENALTY KICK' : 'PENALTY KICK MISSED';
+            }
+            return subType.toUpperCase();
         }
 
         if (evt.type === 'GAME_EVENT') {
-            if (evt.subType === 'Line Kick') {
-                return evt.eventData?.successful ? 'LINE KICK (OUT)' : 'LINE KICK (MISSED)';
+            if (listText) {
+                return `${subType.toUpperCase()} → ${listText.toUpperCase()}`;
             }
-            if (evt.subType === 'Penalty Awarded') {
-                const decision = evt.eventData?.decision;
+            if (subType === 'Line Kick') {
+                return eventData.successful ? 'LINE KICK (OUT)' : 'LINE KICK (MISSED)';
+            }
+            if (subType === 'Penalty Awarded') {
+                const decision = eventData.decision;
                 return decision ? `PENALTY → ${decision.toUpperCase()}` : 'PENALTY AWARDED';
             }
-            if (evt.subType === 'Replacement') {
+            if (subType === 'Replacement') {
                 return 'SUBSTITUTION';
             }
-            if (evt.subType === 'Scrum') {
-                const winnerSide = evt.eventData?.winnerSide;
+            if (subType === 'Scrum') {
+                const winnerSide = eventData.winnerSide;
                 if (winnerSide) {
                     const game = store.getGame(gameId);
                     const homeParticipantId = game?.participants?.[0]?.id;
@@ -90,7 +106,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                     return winnerSide === awardedSide ? 'SCRUM → WON' : 'SCRUM → LOST';
                 }
             }
-            return evt.subType?.toUpperCase() || '';
+            return subType.toUpperCase() || '';
         }
 
         

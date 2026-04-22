@@ -100,7 +100,7 @@ export function RugbyEventDialog({
 
     return (
         <>
-            <Dialog open={state.status !== 'IDLE'} onOpenChange={(open) => !open && onClose()}>
+            <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
             <DialogContent hideCloseButton className="sm:max-w-lg bg-card border-border/50 flex flex-col overflow-hidden max-h-[90vh]">
                 <DialogHeader className="relative pr-12 shrink-0">
                     <DialogTitle className="text-xl font-black italic tracking-tighter flex items-center gap-2">
@@ -419,7 +419,7 @@ export function RugbyEventDialog({
                                     <ScoringActionButton 
                                         onClick={() => onPenaltyTry(side)}
                                         label="PENALTY TRY"
-                                        variant="warning"
+                                        variant="danger"
                                         className="flex-1 h-10"
                                     />
                                 )}

@@ -4,6 +4,16 @@ import { store } from '@/app/store/store';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import { toast } from '@/hooks/use-toast';
 
+export interface OutcomeDefinition {
+    id: string;
+    buttonText: string;
+    description?: string;
+    listText?: string;
+    isSuccessful: boolean;
+    variant: 'success' | 'danger' | 'warning' | 'primary';
+    titleLabel?: string;
+}
+
 export type ScoringFlowState = {
     status: 'IDLE';
 } | {
@@ -22,7 +32,7 @@ export type ScoringFlowState = {
 } | {
     status: 'KICK_FLOW';
     side: 'home' | 'away';
-    type: 'Conversion' | 'Penalty Kick' | 'Line Kick';
+    type: 'Conversion' | 'Penalty Kick' | 'Line Kick' | 'Kick-off' | '22m Dropout' | 'Goalline Dropout';
     playerId?: string;
     points: number;
     extraData?: any;
@@ -30,6 +40,9 @@ export type ScoringFlowState = {
     originalSuccessful?: boolean;
     initialPlayerId?: string;
     initialSuccessful?: boolean;
+    outcome?: string;
+    originalOutcome?: string;
+    initialOutcome?: string;
 } | {
     status: 'SCRUM_FLOW' | 'LINEOUT_FLOW';
     side: 'home' | 'away';
@@ -97,6 +110,37 @@ export const RUGBY_EVENT_REASONS = {
         'Wasting Time',
         'Kicking ball away',
         'Other'
+    ]
+};
+
+export const RUGBY_OUTCOMES: Record<string, OutcomeDefinition[]> = {
+    'Kick-off': [
+        { id: 'Successful', buttonText: 'Success', description: 'Ball travels 10m and is caught/played', listText: '', isSuccessful: true, variant: 'success' },
+        { id: 'Directly Out', buttonText: 'Out', description: 'Ball goes out of bounds without bouncing', listText: 'Out', isSuccessful: false, variant: 'danger' },
+        { id: 'Too Short', buttonText: 'Short', description: 'Ball does not travel 10 meters', listText: 'Short', isSuccessful: false, variant: 'danger' },
+        { id: 'Long', buttonText: 'Long', description: 'Ball goes into the in-goal area or dead-ball line without being touched', listText: 'Long', isSuccessful: false, variant: 'danger' },
+    ],
+    '22m Dropout': [
+        { id: 'Successful', buttonText: 'Success', description: 'Ball travels past the 22m line', listText: '', isSuccessful: true, variant: 'success' },
+        { id: 'Directly Out', buttonText: 'Out', description: 'Ball goes out of bounds without bouncing', listText: 'Out', isSuccessful: false, variant: 'danger' },
+        { id: 'Too Short', buttonText: 'Short', description: 'Ball does not reach 22m line', listText: 'Short', isSuccessful: false, variant: 'danger' },
+    ],
+    'Goalline Dropout': [
+        { id: 'Successful', buttonText: 'Success', description: 'Ball travels past the 5m line', listText: '', isSuccessful: true, variant: 'success' },
+        { id: 'Directly Out', buttonText: 'Out', description: 'Ball goes out of bounds without bouncing', listText: 'Out', isSuccessful: false, variant: 'danger' },
+        { id: 'Too Short', buttonText: 'Short', description: 'Ball does not reach 5m line', listText: 'Short', isSuccessful: false, variant: 'danger' },
+    ],
+    'Conversion': [
+        { id: 'Successful', buttonText: 'Success', description: 'Kick goes through the posts', listText: '', isSuccessful: true, variant: 'success' },
+        { id: 'Missed', buttonText: 'Missed', description: 'Kick misses or falls short', listText: 'Missed', isSuccessful: false, variant: 'danger' },
+    ],
+    'Penalty Kick': [
+        { id: 'Successful', buttonText: 'Success', description: 'Kick goes through the posts', listText: '', isSuccessful: true, variant: 'success' },
+        { id: 'Missed', buttonText: 'Missed', description: 'Kick misses or falls short', listText: 'Missed', isSuccessful: false, variant: 'danger' },
+    ],
+    'Line Kick': [
+        { id: 'Successful', buttonText: 'Out', description: 'Ball successfully finds touch', listText: 'Out', isSuccessful: true, variant: 'success' },
+        { id: 'Missed', buttonText: 'Missed', description: 'Kick fails to find touch or stays in field', listText: 'Missed', isSuccessful: false, variant: 'danger' },
     ]
 };
 
@@ -212,7 +256,10 @@ export function useRugbyScoring(game: Game) {
                     playerOffId: config.eventId ? config.extraData?.playerOffId : undefined,
                     initialPlayerOffId: config.eventId ? config.extraData?.playerOffId : undefined,
                     playerOnId: config.eventId ? config.extraData?.playerOnId : undefined,
-                    initialPlayerOnId: config.eventId ? config.extraData?.playerOnId : undefined
+                    initialPlayerOnId: config.eventId ? config.extraData?.playerOnId : undefined,
+                    outcome: config.eventId ? config.extraData?.outcome : undefined,
+                    originalOutcome: config.eventId ? config.extraData?.outcome : undefined,
+                    initialOutcome: config.eventId ? config.extraData?.outcome : undefined
                 } as any);
             }
         };
@@ -229,11 +276,11 @@ export function useRugbyScoring(game: Game) {
                 setScoringState({ status: 'IDLE' });
             }
         }
-    }, [pendingConversion, scoringState.status, scoringState.type, scoringState.extraData?.linkedEventId, scoringState.editingId]);
+    }, [pendingConversion, scoringState.status, (scoringState as any).type, (scoringState as any).extraData?.linkedEventId, (scoringState as any).editingId]);
 
 
     const handleScore = async (points: number, side: 'home' | 'away', type: string, extraData?: any, playerId?: string) => {
-        const editingId = scoringState.status !== 'IDLE' ? scoringState.editingId : undefined;
+        const editingId = scoringState.status !== 'IDLE' ? (scoringState as any).editingId : undefined;
         
         if (editingId) {
             // Check if outcome changed
@@ -297,7 +344,7 @@ export function useRugbyScoring(game: Game) {
     };
 
     const handleAddGameEvent = async (type: string, subType: string, side: 'home' | 'away' | null, extraData?: any, actorId?: string) => {
-        const editingId = scoringState.status !== 'IDLE' ? scoringState.editingId : undefined;
+        const editingId = scoringState.status !== 'IDLE' ? (scoringState as any).editingId : undefined;
 
         if (editingId) {
             // Check if outcome changed (e.g. winnerSide or decision)
@@ -307,12 +354,17 @@ export function useRugbyScoring(game: Game) {
             const currentDecision = extraData?.decision;
             const isOriginalSuccessful = (scoringState as any).originalSuccessful;
             const currentSuccessful = extraData?.successful;
+            const isOriginalOutcome = (scoringState as any).originalOutcome;
+            const currentOutcome = extraData?.outcome;
 
             const hasOutcomeChanged = (isOriginalWinner !== undefined && currentWinner !== undefined && isOriginalWinner !== currentWinner) ||
                                       (isOriginalDecision !== undefined && currentDecision !== undefined && isOriginalDecision !== currentDecision) ||
-                                      (isOriginalSuccessful !== undefined && currentSuccessful !== undefined && isOriginalSuccessful !== currentSuccessful);
+                                      (isOriginalSuccessful !== undefined && currentSuccessful !== undefined && isOriginalSuccessful !== currentSuccessful) ||
+                                      (isOriginalOutcome !== undefined && currentOutcome !== undefined && isOriginalOutcome !== currentOutcome);
 
-            if (hasOutcomeChanged) {
+            const isDisputable = type === 'SCORE';
+
+            if (hasOutcomeChanged && isDisputable) {
                 const myProfileIds = Array.from(store.myOrgProfileIds);
                 const officialId = myProfileIds[0] || (store.globalRole === 'admin' ? store.currentUserId || 'admin' : null);
                 if (officialId) {
@@ -358,17 +410,17 @@ export function useRugbyScoring(game: Game) {
         return store.updateGameEvent(game.id, eventId, { eventData });
     };
 
-    const handleKickResult = async (type: 'Conversion' | 'Penalty Kick' | 'Line Kick', points: number, isMissed: boolean, side: 'home' | 'away', playerId?: string, extraData?: any) => {
+    const handleKickResult = async (type: 'Conversion' | 'Penalty Kick' | 'Line Kick' | 'Kick-off' | '22m Dropout' | 'Goalline Dropout', points: number, isMissed: boolean, side: 'home' | 'away', playerId?: string, extraData?: any) => {
         // Handle timestamp inheritance (with +1s offset to ensure it follows the parent)
         const timestampOverride = extraData?.elapsedMS !== undefined ? {
             elapsedMS: extraData.elapsedMS + 1000,
             period: extraData.period || periodLabel
         } : {};
 
-        if (type === 'Line Kick') {
-            await handleAddGameEvent('GAME_EVENT', 'Line Kick', side, {
+        if (type !== 'Conversion' && type !== 'Penalty Kick') {
+            await handleAddGameEvent('GAME_EVENT', type, side, {
                 successful: !isMissed,
-                outcome: isMissed ? 'Missed' : 'Out',
+                outcome: extraData?.outcome,
                 ...extraData,
                 ...timestampOverride
             }, playerId);

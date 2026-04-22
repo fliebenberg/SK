@@ -9,8 +9,9 @@ interface ScoringActionButtonProps {
     disabled?: boolean;
     className?: string;
     title?: string;
-    variant?: 'primary' | 'success' | 'danger' | 'muted' | 'ghost' | 'scrim' | 'none';
+    variant?: 'primary' | 'success' | 'danger' | 'warning' | 'muted' | 'ghost' | 'scrim' | 'none';
     selected?: boolean;
+    description?: string;
 }
 
 export function ScoringActionButton({ 
@@ -20,7 +21,8 @@ export function ScoringActionButton({
     className, 
     title,
     variant = 'primary',
-    selected = false
+    selected = false,
+    description
 }: ScoringActionButtonProps) {
     const variants = {
         primary: selected 
@@ -32,6 +34,9 @@ export function ScoringActionButton({
         danger: selected
             ? "bg-red-600 text-white border-red-700 shadow-lg shadow-red-900/20"
             : "bg-red-600/20 border-red-600/30 text-red-500 hover:bg-red-600/30 hover:border-red-600/40",
+        warning: selected
+            ? "bg-amber-500 text-white border-amber-600 shadow-lg shadow-amber-900/20"
+            : "bg-amber-500/20 border-amber-500/30 text-amber-500 hover:bg-amber-500/30 hover:border-amber-500/40",
         muted: selected
             ? "bg-white/20 text-white border-white/30"
             : "bg-white/5 border-white/10 text-foreground/70 hover:bg-white/10 hover:border-white/20",
@@ -46,9 +51,9 @@ export function ScoringActionButton({
         <button 
             onClick={onClick}
             disabled={disabled}
-            title={title}
+            title={title || description}
             className={cn(
-                "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none p-2",
+                "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none p-2 min-h-10",
                 variant !== 'none' && variants[variant],
                 selected && "scale-[1.02] z-10",
                 className
@@ -58,13 +63,24 @@ export function ScoringActionButton({
                 "font-black uppercase tracking-tight leading-tight text-center text-[10.5px] sm:text-[13.5px]",
                 variant === 'none' ? "text-foreground" : ""
             )}>{label}</span>
+            
+            {description && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 bg-popover border border-border shadow-2xl rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] w-48 scale-95 group-hover:scale-100 origin-bottom backdrop-blur-sm">
+                    <p className="text-[10px] font-black uppercase text-popover-foreground leading-tight text-center tracking-tight">
+                        {description}
+                    </p>
+                    {/* Arrow */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-x-[6px] border-x-transparent border-t-[6px] border-t-border" />
+                    <div className="absolute top-[calc(100%-1px)] left-1/2 -translate-x-1/2 border-x-[5px] border-x-transparent border-t-[5px] border-t-popover" />
+                </div>
+            )}
         </button>
     );
 }
 
 export function DialogSectionHeader({ label, className }: { label: string, className?: string }) {
     return (
-        <div className={cn("text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-4", className)}>
+        <div className={cn("text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-2 sm:mb-4", className)}>
             {label}
         </div>
     );
@@ -91,7 +107,7 @@ export function RosterGrid({
     }
 
     return (
-        <div className={cn("grid grid-cols-4 sm:grid-cols-6 gap-x-2 gap-y-3", className)}>
+        <div className={cn("grid grid-cols-5 sm:grid-cols-6 gap-x-1 sm:gap-x-2 gap-y-1.5 sm:gap-y-3", className)}>
             {[...roster].sort((a, b) => (parseInt(a.position || '999') - parseInt(b.position || '999'))).map(item => {
                 const profile = store.orgProfiles.find(p => p.id === item.orgProfileId);
                 if (!profile) return null;
@@ -102,24 +118,24 @@ export function RosterGrid({
                         key={item.orgProfileId}
                         onClick={() => onSelect(item.orgProfileId)}
                         className={cn(
-                            "flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all border group relative",
+                            "flex flex-col items-center gap-0.5 sm:gap-1.5 p-1 sm:p-2 rounded-xl transition-all border group relative",
                             isSelected 
                                 ? "bg-primary/20 border-primary/40" 
                                 : "hover:bg-primary/10 border-transparent hover:border-primary/20"
                         )}
                     >
-                        <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-muted border border-border/50 flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
-                            <span className="text-primary font-black text-sm absolute inset-0 flex items-center justify-center group-hover:opacity-0">
+                        <div className="w-9 h-9 sm:w-14 sm:h-14 rounded-full bg-muted border border-border/50 flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
+                            <span className="text-primary font-black text-xs sm:text-sm absolute inset-0 flex items-center justify-center group-hover:opacity-0">
                                 {item.isReserve ? `R${item.position || ''}` : (item.position || '?')}
                             </span>
                             {profile.image && <img src={profile.image} className="w-full h-full object-cover opacity-0 group-hover:opacity-100" />}
                             {isSelected && <div className="absolute inset-0 bg-primary/20 flex items-center justify-center"><div className="w-2 h-2 rounded-full bg-primary animate-pulse" /></div>}
                         </div>
                         <div className="flex flex-col items-center w-full min-w-0">
-                            <span className="text-[8px] font-bold uppercase truncate w-full text-center text-muted-foreground group-hover:text-foreground transition-colors leading-tight">
+                            <span className="text-[7.5px] sm:text-[8px] font-bold uppercase truncate w-full text-center text-muted-foreground group-hover:text-foreground transition-colors leading-tight">
                                 {profile.name.split(' ')[0]}
                             </span>
-                            <span className="text-[7px] font-bold uppercase truncate w-full text-center text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors leading-tight">
+                            <span className="text-[6.5px] sm:text-[7px] font-bold uppercase truncate w-full text-center text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors leading-tight">
                                 {profile.name.split(' ').slice(1).join(' ')}
                             </span>
                         </div>
