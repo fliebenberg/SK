@@ -109,6 +109,7 @@ export function useRugbyScoring(game: Game) {
         side: 'home' | 'away' | null;
         actorId?: string;
         extraData?: any;
+        isRemoval?: boolean;
     } | null>(null);
     const [rosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
     const [actionedTryIds, setActionedTryIds] = useState<Set<string>>(new Set());
@@ -403,16 +404,40 @@ export function useRugbyScoring(game: Game) {
         if (!pendingDispute) return;
 
         if (confirmed) {
-            // Ensure any metadata (player change) is saved before dispute starts
-            await store.updateGameEvent(game.id, pendingDispute.eventId, { 
-                actorOrgProfileId: pendingDispute.actorId, 
-                eventData: pendingDispute.extraData 
-            });
+            if (!pendingDispute.isRemoval) {
+                // Ensure any metadata (player change) is saved before dispute starts
+                await store.updateGameEvent(game.id, pendingDispute.eventId, { 
+                    actorOrgProfileId: pendingDispute.actorId, 
+                    eventData: pendingDispute.extraData 
+                });
+            }
             await store.initiateUndoVote(game.id, pendingDispute.eventId, pendingDispute.officialId);
-            toast({ title: "Dispute Started", description: "Outcome change registered. A vote has been opened." });
+            toast({ 
+                title: "Dispute Started", 
+                description: pendingDispute.isRemoval 
+                    ? "Removal request registered. A vote has been opened." 
+                    : "Outcome change registered. A vote has been opened." 
+            });
             setScoringState({ status: 'IDLE' });
         }
         setPendingDispute(null);
+    };
+
+    const triggerRemovalDispute = (eventId: string, type: string, side: 'home' | 'away' | null) => {
+        const myProfileIds = Array.from(store.myOrgProfileIds);
+        const officialId = myProfileIds[0] || (store.globalRole === 'admin' ? store.currentUserId || 'admin' : null);
+        
+        if (officialId) {
+            setPendingDispute({
+                eventId,
+                officialId,
+                type,
+                side,
+                isRemoval: true
+            });
+        } else {
+             toast({ title: "Unauthorized", description: "You do not have permission to dispute this event.", variant: "destructive" });
+        }
     };
 
     return {
@@ -427,6 +452,7 @@ export function useRugbyScoring(game: Game) {
         handleUpdateGameEvent,
         handleKickResult,
         startScoringFlow,
+        triggerRemovalDispute,
         pendingDispute,
         resolveDispute
     };
