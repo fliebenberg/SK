@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Pencil, Check, X } from 'lucide-react';
+import { Pencil, Check, X, Trash2 } from 'lucide-react';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 export interface BaseEventDialogProps {
@@ -13,6 +13,7 @@ export interface BaseEventDialogProps {
     onSave?: () => void;
     onClose?: () => void;
     onSkip?: () => void;
+    onRemove?: () => void;
     skipLabel?: string;
     footer?: React.ReactNode;
     children: React.ReactNode;
@@ -28,6 +29,7 @@ export function BaseEventDialog({
     onSave,
     onClose,
     onSkip,
+    onRemove,
     skipLabel = "Skip Details",
     footer,
     children
@@ -77,6 +79,15 @@ export function BaseEventDialog({
                                     title="Save Changes"
                                 >
                                     <Check className="w-6 h-6" />
+                                </button>
+                            )}
+                            {isEditing && onRemove && (
+                                <button 
+                                    onClick={onRemove}
+                                    className="p-2 text-danger hover:bg-danger/10 rounded-full transition-colors"
+                                    title="Remove Event"
+                                >
+                                    <Trash2 className="w-6 h-6" />
                                 </button>
                             )}
                             <button 

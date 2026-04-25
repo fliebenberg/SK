@@ -24,6 +24,7 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
         handleKickResult,
         startScoringFlow,
         pendingDispute,
+        triggerRemovalDispute,
         resolveDispute,
         handleScore
     } = useRugbyScoring(game);
@@ -134,6 +135,8 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                                     handleTryClick(side);
                                 } else if (type.label === 'Penalty Kick') {
                                     setScoringState({ status: 'KICK_FLOW', side, type: 'Penalty Kick', points: 3 });
+                                } else if (type.label === 'Drop Goal') {
+                                    setScoringState({ status: 'KICK_FLOW', side, type: 'Drop Goal', points: 3 });
                                 } else {
                                     startScoringFlow(type.points, side, type.label);
                                 }
@@ -280,7 +283,7 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                 } : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
                 onSkip={scoringState.status === 'KICK_FLOW' && !scoringState.editingId ? () => {
-                    if (scoringState.type === 'Conversion' || scoringState.type === 'Penalty Kick') {
+                    if (scoringState.type === 'Conversion' || scoringState.type === 'Penalty Kick' || scoringState.type === 'Drop Goal') {
                         handleKickResult(scoringState.type as any, 0, true, scoringState.side, scoringState.playerId, scoringState.extraData);
                     } else {
                         handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, scoringState.extraData, scoringState.playerId);
@@ -291,7 +294,7 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
             />
 
             <PlayerSelectionDialog
-                open={scoringState.status === 'PLAYER_SELECTION'}
+                open={scoringState.status === 'PLAYER_SELECTION' && (scoringState.type !== 'Penalty Try' || !(scoringState as any).editingId)}
                 onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
                 title={scoringState.status === 'PLAYER_SELECTION' ? scoringState.type : 'Select Player'}
                 roster={participant ? (rosters[participant.id] || []) : []}
@@ -316,12 +319,41 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                 }
             />
 
+            <BaseEventDialog
+                open={scoringState.status === 'PLAYER_SELECTION' && scoringState.type === 'Penalty Try' && !!(scoringState as any).editingId}
+                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
+                title="Edit Penalty Try"
+                icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
+            >
+                <div className="p-6 space-y-4">
+                    <p className="text-sm text-muted-foreground font-medium uppercase tracking-tight">
+                        Penalty tries are assigned to the team and cannot have a player selector.
+                    </p>
+                    <div className="pt-2">
+                        <ScoringActionButton 
+                            onClick={() => {
+                                if (scoringState.status === 'PLAYER_SELECTION' && scoringState.editingId) {
+                                    triggerRemovalDispute(scoringState.editingId, scoringState.type, scoringState.side);
+                                }
+                            }}
+                            label="REMOVE PENALTY TRY"
+                            variant="danger"
+                            className="w-full h-14 text-lg font-black"
+                        />
+                    </div>
+                </div>
+            </BaseEventDialog>
+
             <ConfirmationModal 
                 isOpen={!!pendingDispute}
                 onOpenChange={(open) => !open && resolveDispute(false)}
-                title="Dispute Score"
-                description={`Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'SCORE'}? This will reserve the score and initiate a 5-minute vote among all officials.`}
-                confirmText="Yes, start dispute"
+                title={pendingDispute?.isRemoval ? "Dispute Event Removal" : "Dispute Score"}
+                description={
+                    pendingDispute?.isRemoval
+                        ? `Are you sure you want to dispute and REMOVE this ${pendingDispute?.type?.toUpperCase() || 'EVENT'}? This will initiate a 5-minute vote among all officials.`
+                        : `Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'SCORE'}? This will reserve the score and initiate a 5-minute vote among all officials.`
+                }
+                confirmText={pendingDispute?.isRemoval ? "Yes, start removal dispute" : "Yes, start dispute"}
                 onConfirm={() => resolveDispute(true)}
                 variant="destructive"
             />

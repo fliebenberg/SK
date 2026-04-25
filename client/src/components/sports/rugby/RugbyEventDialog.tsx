@@ -29,6 +29,8 @@ interface RugbyEventDialogProps {
     onAddGameEvent: (type: string, subType: string, side: 'home' | 'away' | null, extraData?: any, actorId?: string) => Promise<any>;
     onKickResult: (type: any, points: number, missed: boolean, side: any, playerId: any, extraData: any) => void;
     onUpdateGameEvent: (eventId: string, eventData: any) => void;
+    onPenaltyReasonSelected?: (side: 'home' | 'away', reason?: string) => void;
+    handlePenaltyDecisionSelected?: (decision: string) => void;
     // Dispute props
     pendingDispute: any;
     resolveDispute: (confirmed: boolean) => void;
@@ -48,6 +50,8 @@ export function RugbyEventDialog({
     onAddGameEvent,
     onKickResult,
     onUpdateGameEvent,
+    onPenaltyReasonSelected,
+    handlePenaltyDecisionSelected,
     pendingDispute,
     resolveDispute
 }: RugbyEventDialogProps) {
@@ -168,7 +172,11 @@ export function RugbyEventDialog({
                                                                     onSetState({ status: next, side, reason, pendingEventId: res.id });
                                                                 });
                                                             } else if (next === 'PENALTY_DECISION_SELECTION') {
-                                                                onSetState({ status: 'PENALTY_DECISION_SELECTION', side, reason });
+                                                                if (onPenaltyReasonSelected) {
+                                                                    onPenaltyReasonSelected(side, reason);
+                                                                } else {
+                                                                    onSetState({ status: 'PENALTY_DECISION_SELECTION', side, reason });
+                                                                }
                                                             } else if (next === 'FREE_KICK_DECISION_SELECTION') {
                                                                 onSetState({ status: 'FREE_KICK_DECISION_SELECTION', side, reason });
                                                             }
@@ -192,28 +200,65 @@ export function RugbyEventDialog({
                                 {state.status === 'PENALTY_DECISION_SELECTION' && (
                                     <>
                                         <ScoringActionButton 
-                                            onClick={() => editingId ? onSetState({ ...state, decision: 'Penalty Kick' }) : (onAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason: state.reason, decision: 'Penalty Kick' }), onSetState({ status: 'KICK_FLOW', side, type: 'Penalty Kick', points: 3 }))}
+                                            onClick={() => {
+                                                if (editingId) {
+                                                    onSetState({ ...state, decision: 'Penalty Kick' });
+                                                } else if (handlePenaltyDecisionSelected) {
+                                                    handlePenaltyDecisionSelected('Penalty Kick');
+                                                } else {
+                                                    onAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason: state.reason, decision: 'Penalty Kick' });
+                                                    onSetState({ status: 'KICK_FLOW', side, type: 'Penalty Kick', points: 3 });
+                                                }
+                                            }}
                                             label="PENALTY KICK"
                                             selected={(editingId ? (state as any).decision : (state as any).initialDecision) === 'Penalty Kick'}
                                             variant="primary"
                                             className="h-16 bg-blue-600/30 border-blue-600/40 hover:bg-blue-600/50"
                                         />
                                         <ScoringActionButton 
-                                            onClick={() => editingId ? onSetState({ ...state, decision: 'Line Kick' }) : (onAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason: state.reason, decision: 'Line Kick' }), onSetState({ status: 'KICK_FLOW', side, type: 'Line Kick', points: 0 }))}
+                                            onClick={() => {
+                                                if (editingId) {
+                                                    onSetState({ ...state, decision: 'Line Kick' });
+                                                } else if (handlePenaltyDecisionSelected) {
+                                                    handlePenaltyDecisionSelected('Line Kick');
+                                                } else {
+                                                    onAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason: state.reason, decision: 'Line Kick' });
+                                                    onSetState({ status: 'KICK_FLOW', side, type: 'Line Kick', points: 0 });
+                                                }
+                                            }}
                                             label="LINE KICK"
                                             selected={(editingId ? (state as any).decision : (state as any).initialDecision) === 'Line Kick'}
                                             variant="success"
                                             className="h-16 bg-green-600/30 border-green-600/40 hover:bg-green-600/50"
                                         />
                                         <ScoringActionButton 
-                                            onClick={() => editingId ? onSetState({ ...state, decision: 'Scrum' }) : (onAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason: state.reason, decision: 'Scrum' }).then(res => onSetState({ status: 'SCRUM_FLOW', side, reason: 'Penalty', isFromPenalty: true, pendingEventId: res.id })))}
+                                            onClick={() => {
+                                                if (editingId) {
+                                                    onSetState({ ...state, decision: 'Scrum' });
+                                                } else if (handlePenaltyDecisionSelected) {
+                                                    handlePenaltyDecisionSelected('Scrum');
+                                                } else {
+                                                    onAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason: state.reason, decision: 'Scrum' }).then(res => 
+                                                        onSetState({ status: 'SCRUM_FLOW', side, reason: 'Penalty', isFromPenalty: true, pendingEventId: res.id })
+                                                    );
+                                                }
+                                            }}
                                             label="SCRUM"
                                             selected={(editingId ? (state as any).decision : (state as any).initialDecision) === 'Scrum'}
                                             variant="primary"
                                             className="h-16 bg-amber-600/30 border-amber-600/40 hover:bg-amber-600/50"
                                         />
                                         <ScoringActionButton 
-                                            onClick={() => editingId ? onSetState({ ...state, decision: 'Tap n Go' }) : (onAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason: state.reason, decision: 'Tap n Go' }), onSetState({ status: 'PLAYER_SELECTION', side, points: 0, type: 'Tap n Go' }))}
+                                            onClick={() => {
+                                                if (editingId) {
+                                                    onSetState({ ...state, decision: 'Tap n Go' });
+                                                } else if (handlePenaltyDecisionSelected) {
+                                                    handlePenaltyDecisionSelected('Tap n Go');
+                                                } else {
+                                                    onAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason: state.reason, decision: 'Tap n Go' });
+                                                    onSetState({ status: 'PLAYER_SELECTION', side, points: 0, type: 'Tap n Go' });
+                                                }
+                                            }}
                                             label="TAP 'N GO"
                                             selected={(editingId ? (state as any).decision : (state as any).initialDecision) === 'Tap n Go'}
                                             variant="primary"
@@ -383,7 +428,10 @@ export function RugbyEventDialog({
                                     <ScoringActionButton 
                                         onClick={() => {
                                             if (state.status === 'PLAYER_SELECTION') onSelectPlayer();
-                                            else if (state.status === 'KICK_FLOW' && state.type === 'Line Kick') {
+                                            else if (state.status === 'KICK_FLOW' && (state.type === 'Conversion' || state.type === 'Penalty Kick' || state.type === 'Drop Goal')) {
+                                                 onKickResult(state.type, 0, true, side, state.playerId, state.extraData);
+                                                 onClose();
+                                            } else if (state.status === 'KICK_FLOW' && state.type === 'Line Kick') {
                                                  onAddGameEvent('GAME_EVENT', 'Line Kick', side, { outcome: 'Skipped' }, (state as any).playerId);
                                                  onClose();
                                             } else if (state.status === 'EVENT_REASON_SELECTION') {
@@ -396,7 +444,11 @@ export function RugbyEventDialog({
                                                  } else if (next === 'SCRUM_FLOW' || next === 'LINEOUT_FLOW') {
                                                      onAddGameEvent('GAME_EVENT', state.type, side).then(res => onSetState({ status: next, side, pendingEventId: res.id }));
                                                  } else if (next === 'PENALTY_DECISION_SELECTION') {
-                                                     onSetState({ status: 'PENALTY_DECISION_SELECTION', side });
+                                                     if (onPenaltyReasonSelected) {
+                                                         onPenaltyReasonSelected(side);
+                                                     } else {
+                                                         onSetState({ status: 'PENALTY_DECISION_SELECTION', side });
+                                                     }
                                                  } else if (next === 'FREE_KICK_DECISION_SELECTION') {
                                                      onSetState({ status: 'FREE_KICK_DECISION_SELECTION', side });
                                                  }
@@ -433,11 +485,11 @@ export function RugbyEventDialog({
             <ConfirmationModal 
                 isOpen={!!pendingDispute}
                 onOpenChange={(open) => !open && resolveDispute(false)}
-                title={pendingDispute?.isRemoval ? "Dispute Event Removal" : "Dispute Event Change"}
+                title={pendingDispute?.isRemoval ? "Dispute Event Removal" : "Dispute Score"}
                 description={
                     pendingDispute?.isRemoval
                         ? `Are you sure you want to dispute and REMOVE this ${pendingDispute?.type?.toUpperCase() || 'EVENT'}? This will initiate a 5-minute vote among all officials.`
-                        : `Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'EVENT'}? This will reserve the score/outcome and initiate a 5-minute vote among all officials.`
+                        : `Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'SCORE'}? This will reserve the score and initiate a 5-minute vote among all officials.`
                 }
                 confirmText={pendingDispute?.isRemoval ? "Yes, start removal dispute" : "Yes, start dispute"}
                 onConfirm={() => resolveDispute(true)}

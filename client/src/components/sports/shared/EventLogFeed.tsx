@@ -4,7 +4,7 @@ import { store } from '@/app/store/store';
 import { GameEvent } from '@sk/types';
 import { RUGBY_OUTCOMES, OutcomeDefinition } from '../rugby/useRugbyScoring';
 import { useAuth } from '@/contexts/AuthContext';
-import { RotateCcw, Scale, Clock, Trophy, Activity, Pencil, User } from 'lucide-react';
+import { RotateCcw, Clock, Trophy, Activity, Pencil, User } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { 
@@ -275,8 +275,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                         });
                                     }}
                                     className={cn(
-                                        "text-sm flex gap-1.5 items-center p-1 px-1 rounded-xl transition-all duration-300 min-h-[44px] shadow-sm hover:shadow-md transform hover:-translate-y-0.5",
-                                        isCurrentlyDisputed ? "bg-amber-500/10 border-2 border-amber-500/30" : "bg-card border border-border/40",
+                                        "text-sm flex gap-1.5 items-center p-1 px-1 rounded-xl transition-all duration-300 min-h-[44px] shadow-sm hover:shadow-md transform hover:-translate-y-0.5 bg-card border border-border/40",
                                         isRemoved ? "opacity-50 grayscale" : "",
                                         canScore && !isRemoved && !isCurrentlyDisputed && "cursor-pointer hover:border-primary/30"
                                     )}
@@ -377,13 +376,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 </svg>
                                                 <RotateCcw className="w-3.5 h-3.5 relative z-10" />
                                             </button>
-                                        ) : isCurrentlyDisputed ? (
-                                            <div 
-                                                className="w-[28px] h-[28px] flex items-center justify-center rounded bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                                                title="Under Review"
-                                            >
-                                                <Scale className="w-3.5 h-3.5 animate-pulse" />
-                                            </div>
                                         ) : null}
                                     </div>
                                 </div>

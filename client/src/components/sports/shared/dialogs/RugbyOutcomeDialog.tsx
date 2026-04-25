@@ -29,6 +29,7 @@ export interface RugbyOutcomeDialogProps {
     onSave?: () => void;
     onClose?: () => void;
     onSkip?: () => void;
+    onRemove?: () => void;
     skipLabel?: string;
     
     columns?: 2 | 3;
@@ -52,6 +53,7 @@ export function RugbyOutcomeDialog({
     onSave,
     onClose,
     onSkip,
+    onRemove,
     skipLabel = "SKIP",
     columns = 2
 }: RugbyOutcomeDialogProps) {
@@ -70,6 +72,7 @@ export function RugbyOutcomeDialog({
             onSave={onSave}
             onClose={onClose}
             onSkip={onSkip}
+            onRemove={onRemove}
             skipLabel={skipLabel === "SKIP" ? "Skip Details" : skipLabel}
             footer={footer}
         >

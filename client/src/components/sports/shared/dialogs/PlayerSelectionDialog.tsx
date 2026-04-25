@@ -15,6 +15,7 @@ export interface PlayerSelectionDialogProps {
     onSave?: () => void;
     onClose?: () => void;
     onSkip?: () => void;
+    onRemove?: () => void;
     skipLabel?: string;
     customFooterActions?: React.ReactNode;
 }
@@ -31,6 +32,7 @@ export function PlayerSelectionDialog({
     onSave,
     onClose,
     onSkip,
+    onRemove,
     skipLabel = 'SKIP PLAYER',
     customFooterActions
 }: PlayerSelectionDialogProps) {
@@ -53,6 +55,7 @@ export function PlayerSelectionDialog({
             onSave={onSave}
             onClose={onClose}
             onSkip={onSkip}
+            onRemove={onRemove}
             skipLabel={skipLabel === 'SKIP PLAYER' ? 'Skip Details' : skipLabel}
             footer={footer}
         >

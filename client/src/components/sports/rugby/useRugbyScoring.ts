@@ -32,7 +32,7 @@ export type ScoringFlowState = {
 } | {
     status: 'KICK_FLOW';
     side: 'home' | 'away';
-    type: 'Conversion' | 'Penalty Kick' | 'Line Kick' | 'Kick-off' | '22m Dropout' | 'Goalline Dropout';
+    type: 'Conversion' | 'Penalty Kick' | 'Drop Goal' | 'Line Kick' | 'Kick-off' | '22m Dropout' | 'Goalline Dropout';
     playerId?: string;
     points: number;
     extraData?: any;
@@ -141,6 +141,10 @@ export const RUGBY_OUTCOMES: Record<string, OutcomeDefinition[]> = {
     'Line Kick': [
         { id: 'Successful', buttonText: 'Out', description: 'Ball successfully finds touch', listText: 'Out', isSuccessful: true, variant: 'success' },
         { id: 'Missed', buttonText: 'Missed', description: 'Kick fails to find touch or stays in field', listText: 'Missed', isSuccessful: false, variant: 'danger' },
+    ],
+    'Drop Goal': [
+        { id: 'Successful', buttonText: 'Success', description: 'Kick goes through the posts', listText: '', isSuccessful: true, variant: 'success' },
+        { id: 'Missed', buttonText: 'Missed', description: 'Kick misses or falls short', listText: 'Missed', isSuccessful: false, variant: 'danger' },
     ]
 };
 
@@ -153,11 +157,14 @@ export function useRugbyScoring(game: Game) {
         side: 'home' | 'away' | null;
         actorId?: string;
         extraData?: any;
+        subType?: string;
         isRemoval?: boolean;
     } | null>(null);
     const [rosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
     const [actionedTryIds, setActionedTryIds] = useState<Set<string>>(new Set());
     const [locallyAddedTryId, setLocallyAddedTryId] = useState<string | null>(null);
+    const [pendingPenaltyId, setPendingPenaltyId] = useState<string | null>(null);
+    const penaltyTimerRef = useRef<NodeJS.Timeout | null>(null);
     const isColdStart = useRef(true);
     const { currentMS } = useGameTimer(game.liveState?.clock, game.startTime, game.finishTime);
     const periodLabel = game.liveState?.periodLabel || '1st Period';
@@ -213,12 +220,21 @@ export function useRugbyScoring(game: Game) {
                 });
             }
         }
-        
-        // After first evaluation, we are no longer in cold start
+    }, [pendingConversion, scoringState.status, locallyAddedTryId]);
+
+    // After first evaluation, we are no longer in cold start
+    useEffect(() => {
         if (isColdStart.current) {
             isColdStart.current = false;
         }
-    }, [pendingConversion, scoringState.status, locallyAddedTryId]);
+    }, []);
+
+    // Cleanup penalty timer on unmount
+    useEffect(() => {
+        return () => {
+            if (penaltyTimerRef.current) clearTimeout(penaltyTimerRef.current);
+        };
+    }, []);
 
     // Observe manual flow trigger from Store (e.g. from Feed)
     useEffect(() => {
@@ -286,7 +302,6 @@ export function useRugbyScoring(game: Game) {
             // Check if outcome changed
             const isOriginalSuccessful = (scoringState as any).originalSuccessful;
             const currentSuccessful = extraData?.successful;
-            
             if (isOriginalSuccessful !== undefined && currentSuccessful !== undefined && isOriginalSuccessful !== currentSuccessful) {
                 // Outcome changed, trigger dispute confirmation
                 const myProfileIds = Array.from(store.myOrgProfileIds);
@@ -298,7 +313,9 @@ export function useRugbyScoring(game: Game) {
                         type,
                         side,
                         actorId: playerId,
-                        extraData
+                        extraData: { ...extraData, pointsDelta: points },
+                        subType: type,
+                        isRemoval: false
                     });
                     return; // Do NOT close the scoring state yet
                 }
@@ -374,7 +391,8 @@ export function useRugbyScoring(game: Game) {
                         type: subType,
                         side,
                         actorId,
-                        extraData
+                        extraData,
+                        subType
                     });
                     return; // Do NOT close the scoring state yet
                 }
@@ -410,14 +428,14 @@ export function useRugbyScoring(game: Game) {
         return store.updateGameEvent(game.id, eventId, { eventData });
     };
 
-    const handleKickResult = async (type: 'Conversion' | 'Penalty Kick' | 'Line Kick' | 'Kick-off' | '22m Dropout' | 'Goalline Dropout', points: number, isMissed: boolean, side: 'home' | 'away', playerId?: string, extraData?: any) => {
+    const handleKickResult = async (type: 'Conversion' | 'Penalty Kick' | 'Drop Goal' | 'Line Kick' | 'Kick-off' | '22m Dropout' | 'Goalline Dropout', points: number, isMissed: boolean, side: 'home' | 'away', playerId?: string, extraData?: any) => {
         // Handle timestamp inheritance (with +1s offset to ensure it follows the parent)
         const timestampOverride = extraData?.elapsedMS !== undefined ? {
             elapsedMS: extraData.elapsedMS + 1000,
             period: extraData.period || periodLabel
         } : {};
 
-        if (type !== 'Conversion' && type !== 'Penalty Kick') {
+        if (type !== 'Conversion' && type !== 'Penalty Kick' && type !== 'Drop Goal') {
             await handleAddGameEvent('GAME_EVENT', type, side, {
                 successful: !isMissed,
                 outcome: extraData?.outcome,
@@ -456,19 +474,24 @@ export function useRugbyScoring(game: Game) {
         if (!pendingDispute) return;
 
         if (confirmed) {
-            if (!pendingDispute.isRemoval) {
-                // Ensure any metadata (player change) is saved before dispute starts
-                await store.updateGameEvent(game.id, pendingDispute.eventId, { 
-                    actorOrgProfileId: pendingDispute.actorId, 
-                    eventData: pendingDispute.extraData 
-                });
-            }
             await store.initiateUndoVote(game.id, pendingDispute.eventId, pendingDispute.officialId);
+            
+            // If we are removing a Try, automatically remove the linked Conversion
+            if (pendingDispute.isRemoval && pendingDispute.type === 'Try') {
+                const linkedConversion = gameEvents.find(e => 
+                    e.type === 'SCORE' && 
+                    e.subType === 'Conversion' && 
+                    e.eventData?.linkedEventId === pendingDispute.eventId && 
+                    e.eventData?.status !== 'REMOVED'
+                );
+                if (linkedConversion) {
+                    await store.removeGameEvent(game.id, linkedConversion.id);
+                }
+            }
+
             toast({ 
                 title: "Dispute Started", 
-                description: pendingDispute.isRemoval 
-                    ? "Removal request registered. A vote has been opened." 
-                    : "Outcome change registered. A vote has been opened." 
+                description: "Removal request registered. A vote has been opened." 
             });
             setScoringState({ status: 'IDLE' });
         }
@@ -487,8 +510,79 @@ export function useRugbyScoring(game: Game) {
                 side,
                 isRemoval: true
             });
+            setScoringState({ status: 'IDLE' });
         } else {
              toast({ title: "Unauthorized", description: "You do not have permission to dispute this event.", variant: "destructive" });
+        }
+    };
+
+    const removeGameEvent = async (eventId: string, type: string, side: 'home' | 'away' | null) => {
+        if (type === 'Conversion') {
+            toast({ 
+                title: "Cannot Remove Conversion", 
+                description: "Conversions are linked to a Try. To remove this conversion, you must remove the linked Try event.",
+                variant: "warning"
+            });
+            return;
+        }
+
+        // Scoring events: Try, Penalty Try, Penalty Kick, Drop Goal
+        const scoringTypes = ['Try', 'Penalty Try', 'Penalty Kick', 'Drop Goal'];
+        const isScoringEvent = scoringTypes.includes(type);
+
+        if (isScoringEvent) {
+            triggerRemovalDispute(eventId, type, side);
+        } else {
+            await store.removeGameEvent(game.id, eventId);
+            toast({ title: "Event Removed", description: "The event has been removed from the list." });
+            setScoringState({ status: 'IDLE' });
+        }
+    };
+
+    const handlePenaltyReasonSelected = (side: 'home' | 'away', reason?: string) => {
+        if (penaltyTimerRef.current) clearTimeout(penaltyTimerRef.current);
+        setPendingPenaltyId(null);
+
+        penaltyTimerRef.current = setTimeout(async () => {
+            const res = await handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason });
+            if (res?.id) {
+                setPendingPenaltyId(res.id);
+            }
+            penaltyTimerRef.current = null;
+        }, 5000);
+
+        setScoringState({ status: 'PENALTY_DECISION_SELECTION', side, reason });
+    };
+
+    const handlePenaltyDecisionSelected = async (decision: string) => {
+        if (scoringState.status !== 'PENALTY_DECISION_SELECTION') return;
+        const { side, reason } = scoringState;
+
+        let eventId = pendingPenaltyId;
+        if (penaltyTimerRef.current) {
+            clearTimeout(penaltyTimerRef.current);
+            penaltyTimerRef.current = null;
+            const res = await handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason, decision });
+            eventId = res?.id || null;
+        } else if (eventId) {
+            await handleUpdateGameEvent(eventId, { reason, decision });
+        } else {
+            const res = await handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', side, { reason, decision });
+            eventId = res?.id || null;
+        }
+
+        setPendingPenaltyId(null);
+
+        if (decision === 'Penalty Kick') {
+            setScoringState({ status: 'KICK_FLOW', side, type: 'Penalty Kick', points: 3, extraData: { reason } });
+        } else if (decision === 'Line Kick') {
+            setScoringState({ status: 'KICK_FLOW', side, type: 'Line Kick', points: 0, extraData: { reason } });
+        } else if (decision === 'Scrum') {
+            setScoringState({ status: 'SCRUM_FLOW', side, reason: 'Penalty', isFromPenalty: true, pendingEventId: eventId || undefined });
+        } else if (decision === 'Tap n Go') {
+            setScoringState({ status: 'PLAYER_SELECTION', side, points: 0, type: 'Tap n Go', extraData: { reason } });
+        } else {
+            setScoringState({ status: 'IDLE' });
         }
     };
 
@@ -503,8 +597,11 @@ export function useRugbyScoring(game: Game) {
         handleAddGameEvent,
         handleUpdateGameEvent,
         handleKickResult,
+        handlePenaltyReasonSelected,
+        handlePenaltyDecisionSelected,
         startScoringFlow,
         triggerRemovalDispute,
+        removeGameEvent,
         pendingDispute,
         resolveDispute
     };

@@ -25,6 +25,7 @@ export interface DecisionDialogProps {
     onSave?: () => void;
     onClose?: () => void;
     onSkip?: () => void;
+    onRemove?: () => void;
     skipLabel?: string;
     columns?: 2 | 3;
     icon?: React.ReactNode;
@@ -42,6 +43,7 @@ export function DecisionDialog({
     onSave,
     onClose,
     onSkip,
+    onRemove,
     skipLabel = 'SKIP',
     columns = 2,
     icon = <AlertTriangle className="h-5 w-5 text-primary" />
@@ -69,6 +71,7 @@ export function DecisionDialog({
             isDirty={isDirty}
             onSave={onSave}
             onClose={onClose}
+            onRemove={onRemove}
             footer={footer}
         >
             <div className={cn("grid gap-2", columns === 2 ? "grid-cols-2" : "grid-cols-3")}>

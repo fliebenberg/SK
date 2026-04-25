@@ -6,6 +6,7 @@ import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useRugbyScoring, RUGBY_EVENT_REASONS } from './useRugbyScoring';
 
 import { ScoringActionButton } from '../shared/ScoringActionButton';
+import { BaseEventDialog } from '../shared/dialogs/BaseEventDialog';
 import { PlayerSelectionDialog } from '../shared/dialogs/PlayerSelectionDialog';
 import { DecisionDialog } from '../shared/dialogs/DecisionDialog';
 import { RugbyOutcomeDialog } from '../shared/dialogs/RugbyOutcomeDialog';
@@ -21,7 +22,11 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
         handleAddGameEvent, 
         handleUpdateGameEvent,
         handleKickResult,
+        handlePenaltyReasonSelected,
+        handlePenaltyDecisionSelected,
         pendingDispute,
+        triggerRemovalDispute,
+        removeGameEvent,
         resolveDispute
     } = useRugbyScoring(game);
     const participant = scoringState.status !== 'IDLE' && 'side' in scoringState ? (scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1]) : null;
@@ -113,7 +118,7 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                                 setScoringState({ status: next, side: scoringState.side, reason, pendingEventId: res?.id });
                             });
                         } else if (next === 'PENALTY_DECISION_SELECTION') {
-                            setScoringState({ status: 'PENALTY_DECISION_SELECTION', side: scoringState.side, reason });
+                            handlePenaltyReasonSelected(scoringState.side, reason);
                         } else if (next === 'FREE_KICK_DECISION_SELECTION') {
                             setScoringState({ status: 'FREE_KICK_DECISION_SELECTION', side: scoringState.side, reason });
                         }
@@ -123,6 +128,7 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                     handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, { reason: scoringState.reason });
                     setScoringState({ status: 'IDLE' });
                 } : undefined}
+                onRemove={scoringState.status === 'EVENT_REASON_SELECTION' && scoringState.editingId ? () => removeGameEvent(scoringState.editingId!, scoringState.type, scoringState.side) : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
                 onSkip={() => {
                     if (scoringState.status === 'EVENT_REASON_SELECTION') {
@@ -139,7 +145,7 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                                 setScoringState({ status: next, side: scoringState.side, pendingEventId: res?.id });
                             });
                         } else if (next === 'PENALTY_DECISION_SELECTION') {
-                            setScoringState({ status: 'PENALTY_DECISION_SELECTION', side: scoringState.side });
+                            handlePenaltyReasonSelected(scoringState.side);
                         } else if (next === 'FREE_KICK_DECISION_SELECTION') {
                             setScoringState({ status: 'FREE_KICK_DECISION_SELECTION', side: scoringState.side });
                         }
@@ -166,26 +172,14 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                     if (scoringState.editingId) {
                         setScoringState({ ...scoringState, decision } as any);
                     } else {
-                        if (decision === 'Penalty Kick') {
-                            handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Penalty Kick' });
-                            setScoringState({ status: 'KICK_FLOW', side: scoringState.side, type: 'Penalty Kick', points: 3 });
-                        } else if (decision === 'Line Kick') {
-                            handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Line Kick' });
-                            setScoringState({ status: 'KICK_FLOW', side: scoringState.side, type: 'Line Kick', points: 0 });
-                        } else if (decision === 'Scrum') {
-                            handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Scrum' }).then(res => {
-                                setScoringState({ status: 'SCRUM_FLOW', side: scoringState.side, reason: 'Penalty', isFromPenalty: true, pendingEventId: res?.id });
-                            });
-                        } else if (decision === 'Tap n Go') {
-                            handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', scoringState.side, { reason: scoringState.reason, decision: 'Tap n Go' });
-                            setScoringState({ status: 'PLAYER_SELECTION', side: scoringState.side, points: 0, type: 'Tap n Go' });
-                        }
+                        handlePenaltyDecisionSelected(decision);
                     }
                 }}
                 onSave={scoringState.status === 'PENALTY_DECISION_SELECTION' && scoringState.editingId ? () => {
                     handleAddGameEvent('GAME_EVENT', 'Penalty Awarded', scoringState.side, { reason: scoringState.reason, decision: (scoringState as any).decision });
                     setScoringState({ status: 'IDLE' });
                 } : undefined}
+                onRemove={scoringState.status === 'PENALTY_DECISION_SELECTION' && scoringState.editingId ? () => removeGameEvent(scoringState.editingId!, 'Penalty Awarded', scoringState.side) : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
                 // Penalty decision usually has no skip based on original file, skipping omit.
             />
@@ -224,6 +218,7 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                     handleAddGameEvent('GAME_EVENT', 'Free Kick Awarded', scoringState.side, { reason: scoringState.reason, decision: (scoringState as any).decision });
                     setScoringState({ status: 'IDLE' });
                 } : undefined}
+                onRemove={scoringState.status === 'FREE_KICK_DECISION_SELECTION' && scoringState.editingId ? () => removeGameEvent(scoringState.editingId!, 'Free Kick Awarded', scoringState.side) : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
                 onSkip={() => {
                      if (scoringState.status === 'FREE_KICK_DECISION_SELECTION') {
@@ -270,6 +265,7 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                     });
                     setScoringState({ status: 'IDLE' });
                 } : undefined}
+                onRemove={(scoringState.status === 'SCRUM_FLOW' || scoringState.status === 'LINEOUT_FLOW') && scoringState.editingId ? () => removeGameEvent(scoringState.editingId!, scoringState.status === 'SCRUM_FLOW' ? 'Scrum' : 'Lineout', scoringState.side) : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
                 onSkip={() => setScoringState({ status: 'IDLE' })}
                 skipLabel="SKIP WINNER"
@@ -304,9 +300,10 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                     const successful = outcome ? outcome.isSuccessful : (scoringState as any).successful;
                     handleKickResult(scoringState.type!, successful ? scoringState.points : 0, !successful, scoringState.side, scoringState.playerId, { ...scoringState.extraData, outcome: (scoringState as any).outcome });
                 } : undefined}
+                onRemove={scoringState.status === 'KICK_FLOW' && scoringState.editingId && scoringState.type !== 'Conversion' ? () => removeGameEvent(scoringState.editingId!, scoringState.type!, scoringState.side) : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
                 onSkip={scoringState.status === 'KICK_FLOW' && !scoringState.editingId ? () => {
-                    if (scoringState.type === 'Conversion' || scoringState.type === 'Penalty Kick') {
+                    if (scoringState.type === 'Conversion' || scoringState.type === 'Penalty Kick' || scoringState.type === 'Drop Goal') {
                         // For conversions/penalties, skip usually means missed if no details provided?
                         // BUT user said "save the event with no outcomes" for non-scoring.
                         // For scoring, we might still need a fallback.
@@ -360,6 +357,7 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                     });
                     setScoringState({ status: 'IDLE' });
                 } : undefined}
+                onRemove={(scoringState.status === 'REPLACEMENT_OFF_SELECTION' || scoringState.status === 'REPLACEMENT_ON_SELECTION') && (scoringState as any).editingId ? () => removeGameEvent((scoringState as any).editingId, 'Replacement', scoringState.side) : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
                 onSkip={scoringState.status === 'REPLACEMENT_ON_SELECTION' && !(scoringState as any).editingId ? () => {
                     handleAddGameEvent('GAME_EVENT', 'Replacement', scoringState.side, {
@@ -372,7 +370,7 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
             />
 
             <PlayerSelectionDialog
-                open={scoringState.status === 'PLAYER_SELECTION'}
+                open={scoringState.status === 'PLAYER_SELECTION' && (scoringState.type !== 'Penalty Try' || !(scoringState as any).editingId)}
                 onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
                 title={scoringState.status === 'PLAYER_SELECTION' && (scoringState as any).editingId ? scoringState.type : 'Select Player'}
                 roster={participant ? (rosters[participant.id] || []) : []}
@@ -392,6 +390,7 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                     handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, scoringState.extraData, scoringState.playerId);
                     setScoringState({ status: 'IDLE' });
                 } : undefined}
+                onRemove={scoringState.status === 'PLAYER_SELECTION' && scoringState.editingId ? () => removeGameEvent(scoringState.editingId!, scoringState.type, scoringState.side) : undefined}
                 onClose={() => setScoringState({ status: 'IDLE' })}
                 onSkip={() => {
                      if (scoringState.status === 'PLAYER_SELECTION') {
@@ -401,12 +400,36 @@ export default function RugbyGameEventsPanel({ game, role }: { game: Game, role?
                 }}
             />
 
+            <BaseEventDialog
+                open={scoringState.status === 'PLAYER_SELECTION' && scoringState.type === 'Penalty Try' && !!(scoringState as any).editingId}
+                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
+                title="Edit Penalty Try"
+                icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
+                isEditing={true}
+                onRemove={() => {
+                    if (scoringState.status === 'PLAYER_SELECTION' && scoringState.editingId) {
+                        removeGameEvent(scoringState.editingId, scoringState.type, scoringState.side);
+                    }
+                }}
+                onClose={() => setScoringState({ status: 'IDLE' })}
+            >
+                <div className="p-6 space-y-4">
+                    <p className="text-sm text-muted-foreground font-medium uppercase tracking-tight">
+                        Penalty tries are assigned to the team and cannot have a player selector.
+                    </p>
+                </div>
+            </BaseEventDialog>
+
             <ConfirmationModal 
                 isOpen={!!pendingDispute}
                 onOpenChange={(open) => !open && resolveDispute(false)}
-                title="Dispute Score"
-                description={`Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'SCORE'}? This will reserve the score and initiate a 5-minute vote among all officials.`}
-                confirmText="Yes, start dispute"
+                title={pendingDispute?.isRemoval ? "Dispute Event Removal" : "Dispute Score"}
+                description={
+                    pendingDispute?.isRemoval
+                        ? `Are you sure you want to dispute and REMOVE this ${pendingDispute?.type?.toUpperCase() || 'EVENT'}? This will initiate a 5-minute vote among all officials.`
+                        : `Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'SCORE'}? This will reserve the score and initiate a 5-minute vote among all officials.`
+                }
+                confirmText={pendingDispute?.isRemoval ? "Yes, start removal dispute" : "Yes, start dispute"}
                 onConfirm={() => resolveDispute(true)}
                 variant="destructive"
             />

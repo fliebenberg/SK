@@ -15,6 +15,7 @@ export interface ReplacementDialogProps {
     onSave?: () => void;
     onClose?: () => void;
     onSkip?: () => void;
+    onRemove?: () => void;
     skipLabel?: string;
 }
 
@@ -30,6 +31,7 @@ export function ReplacementDialog({
     onSave,
     onClose,
     onSkip,
+    onRemove,
     skipLabel = 'SKIP ON'
 }: ReplacementDialogProps) {
     const footer = null; // Remove former footer skip button
@@ -45,6 +47,7 @@ export function ReplacementDialog({
             onSave={onSave}
             onClose={onClose}
             onSkip={onSkip}
+            onRemove={onRemove}
             skipLabel={skipLabel === 'SKIP ON' ? 'Skip Details' : skipLabel}
             footer={footer}
         >

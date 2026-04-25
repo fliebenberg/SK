@@ -209,6 +209,12 @@ export class GameStore extends SiteStore {
         });
     }
 
+    async removeGameEvent(gameId: string, eventId: string) {
+        const myProfileIds = Array.from(this.myOrgProfileIds);
+        const officialId = myProfileIds[0] || (this.globalRole === 'admin' ? this.currentUserId || 'admin' : null);
+        return this.undoGameEvent(gameId, eventId, officialId);
+    }
+
     initiateUndoVote(gameId: string, eventIdToUndo: string, initiatorId: string) {
         return new Promise<void>((resolve) => {
             socket.emit('action', { 

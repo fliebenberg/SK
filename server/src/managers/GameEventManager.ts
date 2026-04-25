@@ -595,8 +595,8 @@ export class GameEventManager extends BaseManager {
                      }
 
                      // Reverse combined score
-                     const pts = evt.event_data?.pointsDelta || 0;
-                     const totalPointsToReverse = pts + childPoints;
+                     const pts = Number(evt.event_data?.pointsDelta || (evt.sub_type === 'Penalty Try' ? 7 : 0));
+                     const totalPointsToReverse = pts + Number(childPoints);
                      
                      if (totalPointsToReverse !== 0 && evt.game_participant_id) {
                         await this.query(`
