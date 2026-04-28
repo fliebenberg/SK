@@ -7,19 +7,72 @@ import { TimerPanelSlot } from './shared/TimerPanelSlot';
 import { EventLogFeed } from './shared/EventLogFeed';
 import { Button } from '@/components/ui/button';
 import { MetalButton } from '../ui/MetalButton';
-import { RotateCcw, ChevronLeft } from 'lucide-react';
+import { RotateCcw, ChevronLeft, ChevronUp, ChevronDown } from 'lucide-react';
 import { ActiveDisputesPanel } from './shared/ActiveDisputesPanel';
 import { store } from '@/app/store/store';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TeamRosterPanel } from './shared/TeamRosterPanel';
-import { Users, Activity } from 'lucide-react';
+import { Users, Activity, BarChart3 } from 'lucide-react';
+import { RugbyScoringProvider } from './rugby/RugbyScoringContext';
+import RugbyGameStats from './rugby/RugbyGameStats';
+import { RugbyScoringDialogs } from './rugby/RugbyScoringDialogs';
 
 interface GameDashboardProps {
     game: Game;
     sportCategory: string; // e.g., 'Rugby', 'Athletics'
     userRole?: 'SCORER' | 'TIMEKEEPER' | 'JUDGE' | 'REFEREE' | 'FAN';
 }
+
+interface CollapsibleSectionProps {
+    title: string;
+    children: React.ReactNode;
+    storageKey: string;
+    className?: string;
+    defaultExpanded?: boolean;
+}
+
+const CollapsibleDashboardSection = ({ 
+    title, 
+    children, 
+    storageKey, 
+    className = "", 
+    defaultExpanded = true 
+}: CollapsibleSectionProps) => {
+    const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+    React.useEffect(() => {
+        const stored = localStorage.getItem(storageKey);
+        if (stored !== null) {
+            setIsExpanded(stored === 'true');
+        }
+    }, [storageKey]);
+
+    const toggle = () => {
+        const newState = !isExpanded;
+        setIsExpanded(newState);
+        localStorage.setItem(storageKey, String(newState));
+    };
+
+    return (
+        <div className={`relative bg-card rounded-2xl border-2 border-primary/40 px-3 py-1.5 ${className}`}>
+            <div 
+                className="absolute -top-3 left-4 px-1.5 bg-card text-2tiny font-black text-primary uppercase tracking-widest leading-none z-10 flex items-center gap-1 cursor-pointer select-none hover:text-primary/80 transition-colors"
+                onClick={toggle}
+            >
+                {title}
+                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </div>
+            {isExpanded ? (
+                <div className="mt-1">
+                    {children}
+                </div>
+            ) : (
+                <div className="h-2" /> // Spacer for when collapsed
+            )}
+        </div>
+    );
+};
 
 export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDashboardProps) {
     const router = useRouter();
@@ -34,6 +87,8 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
     const ScoreboardModule = useMemo(() => SportComponentRegistry.getScoreboard(sportCategory), [sportCategory]);
     const ScoringPanelModule = useMemo(() => SportComponentRegistry.getScoringPanel(sportCategory), [sportCategory]);
     const GameEventsPanelModule = useMemo(() => SportComponentRegistry.getGameEventsPanel(sportCategory), [sportCategory]);
+    const GeneralPlayPanelModule = useMemo(() => SportComponentRegistry.getGeneralPlayPanel(sportCategory), [sportCategory]);
+    
 
     const p1 = game.participants?.[0];
     const p2 = game.participants?.[1];
@@ -74,7 +129,7 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                             variantType="secondary"
                             size="sm"
                             icon={<RotateCcw className="w-3.5 h-3.5" />}
-                            className="bg-destructive/5 hover:bg-destructive/10 text-destructive border-destructive/20 hover:border-destructive/40 px-2 py-1.5 sm:px-4 sm:py-2 text-[10px] sm:text-sm"
+                            className="bg-destructive/5 hover:bg-destructive/10 text-destructive border-destructive/20 hover:border-destructive/40 px-2 py-1.5 sm:px-4 sm:py-2 text-tiny sm:text-sm"
                             onClick={() => setIsResetModalOpen(true)}
                         >
                             Reset Game
@@ -105,38 +160,104 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                 {/* Combined Timing, Scoring & Events area */}
                 <div className="flex flex-col gap-2 mt-2">
                     {/* Timing Bar Slot - Compacted as per user request */}
-                    <div className="relative bg-card rounded-2xl shadow-sm border-2 border-primary/40 px-3 py-1.5">
-                        <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
-                            Timing
-                        </div>
+                    <CollapsibleDashboardSection 
+                        title="Timing" 
+                        storageKey={`game-${game.id}-timing-expanded`}
+                        className="shadow-sm"
+                    >
                         <TimerPanelSlot game={game} canEdit={canTimekeep} />
-                    </div>
+                    </CollapsibleDashboardSection>
 
-                    {/* Scoring Actions Slot */}
-                    {canScore && (
+                    {/* Wrap Rugby panels in a shared context to keep them in sync */}
+                    {sportCategory.toLowerCase() === 'rugby' ? (
+                        <RugbyScoringProvider game={game}>
+                             {/* Scoring Actions Slot */}
+                            {canScore && (
+                                <>
+                                    <ActiveDisputesPanel gameId={game.id} />
+                                    <CollapsibleDashboardSection 
+                                        title="Scoring" 
+                                        storageKey={`game-${game.id}-scoring-expanded`}
+                                        className="shadow-lg mt-2"
+                                    >
+                                        <SlotWrapper>
+                                            <ScoringPanelModule game={game} role={userRole} />
+                                        </SlotWrapper>
+                                    </CollapsibleDashboardSection>
+                                </>
+                            )}
+
+                            {/* Game Events Actions Slot */}
+                            {canScore && GameEventsPanelModule && (
+                                <CollapsibleDashboardSection 
+                                    title="Game Events" 
+                                    storageKey={`game-${game.id}-events-expanded`}
+                                    className="shadow-lg mt-2"
+                                >
+                                    <SlotWrapper>
+                                        <GameEventsPanelModule game={game} role={userRole} />
+                                    </SlotWrapper>
+                                </CollapsibleDashboardSection>
+                            )}
+
+                            {/* General Play Actions Slot */}
+                            {canScore && GeneralPlayPanelModule && (
+                                <CollapsibleDashboardSection 
+                                    title="General Play" 
+                                    storageKey={`game-${game.id}-play-expanded`}
+                                    className="shadow-lg mt-2"
+                                >
+                                    <SlotWrapper>
+                                        <GeneralPlayPanelModule game={game} role={userRole} />
+                                    </SlotWrapper>
+                                </CollapsibleDashboardSection>
+                            )}
+                            {canScore && <RugbyScoringDialogs game={game} />}
+                        </RugbyScoringProvider>
+                    ) : (
                         <>
-                            <ActiveDisputesPanel gameId={game.id} />
-                            <div className="relative bg-card rounded-2xl shadow-lg border-2 border-primary/40 px-3 py-1.5 mt-2">
-                                <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
-                                    Scoring
-                                </div>
-                                <SlotWrapper>
-                                    <ScoringPanelModule game={game} role={userRole} />
-                                </SlotWrapper>
-                            </div>
-                        </>
-                    )}
+                             {/* Scoring Actions Slot */}
+                            {canScore && (
+                                <>
+                                    <ActiveDisputesPanel gameId={game.id} />
+                                    <CollapsibleDashboardSection 
+                                        title="Scoring" 
+                                        storageKey={`game-${game.id}-scoring-expanded`}
+                                        className="shadow-lg mt-2"
+                                    >
+                                        <SlotWrapper>
+                                            <ScoringPanelModule game={game} role={userRole} />
+                                        </SlotWrapper>
+                                    </CollapsibleDashboardSection>
+                                </>
+                            )}
 
-                    {/* Game Events Actions Slot */}
-                    {canScore && GameEventsPanelModule && (
-                        <div className="relative bg-card rounded-2xl shadow-lg border-2 border-primary/40 px-3 py-1.5 mt-2">
-                            <div className="absolute -top-3 left-4 px-1.5 bg-card text-[9px] font-black text-primary uppercase tracking-widest leading-none z-10">
-                                Game Events
-                            </div>
-                            <SlotWrapper>
-                                <GameEventsPanelModule game={game} role={userRole} />
-                            </SlotWrapper>
-                        </div>
+                            {/* Game Events Actions Slot */}
+                            {canScore && GameEventsPanelModule && (
+                                <CollapsibleDashboardSection 
+                                    title="Game Events" 
+                                    storageKey={`game-${game.id}-events-expanded`}
+                                    className="shadow-lg mt-2"
+                                >
+                                    <SlotWrapper>
+                                        <GameEventsPanelModule game={game} role={userRole} />
+                                    </SlotWrapper>
+                                </CollapsibleDashboardSection>
+                            )}
+
+                            {/* General Play Actions Slot */}
+                            {canScore && GeneralPlayPanelModule && (
+                                <CollapsibleDashboardSection 
+                                    title="General Play" 
+                                    storageKey={`game-${game.id}-play-expanded`}
+                                    className="shadow-lg mt-2"
+                                >
+                                    <SlotWrapper>
+                                        <GeneralPlayPanelModule game={game} role={userRole} />
+                                    </SlotWrapper>
+                                </CollapsibleDashboardSection>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -144,18 +265,24 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
             <div className="w-full max-w-[512px] lg:w-[320px] xl:w-[380px] lg:flex-none flex flex-col gap-2 min-h-[600px] min-w-0">
                 <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-2 flex-1 flex flex-col overflow-hidden relative">
                     <Tabs defaultValue="feed" className="flex-1 flex flex-col overflow-hidden">
-                        <TabsList className="grid grid-cols-3 bg-muted/50 p-1 mb-2">
-                            <TabsTrigger value="team1" className="text-[10px] font-black uppercase tracking-tight py-1.5 flex gap-1.5 items-center">
+                        <TabsList className="grid grid-cols-4 bg-muted/50 p-1 mb-2">
+                            <TabsTrigger value="team1" className="text-tiny font-black uppercase tracking-tight py-1.5 flex gap-1 items-center">
                                 <Users className="w-3 h-3" />
-                                <span className="truncate">{team1Name}</span>
+                                <span className="hidden sm:inline truncate">{team1Name}</span>
+                                <span className="sm:hidden">T1</span>
                             </TabsTrigger>
-                            <TabsTrigger value="team2" className="text-[10px] font-black uppercase tracking-tight py-1.5 flex gap-1.5 items-center">
+                            <TabsTrigger value="team2" className="text-tiny font-black uppercase tracking-tight py-1.5 flex gap-1 items-center">
                                 <Users className="w-3 h-3" />
-                                <span className="truncate">{team2Name}</span>
+                                <span className="hidden sm:inline truncate">{team2Name}</span>
+                                <span className="sm:hidden">T2</span>
                             </TabsTrigger>
-                            <TabsTrigger value="feed" className="text-[10px] font-black uppercase tracking-tight py-1.5 flex gap-1.5 items-center">
+                            <TabsTrigger value="feed" className="text-tiny font-black uppercase tracking-tight py-1.5 flex gap-1 items-center">
                                 <Activity className="w-3 h-3" />
                                 <span className="truncate">Feed</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="stats" className="text-tiny font-black uppercase tracking-tight py-1.5 flex gap-1 items-center">
+                                <BarChart3 className="w-3 h-3" />
+                                <span className="truncate">Stats</span>
                             </TabsTrigger>
                         </TabsList>
                         
@@ -167,6 +294,15 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                         </TabsContent>
                         <TabsContent value="feed" className="flex-1 overflow-hidden mt-0">
                             <EventLogFeed gameId={game.id} />
+                        </TabsContent>
+                        <TabsContent value="stats" className="flex-1 overflow-hidden mt-0">
+                            {sportCategory.toLowerCase() === 'rugby' ? (
+                                <RugbyGameStats game={game} />
+                            ) : (
+                                <div className="flex items-center justify-center h-32 text-muted-foreground/40 text-tiny font-black uppercase tracking-widest italic">
+                                    Stats coming soon for {sportCategory}
+                                </div>
+                            )}
                         </TabsContent>
                     </Tabs>
                 </div>

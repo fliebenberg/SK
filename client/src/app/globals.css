@@ -52,7 +52,31 @@
     --metal-text: #334155;
     /* slate-700 */
     --metal-shadow-active: inset 2px 2px 5px rgba(0, 0, 0, 0.3);
+
+    /* Typography Variables */
+    --font-size-tiny-lg: 11px;
+    --font-size-tiny: 10px;
+    --font-size-small: 12px;
+    --font-size-2tiny: 9px;
+    --font-size-3tiny: 8px;
+    --font-size-4tiny: 7px;
+    --font-size-5tiny: 6px;
+    
+    /* Component Specific (Optimized for dense grids) */
+    --font-size-scoring-label: 10px;
+    --font-size-scoring-label-sm: 11px;
+    
+    --font-size-roster-primary: 7.5px;
+    --font-size-roster-primary-sm: 8px;
+    
+    --font-size-roster-secondary: 6.5px;
+    --font-size-roster-secondary-sm: 7px;
+
+    /* Event Log Specific */
+    --font-size-event-primary: clamp(10.5px, 4cqw, 13px);
+    --font-size-event-secondary: clamp(9px, 3.5cqw, 11px);
   }
+
 
 
   /* Light Orange Theme */

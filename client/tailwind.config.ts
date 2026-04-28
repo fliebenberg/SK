@@ -69,6 +69,23 @@ const config = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+  		fontSize: {
+  			'tiny-lg': 'var(--font-size-tiny-lg)',
+  			'tiny': 'var(--font-size-tiny)',
+  			'small': 'var(--font-size-small)',
+  			'2tiny': 'var(--font-size-2tiny)',
+  			'3tiny': 'var(--font-size-3tiny)',
+  			'4tiny': 'var(--font-size-4tiny)',
+  			'5tiny': 'var(--font-size-5tiny)',
+  			'scoring-label': ['var(--font-size-scoring-label)', { lineHeight: '1' }],
+  			'scoring-label-sm': ['var(--font-size-scoring-label-sm)', { lineHeight: '1' }],
+  			'roster-primary': ['var(--font-size-roster-primary)', { lineHeight: '1.2' }],
+  			'roster-primary-sm': ['var(--font-size-roster-primary-sm)', { lineHeight: '1.2' }],
+  			'roster-secondary': ['var(--font-size-roster-secondary)', { lineHeight: '1.2' }],
+  			'roster-secondary-sm': ['var(--font-size-roster-secondary-sm)', { lineHeight: '1.2' }],
+  			'event-primary': ['var(--font-size-event-primary)', { lineHeight: '1' }],
+  			'event-secondary': ['var(--font-size-event-secondary)', { lineHeight: '1.2' }],
+  		},
   		keyframes: {
   			'accordion-down': {
   				from: {

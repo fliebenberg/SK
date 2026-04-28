@@ -48,6 +48,7 @@ export type ScoringFlowState = {
     side: 'home' | 'away';
     reason?: string;
     winnerSide?: 'home' | 'away';
+    resets?: number;
     isFromPenalty?: boolean;
     pendingEventId?: string;
     editingId?: string;
@@ -62,6 +63,8 @@ export type ScoringFlowState = {
     editingId?: string;
     reason?: string;
     initialReason?: string;
+    decision?: string;
+    initialDecision?: string;
 } | {
     status: 'PENALTY_DECISION_SELECTION';
     side: 'home' | 'away';
@@ -89,10 +92,15 @@ export type ScoringFlowState = {
     playerOnId?: string;
     editingId?: string;
     initialPlayerOnId?: string;
+} | {
+    status: 'CONFIRM_REMOVAL';
+    eventId: string;
+    type: string;
+    side: 'home' | 'away' | null;
 };
 
 export const RUGBY_EVENT_REASONS = {
-    SCRUM: ['Knock-on', 'Forward Pass', 'Accidental Offside', 'Unplayable'],
+    SCRUM: ['Knock-on', 'Forward Pass', 'Accidental Offside', 'Unplayable Ruck', 'Unsuccessful Maul', 'Penalty', 'Other'],
     PENALTY: ['Offside', 'High Tackle', 'Hands in Ruck', 'Side Entry', 'Not Releasing', 'Obstruction', 'Dangerous Tackle', 'Other'],
     DROPOUT_22M: ['Kicked Dead by Opponent', 'Missed Kick'],
     DROPOUT_GOALLINE: ['Held up in Goal', 'Grounded in Goal'],
@@ -163,6 +171,7 @@ export function useRugbyScoring(game: Game) {
     const [rosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
     const [actionedTryIds, setActionedTryIds] = useState<Set<string>>(new Set());
     const [locallyAddedTryId, setLocallyAddedTryId] = useState<string | null>(null);
+    const [locallyAddedAt, setLocallyAddedAt] = useState<number>(0);
     const [pendingPenaltyId, setPendingPenaltyId] = useState<string | null>(null);
     const penaltyTimerRef = useRef<NodeJS.Timeout | null>(null);
     const isColdStart = useRef(true);
@@ -253,6 +262,14 @@ export function useRugbyScoring(game: Game) {
                     status = 'LINEOUT_FLOW';
                 } else if (config.type === 'Replacement') {
                     status = 'REPLACEMENT_OFF_SELECTION';
+                } else if (config.type === 'Penalty Awarded') {
+                    status = 'EVENT_REASON_SELECTION';
+                    (config as any).reasons = RUGBY_EVENT_REASONS.PENALTY;
+                    (config as any).nextStatus = 'PENALTY_DECISION_SELECTION';
+                } else if (config.type === 'Free Kick Awarded') {
+                    status = 'EVENT_REASON_SELECTION';
+                    (config as any).reasons = RUGBY_EVENT_REASONS.FREE_KICK;
+                    (config as any).nextStatus = 'FREE_KICK_DECISION_SELECTION';
                 }
 
                 setScoringState({
@@ -273,6 +290,7 @@ export function useRugbyScoring(game: Game) {
                     initialPlayerOffId: config.eventId ? config.extraData?.playerOffId : undefined,
                     playerOnId: config.eventId ? config.extraData?.playerOnId : undefined,
                     initialPlayerOnId: config.eventId ? config.extraData?.playerOnId : undefined,
+                    resets: config.eventId ? config.extraData?.resets : undefined,
                     outcome: config.eventId ? config.extraData?.outcome : undefined,
                     originalOutcome: config.eventId ? config.extraData?.outcome : undefined,
                     initialOutcome: config.eventId ? config.extraData?.outcome : undefined
@@ -288,11 +306,24 @@ export function useRugbyScoring(game: Game) {
     useEffect(() => {
         if (scoringState.status === 'KICK_FLOW' && scoringState.type === 'Conversion') {
             const isEditing = !!scoringState.editingId;
-            if (!isEditing && (!pendingConversion || pendingConversion.tryId !== scoringState.extraData?.linkedEventId)) {
-                setScoringState({ status: 'IDLE' });
+            const linkedTryId = (scoringState as any).extraData?.linkedEventId;
+            
+            // If it's a conversion we just added locally, don't auto-dismiss it just because the store hasn't updated yet.
+            // We only allow dismissal once the try actually appears in the game events list, or after a 5s grace period.
+            const isRecentlyAddedByMe = linkedTryId === locallyAddedTryId;
+            const tryIsLoaded = gameEvents.some(e => e.id === linkedTryId);
+            const isWithinGracePeriod = Date.now() - locallyAddedAt < 5000;
+
+            if (!isEditing) {
+                const isNoLongerPending = !pendingConversion || pendingConversion.tryId !== linkedTryId;
+                const shouldDismiss = isNoLongerPending && (!isRecentlyAddedByMe || tryIsLoaded || !isWithinGracePeriod);
+                
+                if (shouldDismiss) {
+                    setScoringState({ status: 'IDLE' });
+                }
             }
         }
-    }, [pendingConversion, scoringState.status, (scoringState as any).type, (scoringState as any).extraData?.linkedEventId, (scoringState as any).editingId]);
+    }, [pendingConversion, scoringState.status, (scoringState as any).type, (scoringState as any).extraData?.linkedEventId, (scoringState as any).editingId, locallyAddedTryId, locallyAddedAt, gameEvents]);
 
 
     const handleScore = async (points: number, side: 'home' | 'away', type: string, extraData?: any, playerId?: string) => {
@@ -355,6 +386,7 @@ export function useRugbyScoring(game: Game) {
 
         if (type === 'Try' && res?.id) {
             setLocallyAddedTryId(res.id);
+            setLocallyAddedAt(Date.now());
         }
 
         return res;
@@ -424,8 +456,13 @@ export function useRugbyScoring(game: Game) {
         });
     };
 
-    const handleUpdateGameEvent = async (eventId: string, eventData: any) => {
-        return store.updateGameEvent(game.id, eventId, { eventData });
+    const handleUpdateGameEvent = async (eventId: string, updatedData: any) => {
+        const existingEvent = store.gameEvents.find(e => e.id === eventId);
+        const mergedData = {
+            ...(existingEvent?.eventData || {}),
+            ...updatedData
+        };
+        return store.updateGameEvent(game.id, eventId, { eventData: mergedData });
     };
 
     const handleKickResult = async (type: 'Conversion' | 'Penalty Kick' | 'Drop Goal' | 'Line Kick' | 'Kick-off' | '22m Dropout' | 'Goalline Dropout', points: number, isMissed: boolean, side: 'home' | 'away', playerId?: string, extraData?: any) => {
@@ -516,7 +553,7 @@ export function useRugbyScoring(game: Game) {
         }
     };
 
-    const removeGameEvent = async (eventId: string, type: string, side: 'home' | 'away' | null) => {
+    const removeGameEvent = async (eventId: string, type: string, side: 'home' | 'away' | null, force = false) => {
         if (type === 'Conversion') {
             toast({ 
                 title: "Cannot Remove Conversion", 
@@ -532,10 +569,20 @@ export function useRugbyScoring(game: Game) {
 
         if (isScoringEvent) {
             triggerRemovalDispute(eventId, type, side);
+        } else if (!force) {
+            setScoringState({ status: 'CONFIRM_REMOVAL', eventId, type, side });
         } else {
-            await store.removeGameEvent(game.id, eventId);
-            toast({ title: "Event Removed", description: "The event has been removed from the list." });
-            setScoringState({ status: 'IDLE' });
+            const res = await store.removeGameEvent(game.id, eventId);
+            if (res.success) {
+                toast({ title: "Event Removed", description: "The event has been removed from the list.", variant: "success" });
+                setScoringState({ status: 'IDLE' });
+            } else {
+                toast({ 
+                    title: "Removal Failed", 
+                    description: res.error || "The event could not be removed.", 
+                    variant: "destructive" 
+                });
+            }
         }
     };
 
@@ -586,6 +633,51 @@ export function useRugbyScoring(game: Game) {
         }
     };
 
+    const handlePlayerSelected = async (playerId?: string) => {
+        if (scoringState.status !== 'PLAYER_SELECTION') return;
+
+        const { side, type, points, extraData, editingId } = scoringState as any;
+        
+        if (editingId) {
+            setScoringState({ ...scoringState, playerId } as any);
+            return;
+        }
+
+        const scoringTypes = ['Try', 'Penalty Try', 'Penalty Kick', 'Drop Goal'];
+        const isTry = type === 'Try';
+
+        if (scoringTypes.includes(type)) {
+            const actualPoints = type === 'Try' ? 5 : (points || 0);
+            const res = await handleScore(actualPoints, side, type, extraData, playerId);
+            
+            if (isTry && res?.id) {
+                setScoringState({ 
+                    status: 'KICK_FLOW', 
+                    side, 
+                    type: 'Conversion', 
+                    points: 2, 
+                    extraData: { ...extraData, linkedEventId: res.id } 
+                });
+            } else {
+                setScoringState({ status: 'IDLE' });
+            }
+        } else {
+            await handleAddGameEvent('GAME_EVENT', type, side, extraData, playerId);
+            setScoringState({ status: 'IDLE' });
+        }
+    };
+
+    const handleScrumResetsChange = async (count: number) => {
+        if (scoringState.status !== 'SCRUM_FLOW') return;
+        
+        setScoringState({ ...scoringState, resets: count });
+        
+        const eventId = scoringState.pendingEventId || scoringState.editingId;
+        if (eventId) {
+            await handleUpdateGameEvent(eventId, { resets: count });
+        }
+    };
+
     return {
         scoringState,
         setScoringState,
@@ -599,6 +691,8 @@ export function useRugbyScoring(game: Game) {
         handleKickResult,
         handlePenaltyReasonSelected,
         handlePenaltyDecisionSelected,
+        handlePlayerSelected,
+        handleScrumResetsChange,
         startScoringFlow,
         triggerRemovalDispute,
         removeGameEvent,

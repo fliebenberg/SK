@@ -735,25 +735,50 @@ export class GameEventManager extends BaseManager {
 
     const event = eventRes.rows[0];
 
-    // 2. Verify it's a SCORE event
-    if (event.type !== 'SCORE') {
-      console.log(`[Undo] Failed: Not a SCORE event (${event.type})`);
-      return { success: false, error: 'Only scoring events can be undone.' };
+    // 2. Verify type (Support SCORE and GAME_EVENT)
+    if (event.type !== 'SCORE' && event.type !== 'GAME_EVENT') {
+      console.log(`[Undo] Failed: Unsupported event type (${event.type})`);
+      return { success: false, error: 'Only scoring and game events can be removed.' };
     }
 
-    // 3. Verify initiator
-    if (event.initiatorId !== initiatorId) {
-      console.log(`[Undo] Failed: Initiator mismatch. DB: ${event.initiatorId}, Client: ${initiatorId}`);
-      return { success: false, error: 'Only the initiator can undo this event.' };
+    // 3. Verify Permission (Initiator or Match Official / Admin)
+    let isAuthorized = event.initiatorId === initiatorId;
+    let isOfficial = false;
+    
+    if (initiatorId) {
+        // Check if initiator is a match official for this game
+        const officialRes = await this.query(`
+            SELECT 1 FROM game_officials WHERE game_id = $1 AND org_profile_id = $2
+        `, [gameId, initiatorId]);
+        if (officialRes.rows.length > 0) {
+            isAuthorized = true;
+            isOfficial = true;
+        }
+        
+        // Check if initiator is an app admin (initiatorId might be userId in this case)
+        if (!isAuthorized) {
+            const isAdmin = await dataManager.isAppAdmin(initiatorId);
+            if (isAdmin) {
+                isAuthorized = true;
+                isOfficial = true; 
+            }
+        }
     }
 
-    // 4. Verify age (Fetch delay from settings)
-    const settingsRes = await this.query(`SELECT value FROM system_settings WHERE key = 'undo_delay_ms'`);
-    const delayMs = settingsRes.rows[0]?.value || 15000;
-    const eventTime = new Date(event.timestamp).getTime();
-    if (Date.now() - eventTime > delayMs) {
-      console.log(`[Undo] Failed: Window expired. Age: ${Date.now() - eventTime}, Delay: ${delayMs}`);
-      return { success: false, error: 'Undo window has expired.' };
+    if (!isAuthorized) {
+      console.log(`[Undo] Failed: Not authorized. Initiator: ${initiatorId}, Event Initiator: ${event.initiatorId}`);
+      return { success: false, error: 'Only the initiator or a match official can remove this event.' };
+    }
+
+    // 4. Verify age (Only for non-officials)
+    if (!isOfficial) {
+        const settingsRes = await this.query(`SELECT value FROM system_settings WHERE key = 'undo_delay_ms'`);
+        const delayMs = settingsRes.rows[0]?.value || 15000;
+        const eventTime = new Date(event.timestamp).getTime();
+        if (Date.now() - eventTime > delayMs) {
+          console.log(`[Undo] Failed: Window expired. Age: ${Date.now() - eventTime}, Delay: ${delayMs}`);
+          return { success: false, error: 'Undo window has expired.' };
+        }
     }
 
     // 5. Reverse Score Effect (including children)

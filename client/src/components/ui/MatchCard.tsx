@@ -79,10 +79,10 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
 
             const statusBadge = (
               <>
-                {isLive && <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-primary animate-pulse mb-0.5">LIVE</span>}
-                {isFinished && <span className="text-[7px] md:text-[9px] font-black uppercase tracking-wider text-emerald-500 mb-0.5">FINISHED</span>}
-                {isCancelled && <span className="text-[7px] md:text-[9px] font-black uppercase tracking-wider text-destructive mb-0.5">CANCELLED</span>}
-                {isScheduled && <span className="text-[7px] md:text-[9px] font-black uppercase tracking-wider text-sky-500 mb-0.5">SCHEDULED</span>}
+                {isLive && <span className="text-2tiny md:text-tiny font-black uppercase tracking-widest text-primary animate-pulse mb-0.5">LIVE</span>}
+                {isFinished && <span className="text-3tiny md:text-2tiny font-black uppercase tracking-wider text-emerald-500 mb-0.5">FINISHED</span>}
+                {isCancelled && <span className="text-3tiny md:text-2tiny font-black uppercase tracking-wider text-destructive mb-0.5">CANCELLED</span>}
+                {isScheduled && <span className="text-3tiny md:text-2tiny font-black uppercase tracking-wider text-sky-500 mb-0.5">SCHEDULED</span>}
               </>
             );
 
@@ -90,8 +90,8 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
               return (
                 <div className="flex flex-col items-center justify-center leading-none gap-0.5">
                   {statusBadge}
-                  <span className="text-[10px] md:text-sm font-black tabular-nums text-foreground">{formattedTime}</span>
-                  <span className="text-[8px] md:text-[10px] font-bold uppercase opacity-60 line-clamp-1 max-w-[50px] md:max-w-[70px] text-center text-foreground">{game.liveState?.periodLabel}</span>
+                  <span className="text-tiny md:text-sm font-black tabular-nums text-foreground">{formattedTime}</span>
+                  <span className="text-2tiny md:text-tiny font-bold uppercase opacity-60 line-clamp-1 max-w-[50px] md:max-w-[70px] text-center text-foreground">{game.liveState?.periodLabel}</span>
                 </div>
               );
             }
@@ -99,7 +99,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
             if (!dateStr) return (
               <div className="flex flex-col items-center justify-center leading-none gap-0.5">
                 {statusBadge}
-                <span className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-40">TBD</span>
+                <span className="text-tiny md:text-xs font-black uppercase tracking-widest opacity-40">TBD</span>
               </div>
             );
 
@@ -109,7 +109,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
             if (!isValid) return (
               <div className="flex flex-col items-center justify-center leading-none gap-0.5">
                 {statusBadge}
-                <span className="text-[10px] md:text-xs font-black uppercase tracking-widest opacity-40">TBD</span>
+                <span className="text-tiny md:text-xs font-black uppercase tracking-widest opacity-40">TBD</span>
               </div>
             );
 
@@ -120,13 +120,13 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
                   <span className="text-xs md:text-sm font-black text-foreground">
                     {format(date!, "dd")}
                   </span>
-                  <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest opacity-60 text-foreground">
+                  <span className="text-tiny md:text-xs font-bold uppercase tracking-widest opacity-60 text-foreground">
                     {format(date!, "MMM")}
                   </span>
                 </div>
                 
                 {(game.scheduledStartTime || game.startTime) && (
-                    <span className="text-[9px] md:text-xs font-black uppercase tracking-wider opacity-90 text-foreground">
+                    <span className="text-2tiny md:text-xs font-black uppercase tracking-wider opacity-90 text-foreground">
                         {format(date!, "HH:mm")}
                     </span>
                 )}
@@ -192,10 +192,10 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
                    <span>{awayScore}</span>
                 </div>
               ) : (
-                <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">VS</span>
+                <span className="text-tiny font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">VS</span>
               )}
               {sport && (
-                <span className="text-[10px] font-black uppercase tracking-widest text-primary/30 mt-0.5 leading-none">
+                <span className="text-tiny font-black uppercase tracking-widest text-primary/30 mt-0.5 leading-none">
                   {sport.name}
                 </span>
               )}
@@ -219,15 +219,15 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
         <div className="flex flex-col items-center justify-center leading-none gap-1 w-full px-1 text-center">
             {gameSite ? (
                 <>
-                  <span className="text-[10px] md:text-[11px] font-black truncate w-full text-foreground/90 leading-tight px-1">
+                  <span className="text-tiny md:text-tiny font-black truncate w-full text-foreground/90 leading-tight px-1">
                       {gameSite.name}
                   </span>
-                  <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-wider opacity-50 truncate w-full">
+                  <span className="text-2tiny md:text-2tiny font-bold uppercase tracking-wider opacity-50 truncate w-full">
                       {game.facilityId ? store.getFacility(game.facilityId)?.name : 'Field'}
                   </span>
                 </>
             ) : (
-                <span className="text-[10px] md:text-sm font-bold uppercase opacity-30">TBD</span>
+                <span className="text-tiny md:text-sm font-bold uppercase opacity-30">TBD</span>
             )}
         </div>
 
@@ -263,7 +263,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
               {showSelectButton && (
                 <MetalButton 
                     size="sm"
-                    className="w-full h-8 lg:h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-0 lg:gap-1.5 px-0 lg:px-2"
+                    className="w-full h-8 lg:h-7 rounded-lg text-tiny font-black uppercase tracking-wider gap-0 lg:gap-1.5 px-0 lg:px-2"
                     icon={<Users className="w-4 h-4" />}
                     onClick={(e) => {
                         e.stopPropagation();
@@ -276,7 +276,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
               {showScoreButton && (
                 <MetalButton 
                     size="sm"
-                    className="w-full h-8 lg:h-7 rounded-lg text-[10px] font-black uppercase tracking-wider gap-0 lg:gap-1.5 px-0 lg:px-2"
+                    className="w-full h-8 lg:h-7 rounded-lg text-tiny font-black uppercase tracking-wider gap-0 lg:gap-1.5 px-0 lg:px-2"
                     icon={<Trophy className="w-4 h-4" />}
                     onClick={(e) => {
                         e.stopPropagation();

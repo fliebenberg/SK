@@ -1,7 +1,7 @@
 import React from 'react';
 import { BaseEventDialog } from './BaseEventDialog';
 import { RosterGrid, ScoringActionButton, DialogSectionHeader } from '../ScoringActionButton';
-import { UserPlus, Trophy } from 'lucide-react';
+import { UserPlus, Trophy, Minus, Plus } from 'lucide-react';
 import { OutcomeDefinition } from '../../rugby/useRugbyScoring';
 import { cn } from '@/lib/utils';
 
@@ -17,20 +17,9 @@ export interface RugbyOutcomeDialogProps {
     initialOutcomeId?: string;
     onOutcomeSelect: (outcome: OutcomeDefinition) => void;
     
-    // Player Selection (Optional)
-    roster?: any[];
-    selectedPlayerId?: string;
-    initialPlayerId?: string;
-    onPlayerSelect?: (playerId: string) => void;
-    playerSectionLabel?: string;
-
-    // Common Props
-    isEditing?: boolean;
-    onSave?: () => void;
-    onClose?: () => void;
-    onSkip?: () => void;
-    onRemove?: () => void;
-    skipLabel?: string;
+    // Reset Support (Scrum specifically)
+    resets?: number;
+    onResetsChange?: (count: number) => void;
     
     columns?: 2 | 3;
 }
@@ -55,11 +44,13 @@ export function RugbyOutcomeDialog({
     onSkip,
     onRemove,
     skipLabel = "SKIP",
+    resets,
+    onResetsChange,
     columns = 2
 }: RugbyOutcomeDialogProps) {
     const isDirty = (selectedPlayerId !== initialPlayerId) || (selectedOutcomeId !== initialOutcomeId);
 
-    const footer = !isEditing && !onSkip ? null : undefined; // Remove former footer skip button
+    const footer = !isEditing && !onSkip && !onResetsChange ? null : undefined; 
 
     return (
         <BaseEventDialog
@@ -76,7 +67,7 @@ export function RugbyOutcomeDialog({
             skipLabel={skipLabel === "SKIP" ? "Skip Details" : skipLabel}
             footer={footer}
         >
-            <div className="space-y-4 sm:space-y-6 pt-1 sm:pt-2">
+            <div className="space-y-3 sm:space-y-4 pt-1 sm:pt-2">
                 {/* Optional Player Selection */}
                 {roster && onPlayerSelect && (
                     <div className="space-y-3 sm:space-y-4">
@@ -90,14 +81,15 @@ export function RugbyOutcomeDialog({
                 )}
 
                 {/* Outcome Selection */}
-                <div className={cn("space-y-3 sm:space-y-4 pt-3 sm:pt-4", (roster && onPlayerSelect) ? "border-t border-white/5" : "")}>
+                <div className={cn("space-y-3 sm:space-y-4 pt-2 sm:pt-3", (roster && onPlayerSelect) ? "border-t border-white/5" : "")}>
                     <DialogSectionHeader label="Outcome" />
+                    
                     <div className={cn("grid gap-2", columns === 2 ? "grid-cols-2" : "grid-cols-3")}>
                         {outcomes.map((outcome) => (
                             <div key={outcome.id} className="flex flex-col gap-2">
                                 {outcome.titleLabel && (
                                     <div className={cn(
-                                        "text-[10px] font-black uppercase text-center tracking-widest",
+                                        "text-tiny font-black uppercase text-center tracking-widest",
                                         outcome.id === 'home' ? "text-blue-500" : outcome.id === 'away' ? "text-red-500" : "text-muted-foreground"
                                     )}>
                                         {outcome.titleLabel}
@@ -113,6 +105,38 @@ export function RugbyOutcomeDialog({
                                 />
                             </div>
                         ))}
+
+                        {/* Special Reset Stepper for Scrums */}
+                        {onResetsChange && (
+                            <div className="col-span-2 mt-6 pt-6 border-t border-white/5">
+                                <div className="flex flex-col items-center gap-4">
+                                    <DialogSectionHeader label="Scrum Resets" className="mb-0 tracking-[0.3em]" />
+                                    
+                                    <div className="flex items-center gap-8">
+                                        <button 
+                                            onClick={() => onResetsChange(Math.max(0, (resets || 0) - 1))}
+                                            disabled={(resets || 0) <= 0}
+                                            className="w-12 h-12 flex items-center justify-center rounded-xl bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
+                                        >
+                                            <Minus className="h-6 w-6 text-amber-500" />
+                                        </button>
+                                        
+                                        <div className="flex flex-col items-center min-w-[80px]">
+                                            <span className="text-5xl font-black text-amber-500 tabular-nums drop-shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+                                                {resets || 0}
+                                            </span>
+                                        </div>
+
+                                        <button 
+                                            onClick={() => onResetsChange((resets || 0) + 1)}
+                                            className="w-12 h-12 flex items-center justify-center rounded-xl bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 transition-all active:scale-95"
+                                        >
+                                            <Plus className="h-6 w-6 text-amber-500" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -5,6 +5,7 @@ import { Game } from '@sk/types';
 const RugbyScoreboard = lazy(() => import('./rugby/RugbyScoreboard'));
 const RugbyScoringPanel = lazy(() => import('./rugby/RugbyScoringPanel'));
 const RugbyGameEventsPanel = lazy(() => import('./rugby/RugbyGameEventsPanel'));
+const RugbyGeneralPlayPanel = lazy(() => import('./rugby/RugbyGeneralPlayPanel'));
 
 const AthleticsStartList = lazy(() => import('./athletics/AthleticsStartList'));
 const AthleticsScoringGrid = lazy(() => import('./athletics/AthleticsScoringGrid'));
@@ -20,7 +21,7 @@ const DefaultScoreboard = ({ game, role }: SlotProps) => <div className="p-4 bor
 const DefaultScoringPanel = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500">Default Scoring Panel</div>;
 const DefaultParticipantList = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500">Default Participant List</div>;
 const AthleticsScoreboardNotice = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500">Athletics does not use a standard head-to-head scoreboard.</div>;
-const RugbyRosterNotice = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500 font-black uppercase tracking-widest text-[10px]">Rugby Team Roster Slot</div>;
+const RugbyRosterNotice = ({ game, role }: SlotProps) => <div className="p-4 border rounded text-center text-gray-500 font-black uppercase tracking-widest text-tiny">Rugby Team Roster Slot</div>;
 
 export const SportComponentRegistry = {
     getScoreboard: (categoryStr: string) => {
@@ -46,6 +47,13 @@ export const SportComponentRegistry = {
         }
     },
 
+    getGeneralPlayPanel: (categoryStr: string) => {
+        switch (categoryStr.toLowerCase()) {
+            case 'rugby': return RugbyGeneralPlayPanel;
+            default: return null;
+        }
+    },
+
     getParticipantList: (categoryStr: string) => {
         switch (categoryStr.toLowerCase()) {
             case 'rugby': return RugbyRosterNotice;
@@ -57,7 +65,7 @@ export const SportComponentRegistry = {
 
 export const SlotWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return (
-        <Suspense fallback={<div className="animate-pulse bg-primary/10 h-32 rounded-2xl border border-primary/20 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-primary/40">Loading Module...</div>}>
+        <Suspense fallback={<div className="animate-pulse bg-primary/10 h-32 rounded-2xl border border-primary/20 flex items-center justify-center text-tiny font-black uppercase tracking-widest text-primary/40">Loading Module...</div>}>
             {children}
         </Suspense>
     );

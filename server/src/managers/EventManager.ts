@@ -321,10 +321,43 @@ export class EventManager extends BaseManager {
           }
 
           if (data.participants) {
-              console.log(`EventManager: Updating participants for game ${id}`);
-              await this.query('DELETE FROM game_participants WHERE game_id = $1', [id]);
-              let orderIdx = 0;
+              console.log(`EventManager: Reconciling participants for game ${id}`);
+              
+              // 1. Get existing participants
+              const existingRes = await this.query('SELECT id, team_id as "teamId", org_profile_id as "orgProfileId", status, sort_order as "sortOrder" FROM game_participants WHERE game_id = $1', [id]);
+              const existing = existingRes.rows;
+              
+              const claimedExistingIds = new Set<string>();
+              const toAdd: any[] = [];
+
+              // 2. Match existing with new
               for (const p of data.participants) {
+                  const match = existing.find(e => 
+                      !claimedExistingIds.has(e.id) &&
+                      (e.teamId === (p.teamId || null)) && 
+                      (e.orgProfileId === (p.orgProfileId || null))
+                  );
+                  
+                  if (match) {
+                      claimedExistingIds.add(match.id);
+                      // Update sort order if provided and changed
+                      if (p.sortOrder !== undefined && p.sortOrder !== match.sortOrder) {
+                          await this.query('UPDATE game_participants SET sort_order = $1 WHERE id = $2', [p.sortOrder, match.id]);
+                      }
+                  } else {
+                      toAdd.push(p);
+                  }
+              }
+
+              // 3. Delete those that were not matched
+              const toDeleteIds = existing.filter(e => !claimedExistingIds.has(e.id)).map(e => e.id);
+              if (toDeleteIds.length > 0) {
+                  await this.query('DELETE FROM game_participants WHERE game_id = $1 AND id = ANY($2)', [id, toDeleteIds]);
+              }
+
+              // 4. Add new ones
+              let orderIdx = existing.length;
+              for (const p of toAdd) {
                   const pid = p.id || `gp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                   await this.query(
                       `INSERT INTO game_participants (id, game_id, team_id, org_profile_id, status, sort_order) VALUES ($1, $2, $3, $4, 'active', $5)`,

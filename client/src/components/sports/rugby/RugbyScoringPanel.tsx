@@ -8,12 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { useRugbyScoring, RUGBY_OUTCOMES } from './useRugbyScoring';
+import { useSharedRugbyScoring } from './RugbyScoringContext';
 
 import { ScoringActionButton } from '../shared/ScoringActionButton';
 import { BaseEventDialog } from '../shared/dialogs/BaseEventDialog';
-import { PlayerSelectionDialog } from '../shared/dialogs/PlayerSelectionDialog';
-import { RugbyOutcomeDialog } from '../shared/dialogs/RugbyOutcomeDialog';
-import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 export default function RugbyScoringPanel({ game, role }: { game: Game, role?: string }) {
     const { 
@@ -25,9 +23,11 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
         startScoringFlow,
         pendingDispute,
         triggerRemovalDispute,
+        removeGameEvent,
         resolveDispute,
-        handleScore
-    } = useRugbyScoring(game);
+        handleScore,
+        handleAddGameEvent
+    } = useSharedRugbyScoring();
     const participant = scoringState.status !== 'IDLE' && 'side' in scoringState ? (scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1]) : null;
 
     const [isFinalScoreOpen, setIsFinalScoreOpen] = useState(false);
@@ -42,35 +42,6 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
         setScoringState({ status: 'PLAYER_SELECTION', side, points: 5, type: 'Try' });
     };
 
-    const handlePlayerSelection = async (playerId?: string) => {
-        if (scoringState.status !== 'PLAYER_SELECTION') return;
-        
-        // If editing, only update local state
-        if (scoringState.editingId) {
-            setScoringState({ ...scoringState, playerId } as any);
-            return;
-        }
-
-        const isTry = scoringState.type === 'Try';
-        const res = await handleScore(scoringState.points, scoringState.side, scoringState.type, scoringState.extraData, playerId);
-        
-        if (isTry && res?.id) {
-            setScoringState({ 
-                status: 'KICK_FLOW', 
-                side: scoringState.side, 
-                type: 'Conversion', 
-                points: 2, 
-                extraData: { linkedEventId: res.id } 
-            });
-        } else {
-            setScoringState({ status: 'IDLE' });
-        }
-    };
-
-    const handlePenaltyTry = async (side: 'home' | 'away') => {
-        await handleScore(7, side, 'Penalty Try');
-        setScoringState({ status: 'IDLE' });
-    };
 
     const handleFinalScoreSubmit = async () => {
         if (!game.participants) return;
@@ -111,8 +82,8 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
 
     const rugbyScoreTypes = [
         { label: 'Try', points: 5, glow: '#eab308' },
-        { label: 'Penalty Kick', points: 3, glow: '#f97316' },
-        { label: 'Drop Goal', points: 3, glow: '#f97316' },
+        { label: 'Penalty Kick', mobileLabel: 'Penalty', points: 3, glow: '#f97316' },
+        { label: 'Drop Goal', mobileLabel: 'Drop', points: 3, glow: '#f97316' },
     ];
 
     const renderActionButtons = (side: 'home' | 'away') => {
@@ -143,6 +114,7 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                             }}
                             disabled={disabled}
                             label={type.label}
+                            mobileLabel={(type as any).mobileLabel}
                             variant="none"
                             className={cn("h-8 sm:h-12", teamColorClass, disabled ? 'opacity-30' : '')}
                         />
@@ -221,7 +193,7 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                                             <OrgLogo organization={org || null} size="sm" />
                                         </div>
                                         <div className="flex flex-col min-w-0">
-                                            <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest truncate mb-0.5">
+                                            <Label className="text-tiny uppercase font-black text-muted-foreground tracking-widest truncate mb-0.5">
                                                 {orgName}
                                             </Label>
                                             <span className="text-xs font-black uppercase truncate text-foreground/90 leading-tight">
@@ -243,120 +215,14 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
                     </div>
                     <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10 flex gap-3 italic">
                         <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                        <p className="text-[10px] text-amber-500/80 leading-relaxed font-bold uppercase tracking-tight">
+                        <p className="text-tiny text-amber-500/80 leading-relaxed font-bold uppercase tracking-tight">
                             This will override the live scoreboard.
                         </p>
                     </div>
                 </div>
             </BaseEventDialog>
 
-            {/* Shared Modular Dialogs */}
 
-            <RugbyOutcomeDialog
-                open={scoringState.status === 'KICK_FLOW'}
-                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
-                title={scoringState.status === 'KICK_FLOW' ? scoringState.type : ''}
-                roster={participant ? (rosters[participant.id] || []) : []}
-                selectedPlayerId={scoringState.status === 'KICK_FLOW' ? scoringState.playerId : undefined}
-                initialPlayerId={scoringState.status === 'KICK_FLOW' ? (scoringState as any).initialPlayerId : undefined}
-                outcomes={scoringState.status === 'KICK_FLOW' ? (RUGBY_OUTCOMES[scoringState.type] || []) : []}
-                selectedOutcomeId={scoringState.status === 'KICK_FLOW' ? (scoringState as any).outcome : undefined}
-                initialOutcomeId={scoringState.status === 'KICK_FLOW' ? (scoringState as any).initialOutcome : undefined}
-                isEditing={!!(scoringState as any).editingId}
-                onPlayerSelect={(id) => {
-                    if (scoringState.status === 'KICK_FLOW') setScoringState({ ...scoringState, playerId: id });
-                }}
-                onOutcomeSelect={(outcome) => {
-                    if (scoringState.status !== 'KICK_FLOW') return;
-                    const successful = outcome.isSuccessful;
-                    const outcomeStr = outcome.id;
-                    if (scoringState.editingId) {
-                        setScoringState({ ...scoringState, successful, outcome: outcomeStr } as any);
-                    } else {
-                        handleKickResult(scoringState.type, scoringState.points, !successful, scoringState.side, scoringState.playerId, { ...scoringState.extraData, outcome: outcomeStr });
-                    }
-                }}
-                onSave={scoringState.status === 'KICK_FLOW' && scoringState.editingId ? () => {
-                    const outcome = (RUGBY_OUTCOMES[scoringState.type!]?.find(o => o.id === (scoringState as any).outcome));
-                    const successful = outcome ? outcome.isSuccessful : (scoringState as any).successful;
-                    handleKickResult(scoringState.type!, successful ? scoringState.points : 0, !successful, scoringState.side, scoringState.playerId, { ...scoringState.extraData, outcome: (scoringState as any).outcome });
-                } : undefined}
-                onClose={() => setScoringState({ status: 'IDLE' })}
-                onSkip={scoringState.status === 'KICK_FLOW' && !scoringState.editingId ? () => {
-                    if (scoringState.type === 'Conversion' || scoringState.type === 'Penalty Kick' || scoringState.type === 'Drop Goal') {
-                        handleKickResult(scoringState.type as any, 0, true, scoringState.side, scoringState.playerId, scoringState.extraData);
-                    } else {
-                        handleAddGameEvent('GAME_EVENT', scoringState.type, scoringState.side, scoringState.extraData, scoringState.playerId);
-                    }
-                    setScoringState({ status: 'IDLE' });
-                } : undefined}
-                columns={(scoringState.status === 'KICK_FLOW' && (scoringState.type === 'Kick-off' || scoringState.type === '22m Dropout' || scoringState.type === 'Goalline Dropout')) ? 3 : 2}
-            />
-
-            <PlayerSelectionDialog
-                open={scoringState.status === 'PLAYER_SELECTION' && (scoringState.type !== 'Penalty Try' || !(scoringState as any).editingId)}
-                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
-                title={scoringState.status === 'PLAYER_SELECTION' ? scoringState.type : 'Select Player'}
-                roster={participant ? (rosters[participant.id] || []) : []}
-                selectedPlayerId={scoringState.status === 'PLAYER_SELECTION' ? scoringState.playerId : undefined}
-                initialPlayerId={scoringState.status === 'PLAYER_SELECTION' ? (scoringState as any).initialPlayerId : undefined}
-                isEditing={!!(scoringState as any).editingId}
-                onSelect={handlePlayerSelection}
-                onSave={scoringState.status === 'PLAYER_SELECTION' && scoringState.editingId ? () => {
-                    handleScore(scoringState.points, scoringState.side, scoringState.type, scoringState.extraData, scoringState.playerId);
-                } : undefined}
-                onClose={() => setScoringState({ status: 'IDLE' })}
-                onSkip={() => handlePlayerSelection()}
-                customFooterActions={
-                    scoringState.status === 'PLAYER_SELECTION' && scoringState.type === 'Try' && !(scoringState as any).editingId ? (
-                        <ScoringActionButton 
-                            onClick={() => handlePenaltyTry(scoringState.side)}
-                            label="PENALTY TRY"
-                            variant="danger"
-                            className="flex-1 h-10"
-                        />
-                    ) : undefined
-                }
-            />
-
-            <BaseEventDialog
-                open={scoringState.status === 'PLAYER_SELECTION' && scoringState.type === 'Penalty Try' && !!(scoringState as any).editingId}
-                onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
-                title="Edit Penalty Try"
-                icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
-            >
-                <div className="p-6 space-y-4">
-                    <p className="text-sm text-muted-foreground font-medium uppercase tracking-tight">
-                        Penalty tries are assigned to the team and cannot have a player selector.
-                    </p>
-                    <div className="pt-2">
-                        <ScoringActionButton 
-                            onClick={() => {
-                                if (scoringState.status === 'PLAYER_SELECTION' && scoringState.editingId) {
-                                    triggerRemovalDispute(scoringState.editingId, scoringState.type, scoringState.side);
-                                }
-                            }}
-                            label="REMOVE PENALTY TRY"
-                            variant="danger"
-                            className="w-full h-14 text-lg font-black"
-                        />
-                    </div>
-                </div>
-            </BaseEventDialog>
-
-            <ConfirmationModal 
-                isOpen={!!pendingDispute}
-                onOpenChange={(open) => !open && resolveDispute(false)}
-                title={pendingDispute?.isRemoval ? "Dispute Event Removal" : "Dispute Score"}
-                description={
-                    pendingDispute?.isRemoval
-                        ? `Are you sure you want to dispute and REMOVE this ${pendingDispute?.type?.toUpperCase() || 'EVENT'}? This will initiate a 5-minute vote among all officials.`
-                        : `Are you sure you want to dispute this ${pendingDispute?.type?.toUpperCase() || 'SCORE'}? This will reserve the score and initiate a 5-minute vote among all officials.`
-                }
-                confirmText={pendingDispute?.isRemoval ? "Yes, start removal dispute" : "Yes, start dispute"}
-                onConfirm={() => resolveDispute(true)}
-                variant="destructive"
-            />
         </div>
     );
 }

@@ -4,7 +4,7 @@ import { store } from '@/app/store/store';
 import { GameEvent } from '@sk/types';
 import { RUGBY_OUTCOMES, OutcomeDefinition } from '../rugby/useRugbyScoring';
 import { useAuth } from '@/contexts/AuthContext';
-import { RotateCcw, Clock, Trophy, Activity, Pencil, User } from 'lucide-react';
+import { RotateCcw, Clock, Trophy, Activity, Pencil, User, Zap } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { 
@@ -97,13 +97,13 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
             if (subType === 'Replacement') {
                 return 'SUBSTITUTION';
             }
-            if (subType === 'Scrum') {
+            if (subType === 'Scrum' || subType === 'Lineout') {
                 const winnerSide = eventData.winnerSide;
                 if (winnerSide) {
                     const game = store.getGame(gameId);
                     const homeParticipantId = game?.participants?.[0]?.id;
                     const awardedSide = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
-                    return winnerSide === awardedSide ? 'SCRUM → WON' : 'SCRUM → LOST';
+                    return `${subType.toUpperCase()} → ${winnerSide === awardedSide ? 'WON' : 'LOST'}`;
                 }
             }
             return subType.toUpperCase() || '';
@@ -168,7 +168,15 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         return events.filter(evt => {
             if (evt.type === 'SCORE' && activeFilters.has('SCORE')) return true;
             if ((evt.type === 'STATUS' || evt.type === 'TIME') && activeFilters.has('TIME')) return true;
-            if (evt.type === 'GAME_EVENT' && activeFilters.has('DETAIL')) return true;
+            
+            if (evt.type === 'GAME_EVENT') {
+                const subType = evt.subType || '';
+                const isGeneralPlay = ['Knock-on', 'Turnover', 'Turnover Won', 'Tackle Made', 'Tackle Missed'].includes(subType);
+                
+                if (isGeneralPlay && activeFilters.has('GENERAL')) return true;
+                if (!isGeneralPlay && activeFilters.has('DETAIL')) return true;
+            }
+            
             return false;
         });
     }, [events, store.eventLogFilters]);
@@ -176,7 +184,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
     return (
         <div className="flex flex-col h-full [container-type:inline-size] [@container/playbyplay]">
             <div className="flex items-center justify-between mb-2">
-                <h3 className="font-black text-[10px] text-muted-foreground uppercase tracking-[0.2em] whitespace-nowrap">Play-by-Play</h3>
+                <h3 className="font-black text-tiny text-muted-foreground uppercase tracking-[0.2em] whitespace-nowrap">Play-by-Play</h3>
                 <div className="flex gap-0.5 items-center ml-4">
                     <Button 
                         size="icon" 
@@ -214,13 +222,25 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                     >
                         <Activity className="w-3.5 h-3.5" />
                     </Button>
+                    <Button 
+                        size="icon" 
+                        variant={store.eventLogFilters.has('GENERAL') ? 'default' : 'ghost'}
+                        className={cn(
+                            "h-7 w-7", 
+                            store.eventLogFilters.has('GENERAL') ? "bg-indigo-500 hover:bg-indigo-600 text-white" : "text-muted-foreground/40"
+                        )}
+                        title="General Play"
+                        onClick={() => toggleFilter('GENERAL')}
+                    >
+                        <Zap className="w-3.5 h-3.5" />
+                    </Button>
                 </div>
             </div>
             <div className="flex-1 bg-sunken-bg/50 border border-border/30 rounded-2xl p-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                 <div className="flex flex-col gap-1">
                     {filteredEvents.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/40">
-                             <span className="text-[10px] font-black uppercase tracking-widest italic">
+                             <span className="text-tiny font-black uppercase tracking-widest italic">
                                  {events.length === 0 ? 'Waiting for kickoff...' : 'No events match filters'}
                              </span>
                         </div>
@@ -281,11 +301,11 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     )}
                                 >
                                     <div className="flex flex-col items-center min-w-[34px] w-fit px-1 shrink-0 bg-muted/20 py-1 rounded-lg border border-border/10">
-                                        <span className="font-mono text-primary text-[10px] sm:text-xs font-black leading-none mb-0.5 text-center">
+                                        <span className="font-mono text-primary text-tiny sm:text-xs font-black leading-none mb-0.5 text-center">
                                             {matchTime || "--:--"}
                                         </span>
                                         {eventData.period && (
-                                            <span className="text-[6px] sm:text-[7px] font-black text-primary/60 uppercase leading-none truncate w-full text-center tracking-tighter">
+                                            <span className="text-3tiny sm:text-3tiny font-black text-primary/60 uppercase leading-none truncate w-full text-center tracking-tighter">
                                                 {eventData.period}
                                             </span>
                                         )}
@@ -294,7 +314,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     <div className={cn("h-6 w-0.5 rounded-full shrink-0", getTeamColor(evt))} />
                                     
                                     <div className="flex flex-col min-w-0 flex-1 overflow-hidden px-0.5 gap-0">
-                                        <span className={cn("font-black text-[clamp(10.5px,4cqw,13px)] uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-1", isRemoved && "line-through text-muted-foreground")}>
+                                        <span className={cn("font-black text-event-primary uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-1", isRemoved && "line-through text-muted-foreground")}>
                                             {getEventLabel(evt)}
                                         </span>
                                         <div className="flex items-center justify-between gap-2 overflow-hidden">
@@ -305,7 +325,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                     const offName = evt.eventData?.playerOffName || 'Unknown';
                                                     const onName = evt.eventData?.playerOnName || 'Unknown';
                                                     return (
-                                                        <span className={cn("text-[clamp(9px,3.5cqw,11px)] font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none")}>
+                                                        <span className={cn("text-event-secondary font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none")}>
                                                             {offName} <span className="text-amber-500/50">↔</span> {onName}
                                                         </span>
                                                     );
@@ -318,12 +338,12 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 return (
                                                     <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                                                         {actorProfile && (
-                                                            <span className={cn("text-[clamp(10.5px,4cqw,13px)] font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none", isRemoved && "line-through")}>
+                                                            <span className={cn("text-event-primary font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none", isRemoved && "line-through")}>
                                                                 {actorProfile.name}
                                                             </span>
                                                         )}
                                                         {details.length > 0 && (
-                                                            <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap overflow-hidden">
+                                                            <span className="text-2tiny font-black text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap overflow-hidden">
                                                                 {details.join(' • ')}
                                                             </span>
                                                         )}
@@ -339,9 +359,9 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                         const s2 = (snapshot as any)[p2?.id || ''] || 0;
                                                         return (
                                                             <>
-                                                                <span className="font-black text-[10px] text-blue-500 leading-none">{s1}</span>
-                                                                <span className="text-[8px] font-black opacity-20 leading-none">—</span>
-                                                                <span className="font-black text-[10px] text-red-500 leading-none">{s2}</span>
+                                                                <span className="font-black text-tiny text-blue-500 leading-none">{s1}</span>
+                                                                <span className="text-2tiny font-black opacity-20 leading-none">—</span>
+                                                                <span className="font-black text-tiny text-red-500 leading-none">{s2}</span>
                                                             </>
                                                         );
                                                     })()}

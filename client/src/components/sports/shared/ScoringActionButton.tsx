@@ -12,6 +12,7 @@ interface ScoringActionButtonProps {
     variant?: 'primary' | 'success' | 'danger' | 'warning' | 'muted' | 'ghost' | 'scrim' | 'none';
     selected?: boolean;
     description?: string;
+    mobileLabel?: string;
 }
 
 export function ScoringActionButton({ 
@@ -22,7 +23,8 @@ export function ScoringActionButton({
     title,
     variant = 'primary',
     selected = false,
-    description
+    description,
+    mobileLabel
 }: ScoringActionButtonProps) {
     const variants = {
         primary: selected 
@@ -53,20 +55,35 @@ export function ScoringActionButton({
             disabled={disabled}
             title={title || description}
             className={cn(
-                "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none p-2 min-h-10",
+                "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none px-2 py-1 min-h-10 min-w-0",
                 variant !== 'none' && variants[variant],
                 selected && "scale-[1.02] z-10",
                 className
             )}
         >
-            <span className={cn(
-                "font-black uppercase tracking-tight leading-tight text-center text-[10.5px] sm:text-[13.5px]",
+            <div className={cn(
+                "text-center whitespace-normal overflow-hidden w-full px-1 flex flex-col items-center justify-center space-y-[0.1em]",
                 variant === 'none' ? "text-foreground" : ""
-            )}>{label}</span>
+            )}>
+                {mobileLabel ? (
+                    <>
+                        <div className="hidden sm:flex flex-col items-center space-y-[0.1em]">
+                            {label.split(/[ -]/).map((word, i) => <span key={i} className="font-black uppercase tracking-tight text-tiny sm:text-tiny-lg leading-none">{word}</span>)}
+                        </div>
+                        <div className="sm:hidden flex flex-col items-center space-y-[0.1em]">
+                            {mobileLabel.split(/[ -]/).map((word, i) => <span key={i} className="font-black uppercase tracking-tight text-tiny sm:text-tiny-lg leading-none">{word}</span>)}
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex flex-col items-center space-y-[0.1em]">
+                        {label.split(/[ -]/).map((word, i) => <span key={i} className="font-black uppercase tracking-tight text-tiny sm:text-tiny-lg leading-none">{word}</span>)}
+                    </div>
+                )}
+            </div>
             
             {description && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 bg-popover border border-border shadow-2xl rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] w-48 scale-95 group-hover:scale-100 origin-bottom backdrop-blur-sm">
-                    <p className="text-[10px] font-black uppercase text-popover-foreground leading-tight text-center tracking-tight">
+                <div className="absolute bottom-full left-0 mb-2 p-2 bg-popover border border-border shadow-2xl rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] w-full scale-95 group-hover:scale-100 origin-bottom backdrop-blur-sm">
+                    <p className="text-tiny font-medium uppercase text-popover-foreground leading-tight text-center tracking-tight">
                         {description}
                     </p>
                     {/* Arrow */}
@@ -80,7 +97,7 @@ export function ScoringActionButton({
 
 export function DialogSectionHeader({ label, className }: { label: string, className?: string }) {
     return (
-        <div className={cn("text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-2 sm:mb-4", className)}>
+        <div className={cn("text-tiny font-black uppercase text-muted-foreground tracking-[0.2em] mb-2 sm:mb-4", className)}>
             {label}
         </div>
     );
@@ -107,8 +124,8 @@ export function RosterGrid({
     }
 
     return (
-        <div className={cn("grid grid-cols-5 sm:grid-cols-6 gap-x-1 sm:gap-x-2 gap-y-1.5 sm:gap-y-3", className)}>
-            {[...roster].sort((a, b) => (parseInt(a.position || '999') - parseInt(b.position || '999'))).map(item => {
+        <div className={cn("grid grid-cols-5 sm:grid-cols-6 gap-x-1 sm:gap-x-2 gap-y-0.5 sm:gap-y-1", className)}>
+            {[...roster].filter(p => !p.isReserve).sort((a, b) => (parseInt(a.position || '999') - parseInt(b.position || '999'))).map(item => {
                 const profile = store.orgProfiles.find(p => p.id === item.orgProfileId);
                 if (!profile) return null;
                 const isSelected = selectedPlayerId === item.orgProfileId;
@@ -118,7 +135,7 @@ export function RosterGrid({
                         key={item.orgProfileId}
                         onClick={() => onSelect(item.orgProfileId)}
                         className={cn(
-                            "flex flex-col items-center gap-0.5 sm:gap-1.5 p-1 sm:p-2 rounded-xl transition-all border group relative",
+                            "flex flex-col items-center gap-0 sm:gap-0.5 p-0.5 sm:p-1 rounded-xl transition-all border group relative",
                             isSelected 
                                 ? "bg-primary/20 border-primary/40" 
                                 : "hover:bg-primary/10 border-transparent hover:border-primary/20"
@@ -132,10 +149,10 @@ export function RosterGrid({
                             {isSelected && <div className="absolute inset-0 bg-primary/20 flex items-center justify-center"><div className="w-2 h-2 rounded-full bg-primary animate-pulse" /></div>}
                         </div>
                         <div className="flex flex-col items-center w-full min-w-0">
-                            <span className="text-[7.5px] sm:text-[8px] font-bold uppercase truncate w-full text-center text-muted-foreground group-hover:text-foreground transition-colors leading-tight">
+                            <span className="text-roster-primary sm:text-roster-primary-sm font-bold uppercase truncate w-full text-center text-muted-foreground group-hover:text-foreground transition-colors leading-tight">
                                 {profile.name.split(' ')[0]}
                             </span>
-                            <span className="text-[6.5px] sm:text-[7px] font-bold uppercase truncate w-full text-center text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors leading-tight">
+                            <span className="text-roster-secondary sm:text-roster-secondary-sm font-bold uppercase truncate w-full text-center text-muted-foreground/40 group-hover:text-muted-foreground/60 transition-colors leading-tight">
                                 {profile.name.split(' ').slice(1).join(' ')}
                             </span>
                         </div>

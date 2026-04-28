@@ -153,7 +153,7 @@ export function RugbyEventDialog({
                                             <React.Fragment key={reason}>
                                                 {showHeader && (
                                                     <div className="col-span-2 mt-3 mb-1 px-1 border-b border-white/10 flex items-center justify-between">
-                                                        <span className="text-[10px] font-black uppercase text-primary/70 tracking-[0.2em]">{category}</span>
+                                                        <span className="text-tiny font-black uppercase text-primary/70 tracking-[0.2em]">{category}</span>
                                                     </div>
                                                 )}
                                                 <ScoringActionButton 
@@ -305,7 +305,7 @@ export function RugbyEventDialog({
                                     
                                     return (
                                         <div key={pSide} className="flex flex-col gap-2">
-                                            <div className={cn("text-[10px] font-black uppercase text-center tracking-widest", idx === 0 ? "text-blue-500" : "text-red-500")}>
+                                            <div className={cn("text-tiny font-black uppercase text-center tracking-widest", idx === 0 ? "text-blue-500" : "text-red-500")}>
                                                 {pTeam?.name || (idx === 0 ? 'Home' : 'Away')}
                                             </div>
                                             <ScoringActionButton 

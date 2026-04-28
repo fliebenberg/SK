@@ -75,12 +75,19 @@ export function GameDialog({
         const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
         let savedGame: Game;
         if (game) {
-            savedGame = await store.updateGame(game.id, {
-                participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
+            const payload: any = {
                 startTime: formData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
                 siteId: formData.siteId,
                 facilityId: formData.facilityId,
-            });
+            };
+
+            const currentP1 = game.participants?.[0]?.teamId || "";
+            const currentP2 = game.participants?.[1]?.teamId || "";
+            if (currentP1 !== formData.homeTeamId || currentP2 !== formData.awayTeamId) {
+                payload.participants = [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }];
+            }
+
+            savedGame = await store.updateGame(game.id, payload);
         } else {
             savedGame = await store.addGame({
                 eventId: event.id,

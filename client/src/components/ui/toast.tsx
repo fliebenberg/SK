@@ -9,7 +9,7 @@ export function Toaster() {
   const { toasts } = useToast();
 
   return (
-    <div className="fixed bottom-8 right-8 z-[100] flex flex-col gap-3 w-full max-w-[400px]">
+    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:bottom-8 md:right-8 z-[100] flex flex-col gap-3 w-auto md:w-full md:max-w-[400px]">
       <AnimatePresence mode="popLayout">
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} />

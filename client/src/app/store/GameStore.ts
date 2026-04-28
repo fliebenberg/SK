@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 export class GameStore extends SiteStore {
     gameEvents: GameEvent[] = [];
     activeDisputes: any[] = [];
-    eventLogFilters: Set<string> = new Set(['TIME', 'SCORE', 'DETAIL']);
+    eventLogFilters: Set<string> = new Set(['TIME', 'SCORE', 'DETAIL', 'GENERAL']);
     pendingManualFlow: { 
         type: string, 
         side: 'home' | 'away', 
@@ -745,7 +745,7 @@ export class GameStore extends SiteStore {
         this.notifyListeners();
     }
 
-    protected removeGameEvent(eventId: string) {
+    protected deleteLocalGameEvent(eventId: string) {
         this.gameEvents = this.gameEvents.filter(e => e.id !== eventId);
         this.notifyListeners();
     }

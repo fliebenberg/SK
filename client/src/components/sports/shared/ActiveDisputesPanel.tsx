@@ -21,17 +21,17 @@ function DisputeActionButton({ label, onClick, className, icon, active, activeCl
         >
             <div className="flex items-center gap-2">
                 {active && icon && <div className="shrink-0 animate-in zoom-in duration-300">{icon}</div>}
-                <span className={cn("font-black uppercase tracking-tight text-[11px] sm:text-[13px] leading-tight")}>
+                <span className={cn("font-black uppercase tracking-tight text-tiny-lg sm:text-[13px] leading-tight")}>
                     {label}
                 </span>
             </div>
             {sublabel && (
-                <span className={cn("text-[9px] font-bold uppercase tracking-widest leading-none", active ? "text-white/80" : "text-muted-foreground/40")}>
+                <span className={cn("text-2tiny font-bold uppercase tracking-widest leading-none", active ? "text-white/80" : "text-muted-foreground/40")}>
                     {sublabel}
                 </span>
             )}
             {active && (
-                <div className="absolute -top-3 -right-2 bg-white text-primary text-[8px] font-black px-2 py-0.5 rounded-full shadow-xl border-2 border-primary/20 animate-in fade-in zoom-in slide-in-from-top-2 duration-500 uppercase tracking-tighter">
+                <div className="absolute -top-3 -right-2 bg-white text-primary text-3tiny font-black px-2 py-0.5 rounded-full shadow-xl border-2 border-primary/20 animate-in fade-in zoom-in slide-in-from-top-2 duration-500 uppercase tracking-tighter">
                     Your Vote
                 </div>
             )}
@@ -134,7 +134,7 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                             <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-border/20">
                                 <div className="flex items-center gap-2 text-amber-500">
                                     <AlertTriangle className="w-4 h-4" />
-                                    <span className="font-black text-[10px] sm:text-xs uppercase tracking-[0.2em]">{config.heading}</span>
+                                    <span className="font-black text-tiny sm:text-xs uppercase tracking-[0.2em]">{config.heading}</span>
                                 </div>
                                 <div className={cn(
                                     "font-mono font-black text-xs",
@@ -148,11 +148,11 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                             <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
                                 <div className="flex flex-col min-w-0">
                                     <span className="text-sm sm:text-base font-black text-foreground uppercase tracking-tight line-clamp-1">{eventLabel}</span>
-                                    {pointsDelta > 0 && <span className="text-[10px] sm:text-xs text-muted-foreground/60 font-mono">VALUE: {pointsDelta} PTS</span>}
+                                    {pointsDelta > 0 && <span className="text-tiny sm:text-xs text-muted-foreground/60 font-mono">VALUE: {pointsDelta} PTS</span>}
                                     {mySlotVote && (
                                         <div className="flex items-center gap-1.5 mt-1.5 py-1 px-2 rounded-md bg-amber-500/5 border border-amber-500/10 w-fit">
                                             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                            <span className="text-[10px] sm:text-[11px] text-amber-500 font-bold uppercase tracking-tight">
+                                            <span className="text-tiny sm:text-tiny-lg text-amber-500 font-bold uppercase tracking-tight">
                                                 {isMyOwnVote
                                                     ? `You voted ${myVote === 'APPROVE' ? approveLabel : rejectLabel}`
                                                     : `${voterName} voted ${myVote === 'APPROVE' ? approveLabel : rejectLabel}`

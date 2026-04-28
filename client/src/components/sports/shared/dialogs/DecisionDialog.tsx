@@ -29,6 +29,7 @@ export interface DecisionDialogProps {
     skipLabel?: string;
     columns?: 2 | 3;
     icon?: React.ReactNode;
+    customFooterActions?: React.ReactNode;
 }
 
 export function DecisionDialog({
@@ -46,7 +47,8 @@ export function DecisionDialog({
     onRemove,
     skipLabel = 'SKIP',
     columns = 2,
-    icon = <AlertTriangle className="h-5 w-5 text-primary" />
+    icon = <AlertTriangle className="h-5 w-5 text-primary" />,
+    customFooterActions
 }: DecisionDialogProps) {
     const isDirty = selectedId !== initialId;
 
@@ -72,7 +74,7 @@ export function DecisionDialog({
             onSave={onSave}
             onClose={onClose}
             onRemove={onRemove}
-            footer={footer}
+            footer={customFooterActions || footer}
         >
             <div className={cn("grid gap-2", columns === 2 ? "grid-cols-2" : "grid-cols-3")}>
                 {options.map((opt) => {
@@ -84,12 +86,12 @@ export function DecisionDialog({
                         <React.Fragment key={opt.id}>
                             {showHeader && (
                                 <div className={cn("mt-3 mb-1 px-1 border-b border-white/10 flex items-center justify-between", columns === 2 ? "col-span-2" : "col-span-3")}>
-                                    <span className="text-[10px] font-black uppercase text-primary/70 tracking-[0.2em]">{category}</span>
+                                    <span className="text-tiny font-black uppercase text-primary/70 tracking-[0.2em]">{category}</span>
                                 </div>
                             )}
                             {opt.titleLabel ? (
                                 <div className="flex flex-col gap-2">
-                                    <div className={`text-[10px] font-black uppercase text-center tracking-widest ${opt.id === 'home' ? 'text-blue-500' : 'text-red-500'}`}>{opt.titleLabel}</div>
+                                    <div className={`text-tiny font-black uppercase text-center tracking-widest ${opt.id === 'home' ? 'text-blue-500' : 'text-red-500'}`}>{opt.titleLabel}</div>
                                     <ScoringActionButton 
                                         onClick={() => onSelect(opt.id)}
                                         label={opt.label}

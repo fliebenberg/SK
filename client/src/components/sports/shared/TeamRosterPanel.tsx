@@ -30,7 +30,7 @@ export function TeamRosterPanel({ participantId }: TeamRosterPanelProps) {
 
     if (isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center h-48 animate-pulse text-muted-foreground uppercase text-[10px] font-black tracking-widest italic">
+            <div className="flex flex-col items-center justify-center h-48 animate-pulse text-muted-foreground uppercase text-tiny font-black tracking-widest italic">
                 Loading Roster...
             </div>
         );
@@ -38,7 +38,7 @@ export function TeamRosterPanel({ participantId }: TeamRosterPanelProps) {
 
     if (roster.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground uppercase text-[10px] font-black tracking-widest italic opacity-40">
+            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground uppercase text-tiny font-black tracking-widest italic opacity-40">
                 No players registered.
             </div>
         );
@@ -73,17 +73,17 @@ export function TeamRosterPanel({ participantId }: TeamRosterPanelProps) {
                                 )}
                             </div>
                             <div className="flex flex-col items-center w-full min-w-0">
-                                <span className="text-[10px] font-bold uppercase truncate w-full text-center leading-tight text-foreground/80">
+                                <span className="text-tiny font-bold uppercase truncate w-full text-center leading-tight text-foreground/80">
                                     {firstName}
                                 </span>
-                                <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-tighter truncate w-full text-center leading-none">
+                                <span className="text-3tiny font-black text-muted-foreground/40 uppercase tracking-tighter truncate w-full text-center leading-none">
                                     {lastName || 'Player'}
                                 </span>
                             </div>
                             
                             {item.isReserve && (
                                 <div className="absolute top-1 right-1 px-1 rounded bg-amber-500/10 border border-amber-500/30">
-                                    <span className="text-[6px] font-black text-amber-600 uppercase">RES</span>
+                                    <span className="text-5tiny font-black text-amber-600 uppercase">RES</span>
                                 </div>
                             )}
                         </div>

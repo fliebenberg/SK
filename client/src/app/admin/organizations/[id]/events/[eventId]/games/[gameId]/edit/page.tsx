@@ -84,12 +84,17 @@ export default function EditGamePage() {
         const dateBase = (event.startDate || event.date || "").split('T')[0];
         const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
 
-        const gamePayload = {
-            participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
+        const gamePayload: any = {
             scheduledStartTime: formData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
             siteId: formData.siteId,
             facilityId: formData.facilityId
         };
+
+        const currentP1 = game.participants?.[0]?.teamId || "";
+        const currentP2 = game.participants?.[1]?.teamId || "";
+        if (currentP1 !== formData.homeTeamId || currentP2 !== formData.awayTeamId) {
+            gamePayload.participants = [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }];
+        }
 
         // If it's still Scheduled, also update startTime (as fallback/legacy)
         if (game.status === 'Scheduled') {

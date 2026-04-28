@@ -642,7 +642,7 @@ io.on('connection', (socket) => {
                     }
                     result = { success: true };
                 } else {
-                    result = { error: undoRes.error };
+                    result = { success: false, error: undoRes.error };
                 }
                 break;
             case SocketAction.GET_SYSTEM_SETTINGS:

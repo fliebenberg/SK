@@ -57,17 +57,17 @@ export function BaseEventDialog({
                     }
                 }}
             >
-                <DialogContent hideCloseButton className="sm:max-w-lg bg-card border-border/50 flex flex-col overflow-hidden max-h-[90vh]">
+                <DialogContent hideCloseButton className="sm:max-w-lg bg-card border-border/50 flex flex-col overflow-hidden max-h-[90vh] h-fit">
                     <DialogHeader className="relative pr-12 shrink-0">
                         <DialogTitle className="text-xl font-black italic tracking-tighter flex items-center gap-2">
                             {isEditing ? <Pencil className="h-5 w-5 text-primary" /> : icon}
-                            {isEditing ? <>Edit {title}</> : title}
+                            {title}
                         </DialogTitle>
                         <div className="absolute right-0 top-0 flex items-center gap-1 h-full">
                             {onSkip && !isEditing && (
                                 <button 
                                     onClick={onSkip}
-                                    className="px-3 py-1 mr-1 text-[10px] font-black uppercase text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-full transition-all border border-transparent hover:border-border/30"
+                                    className="px-3 py-1 mr-1 text-tiny font-black uppercase text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-full transition-all border border-transparent hover:border-border/30"
                                 >
                                     {skipLabel}
                                 </button>
@@ -100,7 +100,7 @@ export function BaseEventDialog({
                         </div>
                     </DialogHeader>
                     
-                    <div className="flex-1 overflow-y-auto py-4 custom-scrollbar min-h-0">
+                    <div className="overflow-y-auto overflow-x-hidden py-2 px-1 custom-scrollbar min-h-0">
                         {children}
                     </div>
 

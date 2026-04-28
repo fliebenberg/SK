@@ -27,7 +27,7 @@ function TimingActionButton({ label, onClick, disabled, className, icon, title }
             )}
         >
             {icon && <div className="shrink-0">{icon}</div>}
-            <span className="font-black uppercase tracking-tight text-[10px] sm:text-[11.5px] leading-tight">{label}</span>
+            <span className="font-black uppercase tracking-tight text-tiny sm:text-tiny-lg leading-tight">{label}</span>
         </button>
     );
 }
