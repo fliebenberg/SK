@@ -101,7 +101,22 @@ export type ScoringFlowState = {
 
 export const RUGBY_EVENT_REASONS = {
     SCRUM: ['Knock-on', 'Forward Pass', 'Accidental Offside', 'Unplayable Ruck', 'Unsuccessful Maul', 'Penalty', 'Other'],
-    PENALTY: ['Offside', 'High Tackle', 'Hands in Ruck', 'Side Entry', 'Not Releasing', 'Obstruction', 'Dangerous Tackle', 'Other'],
+    PENALTY: [
+        'Tackle - Dangerous',
+        'Tackle - Late',
+        'Ruck - Not Releasing',
+        'Ruck - Not Rolling',
+        'Ruck - Hands in',
+        'Ruck - Side Entry',
+        'Ruck - Off Feet',
+        'Set Piece - Collapsing Scrum',
+        'Set Piece - Scrum Other',
+        'Set Piece - Lineout Foul',
+        'General - Offside',
+        'General - Obstruction',
+        'General - Pro Foul',
+        'General - Other'
+    ],
     DROPOUT_22M: ['Kicked Dead by Opponent', 'Missed Kick'],
     DROPOUT_GOALLINE: ['Held up in Goal', 'Grounded in Goal'],
     FREE_KICK: [
@@ -114,10 +129,10 @@ export const RUGBY_EVENT_REASONS = {
         'Lineout - Early Lift', 
         'Lineout - Too Many Players',
         'Lineout - Faking a Throw',
-        'Mark',
-        'Wasting Time',
-        'Kicking ball away',
-        'Other'
+        'General - Mark',
+        'General - Wasting Time',
+        'General - Kicking ball away',
+        'General - Other'
     ]
 };
 
@@ -331,9 +346,9 @@ export function useRugbyScoring(game: Game) {
         
         if (editingId) {
             // Check if outcome changed
-            const isOriginalSuccessful = (scoringState as any).originalSuccessful;
-            const currentSuccessful = extraData?.successful;
-            if (isOriginalSuccessful !== undefined && currentSuccessful !== undefined && isOriginalSuccessful !== currentSuccessful) {
+            const isOriginalSuccessful = !!(scoringState as any).originalSuccessful;
+            const currentSuccessful = !!extraData?.successful;
+            if (isOriginalSuccessful !== currentSuccessful) {
                 // Outcome changed, trigger dispute confirmation
                 const myProfileIds = Array.from(store.myOrgProfileIds);
                 const officialId = myProfileIds[0] || (store.globalRole === 'admin' ? store.currentUserId || 'admin' : null);
@@ -401,15 +416,15 @@ export function useRugbyScoring(game: Game) {
             const currentWinner = extraData?.winnerSide;
             const isOriginalDecision = (scoringState as any).originalDecision;
             const currentDecision = extraData?.decision;
-            const isOriginalSuccessful = (scoringState as any).originalSuccessful;
-            const currentSuccessful = extraData?.successful;
+            const isOriginalSuccessful = !!(scoringState as any).originalSuccessful;
+            const currentSuccessful = !!extraData?.successful;
             const isOriginalOutcome = (scoringState as any).originalOutcome;
             const currentOutcome = extraData?.outcome;
 
-            const hasOutcomeChanged = (isOriginalWinner !== undefined && currentWinner !== undefined && isOriginalWinner !== currentWinner) ||
-                                      (isOriginalDecision !== undefined && currentDecision !== undefined && isOriginalDecision !== currentDecision) ||
-                                      (isOriginalSuccessful !== undefined && currentSuccessful !== undefined && isOriginalSuccessful !== currentSuccessful) ||
-                                      (isOriginalOutcome !== undefined && currentOutcome !== undefined && isOriginalOutcome !== currentOutcome);
+            const hasOutcomeChanged = (isOriginalWinner !== currentWinner && (isOriginalWinner || currentWinner)) ||
+                                      (isOriginalDecision !== currentDecision && (isOriginalDecision || currentDecision)) ||
+                                      (isOriginalSuccessful !== currentSuccessful) ||
+                                      (isOriginalOutcome !== currentOutcome && (isOriginalOutcome || currentOutcome));
 
             const isDisputable = type === 'SCORE';
 
@@ -625,7 +640,8 @@ export function useRugbyScoring(game: Game) {
         } else if (decision === 'Line Kick') {
             setScoringState({ status: 'KICK_FLOW', side, type: 'Line Kick', points: 0, extraData: { reason } });
         } else if (decision === 'Scrum') {
-            setScoringState({ status: 'SCRUM_FLOW', side, reason: 'Penalty', isFromPenalty: true, pendingEventId: eventId || undefined });
+            const res = await handleAddGameEvent('GAME_EVENT', 'Scrum', side, { reason: 'Penalty' });
+            setScoringState({ status: 'SCRUM_FLOW', side, reason: 'Penalty', isFromPenalty: true, pendingEventId: res?.id });
         } else if (decision === 'Tap n Go') {
             setScoringState({ status: 'PLAYER_SELECTION', side, points: 0, type: 'Tap n Go', extraData: { reason } });
         } else {

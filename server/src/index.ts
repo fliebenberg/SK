@@ -540,7 +540,6 @@ io.on('connection', (socket) => {
                 });
                 if (!('error' in updatedEvent)) {
                     io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvent });
-                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvent });
                     result = updatedEvent;
                 } else {
                     console.error('Server: Failed to update game event:', updatedEvent.error);

@@ -55,7 +55,7 @@ export function ScoringActionButton({
             disabled={disabled}
             title={title || description}
             className={cn(
-                "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none px-2 py-1 min-h-10 min-w-0",
+                "group relative flex flex-col items-center justify-center rounded-md transition-all duration-200 border shadow-sm active:scale-[0.95] disabled:opacity-30 disabled:pointer-events-none px-1 py-0.5 min-h-10 min-w-0",
                 variant !== 'none' && variants[variant],
                 selected && "scale-[1.02] z-10",
                 className

@@ -150,6 +150,11 @@ export class GameEventManager extends BaseManager {
           if (updateRes.rows.length > 0) {
             latestScores = updateRes.rows[0].live_state.scores;
           }
+        } else {
+          const gameRes = await this.query(`SELECT live_state->'scores' as scores FROM games WHERE id = $1`, [data.gameId]);
+          if (gameRes.rows.length > 0) {
+            latestScores = gameRes.rows[0].scores || {};
+          }
         }
       } else if (data.eventData?.scores) {
         // Total score override (e.g. Final Score)
@@ -233,6 +238,66 @@ export class GameEventManager extends BaseManager {
     return { success: true, dispute: castRes.dispute, resolved: castRes.resolved };
   }
 
+  /**
+   * Recalculates the running score for all events in a game, updating the scoreSnapshot
+   * for any event where it has changed, from `fromSequence` onwards.
+   * Returns an array of the modified events.
+   */
+  async recalculateEventScores(gameId: string, fromSequence: number): Promise<GameEvent[]> {
+      const allEventsRes = await this.query(`
+          SELECT id, sequence, type, sub_type as "subType", event_data as "eventData", game_participant_id as "gameParticipantId"
+          FROM game_events
+          WHERE game_id = $1 AND (type = 'SCORE' OR type = 'GAME_EVENT')
+          ORDER BY sequence ASC
+      `, [gameId]);
+
+      const scores: Record<string, number> = {};
+      const modifiedEvents: GameEvent[] = [];
+
+      for (const row of allEventsRes.rows) {
+          const isScoringEvent = row.type === 'SCORE';
+          const pointsDelta = Number(row.eventData?.pointsDelta || 0);
+          const isRemoved = row.eventData?.status === 'REMOVED';
+
+          if (isScoringEvent && !isRemoved && row.gameParticipantId && pointsDelta !== 0) {
+              scores[row.gameParticipantId] = (scores[row.gameParticipantId] || 0) + pointsDelta;
+          }
+
+          if (row.eventData?.scores && !isRemoved) {
+              Object.assign(scores, row.eventData.scores);
+          }
+
+          if (isScoringEvent && row.sequence >= fromSequence) {
+              const currentSnapshot = row.eventData?.scoreSnapshot || {};
+              // Order-independent JSON stringify for comparison
+              const currentSnapshotStr = JSON.stringify(currentSnapshot, Object.keys(currentSnapshot).sort());
+              const newScoresStr = JSON.stringify(scores, Object.keys(scores).sort());
+
+              if (currentSnapshotStr !== newScoresStr) {
+                  const newEventData = { ...row.eventData, scoreSnapshot: { ...scores } };
+                  await this.query(`
+                      UPDATE game_events
+                      SET event_data = $1::jsonb
+                      WHERE id = $2
+                  `, [JSON.stringify(newEventData), row.id]);
+
+                  const updatedRes = await this.query(`
+                      SELECT id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", 
+                             actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", 
+                             type, sub_type as "subType", event_data as "eventData"
+                      FROM game_events
+                      WHERE id = $1
+                  `, [row.id]);
+                  if (updatedRes.rows.length > 0) {
+                      modifiedEvents.push(updatedRes.rows[0]);
+                  }
+              }
+          }
+      }
+
+      return modifiedEvents;
+  }
+
   private scheduleResolution(disputeId: string, expiresAt: Date) {
     // Prevent duplicate timers
     if (this.activeTimers.has(disputeId)) {
@@ -298,9 +363,12 @@ export class GameEventManager extends BaseManager {
 
     const updatedEvent = res.rows[0] as GameEvent;
 
+    const batchedUpdates = await this.recalculateEventScores(gameId, updatedEvent.sequence || 0);
+    const allUpdates = [updatedEvent, ...batchedUpdates.filter(e => e.id !== updatedEvent.id)];
+
     // Broadcast if IO is available
     if (this.io) {
-        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvent });
+        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allUpdates });
     }
 
     return updatedEvent;
@@ -552,8 +620,14 @@ export class GameEventManager extends BaseManager {
                  if (handled) {
                      // Broadcasting logic for custom updates
                      if (this.io) {
-                         const updatedEvtRes = await this.query(`SELECT id, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
-                         this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: updatedEvtRes.rows[0] });
+                         const updatedEvtRes = await this.query(`SELECT id, sequence, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
+                         const modifiedEvt = updatedEvtRes.rows[0];
+                         
+                         const batchedUpdates = await this.recalculateEventScores(dispute.gameId, modifiedEvt.sequence || 0);
+                         const allUpdates = [modifiedEvt, ...batchedUpdates.filter(e => e.id !== modifiedEvt.id)];
+
+                         this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allUpdates });
+                         this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: modifiedEvt });
                          
                          const updatedGame = await dataManager.getGame(dispute.gameId);
                          if (updatedGame) {
@@ -613,9 +687,15 @@ export class GameEventManager extends BaseManager {
                      
                      // --- BROADCAST UPDATES ---
                      if (this.io) {
+                         const batchedUpdates = await this.recalculateEventScores(dispute.gameId, evt.sequence || 0);
+
                          this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: dispute.gameEventId } });
                          if (childEventId) {
                              this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
+                         }
+                         
+                         if (batchedUpdates.length > 0) {
+                             this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: batchedUpdates });
                          }
                          
                          const updatedGame = await dataManager.getGame(dispute.gameId);
@@ -822,10 +902,16 @@ export class GameEventManager extends BaseManager {
 
     // 7. BROADCAST UPDATES
     if (this.io) {
+        const batchedUpdates = await this.recalculateEventScores(gameId, event.sequence || 0);
+
         // Broadcast removals to :events
         this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: eventId } });
         if (childEventId) {
             this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
+        }
+        
+        if (batchedUpdates.length > 0) {
+            this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: batchedUpdates });
         }
 
         // Broadcast score update to game summary/detail

@@ -76,7 +76,7 @@ export function DecisionDialog({
             onRemove={onRemove}
             footer={customFooterActions || footer}
         >
-            <div className={cn("grid gap-2", columns === 2 ? "grid-cols-2" : "grid-cols-3")}>
+            <div className={cn("grid gap-1.5", columns === 2 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-3")}>
                 {options.map((opt) => {
                     const category = opt.category || '';
                     const showHeader = category && category !== lastCategory;
@@ -85,19 +85,19 @@ export function DecisionDialog({
                     return (
                         <React.Fragment key={opt.id}>
                             {showHeader && (
-                                <div className={cn("mt-3 mb-1 px-1 border-b border-white/10 flex items-center justify-between", columns === 2 ? "col-span-2" : "col-span-3")}>
-                                    <span className="text-tiny font-black uppercase text-primary/70 tracking-[0.2em]">{category}</span>
+                                <div className={cn("mt-1.5 mb-0.5 px-1 border-b border-white/10 flex items-center justify-between", columns === 2 ? "col-span-2 sm:col-span-3" : "col-span-3")}>
+                                    <span className="text-[10px] font-black uppercase text-primary/70 tracking-[0.2em]">{category}</span>
                                 </div>
                             )}
                             {opt.titleLabel ? (
-                                <div className="flex flex-col gap-2">
-                                    <div className={`text-tiny font-black uppercase text-center tracking-widest ${opt.id === 'home' ? 'text-blue-500' : 'text-red-500'}`}>{opt.titleLabel}</div>
+                                <div className="flex flex-col gap-1.5">
+                                    <div className={`text-[10px] font-black uppercase text-center tracking-widest ${opt.id === 'home' ? 'text-blue-500' : 'text-red-500'}`}>{opt.titleLabel}</div>
                                     <ScoringActionButton 
                                         onClick={() => onSelect(opt.id)}
                                         label={opt.label}
                                         selected={selectedId === opt.id}
                                         variant={opt.variant || "primary"}
-                                        className={cn("w-full", opt.className || "h-14")}
+                                        className={cn("w-full", opt.className || "h-11")}
                                     />
                                 </div>
                             ) : (
@@ -106,7 +106,7 @@ export function DecisionDialog({
                                     label={opt.label}
                                     selected={selectedId === opt.id}
                                     variant={opt.variant || "primary"}
-                                    className={opt.className || "h-12"}
+                                    className={opt.className || "h-11"}
                                 />
                             )}
                         </React.Fragment>

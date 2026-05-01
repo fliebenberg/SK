@@ -80,9 +80,11 @@ export function RugbyScoringDialogs({ game }: { game: Game }) {
                 title={scoringState.status === 'EVENT_REASON_SELECTION' ? `${scoringState.type.replace(' Awarded', '')} Reason` : ''}
                 options={scoringState.status === 'EVENT_REASON_SELECTION' ? scoringState.reasons.map(r => {
                     let category = '';
-                    if (r.startsWith('Scrum -')) category = 'SCRUM';
-                    else if (r.startsWith('Lineout -')) category = 'LINEOUT';
-                    else if (scoringState.type === 'Free Kick Awarded') category = 'OTHER';
+                    if (r.includes(' - ')) {
+                        category = r.split(' - ')[0].toUpperCase();
+                    } else if (scoringState.type === 'Free Kick Awarded' || scoringState.type === 'Penalty Awarded') {
+                        category = 'OTHER';
+                    }
                     return { id: r, label: r.includes(' - ') ? r.split(' - ')[1] : r, category, variant: 'primary' as const };
                 }) : []}
                 selectedId={scoringState.status === 'EVENT_REASON_SELECTION' ? scoringState.reason : undefined}
@@ -161,10 +163,10 @@ export function RugbyScoringDialogs({ game }: { game: Game }) {
                 onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
                 title="Decision"
                 options={[
-                    { id: 'Penalty Kick', label: 'PENALTY KICK', variant: 'primary', className: 'h-16 bg-blue-600/30 border-blue-600/40 hover:bg-blue-600/50' },
-                    { id: 'Line Kick', label: 'LINE KICK', variant: 'success', className: 'h-16 bg-green-600/30 border-green-600/40 hover:bg-green-600/50' },
-                    { id: 'Scrum', label: 'SCRUM', variant: 'primary', className: 'h-16 bg-amber-600/30 border-amber-600/40 hover:bg-amber-600/50' },
-                    { id: 'Tap n Go', label: 'TAP \'N GO', variant: 'primary', className: 'h-16 bg-purple-600/30 border-purple-600/40 hover:bg-purple-600/50' }
+                    { id: 'Penalty Kick', label: 'PENALTY KICK', variant: 'primary', className: 'h-14 bg-blue-600/30 border-blue-600/40 hover:bg-blue-600/50' },
+                    { id: 'Line Kick', label: 'LINE KICK', variant: 'success', className: 'h-14 bg-green-600/30 border-green-600/40 hover:bg-green-600/50' },
+                    { id: 'Scrum', label: 'SCRUM', variant: 'primary', className: 'h-14 bg-amber-600/30 border-amber-600/40 hover:bg-amber-600/50' },
+                    { id: 'Tap n Go', label: 'TAP \'N GO', variant: 'primary', className: 'h-14 bg-purple-600/30 border-purple-600/40 hover:bg-purple-600/50' }
                 ]}
                 selectedId={scoringState.status === 'PENALTY_DECISION_SELECTION' ? (scoringState as any).decision : undefined}
                 initialId={scoringState.status === 'PENALTY_DECISION_SELECTION' ? (scoringState as any).initialDecision : undefined}
@@ -201,9 +203,9 @@ export function RugbyScoringDialogs({ game }: { game: Game }) {
                 onOpenChange={(open) => !open && setScoringState({ status: 'IDLE' })}
                 title="Decision"
                 options={[
-                    { id: 'Line Kick', label: 'LINE KICK', variant: 'primary', className: 'h-16 bg-blue-600/30 border-blue-600/40 hover:bg-blue-600/50' },
-                    { id: 'Scrum', label: 'SCRUM', variant: 'primary', className: 'h-16 bg-amber-600/30 border-amber-600/40 hover:bg-amber-600/50' },
-                    { id: 'Tap n Go', label: 'TAP \'N GO', variant: 'primary', className: 'h-16 bg-purple-600/30 border-purple-600/40 hover:bg-purple-600/50' }
+                    { id: 'Line Kick', label: 'LINE KICK', variant: 'primary', className: 'h-14 bg-blue-600/30 border-blue-600/40 hover:bg-blue-600/50' },
+                    { id: 'Scrum', label: 'SCRUM', variant: 'primary', className: 'h-14 bg-amber-600/30 border-amber-600/40 hover:bg-amber-600/50' },
+                    { id: 'Tap n Go', label: 'TAP \'N GO', variant: 'primary', className: 'h-14 bg-purple-600/30 border-purple-600/40 hover:bg-purple-600/50' }
                 ]}
                 selectedId={scoringState.status === 'FREE_KICK_DECISION_SELECTION' ? (scoringState as any).decision : undefined}
                 initialId={scoringState.status === 'FREE_KICK_DECISION_SELECTION' ? (scoringState as any).initialDecision : undefined}

@@ -135,6 +135,12 @@ export enum SocketAction {
     UPDATE_GAME_EVENT = 'UPDATE_GAME_EVENT',
 
     /**
+     * Broadcast when a batch of game events is updated (e.g. recalculations).
+     * Event payload: { gameId: string, events: GameEvent[] }
+     */
+    GAME_EVENTS_BATCH_UPDATED = 'GAME_EVENTS_BATCH_UPDATED',
+
+    /**
      * Action to initiate a consensus vote for an undo.
      * Expects payload: { gameId: string, eventIdToUndo: string, initiatorId: string }
      */

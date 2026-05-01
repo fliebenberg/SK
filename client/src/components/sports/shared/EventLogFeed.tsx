@@ -92,7 +92,8 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
             }
             if (subType === 'Penalty Awarded') {
                 const decision = eventData.decision;
-                return decision ? `PENALTY → ${decision.toUpperCase()}` : 'PENALTY AWARDED';
+                const decisionLabel = decision === 'Penalty Kick' ? 'KICK' : decision;
+                return decisionLabel ? `PENALTY → ${decisionLabel.toUpperCase()}` : 'PENALTY AWARDED';
             }
             if (subType === 'Replacement') {
                 return 'SUBSTITUTION';
@@ -332,8 +333,16 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 }
 
                                                 const details: string[] = [];
-                                                if (evt.eventData?.reason) details.push(evt.eventData.reason);
-                                                if (evt.eventData?.winnerName) details.push(`Won by ${evt.eventData.winnerName}`);
+                                                // Only show reason for non-scoring events to avoid redundancy with preceding Awarded event
+                                                if (evt.eventData?.reason && evt.type !== 'SCORE') {
+                                                    const cleanReason = evt.eventData.reason.replace(/^(General|Set Piece) - /i, '');
+                                                    details.push(cleanReason);
+                                                }
+                                                if (evt.eventData?.winnerName && (evt.subType === 'Scrum' || evt.subType === 'Lineout')) {
+                                                    details.push(`Won by ${evt.eventData.winnerName}`);
+                                                }
+
+                                                const hasActor = !!actorProfile;
 
                                                 return (
                                                     <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
@@ -343,7 +352,12 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                             </span>
                                                         )}
                                                         {details.length > 0 && (
-                                                            <span className="text-2tiny font-black text-muted-foreground/30 uppercase tracking-widest whitespace-nowrap overflow-hidden">
+                                                            <span className={cn(
+                                                                "uppercase whitespace-nowrap overflow-hidden",
+                                                                hasActor 
+                                                                    ? "text-2tiny font-black text-muted-foreground/30 tracking-widest" 
+                                                                    : "text-event-primary font-bold text-muted-foreground/60 tracking-tight leading-none"
+                                                            )}>
                                                                 {details.join(' • ')}
                                                             </span>
                                                         )}
