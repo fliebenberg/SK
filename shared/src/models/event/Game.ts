@@ -12,6 +12,7 @@ export interface GameClockState {
 export interface Game {
   id: string;
   eventId: string;
+  sportId: string;
   startTime?: string;
   scheduledStartTime?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';

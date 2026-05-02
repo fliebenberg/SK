@@ -3,10 +3,10 @@ import { GameEvent } from "@sk/types";
 import { Server } from "socket.io";
 import { dataManager } from "../DataManager";
 import { DisputeResolutionHandler } from "../sports/core/SportDisputeHandler";
+import { sportManager } from "./SportManager";
+import { EventTemplate, ActionStep, Outcome } from "@sk/types";
 
-const SPORT_MODULES: Record<string, string> = {
-  'sport-rugby': '../sports/rugby/rugbyDisputeHandlers',
-};
+const SPORT_MODULES: Record<string, string> = {};
 
 export class GameEventManager extends BaseManager {
   private activeTimers = new Map<string, NodeJS.Timeout>();
@@ -183,11 +183,25 @@ export class GameEventManager extends BaseManager {
    * Initiates a consensus vote for an undo action.
    */
   async initiateUndoVote(gameId: string, eventIdToUndo: string, initiatorId: string): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
+    return this.initiateDispute(gameId, eventIdToUndo, initiatorId);
+  }
+
+  /**
+   * Initiates a consensus vote for an update/correction.
+   */
+  async initiateUpdateVote(gameId: string, eventId: string, initiatorId: string, updateData: any): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
+    return this.initiateDispute(gameId, eventId, initiatorId, updateData);
+  }
+
+  /**
+   * Internal helper to initiate a dispute (either undo or update).
+   */
+  private async initiateDispute(gameId: string, eventId: string, initiatorId: string, updateData?: any): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
     // Check if an open dispute already exists for this event
     const existingRes = await this.query(`
       SELECT id FROM game_disputes 
       WHERE game_id = $1 AND game_event_id = $2 AND status = 'OPEN'
-    `, [gameId, eventIdToUndo]);
+    `, [gameId, eventId]);
 
     if ((existingRes.rowCount ?? 0) > 0) {
       return { success: false, error: 'A dispute is already active for this event.' };
@@ -213,11 +227,11 @@ export class GameEventManager extends BaseManager {
     let res;
     try {
       res = await this.query(`
-        INSERT INTO game_disputes (id, game_id, game_event_id, initiator_org_profile_id, expires_at, status)
-        VALUES ($1, $2, $3, $4, $5, 'OPEN')
+        INSERT INTO game_disputes (id, game_id, game_event_id, initiator_org_profile_id, expires_at, status, update_data)
+        VALUES ($1, $2, $3, $4, $5, 'OPEN', $6)
         RETURNING id
-      `, [id, gameId, eventIdToUndo, initiatorId, expiresAt]);
-      console.log(`[Dispute] DB expires_at set to: ${expiresAt.toISOString()}`);
+      `, [id, gameId, eventId, initiatorId, expiresAt, updateData ? JSON.stringify(updateData) : null]);
+      console.log(`[Dispute] DB expires_at set to: ${expiresAt.toISOString()} for ${updateData ? 'UPDATE' : 'UNDO'}`);
     } catch (err: any) {
       console.error(`[Dispute] SQL Error during initiation:`, err.message);
       return { success: false, error: `Database error: ${err.message}` };
@@ -230,7 +244,7 @@ export class GameEventManager extends BaseManager {
     console.log(`[Dispute] Created dispute ${id} for game ${gameId}`);
 
     // Auto-cast APPROVE vote for the initiator
-    const castRes = await this.castUndoVote(gameId, id, initiatorId, 'APPROVE');
+    const castRes = await this.castVote(gameId, id, initiatorId, 'APPROVE');
     
     // Schedule proactive resolution timer
     this.scheduleResolution(id, expiresAt);
@@ -404,9 +418,17 @@ export class GameEventManager extends BaseManager {
   }
 
   /**
-   * Cast a vote for an active undo.
+   * Cast a vote for an active dispute.
    */
   async castUndoVote(gameId: string, disputeId: string, officialId: string, vote: 'APPROVE' | 'REJECT'): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
+    return this.castVote(gameId, disputeId, officialId, vote);
+  }
+
+  async castUpdateVote(gameId: string, disputeId: string, officialId: string, vote: 'APPROVE' | 'REJECT'): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
+    return this.castVote(gameId, disputeId, officialId, vote);
+  }
+
+  private async castVote(gameId: string, disputeId: string, officialId: string, vote: 'APPROVE' | 'REJECT'): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
     const id = `gdv-${Date.now()}`;
     
     // Upsert the vote (so they can change it if they want)
@@ -557,7 +579,8 @@ export class GameEventManager extends BaseManager {
           status, 
           expires_at as "expiresAt", 
           created_at as "createdAt", 
-          resolved_at as "resolvedAt"
+          resolved_at as "resolvedAt",
+          update_data as "updateData"
         FROM game_disputes 
         WHERE id = $1
      `, [disputeId]);
@@ -603,23 +626,70 @@ export class GameEventManager extends BaseManager {
 
          if (outcome === 'RESOLVED_APPROVED') {
              try {
-                 const eventRes = await this.query(`SELECT sub_type, game_participant_id, event_data FROM game_events WHERE id = $1`, [dispute.gameEventId]);
+                 const eventRes = await this.query(`SELECT id, sequence, sub_type, game_participant_id, event_data FROM game_events WHERE id = $1`, [dispute.gameEventId]);
                  const evt = eventRes.rows[0];
                  
                  if (!evt) return { success: true, dispute, resolved: true, error: 'Target event not found' };
 
-                 let childEventId: string | null = null;
-                 
-                 const customHandler = await this.getCustomHandler(dispute.gameId, evt.sub_type);
-                 let handled = false;
-                 
-                 if (customHandler) {
-                     handled = await customHandler.handleApprovedDispute(dispute, evt, this);
-                 }
-                 
-                 if (handled) {
-                     // Broadcasting logic for custom updates
-                     if (this.io) {
+                  // Fetch sport and template for dispute context
+                  const sportId = await this.getGameSportId(dispute.gameId);
+                  const sport = sportId ? await sportManager.getSport(sportId) : null;
+                  const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === evt.sub_type || t.id === evt.event_data?.templateId);
+                  const disputeConfig = template?.disputeConfig;
+
+                  if (dispute.updateData && disputeConfig?.type === 'CHANGE_OUTCOME' && template) {
+                      // --- RESOLVE AS CHANGE_OUTCOME (UPDATE) ---
+                      console.log(`[Dispute] Applying approved CHANGE_OUTCOME to event ${dispute.gameEventId}`);
+                      const newOutcomeName = dispute.updateData.newOutcome;
+                      const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
+                      const newOutcome = outcomeStep?.outcomes?.find((o: Outcome) => o.name === newOutcomeName);
+
+                      if (newOutcome) {
+                          const eventData = { 
+                              ...evt.event_data, 
+                              ...newOutcome.eventData, 
+                              outcome: newOutcomeName,
+                              pointsDelta: newOutcome.points || 0
+                          };
+                          
+                          // Update event in DB
+                          await this.query(`
+                             UPDATE game_events 
+                             SET event_data = $1::jsonb
+                             WHERE id = $2
+                          `, [JSON.stringify(eventData), dispute.gameEventId]);
+
+                          if (this.io) {
+                             const updatedEvtRes = await this.query(`SELECT id, sequence, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
+                             const modifiedEvt = updatedEvtRes.rows[0];
+                             
+                             const batchedUpdates = await this.recalculateEventScores(dispute.gameId, modifiedEvt.sequence || 0);
+                             const allUpdates = [modifiedEvt, ...batchedUpdates.filter(e => e.id !== modifiedEvt.id)];
+
+                             this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allUpdates });
+                             this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: modifiedEvt });
+                             
+                             const updatedGame = await dataManager.getGame(dispute.gameId);
+                             if (updatedGame) {
+                                 this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                                 this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                             }
+                          }
+                      }
+                  } else if (dispute.updateData) {
+                      // --- RESOLVE AS GENERIC UPDATE ---
+                      console.log(`[Dispute] Applying approved generic UPDATE to event ${dispute.gameEventId}`);
+                      const updateData = dispute.updateData;
+                      
+                      // Update event in DB
+                      await this.query(`
+                         UPDATE game_events 
+                         SET actor_org_profile_id = $1,
+                             event_data = $2::jsonb
+                         WHERE id = $3
+                      `, [updateData.actorOrgProfileId, JSON.stringify(updateData.eventData), dispute.gameEventId]);
+
+                      if (this.io) {
                          const updatedEvtRes = await this.query(`SELECT id, sequence, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
                          const modifiedEvt = updatedEvtRes.rows[0];
                          
@@ -634,82 +704,86 @@ export class GameEventManager extends BaseManager {
                              this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
                              this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
                          }
-                     }
-                 } else {
-                     // Standard Remove (with cascade for Tries)
-                     let childPoints = 0;
-                     
-                     if (evt.sub_type === 'Try' || evt.sub_type === 'Penalty Try') {
-                         const childRes = await this.query(`
-                             SELECT id, event_data
-                             FROM game_events
-                             WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
-                         `, [dispute.gameId, dispute.gameEventId]);
-                         
-                         if (childRes.rows.length > 0) {
-                             childEventId = childRes.rows[0].id;
-                             childPoints = childRes.rows[0].event_data?.pointsDelta || 0;
-                         }
-                     }
+                      }
+                  } else {
+                      // --- RESOLVE AS UNDO ---
+                      console.log(`[Dispute] Applying approved UNDO to event ${dispute.gameEventId}`);
+                      let childEventId: string | null = null;
+                      
+                      // Standard Remove (with cascade for Tries)
+                      let childPoints = 0;
+                      
+                      if (evt.sub_type === 'Try' || evt.sub_type === 'Penalty Try') {
+                          const childRes = await this.query(`
+                              SELECT id, event_data
+                              FROM game_events
+                              WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
+                          `, [dispute.gameId, dispute.gameEventId]);
+                          
+                          if (childRes.rows.length > 0) {
+                              childEventId = childRes.rows[0].id;
+                              childPoints = childRes.rows[0].event_data?.pointsDelta || 0;
+                          }
+                      }
 
-                     // Soft-delete main event
-                     await this.query(`
-                        UPDATE game_events 
-                        SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
-                        WHERE id = $1
-                     `, [dispute.gameEventId]);
+                      // Soft-delete main event
+                      await this.query(`
+                         UPDATE game_events 
+                         SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
+                         WHERE id = $1
+                      `, [dispute.gameEventId]);
 
-                     // Soft-delete child event if present
-                     if (childEventId) {
+                      // Soft-delete child event if present
+                      if (childEventId) {
+                          await this.query(`
+                             UPDATE game_events 
+                             SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
+                             WHERE id = $1
+                          `, [childEventId]);
+                      }
+
+                      // Reverse combined score
+                      const pts = Number(evt.event_data?.pointsDelta || (evt.sub_type === 'Penalty Try' ? 7 : 0));
+                      const totalPointsToReverse = pts + Number(childPoints);
+                      
+                      if (totalPointsToReverse !== 0 && evt.game_participant_id) {
                          await this.query(`
-                            UPDATE game_events 
-                            SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
-                            WHERE id = $1
-                         `, [childEventId]);
-                     }
+                             UPDATE games 
+                             SET live_state = jsonb_set(
+                               live_state, 
+                               '{scores}', 
+                               COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) - $2)::numeric)
+                             ),
+                             updated_at = NOW()
+                             WHERE id = $3
+                         `, [evt.game_participant_id, totalPointsToReverse, dispute.gameId]);
+                      }
+                      
+                      // --- BROADCAST UPDATES ---
+                      if (this.io) {
+                          const batchedUpdates = await this.recalculateEventScores(dispute.gameId, evt.sequence || 0);
 
-                     // Reverse combined score
-                     const pts = Number(evt.event_data?.pointsDelta || (evt.sub_type === 'Penalty Try' ? 7 : 0));
-                     const totalPointsToReverse = pts + Number(childPoints);
-                     
-                     if (totalPointsToReverse !== 0 && evt.game_participant_id) {
-                        await this.query(`
-                            UPDATE games 
-                            SET live_state = jsonb_set(
-                              live_state, 
-                              '{scores}', 
-                              COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) - $2)::numeric)
-                            ),
-                            updated_at = NOW()
-                            WHERE id = $3
-                        `, [evt.game_participant_id, totalPointsToReverse, dispute.gameId]);
-                     }
-                     
-                     // --- BROADCAST UPDATES ---
-                     if (this.io) {
-                         const batchedUpdates = await this.recalculateEventScores(dispute.gameId, evt.sequence || 0);
-
-                         this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: dispute.gameEventId } });
-                         if (childEventId) {
-                             this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
-                         }
-                         
-                         if (batchedUpdates.length > 0) {
-                             this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: batchedUpdates });
-                         }
-                         
-                         const updatedGame = await dataManager.getGame(dispute.gameId);
-                         if (updatedGame) {
-                             this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                             this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                         }
-                     }
-                 }
-         } catch (err: any) {
-             console.error(`[Dispute Sync Error] Failed to process database update during dispute resolution:`, err);
-             // Return false so we don't accidentally broadcast a success
-             return { success: false, dispute, resolved: false, error: err.message };
-         }
+                          this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: dispute.gameEventId } });
+                          if (childEventId) {
+                              this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
+                          }
+                          
+                          if (batchedUpdates.length > 0) {
+                              this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: batchedUpdates });
+                          }
+                          
+                          const updatedGame = await dataManager.getGame(dispute.gameId);
+                          if (updatedGame) {
+                              this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                              this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                          }
+                      }
+                  }
+             } catch (err: any) {
+                 console.error(`[Dispute Sync Error] Failed to process database update during dispute resolution:`, err);
+                 // Return false so we don't accidentally broadcast a success
+                 return { success: false, dispute, resolved: false, error: err.message };
+             }
          }
          return { success: true, dispute, resolved: true };
      }
@@ -724,16 +798,17 @@ export class GameEventManager extends BaseManager {
    async getActiveDisputes(gameId: string): Promise<any[]> {
       const res = await this.query(`
          SELECT 
-           id, 
-           game_id as "gameId",
-           game_event_id as "gameEventId", 
-           initiator_org_profile_id as "initiatorOrgProfileId", 
-           status, 
-           expires_at as "expiresAt", 
-           created_at as "createdAt", 
-           resolved_at as "resolvedAt"
-         FROM game_disputes
-         WHERE game_id = $1 AND (status = 'OPEN' OR status IS NULL)
+         id, 
+         game_id as "gameId",
+         game_event_id as "gameEventId", 
+         initiator_org_profile_id as "initiatorOrgProfileId", 
+         status, 
+         expires_at as "expiresAt", 
+         created_at as "createdAt", 
+         resolved_at as "resolvedAt",
+         update_data as "updateData"
+       FROM game_disputes
+       WHERE game_id = $1 AND (status = 'OPEN' OR status IS NULL)
       `, [gameId]);
       
        const disputes = [];

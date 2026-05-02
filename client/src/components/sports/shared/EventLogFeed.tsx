@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
 import { GameEvent } from '@sk/types';
-import { RUGBY_OUTCOMES, OutcomeDefinition } from '../rugby/useRugbyScoring';
 import { useAuth } from '@/contexts/AuthContext';
 import { RotateCcw, Clock, Trophy, Activity, Pencil, User, Zap } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -15,6 +14,7 @@ import {
     DialogFooter 
 } from "@/components/ui/dialog";
 import { DialogSectionHeader, RosterGrid, ScoringActionButton } from './ScoringActionButton';
+import { useSharedDynamicScoring } from './DynamicScoringContext';
 
 export function EventLogFeed({ gameId }: { gameId: string }) {
     const [events, setEvents] = useState<GameEvent[]>([]);
@@ -22,6 +22,8 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
     const { user } = useAuth();
     const [now, setNow] = useState(Date.now());
     const [roosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
+    const [correctionEvent, setCorrectionEvent] = useState<GameEvent | null>(null);
+    const scoring = useSharedDynamicScoring();
 
     useEffect(() => {
         // Subscribe to live updates (Server will push last 20 events on join)
@@ -60,70 +62,99 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const getEventLabel = (evt: GameEvent) => {
-        const subType = evt.subType || '';
+    const resolveEventTemplate = (evt: GameEvent) => {
+        const game = store.getGame(gameId);
         const eventData = evt.eventData || (evt as any).event_data || {};
-        const outcomeId = eventData.outcome;
         
-        // Search for rich outcome metadata
-        const outcomesConfig = RUGBY_OUTCOMES[subType];
-        const outcomeDef = outcomesConfig?.find(o => o.id === outcomeId);
-        const listText = outcomeDef?.listText;
+        let sportId = game?.sportId;
+        let warning = "";
+        let error = "";
 
-        if (evt.type === 'SCORE' && subType) {
-            if (listText) {
-                return `${subType.toUpperCase()} → ${listText.toUpperCase()}`;
+        if (!sportId) {
+            // Fallback for missing sportId to resolve the template, but still flag it
+            const p1TeamId = game?.participants?.[0]?.teamId;
+            const p1Team = p1TeamId ? store.getTeam(p1TeamId) : null;
+            sportId = p1Team?.sportId;
+            
+            if (sportId) {
+                warning = "Game missing sportId; falling back to team sport.";
+            } else {
+                error = "Game missing sportId and no team fallback found.";
             }
-            if (subType === 'Conversion') {
-                return eventData.successful ? 'CONVERSION' : 'CONVERSION MISSED';
-            }
-            if (subType === 'Penalty Kick') {
-                return eventData.successful ? 'PENALTY KICK' : 'PENALTY KICK MISSED';
-            }
-            return subType.toUpperCase();
         }
 
-        if (evt.type === 'GAME_EVENT') {
-            if (listText) {
-                return `${subType.toUpperCase()} → ${listText.toUpperCase()}`;
-            }
-            if (subType === 'Line Kick') {
-                return eventData.successful ? 'LINE KICK (OUT)' : 'LINE KICK (MISSED)';
-            }
-            if (subType === 'Penalty Awarded') {
-                const decision = eventData.decision;
-                const decisionLabel = decision === 'Penalty Kick' ? 'KICK' : decision;
-                return decisionLabel ? `PENALTY → ${decisionLabel.toUpperCase()}` : 'PENALTY AWARDED';
-            }
-            if (subType === 'Replacement') {
-                return 'SUBSTITUTION';
-            }
-            if (subType === 'Scrum' || subType === 'Lineout') {
-                const winnerSide = eventData.winnerSide;
-                if (winnerSide) {
-                    const game = store.getGame(gameId);
-                    const homeParticipantId = game?.participants?.[0]?.id;
-                    const awardedSide = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
-                    return `${subType.toUpperCase()} → ${winnerSide === awardedSide ? 'WON' : 'LOST'}`;
-                }
-            }
-            return subType.toUpperCase() || '';
+        const sport = store.sports.find(s => s.id === sportId);
+        if (sportId && !sport) {
+            error = `Sport config not found for ID: ${sportId}`;
         }
 
+        const templateId = eventData.templateId || evt.subType;
+        const template = sport?.eventTemplates?.find(t => 
+            t.id === templateId || t.name === templateId
+        );
+
+        // System events don't usually have templates
+        if (sport && !template && evt.type !== 'SYSTEM' && !['GAME_STARTED', 'GAME_ENDED', 'PERIOD_STARTED', 'PERIOD_ENDED'].includes(evt.subType || '')) {
+            warning = `Template not found for: ${templateId}`;
+        }
+
+        return { template, sport, error, warning, sportId };
+    };
+
+    const getEventLabel = (evt: GameEvent) => {
+        const eventData = evt.eventData || (evt as any).event_data || {};
+        const { template, error, warning } = resolveEventTemplate(evt);
         
-        // For STATUS and TIME events, the readable label lives in subType
+        // 2. If we have a template, use its display pattern
+        if (template) {
+            let label = template.displayPattern || (eventData.outcome ? "{name} → {outcome}" : "{name}");
+            
+            // Handle outcome overrides (e.g. "Penalty Kick" -> "KICK")
+            let outcome = eventData.outcome || '';
+
+            // Check if there is a displayOverride in the outcome object itself
+            const outcomeObj = template.steps
+                .find(s => s.type === 'OUTCOME_SELECTION')
+                ?.outcomes?.find(o => o.name === outcome);
+            
+            if (outcomeObj?.displayOverride) {
+                outcome = outcomeObj.displayOverride;
+            } else if (template.outcomeOverrides && template.outcomeOverrides[outcome]) {
+                outcome = template.outcomeOverrides[outcome];
+            }
+
+            // Fill the pattern
+            label = label
+                .replace(/{name}/g, template.name.toUpperCase())
+                // Handle {outcome|FALLBACK}
+                .replace(/{outcome\|([^}]+)}/g, (match, fallback) => {
+                    return outcome ? outcome.toUpperCase() : fallback.toUpperCase();
+                })
+                .replace(/{outcome}/g, outcome ? outcome.toUpperCase() : "");
+
+            return {
+                label: label.trim().replace(/ →$/, ""), // Clean up trailing arrows
+                error,
+                warning
+            };
+        }
+
+        // 3. Fallback for events without templates (like STATUS or TIME events)
         const key = evt.subType || evt.type;
+        let label = "";
         switch (key) {
-            case 'GAME_STARTED': return 'MATCH STARTED';
-            case 'GAME_ENDED': return 'MATCH FINISHED';
-            case 'GAME_CANCELLED': return 'MATCH CANCELLED';
-            case 'GAME_UPDATED': return 'MATCH UPDATED';
-            case 'PERIOD_STARTED': return 'PERIOD STARTED';
-            case 'PERIOD_ENDED': return 'PERIOD ENDED';
-            case 'CLOCK_PAUSED': return 'CLOCK PAUSED';
-            case 'CLOCK_RESUMED': return 'CLOCK RESUMED';
-            default: return key.replace(/_/g, ' ').toUpperCase();
+            case 'GAME_STARTED': label = 'MATCH STARTED'; break;
+            case 'GAME_ENDED': label = 'MATCH FINISHED'; break;
+            case 'GAME_CANCELLED': label = 'MATCH CANCELLED'; break;
+            case 'GAME_UPDATED': label = 'MATCH UPDATED'; break;
+            case 'PERIOD_STARTED': label = 'PERIOD STARTED'; break;
+            case 'PERIOD_ENDED': label = 'PERIOD ENDED'; break;
+            case 'CLOCK_PAUSED': label = 'CLOCK PAUSED'; break;
+            case 'CLOCK_RESUMED': label = 'CLOCK RESUMED'; break;
+            default: label = key.replace(/_/g, ' ').toUpperCase(); break;
         }
+
+        return { label, error, warning };
     };
 
     const getTeamColor = (event: GameEvent) => {
@@ -254,11 +285,13 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                 : null;
                             
                             const isScore = evt.type === 'SCORE';
+                            const { template, error, warning } = resolveEventTemplate(evt);
+                            const isScoringEvent = isScore || template?.section === 'Scoring';
+
                             const age = now - new Date(evt.timestamp).getTime();
                             const undoDelay = store.undoDelay;
                             const inUndoWindow = age < undoDelay;
                             
-                            const game = store.getGame(gameId);
                             let isInitiator = store.isMyOrgProfileId(evt.initiatorOrgProfileId || '');
                             if (!evt.initiatorOrgProfileId && store.globalRole === 'admin') {
                                 isInitiator = true; // Initial global admins have no org profile
@@ -270,8 +303,12 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                             // Check if this event is currently disputed
                             const isCurrentlyDisputed = store.activeDisputes.some(d => d.gameEventId === evt.id);
 
-                            const showUndo = isScore && isInitiator && inUndoWindow && !isRemoved && !isCurrentlyDisputed;
-                            const showDispute = isScore && !inUndoWindow && canScore && !isRemoved && !isCurrentlyDisputed;
+                            // showUndo: Only for the person who submitted the event
+                            const showUndo = isScoringEvent && isInitiator && inUndoWindow && !isRemoved && !isCurrentlyDisputed;
+                            
+                            // showDispute: For everyone else once the undo window has expired
+                            const showDispute = isScoringEvent && !inUndoWindow && canScore && !isRemoved && !isCurrentlyDisputed;
+                            
                             const showEdit = canScore && !isRemoved && !isCurrentlyDisputed;
 
                             return (
@@ -279,6 +316,17 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     key={evt.id} 
                                     onClick={() => {
                                         if (!canScore || isRemoved || isCurrentlyDisputed) return;
+                                        
+                                        // Prevent disputing/editing another scorer's event during their undo window
+                                        if (inUndoWindow && !isInitiator && isScoringEvent) {
+                                            toast({ 
+                                                title: "Event Locked", 
+                                                description: "Scorer is still in the undo window. Please wait.", 
+                                                variant: "warning" 
+                                            });
+                                            return;
+                                        }
+
                                         const game = store.getGame(gameId);
                                         const side = evt.gameParticipantId === game?.participants?.[0]?.id ? 'home' : 'away';
                                         
@@ -315,9 +363,26 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     <div className={cn("h-6 w-0.5 rounded-full shrink-0", getTeamColor(evt))} />
                                     
                                     <div className="flex flex-col min-w-0 flex-1 overflow-hidden px-0.5 gap-0">
-                                        <span className={cn("font-black text-event-primary uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-1", isRemoved && "line-through text-muted-foreground")}>
-                                            {getEventLabel(evt)}
-                                        </span>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <span className={cn("font-black text-event-primary uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-1", isRemoved && "line-through text-muted-foreground")}>
+                                                {(() => {
+                                                    const { label, error: labelError, warning: labelWarning } = getEventLabel(evt);
+                                                    return (
+                                                        <span className="flex items-center gap-1.5">
+                                                            {label}
+                                                            {(labelError || labelWarning) && (
+                                                                <span 
+                                                                    className={cn("text-[10px]", labelError ? "text-red-500" : "text-amber-500")}
+                                                                    title={labelError || labelWarning}
+                                                                >
+                                                                    ⚠️
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </span>
+                                        </div>
                                         <div className="flex items-center justify-between gap-2 overflow-hidden">
                                             {(() => {
                                                 const actorProfile = evt.actorOrgProfileId ? store.orgProfiles.find(p => p.id === evt.actorOrgProfileId) : null;
@@ -384,15 +449,33 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                         </div>
                                     </div>
                                     
-                                    <div className="ml-auto shrink-0 w-[28px] h-[28px] flex items-center justify-center relative">
-                                        {showUndo ? (
-                                            <button 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleUndo(evt);
-                                                }}
-                                                className="relative w-full h-full flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors group"
-                                            >
+                                    <div className="ml-auto shrink-0 flex items-center gap-1.5 h-[28px]">
+                                         {/* Correction Button (for outside undo window or specific templates) */}
+                                         {(() => {
+                                             const eventData = evt.eventData || (evt as any).event_data || {};
+                                             const { template } = resolveEventTemplate(evt);
+                                             const supportsCorrection = template?.disputeConfig?.type === 'CHANGE_OUTCOME';
+                                             
+                                             if (supportsCorrection && !isRemoved && !isCurrentlyDisputed && !inUndoWindow) {
+                                                 return (
+                                                     <button 
+                                                         onClick={(e) => {
+                                                             e.stopPropagation();
+                                                             setCorrectionEvent(evt);
+                                                         }}
+                                                         className="w-7 h-7 flex items-center justify-center bg-sunken-bg hover:bg-border/20 text-muted-foreground hover:text-foreground rounded-full transition-colors border border-border/10 shadow-sm"
+                                                         title="Correct Outcome"
+                                                     >
+                                                         <Pencil className="w-3 h-3" />
+                                                     </button>
+                                                 );
+                                             }
+                                             return null;
+                                         })()}
+
+                                         <div className="w-[28px] h-[28px] flex items-center justify-center relative">
+                                        {(isScoringEvent && inUndoWindow && !isRemoved && !isCurrentlyDisputed) ? (
+                                            <div className="relative w-full h-full flex items-center justify-center text-muted-foreground">
                                                 {/* Circular Progress */}
                                                 <svg className="absolute inset-0 w-full h-full -rotate-90 transform">
                                                     <circle
@@ -405,19 +488,99 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                         stroke="currentColor" strokeWidth="2" fill="transparent"
                                                         strokeDasharray={2 * Math.PI * 11}
                                                         strokeDashoffset={(2 * Math.PI * 11) * (age / undoDelay)}
-                                                        className="text-muted-foreground group-hover:text-primary transition-all duration-300"
+                                                        className="text-muted-foreground transition-all duration-300"
                                                     />
                                                 </svg>
-                                                <RotateCcw className="w-3.5 h-3.5 relative z-10" />
-                                            </button>
+                                                {isInitiator ? (
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleUndo(evt);
+                                                        }}
+                                                        className="w-full h-full flex items-center justify-center hover:text-foreground transition-colors group relative z-10"
+                                                        title="Undo"
+                                                    >
+                                                        <RotateCcw className="w-3.5 h-3.5" />
+                                                    </button>
+                                                ) : (
+                                                    <Clock className="w-3.5 h-3.5 opacity-40 relative z-10" />
+                                                )}
+                                            </div>
                                         ) : null}
                                     </div>
                                 </div>
-                            );
+                                
+                                {isCurrentlyDisputed && (
+                                        <div className="absolute inset-0 bg-red-500/5 border border-red-500/40 rounded-xl pointer-events-none" />
+                                    )}
+                                    {isCurrentlyDisputed && (
+                                        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black px-1 rounded shadow-sm z-20 uppercase">Disputed</div>
+                                    )}
+                                </div>
+                            )
                         })
                     )}
                 </div>
             </div>
+
+            {/* Correction Dialog */}
+            <Dialog open={!!correctionEvent} onOpenChange={(open) => !open && setCorrectionEvent(null)}>
+                <DialogContent className="sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Pencil className="w-4 h-4 text-event-primary" />
+                            Correct Outcome
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-6 flex flex-col gap-3">
+                        <p className="text-sm text-muted-foreground mb-2">
+                            Select the correct outcome for this {correctionEvent?.subType}. This will initiate a consensus vote.
+                        </p>
+                        {(() => {
+                            if (!correctionEvent) return null;
+                            const eventData = correctionEvent.eventData || (correctionEvent as any).event_data || {};
+                            const game = store.getGame(gameId);
+                            const sportId = game?.customSettings?.sportId;
+                            const sport = store.sports.find(s => s.id === sportId);
+                            const template = sport?.eventTemplates?.find(t => t.id === correctionEvent.subType || t.id === eventData.templateId);
+                            const outcomes = template?.steps.find(s => s.type === 'OUTCOME_SELECTION')?.outcomes || [];
+                            const currentOutcome = eventData.outcome;
+
+                            return outcomes.map(o => (
+                                <Button
+                                    key={o.name}
+                                    variant={o.name === currentOutcome ? "secondary" : "outline"}
+                                    className={cn(
+                                        "justify-start h-12 px-4 gap-3",
+                                        o.name === currentOutcome && "border-event-primary/50 bg-event-primary/5"
+                                    )}
+                                    disabled={o.name === currentOutcome}
+                                    onClick={() => {
+                                        scoring.triggerCorrectionDispute(
+                                            correctionEvent.id,
+                                            correctionEvent.type,
+                                            correctionEvent.subType || '',
+                                            null, // side
+                                            o.name
+                                        );
+                                        setCorrectionEvent(null);
+                                    }}
+                                >
+                                    <div className={cn(
+                                        "w-2 h-2 rounded-full",
+                                        o.variant === 'success' ? 'bg-green-500' : 
+                                        o.variant === 'danger' ? 'bg-red-500' : 'bg-muted-foreground'
+                                    )} />
+                                    {o.name}
+                                </Button>
+                            ));
+                        })()}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setCorrectionEvent(null)}>Cancel</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

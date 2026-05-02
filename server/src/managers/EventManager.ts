@@ -75,7 +75,7 @@ export class EventManager extends BaseManager {
   }
 
   async getGames(orgId?: string): Promise<Game[]> {
-    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = `g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
     if (!orgId) {
         const res = await this.query(`SELECT ${selectClause} FROM games g`);
         return res.rows;
@@ -90,7 +90,7 @@ export class EventManager extends BaseManager {
   }
 
   async getLiveGames(): Promise<Game[]> {
-    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = `g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
     const res = await this.query(`
         SELECT ${selectClause}
         FROM games g
@@ -102,7 +102,7 @@ export class EventManager extends BaseManager {
   }
 
   async getGame(id: string): Promise<Game | undefined> {
-    const selectClause = `g.id, g.event_id as "eventId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = `g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
     const res = await this.query(`SELECT ${selectClause} FROM games g WHERE g.id = $1`, [id]);
     return res.rows[0];
   }
@@ -112,9 +112,9 @@ export class EventManager extends BaseManager {
       await this.query('BEGIN');
       try {
           await this.query(
-              `INSERT INTO games (id, event_id, start_time, scheduled_start_time, status, site_id, facility_id, custom_settings, live_state)
-               VALUES ($1, $2, $3, $4, 'Scheduled', $5, $6, $7, '{"scores": {}, "periodLabel": "1st Period", "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb)`,
-               [id, game.eventId, game.startTime, game.scheduledStartTime || game.startTime, game.siteId, game.facilityId, game.customSettings || {}]
+              `INSERT INTO games (id, event_id, sport_id, start_time, scheduled_start_time, status, site_id, facility_id, custom_settings, live_state)
+               VALUES ($1, $2, $3, $4, $5, 'Scheduled', $6, $7, $8, '{"scores": {}, "periodLabel": "1st Period", "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb)`,
+               [id, game.eventId, game.sportId, game.startTime, game.scheduledStartTime || game.startTime, game.siteId, game.facilityId, game.customSettings || {}]
           );
 
           if (game.participants && game.participants.length > 0) {
@@ -299,7 +299,7 @@ export class EventManager extends BaseManager {
       try {
           if (keys.length > 0) {
               const fullMap: Record<string, string> = {
-                    startTime: 'start_time', scheduledStartTime: 'scheduled_start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', finalScoreData: 'final_score_data', customSettings: 'custom_settings', liveState: 'live_state'
+                    sportId: 'sport_id', startTime: 'start_time', scheduledStartTime: 'scheduled_start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', finalScoreData: 'final_score_data', customSettings: 'custom_settings', liveState: 'live_state'
               };
 
               const setClauses: string[] = [];

@@ -167,10 +167,18 @@ export class GameStore extends SiteStore {
     }
 
     // --- System Settings ---
+    private lastSystemSettingsUpdate: number = 0;
     systemSettings: Record<string, any> = {};
 
     fetchSystemSettings() {
+        const now = Date.now();
         if (this.isFetching('system_settings')) return Promise.resolve();
+        
+        // Cache for 1 minute unless settings are empty
+        if (now - this.lastSystemSettingsUpdate < 60000 && Object.keys(this.systemSettings).length > 0) {
+            return Promise.resolve();
+        }
+
         this.markFetching('system_settings');
 
         return new Promise<void>((resolve) => {
@@ -178,6 +186,7 @@ export class GameStore extends SiteStore {
                 this.completeFetching('system_settings');
                 if (settings) {
                     this.systemSettings = settings;
+                    this.lastSystemSettingsUpdate = Date.now();
                     this.notifyListeners();
                 }
                 resolve();
@@ -220,6 +229,28 @@ export class GameStore extends SiteStore {
             socket.emit('action', { 
                 type: SocketAction.INITIATE_UNDO_VOTE, 
                 payload: { gameId, eventIdToUndo, initiatorId } 
+            }, (response: any) => {
+                resolve();
+            });
+        });
+    }
+
+    initiateUpdateVote(gameId: string, eventId: string, initiatorId: string, updateData: any) {
+        return new Promise<void>((resolve) => {
+            socket.emit('action', { 
+                type: SocketAction.INITIATE_UPDATE_VOTE, 
+                payload: { gameId, eventId, initiatorId, updateData } 
+            }, (response: any) => {
+                resolve();
+            });
+        });
+    }
+
+    castUpdateVote(gameId: string, disputeId: string, officialId: string, vote: 'APPROVE' | 'REJECT') {
+        return new Promise<void>((resolve) => {
+            socket.emit('action', { 
+                type: SocketAction.CAST_UPDATE_VOTE, 
+                payload: { gameId, disputeId, officialId, vote } 
             }, (response: any) => {
                 resolve();
             });

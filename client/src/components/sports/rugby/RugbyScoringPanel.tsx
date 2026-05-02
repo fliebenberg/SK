@@ -7,8 +7,8 @@ import { Trophy, AlertTriangle } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { useRugbyScoring, RUGBY_OUTCOMES } from './useRugbyScoring';
-import { useSharedRugbyScoring } from './RugbyScoringContext';
+import { useSharedDynamicScoring } from '../shared/DynamicScoringContext';
+import { DynamicScoringDialog } from '../shared/DynamicScoringDialog';
 
 import { ScoringActionButton } from '../shared/ScoringActionButton';
 import { BaseEventDialog } from '../shared/dialogs/BaseEventDialog';
@@ -16,19 +16,10 @@ import { BaseEventDialog } from '../shared/dialogs/BaseEventDialog';
 export default function RugbyScoringPanel({ game, role }: { game: Game, role?: string }) {
     const { 
         scoringState, 
-        setScoringState, 
-        rosters, 
-        pendingConversion,
-        handleKickResult,
-        startScoringFlow,
-        pendingDispute,
-        triggerRemovalDispute,
-        removeGameEvent,
-        resolveDispute,
-        handleScore,
-        handleAddGameEvent
-    } = useSharedRugbyScoring();
-    const participant = scoringState.status !== 'IDLE' && 'side' in scoringState ? (scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1]) : null;
+        templates,
+        startDynamicFlow,
+        cancelDynamicFlow
+    } = useSharedDynamicScoring();
 
     const [isFinalScoreOpen, setIsFinalScoreOpen] = useState(false);
     const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
@@ -38,9 +29,6 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
     const isFinished = game.status === 'Finished';
     const isScoringDisabled = isScheduled;
 
-    const handleTryClick = (side: 'home' | 'away') => {
-        setScoringState({ status: 'PLAYER_SELECTION', side, points: 5, type: 'Try' });
-    };
 
 
     const handleFinalScoreSubmit = async () => {
@@ -80,41 +68,26 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
         }
     };
 
-    const rugbyScoreTypes = [
-        { label: 'Try', points: 5, glow: '#eab308' },
-        { label: 'Penalty Kick', mobileLabel: 'Penalty', points: 3, glow: '#f97316' },
-        { label: 'Drop Goal', mobileLabel: 'Drop', points: 3, glow: '#f97316' },
-    ];
-
     const renderActionButtons = (side: 'home' | 'away') => {
-        const isSomeSidePendingConversion = pendingConversion !== null;
         const teamColorClass = side === 'home' ? 'bg-blue-600/40 border-blue-600/40 hover:bg-blue-600/65 hover:border-blue-600/70' : 'bg-red-600/40 border-red-600/40 hover:bg-red-600/65 hover:border-red-600/70';
         
         // Disable inactive side completely when scoring flow is active
         const isActiveSideDisabled = scoringState.status !== 'IDLE' && scoringState.side !== side;
 
+        const scoringTemplates = templates.filter(t => t.section === 'Scoring' && t.id !== 'conversion');
+
         return (
             <div className="grid grid-cols-2 gap-1 sm:gap-1.5 h-full">
-                {rugbyScoreTypes.map((type) => {
-                    const disabled = isScoringDisabled || isSomeSidePendingConversion || isActiveSideDisabled;
+                {scoringTemplates.map((template) => {
+                    const disabled = isScoringDisabled || isActiveSideDisabled;
                     
                     return (
                         <ScoringActionButton 
-                            key={type.label}
-                            onClick={() => {
-                                if (type.label === 'Try') {
-                                    handleTryClick(side);
-                                } else if (type.label === 'Penalty Kick') {
-                                    setScoringState({ status: 'KICK_FLOW', side, type: 'Penalty Kick', points: 3 });
-                                } else if (type.label === 'Drop Goal') {
-                                    setScoringState({ status: 'KICK_FLOW', side, type: 'Drop Goal', points: 3 });
-                                } else {
-                                    startScoringFlow(type.points, side, type.label);
-                                }
-                            }}
+                            key={template.id}
+                            onClick={() => startDynamicFlow(template.id, side)}
                             disabled={disabled}
-                            label={type.label}
-                            mobileLabel={(type as any).mobileLabel}
+                            label={template.name}
+                            mobileLabel={template.mobileLabel}
                             variant="none"
                             className={cn("h-8 sm:h-12", teamColorClass, disabled ? 'opacity-30' : '')}
                         />

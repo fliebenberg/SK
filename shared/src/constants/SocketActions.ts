@@ -153,6 +153,18 @@ export enum SocketAction {
     CAST_UNDO_VOTE = 'CAST_UNDO_VOTE',
 
     /**
+     * Action to initiate a consensus vote for an update/correction.
+     * Expects payload: { gameId: string, eventId: string, initiatorId: string, updateData: any }
+     */
+    INITIATE_UPDATE_VOTE = 'INITIATE_UPDATE_VOTE',
+
+    /**
+     * Action to cast a vote on an active update consensus.
+     * Expects payload: { gameId: string, officialId: string, vote: 'APPROVE' | 'REJECT' }
+     */
+    CAST_UPDATE_VOTE = 'CAST_UPDATE_VOTE',
+
+    /**
      * Generic action to update game details.
      * Expects payload: { id: string, data: Partial<Game> }
      */

@@ -14,9 +14,31 @@ import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TeamRosterPanel } from './shared/TeamRosterPanel';
 import { Users, Activity, BarChart3 } from 'lucide-react';
-import { RugbyScoringProvider } from './rugby/RugbyScoringContext';
+import { DynamicScoringProvider, useSharedDynamicScoring } from './shared/DynamicScoringContext';
+import { DynamicScoringDialog } from './shared/DynamicScoringDialog';
 import RugbyGameStats from './rugby/RugbyGameStats';
-import { RugbyScoringDialogs } from './rugby/RugbyScoringDialogs';
+
+const DynamicScoringDialogRenderer = () => {
+    const { scoringState, pendingDispute, resolveDispute } = useSharedDynamicScoring();
+    
+    return (
+        <>
+            {scoringState.status === 'ACTIVE' && <DynamicScoringDialog />}
+            {pendingDispute && (
+                <ConfirmationModal 
+                    isOpen={true}
+                    onOpenChange={(open) => { if(!open) resolveDispute(false); }}
+                    title={pendingDispute.isRemoval ? "Dispute Event Removal" : "Dispute Event Correction"}
+                    description={`You are ${pendingDispute.isRemoval ? 'removing' : 'correcting'} a scoring event. This requires official consensus. Proceed?`}
+                    confirmText="Request Consensus"
+                    cancelText="Cancel"
+                    onConfirm={() => resolveDispute(true)}
+                    variant={pendingDispute.isRemoval ? "destructive" : "default"}
+                />
+            )}
+        </>
+    );
+};
 
 interface GameDashboardProps {
     game: Game;
@@ -98,7 +120,8 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
     const team2Name = team2?.shortName || team2?.name || 'Away';
 
     return (
-        <div className="flex flex-col items-center lg:items-start lg:flex-row lg:justify-center gap-2 p-1 sm:p-2 md:p-2 md:pl-0 w-full max-w-full bg-background min-h-screen overflow-x-hidden">
+        <DynamicScoringProvider game={game}>
+            <div className="flex flex-col items-center lg:items-start lg:flex-row lg:justify-center gap-2 p-1 sm:p-2 md:p-2 md:pl-0 w-full max-w-full bg-background min-h-screen overflow-x-hidden">
             
             {/* Left Column: Active Management - Scoreboard, Timing, Scoring */}
             <div className="w-full max-w-[512px] lg:flex-1 flex flex-col gap-2 min-w-0">
@@ -167,98 +190,50 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                     >
                         <TimerPanelSlot game={game} canEdit={canTimekeep} />
                     </CollapsibleDashboardSection>
-
-                    {/* Wrap Rugby panels in a shared context to keep them in sync */}
-                    {sportCategory.toLowerCase() === 'rugby' ? (
-                        <RugbyScoringProvider game={game}>
-                             {/* Scoring Actions Slot */}
-                            {canScore && (
-                                <>
-                                    <ActiveDisputesPanel gameId={game.id} />
-                                    <CollapsibleDashboardSection 
-                                        title="Scoring" 
-                                        storageKey={`game-${game.id}-scoring-expanded`}
-                                        className="shadow-lg mt-2"
-                                    >
-                                        <SlotWrapper>
-                                            <ScoringPanelModule game={game} role={userRole} />
-                                        </SlotWrapper>
-                                    </CollapsibleDashboardSection>
-                                </>
-                            )}
-
-                            {/* Game Events Actions Slot */}
-                            {canScore && GameEventsPanelModule && (
+                    <div className="flex flex-col gap-2 mt-2">
+                         {/* Scoring Actions Slot */}
+                        {canScore && (
+                            <>
+                                <ActiveDisputesPanel gameId={game.id} />
                                 <CollapsibleDashboardSection 
-                                    title="Game Events" 
-                                    storageKey={`game-${game.id}-events-expanded`}
+                                    title="Scoring" 
+                                    storageKey={`game-${game.id}-scoring-expanded`}
                                     className="shadow-lg mt-2"
                                 >
                                     <SlotWrapper>
-                                        <GameEventsPanelModule game={game} role={userRole} />
+                                        <ScoringPanelModule game={game} role={userRole} />
                                     </SlotWrapper>
                                 </CollapsibleDashboardSection>
-                            )}
+                            </>
+                        )}
 
-                            {/* General Play Actions Slot */}
-                            {canScore && GeneralPlayPanelModule && (
-                                <CollapsibleDashboardSection 
-                                    title="General Play" 
-                                    storageKey={`game-${game.id}-play-expanded`}
-                                    className="shadow-lg mt-2"
-                                >
-                                    <SlotWrapper>
-                                        <GeneralPlayPanelModule game={game} role={userRole} />
-                                    </SlotWrapper>
-                                </CollapsibleDashboardSection>
-                            )}
-                            {canScore && <RugbyScoringDialogs game={game} />}
-                        </RugbyScoringProvider>
-                    ) : (
-                        <>
-                             {/* Scoring Actions Slot */}
-                            {canScore && (
-                                <>
-                                    <ActiveDisputesPanel gameId={game.id} />
-                                    <CollapsibleDashboardSection 
-                                        title="Scoring" 
-                                        storageKey={`game-${game.id}-scoring-expanded`}
-                                        className="shadow-lg mt-2"
-                                    >
-                                        <SlotWrapper>
-                                            <ScoringPanelModule game={game} role={userRole} />
-                                        </SlotWrapper>
-                                    </CollapsibleDashboardSection>
-                                </>
-                            )}
+                        {/* Game Events Actions Slot */}
+                        {canScore && GameEventsPanelModule && (
+                            <CollapsibleDashboardSection 
+                                title="Game Events" 
+                                storageKey={`game-${game.id}-events-expanded`}
+                                className="shadow-lg mt-2"
+                            >
+                                <SlotWrapper>
+                                    <GameEventsPanelModule game={game} role={userRole} />
+                                </SlotWrapper>
+                            </CollapsibleDashboardSection>
+                        )}
 
-                            {/* Game Events Actions Slot */}
-                            {canScore && GameEventsPanelModule && (
-                                <CollapsibleDashboardSection 
-                                    title="Game Events" 
-                                    storageKey={`game-${game.id}-events-expanded`}
-                                    className="shadow-lg mt-2"
-                                >
-                                    <SlotWrapper>
-                                        <GameEventsPanelModule game={game} role={userRole} />
-                                    </SlotWrapper>
-                                </CollapsibleDashboardSection>
-                            )}
-
-                            {/* General Play Actions Slot */}
-                            {canScore && GeneralPlayPanelModule && (
-                                <CollapsibleDashboardSection 
-                                    title="General Play" 
-                                    storageKey={`game-${game.id}-play-expanded`}
-                                    className="shadow-lg mt-2"
-                                >
-                                    <SlotWrapper>
-                                        <GeneralPlayPanelModule game={game} role={userRole} />
-                                    </SlotWrapper>
-                                </CollapsibleDashboardSection>
-                            )}
-                        </>
-                    )}
+                        {/* General Play Actions Slot */}
+                        {canScore && GeneralPlayPanelModule && (
+                            <CollapsibleDashboardSection 
+                                title="General Play" 
+                                storageKey={`game-${game.id}-play-expanded`}
+                                className="shadow-lg mt-2"
+                            >
+                                <SlotWrapper>
+                                    <GeneralPlayPanelModule game={game} role={userRole} />
+                                </SlotWrapper>
+                            </CollapsibleDashboardSection>
+                        )}
+                        <DynamicScoringDialogRenderer />
+                    </div>
                 </div>
             </div>
 
@@ -308,5 +283,6 @@ export function GameDashboard({ game, sportCategory, userRole = 'FAN' }: GameDas
                 </div>
             </div>
         </div>
+    </DynamicScoringProvider>
     );
 }

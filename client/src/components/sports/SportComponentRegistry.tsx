@@ -1,14 +1,21 @@
 import React, { Suspense, lazy } from 'react';
 import { Game } from '@sk/types';
+import { DynamicScoringPanel } from './shared/DynamicScoringPanel';
 
 // Lazy load sport specific components
 const RugbyScoreboard = lazy(() => import('./rugby/RugbyScoreboard'));
 const RugbyScoringPanel = lazy(() => import('./rugby/RugbyScoringPanel'));
-const RugbyGameEventsPanel = lazy(() => import('./rugby/RugbyGameEventsPanel'));
-const RugbyGeneralPlayPanel = lazy(() => import('./rugby/RugbyGeneralPlayPanel'));
 
 const AthleticsStartList = lazy(() => import('./athletics/AthleticsStartList'));
 const AthleticsScoringGrid = lazy(() => import('./athletics/AthleticsScoringGrid'));
+
+// Generic dynamic panel components driven by EventTemplates
+const DynamicGameEventsPanel = ({ role }: { game: Game, role?: string }) => (
+    <DynamicScoringPanel section="Game Events" />
+);
+const DynamicGeneralPlayPanel = ({ role }: { game: Game, role?: string }) => (
+    <DynamicScoringPanel section="General Play" />
+);
 
 interface SlotProps {
     game: Game;
@@ -42,14 +49,14 @@ export const SportComponentRegistry = {
 
     getGameEventsPanel: (categoryStr: string) => {
         switch (categoryStr.toLowerCase()) {
-            case 'rugby': return RugbyGameEventsPanel;
+            case 'rugby': return DynamicGameEventsPanel; // Now template-driven!
             default: return null; 
         }
     },
 
     getGeneralPlayPanel: (categoryStr: string) => {
         switch (categoryStr.toLowerCase()) {
-            case 'rugby': return RugbyGeneralPlayPanel;
+            case 'rugby': return DynamicGeneralPlayPanel;
             default: return null;
         }
     },

@@ -1,3 +1,5 @@
+import { EventTemplate } from "./EventTemplate";
+
 export interface SportSettings {
   positions?: { id: string, name: string }[];
   maxReserves?: number;
@@ -14,4 +16,5 @@ export interface Sport {
   defaultSettings?: SportSettings;
   facilityTerm?: string;
   periodTerm?: string;
+  eventTemplates?: EventTemplate[];
 }

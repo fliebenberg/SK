@@ -9,7 +9,7 @@ interface ScoringActionButtonProps {
     disabled?: boolean;
     className?: string;
     title?: string;
-    variant?: 'primary' | 'success' | 'danger' | 'warning' | 'muted' | 'ghost' | 'scrim' | 'none';
+    variant?: 'primary' | 'success' | 'danger' | 'warning' | 'muted' | 'ghost' | 'scrim' | 'purple' | 'none';
     selected?: boolean;
     description?: string;
     mobileLabel?: string;
@@ -46,6 +46,9 @@ export function ScoringActionButton({
         scrim: selected
             ? "bg-sunken-bg border-primary/50 text-foreground shadow-inner"
             : "bg-sunken-bg/50 border-border/20 text-foreground/70 hover:bg-sunken-bg hover:border-border/30",
+        purple: selected
+            ? "bg-purple-600 text-white border-purple-700 shadow-lg shadow-purple-900/20"
+            : "bg-purple-600/20 border-purple-600/30 text-purple-500 hover:bg-purple-600/30 hover:border-purple-600/40",
         none: "",
     };
 

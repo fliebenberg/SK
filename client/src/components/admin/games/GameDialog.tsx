@@ -76,6 +76,7 @@ export function GameDialog({
         let savedGame: Game;
         if (game) {
             const payload: any = {
+                sportId: formData.sportId,
                 startTime: formData.isTbd ? null as any : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
                 siteId: formData.siteId,
                 facilityId: formData.facilityId,
@@ -91,6 +92,7 @@ export function GameDialog({
         } else {
             savedGame = await store.addGame({
                 eventId: event.id,
+                sportId: formData.sportId,
                 participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
                 startTime: formData.isTbd ? undefined : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
                 siteId: formData.siteId,

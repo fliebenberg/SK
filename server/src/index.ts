@@ -549,22 +549,22 @@ io.on('connection', (socket) => {
             case SocketAction.INITIATE_UNDO_VOTE:
                 const voteInitRes = await gameEventManager.initiateUndoVote(action.payload.gameId, action.payload.eventIdToUndo, action.payload.initiatorId);
                 if (voteInitRes.success) {
-                    console.log(`Server: Broadcasting DISPUTE_STARTED for game ${action.payload.gameId}, dispute: ${voteInitRes.dispute?.id}`);
+                    console.log(`Server: Broadcasting DISPUTE_STARTED (UNDO) for game ${action.payload.gameId}, dispute: ${voteInitRes.dispute?.id}`);
                     io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_STARTED', data: { eventId: action.payload.eventIdToUndo, gameId: action.payload.gameId, dispute: voteInitRes.dispute } });
-                    if (voteInitRes.resolved) {
-                        // Resolution logic (broadcasts for DISPUTE_RESOLVED and GAME_UPDATED) 
-                        // is now handled internally by gameEventManager.checkDisputeResolution
-                    }
+                }
+                break;
+            case SocketAction.INITIATE_UPDATE_VOTE:
+                const updateVoteRes = await gameEventManager.initiateUpdateVote(action.payload.gameId, action.payload.eventId, action.payload.initiatorId, action.payload.updateData);
+                if (updateVoteRes.success) {
+                    console.log(`Server: Broadcasting DISPUTE_STARTED (UPDATE) for game ${action.payload.gameId}, dispute: ${updateVoteRes.dispute?.id}`);
+                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_STARTED', data: { eventId: action.payload.eventId, gameId: action.payload.gameId, dispute: updateVoteRes.dispute } });
                 }
                 break;
             case SocketAction.CAST_UNDO_VOTE:
-                const castRes = await gameEventManager.castUndoVote(action.payload.gameId, action.payload.disputeId, action.payload.officialId, action.payload.vote);
+            case SocketAction.CAST_UPDATE_VOTE:
+                const castRes = await gameEventManager.castUpdateVote(action.payload.gameId, action.payload.disputeId, action.payload.officialId, action.payload.vote);
                 if (castRes.success) {
                     io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_VOTE_UPDATED', data: { dispute: castRes.dispute } });
-                    
-                    if (castRes.resolved) {
-                        // Resolution logic is now handled internally by gameEventManager.checkDisputeResolution
-                    }
                 }
                 break;
             case SocketAction.UPDATE_GAME:
