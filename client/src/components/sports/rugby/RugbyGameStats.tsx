@@ -84,7 +84,11 @@ export default function RugbyGameStats({ game }: RugbyGameStatsProps) {
                 if (!side) return;
                 switch (subType) {
                     case 'Try':
-                        side.tries++;
+                        if (data.outcome === 'Penalty Try') {
+                            side.penaltyTries++;
+                        } else {
+                            side.tries++;
+                        }
                         break;
                     case 'Conversion':
                         side.conversionAttempts++;
@@ -231,9 +235,9 @@ export default function RugbyGameStats({ game }: RugbyGameStatsProps) {
                     </div>
                     {renderStatRow('Tries', formatSimple(stats.home.tries), formatSimple(stats.away.tries), stats.home.tries, stats.away.tries)}
                     {renderStatRow('Conversions', formatAccuracy(stats.home.conversionSuccess, stats.home.conversionAttempts), formatAccuracy(stats.away.conversionSuccess, stats.away.conversionAttempts), stats.home.conversionSuccess, stats.away.conversionSuccess)}
+                    {renderStatRow('Penalty Tries', formatSimple(stats.home.penaltyTries), formatSimple(stats.away.penaltyTries), stats.home.penaltyTries, stats.away.penaltyTries)}
                     {renderStatRow('Penalty Kicks', formatAccuracy(stats.home.penaltyKickSuccess, stats.home.penaltyKickAttempts), formatAccuracy(stats.away.penaltyKickSuccess, stats.away.penaltyKickAttempts), stats.home.penaltyKickSuccess, stats.away.penaltyKickSuccess)}
                     {renderStatRow('Drop Goals', formatAccuracy(stats.home.dropGoalSuccess, stats.home.dropGoalAttempts), formatAccuracy(stats.away.dropGoalSuccess, stats.away.dropGoalAttempts), stats.home.dropGoalSuccess, stats.away.dropGoalSuccess)}
-                    {renderStatRow('Penalty Tries', formatSimple(stats.home.penaltyTries), formatSimple(stats.away.penaltyTries), stats.home.penaltyTries, stats.away.penaltyTries)}
 
                     {/* DISCIPLINE */}
                     <div className="px-4 py-1 bg-muted/20 border-b border-border/40 mt-1">

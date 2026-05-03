@@ -30,7 +30,7 @@ const io = new Server(httpServer, {
 const PORT = process.env.PORT || 3001;
 
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  console.log('Client connected [v2]:', socket.id);
 
   // Send initial data state?
   // Or client requests it?
@@ -97,7 +97,9 @@ io.on('connection', (socket) => {
                 callback(await dataManager.getGameEvents(id, request.fromSequence, request.limit));
                 break;
             case 'active_disputes':
-                callback(await gameEventManager.getActiveDisputes(id));
+                const activeDisputes = await gameEventManager.getActiveDisputes(id);
+                console.log(`[Socket] Returning ${activeDisputes.length} active disputes for game ${id}`);
+                callback(activeDisputes);
                 break;
             case 'game_roster':
                 callback(await dataManager.getGameRoster(id));
@@ -295,6 +297,10 @@ io.on('connection', (socket) => {
                 socket.emit('update', { type: 'GAME_UPDATED', data: game });
                 const events = await dataManager.getGameEvents(gameId); 
                 socket.emit('update', { type: 'GAME_EVENTS_SYNC', data: events });
+                
+                // Push active disputes for this game
+                const disputes = await gameEventManager.getActiveDisputes(gameId);
+                socket.emit('update', { type: 'ACTIVE_DISPUTES_SYNC', data: disputes });
             }
         } else if (room.startsWith('user:')) {
             const userId = room.split(':')[1];
@@ -315,10 +321,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('subscribe', async (channel) => {
-        socket.join(channel);
-        console.log(`Socket ${socket.id} subscribed to ${channel}`);
-        
-        // Push-on-Subscribe Logic for global channels
         try {
             if (channel === 'games') {
                 // No longer pushing all games on subscribe. 
@@ -338,7 +340,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('action', async (action: { type: SocketAction, payload: any }, callback) => {
-    console.log(`Action received: ${action.type}`, action.payload);
+    console.log(`[Socket] Action received: ${action.type} from ${socket.id}`, action.payload);
+    console.log(`[Socket] Entering switch for action type: "${action.type}"`);
+    
     let result: any = null;
     let updateTopic = '';
     let updateType = '';
@@ -547,17 +551,22 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.INITIATE_UNDO_VOTE:
-                const voteInitRes = await gameEventManager.initiateUndoVote(action.payload.gameId, action.payload.eventIdToUndo, action.payload.initiatorId);
-                if (voteInitRes.success) {
-                    console.log(`Server: Broadcasting DISPUTE_STARTED (UNDO) for game ${action.payload.gameId}, dispute: ${voteInitRes.dispute?.id}`);
-                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_STARTED', data: { eventId: action.payload.eventIdToUndo, gameId: action.payload.gameId, dispute: voteInitRes.dispute } });
+                const undoVoteRes = await gameEventManager.initiateUndoVote(action.payload.gameId, action.payload.eventIdToUndo, action.payload.initiatorId);
+                if (undoVoteRes.success) {
+                    console.log(`Server: Broadcasting DISPUTE_STARTED (UNDO) for game ${action.payload.gameId}, dispute: ${undoVoteRes.dispute?.id}`);
+                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_STARTED', data: { eventId: action.payload.eventIdToUndo, gameId: action.payload.gameId, dispute: undoVoteRes.dispute } });
+                    result = undoVoteRes.dispute;
                 }
                 break;
             case SocketAction.INITIATE_UPDATE_VOTE:
                 const updateVoteRes = await gameEventManager.initiateUpdateVote(action.payload.gameId, action.payload.eventId, action.payload.initiatorId, action.payload.updateData);
                 if (updateVoteRes.success) {
                     console.log(`Server: Broadcasting DISPUTE_STARTED (UPDATE) for game ${action.payload.gameId}, dispute: ${updateVoteRes.dispute?.id}`);
-                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_STARTED', data: { eventId: action.payload.eventId, gameId: action.payload.gameId, dispute: updateVoteRes.dispute } });
+                    const broadcastPayload = { type: 'DISPUTE_STARTED', data: { eventId: action.payload.eventId, gameId: action.payload.gameId, dispute: updateVoteRes.dispute } };
+                    io.to(`game:${action.payload.gameId}:events`).emit('update', broadcastPayload);
+                    result = updateVoteRes.dispute;
+                } else {
+                    console.error(`Server: INITIATE_UPDATE_VOTE failed:`, updateVoteRes.error);
                 }
                 break;
             case SocketAction.CAST_UNDO_VOTE:

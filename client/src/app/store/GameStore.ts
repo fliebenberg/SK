@@ -1,11 +1,13 @@
-import { Event, Game, SocketAction, GameClockState } from "@sk/types";
+console.log("[GameStore] Module loaded");
+
+import { Event, Game, SocketAction, GameClockState, GameEvent } from "@sk/types";
 import { getPeriodLabel } from "@sk/types";
 import { socket } from "../../lib/socketService";
 import { SiteStore } from "./SiteStore";
-import { GameEvent } from "@sk/types";
 import { toast } from "@/hooks/use-toast";
 
 export class GameStore extends SiteStore {
+    static { console.log("[GameStore] Class initialized"); }
     gameEvents: GameEvent[] = [];
     activeDisputes: any[] = [];
     eventLogFilters: Set<string> = new Set(['TIME', 'SCORE', 'DETAIL', 'GENERAL']);
@@ -236,11 +238,13 @@ export class GameStore extends SiteStore {
     }
 
     initiateUpdateVote(gameId: string, eventId: string, initiatorId: string, updateData: any) {
+        console.log(`[GameStore] initiateUpdateVote sending SocketAction.INITIATE_UPDATE_VOTE (${SocketAction.INITIATE_UPDATE_VOTE})`, { gameId, eventId, initiatorId, updateData });
         return new Promise<void>((resolve) => {
             socket.emit('action', { 
                 type: SocketAction.INITIATE_UPDATE_VOTE, 
                 payload: { gameId, eventId, initiatorId, updateData } 
             }, (response: any) => {
+                console.log(`[GameStore] initiateUpdateVote response received:`, response);
                 resolve();
             });
         });
@@ -730,22 +734,32 @@ export class GameStore extends SiteStore {
 
     mergeDispute(dispute: any) {
         if (!dispute) return;
-        console.log(`[GameStore] Merging dispute:`, dispute.id, dispute.status);
+        console.log(`[GameStore] Merging dispute: id=${dispute.id}, status=${dispute.status}, gameId=${dispute.gameId}, type=${dispute.type}`);
+        
+        // Ensure we have a gameId if it's missing but we can infer it
+        if (!dispute.gameId && this.gameEvents.length > 0) {
+            const evt = this.gameEvents.find(e => e.id === dispute.gameEventId);
+            if (evt) dispute.gameId = evt.gameId;
+        }
+
         if (!this.activeDisputes) this.activeDisputes = [];
         
         const index = this.activeDisputes.findIndex(d => d.id === dispute.id);
         
-        if (dispute.status !== 'OPEN') {
+        if (dispute.status && dispute.status !== 'OPEN') {
             // Remove resolved disputes from active store
             if (index > -1) {
                 this.activeDisputes.splice(index, 1);
+                this.activeDisputes = [...this.activeDisputes];
             }
         } else {
             if (index > -1) {
-                this.activeDisputes[index] = dispute;
+                this.activeDisputes[index] = { ...this.activeDisputes[index], ...dispute };
             } else {
                 this.activeDisputes.push(dispute);
             }
+            // Always create a new array reference for React reactivity
+            this.activeDisputes = [...this.activeDisputes];
         }
         this.notifyListeners();
     }

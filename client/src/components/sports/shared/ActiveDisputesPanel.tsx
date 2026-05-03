@@ -49,10 +49,10 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
         const sync = () => {
             const currentStr = JSON.stringify(store.activeDisputes);
             if (currentStr !== lastDisputesStr) {
-                console.log(`[ActiveDisputesPanel] Disputes changed for ${gameId}:`, store.activeDisputes);
+                console.log(`[ActiveDisputesPanel] Disputes updated for game ${gameId}: ${store.activeDisputes.length} active`);
                 lastDisputesStr = currentStr;
+                setDisputes([...(store.activeDisputes || [])]);
             }
-            setDisputes(store.activeDisputes || []);
         };
         sync();
         const unsubscribe = store.subscribe(sync);
@@ -64,6 +64,13 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
     }, [gameId]);
 
     const gameDisputes = disputes.filter(d => d.gameId === gameId);
+
+    useEffect(() => {
+        if (disputes.length > 0) {
+            console.log(`[ActiveDisputesPanel] Rendering with ${gameDisputes.length} active disputes for game ${gameId}`);
+        }
+    }, [gameDisputes.length, gameId]);
+
     if (gameDisputes.length === 0) return null;
 
     const game = store.getGame(gameId);
@@ -78,7 +85,13 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
     const handleVote = async (disputeId: string, vote: 'APPROVE' | 'REJECT') => {
         const officialId = myProfileIds[0] || (store.globalRole === 'admin' ? store.currentUserId || 'admin' : null);
         if (!officialId) return;
-        await store.castUndoVote(gameId, disputeId, officialId, vote);
+        
+        const dispute = disputes.find(d => d.id === disputeId);
+        if (dispute?.type === 'REMOVE_EVENT') {
+            await store.castUndoVote(gameId, disputeId, officialId, vote);
+        } else {
+            await store.castUpdateVote(gameId, disputeId, officialId, vote);
+        }
     };
 
     return (

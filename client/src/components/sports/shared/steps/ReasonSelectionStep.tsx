@@ -12,8 +12,11 @@ export function ReasonSelectionStep({
     step: ActionStep, 
     onComplete: (data: any) => void 
 }) {
-    const { scoringState, rosters, nextDynamicStep } = useSharedDynamicScoring();
+    const { scoringState, rosters, nextDynamicStep, game } = useSharedDynamicScoring();
     const side = scoringState.side!;
+    
+    const participantId = side === 'home' ? game.participants?.[0]?.id : game.participants?.[1]?.id;
+    const roster = rosters[participantId || ''] || [];
     
     // Find the initial reason from collected data to keep it highlighted when coming back
     const initialReasonName = scoringState.collectedData?.reason;
@@ -72,7 +75,7 @@ export function ReasonSelectionStep({
                         <span className="text-[10px] font-black uppercase text-muted-foreground/70 tracking-[0.2em]">Select Player</span>
                     </div>
                     <RosterGrid 
-                        roster={(Object.values(rosters)[side === 'home' ? 0 : 1] as any[]) || []}
+                        roster={roster}
                         selectedPlayerId={selectedPlayerId}
                         onSelect={(id) => {
                             const newId = id === selectedPlayerId ? '' : id;

@@ -112,7 +112,6 @@ export function useDynamicScoring(game: Game) {
                 actorId,
                 isRemoval: false
             });
-            setScoringState({ status: 'IDLE' });
         }
     };
 
@@ -146,14 +145,11 @@ export function useDynamicScoring(game: Game) {
                  const original = gameEvents.find(e => e.id === scoringState.editingId);
                  const originalData = original?.eventData || {};
                  
-                 const pointsChanged = originalData.pointsDelta !== extraData.pointsDelta;
-                 const actorChanged = original?.actorOrgProfileId !== playerId;
+                 const pointsChanged = Number(originalData.pointsDelta || 0) !== Number(extraData.pointsDelta || 0);
                  const outcomeChanged = originalData.outcome !== extraData.outcome;
 
-                 if (pointsChanged || actorChanged || outcomeChanged) {
+                 if (pointsChanged || outcomeChanged) {
                      triggerUpdateDispute(scoringState.editingId, type, side, extraData, subType, playerId);
-                     toast({ title: "Dispute Initiated", description: "This change requires official approval." });
-                     setScoringState({ status: 'IDLE' });
                      return;
                  }
              }
@@ -231,11 +227,9 @@ export function useDynamicScoring(game: Game) {
             setPendingDispute({
                 eventId,
                 officialId,
-                type,
-                side,
+                gameId: game.id,
                 isRemoval: true
             });
-            setScoringState({ status: 'IDLE' });
         }
     };
 
@@ -314,14 +308,36 @@ export function useDynamicScoring(game: Game) {
         if (confirmed) {
             if (pendingDispute.isRemoval) {
                 await store.initiateUndoVote(game.id, pendingDispute.eventId, pendingDispute.officialId);
+                toast({ title: "Dispute Initiated", description: "Removal requires official consensus." });
             } else {
-                await store.initiateUpdateVote(game.id, pendingDispute.eventId, pendingDispute.officialId, {
-                    actorOrgProfileId: pendingDispute.actorId,
-                    eventData: pendingDispute.extraData
+                console.log(`[useDynamicScoring] Resolving dispute: UPDATE_EVENT`, {
+                    gameId: game.id,
+                    eventId: pendingDispute.eventId,
+                    initiatorId: pendingDispute.officialId,
+                    updateData: {
+                        actorOrgProfileId: pendingDispute.actorId,
+                        eventData: pendingDispute.extraData
+                    }
                 });
+                console.log(`[useDynamicScoring] Calling store.initiateUpdateVote now...`);
+                try {
+                    await store.initiateUpdateVote(game.id, pendingDispute.eventId, pendingDispute.officialId, {
+                        actorOrgProfileId: pendingDispute.actorId,
+                        eventData: pendingDispute.extraData
+                    });
+                    console.log(`[useDynamicScoring] store.initiateUpdateVote completed.`);
+                    toast({ title: "Dispute Initiated", description: "Correction requires official consensus." });
+                } catch (error) {
+                    console.error(`[useDynamicScoring] Error in store.initiateUpdateVote:`, error);
+                    toast({ title: "Error", description: "Failed to initiate dispute.", variant: "destructive" });
+                }
             }
+            
+            setPendingDispute(null);
+            setScoringState({ status: 'IDLE' });
+        } else {
+            setPendingDispute(null);
         }
-        setPendingDispute(null);
     };
 
     const getActiveTriggerEventId = () => {

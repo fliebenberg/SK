@@ -227,10 +227,10 @@ export class GameEventManager extends BaseManager {
     let res;
     try {
       res = await this.query(`
-        INSERT INTO game_disputes (id, game_id, game_event_id, initiator_org_profile_id, expires_at, status, update_data)
-        VALUES ($1, $2, $3, $4, $5, 'OPEN', $6)
+        INSERT INTO game_disputes (id, game_id, game_event_id, initiator_org_profile_id, expires_at, status, update_data, type)
+        VALUES ($1, $2, $3, $4, $5, 'OPEN', $6, $7)
         RETURNING id
-      `, [id, gameId, eventId, initiatorId, expiresAt, updateData ? JSON.stringify(updateData) : null]);
+      `, [id, gameId, eventId, initiatorId, expiresAt, updateData ? JSON.stringify(updateData) : null, updateData ? 'UPDATE' : 'UNDO']);
       console.log(`[Dispute] DB expires_at set to: ${expiresAt.toISOString()} for ${updateData ? 'UPDATE' : 'UNDO'}`);
     } catch (err: any) {
       console.error(`[Dispute] SQL Error during initiation:`, err.message);
@@ -241,7 +241,7 @@ export class GameEventManager extends BaseManager {
       console.error(`[Dispute] Failed to insert dispute row for game ${gameId}`);
       return { success: false, error: 'Failed to initiate dispute.'};
     }
-    console.log(`[Dispute] Created dispute ${id} for game ${gameId}`);
+    console.log(`[Dispute] Created dispute ${id} for game ${gameId}, updateData: ${updateData ? 'present' : 'absent'}`);
 
     // Auto-cast APPROVE vote for the initiator
     const castRes = await this.castVote(gameId, id, initiatorId, 'APPROVE');
@@ -257,7 +257,7 @@ export class GameEventManager extends BaseManager {
    * for any event where it has changed, from `fromSequence` onwards.
    * Returns an array of the modified events.
    */
-  async recalculateEventScores(gameId: string, fromSequence: number): Promise<GameEvent[]> {
+  async recalculateEventScores(gameId: string, fromSequence: number): Promise<{ modifiedEvents: GameEvent[], finalScores: Record<string, number> }> {
       const allEventsRes = await this.query(`
           SELECT id, sequence, type, sub_type as "subType", event_data as "eventData", game_participant_id as "gameParticipantId"
           FROM game_events
@@ -309,7 +309,7 @@ export class GameEventManager extends BaseManager {
           }
       }
 
-      return modifiedEvents;
+      return { modifiedEvents, finalScores: scores };
   }
 
   private scheduleResolution(disputeId: string, expiresAt: Date) {
@@ -377,8 +377,11 @@ export class GameEventManager extends BaseManager {
 
     const updatedEvent = res.rows[0] as GameEvent;
 
-    const batchedUpdates = await this.recalculateEventScores(gameId, updatedEvent.sequence || 0);
-    const allUpdates = [updatedEvent, ...batchedUpdates.filter(e => e.id !== updatedEvent.id)];
+    const { modifiedEvents, finalScores } = await this.recalculateEventScores(gameId, updatedEvent.sequence || 0);
+    const allUpdates = [updatedEvent, ...modifiedEvents.filter((e: any) => e.id !== updatedEvent.id)];
+
+    // Update the game scoreboard in DB
+    await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
 
     // Broadcast if IO is available
     if (this.io) {
@@ -575,12 +578,14 @@ export class GameEventManager extends BaseManager {
           id, 
           game_id as "gameId", 
           game_event_id as "gameEventId", 
+          type,
           initiator_org_profile_id as "initiatorOrgProfileId", 
           status, 
           expires_at as "expiresAt", 
           created_at as "createdAt", 
           resolved_at as "resolvedAt",
-          update_data as "updateData"
+          update_data as "updateData",
+          dispute_config as "disputeConfig"
         FROM game_disputes 
         WHERE id = $1
      `, [disputeId]);
@@ -626,7 +631,7 @@ export class GameEventManager extends BaseManager {
 
          if (outcome === 'RESOLVED_APPROVED') {
              try {
-                 const eventRes = await this.query(`SELECT id, sequence, sub_type, game_participant_id, event_data FROM game_events WHERE id = $1`, [dispute.gameEventId]);
+                 const eventRes = await this.query(`SELECT id, sequence, sub_type, game_participant_id, actor_org_profile_id, event_data FROM game_events WHERE id = $1`, [dispute.gameEventId]);
                  const evt = eventRes.rows[0];
                  
                  if (!evt) return { success: true, dispute, resolved: true, error: 'Target event not found' };
@@ -640,7 +645,8 @@ export class GameEventManager extends BaseManager {
                   if (dispute.updateData && disputeConfig?.type === 'CHANGE_OUTCOME' && template) {
                       // --- RESOLVE AS CHANGE_OUTCOME (UPDATE) ---
                       console.log(`[Dispute] Applying approved CHANGE_OUTCOME to event ${dispute.gameEventId}`);
-                      const newOutcomeName = dispute.updateData.newOutcome;
+                      const updateData = dispute.updateData;
+                      const newOutcomeName = updateData.newOutcome || updateData.eventData?.outcome || updateData.eventData?.newOutcome;
                       const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
                       const newOutcome = outcomeStep?.outcomes?.find((o: Outcome) => o.name === newOutcomeName);
 
@@ -648,6 +654,7 @@ export class GameEventManager extends BaseManager {
                           const eventData = { 
                               ...evt.event_data, 
                               ...newOutcome.eventData, 
+                              ...(updateData.eventData || {}),
                               outcome: newOutcomeName,
                               pointsDelta: newOutcome.points || 0
                           };
@@ -655,16 +662,20 @@ export class GameEventManager extends BaseManager {
                           // Update event in DB
                           await this.query(`
                              UPDATE game_events 
-                             SET event_data = $1::jsonb
-                             WHERE id = $2
-                          `, [JSON.stringify(eventData), dispute.gameEventId]);
+                             SET actor_org_profile_id = $1,
+                                 event_data = $2::jsonb
+                             WHERE id = $3
+                          `, [updateData.actorOrgProfileId || evt.actor_org_profile_id, JSON.stringify(eventData), dispute.gameEventId]);
 
                           if (this.io) {
                              const updatedEvtRes = await this.query(`SELECT id, sequence, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
                              const modifiedEvt = updatedEvtRes.rows[0];
                              
-                             const batchedUpdates = await this.recalculateEventScores(dispute.gameId, modifiedEvt.sequence || 0);
-                             const allUpdates = [modifiedEvt, ...batchedUpdates.filter(e => e.id !== modifiedEvt.id)];
+                             const { modifiedEvents, finalScores } = await this.recalculateEventScores(dispute.gameId, modifiedEvt.sequence || 0);
+                             const allUpdates = [modifiedEvt, ...modifiedEvents.filter((e: any) => e.id !== modifiedEvt.id)];
+
+                             // Update the game scoreboard in DB
+                             await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
 
                              this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allUpdates });
                              this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: modifiedEvt });
@@ -693,8 +704,11 @@ export class GameEventManager extends BaseManager {
                          const updatedEvtRes = await this.query(`SELECT id, sequence, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
                          const modifiedEvt = updatedEvtRes.rows[0];
                          
-                         const batchedUpdates = await this.recalculateEventScores(dispute.gameId, modifiedEvt.sequence || 0);
-                         const allUpdates = [modifiedEvt, ...batchedUpdates.filter(e => e.id !== modifiedEvt.id)];
+                         const { modifiedEvents, finalScores } = await this.recalculateEventScores(dispute.gameId, modifiedEvt.sequence || 0);
+                         const allUpdates = [modifiedEvt, ...modifiedEvents.filter((e: any) => e.id !== modifiedEvt.id)];
+
+                         // Update the game scoreboard in DB
+                         await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
 
                          this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allUpdates });
                          this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: modifiedEvt });
@@ -710,9 +724,6 @@ export class GameEventManager extends BaseManager {
                       console.log(`[Dispute] Applying approved UNDO to event ${dispute.gameEventId}`);
                       let childEventId: string | null = null;
                       
-                      // Standard Remove (with cascade for Tries)
-                      let childPoints = 0;
-                      
                       if (evt.sub_type === 'Try' || evt.sub_type === 'Penalty Try') {
                           const childRes = await this.query(`
                               SELECT id, event_data
@@ -722,7 +733,6 @@ export class GameEventManager extends BaseManager {
                           
                           if (childRes.rows.length > 0) {
                               childEventId = childRes.rows[0].id;
-                              childPoints = childRes.rows[0].event_data?.pointsDelta || 0;
                           }
                       }
 
@@ -742,34 +752,20 @@ export class GameEventManager extends BaseManager {
                           `, [childEventId]);
                       }
 
-                      // Reverse combined score
-                      const pts = Number(evt.event_data?.pointsDelta || (evt.sub_type === 'Penalty Try' ? 7 : 0));
-                      const totalPointsToReverse = pts + Number(childPoints);
-                      
-                      if (totalPointsToReverse !== 0 && evt.game_participant_id) {
-                         await this.query(`
-                             UPDATE games 
-                             SET live_state = jsonb_set(
-                               live_state, 
-                               '{scores}', 
-                               COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) - $2)::numeric)
-                             ),
-                             updated_at = NOW()
-                             WHERE id = $3
-                         `, [evt.game_participant_id, totalPointsToReverse, dispute.gameId]);
-                      }
-                      
                       // --- BROADCAST UPDATES ---
                       if (this.io) {
-                          const batchedUpdates = await this.recalculateEventScores(dispute.gameId, evt.sequence || 0);
+                          const { modifiedEvents, finalScores } = await this.recalculateEventScores(dispute.gameId, evt.sequence || 0);
+
+                          // Update the game scoreboard in DB
+                          await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
 
                           this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: dispute.gameEventId } });
                           if (childEventId) {
                               this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
                           }
                           
-                          if (batchedUpdates.length > 0) {
-                              this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: batchedUpdates });
+                          if (modifiedEvents.length > 0) {
+                              this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: modifiedEvents });
                           }
                           
                           const updatedGame = await dataManager.getGame(dispute.gameId);
@@ -801,12 +797,14 @@ export class GameEventManager extends BaseManager {
          id, 
          game_id as "gameId",
          game_event_id as "gameEventId", 
+         type,
          initiator_org_profile_id as "initiatorOrgProfileId", 
          status, 
          expires_at as "expiresAt", 
          created_at as "createdAt", 
          resolved_at as "resolvedAt",
-         update_data as "updateData"
+         update_data as "updateData",
+         dispute_config as "disputeConfig"
        FROM game_disputes
        WHERE game_id = $1 AND (status = 'OPEN' OR status IS NULL)
       `, [gameId]);
@@ -878,7 +876,7 @@ export class GameEventManager extends BaseManager {
   async undoEvent(gameId: string, eventId: string, initiatorId: string): Promise<{ success: boolean; error?: string }> {
     // 1. Fetch the event to undo
     const eventRes = await this.query(`
-      SELECT id, type, sub_type as "subType", initiator_org_profile_id as "initiatorId", timestamp, event_data as "eventData", game_participant_id as "gameParticipantId"
+      SELECT id, type, sub_type as "subType", initiator_org_profile_id as "initiatorId", timestamp, event_data as "eventData", game_participant_id as "gameParticipantId", sequence
       FROM game_events
       WHERE id = $1 AND game_id = $2
     `, [eventId, gameId]);
@@ -937,7 +935,6 @@ export class GameEventManager extends BaseManager {
     }
 
     // 5. Reverse Score Effect (including children)
-    let childPoints = 0;
     let childEventId = null;
     if (event.subType === 'Try' || event.subType === 'Penalty Try') {
         const childRes = await this.query(`
@@ -947,26 +944,8 @@ export class GameEventManager extends BaseManager {
         `, [gameId, eventId]);
         
         if (childRes.rows.length > 0) {
-            const childEvt = childRes.rows[0];
-            childEventId = childEvt.id;
-            childPoints = childEvt.event_data?.pointsDelta || 0;
+            childEventId = childRes.rows[0].id;
         }
-    }
-
-    const pointsDelta = event.eventData?.pointsDelta || 0;
-    const totalPointsToReverse = pointsDelta + childPoints;
-    
-    if (totalPointsToReverse !== 0 && event.gameParticipantId) {
-       await this.query(`
-        UPDATE games 
-        SET live_state = jsonb_set(
-          live_state, 
-          '{scores}', 
-          COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) - $2)::numeric)
-        ),
-        updated_at = NOW()
-        WHERE id = $3
-      `, [event.gameParticipantId, totalPointsToReverse, gameId]);
     }
 
     // 6. Delete Event and linked child Event
@@ -977,7 +956,10 @@ export class GameEventManager extends BaseManager {
 
     // 7. BROADCAST UPDATES
     if (this.io) {
-        const batchedUpdates = await this.recalculateEventScores(gameId, event.sequence || 0);
+        const { modifiedEvents, finalScores } = await this.recalculateEventScores(gameId, event.sequence || 0);
+
+        // Update the game scoreboard in DB
+        await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
 
         // Broadcast removals to :events
         this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: eventId } });
@@ -985,8 +967,8 @@ export class GameEventManager extends BaseManager {
             this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
         }
         
-        if (batchedUpdates.length > 0) {
-            this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: batchedUpdates });
+        if (modifiedEvents.length > 0) {
+            this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: modifiedEvents });
         }
 
         // Broadcast score update to game summary/detail

@@ -7,7 +7,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "Scoring",
     icon: "Rugby",
     points: 5,
-    displayPattern: "{name} ({outcome})",
+    displayPattern: "{outcome}",
     steps: [
       {
         type: "OUTCOME_SELECTION",
@@ -25,13 +25,18 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "Scoring",
     icon: "Target",
     points: 2,
-    displayPattern: "{name} → {outcome|SUCCESSFUL}",
+    displayPattern: "{name} → {outcome}",
+    disputeConfig: {
+      type: "CHANGE_OUTCOME",
+      heading: "Change Conversion Outcome",
+      impactsPoints: true
+    },
     steps: [
       {
         type: "OUTCOME_SELECTION",
         includePlayerSelection: true,
         outcomes: [
-          { "name": "Successful", "displayOverride": "SUCCESSFUL", "points": 2, "variant": "success", "eventData": { "successful": true } },
+          { "name": "Successful", "displayOverride": "SUCCESS", "points": 2, "variant": "success", "eventData": { "successful": true } },
           { "name": "Missed", "displayOverride": "MISSED", "points": 0, "variant": "danger", "eventData": { "successful": false } }
         ]
       }
@@ -43,10 +48,10 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "Scoring",
     icon: "Footprints",
     points: 3,
-    displayPattern: "{name} → {outcome|SUCCESSFUL}",
+    displayPattern: "{name} → {outcome}",
     disputeConfig: {
       type: "CHANGE_OUTCOME",
-      heading: "Correct Penalty Kick",
+      heading: "Change Penalty Kick Outcome",
       impactsPoints: true
     },
     steps: [
@@ -54,7 +59,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
         type: "OUTCOME_SELECTION",
         includePlayerSelection: true,
         outcomes: [
-          { "name": "Successful", "displayOverride": "SUCCESSFUL", "points": 3, "variant": "success", "eventData": { "successful": true } },
+          { "name": "Successful", "displayOverride": "SUCCESS", "points": 3, "variant": "success", "eventData": { "successful": true } },
           { "name": "Missed", "displayOverride": "MISSED", "points": 0, "variant": "danger", "eventData": { "successful": false } }
         ]
       }
@@ -66,10 +71,10 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "Scoring",
     icon: "Zap",
     points: 3,
-    displayPattern: "{name} → {outcome|SUCCESSFUL}",
+    displayPattern: "{name} → {outcome}",
     disputeConfig: {
       type: "CHANGE_OUTCOME",
-      heading: "Correct Drop Goal",
+      heading: "Change Drop Goal Outcome",
       impactsPoints: true
     },
     steps: [
@@ -77,7 +82,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
         type: "OUTCOME_SELECTION",
         includePlayerSelection: true,
         outcomes: [
-          { "name": "Successful", "displayOverride": "SUCCESSFUL", "points": 3, "variant": "success", "eventData": { "successful": true } },
+          { "name": "Successful", "displayOverride": "SUCCESS", "points": 3, "variant": "success", "eventData": { "successful": true } },
           { "name": "Missed", "displayOverride": "MISSED", "points": 0, "variant": "danger", "eventData": { "successful": false } }
         ]
       }

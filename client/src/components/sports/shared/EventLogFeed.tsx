@@ -24,6 +24,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
     const [roosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
     const [correctionEvent, setCorrectionEvent] = useState<GameEvent | null>(null);
     const scoring = useSharedDynamicScoring();
+    const game = store.getGame(gameId);
 
     useEffect(() => {
         // Subscribe to live updates (Server will push last 20 events on join)
@@ -41,7 +42,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         const unsubscribe = store.subscribe(sync);
 
         // Fetch rosters for editing
-        const game = store.getGame(gameId);
         game?.participants?.forEach(p => {
             store.fetchGameRoster(p.id).then(roster => {
                 setRosters(prev => ({ ...prev, [p.id]: roster }));
@@ -63,7 +63,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
     };
 
     const resolveEventTemplate = (evt: GameEvent) => {
-        const game = store.getGame(gameId);
         const eventData = evt.eventData || (evt as any).event_data || {};
         
         let sportId = game?.sportId;
@@ -159,7 +158,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
 
     const getTeamColor = (event: GameEvent) => {
         if (event.gameParticipantId) {
-            const game = store.getGame(gameId);
             const participant = game?.participants?.find(p => p.id === event.gameParticipantId);
             if (participant?.teamId) {
                 const index = game?.participants?.indexOf(participant) ?? 0;
@@ -327,7 +325,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                             return;
                                         }
 
-                                        const game = store.getGame(gameId);
                                         const side = evt.gameParticipantId === game?.participants?.[0]?.id ? 'home' : 'away';
                                         
                                         store.startManualFlow({
@@ -539,7 +536,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                         {(() => {
                             if (!correctionEvent) return null;
                             const eventData = correctionEvent.eventData || (correctionEvent as any).event_data || {};
-                            const game = store.getGame(gameId);
                             const sportId = game?.customSettings?.sportId;
                             const sport = store.sports.find(s => s.id === sportId);
                             const template = sport?.eventTemplates?.find(t => t.id === correctionEvent.subType || t.id === eventData.templateId);

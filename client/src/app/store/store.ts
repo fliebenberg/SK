@@ -111,17 +111,11 @@ class Store extends UserStore {
                 }
                 break;
             case 'DISPUTE_STARTED':
-                console.log('[Store] Received DISPUTE_STARTED:', event.data);
-                if (event.data.gameId) {
-                   this.fetchActiveDisputes(event.data.gameId);
-                } else if (event.data.eventId) {
-                   const evt = this.gameEvents.find(e => e.id === event.data.eventId);
-                   if (evt) this.fetchActiveDisputes(evt.gameId);
-                }
-                break;
             case 'DISPUTE_VOTE_UPDATED':
             case 'DISPUTE_RESOLVED':
+                console.log(`[Store] Received ${event.type}:`, event.data);
                 if (event.data.dispute) {
+                   console.log('[Store] Merging dispute:', event.data.dispute.id);
                    this.mergeDispute(event.data.dispute);
                 }
                 break;
@@ -145,6 +139,10 @@ class Store extends UserStore {
             case 'FACILITIES_SYNC': event.data.forEach((f: Facility) => this.mergeFacility(f)); break;
             case 'EVENTS_SYNC': event.data.forEach((e: Event) => this.mergeEvent(e)); break;
             case 'GAMES_SYNC': event.data.forEach((g: Game) => this.mergeGame(g)); break;
+            case 'ACTIVE_DISPUTES_SYNC':
+                console.log(`[Store] Received ACTIVE_DISPUTES_SYNC: ${event.data.length} disputes`);
+                event.data.forEach((d: any) => this.mergeDispute(d)); 
+                break;
             case 'ORGANIZATION_SYNC': this.mergeOrganization(event.data); break;
             case 'ORGANIZATIONS_SYNC': this.organizations = event.data; break;
             case 'TEAM_MEMBERS_SYNC':
