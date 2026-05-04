@@ -733,6 +733,12 @@ export class GameStore extends SiteStore {
     }
 
     protected mergeGameEvent(event: GameEvent) {
+        // Handle soft-deletion: If event status is REMOVED, delete it from local store
+        if (event.eventData?.status === 'REMOVED') {
+            this.deleteLocalGameEvent(event.id);
+            return;
+        }
+
         // Gap Detection
         const seq = event.sequence || 0;
         if (seq > this.lastSequence + 1 && this.lastSequence !== 0 && !this.isSyncing) {
@@ -795,7 +801,17 @@ export class GameStore extends SiteStore {
             return;
         }
         
+        let hasChanges = false;
         events.forEach(evt => {
+            if (evt.eventData?.status === 'REMOVED') {
+                const idx = this.gameEvents.findIndex(e => e.id === evt.id);
+                if (idx > -1) {
+                    this.gameEvents.splice(idx, 1);
+                    hasChanges = true;
+                }
+                return;
+            }
+
             const index = this.gameEvents.findIndex(e => e.id === evt.id);
             if (index > -1) {
                 this.gameEvents[index] = evt;
@@ -805,10 +821,13 @@ export class GameStore extends SiteStore {
             if ((evt.sequence || 0) > this.lastSequence) {
                 this.lastSequence = evt.sequence || 0;
             }
+            hasChanges = true;
         });
         
-        this.gameEvents.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-        this.notifyListeners();
+        if (hasChanges) {
+            this.gameEvents.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+            this.notifyListeners();
+        }
     }
 
     protected deleteLocalGameEvent(eventId: string) {

@@ -93,7 +93,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         );
 
         // System events don't usually have templates
-        if (sport && !template && evt.type !== 'SYSTEM' && !['GAME_STARTED', 'GAME_ENDED', 'PERIOD_STARTED', 'PERIOD_ENDED'].includes(evt.subType || '')) {
+        if (sport && !template && evt.type !== 'SYSTEM' && !['GAME_STARTED', 'GAME_ENDED', 'GAME_CANCELLED', 'GAME_UPDATED', 'PERIOD_STARTED', 'PERIOD_ENDED', 'CLOCK_PAUSED', 'CLOCK_RESUMED'].includes(evt.subType || '')) {
             warning = `Template not found for: ${templateId}`;
         }
 
@@ -109,16 +109,16 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
             let label = template.displayPattern || (eventData.outcome ? "{name} → {outcome}" : "{name}");
             
             // Handle outcome overrides (e.g. "Penalty Kick" -> "KICK")
-            let outcome = eventData.outcome || '';
+            let outcome = eventData.outcome;
 
             // Check if there is a displayOverride in the outcome object itself
             const outcomeObj = template.steps
                 .find(s => s.type === 'OUTCOME_SELECTION')
                 ?.outcomes?.find(o => o.name === outcome);
             
-            if (outcomeObj?.displayOverride) {
+            if (outcomeObj && outcomeObj.displayOverride !== undefined) {
                 outcome = outcomeObj.displayOverride;
-            } else if (template.outcomeOverrides && template.outcomeOverrides[outcome]) {
+            } else if (outcome && template.outcomeOverrides && template.outcomeOverrides[outcome]) {
                 outcome = template.outcomeOverrides[outcome];
             }
 
@@ -127,12 +127,12 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                 .replace(/{name}/g, template.name.toUpperCase())
                 // Handle {outcome|FALLBACK}
                 .replace(/{outcome\|([^}]+)}/g, (match, fallback) => {
-                    return outcome ? outcome.toUpperCase() : fallback.toUpperCase();
+                    return outcome !== undefined ? outcome.toUpperCase() : fallback.toUpperCase();
                 })
-                .replace(/{outcome}/g, outcome ? outcome.toUpperCase() : "");
+                .replace(/{outcome}/g, (outcome !== undefined ? outcome : "").toUpperCase());
 
             return {
-                label: label.trim().replace(/ →$/, ""), // Clean up trailing arrows
+                label: label.trim().replace(/\s*→\s*$/, ""), // Clean up trailing arrows and extra spaces
                 error,
                 warning
             };
@@ -296,19 +296,17 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                             }
                             const canScore = store.canScoreGame(gameId);
 
-                            const isRemoved = eventData.status === 'REMOVED';
-                            
                             // Check if this event is currently disputed
                             const isCurrentlyDisputed = store.getActiveDisputes(gameId).some(d => d.gameEventId === evt.id);
 
                             // showUndo: Only for the person who submitted the event
-                            const showUndo = isScoringEvent && isInitiator && inUndoWindow && !isRemoved && !isCurrentlyDisputed;
+                            const showUndo = isScoringEvent && isInitiator && inUndoWindow && !isCurrentlyDisputed;
 
                             return (
                                 <div 
                                     key={evt.id} 
                                     onClick={() => {
-                                        if (!canScore || isRemoved || isCurrentlyDisputed) return;
+                                        if (!canScore || isCurrentlyDisputed) return;
                                         
                                         const { template, error, warning } = resolveEventTemplate(evt);
                                         if (!template && (error || warning)) {
@@ -358,8 +356,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     }}
                                     className={cn(
                                         "relative text-sm flex gap-1.5 items-center p-1 px-1 rounded-xl transition-all duration-300 min-h-[44px] shadow-sm hover:shadow-md transform hover:-translate-y-0.5 bg-card border border-border/40",
-                                        isRemoved ? "opacity-50 grayscale" : "",
-                                        canScore && !isRemoved && !isCurrentlyDisputed && "cursor-pointer hover:border-primary/30"
+                                        canScore && !isCurrentlyDisputed && "cursor-pointer hover:border-primary/30"
                                     )}
                                 >
                                     <div className="flex flex-col items-center min-w-[34px] w-fit px-1 shrink-0 bg-muted/20 py-1 rounded-lg border border-border/10">
@@ -377,7 +374,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     
                                     <div className="flex flex-col min-w-0 flex-1 overflow-hidden px-0.5 gap-0">
                                         <div className="flex items-center gap-1.5 min-w-0">
-                                            <span className={cn("font-black text-event-primary uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-1", isRemoved && "line-through text-muted-foreground")}>
+                                            <span className={cn("font-black text-event-primary uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-1")}>
                                                 {(() => {
                                                     const { label, error: labelError, warning: labelWarning } = getEventLabel(evt);
                                                     return (
@@ -425,7 +422,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 return (
                                                     <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                                                         {actorProfile && (
-                                                            <span className={cn("text-event-primary font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none", isRemoved && "line-through")}>
+                                                            <span className={cn("text-event-primary font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none")}>
                                                                 {actorProfile.name}
                                                             </span>
                                                         )}
@@ -463,7 +460,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     </div>
                                     <div className="ml-auto shrink-0 flex items-center gap-1.5 h-[28px]">
                                          <div className="w-[28px] h-[28px] flex items-center justify-center relative">
-                                        {(isScoringEvent && inUndoWindow && !isRemoved && !isCurrentlyDisputed) ? (
+                                        {(isScoringEvent && inUndoWindow && !isCurrentlyDisputed) ? (
                                             <div className="relative w-full h-full flex items-center justify-center text-muted-foreground">
                                                 {/* Circular Progress */}
                                                 <svg className="absolute inset-0 w-full h-full -rotate-90 transform">

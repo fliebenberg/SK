@@ -638,16 +638,6 @@ io.on('connection', (socket) => {
             case SocketAction.UNDO_GAME_EVENT:
                 const undoRes = await gameEventManager.undoEvent(action.payload.gameId, action.payload.eventId, action.payload.initiatorId);
                 if (undoRes.success) {
-                    // Broadcast removal
-                    io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: action.payload.eventId } });
-                    io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: action.payload.eventId } });
-                    
-                    // Broadcast updated game state
-                    const updatedGameAfterUndo = await dataManager.getGame(action.payload.gameId);
-                    if (updatedGameAfterUndo) {
-                        io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGameAfterUndo });
-                        io.to(`game:${action.payload.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGameAfterUndo });
-                    }
                     result = { success: true };
                 } else {
                     result = { success: false, error: undoRes.error };

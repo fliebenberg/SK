@@ -37,7 +37,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
         type: "OUTCOME_SELECTION",
         includePlayerSelection: true,
         outcomes: [
-          { "name": "Successful", "displayOverride": "SUCCESS", "points": 2, "variant": "success", "eventData": { "successful": true } },
+          { "name": "Successful", "displayOverride": "", "points": 2, "variant": "success", "eventData": { "successful": true } },
           { "name": "Missed", "displayOverride": "MISSED", "points": 0, "variant": "danger", "eventData": { "successful": false } }
         ]
       }
@@ -101,7 +101,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
         type: "OUTCOME_SELECTION",
         includePlayerSelection: true,
         outcomes: [
-          { name: "Successful", displayOverride: "SUCCESS", variant: "success", eventData: { successful: true } },
+          { name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
           { name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
           { name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } },
           { name: "Long", variant: "danger", eventData: { successful: false } }
