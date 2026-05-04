@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ReasonSelectionStep } from './steps/ReasonSelectionStep';
 import { OutcomeSelectionStep } from './steps/OutcomeSelectionStep';
 import { CustomWidgetStep } from './steps/CustomWidgetStep';
-import { Check, Trash2, X, RotateCcw } from 'lucide-react';
+import { Check, Trash2, X, RotateCcw, ChevronRight } from 'lucide-react';
 import { store } from '@/app/store/store';
 
 export function DynamicScoringDialog() {
@@ -80,6 +80,7 @@ export function DynamicScoringDialog() {
                     className="sm:max-w-[600px] border-border bg-background p-0 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
                     onPointerDownOutside={(e) => e.preventDefault()}
                     onEscapeKeyDown={(e) => e.preventDefault()}
+                    hideCloseButton={true}
                 >
                     <DialogHeader className="p-3 sm:p-5 pb-2 sm:pb-3 border-b border-border bg-muted/30">
                         <div className="flex justify-between items-center w-full mb-2">
@@ -87,42 +88,57 @@ export function DynamicScoringDialog() {
                                 <span>{activeTemplate.name}</span>
                                 <div className="flex items-center gap-1">
                                     {(() => {
-                                        if (!scoringState.editingId) return null;
-                                        
-                                        const original = store.gameEvents.find(e => e.id === scoringState.editingId);
-                                        if (!original) return null;
-                                        
-                                        const originalData = original.eventData || {};
+                                        const original = scoringState.editingId ? store.gameEvents.find(e => e.id === scoringState.editingId) : null;
+                                        const originalData = original?.eventData || {};
                                         const currentData = scoringState.collectedData || {};
                                         
-                                        const hasChanged = 
+                                        const hasChanged = !original || (
                                             original.actorOrgProfileId !== currentData.playerId ||
                                             originalData.outcome !== currentData.outcome ||
                                             originalData.reason !== currentData.reason ||
-                                            originalData.pointsDelta !== currentData.pointsDelta;
+                                            originalData.pointsDelta !== currentData.pointsDelta
+                                        );
+
+                                        const isLastStep = scoringState.stepIndex === activeTemplate.steps.length - 1;
 
                                         return (
                                             <>
-                                                {hasChanged && (
+                                                {/* Bin (Delete) - Only when editing */}
+                                                {scoringState.editingId && (
+                                                    <Button 
+                                                        size="icon" 
+                                                        variant="ghost" 
+                                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={() => removeGameEvent(scoringState.editingId!, original?.type || '', scoringState.side)}
+                                                        title="Remove Event"
+                                                    >
+                                                        <Trash2 className="h-5 w-5" />
+                                                    </Button>
+                                                )}
+
+                                                {/* Check (Save/Finish) or Chevron (Next) */}
+                                                {isLastStep ? (
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
                                                         className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
                                                         onClick={saveChanges}
                                                         title="Save Changes"
+                                                        disabled={!hasChanged && scoringState.editingId !== undefined}
                                                     >
                                                         <Check className="h-5 w-5" />
                                                     </Button>
+                                                ) : (
+                                                    <Button 
+                                                        size="icon" 
+                                                        variant="ghost" 
+                                                        className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                                        onClick={() => nextDynamicStep({})}
+                                                        title="Next Step"
+                                                    >
+                                                        <ChevronRight className="h-5 w-5" />
+                                                    </Button>
                                                 )}
-                                                <Button 
-                                                    size="icon" 
-                                                    variant="ghost" 
-                                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                    onClick={() => removeGameEvent(scoringState.editingId!, original.type, scoringState.side)}
-                                                    title="Remove Event"
-                                                >
-                                                    <Trash2 className="h-5 w-5" />
-                                                </Button>
                                             </>
                                         );
                                     })()}
@@ -131,6 +147,7 @@ export function DynamicScoringDialog() {
                                         variant="ghost" 
                                         className="h-8 w-8 text-muted-foreground"
                                         onClick={cancelDynamicFlow}
+                                        title="Cancel"
                                     >
                                         <X className="h-5 w-5" />
                                     </Button>
@@ -178,52 +195,34 @@ export function DynamicScoringDialog() {
                         </div>
                     </div>
                     
-                    <div className="p-3 sm:p-5 border-t border-border bg-muted/30 flex justify-between items-center gap-3 shrink-0">
-                        <div className="flex gap-2">
-                            {(() => {
-                                if (!scoringState.editingId) return null;
-                                const triggerId = getActiveTriggerEventId();
-                                if (!triggerId || hasLinkedFollowUp(scoringState.editingId)) return null;
+                    {(() => {
+                        if (!scoringState.editingId) return null;
+                        const triggerId = getActiveTriggerEventId();
+                        if (!triggerId || hasLinkedFollowUp(scoringState.editingId)) return null;
 
-                                const triggerTemplate = templates.find(t => t.id === triggerId || t.name === triggerId);
-                                const label = triggerTemplate ? `ADD ${triggerTemplate.name.toUpperCase()}` : `ADD ${triggerId.toUpperCase()}`;
+                        const triggerTemplate = templates.find(t => t.id === triggerId || t.name === triggerId);
+                        const label = triggerTemplate ? `ADD ${triggerTemplate.name.toUpperCase()}` : `ADD ${triggerId.toUpperCase()}`;
 
-                                return (
-                                    <Button 
-                                        variant="default" 
-                                        className="bg-amber-500 hover:bg-amber-600 text-white font-black"
-                                        onClick={() => {
-                                            const side = scoringState.side!;
-                                            const parentId = scoringState.editingId!;
-                                            cancelDynamicFlow();
-                                            // Small delay to ensure state clears before starting next flow
-                                            setTimeout(() => {
-                                                startDynamicFlow(triggerId, side, { linkedEventId: parentId });
-                                            }, 100);
-                                        }}
-                                    >
-                                        {label}
-                                    </Button>
-                                );
-                            })()}
-                        </div>
-                        <div className="flex gap-3">
-                            <Button 
-                                variant="ghost" 
-                                onClick={cancelDynamicFlow}
-                                className="text-muted-foreground hover:text-foreground"
-                            >
-                                Cancel
-                            </Button>
-                            <Button 
-                                variant="outline" 
-                                onClick={() => nextDynamicStep({})}
-                                className="border-primary/30 text-primary hover:bg-primary/10"
-                            >
-                                {scoringState.stepIndex === activeTemplate.steps.length - 1 ? 'Finish' : 'Next Step'}
-                            </Button>
-                        </div>
-                    </div>
+                        return (
+                            <div className="p-3 sm:p-5 border-t border-border bg-muted/30 flex justify-center items-center gap-3 shrink-0">
+                                <Button 
+                                    variant="default" 
+                                    className="bg-amber-500 hover:bg-amber-600 text-white font-black"
+                                    onClick={() => {
+                                        const side = scoringState.side!;
+                                        const parentId = scoringState.editingId!;
+                                        cancelDynamicFlow();
+                                        // Small delay to ensure state clears before starting next flow
+                                        setTimeout(() => {
+                                            startDynamicFlow(triggerId, side, { linkedEventId: parentId });
+                                        }, 100);
+                                    }}
+                                >
+                                    {label}
+                                </Button>
+                            </div>
+                        );
+                    })()}
                 </DialogContent>
             </DialogPortal>
         </Dialog>

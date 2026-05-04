@@ -60,7 +60,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
         type: "OUTCOME_SELECTION",
         includePlayerSelection: true,
         outcomes: [
-          { "name": "Successful", "displayOverride": "SUCCESS", "points": 3, "variant": "success", "eventData": { "successful": true } },
+          { "name": "Successful", "displayOverride": "OVER", "points": 3, "variant": "success", "eventData": { "successful": true } },
           { "name": "Missed", "displayOverride": "MISSED", "points": 0, "variant": "danger", "eventData": { "successful": false } }
         ]
       }
