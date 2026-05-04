@@ -1,6 +1,6 @@
 console.log("[GameStore] Module loaded");
 
-import { Event, Game, SocketAction, GameClockState, GameEvent } from "@sk/types";
+import { Event, Game, SocketAction, GameClockState, GameEvent, GameDispute, AddGamePayload, UpdateGamePayload } from "@sk/types";
 import { getPeriodLabel } from "@sk/types";
 import { socket } from "../../lib/socketService";
 import { SiteStore } from "./SiteStore";
@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast";
 export class GameStore extends SiteStore {
     static { console.log("[GameStore] Class initialized"); }
     gameEvents: GameEvent[] = [];
-    activeDisputes: any[] = [];
+    activeDisputes: Map<string, GameDispute[]> = new Map();
     eventLogFilters: Set<string> = new Set(['TIME', 'SCORE', 'DETAIL', 'GENERAL']);
     pendingManualFlow: { 
         type: string, 
@@ -47,7 +47,9 @@ export class GameStore extends SiteStore {
         if (this.gameEvents.length > 0 && this.gameEvents[0].gameId !== gameId) {
             this.gameEvents = [];
             this.lastSequence = 0;
-            this.activeDisputes = [];
+            // Note: We keep activeDisputes in the map, no need to clear the whole map.
+            // But we might want to clear the specific game's list if re-joining.
+            this.activeDisputes.delete(gameId);
         }
 
         this.activeGameSubscriptions.add(gameId);
@@ -141,21 +143,25 @@ export class GameStore extends SiteStore {
     fetchActiveDisputes(gameId: string) {
         if (this.isFetching('active_disputes', gameId)) {
             console.log(`[GameStore] Redundant fetch ignored for ${gameId}, returning current data.`);
-            return Promise.resolve(this.activeDisputes);
+            return Promise.resolve(this.getActiveDisputes(gameId));
         }
         this.markFetching('active_disputes', gameId);
 
-        return new Promise<any[]>((resolve) => {
-            socket.emit('get_data', { type: 'active_disputes', id: gameId }, (data: any[]) => {
+        return new Promise<GameDispute[]>((resolve) => {
+            socket.emit('get_data', { type: 'active_disputes', id: gameId }, (data: GameDispute[]) => {
                 this.completeFetching('active_disputes', gameId);
                 console.log(`[GameStore] Fetched active disputes for ${gameId}:`, data);
                 if (data) {
-                    this.activeDisputes = data;
+                    this.activeDisputes.set(gameId, data);
                     this.notifyListeners();
                 }
                 resolve(data || []);
             });
         });
+    }
+
+    getActiveDisputes(gameId: string): GameDispute[] {
+        return this.activeDisputes.get(gameId) || [];
     }
 
     setEventLogFilters(filters: Set<string>) {
@@ -221,8 +227,7 @@ export class GameStore extends SiteStore {
     }
 
     async removeGameEvent(gameId: string, eventId: string) {
-        const myProfileIds = Array.from(this.myOrgProfileIds);
-        const officialId = myProfileIds[0] || (this.globalRole === 'admin' ? this.currentUserId || 'admin' : null);
+        const officialId = this.getMyProfileForGame(gameId) || (this.globalRole === 'admin' ? this.currentUserId || 'admin' : null);
         return this.undoGameEvent(gameId, eventId, officialId);
     }
 
@@ -312,7 +317,7 @@ export class GameStore extends SiteStore {
         return Promise.reject(new Error('Event not found'));
     };
 
-    addGame = (game: Omit<Game, "id" | "status" | "finalScoreData" | "liveState">) => {
+    addGame = (game: AddGamePayload) => {
         return new Promise<Game>((resolve, reject) => {
             socket.emit('action', { type: SocketAction.ADD_GAME, payload: game }, (response: any) => {
                 if (response.status === 'ok') {
@@ -323,10 +328,10 @@ export class GameStore extends SiteStore {
         });
     };
 
-    updateGame = (id: string, data: Partial<Game>) => {
+    updateGame = (id: string, data: UpdateGamePayload['data']) => {
         const index = this.games.findIndex(g => g.id === id);
         if (index > -1) {
-            this.games[index] = { ...this.games[index], ...data };
+            this.games[index] = { ...this.games[index], ...data } as Game;
             this.notifyListeners();
         }
         return new Promise<Game>((resolve, reject) => {
@@ -398,7 +403,10 @@ export class GameStore extends SiteStore {
         if (!game) return;
 
         const event = this.events.find(e => e.id === game.eventId);
-        const sport = this.sports.find(s => s.id === event?.sportIds?.[0]);
+        
+        // Find the primary sport for this game/event
+        const sportId = game.customSettings?.sportId || event?.sportIds?.[0];
+        const sport = this.sports.find(s => s.id === sportId);
 
         // Resolve Configuration (Game > Event > Sport > Default)
         const periodLengthMS = game.customSettings?.periodLengthMS 
@@ -526,8 +534,8 @@ export class GameStore extends SiteStore {
         }
 
         // Fallback: Ensure we attach an identity even if the prior lookup failed
-        if (!payload.initiatorOrgProfileId && this.myOrgProfileIds.size > 0) {
-            payload.initiatorOrgProfileId = Array.from(this.myOrgProfileIds)[0];
+        if (!payload.initiatorOrgProfileId) {
+            payload.initiatorOrgProfileId = this.getMyProfileForGame(payload.gameId) || undefined;
         }
 
         return new Promise<any>((resolve, reject) => {
@@ -618,6 +626,22 @@ export class GameStore extends SiteStore {
         });
     }; 
     getGame = (id: string) => this.games.find((g) => g.id === id);
+    
+    getMyProfileForGame(gameId: string) {
+        const game = this.getGame(gameId);
+        if (!game || !game.participants) return null;
+        
+        const teamIds = game.participants.map(p => p.teamId).filter(Boolean) as string[];
+        const orgIds = new Set<string>();
+        teamIds.forEach(tid => {
+            const team = this.getTeam(tid);
+            if (team) orgIds.add(team.orgId);
+        });
+        
+        // Find a membership that matches one of these orgs
+        const membership = this.userOrgMemberships.find(m => orgIds.has(m.orgId));
+        return membership?.orgProfileId || Array.from(this.myOrgProfileIds)[0] || null;
+    }
 
     canScoreGame(gameId: string) {
         if (!this.currentUserId) return false;
@@ -732,35 +756,32 @@ export class GameStore extends SiteStore {
         this.notifyListeners();
     }
 
-    mergeDispute(dispute: any) {
-        if (!dispute) return;
+    mergeDispute(dispute: GameDispute) {
+        if (!dispute || !dispute.gameId) return;
         console.log(`[GameStore] Merging dispute: id=${dispute.id}, status=${dispute.status}, gameId=${dispute.gameId}, type=${dispute.type}`);
         
-        // Ensure we have a gameId if it's missing but we can infer it
-        if (!dispute.gameId && this.gameEvents.length > 0) {
-            const evt = this.gameEvents.find(e => e.id === dispute.gameEventId);
-            if (evt) dispute.gameId = evt.gameId;
+        let list = this.activeDisputes.get(dispute.gameId);
+        if (!list) {
+            list = [];
+            this.activeDisputes.set(dispute.gameId, list);
         }
-
-        if (!this.activeDisputes) this.activeDisputes = [];
         
-        const index = this.activeDisputes.findIndex(d => d.id === dispute.id);
+        const index = list.findIndex(d => d.id === dispute.id);
         
         if (dispute.status && dispute.status !== 'OPEN') {
             // Remove resolved disputes from active store
             if (index > -1) {
-                this.activeDisputes.splice(index, 1);
-                this.activeDisputes = [...this.activeDisputes];
+                list.splice(index, 1);
             }
         } else {
             if (index > -1) {
-                this.activeDisputes[index] = { ...this.activeDisputes[index], ...dispute };
+                list[index] = { ...list[index], ...dispute };
             } else {
-                this.activeDisputes.push(dispute);
+                list.push(dispute);
             }
-            // Always create a new array reference for React reactivity
-            this.activeDisputes = [...this.activeDisputes];
         }
+        
+        // Trigger reactivity by updating the map reference or notify listeners
         this.notifyListeners();
     }
 

@@ -29,7 +29,8 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     disputeConfig: {
       type: "CHANGE_OUTCOME",
       heading: "Change Conversion Outcome",
-      impactsPoints: true
+      impactsPoints: true,
+      allowUndo: false
     },
     steps: [
       {

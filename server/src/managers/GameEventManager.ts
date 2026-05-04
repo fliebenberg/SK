@@ -7,10 +7,11 @@ import { sportManager } from "./SportManager";
 import { EventTemplate, ActionStep, Outcome } from "@sk/types";
 
 const SPORT_MODULES: Record<string, string> = {};
-
 export class GameEventManager extends BaseManager {
   private activeTimers = new Map<string, NodeJS.Timeout>();
   public io: Server | null = null;
+  private GAME_EVENT_COLUMNS = 'id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"';
+  private DISPUTE_COLUMNS = 'id, game_id as "gameId", game_event_id as "gameEventId", type, initiator_org_profile_id as "initiatorOrgProfileId", status, expires_at as "expiresAt", created_at as "createdAt", resolved_at as "resolvedAt", update_data as "updateData", dispute_config as "disputeConfig"';
 
   private async getGameSportId(gameId: string): Promise<string | null> {
       try {
@@ -122,7 +123,7 @@ export class GameEventManager extends BaseManager {
     const insertRes = await this.query(`
       INSERT INTO game_events (id, game_id, sequence, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"
+      RETURNING ${this.GAME_EVENT_COLUMNS}
     `, [newEventId, data.gameId, nextSeq, data.gameParticipantId, data.actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, data.eventData || {}]);
 
     const newEvent = insertRes.rows[0] as GameEvent;
@@ -207,6 +208,35 @@ export class GameEventManager extends BaseManager {
       return { success: false, error: 'A dispute is already active for this event.' };
     }
 
+    // --- GUARD LOGIC ---
+    // Fetch event and template to check if this action is allowed
+    const eventRes = await this.query(`SELECT type, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1`, [eventId]);
+    const evt = eventRes.rows[0];
+    if (!evt) return { success: false, error: 'Event not found.' };
+
+    const sportId = await this.getGameSportId(gameId);
+    const sport = sportId ? await sportManager.getSport(sportId) : null;
+    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === evt.subType || t.id === evt.eventData?.templateId);
+    
+    const isUndo = !updateData;
+    
+    if (isUndo) {
+        // Structural Guard: Cannot undo a child event directly
+        if (evt.eventData?.linkedEventId) {
+            return { success: false, error: 'Cannot remove a linked event directly. Please remove the parent event instead.' };
+        }
+        // Template Guard: check allowUndo
+        if (template?.disputeConfig?.allowUndo === false) {
+            return { success: false, error: 'This event type is marked as non-removable.' };
+        }
+    } else {
+        // Update Guard: check allowUpdate
+        if (template?.disputeConfig?.allowUpdate === false) {
+            return { success: false, error: 'This event type is marked as non-modifiable.' };
+        }
+    }
+    // -------------------
+    
     const id = `gd-${Date.now()}`;
     
     let durationMinutes = 5; // Default
@@ -296,9 +326,7 @@ export class GameEventManager extends BaseManager {
                   `, [JSON.stringify(newEventData), row.id]);
 
                   const updatedRes = await this.query(`
-                      SELECT id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", 
-                             actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", 
-                             type, sub_type as "subType", event_data as "eventData"
+                      SELECT ${this.GAME_EVENT_COLUMNS}
                       FROM game_events
                       WHERE id = $1
                   `, [row.id]);
@@ -342,53 +370,86 @@ export class GameEventManager extends BaseManager {
    * Updates an existing game event's data.
    */
   async updateEvent(gameId: string, eventId: string, data: { actorOrgProfileId?: string; gameParticipantId?: string; eventData?: any }): Promise<GameEvent | { error: string }> {
-    let updateSql = 'UPDATE game_events SET ';
-    const params: any[] = [];
-    let count = 1;
+    try {
+        // 1. Fetch current state to check for actual changes
+        const eventRes = await this.query(`
+            SELECT id, sequence, type, sub_type as "subType", actor_org_profile_id as "actorId", 
+                   game_participant_id as "gameParticipantId", event_data as "eventData"
+            FROM game_events WHERE id = $1
+        `, [eventId]);
+        
+        const current = eventRes.rows[0];
+        if (!current) return { error: 'Event not found' };
 
-    if (data.actorOrgProfileId !== undefined) {
-      updateSql += `actor_org_profile_id = $${count++}, `;
-      params.push(data.actorOrgProfileId);
+        // 2. Intelligence: Check if anything actually changed
+        let hasChanges = false;
+        if (data.actorOrgProfileId !== undefined && data.actorOrgProfileId !== current.actorId) hasChanges = true;
+        if (data.gameParticipantId !== undefined && data.gameParticipantId !== current.gameParticipantId) hasChanges = true;
+        
+        if (data.eventData) {
+            for (const key of Object.keys(data.eventData)) {
+                if (data.eventData[key] !== current.eventData[key]) {
+                    hasChanges = true;
+                    break;
+                }
+            }
+        }
+
+        if (!hasChanges) {
+            console.log(`[Direct Update] No changes detected for event ${eventId}, skipping mutation.`);
+            // Return current state mapped to GameEvent interface
+            return {
+                id: current.id,
+                gameId,
+                sequence: current.sequence,
+                type: current.type,
+                subType: current.subType,
+                actorOrgProfileId: current.actorId,
+                gameParticipantId: current.gameParticipantId,
+                eventData: current.eventData,
+                timestamp: current.timestamp // Note: will be added by DB if we fetch again, but for now we just want to avoid the update
+            } as any;
+        }
+
+        console.log(`[Direct Update] Applying mutation to event ${eventId}`);
+        const modifiedEvents = await this.applyMutation(gameId, eventId, data, data.actorOrgProfileId);
+        
+        if (modifiedEvents.length === 0) return { error: 'Event not found' };
+
+        const mainEvent = modifiedEvents[0];
+        const minSequence = Math.min(...modifiedEvents.map(e => e.sequence || 0));
+        
+        const { modifiedEvents: recalculatedEvents, finalScores } = await this.recalculateEventScores(gameId, minSequence);
+
+        // Merge recalculated events into modifiedEvents, preferring recalculated versions
+        const allModified = [...modifiedEvents];
+        for (const re of recalculatedEvents) {
+            const idx = allModified.findIndex(m => m.id === re.id);
+            if (idx > -1) {
+                allModified[idx] = re;
+            } else {
+                allModified.push(re);
+            }
+        }
+
+        // Update the game scoreboard in DB
+        await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
+
+        // Broadcast if IO is available
+        if (this.io) {
+            this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
+            
+            // Also broadcast individual updates for the main entities
+            for (const me of allModified) {
+                this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: me });
+            }
+        }
+
+        return allModified.find(e => e.id === eventId) || mainEvent;
+    } catch (err: any) {
+        console.error(`[Direct Update Error] Failed to update event:`, err);
+        return { error: err.message };
     }
-
-    if (data.gameParticipantId !== undefined) {
-      updateSql += `game_participant_id = $${count++}, `;
-      params.push(data.gameParticipantId);
-    }
-
-    if (data.eventData !== undefined) {
-      updateSql += `event_data = event_data || $${count++}::jsonb, `;
-      params.push(JSON.stringify(data.eventData));
-    }
-
-    // Remove trailing comma and space
-    updateSql = updateSql.slice(0, -2);
-    
-    updateSql += ` WHERE id = $${count++} AND game_id = $${count++}
-      RETURNING id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"`;
-    
-    params.push(eventId, gameId);
-
-    const res = await this.query(updateSql, params);
-
-    if (res.rows.length === 0) {
-      return { error: 'Event not found or not part of this game.' };
-    }
-
-    const updatedEvent = res.rows[0] as GameEvent;
-
-    const { modifiedEvents, finalScores } = await this.recalculateEventScores(gameId, updatedEvent.sequence || 0);
-    const allUpdates = [updatedEvent, ...modifiedEvents.filter((e: any) => e.id !== updatedEvent.id)];
-
-    // Update the game scoreboard in DB
-    await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
-
-    // Broadcast if IO is available
-    if (this.io) {
-        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allUpdates });
-    }
-
-    return updatedEvent;
   }
 
   async rehydrateDisputes(): Promise<number> {
@@ -536,26 +597,41 @@ export class GameEventManager extends BaseManager {
      
      const totalEligible = neutralOfficials.length + teamsWithCoaches.size + teamsWithScorers.size + adminVoterCount;
 
-      // Fetch target event to compute dispute display config
-      let disputeConfig = { heading: 'Remove Event', approveLabel: 'Approve', rejectLabel: 'Reject' };
-      try {
-          const targetEvtRes = await this.query(
-              `SELECT type, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1`,
-              [rawDispute.gameEventId]
-          );
-          if (targetEvtRes.rows.length > 0) {
-              const evtRow = targetEvtRes.rows[0];
-              const customHandler = await this.getCustomHandler(rawDispute.gameId, evtRow.subType);
-              if (customHandler && customHandler.getDisputeConfig) {
-                  const customConfig = customHandler.getDisputeConfig(evtRow.eventData, evtRow.subType);
-                  if (customConfig) disputeConfig = customConfig;
-              }
-          }
-      } catch (e) {
-          console.error('[Dispute Tally] Failed to fetch target event for disputeConfig:', e);
-      }
+     // Fetch target event to compute dispute display config
+     let disputeConfig = { heading: 'Remove Event', approveLabel: 'Approve', rejectLabel: 'Reject' };
+     try {
+         const targetEvtRes = await this.query(
+             `SELECT type, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1`,
+             [rawDispute.gameEventId]
+         );
+         if (targetEvtRes.rows.length > 0) {
+             const evtRow = targetEvtRes.rows[0];
+             
+             // 1. Try Template Config (Preferred)
+             const sportId = await this.getGameSportId(rawDispute.gameId);
+             const sport = sportId ? await sportManager.getSport(sportId) : null;
+             const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === evtRow.subType || t.id === evtRow.eventData?.templateId);
+             
+             if (template?.disputeConfig) {
+                 disputeConfig = {
+                     ...disputeConfig,
+                     ...template.disputeConfig,
+                     heading: template.disputeConfig.heading || (rawDispute.type === 'UPDATE' ? 'Update Event' : 'Remove Event')
+                 } as any;
+             } else {
+                 // 2. Fallback to Legacy Custom Handler
+                 const customHandler = await this.getCustomHandler(rawDispute.gameId, evtRow.subType);
+                 if (customHandler && customHandler.getDisputeConfig) {
+                     const customConfig = customHandler.getDisputeConfig(evtRow.eventData, evtRow.subType);
+                     if (customConfig) disputeConfig = customConfig;
+                 }
+             }
+         }
+     } catch (e) {
+         console.error('[Dispute Tally] Failed to fetch target event for disputeConfig:', e);
+     }
 
-      const tally = {
+     const tally = {
           ...rawDispute,
           votes: Object.values(slots),
           adminVotes: { approve: adminApprove, reject: adminReject },
@@ -631,142 +707,40 @@ export class GameEventManager extends BaseManager {
 
          if (outcome === 'RESOLVED_APPROVED') {
              try {
-                 const eventRes = await this.query(`SELECT id, sequence, sub_type, game_participant_id, actor_org_profile_id, event_data FROM game_events WHERE id = $1`, [dispute.gameEventId]);
-                 const evt = eventRes.rows[0];
-                 
-                 if (!evt) return { success: true, dispute, resolved: true, error: 'Target event not found' };
-
-                  // Fetch sport and template for dispute context
-                  const sportId = await this.getGameSportId(dispute.gameId);
-                  const sport = sportId ? await sportManager.getSport(sportId) : null;
-                  const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === evt.sub_type || t.id === evt.event_data?.templateId);
-                  const disputeConfig = template?.disputeConfig;
-
-                  if (dispute.updateData && disputeConfig?.type === 'CHANGE_OUTCOME' && template) {
-                      // --- RESOLVE AS CHANGE_OUTCOME (UPDATE) ---
-                      console.log(`[Dispute] Applying approved CHANGE_OUTCOME to event ${dispute.gameEventId}`);
-                      const updateData = dispute.updateData;
-                      const newOutcomeName = updateData.newOutcome || updateData.eventData?.outcome || updateData.eventData?.newOutcome;
-                      const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
-                      const newOutcome = outcomeStep?.outcomes?.find((o: Outcome) => o.name === newOutcomeName);
-
-                      if (newOutcome) {
-                          const eventData = { 
-                              ...evt.event_data, 
-                              ...newOutcome.eventData, 
-                              ...(updateData.eventData || {}),
-                              outcome: newOutcomeName,
-                              pointsDelta: newOutcome.points || 0
-                          };
-                          
-                          // Update event in DB
-                          await this.query(`
-                             UPDATE game_events 
-                             SET actor_org_profile_id = $1,
-                                 event_data = $2::jsonb
-                             WHERE id = $3
-                          `, [updateData.actorOrgProfileId || evt.actor_org_profile_id, JSON.stringify(eventData), dispute.gameEventId]);
-
-                          if (this.io) {
-                             const updatedEvtRes = await this.query(`SELECT id, sequence, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
-                             const modifiedEvt = updatedEvtRes.rows[0];
-                             
-                             const { modifiedEvents, finalScores } = await this.recalculateEventScores(dispute.gameId, modifiedEvt.sequence || 0);
-                             const allUpdates = [modifiedEvt, ...modifiedEvents.filter((e: any) => e.id !== modifiedEvt.id)];
-
-                             // Update the game scoreboard in DB
-                             await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
-
-                             this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allUpdates });
-                             this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: modifiedEvt });
-                             
-                             const updatedGame = await dataManager.getGame(dispute.gameId);
-                             if (updatedGame) {
-                                 this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                                 this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                             }
+                  console.log(`[Dispute Engine] Applying approved mutation to event ${dispute.gameEventId}`);
+                  const modifiedEvents = await this.applyMutation(dispute.gameId, dispute.gameEventId, dispute.updateData);
+                  
+                  if (modifiedEvents.length > 0) {
+                      // Unified Post-Mutation Flow: Recalculate, Sync Scoreboard, and Broadcast
+                      const minSequence = Math.min(...modifiedEvents.map(e => e.sequence || 0));
+                      const { modifiedEvents: recalculatedEvents, finalScores } = await this.recalculateEventScores(dispute.gameId, minSequence);
+                      
+                      // Merge all modified events (from mutation + recalculation)
+                      // Prefer recalculated versions as they contain the updated snapshots
+                      const allModified = [...modifiedEvents];
+                      for (const re of recalculatedEvents) {
+                          const idx = allModified.findIndex(m => m.id === re.id);
+                          if (idx > -1) {
+                              allModified[idx] = re;
+                          } else {
+                              allModified.push(re);
                           }
                       }
-                  } else if (dispute.updateData) {
-                      // --- RESOLVE AS GENERIC UPDATE ---
-                      console.log(`[Dispute] Applying approved generic UPDATE to event ${dispute.gameEventId}`);
-                      const updateData = dispute.updateData;
-                      
-                      // Update event in DB
-                      await this.query(`
-                         UPDATE game_events 
-                         SET actor_org_profile_id = $1,
-                             event_data = $2::jsonb
-                         WHERE id = $3
-                      `, [updateData.actorOrgProfileId, JSON.stringify(updateData.eventData), dispute.gameEventId]);
+
+                      // Update the game scoreboard in DB
+                      await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
 
                       if (this.io) {
-                         const updatedEvtRes = await this.query(`SELECT id, sequence, type, sub_type as "subType", timestamp, game_id as "gameId", game_participant_id as "gameParticipantId", initiator_org_profile_id as "initiatorOrgProfileId", event_data as "eventData" FROM game_events WHERE id = $1`, [dispute.gameEventId]);
-                         const modifiedEvt = updatedEvtRes.rows[0];
-                         
-                         const { modifiedEvents, finalScores } = await this.recalculateEventScores(dispute.gameId, modifiedEvt.sequence || 0);
-                         const allUpdates = [modifiedEvt, ...modifiedEvents.filter((e: any) => e.id !== modifiedEvt.id)];
-
-                         // Update the game scoreboard in DB
-                         await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
-
-                         this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allUpdates });
-                         this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: modifiedEvt });
-                         
-                         const updatedGame = await dataManager.getGame(dispute.gameId);
-                         if (updatedGame) {
-                             this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                             this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                         }
-                      }
-                  } else {
-                      // --- RESOLVE AS UNDO ---
-                      console.log(`[Dispute] Applying approved UNDO to event ${dispute.gameEventId}`);
-                      let childEventId: string | null = null;
-                      
-                      if (evt.sub_type === 'Try' || evt.sub_type === 'Penalty Try') {
-                          const childRes = await this.query(`
-                              SELECT id, event_data
-                              FROM game_events
-                              WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
-                          `, [dispute.gameId, dispute.gameEventId]);
-                          
-                          if (childRes.rows.length > 0) {
-                              childEventId = childRes.rows[0].id;
-                          }
-                      }
-
-                      // Soft-delete main event
-                      await this.query(`
-                         UPDATE game_events 
-                         SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
-                         WHERE id = $1
-                      `, [dispute.gameEventId]);
-
-                      // Soft-delete child event if present
-                      if (childEventId) {
-                          await this.query(`
-                             UPDATE game_events 
-                             SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
-                             WHERE id = $1
-                          `, [childEventId]);
-                      }
-
-                      // --- BROADCAST UPDATES ---
-                      if (this.io) {
-                          const { modifiedEvents, finalScores } = await this.recalculateEventScores(dispute.gameId, evt.sequence || 0);
-
-                          // Update the game scoreboard in DB
-                          await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
-
-                          this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: dispute.gameEventId } });
-                          if (childEventId) {
-                              this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
+                          // Broadcast removals and updates
+                          for (const me of allModified) {
+                              if (me.eventData?.status === 'REMOVED') {
+                                  this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: me.id } });
+                              } else {
+                                  this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: me });
+                              }
                           }
                           
-                          if (modifiedEvents.length > 0) {
-                              this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: modifiedEvents });
-                          }
+                          this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
                           
                           const updatedGame = await dataManager.getGame(dispute.gameId);
                           if (updatedGame) {
@@ -776,9 +750,8 @@ export class GameEventManager extends BaseManager {
                       }
                   }
              } catch (err: any) {
-                 console.error(`[Dispute Sync Error] Failed to process database update during dispute resolution:`, err);
-                 // Return false so we don't accidentally broadcast a success
-                 return { success: false, dispute, resolved: false, error: err.message };
+                  console.error(`[Dispute Engine Error] Failed to apply mutation:`, err);
+                  return { success: false, dispute, resolved: false, error: err.message };
              }
          }
          return { success: true, dispute, resolved: true };
@@ -789,24 +762,125 @@ export class GameEventManager extends BaseManager {
   }
 
   /**
+   * Applies a mutation (undo or update) to an event and its children.
+   * This is the core of the Template-Driven Mutation Engine.
+   */
+  private async applyMutation(
+    gameId: string, 
+    eventId: string, 
+    updateData: any, // null for undo
+    actorId?: string
+  ): Promise<GameEvent[]> {
+    const modifiedEvents: GameEvent[] = [];
+    
+    // 1. Fetch current event state
+    const eventRes = await this.query(`
+        SELECT id, sequence, sub_type as "subType", event_data as "eventData", 
+               actor_org_profile_id as "actorId", game_participant_id as "gameParticipantId"
+        FROM game_events WHERE id = $1
+    `, [eventId]);
+    const evt = eventRes.rows[0];
+    if (!evt) return [];
+
+    // 2. Resolve template
+    const sportId = await this.getGameSportId(gameId);
+    const sport = sportId ? await sportManager.getSport(sportId) : null;
+    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === evt.subType || t.id === evt.eventData?.templateId);
+
+    const isUndo = !updateData;
+    const isAlreadyRemoved = evt.eventData?.status === 'REMOVED';
+
+    if (isUndo) {
+        if (!isAlreadyRemoved) {
+            console.log(`[Mutation Engine] Undoing event: ${eventId}`);
+            await this.query(`
+               UPDATE game_events 
+               SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
+               WHERE id = $1
+            `, [eventId]);
+        }
+    } else {
+        console.log(`[Mutation Engine] Updating event: ${eventId}`);
+        // Merge strategy: Start with template-derived values if outcome changed
+        let finalEventData = { ...evt.eventData, ...updateData.eventData };
+        
+        const newOutcomeName = updateData.newOutcome || updateData.eventData?.outcome;
+        if (template && newOutcomeName && newOutcomeName !== evt.eventData?.outcome) {
+            const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
+            const newOutcome = outcomeStep?.outcomes?.find((o: Outcome) => o.name === newOutcomeName);
+            if (newOutcome) {
+                finalEventData = {
+                    ...finalEventData,
+                    ...newOutcome.eventData,
+                    outcome: newOutcomeName,
+                    pointsDelta: newOutcome.points || 0
+                };
+            }
+        }
+
+        await this.query(`
+           UPDATE game_events 
+           SET actor_org_profile_id = $1,
+               game_participant_id = $2,
+               event_data = $3::jsonb
+           WHERE id = $4
+        `, [
+            updateData.actorOrgProfileId || actorId || evt.actorId, 
+            updateData.gameParticipantId || evt.gameParticipantId,
+            JSON.stringify(finalEventData), 
+            eventId
+        ]);
+    }
+
+    // 3. Fetch the finalized state of the main event
+    const finalizedRes = await this.query(`
+        SELECT ${this.GAME_EVENT_COLUMNS}
+        FROM game_events WHERE id = $1
+    `, [eventId]);
+    const finalizedEvt = finalizedRes.rows[0];
+    modifiedEvents.push(finalizedEvt);
+
+    // 4. CASCADE LOGIC
+    // Find any events linked to this one
+    const childRes = await this.query(`
+        SELECT id FROM game_events 
+        WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
+    `, [gameId, eventId]);
+
+    for (const childRow of childRes.rows) {
+        let childMutationData = updateData; // Default: propagate same update/undo
+
+        // SPECIAL CASE: If parent changed to an outcome that doesn't trigger the child, remove the child
+        if (updateData && template && finalizedEvt.eventData?.outcome) {
+             const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
+             const outcomeDef = outcomeStep?.outcomes?.find((o: Outcome) => o.name === finalizedEvt.eventData.outcome);
+             
+             // Fetch child to see its type
+             const childEvtRes = await this.query(`SELECT sub_type FROM game_events WHERE id = $1`, [childRow.id]);
+             const childSubType = childEvtRes.rows[0]?.sub_type;
+             
+             // If the new outcome doesn't trigger this specific child type anymore, undo the child
+             if (outcomeDef && outcomeDef.triggerEventId !== childSubType) {
+                 console.log(`[Mutation Engine] Cascading UNDO to orphan child: ${childRow.id} (Parent ${eventId} changed outcome)`);
+                 childMutationData = null;
+             }
+        }
+
+        const childModified = await this.applyMutation(gameId, childRow.id, childMutationData, actorId);
+        modifiedEvents.push(...childModified);
+    }
+
+    return modifiedEvents;
+  }
+
+  /**
    * Fetches active disputes for a specific game.
    */
    async getActiveDisputes(gameId: string): Promise<any[]> {
       const res = await this.query(`
-         SELECT 
-         id, 
-         game_id as "gameId",
-         game_event_id as "gameEventId", 
-         type,
-         initiator_org_profile_id as "initiatorOrgProfileId", 
-         status, 
-         expires_at as "expiresAt", 
-         created_at as "createdAt", 
-         resolved_at as "resolvedAt",
-         update_data as "updateData",
-         dispute_config as "disputeConfig"
-       FROM game_disputes
-       WHERE game_id = $1 AND (status = 'OPEN' OR status IS NULL)
+         SELECT ${this.DISPUTE_COLUMNS}
+         FROM game_disputes
+         WHERE game_id = $1 AND (status = 'OPEN' OR status IS NULL)
       `, [gameId]);
       
        const disputes = [];
@@ -846,9 +920,7 @@ export class GameEventManager extends BaseManager {
    */
   async getGameEvents(gameId: string, fromSequence?: number, limit: number = 20): Promise<GameEvent[]> {
     let sql = `
-      SELECT id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", 
-             actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", 
-             type, sub_type as "subType", event_data as "eventData"
+      SELECT ${this.GAME_EVENT_COLUMNS}
       FROM game_events
       WHERE game_id = $1
     `;
@@ -882,16 +954,21 @@ export class GameEventManager extends BaseManager {
     `, [eventId, gameId]);
 
     if (eventRes.rows.length === 0) {
-      console.log(`[Undo] Failed: Event not found (${eventId})`);
       return { success: false, error: 'Event not found.' };
     }
 
     const event = eventRes.rows[0];
 
-    // 2. Verify type (Support SCORE and GAME_EVENT)
-    if (event.type !== 'SCORE' && event.type !== 'GAME_EVENT') {
-      console.log(`[Undo] Failed: Unsupported event type (${event.type})`);
-      return { success: false, error: 'Only scoring and game events can be removed.' };
+    // 2. Structural & Config Guard (Same logic as initiateDispute)
+    if (event.eventData?.linkedEventId) {
+        return { success: false, error: 'Cannot remove a linked event directly. Please remove the parent event instead.' };
+    }
+    
+    const sportId = await this.getGameSportId(gameId);
+    const sport = sportId ? await sportManager.getSport(sportId) : null;
+    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === event.subType || t.id === event.eventData?.templateId);
+    if (template?.disputeConfig?.allowUndo === false) {
+        return { success: false, error: 'This event type is marked as non-removable.' };
     }
 
     // 3. Verify Permission (Initiator or Match Official / Admin)
@@ -899,16 +976,11 @@ export class GameEventManager extends BaseManager {
     let isOfficial = false;
     
     if (initiatorId) {
-        // Check if initiator is a match official for this game
-        const officialRes = await this.query(`
-            SELECT 1 FROM game_officials WHERE game_id = $1 AND org_profile_id = $2
-        `, [gameId, initiatorId]);
+        const officialRes = await this.query(`SELECT 1 FROM game_officials WHERE game_id = $1 AND org_profile_id = $2`, [gameId, initiatorId]);
         if (officialRes.rows.length > 0) {
             isAuthorized = true;
             isOfficial = true;
         }
-        
-        // Check if initiator is an app admin (initiatorId might be userId in this case)
         if (!isAuthorized) {
             const isAdmin = await dataManager.isAppAdmin(initiatorId);
             if (isAdmin) {
@@ -919,7 +991,6 @@ export class GameEventManager extends BaseManager {
     }
 
     if (!isAuthorized) {
-      console.log(`[Undo] Failed: Not authorized. Initiator: ${initiatorId}, Event Initiator: ${event.initiatorId}`);
       return { success: false, error: 'Only the initiator or a match official can remove this event.' };
     }
 
@@ -929,57 +1000,42 @@ export class GameEventManager extends BaseManager {
         const delayMs = settingsRes.rows[0]?.value || 15000;
         const eventTime = new Date(event.timestamp).getTime();
         if (Date.now() - eventTime > delayMs) {
-          console.log(`[Undo] Failed: Window expired. Age: ${Date.now() - eventTime}, Delay: ${delayMs}`);
           return { success: false, error: 'Undo window has expired.' };
         }
     }
 
-    // 5. Reverse Score Effect (including children)
-    let childEventId = null;
-    if (event.subType === 'Try' || event.subType === 'Penalty Try') {
-        const childRes = await this.query(`
-            SELECT id, event_data
-            FROM game_events
-            WHERE game_id = $1 AND event_data->>'linkedEventId' = $2
-        `, [gameId, eventId]);
-        
-        if (childRes.rows.length > 0) {
-            childEventId = childRes.rows[0].id;
-        }
-    }
-
-    // 6. Delete Event and linked child Event
-    if (childEventId) {
-        await this.query(`DELETE FROM game_events WHERE id = $1`, [childEventId]);
-    }
-    await this.query(`DELETE FROM game_events WHERE id = $1`, [eventId]);
-
-    // 7. BROADCAST UPDATES
-    if (this.io) {
-        const { modifiedEvents, finalScores } = await this.recalculateEventScores(gameId, event.sequence || 0);
-
-        // Update the game scoreboard in DB
-        await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
-
-        // Broadcast removals to :events
-        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: eventId } });
-        if (childEventId) {
-            this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: childEventId } });
-        }
+    // 5. Apply Mutation
+    try {
+        console.log(`[Direct Undo] Applying mutation to event ${eventId}`);
+        const modifiedEvents = await this.applyMutation(gameId, eventId, null, initiatorId);
         
         if (modifiedEvents.length > 0) {
-            this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: modifiedEvents });
-        }
+            const minSequence = Math.min(...modifiedEvents.map(e => e.sequence || 0));
+            const { finalScores } = await this.recalculateEventScores(gameId, minSequence);
 
-        // Broadcast score update to game summary/detail
-        const updatedGame = await dataManager.getGame(gameId);
-        if (updatedGame) {
-            this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-            this.io.to(`game:${gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+            // Update the game scoreboard in DB
+            await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
+
+            if (this.io) {
+                for (const me of modifiedEvents) {
+                    if (me.eventData?.status === 'REMOVED') {
+                        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: me.id } });
+                    }
+                }
+                this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: modifiedEvents });
+                
+                const updatedGame = await dataManager.getGame(gameId);
+                if (updatedGame) {
+                    this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                    this.io.to(`game:${gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                }
+            }
         }
+        return { success: true };
+    } catch (err: any) {
+        console.error(`[Direct Undo Error] Failed to undo event:`, err);
+        return { success: false, error: err.message };
     }
-
-    return { success: true };
   }
 }
 

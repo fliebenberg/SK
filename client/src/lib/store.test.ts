@@ -91,6 +91,7 @@ describe('Store Logic', () => {
     
     const newGame = await store.addGame({
       eventId: TEST_EVENT_ID,
+      sportId: TEST_SPORT_ID,
       participants: [{ teamId: homeTeam.id }, { teamId: awayTeam.id }],
       startTime: '2024-01-01T12:00'
     });
@@ -118,6 +119,7 @@ describe('Store Logic', () => {
     const awayTeam = await store.addTeam({ name: 'Away', orgId: TEST_ORG_ID, sportId: TEST_SPORT_ID, ageGroup: 'U14' });
     const game = await store.addGame({
       eventId: TEST_EVENT_ID,
+      sportId: TEST_SPORT_ID,
       participants: [{ teamId: homeTeam.id }, { teamId: awayTeam.id }],
       startTime: '2024-01-01T14:00'
     });

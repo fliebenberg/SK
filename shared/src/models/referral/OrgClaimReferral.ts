@@ -6,6 +6,6 @@ export interface OrgClaimReferral {
     claimToken?: string; // Private to server usually, but might be needed for debug or specific flows? referManager returns it.
     status: 'pending' | 'claimed' | 'expired' | 'declined' | 'referred';
     claimedByUserId?: string;
-    createdAt: Date;
-    claimedAt?: Date;
+    createdAt: string; // ISO UTC
+    claimedAt?: string; // ISO UTC
 }

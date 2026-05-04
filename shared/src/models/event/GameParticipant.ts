@@ -3,5 +3,6 @@ export interface GameParticipant {
   gameId: string;
   teamId?: string;
   orgProfileId?: string;
-  status: 'active' | 'withdrawn' | 'disqualified' | 'did_not_start';
+  status?: 'active' | 'withdrawn' | 'disqualified' | 'did_not_start';
+  sortOrder?: number;
 }

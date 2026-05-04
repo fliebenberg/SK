@@ -283,7 +283,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                 : null;
                             
                             const isScore = evt.type === 'SCORE';
-                            const { template, error, warning } = resolveEventTemplate(evt);
+                            const { template, sport, error, warning } = resolveEventTemplate(evt);
                             const isScoringEvent = isScore || template?.section === 'Scoring';
 
                             const age = now - new Date(evt.timestamp).getTime();
@@ -299,15 +299,10 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                             const isRemoved = eventData.status === 'REMOVED';
                             
                             // Check if this event is currently disputed
-                            const isCurrentlyDisputed = store.activeDisputes.some(d => d.gameEventId === evt.id);
+                            const isCurrentlyDisputed = store.getActiveDisputes(gameId).some(d => d.gameEventId === evt.id);
 
                             // showUndo: Only for the person who submitted the event
                             const showUndo = isScoringEvent && isInitiator && inUndoWindow && !isRemoved && !isCurrentlyDisputed;
-                            
-                            // showDispute: For everyone else once the undo window has expired
-                            const showDispute = isScoringEvent && !inUndoWindow && canScore && !isRemoved && !isCurrentlyDisputed;
-                            
-                            const showEdit = canScore && !isRemoved && !isCurrentlyDisputed;
 
                             return (
                                 <div 
@@ -315,6 +310,16 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     onClick={() => {
                                         if (!canScore || isRemoved || isCurrentlyDisputed) return;
                                         
+                                        const { template, error, warning } = resolveEventTemplate(evt);
+                                        if (!template && (error || warning)) {
+                                            toast({ 
+                                                title: "Template Error", 
+                                                description: error || warning || "Could not resolve event template.", 
+                                                variant: "destructive" 
+                                            });
+                                            return;
+                                        }
+
                                         // Prevent disputing/editing another scorer's event during their undo window
                                         if (inUndoWindow && !isInitiator && isScoringEvent) {
                                             toast({ 
@@ -325,7 +330,18 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                             return;
                                         }
 
-                                        const side = evt.gameParticipantId === game?.participants?.[0]?.id ? 'home' : 'away';
+                                        const gpid = evt.gameParticipantId;
+                                        if (!gpid && !['TIME', 'CLOCK', 'PERIOD'].includes(evt.type)) {
+                                            console.error(`[Data Integrity Error] Event ${evt.id} (${evt.type}) is missing gameParticipantId.`, evt);
+                                            toast({ 
+                                                title: "Data Error", 
+                                                description: "This event is missing participant data and cannot be edited.", 
+                                                variant: "destructive" 
+                                            });
+                                            return;
+                                        }
+
+                                        const side = gpid === game?.participants?.[0]?.id ? 'home' : 'away';
                                         
                                         store.startManualFlow({
                                             type: evt.subType || evt.type,
@@ -341,7 +357,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                         });
                                     }}
                                     className={cn(
-                                        "text-sm flex gap-1.5 items-center p-1 px-1 rounded-xl transition-all duration-300 min-h-[44px] shadow-sm hover:shadow-md transform hover:-translate-y-0.5 bg-card border border-border/40",
+                                        "relative text-sm flex gap-1.5 items-center p-1 px-1 rounded-xl transition-all duration-300 min-h-[44px] shadow-sm hover:shadow-md transform hover:-translate-y-0.5 bg-card border border-border/40",
                                         isRemoved ? "opacity-50 grayscale" : "",
                                         canScore && !isRemoved && !isCurrentlyDisputed && "cursor-pointer hover:border-primary/30"
                                     )}
@@ -445,31 +461,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                             )}
                                         </div>
                                     </div>
-                                    
                                     <div className="ml-auto shrink-0 flex items-center gap-1.5 h-[28px]">
-                                         {/* Correction Button (for outside undo window or specific templates) */}
-                                         {(() => {
-                                             const eventData = evt.eventData || (evt as any).event_data || {};
-                                             const { template } = resolveEventTemplate(evt);
-                                             const supportsCorrection = template?.disputeConfig?.type === 'CHANGE_OUTCOME';
-                                             
-                                             if (supportsCorrection && !isRemoved && !isCurrentlyDisputed && !inUndoWindow) {
-                                                 return (
-                                                     <button 
-                                                         onClick={(e) => {
-                                                             e.stopPropagation();
-                                                             setCorrectionEvent(evt);
-                                                         }}
-                                                         className="w-7 h-7 flex items-center justify-center bg-sunken-bg hover:bg-border/20 text-muted-foreground hover:text-foreground rounded-full transition-colors border border-border/10 shadow-sm"
-                                                         title="Correct Outcome"
-                                                     >
-                                                         <Pencil className="w-3 h-3" />
-                                                     </button>
-                                                 );
-                                             }
-                                             return null;
-                                         })()}
-
                                          <div className="w-[28px] h-[28px] flex items-center justify-center relative">
                                         {(isScoringEvent && inUndoWindow && !isRemoved && !isCurrentlyDisputed) ? (
                                             <div className="relative w-full h-full flex items-center justify-center text-muted-foreground">
@@ -520,63 +512,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                 </div>
             </div>
 
-            {/* Correction Dialog */}
-            <Dialog open={!!correctionEvent} onOpenChange={(open) => !open && setCorrectionEvent(null)}>
-                <DialogContent className="sm:max-w-[400px]">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Pencil className="w-4 h-4 text-event-primary" />
-                            Correct Outcome
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="py-6 flex flex-col gap-3">
-                        <p className="text-sm text-muted-foreground mb-2">
-                            Select the correct outcome for this {correctionEvent?.subType}. This will initiate a consensus vote.
-                        </p>
-                        {(() => {
-                            if (!correctionEvent) return null;
-                            const eventData = correctionEvent.eventData || (correctionEvent as any).event_data || {};
-                            const sportId = game?.customSettings?.sportId;
-                            const sport = store.sports.find(s => s.id === sportId);
-                            const template = sport?.eventTemplates?.find(t => t.id === correctionEvent.subType || t.id === eventData.templateId);
-                            const outcomes = template?.steps.find(s => s.type === 'OUTCOME_SELECTION')?.outcomes || [];
-                            const currentOutcome = eventData.outcome;
-
-                            return outcomes.map(o => (
-                                <Button
-                                    key={o.name}
-                                    variant={o.name === currentOutcome ? "secondary" : "outline"}
-                                    className={cn(
-                                        "justify-start h-12 px-4 gap-3",
-                                        o.name === currentOutcome && "border-event-primary/50 bg-event-primary/5"
-                                    )}
-                                    disabled={o.name === currentOutcome}
-                                    onClick={() => {
-                                        scoring.triggerCorrectionDispute(
-                                            correctionEvent.id,
-                                            correctionEvent.type,
-                                            correctionEvent.subType || '',
-                                            null, // side
-                                            o.name
-                                        );
-                                        setCorrectionEvent(null);
-                                    }}
-                                >
-                                    <div className={cn(
-                                        "w-2 h-2 rounded-full",
-                                        o.variant === 'success' ? 'bg-green-500' : 
-                                        o.variant === 'danger' ? 'bg-red-500' : 'bg-muted-foreground'
-                                    )} />
-                                    {o.name}
-                                </Button>
-                            ));
-                        })()}
-                    </div>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setCorrectionEvent(null)}>Cancel</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

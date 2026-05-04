@@ -125,9 +125,9 @@ export default function OrganizationsPage() {
                       </span>
                     ))}
                     {org.supportedSportIds && org.supportedSportIds.length > 3 && (
-                      <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
-                        +{org.supportedSportIds.length - 3}
-                      </span>
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-[10px] font-bold border border-border">
+                            +{org.supportedSportIds?.length - 3}
+                        </div>
                     )}
                   </div>
                 </div>

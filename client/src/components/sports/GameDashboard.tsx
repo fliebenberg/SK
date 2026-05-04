@@ -19,11 +19,23 @@ import { DynamicScoringDialog } from './shared/DynamicScoringDialog';
 import RugbyGameStats from './rugby/RugbyGameStats';
 
 const DynamicScoringDialogRenderer = () => {
-    const { scoringState, pendingDispute, resolveDispute } = useSharedDynamicScoring();
+    const { scoringState, pendingDispute, resolveDispute, confirmRemoval } = useSharedDynamicScoring();
     
     return (
         <>
             {scoringState.status === 'ACTIVE' && <DynamicScoringDialog />}
+            {scoringState.status === 'CONFIRM_REMOVAL' && (
+                <ConfirmationModal 
+                    isOpen={true}
+                    onOpenChange={(open) => { if(!open) confirmRemoval(false); }}
+                    title="Confirm Removal"
+                    description="Are you sure you want to remove this event? This will affect the game score if it's a scoring event."
+                    confirmText="Remove Event"
+                    cancelText="Cancel"
+                    onConfirm={() => confirmRemoval(true)}
+                    variant="destructive"
+                />
+            )}
             {pendingDispute && (
                 <ConfirmationModal 
                     isOpen={true}

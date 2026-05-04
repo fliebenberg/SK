@@ -6,7 +6,7 @@ export interface Organization {
   logo?: string;
   primaryColor?: string;
   secondaryColor?: string;
-  supportedSportIds: string[];
+  supportedSportIds?: string[];
   shortName?: string;
   supportedRoleIds?: string[];
   addressId?: string;

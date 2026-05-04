@@ -10,12 +10,12 @@ export interface User {
   id: string;
   name?: string;
   email?: string;
-  emailVerified?: Date;
+  emailVerified?: string; // ISO UTC
   image?: string;
-  passwordHash?: string;
+  passwordHash?: string; // Should not be sent to client
   globalRole: 'user' | 'admin';
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string; // ISO UTC
+  updatedAt: string; // ISO UTC
   preferences: UserPreferences;
 }
 
@@ -24,6 +24,6 @@ export interface UserEmail {
   userId: string;
   email: string;
   isPrimary: boolean;
-  verifiedAt?: Date;
-  createdAt: Date;
+  verifiedAt?: string; // ISO UTC
+  createdAt: string; // ISO UTC
 }

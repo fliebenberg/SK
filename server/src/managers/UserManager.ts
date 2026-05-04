@@ -1,4 +1,4 @@
-import { OrgProfile, OrgMembership, User, UserEmail } from "@sk/types";
+import { OrgProfile, OrgMembership, User, UserEmail, OrgMember } from "@sk/types";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
@@ -6,15 +6,20 @@ import { imageService } from "../services/ImageService";
 
 export class UserManager extends BaseManager {
   // --- Account Management (Users Table) ---
+  private USER_COLUMNS = 'id, name, email, email_verified as "emailVerified", image, password_hash as "passwordHash", global_role as "globalRole", created_at as "createdAt", updated_at as "updatedAt", preferences';
+  private USER_EMAIL_COLUMNS = 'id, user_id as "userId", email, is_primary as "isPrimary", verified_at as "verifiedAt", created_at as "createdAt"';
+  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId"';
+  private ORG_MEMBERSHIP_COLUMNS = 'id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"';
 
   async getUser(id: string): Promise<User | undefined> {
-    const res = await this.query('SELECT * FROM users WHERE id = $1', [id]);
+    const res = await this.query(`SELECT ${this.USER_COLUMNS} FROM users WHERE id = $1`, [id]);
     return res.rows[0];
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const res = await this.query(`
-      SELECT u.* FROM users u
+      SELECT u.id, u.name, u.email, u.email_verified as "emailVerified", u.image, u.password_hash as "passwordHash", u.global_role as "globalRole", u.created_at as "createdAt", u.updated_at as "updatedAt", u.preferences 
+      FROM users u
       LEFT JOIN user_emails ue ON u.id = ue.user_id
       WHERE u.email = $1 OR ue.email = $1
       LIMIT 1
@@ -27,7 +32,7 @@ export class UserManager extends BaseManager {
     const res = await this.query(
       `INSERT INTO users (id, name, email, image, password_hash, global_role)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
+       RETURNING ${this.USER_COLUMNS}`,
       [id, user.name, user.email, user.image, user.passwordHash, user.globalRole || 'user']
     );
     
@@ -61,7 +66,7 @@ export class UserManager extends BaseManager {
 
     values.push(id);
     const res = await this.query(
-        `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING *`,
+        `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING ${this.USER_COLUMNS}`,
         values
       );
     return res.rows[0] || null;
@@ -74,7 +79,7 @@ export class UserManager extends BaseManager {
   // --- Multi-Email Management ---
 
   async getUserEmails(userId: string): Promise<UserEmail[]> {
-    const res = await this.query('SELECT * FROM user_emails WHERE user_id = $1', [userId]);
+    const res = await this.query(`SELECT ${this.USER_EMAIL_COLUMNS} FROM user_emails WHERE user_id = $1`, [userId]);
     return res.rows;
   }
 
@@ -92,7 +97,7 @@ export class UserManager extends BaseManager {
     const res = await this.query(
       `INSERT INTO user_emails (id, user_id, email, is_primary, verified_at)
        VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
+       RETURNING ${this.USER_EMAIL_COLUMNS}`,
       [id, userId, email, isPrimary, verified ? new Date() : null]
     );
     return res.rows[0];
@@ -146,7 +151,7 @@ export class UserManager extends BaseManager {
   // --- Profile / Personalization ---
 
   async getFavorites(userId: string): Promise<any[]> {
-    const res = await this.query('SELECT * FROM user_favorites WHERE user_id = $1', [userId]);
+    const res = await this.query('SELECT id, user_id as "userId", entity_type as "entityType", entity_id as "entityId", created_at as "createdAt" FROM user_favorites WHERE user_id = $1', [userId]);
     return res.rows;
   }
 
@@ -179,7 +184,7 @@ export class UserManager extends BaseManager {
 
   async verifyPasswordResetToken(userId: string, tokenHash: string): Promise<boolean> {
     const res = await this.query(
-      `SELECT * FROM password_reset_tokens 
+      `SELECT 1 FROM password_reset_tokens 
        WHERE user_id = $1 AND token_hash = $2 AND expires_at > NOW()
        LIMIT 1`,
       [userId, tokenHash]
@@ -279,7 +284,7 @@ export class UserManager extends BaseManager {
     return res.rows[0] || null;
   }
 
-  async getOrganizationMembers(orgId: string): Promise<any[]> {
+  async getOrganizationMembers(orgId: string): Promise<OrgMember[]> {
     const res = await this.query(`
         SELECT 
             om.id as "membershipId", om.role_id as "roleId", om.start_date as "startDate", om.end_date as "endDate",
@@ -291,7 +296,7 @@ export class UserManager extends BaseManager {
         WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
     `, [orgId]);
     
-    const members = res.rows.map((row: any) => ({
+    const members: OrgMember[] = res.rows.map((row: any) => ({
         ...row,
         roleName: organizationManager.getOrganizationRole(row.roleId)?.name
     }));
@@ -308,7 +313,7 @@ export class UserManager extends BaseManager {
         throw new Error("Cannot add organization member: orgProfileId is required");
     }
     const existing = await this.query(
-       `SELECT * FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
+       `SELECT ${this.ORG_MEMBERSHIP_COLUMNS} FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
        [orgProfileId, orgId]
     );
     if (existing.rowCount! > 0) {
@@ -374,7 +379,7 @@ export class UserManager extends BaseManager {
     const res = await this.query(`
       SELECT 
         tm.id, tm.org_profile_id as "orgProfileId", tm.team_id as "teamId", tm.role_id as "roleId", tm.start_date as "startDate", tm.end_date as "endDate",
-        t.org_id as "orgId"
+        t.org_id as "orgId", t.name as "teamName"
       FROM team_memberships tm
       JOIN teams t ON tm.team_id = t.id
       WHERE tm.org_profile_id IN (
@@ -390,13 +395,13 @@ export class UserManager extends BaseManager {
 
   // --- Search & Matching ---
 
-  async searchProfiles(searchTerm: string, orgId?: string, orgDomain?: string): Promise<any[]> {
+  async searchProfiles(searchTerm: string, orgId?: string, orgDomain?: string): Promise<OrgProfile[]> {
     if (!searchTerm || searchTerm.trim().length < 2) return [];
 
     const queryStr = `
       WITH search_results AS (
         SELECT 
-          op.id, op.name, op.email, op.birthdate, op.national_id as "nationalId", op.identifier,
+          op.id, op.org_id as "orgId", op.user_id as "userId", op.name, op.email, op.birthdate, op.national_id as "nationalId", op.identifier, op.image, op.primary_role_id as "primaryRoleId",
           similarity(op.name, $1) as name_sim,
           similarity(op.email, $1) as email_sim,
           EXISTS(SELECT 1 FROM org_memberships om WHERE om.org_profile_id = op.id AND om.org_id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())) as is_member,
@@ -405,7 +410,7 @@ export class UserManager extends BaseManager {
         WHERE (op.name % $1 OR op.email % $1 OR op.name ILIKE $3 OR op.email ILIKE $3)
           AND (op.org_id = $2 OR $2 IS NULL)
       )
-      SELECT *,
+      SELECT id, "orgId", "userId", name, email, birthdate, "nationalId", identifier, image, "primaryRoleId",
         (GREATEST(name_sim, email_sim) + (CASE WHEN is_member THEN 0.5 ELSE 0 END) + (CASE WHEN domain_match = 1 THEN 0.3 ELSE 0 END)) as final_score
       FROM search_results
       ORDER BY final_score DESC
@@ -429,7 +434,7 @@ export class UserManager extends BaseManager {
 
     if (name && birthdate) {
       const res = await this.query(`
-        SELECT * FROM users 
+        SELECT ${this.USER_COLUMNS} FROM users 
         WHERE name ILIKE $1 AND preferences->>'birthdate' = $2
         LIMIT 1
       `, [name, birthdate]);
@@ -492,7 +497,7 @@ export class UserManager extends BaseManager {
   }
 
   async deleteOrgProfile(id: string): Promise<OrgProfile | null> {
-      const profile = (await this.query('SELECT * FROM org_profiles WHERE id = $1', [id])).rows[0];
+      const profile = (await this.query(`SELECT ${this.ORG_PROFILE_COLUMNS} FROM org_profiles WHERE id = $1`, [id])).rows[0];
       if (!profile) return null;
 
       // Get active memberships to decrement count

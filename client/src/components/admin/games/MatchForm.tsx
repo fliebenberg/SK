@@ -105,7 +105,7 @@ export function MatchForm({
 
   const participatingOrgIds = [event.orgId, ...(event.participatingOrgIds || [])];
   const orgSports = currentOrg?.supportedSportIds && currentOrg.supportedSportIds.length > 0
-    ? allSports.filter(s => currentOrg.supportedSportIds.includes(s.id))
+    ? allSports.filter(s => currentOrg.supportedSportIds?.includes(s.id))
     : allSports;
 
   const eventSports = event.sportIds && event.sportIds.length > 0 

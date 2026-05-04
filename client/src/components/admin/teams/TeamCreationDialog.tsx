@@ -144,7 +144,7 @@ export function TeamCreationDialog({
                   <SelectValue placeholder="Select sport" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(currentOrg?.supportedSportIds?.length ? sports.filter(s => currentOrg.supportedSportIds.includes(s.id)) : sports).map((s) => (
+                  {(currentOrg?.supportedSportIds?.length ? sports.filter(s => currentOrg.supportedSportIds?.includes(s.id)) : sports).map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>

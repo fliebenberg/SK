@@ -84,6 +84,7 @@ export default function NewGamePage() {
         const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
         await store.addGame({
             eventId: event.id,
+            sportId: formData.sportId || event.sportIds?.[0] || 'rugby',
             participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
             startTime: formData.isTbd ? undefined : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`),
             siteId: formData.siteId,

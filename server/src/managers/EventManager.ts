@@ -1,12 +1,14 @@
-import { Event, Game, GameClockState } from "@sk/types";
+import { Event, Game, GameParticipant, GameClockState, GameEvent, AddGamePayload, UpdateGamePayload } from "@sk/types";
 import { getPeriodLabel } from "@sk/types";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 
 export class EventManager extends BaseManager {
+  private EVENT_COLUMNS = 'id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status';
+  private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
   async getEvents(orgId?: string): Promise<Event[]> {
     console.log(`EventManager: getEvents called for org ${orgId}`);
-    let queryText = 'SELECT id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status FROM events';
+    let queryText = `SELECT ${this.EVENT_COLUMNS} FROM events`;
     const params: any[] = [];
     if (orgId) {
         queryText += ' WHERE org_id = $1 OR $1 = ANY(participating_org_ids)';
@@ -18,7 +20,7 @@ export class EventManager extends BaseManager {
   }
 
   async getEvent(id: string): Promise<Event | undefined> {
-    const res = await this.query('SELECT id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status FROM events WHERE id = $1', [id]);
+    const res = await this.query(`SELECT ${this.EVENT_COLUMNS} FROM events WHERE id = $1`, [id]);
     return res.rows[0];
   }
 
@@ -27,7 +29,7 @@ export class EventManager extends BaseManager {
     const res = await this.query(
         `INSERT INTO events (id, name, type, start_date, end_date, site_id, facility_id, org_id, participating_org_ids, sport_ids, settings, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         RETURNING id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status`,
+         RETURNING ${this.EVENT_COLUMNS}`,
          [id, event.name, event.type, event.startDate, event.endDate, event.siteId, event.facilityId, event.orgId, event.participatingOrgIds, event.sportIds, JSON.stringify(event.settings), event.status]
     );
     organizationManager.invalidateCache();
@@ -57,7 +59,7 @@ export class EventManager extends BaseManager {
      values.push(id);
      
      const res = await this.query(
-         `UPDATE events SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status`,
+         `UPDATE events SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING ${this.EVENT_COLUMNS}`,
          values
      );
      organizationManager.invalidateCache();
@@ -75,7 +77,7 @@ export class EventManager extends BaseManager {
   }
 
   async getGames(orgId?: string): Promise<Game[]> {
-    const selectClause = `g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = this.GAME_COLUMNS;
     if (!orgId) {
         const res = await this.query(`SELECT ${selectClause} FROM games g`);
         return res.rows;
@@ -90,7 +92,7 @@ export class EventManager extends BaseManager {
   }
 
   async getLiveGames(): Promise<Game[]> {
-    const selectClause = `g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = this.GAME_COLUMNS;
     const res = await this.query(`
         SELECT ${selectClause}
         FROM games g
@@ -102,12 +104,12 @@ export class EventManager extends BaseManager {
   }
 
   async getGame(id: string): Promise<Game | undefined> {
-    const selectClause = `g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object('id', p.id, 'gameId', p.game_id, 'teamId', p.team_id, 'orgProfileId', p.org_profile_id, 'status', p.status, 'sortOrder', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), '[]'::jsonb) as participants`;
+    const selectClause = this.GAME_COLUMNS;
     const res = await this.query(`SELECT ${selectClause} FROM games g WHERE g.id = $1`, [id]);
     return res.rows[0];
   }
 
-  async addGame(game: Omit<Game, "id" | "status" | "finalScoreData" | "liveState"> & { id?: string }): Promise<Game> {
+  async addGame(game: AddGamePayload): Promise<Game> {
       const id = game.id || `game-${Date.now()}`;
       await this.query('BEGIN');
       try {
@@ -291,7 +293,7 @@ export class EventManager extends BaseManager {
       return this.updateGame(id, { liveState });
   }
 
-  async updateGame(id: string, data: Partial<Game>): Promise<Game | null> {
+  async updateGame(id: string, data: UpdateGamePayload['data']): Promise<Game | null> {
       console.log(`EventManager: updateGame called for ${id}`, data);
       const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'participants');
       

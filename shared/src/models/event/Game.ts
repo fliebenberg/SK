@@ -1,3 +1,5 @@
+import { GameParticipant } from "./GameParticipant";
+
 export interface GameClockState {
   isRunning: boolean;
   lastStartedAt?: string; // ISO UTC
@@ -26,7 +28,7 @@ export interface Game {
     periodLabel?: string;
     [key: string]: any;
   };
-  participants?: any[];
+  participants?: GameParticipant[];
   updatedAt?: string;
   finishTime?: string;
 }

@@ -23,6 +23,7 @@ async function test() {
         await eventManager.addGame({
             id: gameId,
             eventId: eventId,
+            sportId: 'rugby',
             startTime: scheduledTime,
             scheduledStartTime: scheduledTime
         });

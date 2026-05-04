@@ -1,4 +1,4 @@
-import { Team, TeamRole, TeamMembership } from "@sk/types";
+import { Team, TeamRole, TeamMembership, TeamMember } from "@sk/types";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 
@@ -127,7 +127,7 @@ export class TeamManager extends BaseManager {
     return res.rows[0];
   }
 
-  async getTeamMembers(teamId: string): Promise<any[]> {
+  async getTeamMembers(teamId: string): Promise<TeamMember[]> {
     const res = await this.query(`
         SELECT 
             tm.id as "membershipId", tm.role_id as "roleId", tm.start_date as "startDate", tm.end_date as "endDate",
@@ -155,7 +155,9 @@ export class TeamManager extends BaseManager {
     const team = await this.getTeam(membership.teamId);
     if (team) {
         const orgMemRes = await this.query(
-            `SELECT * FROM org_memberships WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
+            `SELECT id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate" 
+             FROM org_memberships 
+             WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())`,
             [membership.orgProfileId, team.orgId]
         );
         if (orgMemRes.rowCount === 0) {

@@ -219,6 +219,7 @@ export default function CreateEventPage() {
 
             await store.addGame({
                 eventId: newEvent.id,
+                sportId: matchFormData.sportId || 'rugby',
                 participants: [{ teamId: matchFormData.homeTeamId }, { teamId: matchFormData.awayTeamId }],
                 startTime: matchFormData.isTbd ? undefined : `${startDate}T${matchFormData.startTime}:00`,
                 siteId: matchFormData.siteId
@@ -360,7 +361,7 @@ export default function CreateEventPage() {
                     <div className="space-y-3">
                         <Label>Sports</Label>
                         <div className="flex flex-wrap gap-2">
-                            {(currentOrg?.supportedSportIds?.length ? sports.filter(s => currentOrg.supportedSportIds.includes(s.id)) : sports).map(sport => {
+                            {(currentOrg?.supportedSportIds?.length ? sports.filter(s => currentOrg.supportedSportIds?.includes(s.id)) : sports).map(sport => {
                                 const isSelected = selectedSportIds.includes(sport.id);
                                 return (
                                     <div 

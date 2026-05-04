@@ -20,8 +20,9 @@ export function useDynamicScoring(game: Game) {
     const [pendingDispute, setPendingDispute] = useState<{
         eventId: string;
         officialId: string;
-        type: string;
-        side: 'home' | 'away' | null;
+        gameId?: string;
+        type?: string;
+        side?: 'home' | 'away' | null;
         actorId?: string;
         extraData?: any;
         subType?: string;
@@ -56,6 +57,11 @@ export function useDynamicScoring(game: Game) {
         const template = templates.find(t => t.id === templateId || t.name === templateId);
         if (!template) {
             console.error(`Template not found: ${templateId}`);
+            toast({ 
+                title: "Configuration Error", 
+                description: `Event template "${templateId}" not found for this sport.`, 
+                variant: "destructive" 
+            });
             return;
         }
 
@@ -122,62 +128,100 @@ export function useDynamicScoring(game: Game) {
         const team = participant.teamId ? store.getTeam(participant.teamId) : null;
         const initiatorId = store.getOrgProfileId(team?.orgId || '');
 
-        const eventDataPayload = {
-            templateId: template.id,
-            elapsedMS: currentMS,
-            period: periodLabel,
-            ...(template.eventData || {}),
-            ...finalData
-        };
+        // Fetch original event if editing
+        const original = scoringState.editingId ? gameEvents.find(e => e.id === scoringState.editingId) : null;
+        const originalData = original?.eventData || {};
 
-        const isScoring = template.section === 'Scoring';
-        const type = isScoring ? 'SCORE' : (eventDataPayload.type || 'GAME_EVENT');
-        const subType = eventDataPayload.subType || template.name;
-        
-        // Remove type/subType from the extraData to keep it clean, but let pointsDelta through
-        const { type: _, subType: __, playerId, ...extraData } = eventDataPayload;
+        if (scoringState.editingId && original) {
+            // SURGICAL UPDATE: Only send what changed
+            const changes: any = {};
+            const actorId = finalData.playerId || original.actorOrgProfileId;
+            
+            if (actorId !== original.actorOrgProfileId) {
+                changes.actorOrgProfileId = actorId;
+            }
 
-        if (scoringState.editingId) {
-             const inWindow = isEventInUndoWindow(scoringState.editingId);
-             
-             if (isScoring && !inWindow) {
-                 // Check if important fields changed
-                 const original = gameEvents.find(e => e.id === scoringState.editingId);
-                 const originalData = original?.eventData || {};
-                 
-                 const pointsChanged = Number(originalData.pointsDelta || 0) !== Number(extraData.pointsDelta || 0);
-                 const outcomeChanged = originalData.outcome !== extraData.outcome;
+            const eventDataChanges: any = {};
+            let hasDataChanges = false;
+            
+            // Diff the eventData
+            Object.keys(finalData).forEach(key => {
+                // Ignore control fields
+                if (['playerId', 'eventId', 'triggerEventId'].includes(key)) return;
+                
+                if (finalData[key] !== originalData[key]) {
+                    eventDataChanges[key] = finalData[key];
+                    hasDataChanges = true;
+                }
+            });
 
-                 if (pointsChanged || outcomeChanged) {
-                     triggerUpdateDispute(scoringState.editingId, type, side, extraData, subType, playerId);
-                     return;
-                 }
-             }
+            if (hasDataChanges) {
+                changes.eventData = eventDataChanges;
+            }
 
-             await store.updateGameEvent(game.id, scoringState.editingId, { 
-                 actorOrgProfileId: playerId, 
-                 eventData: extraData 
-             });
-             toast({ title: "Event Updated", description: "Details have been saved." });
+            if (Object.keys(changes).length === 0) {
+                console.log("[DynamicScoring] No changes detected, skipping update.");
+                setScoringState({ status: 'IDLE' });
+                return; // Nothing to do
+            }
+
+            const isScoring = template.section === 'Scoring';
+            const type = isScoring ? 'SCORE' : (original.type || 'GAME_EVENT');
+            const subType = original.subType || template.name;
+
+            if (isScoring && !isEventInUndoWindow(scoringState.editingId)) {
+                // Only trigger dispute if scoring outcome or points actually changed
+                const pointsChanged = eventDataChanges.pointsDelta !== undefined;
+                const outcomeChanged = eventDataChanges.outcome !== undefined;
+
+                if (pointsChanged || outcomeChanged) {
+                    triggerUpdateDispute(scoringState.editingId, type, side, eventDataChanges, subType, actorId);
+                    return;
+                }
+            }
+
+            await store.updateGameEvent(game.id, scoringState.editingId, changes);
+            toast({ title: "Event Updated", description: "Changes have been saved." });
         } else {
-             const res = await store.addGameEvent({
-                 gameId: game.id,
-                 initiatorOrgProfileId: initiatorId,
-                 actorOrgProfileId: playerId, 
-                 type,
-                 subType,
-                 gameParticipantId: participant.id,
-                 eventData: extraData
-             });
+            // NEW EVENT: Full payload
+            const actorId = finalData.playerId;
+            const eventDataPayload = {
+                templateId: template.id,
+                elapsedMS: currentMS,
+                period: periodLabel,
+                ...(template.eventData || {}),
+                ...finalData
+            };
 
-             // Handle FollowUps or Triggers
-             if (finalData.triggerEventId) {
-                 startDynamicFlow(finalData.triggerEventId, side, { linkedEventId: res?.id });
-                 return; 
-             }
+            const isScoring = template.section === 'Scoring';
+            const type = isScoring ? 'SCORE' : (eventDataPayload.type || 'GAME_EVENT');
+            const subType = eventDataPayload.subType || template.name;
+            
+            const { type: _, subType: __, playerId: ___, ...extraData } = eventDataPayload;
+
+            const res = await store.addGameEvent({
+                gameId: game.id,
+                initiatorOrgProfileId: initiatorId,
+                actorOrgProfileId: actorId, 
+                type,
+                subType,
+                gameParticipantId: participant.id,
+                eventData: extraData
+            });
+
+            // Handle FollowUps or Triggers
+            if (finalData.triggerEventId) {
+                startDynamicFlow(finalData.triggerEventId, side, { linkedEventId: res?.id });
+                return;
+            }
         }
         
         setScoringState({ status: 'IDLE' });
+    };
+
+    const saveChanges = async () => {
+        if (scoringState.status !== 'ACTIVE' || !activeTemplate) return;
+        await commitEvent(activeTemplate, scoringState.side as 'home'|'away', scoringState.collectedData);
     };
 
     const nextDynamicStep = async (stepData: any) => {
@@ -340,6 +384,16 @@ export function useDynamicScoring(game: Game) {
         }
     };
 
+    const confirmRemoval = async (confirmed: boolean) => {
+        if (scoringState.status !== 'CONFIRM_REMOVAL' || !scoringState.eventIdToRemove) return;
+
+        if (confirmed) {
+            await removeGameEvent(scoringState.eventIdToRemove, scoringState.typeToRemove!, scoringState.side, true);
+        } else {
+            setScoringState({ status: 'IDLE' });
+        }
+    };
+
     const getActiveTriggerEventId = () => {
         if (!activeTemplate || !scoringState.collectedData?.outcome) return null;
         
@@ -374,6 +428,8 @@ export function useDynamicScoring(game: Game) {
         getActiveTriggerEventId,
         hasLinkedFollowUp,
         pendingDispute,
-        resolveDispute
+        resolveDispute,
+        saveChanges,
+        confirmRemoval
     };
 }

@@ -7,6 +7,6 @@ export interface Report {
   description?: string;
   status: 'open' | 'investigating' | 'resolved' | 'dismissed';
   resolvedByUserId?: string;
-  resolvedAt?: Date;
-  createdAt: Date;
+  resolvedAt?: string; // ISO UTC
+  createdAt: string; // ISO UTC
 }

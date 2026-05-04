@@ -1,4 +1,6 @@
-import { organizationManager } from "./managers/OrganizationManager";
+import { 
+  organizationManager 
+} from "./managers/OrganizationManager";
 import { siteManager } from "./managers/SiteManager";
 import { facilityManager } from "./managers/FacilityManager";
 import { teamManager } from "./managers/TeamManager";
@@ -11,6 +13,17 @@ import { notificationManager } from "./managers/NotificationManager";
 import { reportManager } from "./managers/ReportManager";
 import { feedManager } from "./managers/FeedManager";
 import { gameEventManager } from "./managers/GameEventManager";
+import { 
+  Organization, Site, Facility, Team, TeamMembership, TeamMember, 
+  OrgMembership, OrgMember, OrgProfile, Event, Game, GameEvent,
+  Report, User, UserBadge, Notification, UserEmail,
+  AddOrgPayload, UpdateOrgPayload, AddTeamPayload, UpdateTeamPayload,
+  AddSitePayload, UpdateSitePayload, AddFacilityPayload, UpdateFacilityPayload,
+  AddEventPayload, UpdateEventPayload, AddGamePayload, UpdateGamePayload,
+  AddOrgProfilePayload, UpdateOrgProfilePayload, AddOrgMemberPayload,
+  UpdateOrgMemberPayload, AddTeamMemberPayload, UpdateTeamMemberPayload,
+  SubmitReportPayload, FeedHomeResponse
+} from "@sk/types";
 
 export class DataManager {
   constructor() {
@@ -30,7 +43,7 @@ export class DataManager {
   getOrganizations = (params?: any) => organizationManager.getOrganizations(params);
   getOrganization = (id?: string) => organizationManager.getOrganization(id);
   searchSimilarOrganizations = (name: string) => organizationManager.searchSimilarOrganizations(name);
-  addOrganization = async (org: any) => {
+  addOrganization = async (org: AddOrgPayload): Promise<Organization> => {
     const creatorId = org.creatorId;
     const { creatorId: _, ...orgData } = org;
     // Set isClaimed to true if we have a creatorId (placeholder orgs are unclaimed)
@@ -48,7 +61,7 @@ export class DataManager {
     return newOrg;
   };
 
-  updateOrganization = (id: string, data: any) => organizationManager.updateOrganization(id, data);
+  updateOrganization = (id: string, data: Partial<Organization>) => organizationManager.updateOrganization(id, data);
   claimOrganization = async (id: string, userId: string) => {
     const org = await organizationManager.getOrganization(id);
     if (!org) throw new Error("Organization not found.");
@@ -71,23 +84,23 @@ export class DataManager {
   // Sites
   getSites = (orgId?: string) => siteManager.getSites(orgId);
   getSite = (id: string) => siteManager.getSite(id);
-  addSite = (site: any) => siteManager.addSite(site);
-  updateSite = (id: string, data: any) => siteManager.updateSite(id, data);
+  addSite = (site: AddSitePayload) => siteManager.addSite(site);
+  updateSite = (id: string, data: Partial<Site>) => siteManager.updateSite(id, data);
   deleteSite = (id: string) => siteManager.deleteSite(id);
 
   // Facilities
   getFacilities = (siteId?: string) => facilityManager.getFacilities(siteId);
   getFacilitiesByOrg = (orgId: string) => facilityManager.getFacilitiesByOrg(orgId);
   getFacility = (id: string) => facilityManager.getFacility(id);
-  addFacility = (facility: any) => facilityManager.addFacility(facility);
-  updateFacility = (id: string, data: any) => facilityManager.updateFacility(id, data);
+  addFacility = (facility: AddFacilityPayload) => facilityManager.addFacility(facility);
+  updateFacility = (id: string, data: Partial<Facility>) => facilityManager.updateFacility(id, data);
   deleteFacility = (id: string) => facilityManager.deleteFacility(id);
 
   // Teams
   getTeams = (orgId?: string) => teamManager.getTeams(orgId);
   getTeam = (id: string) => teamManager.getTeam(id);
-  addTeam = (team: any) => teamManager.addTeam(team);
-  updateTeam = (id: string, data: any) => teamManager.updateTeam(id, data);
+  addTeam = (team: AddTeamPayload) => teamManager.addTeam(team);
+  updateTeam = (id: string, data: Partial<Team>) => teamManager.updateTeam(id, data);
   deleteTeam = (id: string) => teamManager.deleteTeam(id);
   getTeamRoles = () => teamManager.getTeamRoles();
   getTeamRole = (id: string) => teamManager.getTeamRole(id);
@@ -95,8 +108,8 @@ export class DataManager {
   // Memberships
   getTeamMembers = (teamId: string) => teamManager.getTeamMembers(teamId);
   getTeamMembership = (id: string) => teamManager.getTeamMembership(id);
-  addTeamMember = (membership: any) => teamManager.addTeamMember(membership);
-  updateTeamMember = (id: string, data: any) => teamManager.updateTeamMember(id, data);
+  addTeamMember = (membership: TeamMembership) => teamManager.addTeamMember(membership);
+  updateTeamMember = (id: string, data: Partial<TeamMembership>) => teamManager.updateTeamMember(id, data);
   removeTeamMember = (membershipId: string) => teamManager.removeTeamMember(membershipId);
 
   getOrganizationMembers = (orgId: string) => userManager.getOrganizationMembers(orgId);
@@ -113,30 +126,30 @@ export class DataManager {
 
   // Org Profiles
   getOrgProfile = (id: string) => userManager.getOrgProfile(id);
-  addOrgProfile = (profile: any) => userManager.addOrgProfile(profile);
-  updateOrgProfile = (id: string, data: any) => userManager.updateOrgProfile(id, data);
+  addOrgProfile = (profile: AddOrgProfilePayload) => userManager.addOrgProfile(profile);
+  updateOrgProfile = (id: string, data: Partial<OrgProfile>) => userManager.updateOrgProfile(id, data);
   deleteOrgProfile = (id: string) => userManager.deleteOrgProfile(id);
 
   // Events
   getEvents = (orgId?: string) => eventManager.getEvents(orgId);
   getEvent = (id: string) => eventManager.getEvent(id);
-  addEvent = (event: any) => eventManager.addEvent(event);
-  updateEvent = (id: string, data: any) => eventManager.updateEvent(id, data);
+  addEvent = (event: AddEventPayload) => eventManager.addEvent(event);
+  updateEvent = (id: string, data: Partial<Event>) => eventManager.updateEvent(id, data);
   deleteEvent = (id: string) => eventManager.deleteEvent(id);
 
   // Games
   getGames = (orgId?: string) => eventManager.getGames(orgId);
   getGame = (id: string) => eventManager.getGame(id);
-  addGame = (game: any) => eventManager.addGame(game);
-  updateGameStatus = (id: string, status: any) => eventManager.updateGameStatus(id, status);
+  addGame = (game: AddGamePayload) => eventManager.addGame(game);
+  updateGameStatus = (id: string, status: Game['status']) => eventManager.updateGameStatus(id, status);
   updateGameClock = (id: string, action: any) => eventManager.updateGameClock(id, action);
-  updateGame = (id: string, data: any) => eventManager.updateGame(id, data);
+  updateGame = (id: string, data: UpdateGamePayload['data']) => eventManager.updateGame(id, data);
   deleteGame = (id: string) => eventManager.deleteGame(id);
   getLiveGames = () => eventManager.getLiveGames();
   resetGame = (id: string) => eventManager.resetGame(id);
   getGameEvents = (gameId: string, fromSequence?: number, limit?: number) => gameEventManager.getGameEvents(gameId, fromSequence, limit);
   getGameRoster = (participantId: string) => eventManager.getGameRoster(participantId);
-  saveGameRoster = (gameId: string, participantId: string, items: any[]) => eventManager.saveGameRoster(gameId, participantId, items);
+  saveGameRoster = (gameId: string, participantId: string, items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }>) => eventManager.saveGameRoster(gameId, participantId, items);
 
   // Search
   searchProfiles = async (query: string, orgId?: string) => {
@@ -208,7 +221,7 @@ export class DataManager {
     notificationManager.createNotification(userId, title, message, type, link);
 
   // Reports
-  submitReport = (data: any) => reportManager.submitReport(data);
+  submitReport = (data: SubmitReportPayload) => reportManager.submitReport(data);
   getReportsForEntity = (entityType: string, entityId: string) => reportManager.getReportsForEntity(entityType, entityId);
   getReports = (type?: string) => reportManager.getReports(type);
 

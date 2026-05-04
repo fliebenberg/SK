@@ -373,8 +373,8 @@ export function OrgDetailsHeader({ organization, isCreating = false, readOnly = 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" className="w-full justify-between bg-transparent border-input/50">
-                                {formData.supportedSportIds.length > 0 
-                                    ? `${formData.supportedSportIds.length} Selected` 
+                                {formData.supportedSportIds?.length > 0 
+                                    ? `${formData.supportedSportIds?.length} Selected` 
                                     : "Select Sports"}
                                 <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
                             </Button>

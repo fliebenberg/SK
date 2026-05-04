@@ -156,7 +156,7 @@ export default function TeamManagementPage() {
              <div className="flex items-center gap-2 w-full md:w-auto">
                 <div className="flex-1 flex items-center gap-2">
                     <TeamListFilter 
-                        sports={org.supportedSportIds.map(id => store.getSport(id)).filter((s): s is NonNullable<typeof s> => !!s)} 
+                        sports={org.supportedSportIds?.map(id => store.getSport(id)).filter((s): s is NonNullable<typeof s> => !!s) || []} 
                         currentSport={currentSport} 
                         orgId={id} 
                         className="flex-1 md:flex-none"

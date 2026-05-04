@@ -8,9 +8,15 @@ import { Site } from "../models/venue/Site";
 import { Facility } from "../models/venue/Facility";
 import { Event } from "../models/event/Event";
 import { Game } from "../models/event/Game";
+import { GameParticipant } from "../models/event/GameParticipant";
 import { OrgProfile } from "../models/people/OrgProfile";
 import { UserBadge } from "../models/people/UserBadge";
 import { FeedHomeResponse } from "../models/feed/Feed";
+import { GameEvent } from "../models/event/GameEvent";
+import { GameDispute } from "../models/event/GameDispute";
+import { OrgClaimReferral } from "../models/referral/OrgClaimReferral";
+import { Report } from "../models/Report";
+import { Notification } from "../models/notification/Notification";
 // --- Shared Response Type ---
 /**
  * Standard response wrapper for all socket actions.
@@ -53,6 +59,8 @@ export interface AddOrgPayload {
     logo?: string;
     colors?: { primary: string; secondary: string };
     creatorId?: string;
+    isClaimed?: boolean;
+    supportedSportIds?: string[];
 }
 
 export interface UpdateOrgPayload {
@@ -113,7 +121,10 @@ export interface DeleteEventPayload {
     id: string;
 }
 
-export interface AddGamePayload extends Omit<Game, "id"> {}
+export interface AddGamePayload extends Omit<Game, "id" | "status" | "finalScoreData" | "liveState" | "participants"> {
+    id?: string;
+    participants?: (Omit<GameParticipant, "id" | "gameId"> & { id?: string; gameId?: string })[];
+}
 
 export interface UpdateGameStatusPayload {
     id: string;
@@ -128,7 +139,9 @@ export interface UpdateGameScorePayload {
 
 export interface UpdateGamePayload {
     id: string;
-    data: Partial<Game>;
+    data: Partial<Omit<Game, "participants">> & {
+        participants?: (Partial<GameParticipant> & { teamId: string })[];
+    };
 }
 
 export interface DeleteGamePayload {
@@ -235,6 +248,72 @@ export interface FeedGetHomePayload {
     timezone?: string;
 }
 
+export interface AddGameEventPayload {
+    gameId: string;
+    initiatorOrgProfileId: string;
+    type: string;
+    subType?: string;
+    eventData?: any;
+    actorOrgProfileId?: string;
+    gameParticipantId?: string;
+}
+
+export interface UpdateGameEventPayload {
+    gameId: string;
+    eventId: string;
+    eventData: any;
+}
+
+export interface InitiateUndoVotePayload {
+    gameId: string;
+    eventIdToUndo: string;
+    initiatorId: string;
+}
+
+export interface CastUndoVotePayload {
+    gameId: string;
+    officialId: string;
+    vote: 'APPROVE' | 'REJECT';
+    disputeId: string;
+}
+
+export interface InitiateUpdateVotePayload {
+    gameId: string;
+    eventId: string;
+    initiatorId: string;
+    updateData: any;
+}
+
+export interface CastUpdateVotePayload {
+    gameId: string;
+    officialId: string;
+    vote: 'APPROVE' | 'REJECT';
+    disputeId: string;
+}
+
+export interface UpdateGameClockPayload {
+    id: string;
+    action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' | 'END_PERIOD' | 'START_PERIOD';
+}
+
+export interface ResetGamePayload {
+    id: string;
+}
+
+export interface SaveGameRosterPayload {
+    gameId: string;
+    participantId: string;
+    items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }>;
+}
+
+export interface UndoGameEventPayload {
+    gameId: string;
+    eventId: string;
+    initiatorId: string;
+}
+
+export interface GetSystemSettingsPayload {}
+
 // --- Protocol Map ---
 /**
  * Mapping of SocketActions to their Request Payload and Response Data types.
@@ -244,7 +323,7 @@ export interface ProtocolMap {
     [SocketAction.UPDATE_ORG]: { payload: UpdateOrgPayload; response: Organization };
     [SocketAction.CLAIM_ORG]: { payload: ClaimOrgPayload; response: Organization };
     [SocketAction.DELETE_ORG]: { payload: DeleteOrgPayload; response: void };
-    [SocketAction.REFER_ORG_CONTACT]: { payload: ReferOrgContactPayload; response: any }; // Returns created referrals
+    [SocketAction.REFER_ORG_CONTACT]: { payload: ReferOrgContactPayload; response: OrgClaimReferral[] };
     [SocketAction.CLAIM_ORG_VIA_TOKEN]: { payload: ClaimOrgViaTokenPayload; response: Organization };
     
     [SocketAction.ADD_TEAM]: { payload: AddTeamPayload; response: Team };
@@ -282,13 +361,25 @@ export interface ProtocolMap {
     [SocketAction.UPDATE_TEAM_MEMBER]: { payload: UpdateTeamMemberPayload; response: TeamMembership };
     [SocketAction.REMOVE_TEAM_MEMBER]: { payload: RemoveTeamMemberPayload; response: void };
 
-    [SocketAction.SUBMIT_REPORT]: { payload: SubmitReportPayload; response: any }; // Returns Report
-    [SocketAction.MARK_NOTIFICATION_READ]: { payload: MarkNotificationReadPayload; response: any };
+    [SocketAction.SUBMIT_REPORT]: { payload: SubmitReportPayload; response: Report };
+    [SocketAction.MARK_NOTIFICATION_READ]: { payload: MarkNotificationReadPayload; response: Notification };
     [SocketAction.MARK_ALL_NOTIFICATIONS_READ]: { payload: MarkAllNotificationsReadPayload; response: void };
     [SocketAction.DELETE_NOTIFICATION]: { payload: DeleteNotificationPayload; response: string };
-    [SocketAction.DECLINE_CLAIM]: { payload: DeclineClaimPayload; response: any };
-    [SocketAction.REFER_ORG_CONTACT_VIA_TOKEN]: { payload: ReferOrgContactViaTokenPayload; response: any };
+    [SocketAction.DECLINE_CLAIM]: { payload: DeclineClaimPayload; response: void };
+    [SocketAction.REFER_ORG_CONTACT_VIA_TOKEN]: { payload: ReferOrgContactViaTokenPayload; response: OrgClaimReferral[] };
     [SocketAction.GET_USER_BADGES]: { payload: GetUserBadgesPayload; response: UserBadge[] };
 
     [SocketAction.FEED_GET_HOME]: { payload: FeedGetHomePayload; response: FeedHomeResponse };
+
+    [SocketAction.ADD_GAME_EVENT]: { payload: AddGameEventPayload; response: GameEvent };
+    [SocketAction.UPDATE_GAME_EVENT]: { payload: UpdateGameEventPayload; response: GameEvent };
+    [SocketAction.INITIATE_UNDO_VOTE]: { payload: InitiateUndoVotePayload; response: GameDispute };
+    [SocketAction.CAST_UNDO_VOTE]: { payload: CastUndoVotePayload; response: GameDispute };
+    [SocketAction.INITIATE_UPDATE_VOTE]: { payload: InitiateUpdateVotePayload; response: GameDispute };
+    [SocketAction.CAST_UPDATE_VOTE]: { payload: CastUpdateVotePayload; response: GameDispute };
+    [SocketAction.UPDATE_GAME_CLOCK]: { payload: UpdateGameClockPayload; response: Game };
+    [SocketAction.RESET_GAME]: { payload: ResetGamePayload; response: Game };
+    [SocketAction.SAVE_GAME_ROSTER]: { payload: SaveGameRosterPayload; response: void };
+    [SocketAction.UNDO_GAME_EVENT]: { payload: UndoGameEventPayload; response: { success: boolean, error?: string } };
+    [SocketAction.GET_SYSTEM_SETTINGS]: { payload: GetSystemSettingsPayload; response: Record<string, any> };
 }

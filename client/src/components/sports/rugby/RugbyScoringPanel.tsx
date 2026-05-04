@@ -41,13 +41,11 @@ export default function RugbyScoringPanel({ game, role }: { game: Game, role?: s
             });
             await store.updateScore(game.id, scores);
             
-            const firstParticipant = game.participants?.[0];
-            const firstTeam = firstParticipant?.teamId ? store.getTeam(firstParticipant.teamId) : null;
-            const initiatorId = store.getOrgProfileId(firstTeam?.orgId || '');
+            const initiatorId = store.getMyProfileForGame(game.id);
 
             store.addGameEvent({
                 gameId: game.id,
-                initiatorOrgProfileId: initiatorId,
+                initiatorOrgProfileId: initiatorId ?? undefined,
                 type: 'SCORE',
                 subType: 'Final Score',
                 eventData: { 

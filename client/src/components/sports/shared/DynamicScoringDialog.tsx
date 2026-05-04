@@ -7,18 +7,22 @@ import { Button } from '@/components/ui/button';
 import { ReasonSelectionStep } from './steps/ReasonSelectionStep';
 import { OutcomeSelectionStep } from './steps/OutcomeSelectionStep';
 import { CustomWidgetStep } from './steps/CustomWidgetStep';
+import { Check, Trash2, X, RotateCcw } from 'lucide-react';
+import { store } from '@/app/store/store';
 
 export function DynamicScoringDialog() {
     const { 
         scoringState, 
         activeTemplate, 
         templates,
+        startDynamicFlow,
         cancelDynamicFlow, 
         nextDynamicStep,
         goToStep,
-        startDynamicFlow,
         getActiveTriggerEventId,
         hasLinkedFollowUp,
+        removeGameEvent,
+        saveChanges,
         rosters
     } = useSharedDynamicScoring();
 
@@ -79,8 +83,58 @@ export function DynamicScoringDialog() {
                 >
                     <DialogHeader className="p-3 sm:p-5 pb-2 sm:pb-3 border-b border-border bg-muted/30">
                         <div className="flex justify-between items-center w-full mb-2">
-                            <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex justify-between items-center">
+                            <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex justify-between items-center w-full">
                                 <span>{activeTemplate.name}</span>
+                                <div className="flex items-center gap-1">
+                                    {(() => {
+                                        if (!scoringState.editingId) return null;
+                                        
+                                        const original = store.gameEvents.find(e => e.id === scoringState.editingId);
+                                        if (!original) return null;
+                                        
+                                        const originalData = original.eventData || {};
+                                        const currentData = scoringState.collectedData || {};
+                                        
+                                        const hasChanged = 
+                                            original.actorOrgProfileId !== currentData.playerId ||
+                                            originalData.outcome !== currentData.outcome ||
+                                            originalData.reason !== currentData.reason ||
+                                            originalData.pointsDelta !== currentData.pointsDelta;
+
+                                        return (
+                                            <>
+                                                {hasChanged && (
+                                                    <Button 
+                                                        size="icon" 
+                                                        variant="ghost" 
+                                                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                        onClick={saveChanges}
+                                                        title="Save Changes"
+                                                    >
+                                                        <Check className="h-5 w-5" />
+                                                    </Button>
+                                                )}
+                                                <Button 
+                                                    size="icon" 
+                                                    variant="ghost" 
+                                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                    onClick={() => removeGameEvent(scoringState.editingId!, original.type, scoringState.side)}
+                                                    title="Remove Event"
+                                                >
+                                                    <Trash2 className="h-5 w-5" />
+                                                </Button>
+                                            </>
+                                        );
+                                    })()}
+                                    <Button 
+                                        size="icon" 
+                                        variant="ghost" 
+                                        className="h-8 w-8 text-muted-foreground"
+                                        onClick={cancelDynamicFlow}
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </Button>
+                                </div>
                             </DialogTitle>
                         </div>
                         {/* Visual Stepper */}

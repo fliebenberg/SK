@@ -68,8 +68,10 @@ export function useAdminNavigation() {
                         const involvedOrgIds = new Set([event.orgId, ...(event.participatingOrgIds || [])]);
                         
                         game.participants?.forEach(p => {
-                            const team = store.getTeam(p.teamId);
-                            if (team) involvedOrgIds.add(team.orgId);
+                            if (p.teamId) {
+                                const team = store.getTeam(p.teamId);
+                                if (team) involvedOrgIds.add(team.orgId);
+                            }
                         });
 
                         // 1. Keep currently selected org if valid

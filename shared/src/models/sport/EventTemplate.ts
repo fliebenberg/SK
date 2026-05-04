@@ -35,10 +35,21 @@ export interface TemplateDisputeConfig {
   approveLabel?: string;
   rejectLabel?: string;
   /**
+  /**
    * If true, changing the outcome will recalculate pointsDelta and game score
    * based on the points defined in the template outcomes.
    */
   impactsPoints?: boolean;
+  /**
+   * If false, the event cannot be removed (Undo) via the dispute system.
+   * Defaults to true.
+   */
+  allowUndo?: boolean;
+  /**
+   * If false, the event data/outcome cannot be modified via the dispute system.
+   * Defaults to true.
+   */
+  allowUpdate?: boolean;
 }
 
 export interface EventTemplate {

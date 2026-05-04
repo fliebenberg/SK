@@ -121,7 +121,7 @@ class Store extends UserStore {
                 break;
             case 'GAME_RESET':
                 if (event.data.gameId) {
-                    this.activeDisputes = this.activeDisputes.filter(d => d.gameId !== event.data.gameId);
+                    this.activeDisputes.delete(event.data.gameId);
                     this.gameEvents = this.gameEvents.filter(e => e.gameId !== event.data.gameId);
                     this.notifyListeners();
                 }

@@ -47,11 +47,12 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
     useEffect(() => {
         let lastDisputesStr = "";
         const sync = () => {
-            const currentStr = JSON.stringify(store.activeDisputes);
+            const active = store.getActiveDisputes(gameId);
+            const currentStr = JSON.stringify(active);
             if (currentStr !== lastDisputesStr) {
-                console.log(`[ActiveDisputesPanel] Disputes updated for game ${gameId}: ${store.activeDisputes.length} active`);
+                console.log(`[ActiveDisputesPanel] Disputes updated for game ${gameId}: ${active.length} active`);
                 lastDisputesStr = currentStr;
-                setDisputes([...(store.activeDisputes || [])]);
+                setDisputes([...active]);
             }
         };
         sync();
@@ -96,7 +97,7 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
 
     return (
         <div className="flex flex-col gap-2 mb-4 px-1">
-            {disputes.map(dispute => {
+            {gameDisputes.map(dispute => {
                 const targetEvent = store.gameEvents.find(e => e.id === dispute.gameEventId);
                 const eventLabel = targetEvent ? (targetEvent.subType || targetEvent.type).toUpperCase() : 'UNKNOWN EVENT';
                 const pointsDelta = targetEvent?.eventData?.pointsDelta || 0;
