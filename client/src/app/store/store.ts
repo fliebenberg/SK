@@ -64,6 +64,7 @@ class Store extends UserStore {
     }
 
     private handleUpdate(event: { type: string, data: any }) {
+        console.log(`[Store] handleUpdate: ${event.type}`, event.data);
         switch(event.type) {
             case 'TEAM_ADDED':
             case 'TEAM_UPDATED': this.mergeTeam(event.data as Team); break;

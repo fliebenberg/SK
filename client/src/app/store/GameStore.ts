@@ -802,6 +802,7 @@ export class GameStore extends SiteStore {
         }
         
         let hasChanges = false;
+        console.log(`[GameStore] mergeEvents: Processing ${events.length} events`);
         events.forEach(evt => {
             if (evt.eventData?.status === 'REMOVED') {
                 const idx = this.gameEvents.findIndex(e => e.id === evt.id);
@@ -831,6 +832,7 @@ export class GameStore extends SiteStore {
     }
 
     protected deleteLocalGameEvent(eventId: string) {
+        console.log(`[GameStore] deleteLocalGameEvent: Removing ${eventId}`);
         this.gameEvents = this.gameEvents.filter(e => e.id !== eventId);
         this.notifyListeners();
     }

@@ -798,6 +798,7 @@ export class GameEventManager extends BaseManager {
                SET event_data = jsonb_set(COALESCE(event_data, '{}'::jsonb), '{status}', '"REMOVED"'::jsonb)
                WHERE id = $1
             `, [eventId]);
+            console.log(`[Mutation Engine] Event ${eventId} marked as REMOVED in DB`);
         }
     } else {
         console.log(`[Mutation Engine] Updating event: ${eventId}`);
@@ -1011,18 +1012,31 @@ export class GameEventManager extends BaseManager {
         
         if (modifiedEvents.length > 0) {
             const minSequence = Math.min(...modifiedEvents.map(e => e.sequence || 0));
-            const { finalScores } = await this.recalculateEventScores(gameId, minSequence);
+            const { modifiedEvents: recalculatedEvents, finalScores } = await this.recalculateEventScores(gameId, minSequence);
 
             // Update the game scoreboard in DB
             await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
 
             if (this.io) {
-                for (const me of modifiedEvents) {
+                // Merge recalculated events into modifiedEvents, preferring recalculated versions
+                const allModified = [...modifiedEvents];
+                for (const re of recalculatedEvents) {
+                    const idx = allModified.findIndex(m => m.id === re.id);
+                    if (idx > -1) {
+                        allModified[idx] = re;
+                    } else {
+                        allModified.push(re);
+                    }
+                }
+
+                for (const me of allModified) {
                     if (me.eventData?.status === 'REMOVED') {
+                        console.log(`[Undo Broadcast] Emitting GAME_EVENT_REMOVED for ${me.id}`);
                         this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: me.id } });
                     }
                 }
-                this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: modifiedEvents });
+                console.log(`[Undo Broadcast] Emitting GAME_EVENTS_BATCH_UPDATED for ${allModified.length} events`);
+                this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
                 
                 const updatedGame = await dataManager.getGame(gameId);
                 if (updatedGame) {
