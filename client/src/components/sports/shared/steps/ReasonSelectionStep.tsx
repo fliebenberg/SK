@@ -38,12 +38,12 @@ export function ReasonSelectionStep({
         if (!selectedReason) return;
         onComplete({
             reason: selectedReason.name,
-            ...(selectedReason.specifyPlayer && selectedPlayerId ? { playerId: selectedPlayerId } : {})
+            ...((selectedReason.specifyPlayer || step.includePlayerSelection) && selectedPlayerId ? { playerId: selectedPlayerId } : {})
         });
     };
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-4">
             <div className="grid gap-4">
                 {step.reasons?.map((group) => (
                     <div key={group.name} className="space-y-1.5">
@@ -69,7 +69,7 @@ export function ReasonSelectionStep({
                 ))}
             </div>
 
-            {selectedReason?.specifyPlayer && (
+            {(step.includePlayerSelection || selectedReason?.specifyPlayer) && (
                 <div className="pt-2 border-t border-border">
                     <div className="px-1 mb-2">
                         <span className="text-[10px] font-black uppercase text-muted-foreground/70 tracking-[0.2em]">Select Player</span>

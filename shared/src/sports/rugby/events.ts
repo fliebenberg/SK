@@ -114,15 +114,15 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     name: "22m Dropout",
     section: "Game Events",
     icon: "ArrowUpRight",
-    displayPattern: "{name} → {outcome|SUCCESSFUL}",
+    displayPattern: "{name} → {outcome}",
     steps: [
       {
         type: "OUTCOME_SELECTION",
         includePlayerSelection: true,
         outcomes: [
-          { name: "Successful", displayOverride: "SUCCESSFUL", variant: "success", eventData: { successful: true } },
-          { name: "Directly Out", variant: "danger", eventData: { successful: false } },
-          { name: "Too Short", variant: "danger", eventData: { successful: false } }
+          { name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
+          { name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
+          { name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
         ]
       }
     ]
@@ -132,15 +132,15 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     name: "Goalline Dropout",
     section: "Game Events",
     icon: "ArrowUp",
-    displayPattern: "{name} → {outcome|SUCCESSFUL}",
+    displayPattern: "{name} → {outcome}",
     steps: [
       {
         type: "OUTCOME_SELECTION",
         includePlayerSelection: true,
         outcomes: [
-          { name: "Successful", displayOverride: "SUCCESSFUL", variant: "success", eventData: { successful: true } },
-          { name: "Directly Out", variant: "danger", eventData: { successful: false } },
-          { name: "Too Short", variant: "danger", eventData: { successful: false } }
+          { name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
+          { name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
+          { name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
         ]
       }
     ]
