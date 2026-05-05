@@ -37,7 +37,7 @@ export function RoleGuard({
   }, [isLoading, isAuthenticated, user, allowedRoles, router, redirectTo, pathname]);
 
   // Show loader while checking auth state
-  if (isLoading) {
+  if (isLoading && !isAuthenticated) {
     return <FullPageLoader />;
   }
 

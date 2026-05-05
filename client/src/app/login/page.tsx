@@ -21,9 +21,9 @@ function LoginPageContent() {
     }
   }, [isAuthenticated, isLoading, router, callbackUrl]);
 
-  // If we are looking for the session, or haven't mounted the theme yet,
+  // If we are looking for the session (initial load), or haven't mounted the theme yet,
   // or if we are already authenticated (waiting for redirect), show loader.
-  if (isLoading || !mounted || isAuthenticated) {
+  if ((isLoading && !isAuthenticated) || !mounted || isAuthenticated) {
     return <FullPageLoader />;
   }
 

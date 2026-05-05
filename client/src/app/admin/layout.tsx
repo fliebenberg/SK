@@ -35,7 +35,7 @@ export default function AdminLayout({
     return store.subscribe(check);
   }, [authLoading, isAuthenticated, user, router]);
 
-  if (authLoading || isAllowed === null) {
+  if ((authLoading && !isAuthenticated) || isAllowed === null) {
     return <FullPageLoader />;
   }
 

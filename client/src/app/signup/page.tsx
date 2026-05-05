@@ -18,8 +18,8 @@ export default function SignupPage() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Show loader while checking auth or mounting theme
-  if (isLoading || !mounted || isAuthenticated) {
+  // Show loader while checking auth (initial load) or mounting theme
+  if ((isLoading && !isAuthenticated) || !mounted || isAuthenticated) {
     return <FullPageLoader />;
   }
 
