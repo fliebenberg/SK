@@ -158,35 +158,35 @@ export const RUGBY_EVENTS: EventTemplate[] = [
           {
             name: "Tackle",
             options: [
-              { name: "Dangerous", specifyPlayer: true },
-              { name: "Late", specifyPlayer: true }
+              { id: "dangerous_tackle", name: "Dangerous Tackle", specifyPlayer: true },
+              { id: "late_tackle", name: "Late Tackle", specifyPlayer: true }
             ]
           },
           {
             name: "Ruck",
             options: [
-              { name: "Not Releasing", specifyPlayer: true },
-              { name: "Not Rolling", specifyPlayer: true },
-              { name: "Hands in Ruck", specifyPlayer: true },
-              { name: "Side Entry", specifyPlayer: true },
-              { name: "Off Feet", specifyPlayer: true }
+              { id: "not_releasing", name: "Not Releasing", specifyPlayer: true },
+              { id: "not_rolling", name: "Not Rolling", specifyPlayer: true },
+              { id: "hands_in_ruck", name: "Hands in Ruck", specifyPlayer: true },
+              { id: "side_entry", name: "Side Entry", specifyPlayer: true },
+              { id: "off_feet", name: "Off Feet", specifyPlayer: true }
             ]
           },
           {
             name: "Set Piece",
             options: [
-              { name: "Collapsing Scrum" },
-              { name: "Scrum Other" },
-              { name: "Lineout Foul" }
+              { id: "collapsing_scrum", name: "Collapsing Scrum" },
+              { id: "scrum_other", name: "Scrum Other" },
+              { id: "lineout_foul", name: "Lineout Foul" }
             ]
           },
           {
             name: "General",
             options: [
-              { name: "Offside", specifyPlayer: true },
-              { name: "Obstruction", specifyPlayer: true },
-              { name: "Professional Foul", specifyPlayer: true },
-              { name: "Other" }
+              { id: "offside", name: "Offside", specifyPlayer: true },
+              { id: "obstruction", name: "Obstruction", specifyPlayer: true },
+              { id: "professional_foul", name: "Professional Foul", specifyPlayer: true },
+              { id: "other", name: "Other" }
             ]
           }
         ]
@@ -197,10 +197,10 @@ export const RUGBY_EVENTS: EventTemplate[] = [
       {
         type: "OUTCOME_SELECTION",
         outcomes: [
-          { name: "Penalty Kick", variant: "primary", triggerEventId: "penalty_kick" },
-          { name: "Line Kick", variant: "success", triggerEventId: "line_kick" },
-          { name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Penalty" } },
-          { name: "Tap n Go", variant: "purple", eventData: { type: "GAME_EVENT", subType: "Tap n Go" } }
+          { id: "penalty_kick", name: "Penalty Kick", variant: "primary", triggerEventId: "penalty_kick" },
+          { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick" },
+          { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Penalty" } },
+          { id: "tap_go", name: "Tap n Go", variant: "success", eventData: { reason: "Penalty" } }
         ]
       }
     ]
@@ -218,29 +218,29 @@ export const RUGBY_EVENTS: EventTemplate[] = [
           {
             name: "Scrum",
             options: [
-              { name: "Early Push" },
-              { name: "Delaying the Feed" },
-              { name: "Pre-engagement" },
-              { name: "Illegal Feed" }
+              { id: "early_push", name: "Early Push" },
+              { id: "delaying_feed", name: "Delaying the Feed" },
+              { id: "pre_engagement", name: "Pre-engagement" },
+              { id: "illegal_feed", name: "Illegal Feed" }
             ]
           },
           {
             name: "Lineout",
             options: [
-              { name: "Closing the Gap" },
-              { name: "Delaying the Lineout" },
-              { name: "Early Lift" },
-              { name: "Too Many Players" },
-              { name: "Faking a Throw" }
+              { id: "closing_gap", name: "Closing the Gap" },
+              { id: "delaying_lineout", name: "Delaying the Lineout" },
+              { id: "early_lift", name: "Early Lift" },
+              { id: "too_many_players", name: "Too Many Players" },
+              { id: "faking_throw", name: "Faking a Throw" }
             ]
           },
           {
             name: "General",
             options: [
-              { name: "Mark" },
-              { name: "Wasting Time" },
-              { name: "Kicking ball away" },
-              { name: "Other" }
+              { id: "mark", name: "Mark" },
+              { id: "wasting_time", name: "Wasting Time" },
+              { id: "kicking_ball_away", name: "Kicking ball away" },
+              { id: "other", name: "Other" }
             ]
           }
         ]
@@ -251,9 +251,9 @@ export const RUGBY_EVENTS: EventTemplate[] = [
       {
         type: "OUTCOME_SELECTION",
         outcomes: [
-          { name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Free Kick" } },
-          { name: "Line Kick", variant: "success", triggerEventId: "line_kick" },
-          { name: "Tap n Go", variant: "purple", eventData: { type: "GAME_EVENT", subType: "Tap n Go" } }
+          { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Free Kick" } },
+          { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick" },
+          { id: "tap_go", name: "Tap n Go", variant: "success", eventData: { reason: "Free Kick" } }
         ]
       }
     ]
@@ -271,13 +271,12 @@ export const RUGBY_EVENTS: EventTemplate[] = [
           {
             name: "Infringement",
             options: [
-              { name: "Knock-on" },
-              { name: "Forward Pass" },
-              { name: "Accidental Offside" },
-              { name: "Unplayable Ruck" },
-              { name: "Unsuccessful Maul" },
-              { name: "Penalty" },
-              { name: "Other" }
+              { id: "knock_on", name: "Knock-on" },
+              { id: "forward_pass", name: "Forward Pass" },
+              { id: "held_up", name: "Held Up" },
+              { id: "unplayable", name: "Unplayable" },
+              { id: "accidental_offside", name: "Accidental Offside" },
+              { id: "penalty_scrum", name: "Penalty" }
             ]
           }
         ]
@@ -290,9 +289,9 @@ export const RUGBY_EVENTS: EventTemplate[] = [
       {
         type: "OUTCOME_SELECTION",
         outcomes: [
-          { name: "Won", variant: "success", eventData: { winnerSide: "same" } },
-          { name: "Lost", variant: "danger", eventData: { winnerSide: "other" } },
-          { name: "Reset", variant: "warning", eventData: { resets: 1 } }
+          { id: "successful", name: "Successful", variant: "success", eventData: { successful: true } },
+          { id: "lost_against_head", name: "Lost Against Head", variant: "danger", eventData: { successful: false } },
+          { id: "collapsed_reset", name: "Collapsed (Reset)", variant: "warning", triggerEventId: "scrum", eventData: { reset: true } }
         ]
       }
     ]
@@ -417,8 +416,8 @@ export const RUGBY_EVENTS: EventTemplate[] = [
       {
         type: "OUTCOME_SELECTION",
         outcomes: [
-          { name: "Out", variant: "success", eventData: { successful: true } },
-          { name: "Stayed In", variant: "danger", eventData: { successful: false } }
+          { id: "out", name: "Out", variant: "success", eventData: { successful: true } },
+          { id: "stayed_in", name: "Stayed In", variant: "danger", eventData: { successful: false } }
         ]
       }
     ]

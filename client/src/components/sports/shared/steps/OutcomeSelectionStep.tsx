@@ -21,7 +21,7 @@ export function OutcomeSelectionStep({
 
     const handleSelectOutcome = (outcome: any) => {
         onComplete({
-            outcome: outcome.name,
+            outcome: outcome.id || outcome.name,
             ...(outcome.points !== undefined ? { pointsDelta: outcome.points } : {}),
             ...(outcome.triggerEventId ? { triggerEventId: outcome.triggerEventId } : {}),
             ...(step.includePlayerSelection && selectedPlayerId ? { playerId: selectedPlayerId } : {}),
@@ -50,7 +50,7 @@ export function OutcomeSelectionStep({
 
             <div className="grid grid-cols-2 gap-1.5">
                 {step.outcomes?.map((outcome) => {
-                    const isSelected = scoringState.collectedData?.outcome === outcome.name;
+                    const isSelected = scoringState.collectedData?.outcome === (outcome.id || outcome.name);
                     return (
                         <ScoringActionButton
                             key={outcome.name}

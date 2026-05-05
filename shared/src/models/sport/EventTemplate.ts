@@ -1,4 +1,5 @@
 export interface ReasonOption {
+  id?: string;
   name: string;
   specifyPlayer?: boolean;
   variant?: string;
@@ -10,6 +11,7 @@ export interface ReasonGroup {
 }
 
 export interface Outcome {
+  id?: string;
   name: string;
   displayOverride?: string;
   points?: number;

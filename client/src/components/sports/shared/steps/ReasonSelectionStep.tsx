@@ -19,8 +19,8 @@ export function ReasonSelectionStep({
     const roster = rosters[participantId || ''] || [];
     
     // Find the initial reason from collected data to keep it highlighted when coming back
-    const initialReasonName = scoringState.collectedData?.reason;
-    const initialReason = step.reasons?.flatMap(g => g.options).find(o => o.name === initialReasonName) || null;
+    const initialReasonValue = scoringState.collectedData?.reason;
+    const initialReason = step.reasons?.flatMap(g => g.options).find(o => (o.id || o.name) === initialReasonValue) || null;
 
     const [selectedReason, setSelectedReason] = useState<ReasonOption | null>(initialReason);
     const [selectedPlayerId, setSelectedPlayerId] = useState<string>(scoringState.collectedData?.playerId || '');
@@ -29,7 +29,7 @@ export function ReasonSelectionStep({
         setSelectedReason(reason);
         // Sync with context immediately so stepper knows we have data
         nextDynamicStep({ 
-            reason: reason.name, 
+            reason: reason.id || reason.name, 
             _noAdvance: true 
         });
     };
@@ -37,7 +37,7 @@ export function ReasonSelectionStep({
     const handleNext = () => {
         if (!selectedReason) return;
         onComplete({
-            reason: selectedReason.name,
+            reason: selectedReason.id || selectedReason.name,
             ...((selectedReason.specifyPlayer || step.includePlayerSelection) && selectedPlayerId ? { playerId: selectedPlayerId } : {})
         });
     };
@@ -52,7 +52,7 @@ export function ReasonSelectionStep({
                         </div>
                         <div className="grid grid-cols-3 gap-1">
                             {group.options.map((opt) => {
-                                const isSelected = selectedReason?.name === opt.name;
+                                const isSelected = (selectedReason?.id || selectedReason?.name) === (opt.id || opt.name);
                                 return (
                                     <ScoringActionButton
                                         key={opt.name}

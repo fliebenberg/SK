@@ -114,7 +114,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
             // Check if there is a displayOverride in the outcome object itself
             const outcomeObj = template.steps
                 .find(s => s.type === 'OUTCOME_SELECTION')
-                ?.outcomes?.find(o => o.name === outcome);
+                ?.outcomes?.find(o => (o.id || o.name) === outcome);
             
             if (outcomeObj && outcomeObj.displayOverride !== undefined) {
                 outcome = outcomeObj.displayOverride;
@@ -410,30 +410,38 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 const details: string[] = [];
                                                 // Only show reason for non-scoring events to avoid redundancy with preceding Awarded event
                                                 if (evt.eventData?.reason && evt.type !== 'SCORE') {
-                                                    const cleanReason = evt.eventData.reason.replace(/^(General|Set Piece) - /i, '');
+                                                    const reasonVal = evt.eventData.reason;
+                                                    const reasonOpt = template?.steps
+                                                        .find(s => s.type === 'REASON_SELECTION')
+                                                        ?.reasons?.flatMap((g: any) => g.options)
+                                                        .find((o: any) => (o.id || o.name) === reasonVal);
+                                                    const cleanReason = (reasonOpt?.name || reasonVal).replace(/^(General|Set Piece) - /i, '');
                                                     details.push(cleanReason);
                                                 }
                                                 if (evt.eventData?.winnerName && (evt.subType === 'Scrum' || evt.subType === 'Lineout')) {
                                                     details.push(`Won by ${evt.eventData.winnerName}`);
                                                 }
 
+                                                const hasReason = details.length > 0;
                                                 const hasActor = !!actorProfile;
 
                                                 return (
-                                                    <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                                                        {actorProfile && (
-                                                            <span className={cn("text-event-primary font-bold text-muted-foreground/60 uppercase tracking-tight whitespace-nowrap overflow-hidden leading-none")}>
-                                                                {actorProfile.name}
-                                                            </span>
-                                                        )}
-                                                        {details.length > 0 && (
+                                                    <div className="flex items-center gap-1.5 min-w-0 overflow-hidden w-full">
+                                                        {hasReason && (
                                                             <span className={cn(
-                                                                "uppercase whitespace-nowrap overflow-hidden",
-                                                                hasActor 
-                                                                    ? "text-2tiny font-black text-muted-foreground/30 tracking-widest" 
-                                                                    : "text-event-primary font-bold text-muted-foreground/60 tracking-tight leading-none"
+                                                                "uppercase whitespace-nowrap overflow-hidden text-event-primary font-bold text-muted-foreground/60 tracking-tight leading-none"
                                                             )}>
                                                                 {details.join(' • ')}
+                                                            </span>
+                                                        )}
+                                                        {hasActor && (
+                                                            <span className={cn(
+                                                                "uppercase whitespace-nowrap overflow-hidden self-center",
+                                                                hasReason 
+                                                                    ? "ml-auto text-[10px] font-black text-muted-foreground/30 tracking-widest" 
+                                                                    : "text-event-primary font-bold text-muted-foreground/60 tracking-tight leading-none"
+                                                            )}>
+                                                                {actorProfile.name}
                                                             </span>
                                                         )}
                                                     </div>

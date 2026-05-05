@@ -183,9 +183,17 @@ export function DynamicScoringDialog() {
                                         if (idx > 0 && activeTemplate.steps[idx - 1].groupWithNext) return null;
 
                                         let displayValue = '';
-                                        if (step.type === 'REASON_SELECTION') displayValue = data.reason;
-                                        else if (step.type === 'PLAYER_SELECTION') displayValue = displayPlayer;
-                                        else if (step.type === 'OUTCOME_SELECTION') displayValue = data.outcome;
+                                        if (step.type === 'REASON_SELECTION') {
+                                            const reasonVal = data.reason;
+                                            const reasonOpt = step.reasons?.flatMap((g: any) => g.options).find((o: any) => (o.id || o.name) === reasonVal);
+                                            displayValue = reasonOpt?.name || reasonVal;
+                                        } else if (step.type === 'PLAYER_SELECTION') {
+                                            displayValue = displayPlayer;
+                                        } else if (step.type === 'OUTCOME_SELECTION') {
+                                            const outcomeVal = data.outcome;
+                                            const outcomeOpt = step.outcomes?.find((o: any) => (o.id || o.name) === outcomeVal);
+                                            displayValue = outcomeOpt?.name || outcomeVal;
+                                        }
 
                                         return (
                                             <React.Fragment key={idx}>
