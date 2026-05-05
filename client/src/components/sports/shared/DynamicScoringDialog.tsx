@@ -6,6 +6,7 @@ import { DialogPortal, DialogOverlay } from "@radix-ui/react-dialog";
 import { Button } from '@/components/ui/button';
 import { ReasonSelectionStep } from './steps/ReasonSelectionStep';
 import { OutcomeSelectionStep } from './steps/OutcomeSelectionStep';
+import { PlayerSelectionStep } from './steps/PlayerSelectionStep';
 import { CustomWidgetStep } from './steps/CustomWidgetStep';
 import { Check, Trash2, X, RotateCcw, ChevronRight } from 'lucide-react';
 import { store } from '@/app/store/store';
@@ -23,7 +24,8 @@ export function DynamicScoringDialog() {
         hasLinkedFollowUp,
         removeGameEvent,
         saveChanges,
-        rosters
+        rosters,
+        game
     } = useSharedDynamicScoring();
 
     if (scoringState.status !== 'ACTIVE' || !activeTemplate || scoringState.stepIndex === undefined) return null;
@@ -51,6 +53,8 @@ export function DynamicScoringDialog() {
                     return <ReasonSelectionStep key={idx} step={step} onComplete={(data) => nextDynamicStep(data)} />;
                 case 'OUTCOME_SELECTION':
                     return <OutcomeSelectionStep key={idx} step={step} onComplete={(data) => nextDynamicStep(data)} />;
+                case 'PLAYER_SELECTION':
+                    return <PlayerSelectionStep key={idx} step={step} onComplete={(data) => nextDynamicStep(data)} />;
                 case 'CUSTOM_WIDGET':
                     return <CustomWidgetStep 
                                 key={idx} 
@@ -116,19 +120,21 @@ export function DynamicScoringDialog() {
                                                     </Button>
                                                 )}
 
-                                                {/* Check (Save/Finish) or Chevron (Next) */}
-                                                {isLastStep ? (
+                                                {/* Check (Save/Finish) */}
+                                                {(hasChanged || scoringState.editingId === undefined) && (
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
                                                         className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
                                                         onClick={saveChanges}
                                                         title="Save Changes"
-                                                        disabled={!hasChanged && scoringState.editingId !== undefined}
                                                     >
                                                         <Check className="h-5 w-5" />
                                                     </Button>
-                                                ) : (
+                                                )}
+
+                                                {/* Chevron (Next) - Only if not last step */}
+                                                {!isLastStep && (
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
@@ -154,37 +160,58 @@ export function DynamicScoringDialog() {
                                 </div>
                             </DialogTitle>
                         </div>
+                        
                         {/* Visual Stepper */}
                         {activeTemplate.steps.length > 1 && (
-                            <div className="flex items-center text-xs font-medium uppercase tracking-wider text-muted-foreground gap-2 overflow-x-auto pb-1 hide-scrollbar">
-                                {activeTemplate.steps.map((step, idx) => {
-                                    const isActive = idx === scoringState.stepIndex;
-                                    const isPast = idx < (scoringState.stepIndex || 0);
-                                    const canJump = true; // Selection is optional, always allow jumping
+                            <div className="flex items-center text-xs font-medium uppercase tracking-wider text-muted-foreground gap-3 overflow-x-auto pb-1 hide-scrollbar">
+                                {(() => {
+                                    const data = scoringState.collectedData || {};
+                                    const participantId = scoringState.side === 'home' ? game.participants?.[0]?.id : game.participants?.[1]?.id;
+                                    const roster = rosters[participantId || ''] || [];
+                                    const rosterItem = data.playerId ? roster.find((item: any) => item.orgProfileId === data.playerId) : null;
+                                    const profile = data.playerId ? store.orgProfiles.find(p => p.id === data.playerId) : null;
+                                    const playerName = profile?.name;
+                                    const displayPlayer = rosterItem ? `${rosterItem.position || '?'}. ${playerName || 'Unknown'}` : playerName;
 
-                                    let stepName = step.type.replace('_SELECTION', '').replace('_', ' ');
-                                    if (step.type === 'CUSTOM_WIDGET') stepName = step.widgetName || 'Custom';
-                                    
-                                    // Skip rendering if it's grouped with the previous step
-                                    if (idx > 0 && activeTemplate.steps[idx - 1].groupWithNext) return null;
+                                    return activeTemplate.steps.map((step, idx) => {
+                                        const isActive = idx === scoringState.stepIndex;
+                                        
+                                        let stepName = step.type.replace('_SELECTION', '').replace('_', ' ');
+                                        if (step.type === 'CUSTOM_WIDGET') stepName = step.widgetName || 'Custom';
+                                        
+                                        // Skip rendering if it's grouped with the previous step
+                                        if (idx > 0 && activeTemplate.steps[idx - 1].groupWithNext) return null;
 
-                                    return (
-                                        <React.Fragment key={idx}>
-                                            <button 
-                                                onClick={() => goToStep(idx)}
-                                                className={cn(
-                                                    "whitespace-nowrap transition-colors uppercase tracking-widest",
-                                                    isActive ? "text-primary font-black" : "text-muted-foreground hover:text-foreground"
+                                        let displayValue = '';
+                                        if (step.type === 'REASON_SELECTION') displayValue = data.reason;
+                                        else if (step.type === 'PLAYER_SELECTION') displayValue = displayPlayer;
+                                        else if (step.type === 'OUTCOME_SELECTION') displayValue = data.outcome;
+
+                                        return (
+                                            <React.Fragment key={idx}>
+                                                <button 
+                                                    onClick={() => goToStep(idx)}
+                                                    className={cn(
+                                                        "flex flex-col items-start transition-colors uppercase tracking-widest",
+                                                        isActive ? "text-primary font-black" : "text-muted-foreground hover:text-foreground"
+                                                    )}
+                                                >
+                                                    <span className="text-[10px]">{stepName}</span>
+                                                    {displayValue && (
+                                                        <span className="text-[9px] font-bold text-foreground/60 mt-0.5 normal-case tracking-normal truncate max-w-[100px]">
+                                                            {displayValue}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                                {idx < activeTemplate.steps.length - 1 && !step.groupWithNext && (
+                                                    <div className="text-muted-foreground/60 px-1 self-start pt-1.5 shrink-0">
+                                                        <ChevronRight className="h-4 w-4" />
+                                                    </div>
                                                 )}
-                                            >
-                                                {stepName}
-                                            </button>
-                                            {idx < activeTemplate.steps.length - 1 && !step.groupWithNext && (
-                                                <div className="text-muted-foreground/30 px-1">-&gt;</div>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })}
+                                            </React.Fragment>
+                                        );
+                                    });
+                                })()}
                             </div>
                         )}
                     </DialogHeader>

@@ -19,7 +19,7 @@ export interface Outcome {
 }
 
 export interface ActionStep {
-  type: 'REASON_SELECTION' | 'OUTCOME_SELECTION' | 'CUSTOM_WIDGET' | 'FORM_INPUT';
+  type: 'REASON_SELECTION' | 'OUTCOME_SELECTION' | 'PLAYER_SELECTION' | 'CUSTOM_WIDGET' | 'FORM_INPUT';
   optional?: boolean;
   groupWithNext?: boolean;
   includePlayerSelection?: boolean;

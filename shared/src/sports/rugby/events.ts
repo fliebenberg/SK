@@ -150,22 +150,57 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     name: "Penalty Awarded",
     section: "Game Events",
     icon: "AlertTriangle",
-    displayPattern: "{name} → {reason}",
+    displayPattern: "PENALTY → {outcome}",
     steps: [
       {
         type: "REASON_SELECTION",
-        includePlayerSelection: true,
         reasons: [
           {
-            name: "Infringement",
+            name: "Tackle",
             options: [
-              { name: "Offside" },
-              { name: "High Tackle" },
-              { name: "Hands in Ruck" },
+              { name: "Dangerous", specifyPlayer: true },
+              { name: "Late", specifyPlayer: true }
+            ]
+          },
+          {
+            name: "Ruck",
+            options: [
+              { name: "Not Releasing", specifyPlayer: true },
+              { name: "Not Rolling", specifyPlayer: true },
+              { name: "Hands in Ruck", specifyPlayer: true },
+              { name: "Side Entry", specifyPlayer: true },
+              { name: "Off Feet", specifyPlayer: true }
+            ]
+          },
+          {
+            name: "Set Piece",
+            options: [
               { name: "Collapsing Scrum" },
-              { name: "Not Releasing" }
+              { name: "Scrum Other" },
+              { name: "Lineout Foul" }
+            ]
+          },
+          {
+            name: "General",
+            options: [
+              { name: "Offside", specifyPlayer: true },
+              { name: "Obstruction", specifyPlayer: true },
+              { name: "Professional Foul", specifyPlayer: true },
+              { name: "Other" }
             ]
           }
+        ]
+      },
+      {
+        type: "PLAYER_SELECTION"
+      },
+      {
+        type: "OUTCOME_SELECTION",
+        outcomes: [
+          { name: "Penalty Kick", variant: "primary", triggerEventId: "penalty_kick" },
+          { name: "Line Kick", variant: "success", triggerEventId: "line_kick" },
+          { name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Penalty" } },
+          { name: "Tap n Go", variant: "purple", eventData: { type: "GAME_EVENT", subType: "Tap n Go" } }
         ]
       }
     ]
@@ -179,16 +214,46 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     steps: [
       {
         type: "REASON_SELECTION",
-        includePlayerSelection: true,
         reasons: [
           {
-            name: "Reason",
+            name: "Scrum",
             options: [
-              { name: "Early Engagement" },
-              { name: "Time Wasting" },
-              { name: "Technical Infringement" }
+              { name: "Early Push" },
+              { name: "Delaying the Feed" },
+              { name: "Pre-engagement" },
+              { name: "Illegal Feed" }
+            ]
+          },
+          {
+            name: "Lineout",
+            options: [
+              { name: "Closing the Gap" },
+              { name: "Delaying the Lineout" },
+              { name: "Early Lift" },
+              { name: "Too Many Players" },
+              { name: "Faking a Throw" }
+            ]
+          },
+          {
+            name: "General",
+            options: [
+              { name: "Mark" },
+              { name: "Wasting Time" },
+              { name: "Kicking ball away" },
+              { name: "Other" }
             ]
           }
+        ]
+      },
+      {
+        type: "PLAYER_SELECTION"
+      },
+      {
+        type: "OUTCOME_SELECTION",
+        outcomes: [
+          { name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Free Kick" } },
+          { name: "Line Kick", variant: "success", triggerEventId: "line_kick" },
+          { name: "Tap n Go", variant: "purple", eventData: { type: "GAME_EVENT", subType: "Tap n Go" } }
         ]
       }
     ]
@@ -198,8 +263,30 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     name: "Scrum",
     section: "Game Events",
     icon: "Users",
-    displayPattern: "{name} → {outcome}",
+    displayPattern: "{name} → {reason|{outcome}}",
     steps: [
+      {
+        type: "REASON_SELECTION",
+        reasons: [
+          {
+            name: "Infringement",
+            options: [
+              { name: "Knock-on" },
+              { name: "Forward Pass" },
+              { name: "Accidental Offside" },
+              { name: "Unplayable Ruck" },
+              { name: "Unsuccessful Maul" },
+              { name: "Penalty" },
+              { name: "Other" }
+            ]
+          }
+        ]
+      },
+      {
+        type: "CUSTOM_WIDGET",
+        widgetName: "ScrumResetsCounter",
+        groupWithNext: true
+      },
       {
         type: "OUTCOME_SELECTION",
         outcomes: [
@@ -243,7 +330,8 @@ export const RUGBY_EVENTS: EventTemplate[] = [
             options: [
               { name: "High Tackle" },
               { name: "Dangerous Play" },
-              { name: "Professional Foul" }
+              { name: "Professional Foul" },
+              { name: "Cynical Foul" }
             ]
           },
           {
@@ -251,7 +339,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
             options: [
               { name: "Repeated Infringements" },
               { name: "Offside" },
-              { name: "Cynical Foul" }
+              { name: "Other" }
             ]
           }
         ]
@@ -275,7 +363,8 @@ export const RUGBY_EVENTS: EventTemplate[] = [
               { name: "Punching/Striking" },
               { name: "Dangerous High Tackle" },
               { name: "Tip Tackle" },
-              { name: "Stamp/Kick" }
+              { name: "Stamp/Kick" },
+              { name: "Second Yellow Card" }
             ]
           }
         ]
@@ -314,5 +403,24 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     icon: "X",
     displayPattern: "{name}",
     steps: [{ type: "OUTCOME_SELECTION", includePlayerSelection: true, outcomes: [{ name: "Confirmed" }] }]
+  },
+  {
+    id: "line_kick",
+    name: "Line Kick",
+    section: "Game Events",
+    icon: "ArrowUpRight",
+    displayPattern: "{name} → {outcome}",
+    steps: [
+      {
+        type: "PLAYER_SELECTION"
+      },
+      {
+        type: "OUTCOME_SELECTION",
+        outcomes: [
+          { name: "Out", variant: "success", eventData: { successful: true } },
+          { name: "Stayed In", variant: "danger", eventData: { successful: false } }
+        ]
+      }
+    ]
   }
 ];
