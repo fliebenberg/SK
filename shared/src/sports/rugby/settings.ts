@@ -1,4 +1,4 @@
-{
+export default {
   "maxReserves": 8,
   "facilityTerm": "Field",
   "periodTerm": "Half",
@@ -19,4 +19,4 @@
     { "id": "14", "name": "Right Wing" },
     { "id": "15", "name": "Full-back" }
   ]
-}
+};

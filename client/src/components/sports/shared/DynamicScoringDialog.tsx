@@ -20,8 +20,11 @@ export function DynamicScoringDialog() {
         cancelDynamicFlow, 
         nextDynamicStep,
         goToStep,
+        isStepSkipped,
+        isSubStepSkipped,
+        isSingleStepSkipped,
         getActiveTriggerEventId,
-        hasLinkedFollowUp,
+        getLinkedFollowUp,
         removeGameEvent,
         saveChanges,
         rosters,
@@ -40,12 +43,9 @@ export function DynamicScoringDialog() {
 
     // Helper to determine if a step should group with the next one
     const renderSteps = () => {
-        let stepsToRender = [currentStep];
-        let nextIdx = scoringState.stepIndex! + 1;
-        while (stepsToRender[stepsToRender.length - 1].groupWithNext && nextIdx < activeTemplate.steps.length) {
-            stepsToRender.push(activeTemplate.steps[nextIdx]);
-            nextIdx++;
-        }
+        const stepsToRender = currentStep.type === 'GROUP' 
+            ? (currentStep.steps || []).filter((_, idx) => !isSubStepSkipped(currentStep, idx, scoringState.collectedData))
+            : [currentStep];
 
         return stepsToRender.map((step, idx) => {
             switch(step.type) {
@@ -96,14 +96,25 @@ export function DynamicScoringDialog() {
                                         const originalData = original?.eventData || {};
                                         const currentData = scoringState.collectedData || {};
                                         
-                                        const hasChanged = !original || (
-                                            original.actorOrgProfileId !== currentData.playerId ||
-                                            originalData.outcome !== currentData.outcome ||
-                                            originalData.reason !== currentData.reason ||
-                                            originalData.pointsDelta !== currentData.pointsDelta
-                                        );
+                                        const hasChanged = (() => {
+                                            if (!original) return true;
+                                            if (original.actorOrgProfileId !== (currentData.playerId || null)) return true;
+                                            
+                                            const dataKeys = new Set([...Object.keys(originalData), ...Object.keys(currentData)]);
+                                            for (const key of dataKeys) {
+                                                if (['playerId', 'eventId', 'triggerEventId', '_noAdvance'].includes(key)) continue;
+                                                if (currentData[key] !== originalData[key]) return true;
+                                            }
+                                            return false;
+                                        })();
 
-                                        const isLastStep = scoringState.stepIndex === activeTemplate.steps.length - 1;
+                                        const isLastSection = (() => {
+                                            let idx = scoringState.stepIndex!;
+                                            while (idx < activeTemplate.steps.length - 1 && isStepSkipped(idx + 1)) {
+                                                idx++;
+                                            }
+                                            return idx === activeTemplate.steps.length - 1;
+                                        })();
 
                                         return (
                                             <>
@@ -133,8 +144,8 @@ export function DynamicScoringDialog() {
                                                     </Button>
                                                 )}
 
-                                                {/* Chevron (Next) - Only if not last step */}
-                                                {!isLastStep && (
+                                                {/* Chevron (Next) - Only if not last section */}
+                                                {!isLastSection && (
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
@@ -175,25 +186,38 @@ export function DynamicScoringDialog() {
 
                                     return activeTemplate.steps.map((step, idx) => {
                                         const isActive = idx === scoringState.stepIndex;
-                                        
-                                        let stepName = step.type.replace('_SELECTION', '').replace('_', ' ');
-                                        if (step.type === 'CUSTOM_WIDGET') stepName = step.widgetName || 'Custom';
-                                        
-                                        // Skip rendering if it's grouped with the previous step
-                                        if (idx > 0 && activeTemplate.steps[idx - 1].groupWithNext) return null;
+                                        if (isStepSkipped(idx)) return null;
 
-                                        let displayValue = '';
-                                        if (step.type === 'REASON_SELECTION') {
-                                            const reasonVal = data.reason;
-                                            const reasonOpt = step.reasons?.flatMap((g: any) => g.options).find((o: any) => (o.id || o.name) === reasonVal);
-                                            displayValue = reasonOpt?.name || reasonVal;
-                                        } else if (step.type === 'PLAYER_SELECTION') {
-                                            displayValue = displayPlayer;
-                                        } else if (step.type === 'OUTCOME_SELECTION') {
-                                            const outcomeVal = data.outcome;
-                                            const outcomeOpt = step.outcomes?.find((o: any) => (o.id || o.name) === outcomeVal);
-                                            displayValue = outcomeOpt?.name || outcomeVal;
-                                        }
+                                        let stepName = step.name || step.type.replace('_SELECTION', '').replace('_', ' ');
+                                        if (!step.name && step.type === 'CUSTOM_WIDGET') stepName = step.widgetName || 'Custom';
+
+                                        // Calculate combined display value for the group (this step and any sub-steps if it's a group)
+                                        const displayValue = (() => {
+                                            const values: string[] = [];
+                                            const subSteps = step.type === 'GROUP' ? (step.steps || []) : [step];
+                                            
+                                            subSteps.forEach((s) => {
+                                                if (isSingleStepSkipped(s, data)) return;
+                                                
+                                                let val = '';
+                                                if (s.type === 'REASON_SELECTION') {
+                                                    const reasonVal = data.reason;
+                                                    const reasonOpt = s.reasons?.flatMap((g: any) => g.options).find((o: any) => (o.id || o.name) === reasonVal);
+                                                    val = reasonOpt?.name || reasonVal;
+                                                } else if (s.type === 'PLAYER_SELECTION') {
+                                                    val = displayPlayer || '';
+                                                } else if (s.type === 'OUTCOME_SELECTION') {
+                                                    const outcomeVal = data.outcome;
+                                                    const outcomeOpt = s.outcomes?.find((o: any) => (o.id || o.name) === outcomeVal);
+                                                    val = outcomeOpt?.name || outcomeVal;
+                                                } else if (s.type === 'CUSTOM_WIDGET' && s.widgetName === 'ScrumResetsCounter') {
+                                                    const resets = data.scrumResets || 0;
+                                                    if (resets > 0) val = `${resets} Resets`;
+                                                }
+                                                if (val) values.push(val);
+                                            });
+                                            return values.join(', ');
+                                        })();
 
                                         return (
                                             <React.Fragment key={idx}>
@@ -206,16 +230,26 @@ export function DynamicScoringDialog() {
                                                 >
                                                     <span className="text-[10px]">{stepName}</span>
                                                     {displayValue && (
-                                                        <span className="text-[9px] font-bold text-foreground/60 mt-0.5 normal-case tracking-normal truncate max-w-[100px]">
+                                                        <span className="text-[9px] font-bold text-foreground/60 mt-0.5 normal-case tracking-normal truncate max-w-[150px]">
                                                             {displayValue}
                                                         </span>
                                                     )}
                                                 </button>
-                                                {idx < activeTemplate.steps.length - 1 && !step.groupWithNext && (
-                                                    <div className="text-muted-foreground/60 px-1 self-start pt-1.5 shrink-0">
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    </div>
-                                                )}
+                                                {(() => {
+                                                    // Find next non-skipped step to see if we should show a separator
+                                                    let nextNonSkipped = idx + 1;
+                                                    while (nextNonSkipped < activeTemplate.steps.length && isStepSkipped(nextNonSkipped)) {
+                                                        nextNonSkipped++;
+                                                    }
+                                                    if (nextNonSkipped < activeTemplate.steps.length) {
+                                                        return (
+                                                            <div className="text-muted-foreground/60 px-1 self-start pt-1.5 shrink-0">
+                                                                <ChevronRight className="h-4 w-4" />
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </React.Fragment>
                                         );
                                     });
@@ -233,7 +267,7 @@ export function DynamicScoringDialog() {
                     {(() => {
                         if (!scoringState.editingId) return null;
                         const triggerId = getActiveTriggerEventId();
-                        if (!triggerId || hasLinkedFollowUp(scoringState.editingId)) return null;
+                        if (!triggerId || getLinkedFollowUp(scoringState.editingId, triggerId)) return null;
 
                         const triggerTemplate = templates.find(t => t.id === triggerId || t.name === triggerId);
                         const label = triggerTemplate ? `ADD ${triggerTemplate.name.toUpperCase()}` : `ADD ${triggerId.toUpperCase()}`;

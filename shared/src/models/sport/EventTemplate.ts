@@ -1,5 +1,5 @@
 export interface ReasonOption {
-  id?: string;
+  id: string;
   name: string;
   specifyPlayer?: boolean;
   variant?: string;
@@ -11,7 +11,7 @@ export interface ReasonGroup {
 }
 
 export interface Outcome {
-  id?: string;
+  id: string;
   name: string;
   displayOverride?: string;
   points?: number;
@@ -21,10 +21,13 @@ export interface Outcome {
 }
 
 export interface ActionStep {
-  type: 'REASON_SELECTION' | 'OUTCOME_SELECTION' | 'PLAYER_SELECTION' | 'CUSTOM_WIDGET' | 'FORM_INPUT';
+  type: 'REASON_SELECTION' | 'OUTCOME_SELECTION' | 'PLAYER_SELECTION' | 'CUSTOM_WIDGET' | 'FORM_INPUT' | 'GROUP';
+  name?: string;
+  steps?: ActionStep[]; // For type: 'GROUP'
   optional?: boolean;
   groupWithNext?: boolean;
   includePlayerSelection?: boolean;
+  dependsOnReason?: boolean;
   reasons?: ReasonGroup[];
   outcomes?: Outcome[];
   widgetName?: string;

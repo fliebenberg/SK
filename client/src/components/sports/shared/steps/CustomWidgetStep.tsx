@@ -68,12 +68,6 @@ function ScrumResetsCounter({
                 </Button>
             </div>
             
-            {/* If it's NOT grouped with next, we need a way to advance */}
-            {!step.groupWithNext && (
-                <Button className="mt-4" onClick={() => onComplete({ scrumResets: resets, _advance: true })}>
-                    Confirm Resets
-                </Button>
-            )}
         </div>
     );
 }

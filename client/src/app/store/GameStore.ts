@@ -237,6 +237,10 @@ export class GameStore extends SiteStore {
                 type: SocketAction.INITIATE_UNDO_VOTE, 
                 payload: { gameId, eventIdToUndo, initiatorId } 
             }, (response: any) => {
+                console.log(`[GameStore] initiateUndoVote response received:`, response);
+                if (response.status === 'ok' && response.data) {
+                    this.mergeDispute(response.data);
+                }
                 resolve();
             });
         });
@@ -250,6 +254,9 @@ export class GameStore extends SiteStore {
                 payload: { gameId, eventId, initiatorId, updateData } 
             }, (response: any) => {
                 console.log(`[GameStore] initiateUpdateVote response received:`, response);
+                if (response.status === 'ok' && response.data) {
+                    this.mergeDispute(response.data);
+                }
                 resolve();
             });
         });
@@ -487,7 +494,10 @@ export class GameStore extends SiteStore {
         }
 
       // Update periodLabel in liveState
-      const periodTerm = sport?.periodTerm || 'Period';
+      const periodTerm = game.customSettings?.periodTerm 
+          || (event as any)?.settings?.periodTerm 
+          || sport?.periodTerm 
+          || 'Period';
       const periodLabel = getPeriodLabel(clock.periodIndex ?? 0, periodTerm);
 
       const updatePromise = this.updateGame(id, { 

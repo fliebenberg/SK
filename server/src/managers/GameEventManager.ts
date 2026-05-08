@@ -2,7 +2,7 @@ import { BaseManager } from "./BaseManager";
 import { GameEvent } from "@sk/types";
 import { Server } from "socket.io";
 import { dataManager } from "../DataManager";
-import { DisputeResolutionHandler } from "../sports/core/SportDisputeHandler";
+import { DisputeResolutionHandler, DisputeConfig } from "../sports/core/SportDisputeHandler";
 import { sportManager } from "./SportManager";
 import { EventTemplate, ActionStep, Outcome } from "@sk/types";
 
@@ -216,7 +216,12 @@ export class GameEventManager extends BaseManager {
 
     const sportId = await this.getGameSportId(gameId);
     const sport = sportId ? await sportManager.getSport(sportId) : null;
-    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === evt.subType || t.id === evt.eventData?.templateId);
+    const templateId = evt.eventData?.templateId || evt.subType;
+    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === templateId);
+    
+    if (!template && templateId) {
+        console.warn(`[Dispute Guard] Could not find template for ID: "${templateId}" in sport: ${sportId}`);
+    }
     
     const isUndo = !updateData;
     
@@ -598,7 +603,7 @@ export class GameEventManager extends BaseManager {
      const totalEligible = neutralOfficials.length + teamsWithCoaches.size + teamsWithScorers.size + adminVoterCount;
 
      // Fetch target event to compute dispute display config
-     let disputeConfig = { heading: 'Remove Event', approveLabel: 'Approve', rejectLabel: 'Reject' };
+     let disputeConfig: DisputeConfig = { heading: 'Remove Event', approveLabel: 'Approve', rejectLabel: 'Reject' };
      try {
          const targetEvtRes = await this.query(
              `SELECT type, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1`,
@@ -610,7 +615,12 @@ export class GameEventManager extends BaseManager {
              // 1. Try Template Config (Preferred)
              const sportId = await this.getGameSportId(rawDispute.gameId);
              const sport = sportId ? await sportManager.getSport(sportId) : null;
-             const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === evtRow.subType || t.id === evtRow.eventData?.templateId);
+             const templateId = evtRow.eventData?.templateId || evtRow.subType;
+             const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === templateId);
+
+             if (!template && templateId) {
+                 console.warn(`[Dispute Tally] Template not found for ID: "${templateId}" in sport: ${sportId}`);
+             }
              
              if (template?.disputeConfig) {
                  disputeConfig = {
@@ -624,6 +634,19 @@ export class GameEventManager extends BaseManager {
                  if (customHandler && customHandler.getDisputeConfig) {
                      const customConfig = customHandler.getDisputeConfig(evtRow.eventData, evtRow.subType);
                      if (customConfig) disputeConfig = customConfig;
+                 }
+             }
+
+             // 3. Intelligence: Dynamic Outcome Labels for Updates
+             if (rawDispute.type === 'UPDATE' && rawDispute.updateData) {
+                 const currentOutcome = evtRow.eventData?.outcome;
+                 const suggestedOutcome = rawDispute.updateData.newOutcome || rawDispute.updateData.eventData?.outcome;
+                 
+                 if (currentOutcome && suggestedOutcome && currentOutcome !== suggestedOutcome) {
+                     disputeConfig.rejectLabel = currentOutcome.toUpperCase();
+                     disputeConfig.approveLabel = suggestedOutcome.toUpperCase();
+                     disputeConfig.rejectSublabel = 'CURRENT';
+                     disputeConfig.approveSublabel = 'NEW';
                  }
              }
          }
@@ -785,7 +808,12 @@ export class GameEventManager extends BaseManager {
     // 2. Resolve template
     const sportId = await this.getGameSportId(gameId);
     const sport = sportId ? await sportManager.getSport(sportId) : null;
-    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === evt.subType || t.id === evt.eventData?.templateId);
+    const templateId = evt.eventData?.templateId || evt.subType;
+    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === templateId);
+
+    if (!template && templateId) {
+        console.warn(`[Mutation Engine] Template not found for ID: "${templateId}" in sport: ${sportId}`);
+    }
 
     const isUndo = !updateData;
     const isAlreadyRemoved = evt.eventData?.status === 'REMOVED';
@@ -819,6 +847,26 @@ export class GameEventManager extends BaseManager {
             }
         }
 
+        // INTELLIGENCE: Does the reason require a player?
+        const reasonName = finalEventData.reason;
+        let forcedActorId: string | null | undefined = undefined;
+
+        if (template && reasonName) {
+            const reasonStep = template.steps.find((s: ActionStep) => s.type === 'REASON_SELECTION');
+            const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => (o.id || o.name) === reasonName);
+            // Default to TRUE (requires player) if specifyPlayer is undefined
+            if (reasonOpt && reasonOpt.specifyPlayer === false) {
+                console.log(`[Mutation Engine] Reason "${reasonName}" does not require a player. Clearing actorId.`);
+                forcedActorId = null;
+            }
+        }
+
+        // Resolve final values, respecting null for explicit clearing
+        const finalActorId = forcedActorId !== undefined ? forcedActorId : 
+                           (updateData.actorOrgProfileId !== undefined ? updateData.actorOrgProfileId : (actorId !== undefined ? actorId : evt.actorId));
+        
+        const finalParticipantId = updateData.gameParticipantId !== undefined ? updateData.gameParticipantId : evt.gameParticipantId;
+
         await this.query(`
            UPDATE game_events 
            SET actor_org_profile_id = $1,
@@ -826,8 +874,8 @@ export class GameEventManager extends BaseManager {
                event_data = $3::jsonb
            WHERE id = $4
         `, [
-            updateData.actorOrgProfileId || actorId || evt.actorId, 
-            updateData.gameParticipantId || evt.gameParticipantId,
+            finalActorId,
+            finalParticipantId,
             JSON.stringify(finalEventData), 
             eventId
         ]);
@@ -967,7 +1015,12 @@ export class GameEventManager extends BaseManager {
     
     const sportId = await this.getGameSportId(gameId);
     const sport = sportId ? await sportManager.getSport(sportId) : null;
-    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === event.subType || t.id === event.eventData?.templateId);
+    const templateId = event.eventData?.templateId || event.subType;
+    const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === templateId);
+
+    if (!template && templateId) {
+        console.warn(`[Direct Undo] Template not found for ID: "${templateId}" in sport: ${sportId}`);
+    }
     if (template?.disputeConfig?.allowUndo === false) {
         return { success: false, error: 'This event type is marked as non-removable.' };
     }

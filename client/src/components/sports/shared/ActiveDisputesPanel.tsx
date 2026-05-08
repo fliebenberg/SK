@@ -4,7 +4,7 @@ import { store } from '@/app/store/store';
 import { useAuth } from '@/contexts/AuthContext';
 import { Check, X, AlertTriangle } from 'lucide-react';
 
-function DisputeActionButton({ label, onClick, className, icon, active, activeClass, sublabel, type }: { label: React.ReactNode, onClick: () => void, className?: string, icon?: React.ReactNode, active: boolean, activeClass: string, sublabel?: string, type: 'APPROVE' | 'REJECT' }) {
+function DisputeActionButton({ label, onClick, className, active, activeClass, sublabel, voteCount, type }: { label: React.ReactNode, onClick: () => void, className?: string, active: boolean, activeClass: string, sublabel?: string, voteCount?: string, type: 'APPROVE' | 'REJECT' }) {
     return (
         <button 
             onClick={onClick}
@@ -19,15 +19,19 @@ function DisputeActionButton({ label, onClick, className, icon, active, activeCl
                 className
             )}
         >
+            {sublabel && (
+                <span className={cn("text-[8px] sm:text-[9px] font-bold uppercase tracking-wide leading-none mb-0.5", active ? "text-white/80" : "text-muted-foreground/60")}>
+                    {sublabel}
+                </span>
+            )}
             <div className="flex items-center gap-2">
-                {active && icon && <div className="shrink-0 animate-in zoom-in duration-300">{icon}</div>}
-                <span className={cn("font-black uppercase tracking-tight text-tiny-lg sm:text-[13px] leading-tight")}>
+                <span className={cn("font-black uppercase tracking-tight text-[11px] sm:text-[13px] leading-tight")}>
                     {label}
                 </span>
             </div>
-            {sublabel && (
-                <span className={cn("text-2tiny font-bold uppercase tracking-widest leading-none", active ? "text-white/80" : "text-muted-foreground/40")}>
-                    {sublabel}
+            {voteCount && (
+                <span className={cn("text-[8px] sm:text-[9px] font-bold uppercase tracking-wide leading-none mt-0.5", active ? "text-white/80" : "text-muted-foreground/40")}>
+                    {voteCount}
                 </span>
             )}
             {active && (
@@ -121,6 +125,8 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                 };
                 const approveLabel = config.approveLabel;
                 const rejectLabel = config.rejectLabel;
+                const approveSublabel = config.approveSublabel;
+                const rejectSublabel = config.rejectSublabel;
 
                 const mySlots = store.userTeamMemberships
                     .filter(m => game.participants?.some((p: any) => p.teamId === m.teamId))
@@ -138,8 +144,16 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                 });
 
                 const myVote = mySlotVote?.vote;
-                const isMyOwnVote = mySlotVote && (myProfileIds.includes(mySlotVote.voterId) || store.currentUserId === mySlotVote.voterId);
-                const voterName = mySlotVote?.voterName;
+                
+                let winningText = "WAITING FOR VOTES";
+                const hasVotes = approveCount > 0 || rejectCount > 0;
+                if (approveCount > rejectCount) {
+                    winningText = `WINNING: ${approveLabel}`;
+                } else if (rejectCount > approveCount) {
+                    winningText = `WINNING: ${rejectLabel}`;
+                } else if (hasVotes) {
+                    winningText = "CURRENTLY TIED";
+                }
 
                 return (
                     <div key={dispute.id} className="relative overflow-hidden bg-sunken-bg border-amber-500/40 border-2 rounded-2xl p-0.5 shadow-xl ring-1 ring-amber-500/10">
@@ -163,17 +177,12 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                                 <div className="flex flex-col min-w-0">
                                     <span className="text-sm sm:text-base font-black text-foreground uppercase tracking-tight line-clamp-1">{eventLabel}</span>
                                     {pointsDelta > 0 && <span className="text-tiny sm:text-xs text-muted-foreground/60 font-mono">VALUE: {pointsDelta} PTS</span>}
-                                    {mySlotVote && (
-                                        <div className="flex items-center gap-1.5 mt-1.5 py-1 px-2 rounded-md bg-amber-500/5 border border-amber-500/10 w-fit">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                            <span className="text-tiny sm:text-tiny-lg text-amber-500 font-bold uppercase tracking-tight">
-                                                {isMyOwnVote
-                                                    ? `You voted ${myVote === 'APPROVE' ? approveLabel : rejectLabel}`
-                                                    : `${voterName} voted ${myVote === 'APPROVE' ? approveLabel : rejectLabel}`
-                                                }
-                                            </span>
-                                        </div>
-                                    )}
+                                    <div className="flex items-center gap-1.5 mt-1.5 py-1 px-2 rounded-md bg-white/5 border border-white/10 w-fit">
+                                        {hasVotes && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                                        <span className="text-tiny sm:text-tiny-lg text-foreground/80 font-bold uppercase tracking-tight">
+                                            {winningText}
+                                        </span>
+                                    </div>
                                 </div>
                                 
                                 {/* Vote Buttons */}
@@ -183,18 +192,18 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
                                         active={myVote === 'REJECT'}
                                         type="REJECT"
                                         activeClass="bg-rose-600 border-rose-500 shadow-[0_0_25px_rgba(225,29,72,0.6)] ring-rose-500"
-                                        icon={<X className="w-4 h-4 text-white" />}
                                         label={rejectLabel}
-                                        sublabel={`${rejectCount}/${totalEligible}`}
+                                        sublabel={rejectSublabel}
+                                        voteCount={`${rejectCount}/${totalEligible}`}
                                     />
                                     <DisputeActionButton 
                                         onClick={() => handleVote(dispute.id, 'APPROVE')}
                                         active={myVote === 'APPROVE'}
                                         type="APPROVE"
                                         activeClass="bg-emerald-600 border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.6)] ring-emerald-500"
-                                        icon={<Check className="w-4 h-4 text-white" />}
                                         label={approveLabel}
-                                        sublabel={`${approveCount}/${totalEligible}`}
+                                        sublabel={approveSublabel}
+                                        voteCount={`${approveCount}/${totalEligible}`}
                                     />
                                 </div>
                             </div>

@@ -52,6 +52,41 @@ export function useDynamicScoring(game: Game) {
         return templates.find(t => t.id === scoringState.activeTemplateId) || null;
     }, [scoringState.activeTemplateId, templates]);
 
+    const isStepSkipped = (index: number, data?: any): boolean => {
+        const template = activeTemplate;
+        if (!template) return false;
+        const step = template.steps[index];
+        if (!step) return false;
+
+        const collectedData = data || scoringState.collectedData || {};
+
+        if (step.type === 'GROUP') {
+            // A group is skipped only if ALL its sub-steps are skipped
+            return step.steps?.every((_, subIdx) => isSubStepSkipped(step, subIdx, collectedData)) || false;
+        }
+
+        return isSingleStepSkipped(step, collectedData);
+    };
+
+    const isSingleStepSkipped = (step: ActionStep, collectedData: any): boolean => {
+        if (step.type === 'PLAYER_SELECTION' && step.dependsOnReason) {
+            const reasonId = collectedData.reason;
+            if (!reasonId) return false;
+            
+            const reasonStep = activeTemplate?.steps.flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s]).find(s => s.type === 'REASON_SELECTION');
+            const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => (o.id || o.name) === reasonId);
+            
+            if (reasonOpt && reasonOpt.specifyPlayer === false) return true;
+        }
+        return false;
+    };
+
+    const isSubStepSkipped = (group: ActionStep, subIdx: number, collectedData: any): boolean => {
+        const step = group.steps?.[subIdx];
+        if (!step) return false;
+        return isSingleStepSkipped(step, collectedData);
+    };
+
     const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
         // Find the template to determine initial status
         const template = templates.find(t => t.id === templateId || t.name === templateId);
@@ -135,7 +170,15 @@ export function useDynamicScoring(game: Game) {
         if (scoringState.editingId && original) {
             // SURGICAL UPDATE: Only send what changed
             const changes: any = {};
-            const actorId = finalData.playerId || original.actorOrgProfileId;
+
+            // Intelligence: Does the reason still require a player?
+            const reasonStep = template.steps.find(s => s.type === 'REASON_SELECTION');
+            const reasonId = finalData.reason || originalData.reason;
+            const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => (o.id || o.name) === reasonId);
+            const requiresPlayer = reasonOpt?.specifyPlayer !== false;
+
+            let actorId = finalData.playerId || original.actorOrgProfileId;
+            if (!requiresPlayer) actorId = null; // FORCE CLEAR
             
             if (actorId !== original.actorOrgProfileId) {
                 changes.actorOrgProfileId = actorId;
@@ -195,7 +238,7 @@ export function useDynamicScoring(game: Game) {
 
             const isScoring = template.section === 'Scoring';
             const type = isScoring ? 'SCORE' : (eventDataPayload.type || 'GAME_EVENT');
-            const subType = eventDataPayload.subType || template.name;
+            const subType = template.id || template.name;
             
             const { type: _, subType: __, playerId: ___, ...extraData } = eventDataPayload;
 
@@ -237,12 +280,18 @@ export function useDynamicScoring(game: Game) {
 
         let nextIndex = scoringState.stepIndex + 1;
 
-        while (nextIndex < activeTemplate.steps.length && activeTemplate.steps[nextIndex - 1]?.groupWithNext) {
+        while (nextIndex < activeTemplate.steps.length && isStepSkipped(nextIndex, newCollectedData)) {
             nextIndex++;
         }
 
         if (nextIndex >= activeTemplate.steps.length) {
-            await commitEvent(activeTemplate, scoringState.side as 'home'|'away', newCollectedData);
+            if (scoringState.editingId) {
+                // When editing, don't auto-commit on the last step, just update data
+                // so the user can see the "tick" and save manually
+                setScoringState(prev => ({ ...prev, collectedData: newCollectedData }));
+            } else {
+                await commitEvent(activeTemplate, scoringState.side as 'home'|'away', newCollectedData);
+            }
         } else {
             setScoringState(prev => ({
                 ...prev,
@@ -256,9 +305,19 @@ export function useDynamicScoring(game: Game) {
         if (scoringState.status !== 'ACTIVE' || !activeTemplate) return;
         if (index < 0 || index >= activeTemplate.steps.length) return;
         
+        let targetIndex = index;
+        // If the targeted step is skipped, find the next non-skipped one
+        while (targetIndex < activeTemplate.steps.length && isStepSkipped(targetIndex)) {
+            targetIndex++;
+        }
+        
+        // If all remaining steps are skipped, don't do anything or go to last valid?
+        // Usually the stepper only shows valid ones anyway.
+        if (targetIndex >= activeTemplate.steps.length) return;
+
         setScoringState(prev => ({
             ...prev,
-            stepIndex: index
+            stepIndex: targetIndex
         }));
     };
 
@@ -408,8 +467,26 @@ export function useDynamicScoring(game: Game) {
         return activeTemplate.triggerEventId;
     };
 
-    const hasLinkedFollowUp = (eventId: string) => {
-        return store.gameEvents.some(e => e.eventData?.linkedEventId === eventId && e.eventData?.status !== 'REMOVED');
+    const getLinkedFollowUp = (eventId: string, triggerId?: string) => {
+        // 1. Explicit link check
+        const explicitMatch = gameEvents.find(e => e.eventData?.linkedEventId === eventId && e.eventData?.status !== 'REMOVED');
+        if (explicitMatch) return explicitMatch;
+
+        // 2. Implicit check (Immediately following event of same side and type)
+        if (triggerId) {
+            const currentIdx = gameEvents.findIndex(e => e.id === eventId);
+            if (currentIdx !== -1 && currentIdx < gameEvents.length - 1) {
+                const nextEvent = gameEvents[currentIdx + 1];
+                const isSameSide = nextEvent.gameParticipantId === gameEvents[currentIdx].gameParticipantId;
+                const nextTemplateId = nextEvent.eventData?.templateId || nextEvent.subType;
+                
+                if (isSameSide && nextTemplateId === triggerId && nextEvent.eventData?.status !== 'REMOVED') {
+                    return nextEvent;
+                }
+            }
+        }
+
+        return null;
     };
 
     return {
@@ -425,8 +502,11 @@ export function useDynamicScoring(game: Game) {
         triggerRemovalDispute,
         triggerCorrectionDispute,
         removeGameEvent,
+        isStepSkipped,
+        isSubStepSkipped,
+        isSingleStepSkipped,
         getActiveTriggerEventId,
-        hasLinkedFollowUp,
+        getLinkedFollowUp,
         pendingDispute,
         resolveDispute,
         saveChanges,

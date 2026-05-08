@@ -30,7 +30,11 @@ class Store extends UserStore {
             this.activeEventSubscriptions.forEach(id => socket.emit('join_room', `event:${id}`));
             this.activeSiteSubscriptions.forEach(id => socket.emit('join_room', `site:${id}`));
             this.activeFacilitySubscriptions.forEach(id => socket.emit('join_room', `facility:${id}`));
-            this.activeGameSubscriptions.forEach(id => socket.emit('join_room', `game:${id}`));
+            this.activeGameSubscriptions.forEach(id => {
+                socket.emit('join_room', `game:${id}`);
+                socket.emit('join_room', `game:${id}:events`);
+                socket.emit('join_room', `game:${id}:detail`);
+            });
             
             // Reset missing entities and pending fetches on reconnect to allow retries
             Object.keys(this.missingEntities).forEach(type => {

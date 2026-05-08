@@ -2,6 +2,8 @@ export interface DisputeConfig {
     heading: string;
     approveLabel: string;
     rejectLabel: string;
+    approveSublabel?: string;
+    rejectSublabel?: string;
 }
 
 export interface DisputeResolutionHandler {

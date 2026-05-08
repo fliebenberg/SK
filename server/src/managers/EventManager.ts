@@ -2,6 +2,7 @@ import { Event, Game, GameParticipant, GameClockState, GameEvent, AddGamePayload
 import { getPeriodLabel } from "@sk/types";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
+import { sportManager } from "./SportManager";
 
 export class EventManager extends BaseManager {
   private EVENT_COLUMNS = 'id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status';
@@ -194,8 +195,7 @@ export class EventManager extends BaseManager {
       const sportId = event?.sportIds?.[0]; // Assuming single sport for simple lookup
       let sport = null;
       if (sportId) {
-          const sportRes = await this.query('SELECT id, name, default_settings as "defaultSettings" FROM sports WHERE id = $1', [sportId]);
-          sport = sportRes.rows[0];
+          sport = await sportManager.getSport(sportId);
       }
 
       // Resolve Configuration (Game > Event > Sport > Default)
@@ -282,7 +282,10 @@ export class EventManager extends BaseManager {
       }
       
       // Update periodLabel in liveState
-      const periodTerm = (sport as any)?.periodTerm || 'Period';
+      const periodTerm = game.customSettings?.periodTerm 
+          || (event as any)?.settings?.periodTerm 
+          || (sport as any)?.periodTerm 
+          || 'Period';
       const periodLabel = getPeriodLabel(clock.periodIndex ?? 0, periodTerm);
 
       const liveState = { 

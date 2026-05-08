@@ -1,6 +1,6 @@
 import { Sport } from "../../models/sport/Sport";
 import { RUGBY_EVENTS } from "./events";
-import settings from "./settings.json";
+import settings from "./settings";
 
 export const RUGBY_CONFIG: Sport = {
   id: "sport-rugby",
