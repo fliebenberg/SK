@@ -2,33 +2,10 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { Game } from '@sk/types';
 import { store } from '@/app/store/store';
 import { cn } from '@/lib/utils';
+import { TeamStats, calculateRugbyStats } from './rugbyUtils';
 
 interface RugbyGameStatsProps {
     game: Game;
-}
-
-interface TeamStats {
-    tries: number;
-    conversionAttempts: number;
-    conversionSuccess: number;
-    penaltyKickAttempts: number;
-    penaltyKickSuccess: number;
-    dropGoalAttempts: number;
-    dropGoalSuccess: number;
-    penaltyTries: number;
-    penaltiesAwarded: number;
-    freeKicksAwarded: number;
-    yellowCards: number;
-    redCards: number;
-    scrumsWon: number;
-    scrumsTotal: number;
-    lineoutsWon: number;
-    lineoutsTotal: number;
-    knockOns: number;
-    turnovers: number;
-    tacklesMade: number;
-    tacklesMissed: number;
-    scrumResets: number;
 }
 
 export default function RugbyGameStats({ game }: RugbyGameStatsProps) {
@@ -43,126 +20,8 @@ export default function RugbyGameStats({ game }: RugbyGameStatsProps) {
     const awayParticipantId = game.participants?.[1]?.id;
 
     const stats = useMemo(() => {
-        const initialStats: TeamStats = {
-            tries: 0,
-            conversionAttempts: 0,
-            conversionSuccess: 0,
-            penaltyKickAttempts: 0,
-            penaltyKickSuccess: 0,
-            dropGoalAttempts: 0,
-            dropGoalSuccess: 0,
-            penaltyTries: 0,
-            penaltiesAwarded: 0,
-            freeKicksAwarded: 0,
-            yellowCards: 0,
-            redCards: 0,
-            scrumsWon: 0,
-            scrumsTotal: 0,
-            lineoutsWon: 0,
-            lineoutsTotal: 0,
-            knockOns: 0,
-            turnovers: 0,
-            tacklesMade: 0,
-            tacklesMissed: 0,
-            scrumResets: 0,
-        };
-
-        const home: TeamStats = { ...initialStats };
-        const away: TeamStats = { ...initialStats };
-
-        const events = store.gameEvents.filter(e => e.gameId === game.id && e.eventData?.status !== 'REMOVED');
-
-        events.forEach(evt => {
-            const isHome = evt.gameParticipantId === homeParticipantId;
-            const isAway = evt.gameParticipantId === awayParticipantId;
-            const side = isHome ? home : (isAway ? away : null);
-            
-            const subType = evt.subType;
-            const data = evt.eventData || {};
-
-            if (evt.type === 'SCORE') {
-                if (!side) return;
-                switch (subType) {
-                    case 'Try':
-                        if (data.outcome === 'Penalty Try') {
-                            side.penaltyTries++;
-                        } else {
-                            side.tries++;
-                        }
-                        break;
-                    case 'Conversion':
-                        side.conversionAttempts++;
-                        if (data.successful) side.conversionSuccess++;
-                        break;
-                    case 'Penalty Kick':
-                        side.penaltyKickAttempts++;
-                        if (data.successful) side.penaltyKickSuccess++;
-                        break;
-                    case 'Drop Goal':
-                        side.dropGoalAttempts++;
-                        if (data.successful) side.dropGoalSuccess++;
-                        break;
-                    case 'Penalty Try':
-                        side.penaltyTries++;
-                        break;
-                }
-            } else if (evt.type === 'GAME_EVENT') {
-                switch (subType) {
-                    case 'Penalty Awarded':
-                        if (side) side.penaltiesAwarded++;
-                        break;
-                    case 'Free Kick Awarded':
-                        if (side) side.freeKicksAwarded++;
-                        break;
-                    case 'Yellow Card':
-                        if (side) side.yellowCards++;
-                        break;
-                    case 'Red Card':
-                        if (side) side.redCards++;
-                        break;
-                    case 'Knock-on':
-                        if (side) side.knockOns++;
-                        break;
-                    case 'Turnover':
-                    case 'Turnover Won':
-                        if (side) side.turnovers++;
-                        break;
-                    case 'Tackle Made':
-                        if (side) side.tacklesMade++;
-                        break;
-                    case 'Tackle Missed':
-                        if (side) side.tacklesMissed++;
-                        break;
-                    case 'Scrum':
-                        if (side) {
-                            side.scrumsTotal++;
-                            if (data.resets) {
-                                side.scrumResets += data.resets;
-                            }
-                            if (data.winnerSide) {
-                                const sideKey = isHome ? 'home' : 'away';
-                                if (data.winnerSide === sideKey) {
-                                    side.scrumsWon++;
-                                }
-                            }
-                        }
-                        break;
-                    case 'Lineout':
-                        if (side) {
-                            side.lineoutsTotal++;
-                            if (data.winnerSide) {
-                                const sideKey = isHome ? 'home' : 'away';
-                                if (data.winnerSide === sideKey) {
-                                    side.lineoutsWon++;
-                                }
-                            }
-                        }
-                        break;
-                }
-            }
-        });
-
-        return { home, away };
+        const gameEvents = store.gameEvents.filter(e => e.gameId === game.id);
+        return calculateRugbyStats(gameEvents, homeParticipantId, awayParticipantId);
     }, [game.id, store.gameEvents, homeParticipantId, awayParticipantId, tick]);
 
     const renderStatRow = (label: string, home: { main: string | number, sub?: string | null }, away: { main: string | number, sub?: string | null }, homeRaw: number, awayRaw: number) => {

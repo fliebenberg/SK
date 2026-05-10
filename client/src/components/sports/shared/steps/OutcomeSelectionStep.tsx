@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ActionStep } from '@sk/types';
-import { Button } from '@/components/ui/button';
-import { ScoringActionButton, RosterGrid } from '../ScoringActionButton';
-import { cn } from '@/lib/utils';
+import { ScoringActionButton } from '../ScoringActionButton';
 import { useSharedDynamicScoring } from '../DynamicScoringContext';
 
 export function OutcomeSelectionStep({ 
@@ -12,45 +10,22 @@ export function OutcomeSelectionStep({
     step: ActionStep, 
     onComplete: (data: any) => void 
 }) {
-    const { scoringState, rosters, nextDynamicStep, game } = useSharedDynamicScoring();
-    const side = scoringState.side!;
-    const [selectedPlayerId, setSelectedPlayerId] = useState<string>(scoringState.collectedData?.playerId || '');
-
-    const participantId = side === 'home' ? game.participants?.[0]?.id : game.participants?.[1]?.id;
-    const roster = rosters[participantId || ''] || [];
+    const { scoringState, nextDynamicStep } = useSharedDynamicScoring();
 
     const handleSelectOutcome = (outcome: any) => {
         onComplete({
-            outcome: outcome.id || outcome.name,
+            outcome: outcome.id,
             ...(outcome.points !== undefined ? { pointsDelta: outcome.points } : {}),
             ...(outcome.triggerEventId ? { triggerEventId: outcome.triggerEventId } : {}),
-            ...(step.includePlayerSelection && selectedPlayerId ? { playerId: selectedPlayerId } : {}),
             ...(outcome.eventData || {}),
         });
     };
 
     return (
         <div className="space-y-4">
-            {step.includePlayerSelection && (
-                <div className="pb-2 border-b border-border">
-                    <div className="px-1 mb-2">
-                        <span className="text-[10px] font-black uppercase text-muted-foreground/70 tracking-[0.2em]">Select Player</span>
-                    </div>
-                    <RosterGrid 
-                        roster={roster}
-                        selectedPlayerId={selectedPlayerId}
-                        onSelect={(id) => {
-                            const newId = id === selectedPlayerId ? '' : id;
-                            setSelectedPlayerId(newId);
-                            nextDynamicStep({ playerId: newId, _noAdvance: true });
-                        }}
-                    />
-                </div>
-            )}
-
             <div className="grid grid-cols-2 gap-1.5">
                 {step.outcomes?.map((outcome) => {
-                    const isSelected = scoringState.collectedData?.outcome === (outcome.id || outcome.name);
+                    const isSelected = scoringState.collectedData?.outcome === outcome.id;
                     return (
                         <ScoringActionButton
                             key={outcome.name}

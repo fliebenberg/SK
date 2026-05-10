@@ -16,6 +16,8 @@ import {
 import { DialogSectionHeader, RosterGrid, ScoringActionButton } from './ScoringActionButton';
 import { useSharedDynamicScoring } from './DynamicScoringContext';
 
+import { resolveEventTemplate, getEventLabel, getTeamColor } from '@/lib/gameUtils';
+
 export function EventLogFeed({ gameId }: { gameId: string }) {
     const [events, setEvents] = useState<GameEvent[]>([]);
     const [, setTick] = useState(0);
@@ -25,6 +27,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
     const [correctionEvent, setCorrectionEvent] = useState<GameEvent | null>(null);
     const scoring = useSharedDynamicScoring();
     const game = store.getGame(gameId);
+    const sport = game?.sportId ? store.getSport(game.sportId) : undefined;
 
     useEffect(() => {
         // Subscribe to live updates (Server will push last 20 events on join)
@@ -60,111 +63,6 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
         const mins = Math.floor(totalSeconds / 60);
         const secs = totalSeconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const resolveEventTemplate = (evt: GameEvent) => {
-        const eventData = evt.eventData || (evt as any).event_data || {};
-        
-        let sportId = game?.sportId;
-        let warning = "";
-        let error = "";
-
-        if (!sportId) {
-            // Fallback for missing sportId to resolve the template, but still flag it
-            const p1TeamId = game?.participants?.[0]?.teamId;
-            const p1Team = p1TeamId ? store.getTeam(p1TeamId) : null;
-            sportId = p1Team?.sportId;
-            
-            if (sportId) {
-                warning = "Game missing sportId; falling back to team sport.";
-            } else {
-                error = "Game missing sportId and no team fallback found.";
-            }
-        }
-
-        const sport = store.sports.find(s => s.id === sportId);
-        if (sportId && !sport) {
-            error = `Sport config not found for ID: ${sportId}`;
-        }
-
-        const templateId = eventData.templateId || evt.subType;
-        const template = sport?.eventTemplates?.find(t => 
-            t.id === templateId || t.name === templateId
-        );
-
-        // System events don't usually have templates
-        if (sport && !template && evt.type !== 'SYSTEM' && !['GAME_STARTED', 'GAME_ENDED', 'GAME_CANCELLED', 'GAME_UPDATED', 'PERIOD_STARTED', 'PERIOD_ENDED', 'CLOCK_PAUSED', 'CLOCK_RESUMED'].includes(evt.subType || '')) {
-            warning = `Template not found for: ${templateId}`;
-        }
-
-        return { template, sport, error, warning, sportId };
-    };
-
-    const getEventLabel = (evt: GameEvent) => {
-        const eventData = evt.eventData || (evt as any).event_data || {};
-        const { template, error, warning } = resolveEventTemplate(evt);
-        
-        // 2. If we have a template, use its display pattern
-        if (template) {
-            let label = template.displayPattern || (eventData.outcome ? "{name} → {outcome}" : "{name}");
-            
-            // Handle outcome overrides (e.g. "Penalty Kick" -> "KICK")
-            let outcome = eventData.outcome;
-
-            // Check if there is a displayOverride in the outcome object itself
-            const outcomeObj = template.steps
-                .find(s => s.type === 'OUTCOME_SELECTION')
-                ?.outcomes?.find(o => (o.id || o.name) === outcome);
-            
-            if (outcomeObj && outcomeObj.displayOverride !== undefined) {
-                outcome = outcomeObj.displayOverride;
-            } else if (outcome && template.outcomeOverrides && template.outcomeOverrides[outcome]) {
-                outcome = template.outcomeOverrides[outcome];
-            }
-
-            // Fill the pattern
-            label = label
-                .replace(/{name}/g, template.name.toUpperCase())
-                // Handle {outcome|FALLBACK}
-                .replace(/{outcome\|([^}]+)}/g, (match, fallback) => {
-                    return outcome !== undefined ? outcome.toUpperCase() : fallback.toUpperCase();
-                })
-                .replace(/{outcome}/g, (outcome !== undefined ? outcome : "").toUpperCase());
-
-            return {
-                label: label.trim().replace(/\s*→\s*$/, ""), // Clean up trailing arrows and extra spaces
-                error,
-                warning
-            };
-        }
-
-        // 3. Fallback for events without templates (like STATUS or TIME events)
-        const key = evt.subType || evt.type;
-        let label = "";
-        switch (key) {
-            case 'GAME_STARTED': label = 'MATCH STARTED'; break;
-            case 'GAME_ENDED': label = 'MATCH FINISHED'; break;
-            case 'GAME_CANCELLED': label = 'MATCH CANCELLED'; break;
-            case 'GAME_UPDATED': label = 'MATCH UPDATED'; break;
-            case 'PERIOD_STARTED': label = 'PERIOD STARTED'; break;
-            case 'PERIOD_ENDED': label = 'PERIOD ENDED'; break;
-            case 'CLOCK_PAUSED': label = 'CLOCK PAUSED'; break;
-            case 'CLOCK_RESUMED': label = 'CLOCK RESUMED'; break;
-            default: label = key.replace(/_/g, ' ').toUpperCase(); break;
-        }
-
-        return { label, error, warning };
-    };
-
-    const getTeamColor = (event: GameEvent) => {
-        if (event.gameParticipantId) {
-            const participant = game?.participants?.find(p => p.id === event.gameParticipantId);
-            if (participant?.teamId) {
-                const index = game?.participants?.indexOf(participant) ?? 0;
-                return index === 0 ? 'bg-blue-500' : 'bg-red-500';
-            }
-        }
-        return 'bg-sunken-bg';
     };
 
     const handleUndo = async (evt: GameEvent) => {
@@ -283,7 +181,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                 : null;
                             
                             const isScore = evt.type === 'SCORE';
-                            const { template, sport, error, warning } = resolveEventTemplate(evt);
+                            const { template, error, warning } = resolveEventTemplate(evt, sport);
                             const isScoringEvent = isScore || template?.section === 'Scoring';
 
                             const age = now - new Date(evt.timestamp).getTime();
@@ -308,7 +206,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                     onClick={() => {
                                         if (!canScore || isCurrentlyDisputed) return;
                                         
-                                        const { template, error, warning } = resolveEventTemplate(evt);
+                                        const { template, error, warning } = resolveEventTemplate(evt, sport);
                                         if (!template && (error || warning)) {
                                             toast({ 
                                                 title: "Template Error", 
@@ -370,13 +268,13 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                         )}
                                     </div>
                                     
-                                    <div className={cn("h-6 w-0.5 rounded-full shrink-0", getTeamColor(evt))} />
+                                    <div className={cn("h-6 w-0.5 rounded-full shrink-0", getTeamColor(evt, game?.participants))} />
                                     
                                     <div className="flex flex-col min-w-0 flex-1 overflow-hidden px-0.5 gap-0">
                                         <div className="flex items-center gap-1.5 min-w-0">
                                             <span className={cn("font-black text-event-primary uppercase tracking-wider text-foreground/90 leading-none mb-0.5 line-clamp-1")}>
                                                 {(() => {
-                                                    const { label, error: labelError, warning: labelWarning } = getEventLabel(evt);
+                                                    const { label, error: labelError, warning: labelWarning } = getEventLabel(evt, sport);
                                                     return (
                                                         <span className="flex items-center gap-1.5">
                                                             {label}
@@ -412,13 +310,14 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 if (evt.eventData?.reason && evt.type !== 'SCORE') {
                                                     const reasonVal = evt.eventData.reason;
                                                     const reasonOpt = template?.steps
+                                                        .flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s])
                                                         .find(s => s.type === 'REASON_SELECTION')
                                                         ?.reasons?.flatMap((g: any) => g.options)
-                                                        .find((o: any) => (o.id || o.name) === reasonVal);
+                                                        .find((o: any) => o.id === reasonVal);
                                                     const cleanReason = (reasonOpt?.name || reasonVal).replace(/^(General|Set Piece) - /i, '');
                                                     details.push(cleanReason);
                                                 }
-                                                if (evt.eventData?.winnerName && (evt.subType === 'Scrum' || evt.subType === 'Lineout')) {
+                                                if (evt.eventData?.winnerName && (evt.subType === 'scrum' || evt.subType === 'lineout')) {
                                                     details.push(`Won by ${evt.eventData.winnerName}`);
                                                 }
 

@@ -26,7 +26,6 @@ export interface ActionStep {
   steps?: ActionStep[]; // For type: 'GROUP'
   optional?: boolean;
   groupWithNext?: boolean;
-  includePlayerSelection?: boolean;
   dependsOnReason?: boolean;
   reasons?: ReasonGroup[];
   outcomes?: Outcome[];

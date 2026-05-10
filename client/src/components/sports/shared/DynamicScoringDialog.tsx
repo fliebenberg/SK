@@ -202,13 +202,13 @@ export function DynamicScoringDialog() {
                                                 let val = '';
                                                 if (s.type === 'REASON_SELECTION') {
                                                     const reasonVal = data.reason;
-                                                    const reasonOpt = s.reasons?.flatMap((g: any) => g.options).find((o: any) => (o.id || o.name) === reasonVal);
+                                                    const reasonOpt = s.reasons?.flatMap((g: any) => g.options).find((o: any) => o.id === reasonVal);
                                                     val = reasonOpt?.name || reasonVal;
                                                 } else if (s.type === 'PLAYER_SELECTION') {
                                                     val = displayPlayer || '';
                                                 } else if (s.type === 'OUTCOME_SELECTION') {
                                                     const outcomeVal = data.outcome;
-                                                    const outcomeOpt = s.outcomes?.find((o: any) => (o.id || o.name) === outcomeVal);
+                                                    const outcomeOpt = s.outcomes?.find((o: any) => o.id === outcomeVal);
                                                     val = outcomeOpt?.name || outcomeVal;
                                                 } else if (s.type === 'CUSTOM_WIDGET' && s.widgetName === 'ScrumResetsCounter') {
                                                     const resets = data.scrumResets || 0;
@@ -269,7 +269,7 @@ export function DynamicScoringDialog() {
                         const triggerId = getActiveTriggerEventId();
                         if (!triggerId || getLinkedFollowUp(scoringState.editingId, triggerId)) return null;
 
-                        const triggerTemplate = templates.find(t => t.id === triggerId || t.name === triggerId);
+                        const triggerTemplate = templates.find(t => t.id === triggerId);
                         const label = triggerTemplate ? `ADD ${triggerTemplate.name.toUpperCase()}` : `ADD ${triggerId.toUpperCase()}`;
 
                         return (

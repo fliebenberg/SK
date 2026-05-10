@@ -74,7 +74,7 @@ export function useDynamicScoring(game: Game) {
             if (!reasonId) return false;
             
             const reasonStep = activeTemplate?.steps.flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s]).find(s => s.type === 'REASON_SELECTION');
-            const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => (o.id || o.name) === reasonId);
+            const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => o.id === reasonId);
             
             if (reasonOpt && reasonOpt.specifyPlayer === false) return true;
         }
@@ -89,7 +89,7 @@ export function useDynamicScoring(game: Game) {
 
     const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
         // Find the template to determine initial status
-        const template = templates.find(t => t.id === templateId || t.name === templateId);
+        const template = templates.find(t => t.id === templateId);
         if (!template) {
             console.error(`Template not found: ${templateId}`);
             toast({ 
@@ -122,7 +122,7 @@ export function useDynamicScoring(game: Game) {
                 store.startManualFlow(null); // Consume the trigger
                 
                 // Find the template
-                const template = templates.find(t => t.id === config.type || t.name === config.type);
+                const template = templates.find(t => t.id === config.type);
                 if (template) {
                     startDynamicFlow(template.id, config.side as 'home' | 'away', {
                         ...config.extraData,
@@ -174,7 +174,7 @@ export function useDynamicScoring(game: Game) {
             // Intelligence: Does the reason still require a player?
             const reasonStep = template.steps.find(s => s.type === 'REASON_SELECTION');
             const reasonId = finalData.reason || originalData.reason;
-            const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => (o.id || o.name) === reasonId);
+            const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => o.id === reasonId);
             const requiresPlayer = reasonOpt?.specifyPlayer !== false;
 
             let actorId = finalData.playerId || original.actorOrgProfileId;
@@ -361,7 +361,7 @@ export function useDynamicScoring(game: Game) {
         if (evt.type === 'SCORE') return true;
         const eventData = evt.eventData || evt.event_data || {};
         const templateId = eventData.templateId || evt.subType;
-        const template = sport?.eventTemplates?.find(t => t.id === templateId || t.name === templateId);
+        const template = sport?.eventTemplates?.find(t => t.id === templateId);
         return template?.section === 'Scoring';
     };
 
@@ -456,11 +456,14 @@ export function useDynamicScoring(game: Game) {
     const getActiveTriggerEventId = () => {
         if (!activeTemplate || !scoringState.collectedData?.outcome) return null;
         
-        const outcomeName = scoringState.collectedData.outcome;
+        const outcomeId = scoringState.collectedData.outcome;
         for (const step of activeTemplate.steps) {
-            if (step.type === 'OUTCOME_SELECTION') {
-                const outcome = step.outcomes?.find(o => o.name === outcomeName);
-                if (outcome?.triggerEventId) return outcome.triggerEventId;
+            const subSteps = step.type === 'GROUP' ? (step.steps || []) : [step];
+            for (const s of subSteps) {
+                if (s.type === 'OUTCOME_SELECTION') {
+                    const outcome = s.outcomes?.find(o => o.id === outcomeId);
+                    if (outcome?.triggerEventId) return outcome.triggerEventId;
+                }
             }
         }
         

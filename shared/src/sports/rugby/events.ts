@@ -10,11 +10,17 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{outcome}",
     steps: [
       {
-        type: "OUTCOME_SELECTION",
-        includePlayerSelection: true,
-        outcomes: [
-          { id: "try", name: "Try", points: 5, variant: "success", triggerEventId: "conversion" },
-          { id: "penalty_try", name: "Penalty Try", points: 7, variant: "warning" }
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          {
+            type: "OUTCOME_SELECTION",
+            outcomes: [
+              { id: "try", name: "Try", points: 5, variant: "success", triggerEventId: "conversion" },
+              { id: "penalty_try", name: "Penalty Try", points: 7, variant: "warning" }
+            ]
+          }
         ]
       }
     ]
@@ -34,11 +40,17 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     },
     steps: [
       {
-        type: "OUTCOME_SELECTION",
-        includePlayerSelection: true,
-        outcomes: [
-          { id: "successful", name: "Successful", displayOverride: "", points: 2, variant: "success", eventData: { "successful": true } },
-          { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          {
+            type: "OUTCOME_SELECTION",
+            outcomes: [
+              { id: "successful", name: "Successful", displayOverride: "", points: 2, variant: "success", eventData: { "successful": true } },
+              { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
+            ]
+          }
         ]
       }
     ]
@@ -57,11 +69,17 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     },
     steps: [
       {
-        type: "OUTCOME_SELECTION",
-        includePlayerSelection: true,
-        outcomes: [
-          { id: "successful", name: "Successful", displayOverride: "OVER", points: 3, variant: "success", eventData: { "successful": true } },
-          { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          {
+            type: "OUTCOME_SELECTION",
+            outcomes: [
+              { id: "successful", name: "Successful", displayOverride: "OVER", points: 3, variant: "success", eventData: { "successful": true } },
+              { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
+            ]
+          }
         ]
       }
     ]
@@ -80,11 +98,17 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     },
     steps: [
       {
-        type: "OUTCOME_SELECTION",
-        includePlayerSelection: true,
-        outcomes: [
-          { id: "successful", name: "Successful", displayOverride: "SUCCESS", points: 3, variant: "success", eventData: { "successful": true } },
-          { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          {
+            type: "OUTCOME_SELECTION",
+            outcomes: [
+              { id: "successful", name: "Successful", displayOverride: "SUCCESS", points: 3, variant: "success", eventData: { "successful": true } },
+              { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
+            ]
+          }
         ]
       }
     ]
@@ -98,13 +122,19 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "OUTCOME_SELECTION",
-        includePlayerSelection: true,
-        outcomes: [
-          { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
-          { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
-          { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } },
-          { id: "long", name: "Long", variant: "danger", eventData: { successful: false } }
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          {
+            type: "OUTCOME_SELECTION",
+            outcomes: [
+              { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
+              { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
+              { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } },
+              { id: "long", name: "Long", variant: "danger", eventData: { successful: false } }
+            ]
+          }
         ]
       }
     ]
@@ -117,12 +147,18 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "OUTCOME_SELECTION",
-        includePlayerSelection: true,
-        outcomes: [
-          { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
-          { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
-          { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          {
+            type: "OUTCOME_SELECTION",
+            outcomes: [
+              { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
+              { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
+              { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
+            ]
+          }
         ]
       }
     ]
@@ -135,12 +171,18 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "OUTCOME_SELECTION",
-        includePlayerSelection: true,
-        outcomes: [
-          { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
-          { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
-          { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          {
+            type: "OUTCOME_SELECTION",
+            outcomes: [
+              { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
+              { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
+              { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
+            ]
+          }
         ]
       }
     ]
@@ -154,7 +196,6 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     steps: [
       {
         type: "REASON_SELECTION",
-        includePlayerSelection: false,
         reasons: [
           {
             name: "Tackle",
@@ -216,7 +257,6 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     steps: [
       {
         type: "REASON_SELECTION",
-        includePlayerSelection: false,
         reasons: [
           {
             name: "Scrum",
@@ -271,7 +311,6 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     steps: [
       {
         type: "REASON_SELECTION",
-        includePlayerSelection: false,
         reasons: [
           {
             name: "Infringement",
@@ -330,24 +369,30 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {reason}",
     steps: [
       {
-        type: "REASON_SELECTION",
-        includePlayerSelection: true,
-        reasons: [
+        type: "GROUP",
+        name: "Details",
+        steps: [
+          { type: "PLAYER_SELECTION" },
           {
-            name: "Foul Play",
-            options: [
-              { id: "high_tackle", name: "High Tackle" },
-              { id: "dangerous_play", name: "Dangerous Play" },
-              { id: "professional_foul", name: "Professional Foul" },
-              { id: "cynical_foul", name: "Cynical Foul" }
-            ]
-          },
-          {
-            name: "Technical",
-            options: [
-              { id: "repeated_infringements", name: "Repeated Infringements" },
-              { id: "offside", name: "Offside" },
-              { id: "other", name: "Other" }
+            type: "REASON_SELECTION",
+            reasons: [
+              {
+                name: "Foul Play",
+                options: [
+                  { id: "high_tackle", name: "High Tackle" },
+                  { id: "dangerous_play", name: "Dangerous Play" },
+                  { id: "professional_foul", name: "Professional Foul" },
+                  { id: "cynical_foul", name: "Cynical Foul" }
+                ]
+              },
+              {
+                name: "Technical",
+                options: [
+                  { id: "repeated_infringements", name: "Repeated Infringements" },
+                  { id: "offside", name: "Offside" },
+                  { id: "other", name: "Other" }
+                ]
+              }
             ]
           }
         ]
@@ -362,17 +407,23 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {reason}",
     steps: [
       {
-        type: "REASON_SELECTION",
-        includePlayerSelection: true,
-        reasons: [
+        type: "GROUP",
+        name: "Details",
+        steps: [
+          { type: "PLAYER_SELECTION" },
           {
-            name: "Serious Foul Play",
-            options: [
-              { id: "punching_striking", name: "Punching/Striking" },
-              { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
-              { id: "tip_tackle", name: "Tip Tackle" },
-              { id: "stamp_kick", name: "Stamp/Kick" },
-              { id: "second_yellow", name: "Second Yellow Card" }
+            type: "REASON_SELECTION",
+            reasons: [
+              {
+                name: "Serious Foul Play",
+                options: [
+                  { id: "punching_striking", name: "Punching/Striking" },
+                  { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
+                  { id: "tip_tackle", name: "Tip Tackle" },
+                  { id: "stamp_kick", name: "Stamp/Kick" },
+                  { id: "second_yellow", name: "Second Yellow Card" }
+                ]
+              }
             ]
           }
         ]
@@ -386,7 +437,16 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "General Play",
     icon: "Hand",
     displayPattern: "{name}",
-    steps: [{ type: "OUTCOME_SELECTION", includePlayerSelection: true, outcomes: [{ id: "confirmed", name: "Confirmed" }] }]
+    steps: [
+      {
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          { type: "OUTCOME_SELECTION", outcomes: [{ id: "confirmed", name: "Confirmed" }] }
+        ]
+      }
+    ]
   },
   {
     id: "turnover",
@@ -394,7 +454,16 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "General Play",
     icon: "RotateCw",
     displayPattern: "{name}",
-    steps: [{ type: "OUTCOME_SELECTION", includePlayerSelection: true, outcomes: [{ id: "confirmed", name: "Confirmed" }] }]
+    steps: [
+      {
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          { type: "OUTCOME_SELECTION", outcomes: [{ id: "confirmed", name: "Confirmed" }] }
+        ]
+      }
+    ]
   },
   {
     id: "tackle_made",
@@ -402,7 +471,16 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "General Play",
     icon: "Zap",
     displayPattern: "{name}",
-    steps: [{ type: "OUTCOME_SELECTION", includePlayerSelection: true, outcomes: [{ id: "confirmed", name: "Confirmed" }] }]
+    steps: [
+      {
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          { type: "OUTCOME_SELECTION", outcomes: [{ id: "confirmed", name: "Confirmed" }] }
+        ]
+      }
+    ]
   },
   {
     id: "tackle_missed",
@@ -410,7 +488,16 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "General Play",
     icon: "X",
     displayPattern: "{name}",
-    steps: [{ type: "OUTCOME_SELECTION", includePlayerSelection: true, outcomes: [{ id: "confirmed", name: "Confirmed" }] }]
+    steps: [
+      {
+        type: "GROUP",
+        name: "Selection",
+        steps: [
+          { type: "PLAYER_SELECTION" },
+          { type: "OUTCOME_SELECTION", outcomes: [{ id: "confirmed", name: "Confirmed" }] }
+        ]
+      }
+    ]
   },
   {
     id: "line_kick",
