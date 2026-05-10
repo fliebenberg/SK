@@ -7,23 +7,20 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     section: "Scoring",
     icon: "Rugby",
     points: 5,
-    displayPattern: "{outcome}",
+    displayPattern: "{name}",
+    triggerEventId: "conversion",
     steps: [
-      {
-        type: "GROUP",
-        name: "Selection",
-        steps: [
-          { type: "PLAYER_SELECTION" },
-          {
-            type: "OUTCOME_SELECTION",
-            outcomes: [
-              { id: "try", name: "Try", points: 5, variant: "success", triggerEventId: "conversion" },
-              { id: "penalty_try", name: "Penalty Try", points: 7, variant: "warning" }
-            ]
-          }
-        ]
-      }
+      { type: "PLAYER_SELECTION" }
     ]
+  },
+  {
+    id: "penalty_try",
+    name: "Penalty Try",
+    section: "Scoring",
+    icon: "Zap",
+    points: 7,
+    displayPattern: "{name}",
+    steps: []
   },
   {
     id: "conversion",

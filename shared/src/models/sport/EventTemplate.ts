@@ -18,6 +18,7 @@ export interface Outcome {
   triggerEventId?: string;
   variant?: string;
   eventData?: any;
+  excludePlayer?: boolean;
 }
 
 export interface ActionStep {

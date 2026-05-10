@@ -87,56 +87,27 @@ export function useDynamicScoring(game: Game) {
         return isSingleStepSkipped(step, collectedData);
     };
 
-    const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
-        // Find the template to determine initial status
-        const template = templates.find(t => t.id === templateId);
-        if (!template) {
-            console.error(`Template not found: ${templateId}`);
-            toast({ 
-                title: "Configuration Error", 
-                description: `Event template "${templateId}" not found for this sport.`, 
-                variant: "destructive" 
-            });
-            return;
-        }
-
-        setScoringState({
-            status: 'ACTIVE',
-            activeTemplateId: template.id,
-            side,
-            stepIndex: 0,
-            collectedData: { ...initialData },
-            editingId: initialData.eventId // If coming from manual flow
-        });
-    };
-
     const cancelDynamicFlow = () => {
         setScoringState({ status: 'IDLE' });
     };
 
-    // Observe manual flow trigger from Store (e.g. from Feed)
-    useEffect(() => {
-        const syncManualFlow = () => {
-            if (store.pendingManualFlow && scoringState.status === 'IDLE') {
-                const config = store.pendingManualFlow;
-                store.startManualFlow(null); // Consume the trigger
-                
-                // Find the template
-                const template = templates.find(t => t.id === config.type);
-                if (template) {
-                    startDynamicFlow(template.id, config.side as 'home' | 'away', {
-                        ...config.extraData,
-                        playerId: config.actorId,
-                        eventId: config.eventId,
-                        outcome: config.extraData?.outcome // Correctly get the outcome from extraData
-                    });
-                }
-            }
-        };
+    const gameEvents = store.gameEvents.filter(e => e.gameId === game.id);
 
-        syncManualFlow();
-        return store.subscribe(syncManualFlow);
-    }, [scoringState.status, templates]);
+    const isEventInUndoWindow = (eventId: string) => {
+        const event = gameEvents.find(e => e.id === eventId);
+        if (!event) return false;
+        
+        const eventTime = new Date(event.timestamp).getTime();
+        const age = Date.now() - eventTime;
+        const isWithinWindow = age < store.undoDelay;
+        
+        let isInitiator = store.isMyOrgProfileId(event.initiatorOrgProfileId || '');
+        if (!event.initiatorOrgProfileId && store.globalRole === 'admin') {
+            isInitiator = true;
+        }
+        
+        return isWithinWindow && isInitiator;
+    };
 
     const triggerUpdateDispute = (eventId: string, type: string, side: 'home' | 'away', extraData: any, subType: string, actorId?: string) => {
         const myProfileIds = Array.from(store.myOrgProfileIds);
@@ -171,11 +142,20 @@ export function useDynamicScoring(game: Game) {
             // SURGICAL UPDATE: Only send what changed
             const changes: any = {};
 
-            // Intelligence: Does the reason still require a player?
-            const reasonStep = template.steps.find(s => s.type === 'REASON_SELECTION');
+            // Intelligence: Does the reason or outcome still require a player?
+            const flatSteps = template.steps.flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s]);
+            
+            const reasonStep = flatSteps.find(s => s.type === 'REASON_SELECTION');
             const reasonId = finalData.reason || originalData.reason;
             const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => o.id === reasonId);
-            const requiresPlayer = reasonOpt?.specifyPlayer !== false;
+            const requiresPlayerByReason = reasonOpt?.specifyPlayer !== false;
+
+            const outcomeStep = flatSteps.find(s => s.type === 'OUTCOME_SELECTION');
+            const outcomeId = finalData.outcome || originalData.outcome;
+            const outcomeOpt = outcomeStep?.outcomes?.find(o => o.id === outcomeId);
+            const requiresPlayerByOutcome = outcomeOpt?.excludePlayer !== true;
+
+            const requiresPlayer = requiresPlayerByReason && requiresPlayerByOutcome;
 
             let actorId = finalData.playerId || original.actorOrgProfileId;
             if (!requiresPlayer) actorId = null; // FORCE CLEAR
@@ -233,6 +213,7 @@ export function useDynamicScoring(game: Game) {
                 elapsedMS: currentMS,
                 period: periodLabel,
                 ...(template.eventData || {}),
+                ...(template.section === 'Scoring' ? { pointsDelta: template.points } : {}),
                 ...finalData
             };
 
@@ -253,14 +234,82 @@ export function useDynamicScoring(game: Game) {
             });
 
             // Handle FollowUps or Triggers
-            if (finalData.triggerEventId) {
-                startDynamicFlow(finalData.triggerEventId, side, { linkedEventId: res?.id });
+            const triggerId = finalData.triggerEventId || template.triggerEventId;
+            if (triggerId) {
+                startDynamicFlow(triggerId, side, { linkedEventId: res?.id });
                 return;
             }
         }
         
         setScoringState({ status: 'IDLE' });
     };
+
+    const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
+        // Find the template to determine initial status
+        const template = templates.find(t => t.id === templateId);
+        if (!template) {
+            console.error(`Template not found: ${templateId}`);
+            toast({ 
+                title: "Configuration Error", 
+                description: `Event template "${templateId}" not found for this sport.`, 
+                variant: "destructive" 
+            });
+            return;
+        }
+
+        // If template has NO steps, commit immediately IF NEW
+        if (!template.steps || template.steps.length === 0) {
+            if (!initialData.eventId) {
+                commitEvent(template, side, initialData);
+                return;
+            } else {
+                // EDITING an event with no steps -> Show removal confirmation
+                setScoringState({ 
+                    status: 'CONFIRM_REMOVAL', 
+                    eventIdToRemove: initialData.eventId, 
+                    typeToRemove: template.section === 'Scoring' ? 'SCORE' : 'GAME_EVENT',
+                    side 
+                });
+                return;
+            }
+        }
+
+        setScoringState({
+            status: 'ACTIVE',
+            activeTemplateId: template.id,
+            side,
+            stepIndex: 0,
+            collectedData: { ...initialData },
+            editingId: initialData.eventId // If coming from manual flow
+        });
+    };
+
+    const syncManualFlow = () => {
+        if (store.pendingManualFlow && scoringState.status === 'IDLE') {
+            const config = store.pendingManualFlow;
+            store.startManualFlow(null); // Consume the trigger
+            
+            // Find the template
+            const template = templates.find(t => t.id === config.type);
+            if (template) {
+                startDynamicFlow(template.id, config.side as 'home' | 'away', {
+                    ...config.extraData,
+                    playerId: config.actorId,
+                    eventId: config.eventId,
+                    outcome: config.extraData?.outcome // Correctly get the outcome from extraData
+                });
+            }
+        }
+    };
+
+    useEffect(() => {
+        syncManualFlow();
+        return store.subscribe(syncManualFlow);
+    }, [scoringState.status, templates]);
+
+
+
+
 
     const saveChanges = async () => {
         if (scoringState.status !== 'ACTIVE' || !activeTemplate) return;
@@ -354,8 +403,6 @@ export function useDynamicScoring(game: Game) {
         }
     };
 
-    const gameEvents = store.gameEvents.filter(e => e.gameId === game.id);
-
     const isScoringEventCheck = (evt: any) => {
         if (!evt) return false;
         if (evt.type === 'SCORE') return true;
@@ -365,21 +412,6 @@ export function useDynamicScoring(game: Game) {
         return template?.section === 'Scoring';
     };
 
-    const isEventInUndoWindow = (eventId: string) => {
-        const event = gameEvents.find(e => e.id === eventId);
-        if (!event) return false;
-        
-        const eventTime = new Date(event.timestamp).getTime();
-        const age = Date.now() - eventTime;
-        const isWithinWindow = age < store.undoDelay;
-        
-        let isInitiator = store.isMyOrgProfileId(event.initiatorOrgProfileId || '');
-        if (!event.initiatorOrgProfileId && store.globalRole === 'admin') {
-            isInitiator = true;
-        }
-        
-        return isWithinWindow && isInitiator;
-    };
 
     const removeGameEvent = async (eventId: string, type: string, side: 'home' | 'away' | undefined, force = false) => {
         const event = gameEvents.find(e => e.id === eventId);
@@ -454,20 +486,17 @@ export function useDynamicScoring(game: Game) {
     };
 
     const getActiveTriggerEventId = () => {
-        if (!activeTemplate || !scoringState.collectedData?.outcome) return null;
+        if (!activeTemplate) return null;
         
-        const outcomeId = scoringState.collectedData.outcome;
-        for (const step of activeTemplate.steps) {
-            const subSteps = step.type === 'GROUP' ? (step.steps || []) : [step];
-            for (const s of subSteps) {
-                if (s.type === 'OUTCOME_SELECTION') {
-                    const outcome = s.outcomes?.find(o => o.id === outcomeId);
-                    if (outcome?.triggerEventId) return outcome.triggerEventId;
-                }
-            }
+        const outcomeId = scoringState.collectedData?.outcome;
+        if (outcomeId) {
+            const flatSteps = activeTemplate.steps.flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s]);
+            const outcomeStep = flatSteps.find(s => s.type === 'OUTCOME_SELECTION');
+            const outcome = outcomeStep?.outcomes?.find(o => o.id === outcomeId);
+            if (outcome?.triggerEventId) return outcome.triggerEventId;
         }
         
-        return activeTemplate.triggerEventId;
+        return activeTemplate.triggerEventId || null;
     };
 
     const getLinkedFollowUp = (eventId: string, triggerId?: string) => {

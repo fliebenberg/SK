@@ -7,7 +7,8 @@ import { useGameTimer } from '@/hooks/useGameTimer';
 import { getPeriodLabel } from '@sk/types';
 
 export default function RugbyScoreboard({ game, role }: { game: Game, role?: string }) {
-    const { formattedTime } = useGameTimer(game.liveState?.clock);
+    const sport = game.sportId ? store.getSport(game.sportId) : null;
+    const { formattedTime } = useGameTimer(game.liveState?.clock, undefined, undefined, sport?.timerShowHours);
     const [, setTick] = useState(0);
 
     useEffect(() => {

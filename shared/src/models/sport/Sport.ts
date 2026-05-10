@@ -7,7 +7,7 @@ export interface SportSettings {
   periods?: number;
 }
 
-export interface Sport {
+export interface SportTemplate {
   id: string;
   name: string;
   categoryId?: string;
@@ -16,5 +16,9 @@ export interface Sport {
   defaultSettings?: SportSettings;
   facilityTerm?: string;
   periodTerm?: string;
+  timerShowHours?: boolean;
+}
+
+export interface Sport extends SportTemplate {
   eventTemplates?: EventTemplate[];
 }

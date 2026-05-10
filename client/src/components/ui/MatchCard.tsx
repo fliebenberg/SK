@@ -29,7 +29,7 @@ export function MatchCard({ game, onClick, className, isStandalone = false, high
   const sport = homeTeam ? store.getSport(homeTeam.sportId) : null;
   const gameSite = game.siteId ? store.getSite(game.siteId) : null;
 
-  const { formattedTime } = useGameTimer(game.liveState?.clock);
+  const { formattedTime } = useGameTimer(game.liveState?.clock, undefined, undefined, sport?.timerShowHours);
 
   const isLive = game.status?.toLowerCase() === 'live';
   const isFinished = game.status?.toLowerCase() === 'finished';
