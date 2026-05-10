@@ -1,11 +1,11 @@
-import { SportTemplate } from "../../models/sport/Sport";
+import { MatchTopology, SportParticipantType, SportTemplate } from "../../models/sport/Sport";
 
 const settings: SportTemplate = {
   id: "sport-rugby",
   name: "Rugby",
   categoryId: "rugby",
-  participantType: "TEAM",
-  matchTopology: "HEAD_TO_HEAD",
+  participantType: SportParticipantType.TEAM,
+  matchTopology: MatchTopology.HEAD_TO_HEAD,
   facilityTerm: "Field",
   periodTerm: "Half",
   timerShowHours: false,

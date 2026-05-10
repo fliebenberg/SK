@@ -12,14 +12,11 @@ export function ReasonSelectionStep({
 }) {
     const { scoringState, nextDynamicStep } = useSharedDynamicScoring();
     
-    // Find the initial reason from collected data to keep it highlighted when coming back
-    const initialReasonValue = scoringState.collectedData?.reason;
-    const initialReason = step.reasons?.flatMap(g => g.options).find(o => o.id === initialReasonValue) || null;
-
-    const [selectedReason, setSelectedReason] = useState<ReasonOption | null>(initialReason);
+    // Resolve the currently selected reason from shared state
+    const selectedReasonId = scoringState.collectedData?.reason;
+    const selectedReason = step.reasons?.flatMap(g => g.options).find(o => o.id === selectedReasonId) || null;
 
     const handleSelectReason = (reason: ReasonOption) => {
-        setSelectedReason(reason);
         // Sync with context immediately so stepper knows we have data
         nextDynamicStep({ 
             reason: reason.id, 

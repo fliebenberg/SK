@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Game, EventTemplate, ActionStep } from '@sk/types';
+import { Game, EventTemplate, ActionStep, ActionStepType } from '@sk/types';
 import { store } from '@/app/store/store';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import { toast } from '@/hooks/use-toast';
@@ -60,7 +60,7 @@ export function useDynamicScoring(game: Game) {
 
         const collectedData = data || scoringState.collectedData || {};
 
-        if (step.type === 'GROUP') {
+        if (step.type === ActionStepType.GROUP) {
             // A group is skipped only if ALL its sub-steps are skipped
             return step.steps?.every((_, subIdx) => isSubStepSkipped(step, subIdx, collectedData)) || false;
         }
@@ -69,11 +69,11 @@ export function useDynamicScoring(game: Game) {
     };
 
     const isSingleStepSkipped = (step: ActionStep, collectedData: any): boolean => {
-        if (step.type === 'PLAYER_SELECTION' && step.dependsOnReason) {
+        if (step.type === ActionStepType.PLAYER_SELECTION && step.dependsOnReason) {
             const reasonId = collectedData.reason;
             if (!reasonId) return false;
             
-            const reasonStep = activeTemplate?.steps.flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s]).find(s => s.type === 'REASON_SELECTION');
+            const reasonStep = activeTemplate?.steps.flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s]).find(s => s.type === ActionStepType.REASON_SELECTION);
             const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => o.id === reasonId);
             
             if (reasonOpt && reasonOpt.specifyPlayer === false) return true;
@@ -89,6 +89,20 @@ export function useDynamicScoring(game: Game) {
 
     const cancelDynamicFlow = () => {
         setScoringState({ status: 'IDLE' });
+    };
+
+    const cancelWorkflow = async () => {
+        if (scoringState.status === 'ACTIVE' && !scoringState.editingId && activeTemplate?.disputeConfig?.allowUndo === false) {
+            const flatSteps = activeTemplate.steps.flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s]);
+            const outcomeStep = flatSteps.find(s => s.type === ActionStepType.OUTCOME_SELECTION);
+            const zeroPointOutcome = outcomeStep?.outcomes?.find(o => o.points === 0);
+            
+            if (zeroPointOutcome) {
+                await commitEvent(activeTemplate, scoringState.side as 'home'|'away', { ...scoringState.collectedData, outcome: zeroPointOutcome.id });
+                return;
+            }
+        }
+        cancelDynamicFlow();
     };
 
     const gameEvents = store.gameEvents.filter(e => e.gameId === game.id);
@@ -127,7 +141,7 @@ export function useDynamicScoring(game: Game) {
         }
     };
 
-    const commitEvent = async (template: EventTemplate, side: 'home' | 'away', finalData: any) => {
+    const commitEvent = async (template: EventTemplate, side: 'home' | 'away', finalData: any, nextFlowTemplateId?: string) => {
         const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
         if (!participant) return;
 
@@ -143,14 +157,14 @@ export function useDynamicScoring(game: Game) {
             const changes: any = {};
 
             // Intelligence: Does the reason or outcome still require a player?
-            const flatSteps = template.steps.flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s]);
+            const flatSteps = template.steps.flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s]);
             
-            const reasonStep = flatSteps.find(s => s.type === 'REASON_SELECTION');
+            const reasonStep = flatSteps.find(s => s.type === ActionStepType.REASON_SELECTION);
             const reasonId = finalData.reason || originalData.reason;
             const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => o.id === reasonId);
             const requiresPlayerByReason = reasonOpt?.specifyPlayer !== false;
 
-            const outcomeStep = flatSteps.find(s => s.type === 'OUTCOME_SELECTION');
+            const outcomeStep = flatSteps.find(s => s.type === ActionStepType.OUTCOME_SELECTION);
             const outcomeId = finalData.outcome || originalData.outcome;
             const outcomeOpt = outcomeStep?.outcomes?.find(o => o.id === outcomeId);
             const requiresPlayerByOutcome = outcomeOpt?.excludePlayer !== true;
@@ -184,6 +198,10 @@ export function useDynamicScoring(game: Game) {
 
             if (Object.keys(changes).length === 0) {
                 console.log("[DynamicScoring] No changes detected, skipping update.");
+                if (nextFlowTemplateId) {
+                    startDynamicFlow(nextFlowTemplateId, side, { linkedEventId: scoringState.editingId });
+                    return;
+                }
                 setScoringState({ status: 'IDLE' });
                 return; // Nothing to do
             }
@@ -205,6 +223,11 @@ export function useDynamicScoring(game: Game) {
 
             await store.updateGameEvent(game.id, scoringState.editingId, changes);
             toast({ title: "Event Updated", description: "Changes have been saved." });
+
+            if (nextFlowTemplateId) {
+                startDynamicFlow(nextFlowTemplateId, side, { linkedEventId: scoringState.editingId });
+                return;
+            }
         } else {
             // NEW EVENT: Full payload
             const actorId = finalData.playerId;
@@ -234,7 +257,7 @@ export function useDynamicScoring(game: Game) {
             });
 
             // Handle FollowUps or Triggers
-            const triggerId = finalData.triggerEventId || template.triggerEventId;
+            const triggerId = nextFlowTemplateId || finalData.triggerEventId || template.triggerEventId;
             if (triggerId) {
                 startDynamicFlow(triggerId, side, { linkedEventId: res?.id });
                 return;
@@ -261,15 +284,6 @@ export function useDynamicScoring(game: Game) {
         if (!template.steps || template.steps.length === 0) {
             if (!initialData.eventId) {
                 commitEvent(template, side, initialData);
-                return;
-            } else {
-                // EDITING an event with no steps -> Show removal confirmation
-                setScoringState({ 
-                    status: 'CONFIRM_REMOVAL', 
-                    eventIdToRemove: initialData.eventId, 
-                    typeToRemove: template.section === 'Scoring' ? 'SCORE' : 'GAME_EVENT',
-                    side 
-                });
                 return;
             }
         }
@@ -311,9 +325,9 @@ export function useDynamicScoring(game: Game) {
 
 
 
-    const saveChanges = async () => {
+    const saveChanges = async (nextFlowTemplateId?: string) => {
         if (scoringState.status !== 'ACTIVE' || !activeTemplate) return;
-        await commitEvent(activeTemplate, scoringState.side as 'home'|'away', scoringState.collectedData);
+        await commitEvent(activeTemplate, scoringState.side as 'home'|'away', scoringState.collectedData, nextFlowTemplateId);
     };
 
     const nextDynamicStep = async (stepData: any) => {
@@ -415,11 +429,23 @@ export function useDynamicScoring(game: Game) {
 
     const removeGameEvent = async (eventId: string, type: string, side: 'home' | 'away' | undefined, force = false) => {
         const event = gameEvents.find(e => e.id === eventId);
-        const isScoring = isScoringEventCheck(event);
+        
+        // Check if the template allows removal
+        const eventData = event?.eventData || (event as any)?.event_data || {};
+        const templateId = eventData.templateId || event?.subType;
+        const template = templates.find(t => t.id === templateId);
+
+        if (template?.disputeConfig?.allowUndo === false) {
+            toast({ title: "Action Restricted", description: "This event type cannot be removed.", variant: "warning" });
+            return;
+        }
+        // Prioritize explicit type passed from template, fallback to checking the existing event object
+        const isScoring = type === 'SCORE' || isScoringEventCheck(event);
         const inWindow = isEventInUndoWindow(eventId);
 
-        if (isScoring && !inWindow && !force) {
+        if (isScoring && !inWindow) {
             triggerRemovalDispute(eventId, type, side ?? null);
+            setScoringState({ status: 'IDLE' });
         } else if (isScoring && inWindow) {
             // Instant removal within undo window for initiator
             const res = await store.removeGameEvent(game.id, eventId);
@@ -490,8 +516,8 @@ export function useDynamicScoring(game: Game) {
         
         const outcomeId = scoringState.collectedData?.outcome;
         if (outcomeId) {
-            const flatSteps = activeTemplate.steps.flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s]);
-            const outcomeStep = flatSteps.find(s => s.type === 'OUTCOME_SELECTION');
+            const flatSteps = activeTemplate.steps.flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s]);
+            const outcomeStep = flatSteps.find(s => s.type === ActionStepType.OUTCOME_SELECTION);
             const outcome = outcomeStep?.outcomes?.find(o => o.id === outcomeId);
             if (outcome?.triggerEventId) return outcome.triggerEventId;
         }
@@ -529,6 +555,7 @@ export function useDynamicScoring(game: Game) {
         rosters,
         startDynamicFlow,
         cancelDynamicFlow,
+        cancelWorkflow,
         nextDynamicStep,
         goToStep,
         triggerRemovalDispute,

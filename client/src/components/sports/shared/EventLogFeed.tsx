@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { store } from '@/app/store/store';
-import { GameEvent } from '@sk/types';
+import { GameEvent, ActionStepType } from '@sk/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { RotateCcw, Clock, Trophy, Activity, Pencil, User, Zap } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -197,8 +197,8 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                             // Check if this event is currently disputed
                             const isCurrentlyDisputed = store.getActiveDisputes(gameId).some(d => d.gameEventId === evt.id);
 
-                            // showUndo: Only for the person who submitted the event
-                            const showUndo = isScoringEvent && isInitiator && inUndoWindow && !isCurrentlyDisputed;
+                            // showUndo: Only for the person who submitted the event, if the template allows it
+                            const showUndo = isScoringEvent && isInitiator && inUndoWindow && !isCurrentlyDisputed && template?.disputeConfig?.allowUndo !== false;
 
                             return (
                                 <div 
@@ -310,8 +310,8 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 if (evt.eventData?.reason && evt.type !== 'SCORE') {
                                                     const reasonVal = evt.eventData.reason;
                                                     const reasonOpt = template?.steps
-                                                        .flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s])
-                                                        .find(s => s.type === 'REASON_SELECTION')
+                                                        .flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s])
+                                                        .find(s => s.type === ActionStepType.REASON_SELECTION)
                                                         ?.reasons?.flatMap((g: any) => g.options)
                                                         .find((o: any) => o.id === reasonVal);
                                                     const cleanReason = (reasonOpt?.name || reasonVal).replace(/^(General|Set Piece) - /i, '');

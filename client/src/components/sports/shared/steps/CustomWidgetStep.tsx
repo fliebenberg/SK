@@ -31,7 +31,7 @@ function ScrumResetsCounter({
     onComplete: (data: any) => void 
 }) {
     const { scoringState } = useSharedDynamicScoring();
-    const [resets, setResets] = useState(scoringState.collectedData?.scrumResets || 0);
+    const resets = scoringState.collectedData?.scrumResets || 0;
 
     // If it's grouped with next, we might not want a "Next" button here, 
     // but rather we just immediately fire onComplete to update the shared state whenever it changes.
@@ -40,7 +40,6 @@ function ScrumResetsCounter({
     // For simplicity, we'll auto-complete it with the data so it merges into collectedData.
     
     const handleUpdate = (newVal: number) => {
-        setResets(newVal);
         onComplete({ scrumResets: newVal });
     };
 

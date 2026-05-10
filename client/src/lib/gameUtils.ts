@@ -1,4 +1,4 @@
-import { GameEvent, Sport, GameParticipant } from "@sk/types";
+import { GameEvent, Sport, GameParticipant, ActionStepType } from "@sk/types";
 
 /**
  * Resolves an event template from a sport configuration.
@@ -41,8 +41,8 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
         // Check if there is a displayOverride in the outcome object itself
         // STRICT ID LOOKUP ONLY
         const outcomeObj = template.steps
-            .flatMap(s => s.type === 'GROUP' ? (s.steps || []) : [s])
-            .find(s => s.type === 'OUTCOME_SELECTION')
+            .flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s])
+            .find(s => s.type === ActionStepType.OUTCOME_SELECTION)
             ?.outcomes?.find(o => o.id === outcome);
         
         if (outcomeObj && outcomeObj.displayOverride !== undefined) {

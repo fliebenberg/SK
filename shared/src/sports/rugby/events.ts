@@ -1,4 +1,4 @@
-import { EventTemplate } from "../../models/sport/EventTemplate";
+import { ActionStepType, EventTemplate, TemplateDisputeType } from "../../models/sport/EventTemplate";
 
 export const RUGBY_EVENTS: EventTemplate[] = [
   {
@@ -9,8 +9,12 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     points: 5,
     displayPattern: "{name}",
     triggerEventId: "conversion",
+    disputeConfig: {
+      type: TemplateDisputeType.REMOVE,
+      heading: "Remove Try"
+    },
     steps: [
-      { type: "PLAYER_SELECTION" }
+      { type: ActionStepType.PLAYER_SELECTION }
     ]
   },
   {
@@ -20,6 +24,10 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     icon: "Zap",
     points: 7,
     displayPattern: "{name}",
+    disputeConfig: {
+      type: TemplateDisputeType.REMOVE,
+      heading: "Remove Penalty Try"
+    },
     steps: []
   },
   {
@@ -30,19 +38,19 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     points: 2,
     displayPattern: "{name} → {outcome}",
     disputeConfig: {
-      type: "CHANGE_OUTCOME",
+      type: TemplateDisputeType.CHANGE_OUTCOME,
       heading: "Change Conversion Outcome",
       impactsPoints: true,
       allowUndo: false
     },
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
+          { type: ActionStepType.PLAYER_SELECTION },
           {
-            type: "OUTCOME_SELECTION",
+            type: ActionStepType.OUTCOME_SELECTION,
             outcomes: [
               { id: "successful", name: "Successful", displayOverride: "", points: 2, variant: "success", eventData: { "successful": true } },
               { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
@@ -60,18 +68,18 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     points: 3,
     displayPattern: "{name} → {outcome}",
     disputeConfig: {
-      type: "CHANGE_OUTCOME",
+      type: TemplateDisputeType.CHANGE_OUTCOME,
       heading: "Change Penalty Kick Outcome",
       impactsPoints: true
     },
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
+          { type: ActionStepType.PLAYER_SELECTION },
           {
-            type: "OUTCOME_SELECTION",
+            type: ActionStepType.OUTCOME_SELECTION,
             outcomes: [
               { id: "successful", name: "Successful", displayOverride: "OVER", points: 3, variant: "success", eventData: { "successful": true } },
               { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
@@ -89,18 +97,18 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     points: 3,
     displayPattern: "{name} → {outcome}",
     disputeConfig: {
-      type: "CHANGE_OUTCOME",
+      type: TemplateDisputeType.CHANGE_OUTCOME,
       heading: "Change Drop Goal Outcome",
       impactsPoints: true
     },
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
+          { type: ActionStepType.PLAYER_SELECTION },
           {
-            type: "OUTCOME_SELECTION",
+            type: ActionStepType.OUTCOME_SELECTION,
             outcomes: [
               { id: "successful", name: "Successful", displayOverride: "SUCCESS", points: 3, variant: "success", eventData: { "successful": true } },
               { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
@@ -119,12 +127,12 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
+          { type: ActionStepType.PLAYER_SELECTION },
           {
-            type: "OUTCOME_SELECTION",
+            type: ActionStepType.OUTCOME_SELECTION,
             outcomes: [
               { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
               { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
@@ -144,12 +152,12 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
+          { type: ActionStepType.PLAYER_SELECTION },
           {
-            type: "OUTCOME_SELECTION",
+            type: ActionStepType.OUTCOME_SELECTION,
             outcomes: [
               { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
               { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
@@ -168,12 +176,12 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
+          { type: ActionStepType.PLAYER_SELECTION },
           {
-            type: "OUTCOME_SELECTION",
+            type: ActionStepType.OUTCOME_SELECTION,
             outcomes: [
               { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
               { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
@@ -192,7 +200,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "PENALTY → {outcome}",
     steps: [
       {
-        type: "REASON_SELECTION",
+        type: ActionStepType.REASON_SELECTION,
         reasons: [
           {
             name: "Tackle",
@@ -231,11 +239,11 @@ export const RUGBY_EVENTS: EventTemplate[] = [
         ]
       },
       {
-        type: "PLAYER_SELECTION",
+        type: ActionStepType.PLAYER_SELECTION,
         dependsOnReason: true
       },
       {
-        type: "OUTCOME_SELECTION",
+        type: ActionStepType.OUTCOME_SELECTION,
         outcomes: [
           { id: "penalty_kick", name: "Penalty Kick", variant: "primary", triggerEventId: "penalty_kick" },
           { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick" },
@@ -253,7 +261,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {reason}",
     steps: [
       {
-        type: "REASON_SELECTION",
+        type: ActionStepType.REASON_SELECTION,
         reasons: [
           {
             name: "Scrum",
@@ -286,11 +294,11 @@ export const RUGBY_EVENTS: EventTemplate[] = [
         ]
       },
       {
-        type: "PLAYER_SELECTION",
+        type: ActionStepType.PLAYER_SELECTION,
         dependsOnReason: true
       },
       {
-        type: "OUTCOME_SELECTION",
+        type: ActionStepType.OUTCOME_SELECTION,
         outcomes: [
           { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Free Kick" } },
           { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick" },
@@ -307,7 +315,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "REASON_SELECTION",
+        type: ActionStepType.REASON_SELECTION,
         reasons: [
           {
             name: "Infringement",
@@ -323,15 +331,15 @@ export const RUGBY_EVENTS: EventTemplate[] = [
         ]
       },
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Outcome",
         steps: [
           {
-            type: "CUSTOM_WIDGET",
+            type: ActionStepType.CUSTOM_WIDGET,
             widgetName: "ScrumResetsCounter",
           },
           {
-            type: "OUTCOME_SELECTION",
+            type: ActionStepType.OUTCOME_SELECTION,
             outcomes: [
               { id: "won", name: "Won", variant: "success", eventData: { successful: true } },
               { id: "lost", name: "Lost", variant: "danger", eventData: { successful: false } },
@@ -349,7 +357,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "OUTCOME_SELECTION",
+        type: ActionStepType.OUTCOME_SELECTION,
         outcomes: [
           { id: "won", name: "Won", variant: "success", eventData: { winnerSide: "same" } },
           { id: "lost", name: "Lost", variant: "danger", eventData: { winnerSide: "other" } },
@@ -366,12 +374,12 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {reason}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Details",
         steps: [
-          { type: "PLAYER_SELECTION" },
+          { type: ActionStepType.PLAYER_SELECTION },
           {
-            type: "REASON_SELECTION",
+            type: ActionStepType.REASON_SELECTION,
             reasons: [
               {
                 name: "Foul Play",
@@ -404,12 +412,12 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {reason}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Details",
         steps: [
-          { type: "PLAYER_SELECTION" },
+          { type: ActionStepType.PLAYER_SELECTION },
           {
-            type: "REASON_SELECTION",
+            type: ActionStepType.REASON_SELECTION,
             reasons: [
               {
                 name: "Serious Foul Play",
@@ -436,11 +444,11 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
-          { type: "OUTCOME_SELECTION", outcomes: [{ id: "confirmed", name: "Confirmed" }] }
+          { type: ActionStepType.PLAYER_SELECTION },
+          { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
         ]
       }
     ]
@@ -453,11 +461,11 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
-          { type: "OUTCOME_SELECTION", outcomes: [{ id: "confirmed", name: "Confirmed" }] }
+          { type: ActionStepType.PLAYER_SELECTION },
+          { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
         ]
       }
     ]
@@ -470,11 +478,11 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
-          { type: "OUTCOME_SELECTION", outcomes: [{ id: "confirmed", name: "Confirmed" }] }
+          { type: ActionStepType.PLAYER_SELECTION },
+          { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
         ]
       }
     ]
@@ -487,11 +495,11 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name}",
     steps: [
       {
-        type: "GROUP",
+        type: ActionStepType.GROUP,
         name: "Selection",
         steps: [
-          { type: "PLAYER_SELECTION" },
-          { type: "OUTCOME_SELECTION", outcomes: [{ id: "confirmed", name: "Confirmed" }] }
+          { type: ActionStepType.PLAYER_SELECTION },
+          { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
         ]
       }
     ]
@@ -504,10 +512,10 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     displayPattern: "{name} → {outcome}",
     steps: [
       {
-        type: "PLAYER_SELECTION"
+        type: ActionStepType.PLAYER_SELECTION
       },
       {
-        type: "OUTCOME_SELECTION",
+        type: ActionStepType.OUTCOME_SELECTION,
         outcomes: [
           { id: "out", name: "Out", variant: "success", eventData: { successful: true } },
           { id: "stayed_in", name: "Stayed In", variant: "danger", eventData: { successful: false } }

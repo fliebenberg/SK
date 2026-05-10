@@ -12,14 +12,13 @@ export function PlayerSelectionStep({
 }) {
     const { scoringState, rosters, nextDynamicStep, game } = useSharedDynamicScoring();
     const side = scoringState.side!;
-    const [selectedPlayerId, setSelectedPlayerId] = useState<string>(scoringState.collectedData?.playerId || '');
-
+    const selectedPlayerId = scoringState.collectedData?.playerId || '';
+    
     const participantId = side === 'home' ? game.participants?.[0]?.id : game.participants?.[1]?.id;
     const roster = rosters[participantId || ''] || [];
 
     const handleSelect = (id: string) => {
         const newId = id === selectedPlayerId ? '' : id;
-        setSelectedPlayerId(newId);
         // We don't auto-advance on player selection as it might be accidental
         // The user uses the header "Next" button to confirm
         nextDynamicStep({ playerId: newId, _noAdvance: true });

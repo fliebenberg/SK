@@ -424,6 +424,10 @@ export class GameEventManager extends BaseManager {
         const mainEvent = modifiedEvents[0];
         const minSequence = Math.min(...modifiedEvents.map(e => e.sequence || 0));
         
+        // 3. Fetch current scores to detect changes
+        const gameRes = await this.query(`SELECT live_state->'scores' as scores FROM games WHERE id = $1`, [gameId]);
+        const previousScores = gameRes.rows[0]?.scores || {};
+
         const { modifiedEvents: recalculatedEvents, finalScores } = await this.recalculateEventScores(gameId, minSequence);
 
         // Merge recalculated events into modifiedEvents, preferring recalculated versions
@@ -437,16 +441,30 @@ export class GameEventManager extends BaseManager {
             }
         }
 
-        // Update the game scoreboard in DB
-        await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
+        // 4. Check if scores actually changed (order-independent comparison)
+        const scoresChanged = JSON.stringify(previousScores, Object.keys(previousScores).sort()) !== 
+                             JSON.stringify(finalScores, Object.keys(finalScores).sort());
 
-        // Broadcast if IO is available
+        if (scoresChanged) {
+            // Update the game scoreboard in DB
+            await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
+        }
+
+        // 5. Broadcast
         if (this.io) {
             this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
             
             // Also broadcast individual updates for the main entities
             for (const me of allModified) {
                 this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: me });
+            }
+
+            if (scoresChanged) {
+                const updatedGame = await dataManager.getGame(gameId);
+                if (updatedGame) {
+                    this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                    this.io.to(`game:${gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                }
             }
         }
 
@@ -736,6 +754,10 @@ export class GameEventManager extends BaseManager {
                   if (modifiedEvents.length > 0) {
                       // Unified Post-Mutation Flow: Recalculate, Sync Scoreboard, and Broadcast
                       const minSequence = Math.min(...modifiedEvents.map(e => e.sequence || 0));
+                      
+                      // Fetch current scores to detect changes
+                      const gameRes = await this.query(`SELECT live_state->'scores' as scores FROM games WHERE id = $1`, [dispute.gameId]);
+                      const previousScores = gameRes.rows[0]?.scores || {};
                       const { modifiedEvents: recalculatedEvents, finalScores } = await this.recalculateEventScores(dispute.gameId, minSequence);
                       
                       // Merge all modified events (from mutation + recalculation)
@@ -750,8 +772,14 @@ export class GameEventManager extends BaseManager {
                           }
                       }
 
-                      // Update the game scoreboard in DB
-                      await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
+                       // Check if scores actually changed
+                       const scoresChanged = JSON.stringify(previousScores, Object.keys(previousScores).sort()) !== 
+                                            JSON.stringify(finalScores, Object.keys(finalScores).sort());
+
+                       if (scoresChanged) {
+                           // Update the game scoreboard in DB
+                           await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
+                       }
 
                       if (this.io) {
                           // Broadcast removals and updates
@@ -765,10 +793,12 @@ export class GameEventManager extends BaseManager {
                           
                           this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
                           
-                          const updatedGame = await dataManager.getGame(dispute.gameId);
-                          if (updatedGame) {
-                              this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                              this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                          if (scoresChanged) {
+                              const updatedGame = await dataManager.getGame(dispute.gameId);
+                              if (updatedGame) {
+                                  this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                                  this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                              }
                           }
                       }
                   }
@@ -1065,10 +1095,21 @@ export class GameEventManager extends BaseManager {
         
         if (modifiedEvents.length > 0) {
             const minSequence = Math.min(...modifiedEvents.map(e => e.sequence || 0));
+            
+            // Fetch current scores to detect changes
+            const gameRes = await this.query(`SELECT live_state->'scores' as scores FROM games WHERE id = $1`, [gameId]);
+            const previousScores = gameRes.rows[0]?.scores || {};
+
             const { modifiedEvents: recalculatedEvents, finalScores } = await this.recalculateEventScores(gameId, minSequence);
 
-            // Update the game scoreboard in DB
-            await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
+            // Check if scores actually changed
+            const scoresChanged = JSON.stringify(previousScores, Object.keys(previousScores).sort()) !== 
+                                 JSON.stringify(finalScores, Object.keys(finalScores).sort());
+
+            if (scoresChanged) {
+                // Update the game scoreboard in DB
+                await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
+            }
 
             if (this.io) {
                 // Merge recalculated events into modifiedEvents, preferring recalculated versions
@@ -1091,10 +1132,12 @@ export class GameEventManager extends BaseManager {
                 console.log(`[Undo Broadcast] Emitting GAME_EVENTS_BATCH_UPDATED for ${allModified.length} events`);
                 this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
                 
-                const updatedGame = await dataManager.getGame(gameId);
-                if (updatedGame) {
-                    this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                    this.io.to(`game:${gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                if (scoresChanged) {
+                    const updatedGame = await dataManager.getGame(gameId);
+                    if (updatedGame) {
+                        this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                        this.io.to(`game:${gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                    }
                 }
             }
         }

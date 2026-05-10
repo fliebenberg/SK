@@ -10,6 +10,7 @@ import { PlayerSelectionStep } from './steps/PlayerSelectionStep';
 import { CustomWidgetStep } from './steps/CustomWidgetStep';
 import { Check, Trash2, X, RotateCcw, ChevronRight } from 'lucide-react';
 import { store } from '@/app/store/store';
+import { ActionStepType } from '@sk/types';
 
 export function DynamicScoringDialog() {
     const { 
@@ -18,6 +19,7 @@ export function DynamicScoringDialog() {
         templates,
         startDynamicFlow,
         cancelDynamicFlow, 
+        cancelWorkflow,
         nextDynamicStep,
         goToStep,
         isStepSkipped,
@@ -34,7 +36,7 @@ export function DynamicScoringDialog() {
     if (scoringState.status !== 'ACTIVE' || !activeTemplate || scoringState.stepIndex === undefined) return null;
 
     const currentStep = activeTemplate.steps[scoringState.stepIndex];
-    if (!currentStep) return null;
+    if (!currentStep && activeTemplate.steps.length > 0) return null;
 
     const handlePartialUpdate = (data: any) => {
         // Just update the collectedData without advancing
@@ -43,21 +45,32 @@ export function DynamicScoringDialog() {
 
     // Helper to determine if a step should group with the next one
     const renderSteps = () => {
-        const stepsToRender = currentStep.type === 'GROUP' 
+        if (!currentStep) {
+            return (
+                <div className="flex flex-col items-center justify-center py-12 text-center space-y-2 opacity-40">
+                    <span className="text-sm font-black uppercase tracking-widest italic text-muted-foreground">
+                        No additional details to edit
+                    </span>
+                </div>
+            );
+        }
+
+        const stepsToRender = currentStep.type === ActionStepType.GROUP 
             ? (currentStep.steps || []).filter((_, idx) => !isSubStepSkipped(currentStep, idx, scoringState.collectedData))
             : [currentStep];
 
         return stepsToRender.map((step, idx) => {
+            const stepKey = `${activeTemplate.id}-${scoringState.stepIndex}-${idx}`;
             switch(step.type) {
-                case 'REASON_SELECTION':
-                    return <ReasonSelectionStep key={idx} step={step} onComplete={(data) => nextDynamicStep(data)} />;
-                case 'OUTCOME_SELECTION':
-                    return <OutcomeSelectionStep key={idx} step={step} onComplete={(data) => nextDynamicStep(data)} />;
-                case 'PLAYER_SELECTION':
-                    return <PlayerSelectionStep key={idx} step={step} onComplete={(data) => nextDynamicStep(data)} />;
-                case 'CUSTOM_WIDGET':
+                case ActionStepType.REASON_SELECTION:
+                    return <ReasonSelectionStep key={stepKey} step={step} onComplete={(data) => nextDynamicStep(data)} />;
+                case ActionStepType.OUTCOME_SELECTION:
+                    return <OutcomeSelectionStep key={stepKey} step={step} onComplete={(data) => nextDynamicStep(data)} />;
+                case ActionStepType.PLAYER_SELECTION:
+                    return <PlayerSelectionStep key={stepKey} step={step} onComplete={(data) => nextDynamicStep(data)} />;
+                case ActionStepType.CUSTOM_WIDGET:
                     return <CustomWidgetStep 
-                                key={idx} 
+                                key={stepKey} 
                                 step={step} 
                                 onComplete={(data) => {
                                     if (data._advance) {
@@ -68,7 +81,7 @@ export function DynamicScoringDialog() {
                                     }
                                 }} 
                             />;
-                case 'FORM_INPUT':
+                case ActionStepType.FORM_INPUT:
                     return <div key={idx} className="p-4 border border-dashed text-muted-foreground">Form Input: {step.fields?.map(f => f.name).join(', ')}</div>;
                 default:
                     return <div key={idx}>Unknown step type</div>;
@@ -77,7 +90,7 @@ export function DynamicScoringDialog() {
     };
 
     return (
-        <Dialog open={true} onOpenChange={(open) => { if (!open) cancelDynamicFlow(); }}>
+        <Dialog open={true} onOpenChange={(open) => { if (!open) cancelWorkflow(); }}>
             <DialogPortal>
                 <DialogOverlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm dark:bg-black/60" />
                 <DialogContent 
@@ -108,7 +121,7 @@ export function DynamicScoringDialog() {
                                             return false;
                                         })();
 
-                                        const isLastSection = (() => {
+                                        const isLastSection = activeTemplate.steps.length === 0 || (() => {
                                             let idx = scoringState.stepIndex!;
                                             while (idx < activeTemplate.steps.length - 1 && isStepSkipped(idx + 1)) {
                                                 idx++;
@@ -119,7 +132,7 @@ export function DynamicScoringDialog() {
                                         return (
                                             <>
                                                 {/* Bin (Delete) - Only when editing */}
-                                                {scoringState.editingId && (
+                                                {scoringState.editingId && activeTemplate.disputeConfig?.allowUndo !== false && (
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
@@ -137,7 +150,7 @@ export function DynamicScoringDialog() {
                                                         size="icon" 
                                                         variant="ghost" 
                                                         className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                                        onClick={saveChanges}
+                                                        onClick={() => saveChanges()}
                                                         title="Save Changes"
                                                     >
                                                         <Check className="h-5 w-5" />
@@ -163,7 +176,7 @@ export function DynamicScoringDialog() {
                                         size="icon" 
                                         variant="ghost" 
                                         className="h-8 w-8 text-muted-foreground"
-                                        onClick={cancelDynamicFlow}
+                                        onClick={cancelWorkflow}
                                         title="Cancel"
                                     >
                                         <X className="h-5 w-5" />
@@ -189,28 +202,28 @@ export function DynamicScoringDialog() {
                                         if (isStepSkipped(idx)) return null;
 
                                         let stepName = step.name || step.type.replace('_SELECTION', '').replace('_', ' ');
-                                        if (!step.name && step.type === 'CUSTOM_WIDGET') stepName = step.widgetName || 'Custom';
+                                        if (!step.name && step.type === ActionStepType.CUSTOM_WIDGET) stepName = step.widgetName || 'Custom';
 
                                         // Calculate combined display value for the group (this step and any sub-steps if it's a group)
                                         const displayValue = (() => {
                                             const values: string[] = [];
-                                            const subSteps = step.type === 'GROUP' ? (step.steps || []) : [step];
+                                            const subSteps = step.type === ActionStepType.GROUP ? (step.steps || []) : [step];
                                             
                                             subSteps.forEach((s) => {
                                                 if (isSingleStepSkipped(s, data)) return;
                                                 
                                                 let val = '';
-                                                if (s.type === 'REASON_SELECTION') {
+                                                if (s.type === ActionStepType.REASON_SELECTION) {
                                                     const reasonVal = data.reason;
                                                     const reasonOpt = s.reasons?.flatMap((g: any) => g.options).find((o: any) => o.id === reasonVal);
                                                     val = reasonOpt?.name || reasonVal;
-                                                } else if (s.type === 'PLAYER_SELECTION') {
+                                                } else if (s.type === ActionStepType.PLAYER_SELECTION) {
                                                     val = displayPlayer || '';
-                                                } else if (s.type === 'OUTCOME_SELECTION') {
+                                                } else if (s.type === ActionStepType.OUTCOME_SELECTION) {
                                                     const outcomeVal = data.outcome;
                                                     const outcomeOpt = s.outcomes?.find((o: any) => o.id === outcomeVal);
                                                     val = outcomeOpt?.name || outcomeVal;
-                                                } else if (s.type === 'CUSTOM_WIDGET' && s.widgetName === 'ScrumResetsCounter') {
+                                                } else if (s.type === ActionStepType.CUSTOM_WIDGET && s.widgetName === 'ScrumResetsCounter') {
                                                     const resets = data.scrumResets || 0;
                                                     if (resets > 0) val = `${resets} Resets`;
                                                 }
@@ -278,13 +291,7 @@ export function DynamicScoringDialog() {
                                     variant="default" 
                                     className="bg-amber-500 hover:bg-amber-600 text-white font-black"
                                     onClick={() => {
-                                        const side = scoringState.side!;
-                                        const parentId = scoringState.editingId!;
-                                        cancelDynamicFlow();
-                                        // Small delay to ensure state clears before starting next flow
-                                        setTimeout(() => {
-                                            startDynamicFlow(triggerId, side, { linkedEventId: parentId });
-                                        }, 100);
+                                        saveChanges(triggerId);
                                     }}
                                 >
                                     {label}

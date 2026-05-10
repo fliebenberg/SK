@@ -21,8 +21,23 @@ export interface Outcome {
   excludePlayer?: boolean;
 }
 
+export enum ActionStepType {
+  /** User selects a reason or sub-category for the event */
+  REASON_SELECTION = 'REASON_SELECTION',
+  /** User selects the final outcome of the action */
+  OUTCOME_SELECTION = 'OUTCOME_SELECTION',
+  /** User selects a specific player from the team roster */
+  PLAYER_SELECTION = 'PLAYER_SELECTION',
+  /** Renders a custom UI component for specialized interactions */
+  CUSTOM_WIDGET = 'CUSTOM_WIDGET',
+  /** Renders a form with multiple input fields */
+  FORM_INPUT = 'FORM_INPUT',
+  /** Groups multiple steps into a single logical block or UI section */
+  GROUP = 'GROUP',
+}
+
 export interface ActionStep {
-  type: 'REASON_SELECTION' | 'OUTCOME_SELECTION' | 'PLAYER_SELECTION' | 'CUSTOM_WIDGET' | 'FORM_INPUT' | 'GROUP';
+  type: ActionStepType;
   name?: string;
   steps?: ActionStep[]; // For type: 'GROUP'
   optional?: boolean;
@@ -34,8 +49,15 @@ export interface ActionStep {
   fields?: any[]; // For FORM_INPUT, e.g. { name: string, type: string, label: string }
 }
 
+export enum TemplateDisputeType {
+  /** The event can be undone or removed via the dispute system */
+  REMOVE = 'REMOVE',
+  /** The outcome of the event can be modified via the dispute system */
+  CHANGE_OUTCOME = 'CHANGE_OUTCOME',
+}
+
 export interface TemplateDisputeConfig {
-  type: 'REMOVE' | 'CHANGE_OUTCOME';
+  type: TemplateDisputeType;
   heading?: string;
   approveLabel?: string;
   rejectLabel?: string;
