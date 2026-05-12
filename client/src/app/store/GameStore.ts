@@ -718,6 +718,7 @@ export class GameStore extends SiteStore {
                 ...(existing.liveState || {}),
                 ...(game.liveState || {}),
                 scores: game.liveState?.scores ?? existing.liveState?.scores,
+                sinBins: game.liveState?.sinBins ?? (game.status === 'Scheduled' ? [] : existing.liveState?.sinBins),
                 periodLabel: game.liveState?.periodLabel || existing.liveState?.periodLabel || getPeriodLabel(game.liveState?.clock?.periodIndex ?? existing.liveState?.clock?.periodIndex ?? 0, 'Period'),
                 clock: game.liveState?.clock ?? (game.status === 'Scheduled' ? undefined : existing.liveState?.clock)
             };

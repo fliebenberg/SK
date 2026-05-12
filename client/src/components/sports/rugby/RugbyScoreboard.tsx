@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Game } from '@sk/types';
+import { Game, SinBin } from '@sk/types';
 import { store } from '@/app/store/store';
 import { OrgLogo } from '@/components/ui/OrgLogo';
 import { cn } from '@/lib/utils';
@@ -8,7 +8,7 @@ import { getPeriodLabel } from '@sk/types';
 
 export default function RugbyScoreboard({ game, role }: { game: Game, role?: string }) {
     const sport = game.sportId ? store.getSport(game.sportId) : null;
-    const { formattedTime } = useGameTimer(game.liveState?.clock, undefined, undefined, sport?.timerShowHours);
+    const { formattedTime, currentMS } = useGameTimer(game.liveState?.clock, undefined, undefined, sport?.timerShowHours);
     const [, setTick] = useState(0);
 
     useEffect(() => {
@@ -45,6 +45,9 @@ export default function RugbyScoreboard({ game, role }: { game: Game, role?: str
     const site = game.siteId ? store.getSite(game.siteId) : null;
     const facility = game.facilityId ? store.getFacility(game.facilityId) : null;
     const locationStr = [site?.name, facility?.name].filter(Boolean).join(", ");
+
+    const homeSinBins = game.liveState?.sinBins?.filter(sb => sb.teamId === homeTeamId) || [];
+    const awaySinBins = game.liveState?.sinBins?.filter(sb => sb.teamId === awayTeamId) || [];
 
     return (
         <div className="relative overflow-hidden bg-muted/30 dark:bg-card text-foreground border-b border-border/50 shadow-inner [container-type:inline-size] [@container/scoreboard]">
@@ -91,7 +94,7 @@ export default function RugbyScoreboard({ game, role }: { game: Game, role?: str
                 {/* 2. Scores & Center Info */}
                 <div className="flex items-center justify-between gap-[clamp(8px,2cqw,32px)]">
                     {/* Home Score */}
-                    <div className="flex-1 flex justify-center sm:justify-end min-w-0">
+                    <div className="flex-1 flex flex-col items-center sm:items-end justify-center min-w-0">
                         <div className="relative group">
                             <div className="absolute -inset-1 bg-blue-500/10 dark:bg-blue-500/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
                             <div className="relative flex items-center justify-center bg-muted/20 dark:bg-slate-900/40 border border-border dark:border-slate-800 rounded-[clamp(8px,2cqw,32px)] w-[clamp(64px,22.4cqw,430px)] h-[clamp(64px,22.4cqw,430px)] shadow-lg dark:shadow-2xl">
@@ -133,7 +136,7 @@ export default function RugbyScoreboard({ game, role }: { game: Game, role?: str
                     </div>
 
                     {/* Away Score */}
-                    <div className="flex-1 flex justify-center sm:justify-start min-w-0">
+                    <div className="flex-1 flex flex-col items-center sm:items-start justify-center min-w-0">
                         <div className="relative group">
                             <div className="absolute -inset-1 bg-red-500/10 dark:bg-red-500/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
                             <div className="relative flex items-center justify-center bg-muted/20 dark:bg-slate-900/40 border border-border dark:border-slate-800 rounded-[clamp(8px,2cqw,32px)] w-[clamp(64px,22.4cqw,430px)] h-[clamp(64px,22.4cqw,430px)] shadow-lg dark:shadow-2xl">
@@ -144,11 +147,89 @@ export default function RugbyScoreboard({ game, role }: { game: Game, role?: str
                         </div>
                     </div>
                 </div>
+
+                {/* 3. Bottom Row: Sin Bin Indicators */}
+                <div className="flex justify-between items-start w-full gap-4 mt-auto">
+                    {/* Home Sin Bins */}
+                    <div className="flex flex-wrap gap-1.5 justify-start flex-1 max-w-[45%]">
+                        {homeSinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0).length > 0 && (
+                            <PermanentRedCardGroup cards={homeSinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0)} />
+                        )}
+                        {homeSinBins.filter(sb => sb.type === 'yellow' || (sb.type === 'red' && sb.durationMS > 0)).map(sb => (
+                            <SinBinIndicator key={sb.id} sinBin={sb} currentMS={currentMS} />
+                        ))}
+                    </div>
+
+                    {/* Away Sin Bins */}
+                    <div className="flex flex-wrap gap-1.5 justify-end flex-1 max-w-[45%]">
+                        {awaySinBins.filter(sb => sb.type === 'yellow' || (sb.type === 'red' && sb.durationMS > 0)).map(sb => (
+                            <SinBinIndicator key={sb.id} sinBin={sb} currentMS={currentMS} />
+                        ))}
+                        {awaySinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0).length > 0 && (
+                            <PermanentRedCardGroup cards={awaySinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0)} />
+                        )}
+                    </div>
+                </div>
             </div>
             
             {/* Metallic Border Accents - Subtle & Theme-Aware */}
             <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-border to-transparent opacity-50"></div>
             <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-border to-transparent opacity-50"></div>
+        </div>
+    );
+}
+
+function PermanentRedCardGroup({ cards }: { cards: SinBin[] }) {
+    const hoverText = cards.map(sb => {
+        const profile = store.getOrgProfile(sb.playerId);
+        const name = profile ? (profile.shortName || profile.name) : 'Unknown Player';
+        const reason = sb.reason ? sb.reason.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
+        return `${name}${reason ? ` (${reason})` : ''}`;
+    }).join('\n');
+
+    return (
+        <div 
+            title={hoverText}
+            className={cn(
+                "flex items-center justify-center bg-[#FF0000] text-white border border-red-800 rounded-sm shadow-md cursor-help h-[clamp(24px,3cqw,48px)] transition-all",
+                cards.length > 1 ? "px-1 w-auto min-w-[clamp(12px,1.5cqw,24px)]" : "w-[clamp(12px,1.5cqw,24px)]"
+            )}
+        >
+            {cards.length > 1 && (
+                <span className="text-[10px] sm:text-xs font-black drop-shadow-sm">{cards.length}</span>
+            )}
+        </div>
+    );
+}
+
+function SinBinIndicator({ sinBin, currentMS }: { sinBin: SinBin, currentMS: number }) {
+    const remainingMS = sinBin.durationMS === 0 ? 0 : Math.max(0, sinBin.durationMS - (currentMS - sinBin.awardedAtMS));
+    const isPermanent = sinBin.durationMS === 0;
+    
+    // Format remainingMS to MM:SS
+    const totalSeconds = Math.floor(remainingMS / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const formattedRemaining = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+    const playerProfile = store.getOrgProfile(sinBin.playerId);
+    const playerName = playerProfile ? (playerProfile.shortName || playerProfile.name) : 'Unknown Player';
+    const reason = sinBin.reason ? sinBin.reason.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
+    const hoverText = `${playerName}${reason ? ` - ${reason}` : ''}`;
+
+    if (!isPermanent && remainingMS === 0) return null;
+
+    return (
+        <div 
+            title={hoverText}
+            className={cn(
+                "flex items-center justify-center rounded-sm text-[10px] sm:text-xs font-bold leading-none shadow-md transition-all cursor-help",
+                sinBin.type === 'yellow' 
+                    ? "bg-[#FFD700] text-black border border-yellow-600 px-2 py-1 min-w-[32px] sm:min-w-[40px]" 
+                    : "bg-[#FF0000] text-white border border-red-800 w-[clamp(12px,1.5cqw,24px)] h-[clamp(24px,3cqw,48px)]"
+            )}
+        >
+            <span className="font-mono">{isPermanent ? "" : formattedRemaining}</span>
         </div>
     );
 }

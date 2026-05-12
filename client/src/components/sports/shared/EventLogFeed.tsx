@@ -293,7 +293,7 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                         </div>
                                         <div className="flex items-center justify-between gap-2 overflow-hidden">
                                             {(() => {
-                                                const actorProfile = evt.actorOrgProfileId ? store.orgProfiles.find(p => p.id === evt.actorOrgProfileId) : null;
+                                                const actorProfile = store.getOrgProfile(evt.actorOrgProfileId || '');
                                                 
                                                 if (evt.subType === 'Replacement') {
                                                     const offName = evt.eventData?.playerOffName || 'Unknown';

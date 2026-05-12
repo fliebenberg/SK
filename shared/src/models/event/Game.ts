@@ -11,6 +11,16 @@ export interface GameClockState {
   totalActualElapsedMS?: number;
 }
 
+export interface SinBin {
+  id: string; // matches the game_event_id
+  playerId: string;
+  teamId: string;
+  awardedAtMS: number; // game.liveState.clock.elapsedMS at time of award
+  durationMS: number;
+  type: 'yellow' | 'red';
+  reason?: string;
+}
+
 export interface Game {
   id: string;
   eventId: string;
@@ -26,6 +36,7 @@ export interface Game {
     clock?: GameClockState;
     scores?: Record<string, number>;
     periodLabel?: string;
+    sinBins?: SinBin[];
     [key: string]: any;
   };
   participants?: GameParticipant[];

@@ -36,19 +36,31 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
     if (template) {
         label = template.displayPattern || (eventData.outcome ? "{name} → {outcome}" : "{name}");
         
+        // Resolve Outcome
         let outcome = eventData.outcome;
-
-        // Check if there is a displayOverride in the outcome object itself
-        // STRICT ID LOOKUP ONLY
-        const outcomeObj = template.steps
+        const outcomeStep = template.steps
             .flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s])
-            .find(s => s.type === ActionStepType.OUTCOME_SELECTION)
-            ?.outcomes?.find(o => o.id === outcome);
+            .find(s => s.type === ActionStepType.OUTCOME_SELECTION);
+            
+        const outcomeObj = outcomeStep?.outcomes?.find(o => o.id === outcome);
         
         if (outcomeObj && outcomeObj.displayOverride !== undefined) {
             outcome = outcomeObj.displayOverride;
         } else if (outcome && template.outcomeOverrides && template.outcomeOverrides[outcome]) {
             outcome = template.outcomeOverrides[outcome];
+        } else if (outcomeObj) {
+            outcome = outcomeObj.name;
+        }
+
+        // Resolve Reason
+        let reason = eventData.reason;
+        const reasonStep = template.steps
+            .flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s])
+            .find(s => s.type === ActionStepType.REASON_SELECTION);
+        
+        const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => o.id === reason);
+        if (reasonOpt) {
+            reason = reasonOpt.name;
         }
 
         // Fill the pattern
@@ -57,7 +69,11 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
             .replace(/{outcome\|([^}]+)}/g, (match, fallback) => {
                 return outcome !== undefined ? outcome.toUpperCase() : fallback.toUpperCase();
             })
-            .replace(/{outcome}/g, (outcome !== undefined ? outcome : "").toUpperCase());
+            .replace(/{outcome}/g, (outcome !== undefined ? outcome : "").toUpperCase())
+            .replace(/{reason\|([^}]+)}/g, (match, fallback) => {
+                return reason !== undefined ? reason.toUpperCase() : fallback.toUpperCase();
+            })
+            .replace(/{reason}/g, (reason !== undefined ? reason : "").toUpperCase());
 
         return {
             label: label.trim().replace(/\s*→\s*$/, ""),

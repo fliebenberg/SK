@@ -371,7 +371,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     name: "Yellow Card",
     section: "Game Events",
     icon: "AlertTriangle",
-    displayPattern: "{name} → {reason}",
+    displayPattern: "{name}",
     steps: [
       {
         type: ActionStepType.GROUP,
@@ -409,7 +409,7 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     name: "Red Card",
     section: "Game Events",
     icon: "XCircle",
-    displayPattern: "{name} → {reason}",
+    displayPattern: "{name}",
     steps: [
       {
         type: ActionStepType.GROUP,

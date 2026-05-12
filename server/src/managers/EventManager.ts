@@ -116,7 +116,7 @@ export class EventManager extends BaseManager {
       try {
           await this.query(
               `INSERT INTO games (id, event_id, sport_id, start_time, scheduled_start_time, status, site_id, facility_id, custom_settings, live_state)
-               VALUES ($1, $2, $3, $4, $5, 'Scheduled', $6, $7, $8, '{"scores": {}, "periodLabel": "1st Period", "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb)`,
+               VALUES ($1, $2, $3, $4, $5, 'Scheduled', $6, $7, $8, '{"scores": {}, "sinBins": [], "periodLabel": "1st Period", "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb)`,
                [id, game.eventId, game.sportId, game.startTime, game.scheduledStartTime || game.startTime, game.siteId, game.facilityId, game.customSettings || {}]
           );
 
@@ -169,7 +169,7 @@ export class EventManager extends BaseManager {
                   start_time = COALESCE(scheduled_start_time, start_time),
                   scheduled_start_time = NULL,
                   final_score_data = NULL, 
-                  live_state = '{"scores": {}, "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb, 
+                  live_state = '{"scores": {}, "sinBins": [], "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb, 
                   finish_time = NULL, 
                   updated_at = NOW() 
               WHERE id = $1

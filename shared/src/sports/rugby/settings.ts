@@ -27,7 +27,10 @@ const settings: SportTemplate = {
       { id: "13", name: "Outside Center" },
       { id: "14", name: "Right Wing" },
       { id: "15", name: "Full-back" }
-    ]
+    ],
+    yellowCardDurationMS: 600000, // 10 minutes
+    redCardDurationMS: 0, // Permanent
+    isRedCardPermanent: true
   }
 };
 

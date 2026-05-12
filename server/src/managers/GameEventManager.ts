@@ -175,6 +175,56 @@ export class GameEventManager extends BaseManager {
       }
     }
     
+    // 5. Trigger live_state mutation for cards (Sin Bin)
+    if (data.subType === 'yellow_card' || data.subType === 'red_card') {
+      const sportId = await this.getGameSportId(data.gameId);
+      const sport = sportId ? await sportManager.getSport(sportId) : null;
+      
+      // Fetch game to get custom settings and current state
+      const gameRes = await this.query(`
+        SELECT live_state->'clock' as clock, 
+               custom_settings as "customSettings",
+               (SELECT team_id FROM game_participants WHERE id = $1) as "teamId"
+        FROM games WHERE id = $2
+      `, [data.gameParticipantId, data.gameId]);
+
+      if (gameRes.rows.length > 0) {
+        const customSettings = gameRes.rows[0].customSettings || {};
+        const defaultSettings = sport?.defaultSettings || {};
+        const settings = { ...defaultSettings, ...customSettings };
+        
+        const type = data.subType === 'yellow_card' ? 'yellow' : 'red';
+        const durationMS = type === 'yellow' ? (settings.yellowCardDurationMS || 600000) : (settings.redCardDurationMS || 0);
+        const isPermanent = type === 'red' && (settings.isRedCardPermanent ?? true);
+
+        const clock = gameRes.rows[0].clock;
+        const teamId = gameRes.rows[0].teamId;
+        // Use elapsedMS from eventData if available (captured on client), otherwise fallback to DB clock
+        const awardedAtMS = data.eventData?.elapsedMS ?? clock?.elapsedMS ?? 0;
+
+        const sinBinEntry = {
+          id: newEvent.id,
+          playerId: data.gameParticipantId,
+          teamId: teamId,
+          awardedAtMS: awardedAtMS,
+          durationMS: isPermanent ? 0 : durationMS,
+          type: type,
+          reason: data.eventData?.reason
+        };
+
+        await this.query(`
+          UPDATE games 
+          SET live_state = jsonb_set(
+            live_state, 
+            '{sinBins}', 
+            COALESCE(live_state->'sinBins', '[]'::jsonb) || $1::jsonb
+          ),
+          updated_at = NOW()
+          WHERE id = $2
+        `, [JSON.stringify(sinBinEntry), data.gameId]);
+      }
+    }
+    
     // Broadcast via socket occurs in the route/controller layer after this manager returns.
     
     return newEvent;
@@ -857,6 +907,24 @@ export class GameEventManager extends BaseManager {
                WHERE id = $1
             `, [eventId]);
             console.log(`[Mutation Engine] Event ${eventId} marked as REMOVED in DB`);
+
+            // If it's a card event, remove from live_state.sinBins
+            if (evt.subType === 'yellow_card' || evt.subType === 'red_card') {
+              await this.query(`
+                UPDATE games 
+                SET live_state = jsonb_set(
+                  live_state, 
+                  '{sinBins}', 
+                  COALESCE((
+                    SELECT jsonb_agg(elem)
+                    FROM jsonb_array_elements(live_state->'sinBins') AS elem
+                    WHERE elem->>'id' != $1
+                  ), '[]'::jsonb)
+                ),
+                updated_at = NOW()
+                WHERE id = $2
+              `, [eventId, gameId]);
+            }
         }
     } else {
         console.log(`[Mutation Engine] Updating event: ${eventId}`);

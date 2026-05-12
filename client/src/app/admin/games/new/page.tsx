@@ -33,6 +33,10 @@ export default function NewGamePage() {
         throw new Error("Missing required fields");
       }
 
+      const yellowCardMin = parseInt(formData.get("yellowCardDurationMS") as string) || 10;
+      const redCardMin = parseInt(formData.get("redCardDurationMS") as string) || 0;
+      const isRedCardPermanent = formData.get("isRedCardPermanent") === "on";
+
       await store.addGame({
         eventId: "event-1", // Simplified for MVP
         sportId: "rugby",
@@ -42,6 +46,11 @@ export default function NewGamePage() {
         ],
         siteId,
         startTime: `${date}T${time}`,
+        customSettings: {
+          yellowCardDurationMS: yellowCardMin * 60000,
+          redCardDurationMS: redCardMin * 60000,
+          isRedCardPermanent
+        }
       });
       router.push("/admin");
     } catch (e) {
@@ -108,6 +117,26 @@ export default function NewGamePage() {
                 <label htmlFor="time" className="text-sm font-medium">Time</label>
                 <Input id="time" name="time" type="time" required />
               </div>
+            </div>
+
+            <div className="pt-4 border-t space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Sport Specific Settings</h3>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label htmlFor="yellowCardDurationMS" className="text-xs font-bold uppercase tracking-tight">Yellow Card (min)</label>
+                        <Input id="yellowCardDurationMS" name="yellowCardDurationMS" type="number" defaultValue="10" />
+                    </div>
+                    <div className="space-y-2">
+                        <label htmlFor="redCardDurationMS" className="text-xs font-bold uppercase tracking-tight">Red Card (min)</label>
+                        <div className="flex gap-2">
+                            <Input id="redCardDurationMS" name="redCardDurationMS" type="number" defaultValue="0" className="flex-1" />
+                            <div className="flex items-center gap-2 border rounded-md px-3 bg-muted/20">
+                                <input type="checkbox" id="isRedCardPermanent" name="isRedCardPermanent" defaultChecked className="w-4 h-4" />
+                                <label htmlFor="isRedCardPermanent" className="text-[10px] uppercase font-black whitespace-nowrap">Permanent</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-4">

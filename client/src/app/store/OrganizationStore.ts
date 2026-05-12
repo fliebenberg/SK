@@ -180,6 +180,7 @@ export class OrganizationStore extends SubscriptionStore {
     // --- Getters ---
     getOrganizations = () => this.organizations;
     getOrganization = (id?: string) => id ? this.organizations.find(o => o.id === id) : this.organizations[0];
+    getOrgProfile = (id: string) => this.orgProfiles.find(p => p.id === id);
 
     // --- Helpers ---
     protected mergeOrganization(org: Organization, notify = true) {
