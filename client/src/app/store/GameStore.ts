@@ -617,6 +617,17 @@ export class GameStore extends SiteStore {
         });
     }
 
+    removeSinBin(gameId: string, sinBinId: string) {
+        return new Promise<void>((resolve) => {
+            socket.emit('action', { 
+                type: SocketAction.REMOVE_SIN_BIN, 
+                payload: { gameId, sinBinId } 
+            }, () => {
+                resolve();
+            });
+        });
+    }
+
     // --- Getters ---
     getEvents = (orgId?: string) => orgId 
         ? this.events.filter(e => e.orgId === orgId || e.participatingOrgIds?.includes(orgId)) 

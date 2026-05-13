@@ -34,8 +34,8 @@ export default function NewGamePage() {
       }
 
       const yellowCardMin = parseInt(formData.get("yellowCardDurationMS") as string) || 10;
-      const redCardMin = parseInt(formData.get("redCardDurationMS") as string) || 0;
-      const isRedCardPermanent = formData.get("isRedCardPermanent") === "on";
+      const redCardMin = parseInt(formData.get("redCardDurationMS") as string) || 20;
+      const allowTimedRedCard = formData.get("allowTimedRedCard") === "on";
 
       await store.addGame({
         eventId: "event-1", // Simplified for MVP
@@ -49,7 +49,7 @@ export default function NewGamePage() {
         customSettings: {
           yellowCardDurationMS: yellowCardMin * 60000,
           redCardDurationMS: redCardMin * 60000,
-          isRedCardPermanent
+          allowTimedRedCard
         }
       });
       router.push("/admin");
@@ -127,12 +127,12 @@ export default function NewGamePage() {
                         <Input id="yellowCardDurationMS" name="yellowCardDurationMS" type="number" defaultValue="10" />
                     </div>
                     <div className="space-y-2">
-                        <label htmlFor="redCardDurationMS" className="text-xs font-bold uppercase tracking-tight">Red Card (min)</label>
+                        <label htmlFor="redCardDurationMS" className="text-xs font-bold uppercase tracking-tight">Timed Red Card (min)</label>
                         <div className="flex gap-2">
-                            <Input id="redCardDurationMS" name="redCardDurationMS" type="number" defaultValue="0" className="flex-1" />
+                            <Input id="redCardDurationMS" name="redCardDurationMS" type="number" defaultValue="20" className="flex-1" />
                             <div className="flex items-center gap-2 border rounded-md px-3 bg-muted/20">
-                                <input type="checkbox" id="isRedCardPermanent" name="isRedCardPermanent" defaultChecked className="w-4 h-4" />
-                                <label htmlFor="isRedCardPermanent" className="text-[10px] uppercase font-black whitespace-nowrap">Permanent</label>
+                                <input type="checkbox" id="allowTimedRedCard" name="allowTimedRedCard" className="w-4 h-4" />
+                                <label htmlFor="allowTimedRedCard" className="text-[10px] uppercase font-black whitespace-nowrap">Allow Timed</label>
                             </div>
                         </div>
                     </div>

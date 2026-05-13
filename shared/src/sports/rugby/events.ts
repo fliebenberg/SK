@@ -435,6 +435,35 @@ export const RUGBY_EVENTS: EventTemplate[] = [
       }
     ]
   },
+  {
+    id: "timed_red_card",
+    name: "Timed Red Card",
+    section: "Game Events",
+    icon: "Clock",
+    displayPattern: "{name}",
+    steps: [
+      {
+        type: ActionStepType.GROUP,
+        name: "Details",
+        steps: [
+          { type: ActionStepType.PLAYER_SELECTION },
+          {
+            type: ActionStepType.REASON_SELECTION,
+            reasons: [
+              {
+                name: "Serious Foul Play (Timed)",
+                options: [
+                  { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
+                  { id: "tip_tackle", name: "Tip Tackle" },
+                  { id: "other", name: "Other" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
   // --- General Play ---
   {
     id: "knock_on",

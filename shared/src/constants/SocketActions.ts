@@ -351,4 +351,9 @@ export enum SocketAction {
      * Expects payload: {}
      */
     GET_SYSTEM_SETTINGS = 'GET_SYSTEM_SETTINGS',
+    /**
+     * Action to remove a specific sin bin entry from a game.
+     * Expects payload: { gameId: string, sinBinId: string }
+     */
+    REMOVE_SIN_BIN = 'REMOVE_SIN_BIN',
 }

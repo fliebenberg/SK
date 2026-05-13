@@ -176,7 +176,7 @@ export class GameEventManager extends BaseManager {
     }
     
     // 5. Trigger live_state mutation for cards (Sin Bin)
-    if (data.subType === 'yellow_card' || data.subType === 'red_card') {
+    if (data.subType === 'yellow_card' || data.subType === 'red_card' || data.subType === 'timed_red_card') {
       const sportId = await this.getGameSportId(data.gameId);
       const sport = sportId ? await sportManager.getSport(sportId) : null;
       
@@ -193,9 +193,17 @@ export class GameEventManager extends BaseManager {
         const defaultSettings = sport?.defaultSettings || {};
         const settings = { ...defaultSettings, ...customSettings };
         
-        const type = data.subType === 'yellow_card' ? 'yellow' : 'red';
-        const durationMS = type === 'yellow' ? (settings.yellowCardDurationMS || 600000) : (settings.redCardDurationMS || 0);
-        const isPermanent = type === 'red' && (settings.isRedCardPermanent ?? true);
+        const type = (data.subType === 'yellow_card') ? 'yellow' : 'red';
+        const isYellow = type === 'yellow';
+        
+        // Yellow cards are always timed. 
+        // Red cards are timed ONLY if the match allows it AND the specific subType is 'timed_red_card'.
+        const isTimedRed = type === 'red' && data.subType === 'timed_red_card' && (settings.allowTimedRedCard);
+        const isPermanent = type === 'red' && !isTimedRed;
+
+        const durationMS = isYellow 
+            ? (settings.yellowCardDurationMS || 600000) 
+            : (settings.redCardDurationMS || 1200000); // Default 20 mins for timed red if not specified
 
         const clock = gameRes.rows[0].clock;
         const teamId = gameRes.rows[0].teamId;
@@ -1214,6 +1222,31 @@ export class GameEventManager extends BaseManager {
         console.error(`[Direct Undo Error] Failed to undo event:`, err);
         return { success: false, error: err.message };
     }
+  }
+  /**
+   * Removes a specific sin bin entry from a game's live state.
+   */
+  async removeSinBin(gameId: string, sinBinId: string): Promise<boolean> {
+    const res = await this.query(`
+      UPDATE games 
+      SET live_state = (
+        SELECT jsonb_set(
+          live_state, 
+          '{sinBins}', 
+          COALESCE((
+            SELECT jsonb_agg(elem)
+            FROM jsonb_array_elements(live_state->'sinBins') AS elem
+            WHERE elem->>'id' != $1
+          ), '[]'::jsonb)
+        )
+        FROM games WHERE id = $2
+      ),
+      updated_at = NOW()
+      WHERE id = $2
+      RETURNING live_state
+    `, [sinBinId, gameId]);
+
+    return (res.rowCount ?? 0) > 0;
   }
 }
 

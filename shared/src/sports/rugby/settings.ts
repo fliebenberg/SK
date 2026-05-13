@@ -29,8 +29,8 @@ const settings: SportTemplate = {
       { id: "15", name: "Full-back" }
     ],
     yellowCardDurationMS: 600000, // 10 minutes
-    redCardDurationMS: 0, // Permanent
-    isRedCardPermanent: true
+    redCardDurationMS: 1200000,   // 20 minutes (if allowed)
+    allowTimedRedCard: false      // Default to standard permanent red card
   }
 };
 

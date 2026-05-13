@@ -600,6 +600,16 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
+            case SocketAction.REMOVE_SIN_BIN:
+                const removed = await gameEventManager.removeSinBin(action.payload.gameId, action.payload.sinBinId);
+                if (removed) {
+                    const updatedGame = await dataManager.getGame(action.payload.gameId);
+                    if (updatedGame) {
+                        io.to(`game:${action.payload.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                        io.to(`game:${action.payload.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
+                    }
+                }
+                break;
             case SocketAction.RESET_GAME:
                 await dataManager.resetGame(action.payload.id);
                 // Also clear all game events (redundant if EventManager does it, but safe)

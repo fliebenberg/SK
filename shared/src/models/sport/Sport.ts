@@ -7,7 +7,7 @@ export interface SportSettings {
   periods?: number;
   yellowCardDurationMS?: number;
   redCardDurationMS?: number;
-  isRedCardPermanent?: boolean;
+  allowTimedRedCard?: boolean;
 }
 
 export enum SportParticipantType {

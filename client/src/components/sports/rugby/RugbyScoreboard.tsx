@@ -5,6 +5,7 @@ import { OrgLogo } from '@/components/ui/OrgLogo';
 import { cn } from '@/lib/utils';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import { getPeriodLabel } from '@sk/types';
+import { X } from 'lucide-react';
 
 export default function RugbyScoreboard({ game, role }: { game: Game, role?: string }) {
     const sport = game.sportId ? store.getSport(game.sportId) : null;
@@ -153,20 +154,36 @@ export default function RugbyScoreboard({ game, role }: { game: Game, role?: str
                     {/* Home Sin Bins */}
                     <div className="flex flex-wrap gap-1.5 justify-start flex-1 max-w-[45%]">
                         {homeSinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0).length > 0 && (
-                            <PermanentRedCardGroup cards={homeSinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0)} />
+                            <PermanentRedCardGroup 
+                                cards={homeSinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0)} 
+                                gameId={game.id}
+                            />
                         )}
                         {homeSinBins.filter(sb => sb.type === 'yellow' || (sb.type === 'red' && sb.durationMS > 0)).map(sb => (
-                            <SinBinIndicator key={sb.id} sinBin={sb} currentMS={currentMS} />
+                            <SinBinIndicator 
+                                key={sb.id} 
+                                sinBin={sb} 
+                                currentMS={currentMS} 
+                                gameId={game.id}
+                            />
                         ))}
                     </div>
 
                     {/* Away Sin Bins */}
                     <div className="flex flex-wrap gap-1.5 justify-end flex-1 max-w-[45%]">
                         {awaySinBins.filter(sb => sb.type === 'yellow' || (sb.type === 'red' && sb.durationMS > 0)).map(sb => (
-                            <SinBinIndicator key={sb.id} sinBin={sb} currentMS={currentMS} />
+                            <SinBinIndicator 
+                                key={sb.id} 
+                                sinBin={sb} 
+                                currentMS={currentMS} 
+                                gameId={game.id}
+                            />
                         ))}
                         {awaySinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0).length > 0 && (
-                            <PermanentRedCardGroup cards={awaySinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0)} />
+                            <PermanentRedCardGroup 
+                                cards={awaySinBins.filter(sb => sb.type === 'red' && sb.durationMS === 0)} 
+                                gameId={game.id}
+                            />
                         )}
                     </div>
                 </div>
@@ -179,21 +196,18 @@ export default function RugbyScoreboard({ game, role }: { game: Game, role?: str
     );
 }
 
-function PermanentRedCardGroup({ cards }: { cards: SinBin[] }) {
+function PermanentRedCardGroup({ cards, gameId }: { cards: SinBin[], gameId: string }) {
     const hoverText = cards.map(sb => {
-        const profile = store.getOrgProfile(sb.playerId);
-        const name = profile ? (profile.shortName || profile.name) : 'Unknown Player';
-        const reason = sb.reason ? sb.reason.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
-        return `${name}${reason ? ` (${reason})` : ''}`;
-    }).join('\n');
+        const profile = sb.playerId ? store.getOrgProfile(sb.playerId) : null;
+        if (!profile) return null;
+        return profile.shortName || profile.name;
+    }).filter(Boolean).join('\n');
 
     return (
         <div 
-            title={hoverText}
-            className={cn(
-                "flex items-center justify-center bg-[#FF0000] text-white border border-red-800 rounded-sm shadow-md cursor-help h-[clamp(24px,3cqw,48px)] transition-all",
-                cards.length > 1 ? "px-1 w-auto min-w-[clamp(12px,1.5cqw,24px)]" : "w-[clamp(12px,1.5cqw,24px)]"
-            )}
+            title={hoverText || undefined}
+            className="group relative flex items-center justify-center bg-[#FF0000] text-white border border-red-800 rounded-sm shadow-md cursor-help h-[clamp(24px,3cqw,48px)] transition-all overflow-hidden"
+            style={{ width: cards.length > 1 ? 'auto' : 'clamp(12px,1.5cqw,24px)', paddingLeft: cards.length > 1 ? '4px' : '0', paddingRight: cards.length > 1 ? '4px' : '0' }}
         >
             {cards.length > 1 && (
                 <span className="text-[10px] sm:text-xs font-black drop-shadow-sm">{cards.length}</span>
@@ -202,9 +216,15 @@ function PermanentRedCardGroup({ cards }: { cards: SinBin[] }) {
     );
 }
 
-function SinBinIndicator({ sinBin, currentMS }: { sinBin: SinBin, currentMS: number }) {
+function SinBinIndicator({ sinBin, currentMS, gameId }: { sinBin: SinBin, currentMS: number, gameId: string }) {
+    const [pendingClear, setPendingClear] = useState(false);
+    
     const remainingMS = sinBin.durationMS === 0 ? 0 : Math.max(0, sinBin.durationMS - (currentMS - sinBin.awardedAtMS));
     const isPermanent = sinBin.durationMS === 0;
+    const isExpired = !isPermanent && remainingMS === 0;
+    
+    // Only allow clearing for expired timed cards
+    const canClear = isExpired && store.canScoreGame(gameId);
     
     // Format remainingMS to MM:SS
     const totalSeconds = Math.floor(remainingMS / 1000);
@@ -212,24 +232,72 @@ function SinBinIndicator({ sinBin, currentMS }: { sinBin: SinBin, currentMS: num
     const seconds = totalSeconds % 60;
     const formattedRemaining = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-    const playerProfile = store.getOrgProfile(sinBin.playerId);
-    const playerName = playerProfile ? (playerProfile.shortName || playerProfile.name) : 'Unknown Player';
-    const reason = sinBin.reason ? sinBin.reason.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
-    const hoverText = `${playerName}${reason ? ` - ${reason}` : ''}`;
+    const playerProfile = sinBin.playerId ? store.getOrgProfile(sinBin.playerId) : null;
+    const playerName = playerProfile ? (playerProfile.shortName || playerProfile.name) : '';
+    
+    const hoverParts = [];
+    if (playerName) hoverParts.push(playerName);
+    if (isExpired) hoverParts.push('TIME EXPIRED');
+    const hoverText = hoverParts.join(' - ');
 
-    if (!isPermanent && remainingMS === 0) return null;
+    const handleClearInitiate = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setPendingClear(true);
+    };
+
+    const handleClearConfirm = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        store.removeSinBin(gameId, sinBin.id);
+        setPendingClear(false);
+    };
+
+    const isTimeBased = !isPermanent;
 
     return (
         <div 
-            title={hoverText}
+            title={hoverText || undefined}
+            onMouseLeave={() => setPendingClear(false)}
             className={cn(
-                "flex items-center justify-center rounded-sm text-[10px] sm:text-xs font-bold leading-none shadow-md transition-all cursor-help",
+                "group relative flex items-center justify-center rounded-sm text-[10px] sm:text-xs font-bold leading-none shadow-md transition-all cursor-help overflow-hidden",
+                isTimeBased 
+                    ? "px-2 py-1 min-w-[32px] sm:min-w-[40px] h-auto" 
+                    : "w-[clamp(12px,1.5cqw,24px)] h-[clamp(24px,3cqw,48px)]",
                 sinBin.type === 'yellow' 
-                    ? "bg-[#FFD700] text-black border border-yellow-600 px-2 py-1 min-w-[32px] sm:min-w-[40px]" 
-                    : "bg-[#FF0000] text-white border border-red-800 w-[clamp(12px,1.5cqw,24px)] h-[clamp(24px,3cqw,48px)]"
+                    ? "bg-[#FFD700] text-black border border-yellow-600" 
+                    : "bg-[#FF0000] text-white border border-red-800",
+                isExpired && "animate-pulse brightness-110 shadow-[0_0_10px_rgba(255,215,0,0.5)]"
             )}
         >
-            <span className="font-mono">{isPermanent ? "" : formattedRemaining}</span>
+            <span className={cn(
+                "font-mono",
+                isExpired && (sinBin.type === 'yellow' ? "text-red-700 font-black" : "text-amber-200")
+            )}>
+                {isTimeBased ? formattedRemaining : ""}
+            </span>
+            {canClear && (
+                <div className={cn(
+                    "absolute inset-0 z-10 flex items-center justify-center transition-opacity",
+                    pendingClear ? "opacity-100 bg-red-900" : "opacity-0 group-hover:opacity-100 bg-black/60"
+                )}>
+                    {pendingClear ? (
+                        <button 
+                            onClick={handleClearConfirm}
+                            className="w-full h-full text-[8px] font-black uppercase leading-none px-0.5 text-white animate-pulse"
+                        >
+                            CLEAR?
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={handleClearInitiate}
+                            className="w-full h-full flex items-center justify-center cursor-pointer"
+                        >
+                            <X size={12} className="text-white" />
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

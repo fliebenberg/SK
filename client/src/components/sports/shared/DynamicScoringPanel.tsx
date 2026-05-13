@@ -10,7 +10,11 @@ export function DynamicScoringPanel({ section }: { section: string }) {
     // Consume the context provided by the parent (GameDashboard)
     const { scoringState, templates, startDynamicFlow, game } = useSharedDynamicScoring();
 
-    const relevantTemplates = templates.filter((t) => t.section === section);
+    const allowTimedRedCard = game.customSettings?.allowTimedRedCard ?? false;
+    const relevantTemplates = templates.filter((t) => {
+        if (t.id === 'timed_red_card' && !allowTimedRedCard) return false;
+        return t.section === section;
+    });
     const isScoringDisabled = game.status === 'Scheduled';
 
     const renderButtons = (side: 'home' | 'away') => {
