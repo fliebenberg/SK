@@ -13,12 +13,21 @@ export function OutcomeSelectionStep({
     const { scoringState, nextDynamicStep } = useSharedDynamicScoring();
 
     const handleSelectOutcome = (outcome: any) => {
-        onComplete({
-            outcome: outcome.id,
-            ...(outcome.points !== undefined ? { pointsDelta: outcome.points } : {}),
-            ...(outcome.triggerEventId ? { triggerEventId: outcome.triggerEventId } : {}),
-            ...(outcome.eventData || {}),
-        });
+        const isSelected = scoringState.collectedData?.outcome === outcome.id;
+        if (isSelected) {
+            onComplete({
+                outcome: undefined,
+                pointsDelta: 0,
+                triggerEventId: undefined
+            });
+        } else {
+            onComplete({
+                outcome: outcome.id,
+                ...(outcome.points !== undefined ? { pointsDelta: outcome.points } : {}),
+                ...(outcome.triggerEventId ? { triggerEventId: outcome.triggerEventId } : {}),
+                ...(outcome.eventData || {}),
+            });
+        }
     };
 
     return (

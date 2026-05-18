@@ -37,11 +37,11 @@ export const RUGBY_EVENTS: EventTemplate[] = [
     icon: "Target",
     points: 2,
     displayPattern: "{name} → {outcome}",
+    pendingOutcomeLabel: "Pending",
     disputeConfig: {
       type: TemplateDisputeType.CHANGE_OUTCOME,
       heading: "Change Conversion Outcome",
-      impactsPoints: true,
-      allowUndo: false
+      impactsPoints: true
     },
     steps: [
       {

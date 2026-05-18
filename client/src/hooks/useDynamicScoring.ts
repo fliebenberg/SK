@@ -229,6 +229,10 @@ export function useDynamicScoring(game: Game) {
                 return;
             }
         } else {
+            const hasOutcomeSelection = template.steps
+                .flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s])
+                .some(s => s.type === ActionStepType.OUTCOME_SELECTION);
+
             // NEW EVENT: Full payload
             const actorId = finalData.playerId;
             const eventDataPayload = {
@@ -236,7 +240,7 @@ export function useDynamicScoring(game: Game) {
                 elapsedMS: currentMS,
                 period: periodLabel,
                 ...(template.eventData || {}),
-                ...(template.section === 'Scoring' ? { pointsDelta: template.points } : {}),
+                ...(template.section === 'Scoring' ? { pointsDelta: hasOutcomeSelection ? 0 : template.points } : {}),
                 ...finalData
             };
 

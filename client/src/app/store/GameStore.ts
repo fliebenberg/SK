@@ -538,6 +538,7 @@ export class GameStore extends SiteStore {
         if (liveInfo) {
             payload.eventData = {
                 elapsedMS: liveInfo.elapsedMS,
+                totalActualElapsedMS: liveInfo.totalActualElapsedMS,
                 period: liveInfo.period,
                 ...payload.eventData
             };
@@ -593,15 +594,19 @@ export class GameStore extends SiteStore {
         const periodLabel = game.liveState.periodLabel || '1st Period';
         
         let elapsedMS = clock.elapsedMS || 0;
+        let totalActualElapsedMS = clock.totalActualElapsedMS || 0;
         
         if (clock.isRunning && clock.lastStartedAt) {
             const startedAtMS = new Date(clock.lastStartedAt).getTime();
             const nowMS = Date.now();
-            elapsedMS += (nowMS - startedAtMS);
+            const delta = (nowMS - startedAtMS);
+            elapsedMS += delta;
+            totalActualElapsedMS += delta;
         }
         
         return {
             elapsedMS,
+            totalActualElapsedMS,
             period: periodLabel
         };
     }

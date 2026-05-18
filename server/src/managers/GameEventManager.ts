@@ -207,8 +207,8 @@ export class GameEventManager extends BaseManager {
 
         const clock = gameRes.rows[0].clock;
         const teamId = gameRes.rows[0].teamId;
-        // Use elapsedMS from eventData if available (captured on client), otherwise fallback to DB clock
-        const awardedAtMS = data.eventData?.elapsedMS ?? clock?.elapsedMS ?? 0;
+        // Use totalActualElapsedMS from eventData if available, otherwise fallback to DB clock totalActualElapsedMS
+        const awardedAtMS = data.eventData?.totalActualElapsedMS ?? clock?.totalActualElapsedMS ?? 0;
 
         const sinBinEntry = {
           id: newEvent.id,
@@ -851,7 +851,12 @@ export class GameEventManager extends BaseManager {
                           
                           this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
                           
-                          if (scoresChanged) {
+                          const hasCardChanges = allModified.some(me => 
+                              me.subType === 'yellow_card' || me.subType === 'red_card' || me.subType === 'timed_red_card'
+                          );
+                          const liveStateChanged = scoresChanged || hasCardChanges;
+
+                          if (liveStateChanged) {
                               const updatedGame = await dataManager.getGame(dispute.gameId);
                               if (updatedGame) {
                                   this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
@@ -917,7 +922,7 @@ export class GameEventManager extends BaseManager {
             console.log(`[Mutation Engine] Event ${eventId} marked as REMOVED in DB`);
 
             // If it's a card event, remove from live_state.sinBins
-            if (evt.subType === 'yellow_card' || evt.subType === 'red_card') {
+            if (evt.subType === 'yellow_card' || evt.subType === 'red_card' || evt.subType === 'timed_red_card') {
               await this.query(`
                 UPDATE games 
                 SET live_state = jsonb_set(
@@ -1207,8 +1212,12 @@ export class GameEventManager extends BaseManager {
                 }
                 console.log(`[Undo Broadcast] Emitting GAME_EVENTS_BATCH_UPDATED for ${allModified.length} events`);
                 this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
+                const hasCardChanges = allModified.some(me => 
+                    me.subType === 'yellow_card' || me.subType === 'red_card' || me.subType === 'timed_red_card'
+                );
+                const liveStateChanged = scoresChanged || hasCardChanges;
                 
-                if (scoresChanged) {
+                if (liveStateChanged) {
                     const updatedGame = await dataManager.getGame(gameId);
                     if (updatedGame) {
                         this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });

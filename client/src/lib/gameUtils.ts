@@ -34,7 +34,7 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
     let error = "";
 
     if (template) {
-        label = template.displayPattern || (eventData.outcome ? "{name} → {outcome}" : "{name}");
+        label = template.displayPattern || ((eventData.outcome || template.pendingOutcomeLabel) ? "{name} → {outcome}" : "{name}");
         
         // Resolve Outcome
         let outcome = eventData.outcome;
@@ -50,6 +50,10 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
             outcome = template.outcomeOverrides[outcome];
         } else if (outcomeObj) {
             outcome = outcomeObj.name;
+        }
+
+        if (!outcome && template.pendingOutcomeLabel) {
+            outcome = template.pendingOutcomeLabel;
         }
 
         // Resolve Reason

@@ -98,6 +98,7 @@ export function useGameTimer(clock?: GameClockState, startTime?: string, finish_
         formattedActualTime,
         formattedTotalDuration,
         isRunning: clock?.isRunning ?? lastClockRef.current?.isRunning ?? false,
-        currentMS: clock ? (clock.elapsedMS + (clock.isRunning && clock.lastStartedAt ? Date.now() - new Date(clock.lastStartedAt).getTime() : 0)) : 0
+        currentMS: clock ? (clock.elapsedMS + (clock.isRunning && clock.lastStartedAt ? Date.now() - new Date(clock.lastStartedAt).getTime() : 0)) : 0,
+        currentActualMS: clock ? ((clock.totalActualElapsedMS ?? clock.elapsedMS) + (clock.isRunning && clock.lastStartedAt ? Date.now() - new Date(clock.lastStartedAt).getTime() : 0)) : 0
     };
 }

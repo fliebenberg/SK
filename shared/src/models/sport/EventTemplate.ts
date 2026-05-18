@@ -87,6 +87,7 @@ export interface EventTemplate {
   mobileLabel?: string;
   points?: number;
   displayPattern?: string; // e.g. "{name} -> {outcome|AWARDED}"
+  pendingOutcomeLabel?: string;
   outcomeOverrides?: Record<string, string>; // e.g. { "Penalty Kick": "KICK" }
   steps: ActionStep[];
   triggerEventId?: string;

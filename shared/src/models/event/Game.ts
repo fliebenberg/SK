@@ -15,7 +15,7 @@ export interface SinBin {
   id: string; // matches the game_event_id
   playerId: string;
   teamId: string;
-  awardedAtMS: number; // game.liveState.clock.elapsedMS at time of award
+  awardedAtMS: number; // game.liveState.clock.totalActualElapsedMS at time of award
   durationMS: number;
   type: 'yellow' | 'red';
   reason?: string;
