@@ -38,6 +38,7 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
         
         // Resolve Outcome
         let outcome = eventData.outcome;
+        const isPending = outcome === undefined || outcome === null;
         const outcomeStep = template.steps
             .flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s])
             .find(s => s.type === ActionStepType.OUTCOME_SELECTION);
@@ -52,7 +53,7 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
             outcome = outcomeObj.name;
         }
 
-        if (!outcome && template.pendingOutcomeLabel) {
+        if (isPending && template.pendingOutcomeLabel) {
             outcome = template.pendingOutcomeLabel;
         }
 

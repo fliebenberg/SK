@@ -19,11 +19,23 @@ import { DynamicScoringDialog } from './shared/DynamicScoringDialog';
 import RugbyGameStats from './rugby/RugbyGameStats';
 
 const DynamicScoringDialogRenderer = () => {
-    const { scoringState, pendingDispute, resolveDispute, confirmRemoval } = useSharedDynamicScoring();
+    const { scoringState, pendingDispute, resolveDispute, confirmRemoval, confirmCancel, cancelDiscard } = useSharedDynamicScoring();
     
     return (
         <>
             {scoringState.status === 'ACTIVE' && <DynamicScoringDialog />}
+            {scoringState.showCancelConfirmation && (
+                <ConfirmationModal 
+                    isOpen={true}
+                    onOpenChange={(open) => { if(!open) cancelDiscard(); }}
+                    title="Discard Event?"
+                    description="You have unsaved changes. Are you sure you want to discard this event?"
+                    confirmText="Discard Event"
+                    cancelText="Continue Editing"
+                    onConfirm={() => confirmCancel()}
+                    variant="destructive"
+                />
+            )}
             {scoringState.status === 'CONFIRM_REMOVAL' && (
                 <ConfirmationModal 
                     isOpen={true}

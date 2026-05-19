@@ -947,7 +947,7 @@ export class GameEventManager extends BaseManager {
         const newOutcomeName = updateData.newOutcome || updateData.eventData?.outcome;
         if (template && newOutcomeName && newOutcomeName !== evt.eventData?.outcome) {
             const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
-            const newOutcome = outcomeStep?.outcomes?.find((o: Outcome) => o.name === newOutcomeName);
+            const newOutcome = outcomeStep?.outcomes?.find((o: Outcome) => o.id === newOutcomeName);
             if (newOutcome) {
                 finalEventData = {
                     ...finalEventData,
@@ -1008,12 +1008,15 @@ export class GameEventManager extends BaseManager {
     `, [gameId, eventId]);
 
     for (const childRow of childRes.rows) {
-        let childMutationData = updateData; // Default: propagate same update/undo
+        let childMutationData = updateData ? {
+            ...updateData,
+            eventData: {} // Do not propagate parent-specific eventData changes to children
+        } : null;
 
         // SPECIAL CASE: If parent changed to an outcome that doesn't trigger the child, remove the child
         if (updateData && template && finalizedEvt.eventData?.outcome) {
              const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
-             const outcomeDef = outcomeStep?.outcomes?.find((o: Outcome) => o.name === finalizedEvt.eventData.outcome);
+             const outcomeDef = outcomeStep?.outcomes?.find((o: Outcome) => o.id === finalizedEvt.eventData.outcome);
              
              // Fetch child to see its type
              const childEvtRes = await this.query(`SELECT sub_type FROM game_events WHERE id = $1`, [childRow.id]);

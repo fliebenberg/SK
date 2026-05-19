@@ -13,6 +13,7 @@ export interface DynamicScoringState {
     editingId?: string;
     eventIdToRemove?: string;
     typeToRemove?: string;
+    showCancelConfirmation?: boolean;
 }
 
 export function useDynamicScoring(game: Game) {
@@ -91,6 +92,14 @@ export function useDynamicScoring(game: Game) {
         setScoringState({ status: 'IDLE' });
     };
 
+    const confirmCancel = () => {
+        setScoringState({ status: 'IDLE' });
+    };
+
+    const cancelDiscard = () => {
+        setScoringState(prev => ({ ...prev, showCancelConfirmation: false }));
+    };
+
     const cancelWorkflow = async () => {
         if (scoringState.status === 'ACTIVE' && !scoringState.editingId && activeTemplate?.disputeConfig?.allowUndo === false) {
             const flatSteps = activeTemplate.steps.flatMap(s => s.type === ActionStepType.GROUP ? (s.steps || []) : [s]);
@@ -102,6 +111,17 @@ export function useDynamicScoring(game: Game) {
                 return;
             }
         }
+        
+        // Unsaved changes check
+        const hasUnsavedChanges = !scoringState.editingId && Object.keys(scoringState.collectedData || {}).some(key => 
+            !['linkedEventId', 'triggerEventId', 'initialStepType'].includes(key)
+        );
+        
+        if (hasUnsavedChanges) {
+            setScoringState(prev => ({ ...prev, showCancelConfirmation: true }));
+            return;
+        }
+        
         cancelDynamicFlow();
     };
 
@@ -210,7 +230,7 @@ export function useDynamicScoring(game: Game) {
             const type = isScoring ? 'SCORE' : (original.type || 'GAME_EVENT');
             const subType = original.subType || template.name;
 
-            if (isScoring && !isEventInUndoWindow(scoringState.editingId)) {
+            if (isScoring && !isEventInUndoWindow(scoringState.editingId) && originalData.outcome) {
                 // Only trigger dispute if scoring outcome or points actually changed
                 const pointsChanged = eventDataChanges.pointsDelta !== undefined;
                 const outcomeChanged = eventDataChanges.outcome !== undefined;
@@ -292,11 +312,25 @@ export function useDynamicScoring(game: Game) {
             }
         }
 
+        let startStepIndex = 0;
+        if (initialData.initialStepType) {
+            const idx = template.steps.findIndex(step => {
+                if (step.type === initialData.initialStepType) return true;
+                if (step.type === ActionStepType.GROUP && step.steps) {
+                    return step.steps.some(s => s.type === initialData.initialStepType);
+                }
+                return false;
+            });
+            if (idx !== -1) {
+                startStepIndex = idx;
+            }
+        }
+
         setScoringState({
             status: 'ACTIVE',
             activeTemplateId: template.id,
             side,
-            stepIndex: 0,
+            stepIndex: startStepIndex,
             collectedData: { ...initialData },
             editingId: initialData.eventId // If coming from manual flow
         });
@@ -573,6 +607,8 @@ export function useDynamicScoring(game: Game) {
         pendingDispute,
         resolveDispute,
         saveChanges,
-        confirmRemoval
+        confirmRemoval,
+        confirmCancel,
+        cancelDiscard
     };
 }
