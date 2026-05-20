@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleProp, ViewStyle, Platform, View, StyleSheet } from 'react-native';
 import { XStack, Text, useTheme } from 'tamagui';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 
 export interface MetalButtonProps {
   metalVariant?: 'silver' | 'silver-dark';
@@ -37,6 +37,7 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
     ref
   ) => {
     const theme = useTheme();
+    const router = useRouter();
     const [isPressed, setIsPressed] = useState(false);
 
     // Determine effective variant type
@@ -212,7 +213,10 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
                 onMouseDown: () => setIsPressed(true),
                 onMouseUp: () => setIsPressed(false),
                 onClick: (e: any) => {
-                  console.log(`[MetalButton WEB View onClick] Inner View clicked for href="${href}"`);
+                  console.log(`[MetalButton WEB View onClick] Inner View clicked! Navigating programmatically to: ${href}`);
+                  e.preventDefault();
+                  e.stopPropagation();
+                  router.push(href as any);
                 }
               } as any)}
             >
