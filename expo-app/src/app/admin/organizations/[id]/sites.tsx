@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { YStack, XStack, Text, H1, Paragraph, Theme, useTheme, Label, Switch } from 'tamagui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   Plus, 
   ArrowLeft, 
@@ -21,6 +22,7 @@ export default function SitesManagementScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [sites, setSites] = useState<Site[]>([]);
   const [orgName, setOrgName] = useState('');
@@ -110,7 +112,10 @@ export default function SitesManagementScreen() {
 
   return (
     <Theme name="dark">
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(16, insets.top), paddingBottom: Math.max(40, insets.bottom) }]}
+      >
         <YStack padding="$5" gap="$6" flex={1} width="100%">
           
           {/* Action Header */}

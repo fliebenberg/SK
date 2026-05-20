@@ -5,6 +5,7 @@ import { TamaguiProvider } from 'tamagui';
 import { useFonts, Orbitron_400Regular, Orbitron_700Bold, Orbitron_900Black } from '@expo-google-fonts/orbitron';
 import * as SplashScreen from 'expo-splash-screen';
 import { Slot, usePathname, useRouter } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import tamaguiConfig from '../tamagui.config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -64,14 +65,16 @@ export default function TabLayout() {
   }
 
   return (
-    <TamaguiProvider config={tamaguiConfig} defaultTheme={colorScheme === 'dark' ? 'dark' : 'light'}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AuthProvider>
-          <AnimatedSplashOverlay />
-          <AppContent />
-        </AuthProvider>
-      </ThemeProvider>
-    </TamaguiProvider>
+    <SafeAreaProvider>
+      <TamaguiProvider config={tamaguiConfig} defaultTheme={colorScheme === 'dark' ? 'dark' : 'light'}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <AuthProvider>
+            <AnimatedSplashOverlay />
+            <AppContent />
+          </AuthProvider>
+        </ThemeProvider>
+      </TamaguiProvider>
+    </SafeAreaProvider>
   );
 }
 

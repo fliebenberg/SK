@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { YStack, XStack, Text, H1, Paragraph, Theme, useTheme, Card } from 'tamagui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   Users, 
   Trophy, 
@@ -27,6 +28,7 @@ export default function OrganizationDetailsScreen() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [org, setOrg] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -199,7 +201,10 @@ export default function OrganizationDetailsScreen() {
 
   return (
     <Theme name="dark">
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(16, insets.top), paddingBottom: Math.max(40, insets.bottom) }]}
+      >
         <YStack padding="$5" gap="$6" flex={1} width="100%">
           
           {/* Header Action Bar */}

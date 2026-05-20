@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, ActivityIndicator, Alert, TextInput, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, ActivityIndicator, Alert, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { YStack, XStack, Text, H1, Paragraph, Theme, useTheme, Card, Label, Switch } from 'tamagui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { 
   Plus, 
@@ -37,6 +38,7 @@ export default function PeopleManagementScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [members, setMembers] = useState<OrgMemberWithDetails[]>([]);
   const [availableRoles, setAvailableRoles] = useState<{ id: string, name: string }[]>([]);
@@ -242,8 +244,16 @@ export default function PeopleManagementScreen() {
 
   return (
     <Theme name="dark">
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-        <YStack padding="$5" gap="$5" flex={1} width="100%">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView 
+          style={styles.container} 
+          contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(16, insets.top), paddingBottom: Math.max(40, insets.bottom) }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <YStack padding="$5" gap="$5" flex={1} width="100%">
           
           {/* Action Header */}
           <XStack justifyContent="space-between" alignItems="center" marginTop="$2">
@@ -542,7 +552,8 @@ export default function PeopleManagementScreen() {
 
         </YStack>
       </ScrollView>
-    </Theme>
+    </KeyboardAvoidingView>
+  </Theme>
   );
 }
 

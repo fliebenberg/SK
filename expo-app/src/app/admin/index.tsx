@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { YStack, XStack, Text, H1, Paragraph, Theme, useTheme } from 'tamagui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowRight, Plus, ShieldAlert, Building2 } from 'lucide-react-native';
 import { store } from '../../store/store';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,6 +14,7 @@ export default function AdminScreen() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [adminOrgIds, setAdminOrgIds] = useState<string[]>([]);
   const [isStoreLoaded, setIsStoreLoaded] = useState(false);
@@ -72,7 +74,10 @@ export default function AdminScreen() {
 
   return (
     <Theme name="dark">
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(16, insets.top), paddingBottom: Math.max(40, insets.bottom) }]}
+      >
         <YStack padding="$5" gap="$6" flex={1} width="100%">
           
           {/* Header Section */}

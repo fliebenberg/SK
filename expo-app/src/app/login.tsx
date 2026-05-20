@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { YStack, XStack, Text, H1, Paragraph, Theme, useTheme } from 'tamagui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Shield, Globe } from 'lucide-react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useRouter } from 'expo-router';
@@ -14,6 +15,7 @@ export default function LoginScreen() {
   const { login, loginWithGoogle } = useAuth();
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,7 +66,7 @@ export default function LoginScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContainer}
+          contentContainerStyle={[styles.scrollContainer, { paddingTop: Math.max(40, insets.top), paddingBottom: Math.max(40, insets.bottom) }]}
           keyboardShouldPersistTaps="handled"
         >
           <YStack width="100%" maxWidth={400} gap="$6" padding="$4">

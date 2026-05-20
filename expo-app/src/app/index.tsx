@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, StyleSheet, View, RefreshControl, ActivityIndicator } from 'react-native';
 import { YStack, XStack, Text, H1, Paragraph, Theme, useTheme, Card } from 'tamagui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Flame, Trophy, Users, Wifi, Activity, Plus, ArrowRight, Sparkles } from 'lucide-react-native';
 import { store } from '../store/store';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +15,7 @@ export default function HomeScreen() {
   const { isAuthenticated, user, loginWithGoogle } = useAuth();
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   // State
   const [hasOrg, setHasOrg] = useState(false);
@@ -80,7 +82,7 @@ export default function HomeScreen() {
     <Theme name="dark">
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top || 16 }]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -93,7 +95,7 @@ export default function HomeScreen() {
         <YStack padding="$5" gap="$6" flex={1} width="100%">
           
           {/* Header Banner Logo Section */}
-          <YStack gap="$2" alignItems="center" marginTop="$4">
+          <YStack gap="$2" alignItems="center">
             <XStack gap="$3" alignItems="center">
               <Trophy size={36} color="#f59e0b" />
               <H1 
