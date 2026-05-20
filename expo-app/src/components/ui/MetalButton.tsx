@@ -166,9 +166,18 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
     );
 
     const pressableProps = {
-      onPressIn: () => setIsPressed(true),
-      onPressOut: () => setIsPressed(false),
-      onPress: disabled ? undefined : onPress,
+      onPressIn: () => {
+        console.log(`[MetalButton PRESSABLE] onPressIn (Platform: ${Platform.OS}, href: ${href})`);
+        setIsPressed(true);
+      },
+      onPressOut: () => {
+        console.log(`[MetalButton PRESSABLE] onPressOut (Platform: ${Platform.OS}, href: ${href})`);
+        setIsPressed(false);
+      },
+      onPress: () => {
+        console.log(`[MetalButton PRESSABLE] onPress (Platform: ${Platform.OS}, href: ${href})`);
+        if (!disabled && onPress) onPress();
+      },
       disabled: disabled,
       style: style,
     };
@@ -176,6 +185,7 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
     if (href && !disabled) {
       if (Platform.OS === 'web') {
         const flatStyle = style ? StyleSheet.flatten(style) : {};
+        console.log(`[MetalButton WEB] Rendering button with href="${href}", children="${children}"`);
         return (
           <Link
             href={href as any}
@@ -185,6 +195,11 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
               cursor: 'pointer',
               ...flatStyle,
             } as any}
+            {...({
+              onClick: (e: any) => {
+                console.log(`[MetalButton WEB Link onClick] Triggered for href="${href}"`);
+              }
+            } as any)}
           >
             <View
               style={{
@@ -196,6 +211,9 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
                 onTouchEnd: () => setIsPressed(false),
                 onMouseDown: () => setIsPressed(true),
                 onMouseUp: () => setIsPressed(false),
+                onClick: (e: any) => {
+                  console.log(`[MetalButton WEB View onClick] Inner View clicked for href="${href}"`);
+                }
               } as any)}
             >
               {innerContent}
@@ -204,6 +222,7 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
         );
       }
 
+      console.log(`[MetalButton NATIVE] Rendering button with href="${href}", children="${children}"`);
       return (
         <Link href={href as any} asChild>
           <Pressable {...pressableProps}>{innerContent}</Pressable>
@@ -211,6 +230,7 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
       );
     }
 
+    console.log(`[MetalButton NO-HREF] Rendering button with children="${children}"`);
     return (
       <Pressable ref={ref} {...pressableProps}>
         {innerContent}
