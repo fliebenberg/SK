@@ -11,6 +11,8 @@ import { jobManager } from './jobs/JobManager';
 import { membershipExpiryJob } from './jobs/handlers/MembershipExpiryJob';
 import { accuracyAuditJob } from './jobs/handlers/AccuracyAuditJob';
 import pool from './db';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
@@ -18,6 +20,182 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
+
+// Authentication Routes
+app.post('/auth/signup', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // Check if user exists
+    const checkRes = await pool.query("SELECT id FROM users WHERE email = $1", [trimmedEmail]);
+    if (checkRes.rowCount && checkRes.rowCount > 0) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    const id = `user-${Date.now()}`;
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    await pool.query(
+      "INSERT INTO users (id, name, email, password_hash, global_role) VALUES ($1, $2, $3, $4, $5)",
+      [id, name, trimmedEmail, passwordHash, 'user']
+    );
+
+    // Also add to user_emails
+    await pool.query(
+      "INSERT INTO user_emails (id, user_id, email, is_primary, verified_at) VALUES ($1, $2, $3, $4, NOW())",
+      [`email-${Date.now()}`, id, trimmedEmail, true]
+    );
+
+    // Generate token
+    const token = jwt.sign(
+      { id, email: trimmedEmail, globalRole: 'user' },
+      process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-development-only',
+      { expiresIn: '30d' }
+    );
+
+    const userPayload = {
+      id,
+      name,
+      email: trimmedEmail,
+      globalRole: 'user',
+      hasPassword: true,
+      avatarSource: null,
+      customImage: null,
+      theme: null,
+      picture: null
+    };
+
+    return res.status(201).json({ token, user: userPayload });
+  } catch (error) {
+    console.error("Signup error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password required" });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    const dbRes = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [trimmedEmail]
+    );
+    const user = dbRes.rows[0];
+
+    if (!user) {
+      return res.status(401).json({ message: "EMAIL_NOT_FOUND" });
+    }
+
+    if (!user.password_hash) {
+      return res.status(401).json({ message: "SOCIAL_ONLY" });
+    }
+
+    const isValid = await bcrypt.compare(password, user.password_hash);
+
+    if (!isValid) {
+      return res.status(401).json({ message: "PASSWORD_MISMATCH" });
+    }
+
+    // Resolve picture logic
+    let picture = user.custom_image || user.image || null;
+    if (user.avatar_source && user.avatar_source !== 'custom') {
+      const accRes = await pool.query(
+        "SELECT provider_image FROM accounts WHERE user_id = $1 AND provider = $2",
+        [user.id, user.avatar_source]
+      );
+      picture = accRes.rows[0]?.provider_image || user.image || null;
+    }
+
+    const userPayload = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      globalRole: user.global_role,
+      hasPassword: true,
+      avatarSource: user.avatar_source,
+      customImage: user.custom_image,
+      theme: user.theme,
+      picture
+    };
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, globalRole: user.global_role },
+      process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-development-only',
+      { expiresIn: '30d' }
+    );
+
+    return res.status(200).json({ token, user: userPayload });
+  } catch (error) {
+    console.error("Login error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.get('/auth/me', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const token = authHeader.split(' ')[1];
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-development-only');
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const dbRes = await pool.query(
+      "SELECT id, name, email, global_role, password_hash, custom_image, avatar_source, theme, image FROM users WHERE id = $1",
+      [decoded.id]
+    );
+    const user = dbRes.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Resolve picture logic
+    let picture = user.custom_image || user.image || null;
+    if (user.avatar_source && user.avatar_source !== 'custom') {
+      const accRes = await pool.query(
+        "SELECT provider_image FROM accounts WHERE user_id = $1 AND provider = $2",
+        [user.id, user.avatar_source]
+      );
+      picture = accRes.rows[0]?.provider_image || user.image || null;
+    }
+
+    const userPayload = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      globalRole: user.global_role,
+      hasPassword: !!user.password_hash,
+      avatarSource: user.avatar_source,
+      customImage: user.custom_image,
+      theme: user.theme,
+      picture
+    };
+
+    return res.status(200).json({ user: userPayload });
+  } catch (error) {
+    console.error("Auth verification error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
