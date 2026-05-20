@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
+import * as Linking from 'expo-linking';
 import { API_URL } from '../constants/api';
 
 export interface User {
@@ -22,6 +23,7 @@ interface AuthContextType {
   isLoading: boolean;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -143,6 +145,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (): Promise<void> => {
+    try {
+      const authUrl = `${API_URL}/auth/google`;
+      if (Platform.OS === 'web') {
+        window.location.href = authUrl;
+      } else {
+        const redirectUrl = Linking.createURL('auth-callback');
+        Alert.alert(
+          'Google Sign In',
+          `Social logins will launch a secure browser deep-linking flow.\n\nBackend URL: ${authUrl}\nRedirect URL: ${redirectUrl}`
+        );
+      }
+    } catch (error) {
+      console.error('Google login error:', error);
+      throw error;
+    }
+  };
+
   const signup = async (name: string, email: string, password: string): Promise<void> => {
     try {
       const res = await fetch(`${API_URL}/auth/signup`, {
@@ -210,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         token,
         login,
+        loginWithGoogle,
         signup,
         logout,
         updateProfile,
