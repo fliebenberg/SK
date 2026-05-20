@@ -12,7 +12,7 @@ export interface MetalButtonProps {
   size?: 'default' | 'sm' | 'lg' | 'icon';
   icon?: React.ReactNode;
   href?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   onPress?: () => void;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
