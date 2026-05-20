@@ -240,11 +240,11 @@ export default function SignupScreen() {
                 <YStack flex={1}>
                   <Text color="$gray11" fontSize={13} lineHeight={16}>
                     I accept the{' '}
-                    <Link href="/terms" style={styles.inlineLink}>
+                    <Link href={"/terms" as any} style={styles.inlineLink}>
                       Terms and Conditions
                     </Link>{' '}
                     and{' '}
-                    <Link href="/privacy" style={styles.inlineLink}>
+                    <Link href={"/privacy" as any} style={styles.inlineLink}>
                       Privacy Policy
                     </Link>
                   </Text>

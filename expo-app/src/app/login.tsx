@@ -134,7 +134,7 @@ export default function LoginScreen() {
                 <YStack gap="$2">
                   <XStack justifyContent="space-between" alignItems="center">
                     <Label htmlFor="password" fontWeight="600" color="$gray11">Password</Label>
-                    <Link href="/forgot-password" style={styles.forgotLink}>
+                    <Link href={"/forgot-password" as any} style={styles.forgotLink}>
                       Forgot password?
                     </Link>
                   </XStack>

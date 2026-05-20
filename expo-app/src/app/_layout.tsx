@@ -11,6 +11,7 @@ import tamaguiConfig from '../tamagui.config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { Navbar } from '@/components/Navbar';
 
 // Prevent auto-hiding of splash screen
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -43,7 +44,12 @@ function AppContent() {
   }
 
   // Render main navigation shell with tabs for dashboard/explore/etc.
-  return <AppTabs />;
+  return (
+    <>
+      <Navbar />
+      <AppTabs />
+    </>
+  );
 }
 
 export default function TabLayout() {

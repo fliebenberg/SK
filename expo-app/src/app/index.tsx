@@ -151,7 +151,7 @@ export default function HomeScreen() {
                   variantType="filled"
                   glowColor={primaryColor}
                   size="default"
-                  onPress={() => router.push('/login')}
+                  href="/login"
                   style={{ flex: 1, minWidth: 150 }}
                 >
                   Sign In to Start
@@ -162,7 +162,7 @@ export default function HomeScreen() {
                   glowColor={primaryColor}
                   size="default"
                   icon={<Plus size={16} color={primaryColor} />}
-                  onPress={() => router.push('/admin')}
+                  href="/admin"
                   style={{ flex: 1, minWidth: 150 }}
                 >
                   Add Organization
@@ -173,7 +173,7 @@ export default function HomeScreen() {
                   glowColor={primaryColor}
                   size="default"
                   icon={<ArrowRight size={16} color="#ffffff" />}
-                  onPress={() => router.push('/admin')}
+                  href="/admin"
                   style={{ flex: 1, minWidth: 150 }}
                 >
                   Manage Dashboards
@@ -296,7 +296,7 @@ export default function HomeScreen() {
                   <MetalButton 
                     variantType="outlined" 
                     size="sm" 
-                    onPress={() => router.push('/login')}
+                    href="/login"
                   >
                     Sign In to Follow Leagues
                   </MetalButton>

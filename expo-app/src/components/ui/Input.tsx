@@ -13,7 +13,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(
 
     return (
       <TamaguiInput
-        ref={ref}
+        ref={ref as any}
         height={40}
         width="100%"
         borderRadius={8}

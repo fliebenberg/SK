@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, StyleProp, ViewStyle } from 'react-native';
+import { Pressable, StyleProp, ViewStyle, Platform, View, StyleSheet } from 'react-native';
 import { XStack, Text, useTheme } from 'tamagui';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
@@ -174,8 +174,38 @@ export const MetalButton = React.forwardRef<any, MetalButtonProps>(
     };
 
     if (href && !disabled) {
+      if (Platform.OS === 'web') {
+        const flatStyle = style ? StyleSheet.flatten(style) : {};
+        return (
+          <Link
+            href={href as any}
+            style={{
+              textDecoration: 'none',
+              display: 'inline-flex',
+              cursor: 'pointer',
+              ...flatStyle,
+            } as any}
+          >
+            <View
+              style={{
+                flex: 1,
+                width: '100%',
+              }}
+              {...({
+                onTouchStart: () => setIsPressed(true),
+                onTouchEnd: () => setIsPressed(false),
+                onMouseDown: () => setIsPressed(true),
+                onMouseUp: () => setIsPressed(false),
+              } as any)}
+            >
+              {innerContent}
+            </View>
+          </Link>
+        );
+      }
+
       return (
-        <Link href={href} asChild>
+        <Link href={href as any} asChild>
           <Pressable {...pressableProps}>{innerContent}</Pressable>
         </Link>
       );

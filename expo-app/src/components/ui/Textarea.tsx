@@ -13,7 +13,7 @@ export const Textarea = React.forwardRef<TextInput, TextareaProps>(
 
     return (
       <TamaguiTextArea
-        ref={ref}
+        ref={ref as any}
         minHeight={80}
         width="100%"
         borderRadius={8}
