@@ -21,17 +21,21 @@ function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
+  console.log(`[AppContent] Render - pathname: "${pathname}", isAuthenticated: ${isAuthenticated}, isLoading: ${isLoading}`);
+
   useEffect(() => {
     if (isLoading) return;
 
     const isAuthRoute = pathname === '/login' || pathname === '/signup';
     const isProtectedRoute = pathname.startsWith('/admin') || pathname === '/profile' || pathname === '/notifications';
 
+    console.log(`[AppContent useEffect] Checking routes - isAuthRoute: ${isAuthRoute}, isProtectedRoute: ${isProtectedRoute}`);
+
     if (isAuthenticated && isAuthRoute) {
-      // Redirect authenticated users away from login/signup to homepage
+      console.log(`[AppContent useEffect] Redirecting authenticated user away from auth route to "/"`);
       router.replace('/');
     } else if (!isAuthenticated && isProtectedRoute) {
-      // Redirect unauthenticated users away from protected screens to login
+      console.log(`[AppContent useEffect] Redirecting unauthenticated user away from protected route to "/login"`);
       router.replace('/login');
     }
   }, [isAuthenticated, isLoading, pathname, router]);
@@ -39,11 +43,11 @@ function AppContent() {
   const isAuthRoute = pathname === '/login' || pathname === '/signup';
 
   if (isAuthRoute) {
-    // Render full-page content without tabs for login/signup
+    console.log(`[AppContent] Rendering auth route Slot for pathname: "${pathname}"`);
     return <Slot />;
   }
 
-  // Render main navigation shell with tabs for dashboard/explore/etc.
+  console.log(`[AppContent] Rendering main navigation (Navbar + AppTabs) for pathname: "${pathname}"`);
   return (
     <>
       <Navbar />
