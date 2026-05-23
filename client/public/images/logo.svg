@@ -1,0 +1,285 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="100%" height="100%">
+  <defs>
+    <!-- Fonts -->
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&amp;display=swap');
+      
+      .sports-glyph-S {
+        font-family: 'Orbitron', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-weight: 900;
+        text-anchor: middle;
+      }
+
+      .sports-glyph-K {
+        font-family: 'Orbitron', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-weight: 900;
+        text-anchor: middle;
+      }
+      
+      .sports-text-main {
+        font-family: 'Orbitron', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-weight: 900;
+        letter-spacing: 12px;
+        fill: url(#textGrad);
+        text-shadow: 0 0 15px rgba(0, 243, 255, 0.4), 0 4px 8px rgba(0, 0, 0, 0.6);
+      }
+      
+      .sports-text-sub {
+        font-family: 'Orbitron', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-weight: 700;
+        letter-spacing: 16px;
+        fill: url(#textSubGrad);
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+      }
+    </style>
+
+    <!-- Background Gradients -->
+    <radialGradient id="cardBg" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#22252a" />
+      <stop offset="60%" stop-color="#111316" />
+      <stop offset="100%" stop-color="#070809" />
+    </radialGradient>
+
+    <linearGradient id="cardOuterRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7a8594" />
+      <stop offset="25%" stop-color="#3d434d" />
+      <stop offset="50%" stop-color="#1b1d22" />
+      <stop offset="75%" stop-color="#2a2e37" />
+      <stop offset="100%" stop-color="#545a66" />
+    </linearGradient>
+
+    <linearGradient id="cardInnerRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#121316" />
+      <stop offset="50%" stop-color="#202329" />
+      <stop offset="100%" stop-color="#0a0b0d" />
+    </linearGradient>
+
+    <linearGradient id="lightPipeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f3ff" />
+      <stop offset="25%" stop-color="#00a2ff" />
+      <stop offset="50%" stop-color="#00f3ff" />
+      <stop offset="75%" stop-color="#0050ff" />
+      <stop offset="100%" stop-color="#00f3ff" />
+    </linearGradient>
+
+    <!-- Metallic Gradients for 'S' -->
+    <linearGradient id="rimGradS" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f3ff" />
+      <stop offset="30%" stop-color="#0088ff" />
+      <stop offset="70%" stop-color="#0033aa" />
+      <stop offset="100%" stop-color="#001144" />
+    </linearGradient>
+
+    <linearGradient id="metalGradS" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d8f8ff" />
+      <stop offset="25%" stop-color="#00bfff" />
+      <stop offset="60%" stop-color="#0055bb" />
+      <stop offset="100%" stop-color="#001133" />
+    </linearGradient>
+
+    <linearGradient id="innerBevelGradS" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#001133" />
+      <stop offset="50%" stop-color="#0044aa" />
+      <stop offset="100%" stop-color="#00ccff" />
+    </linearGradient>
+
+    <linearGradient id="extrusionS" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#005a9e" />
+      <stop offset="50%" stop-color="#002447" />
+      <stop offset="100%" stop-color="#000914" />
+    </linearGradient>
+
+    <!-- Metallic Gradients for 'K' -->
+    <linearGradient id="rimGradK" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ffcc" />
+      <stop offset="30%" stop-color="#00cc66" />
+      <stop offset="70%" stop-color="#005522" />
+      <stop offset="100%" stop-color="#001105" />
+    </linearGradient>
+
+    <linearGradient id="metalGradK" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d0ffe0" />
+      <stop offset="25%" stop-color="#00e676" />
+      <stop offset="60%" stop-color="#008040" />
+      <stop offset="100%" stop-color="#00220a" />
+    </linearGradient>
+
+    <linearGradient id="innerBevelGradK" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00220a" />
+      <stop offset="50%" stop-color="#008040" />
+      <stop offset="100%" stop-color="#00ffaa" />
+    </linearGradient>
+
+    <linearGradient id="extrusionK" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#008040" />
+      <stop offset="50%" stop-color="#003318" />
+      <stop offset="100%" stop-color="#000e05" />
+    </linearGradient>
+
+    <!-- Text Gradients -->
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="70%" stop-color="#d8f8ff" />
+      <stop offset="100%" stop-color="#9cebff" />
+    </linearGradient>
+
+    <linearGradient id="textSubGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e2e8f0" />
+      <stop offset="100%" stop-color="#94a3b8" />
+    </linearGradient>
+
+    <!-- Background Tech Grid Pattern -->
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.03" />
+    </pattern>
+
+    <!-- Neon Glow Filters -->
+    <filter id="cyanGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="15" result="blur1" />
+      <feGaussianBlur stdDeviation="6" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="greenGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="15" result="blur1" />
+      <feGaussianBlur stdDeviation="6" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="25" stdDeviation="30" flood-color="#000000" flood-opacity="0.95" />
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
+
+    <filter id="shadowBlur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" />
+    </filter>
+
+    <!-- Paths for Glowing Neon Tubes (Spine Core) -->
+    <!-- 'S' Spine Path - Shifted and Scaled to Aligned Center of Orbitron 'S' Glyph -->
+    <path id="path_S" d="M 465 320 L 305 320 L 265 360 L 265 430 L 305 470 L 425 470 L 465 510 L 465 580 L 425 620 L 265 620" fill="none" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="3" />
+    
+    <!-- 'K' Spine Path Group - Shifted and Scaled to Aligned Center of Orbitron 'K' Glyph -->
+    <g id="path_K">
+      <path d="M 578 320 L 578 620" fill="none" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="3" />
+      <path d="M 740 320 L 578 470 L 740 620" fill="none" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="3" />
+    </g>
+  </defs>
+
+  <!-- ==================== BACKGROUND CARD ==================== -->
+  <!-- Outer Card Shadow and Rounded Border (Squircle-ish) -->
+  <rect x="64" y="64" width="896" height="896" rx="192" ry="192" fill="url(#cardOuterRim)" filter="url(#cardShadow)" />
+  <rect x="72" y="72" width="880" height="880" rx="184" ry="184" fill="url(#cardInnerRim)" />
+  
+  <!-- Core Background Card -->
+  <rect x="80" y="80" width="864" height="864" rx="176" ry="176" fill="url(#cardBg)" />
+  
+  <!-- Background Textures & Digital Flairs -->
+  <rect x="80" y="80" width="864" height="864" rx="176" ry="176" fill="url(#grid)" />
+
+  <!-- Decorative Circuit-like Tech Lines in Background -->
+  <g stroke="#00f3ff" stroke-width="1.5" opacity="0.08" fill="none">
+    <!-- Top Left -->
+    <path d="M 140 220 L 220 140 L 320 140" />
+    <circle cx="320" cy="140" r="3" fill="#00f3ff" stroke="none" />
+    <!-- Top Right -->
+    <path d="M 884 220 L 804 140 L 704 140" />
+    <circle cx="704" cy="140" r="3" fill="#00f3ff" stroke="none" />
+    <!-- Bottom Left -->
+    <path d="M 140 700 L 220 780 L 300 780" />
+    <circle cx="300" cy="780" r="3" fill="#00f3ff" stroke="none" />
+    <!-- Bottom Right -->
+    <path d="M 884 700 L 804 780 L 724 780" />
+    <circle cx="724" cy="780" r="3" fill="#00f3ff" stroke="none" />
+  </g>
+
+  <!-- Inner Cyan Glow Light Piping (Border Tube) -->
+  <rect x="86" y="86" width="852" height="852" rx="170" ry="170" fill="none" stroke="url(#lightPipeGrad)" stroke-width="12" filter="url(#cyanGlow)" opacity="0.45" />
+  <rect x="89" y="89" width="846" height="846" rx="167" ry="167" fill="none" stroke="#00f3ff" stroke-width="4" opacity="0.9" />
+  <!-- Secondary inner thin glow -->
+  <rect x="94" y="94" width="836" height="836" rx="162" ry="162" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.4" />
+
+
+  <!-- ==================== LETTER "S" (BLUE NEON) ==================== -->
+  <g id="letter_S_group">
+    <!-- 1. Drop Shadow -->
+    <text x="365" y="650" class="sports-glyph-S" font-size="440" fill="#000000" stroke="#000000" stroke-width="20" opacity="0.65" filter="url(#shadowBlur)">S</text>
+    
+    <!-- 2. 3D Bevel/Extrusion Walls (Layered Stack) -->
+    <text x="375" y="635" class="sports-glyph-S" font-size="440" fill="url(#extrusionS)" stroke="url(#extrusionS)" stroke-width="16">S</text>
+    <text x="373" y="632" class="sports-glyph-S" font-size="440" fill="url(#extrusionS)" stroke="url(#extrusionS)" stroke-width="16">S</text>
+    <text x="371" y="629" class="sports-glyph-S" font-size="440" fill="url(#extrusionS)" stroke="url(#extrusionS)" stroke-width="16">S</text>
+    <text x="369" y="626" class="sports-glyph-S" font-size="440" fill="url(#extrusionS)" stroke="url(#extrusionS)" stroke-width="16">S</text>
+    <text x="367" y="623" class="sports-glyph-S" font-size="440" fill="url(#extrusionS)" stroke="url(#extrusionS)" stroke-width="16">S</text>
+    
+    <!-- 3. Beveled Outer Rim (Slightly larger than front face) -->
+    <text x="365" y="620" class="sports-glyph-S" font-size="440" fill="url(#rimGradS)" stroke="url(#rimGradS)" stroke-width="24">S</text>
+    
+    <!-- 4. Front Face Metal Base -->
+    <text x="365" y="620" class="sports-glyph-S" font-size="440" fill="url(#metalGradS)" stroke="url(#metalGradS)" stroke-width="16">S</text>
+    
+    <!-- 5. Specular Corner Highlight (Offset white stroke for 3D metallic feel) -->
+    <text x="363.5" y="618.5" class="sports-glyph-S" font-size="440" fill="none" stroke="#ffffff" stroke-width="12" opacity="0.35">S</text>
+    
+    <!-- 6. Inner Bevel Shading Layer -->
+    <text x="365" y="620" class="sports-glyph-S" font-size="440" fill="url(#innerBevelGradS)" stroke="url(#innerBevelGradS)" stroke-width="8">S</text>
+    
+    <!-- 7. Center Recessed Glowing Groove (Aligned custom spine path layered on top) -->
+    <use href="#path_S" stroke="#040b17" stroke-width="24" />
+    <use href="#path_S" stroke="#00d8ff" stroke-width="16" filter="url(#cyanGlow)" opacity="0.8" />
+    <use href="#path_S" stroke="#00f3ff" stroke-width="8" />
+    <use href="#path_S" stroke="#ffffff" stroke-width="3" opacity="0.95" />
+  </g>
+
+
+  <!-- ==================== LETTER "K" (GREEN NEON) ==================== -->
+  <g id="letter_K_group">
+    <!-- 1. Drop Shadow -->
+    <text x="655" y="650" class="sports-glyph-K" font-size="440" fill="#000000" stroke="#000000" stroke-width="20" opacity="0.65" filter="url(#shadowBlur)">K</text>
+    
+    <!-- 2. 3D Bevel/Extrusion Walls (Layered Stack) -->
+    <text x="665" y="635" class="sports-glyph-K" font-size="440" fill="url(#extrusionK)" stroke="url(#extrusionK)" stroke-width="16">K</text>
+    <text x="663" y="632" class="sports-glyph-K" font-size="440" fill="url(#extrusionK)" stroke="url(#extrusionK)" stroke-width="16">K</text>
+    <text x="661" y="629" class="sports-glyph-K" font-size="440" fill="url(#extrusionK)" stroke="url(#extrusionK)" stroke-width="16">K</text>
+    <text x="659" y="626" class="sports-glyph-K" font-size="440" fill="url(#extrusionK)" stroke="url(#extrusionK)" stroke-width="16">K</text>
+    <text x="657" y="623" class="sports-glyph-K" font-size="440" fill="url(#extrusionK)" stroke="url(#extrusionK)" stroke-width="16">K</text>
+    
+    <!-- 3. Beveled Outer Rim (Slightly larger than front face) -->
+    <text x="655" y="620" class="sports-glyph-K" font-size="440" fill="url(#rimGradK)" stroke="url(#rimGradK)" stroke-width="24">K</text>
+    
+    <!-- 4. Front Face Metal Base -->
+    <text x="655" y="620" class="sports-glyph-K" font-size="440" fill="url(#metalGradK)" stroke="url(#metalGradK)" stroke-width="16">K</text>
+    
+    <!-- 5. Specular Corner Highlight (Offset white stroke for 3D metallic feel) -->
+    <text x="653.5" y="618.5" class="sports-glyph-K" font-size="440" fill="none" stroke="#ffffff" stroke-width="12" opacity="0.35">K</text>
+    
+    <!-- 6. Inner Bevel Shading Layer -->
+    <text x="655" y="620" class="sports-glyph-K" font-size="440" fill="url(#innerBevelGradK)" stroke="url(#innerBevelGradK)" stroke-width="8">K</text>
+    
+    <!-- 7. Center Recessed Glowing Groove (Aligned custom spine path layered on top) -->
+    <use href="#path_K" stroke="#021008" stroke-width="24" />
+    <use href="#path_K" stroke="#00ff88" stroke-width="16" filter="url(#greenGlow)" opacity="0.8" />
+    <use href="#path_K" stroke="#00ffbb" stroke-width="8" />
+    <use href="#path_K" stroke="#ffffff" stroke-width="3" opacity="0.95" />
+  </g>
+
+
+  <!-- ==================== TYPOGRAPHY (SCOREKEEPER SPORTS APP) ==================== -->
+  <g id="typography" text-anchor="middle">
+    <!-- Main Branding "SCOREKEEPER" -->
+    <text x="512" y="775" class="sports-text-main" font-size="52">SCOREKEEPER</text>
+    <text x="512" y="775" class="sports-text-main" font-size="52" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.7">SCOREKEEPER</text>
+
+    <!-- Sub Branding "SPORTS APP" -->
+    <text x="512" y="825" class="sports-text-sub" font-size="24">SPORTS APP</text>
+  </g>
+
+</svg>
