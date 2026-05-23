@@ -1,38 +1,41 @@
-import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps } from 'react-native';
+import React, { forwardRef } from 'react';
+import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps, View } from 'react-native';
 
 interface ButtonProps extends TouchableOpacityProps {
   title: string;
-  variant?: 'primary' | 'secondary' | 'danger';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   isLoading?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
+export const Button = forwardRef<View, ButtonProps>(({ 
   title, 
   variant = 'primary', 
   isLoading, 
   className = '', 
   disabled,
   ...props 
-}) => {
+}, ref) => {
   const baseClasses = "min-h-[44px] flex-row items-center justify-center rounded-lg px-6 py-3 active:opacity-80";
   
   const variantClasses = {
     primary: "bg-brand-orange",
     secondary: "bg-brand-blue",
     danger: "bg-brand-red",
+    ghost: "bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5",
   };
 
   const textClasses = {
     primary: "text-white",
     secondary: "text-slate-950",
     danger: "text-white",
+    ghost: "text-brand-blue",
   };
 
   const disabledClasses = disabled || isLoading ? "opacity-50" : "";
 
   return (
     <TouchableOpacity 
+      ref={ref}
       className={`${baseClasses} ${variantClasses[variant]} ${disabledClasses} ${className}`}
       disabled={disabled || isLoading}
       {...props}
@@ -46,4 +49,4 @@ export const Button: React.FC<ButtonProps> = ({
       )}
     </TouchableOpacity>
   );
-};
+});

@@ -68,8 +68,9 @@ export const useSettingsStore = create<SettingsState>()(
   )
 );
 
-export const useActiveTheme = () => {
+export const useActiveTheme = (): 'light' | 'dark' => {
   const themePref = useSettingsStore((state) => state.getEffectivePreference('theme'));
   const systemTheme = Appearance.getColorScheme();
-  return themePref === 'system' ? (systemTheme || 'dark') : themePref;
+  const active = themePref === 'system' ? (systemTheme || 'dark') : themePref;
+  return active === 'light' || active === 'dark' ? active : 'dark';
 };

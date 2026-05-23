@@ -4,6 +4,8 @@ module.exports = {
     "./app/**/*.{js,jsx,ts,tsx}",
     "./components/**/*.{js,jsx,ts,tsx}"
   ],
+  presets: [require("nativewind/preset")],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
@@ -16,7 +18,7 @@ module.exports = {
         background: "#0F172A",
         surface: "rgba(255, 255, 255, 0.05)",
         textPrimary: "#FFFFFF",
-        textSecondary: "#94A3B8"
+        textSecondary: "#94A3B8",
       },
       fontFamily: {
         orbitron: ["Orbitron_400Regular", "Orbitron_700Bold", "sans-serif"],

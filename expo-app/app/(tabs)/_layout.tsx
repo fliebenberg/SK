@@ -4,15 +4,28 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function TabLayout() {
   const activeTheme = useActiveTheme();
+  const isDark = activeTheme === 'dark';
   
   return (
     <Tabs screenOptions={{
       headerShown: true,
       tabBarStyle: {
-        backgroundColor: activeTheme === 'dark' ? '#0F172A' : '#FFFFFF',
-        borderTopColor: 'rgba(255,255,255,0.1)'
+        backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+        borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
       },
       tabBarActiveTintColor: '#FF3E00',
+      tabBarInactiveTintColor: isDark ? '#94A3B8' : '#64748B',
+      headerStyle: {
+        backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+        borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+        shadowOpacity: 0,
+        elevation: 0,
+      },
+      headerTitleStyle: {
+        color: isDark ? '#FFFFFF' : '#0F172A',
+        fontFamily: 'Orbitron_700Bold',
+      },
+      headerTintColor: isDark ? '#FFFFFF' : '#0F172A',
     }}>
       <Tabs.Screen 
         name="index" 

@@ -1,58 +1,60 @@
+import { io, Socket } from 'socket.io-client';
 import { useWsStore } from '../store/wsStore';
 
 class WebSocketService {
-  private ws: WebSocket | null = null;
+  private socket: Socket | null = null;
   private url: string;
-  private reconnectInterval = 3000;
 
   constructor(url: string) {
     this.url = url;
   }
 
   connect() {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (this.socket && this.socket.connected) {
       return;
     }
 
-    this.ws = new WebSocket(this.url);
+    if (!this.socket) {
+      this.socket = io(this.url, {
+        autoConnect: false,
+        reconnectionDelay: 3000,
+      });
 
-    this.ws.onopen = () => {
-      console.log(`[WS] Connected to ${this.url}`);
-      useWsStore.getState().setConnected(true);
-    };
+      this.socket.on('connect', () => {
+        console.log(`[WS] Connected to Socket.io server at ${this.url}`);
+        useWsStore.getState().setConnected(true);
+      });
 
-    this.ws.onclose = () => {
-      console.log(`[WS] Disconnected. Reconnecting in ${this.reconnectInterval}ms...`);
-      useWsStore.getState().setConnected(false);
-      setTimeout(() => this.connect(), this.reconnectInterval);
-    };
+      this.socket.on('disconnect', () => {
+        console.log('[WS] Disconnected from Socket.io server');
+        useWsStore.getState().setConnected(false);
+      });
 
-    this.ws.onerror = (error) => {
-      console.error(`[WS] Error:`, error);
-      this.ws?.close();
-    };
+      this.socket.on('connect_error', (error) => {
+        console.warn('[WS] Connection error:', error.message);
+        useWsStore.getState().setConnected(false);
+      });
+    }
 
-    this.ws.onmessage = (event) => {
-      console.log(`[WS] Message received:`, event.data);
-    };
+    this.socket.connect();
   }
 
   disconnect() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this.socket) {
+      this.socket.disconnect();
     }
   }
 
-  send(data: any) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
+  send(event: string, data: any) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit(event, data);
     } else {
-      console.warn('[WS] Cannot send data. WebSocket is not open.');
+      console.warn('[WS] Cannot emit event. Socket is not connected.');
     }
   }
 }
 
 // Ensure the local dev URL maps to your machine's IP if testing on a physical device.
-const wsUrl = process.env.EXPO_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
+// Socket.io uses HTTP/HTTPS endpoints for initial handshake.
+const wsUrl = process.env.EXPO_PUBLIC_WS_URL || 'http://localhost:3001';
 export const wsService = new WebSocketService(wsUrl);
