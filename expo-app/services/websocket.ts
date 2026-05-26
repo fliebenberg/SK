@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { Platform } from 'react-native';
 import { useWsStore } from '../store/wsStore';
 
 class WebSocketService {
@@ -56,5 +57,17 @@ class WebSocketService {
 
 // Ensure the local dev URL maps to your machine's IP if testing on a physical device.
 // Socket.io uses HTTP/HTTPS endpoints for initial handshake.
-const wsUrl = process.env.EXPO_PUBLIC_WS_URL || 'http://localhost:3001';
+const getWsUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_WS_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+  // Android emulator cannot access localhost directly, so use 10.0.2.2.
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3001';
+  }
+  return 'http://localhost:3001';
+};
+
+const wsUrl = getWsUrl();
 export const wsService = new WebSocketService(wsUrl);

@@ -28,49 +28,51 @@ export default function LoginScreen() {
 
   return (
     <View className="flex-1 bg-slate-50 dark:bg-slate-900 justify-center p-6">
-      <Text className="font-orbitron text-3xl text-brand-orange mb-6 text-center tracking-widest">
-        LOGIN
-      </Text>
-      
-      <GlassCard className="gap-4">
-        <View>
-          <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Email</Text>
-          <TextInput 
-            className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
-            placeholder="Enter your email"
-            placeholderTextColor={placeholderColor}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
+      <View className="w-full max-w-md mx-auto">
+        <Text className="font-orbitron-bold text-3xl text-brand-orange mb-6 text-center tracking-widest">
+          LOGIN
+        </Text>
         
-        <View>
-          <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Password</Text>
-          <TextInput 
-            className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
-            placeholder="Enter your password"
-            placeholderTextColor={placeholderColor}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-        </View>
+        <GlassCard className="gap-4">
+          <View>
+            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Email</Text>
+            <TextInput 
+              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              placeholder="Enter your email"
+              placeholderTextColor={placeholderColor}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+          
+          <View>
+            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Password</Text>
+            <TextInput 
+              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              placeholder="Enter your password"
+              placeholderTextColor={placeholderColor}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
-        <Button 
-          title="Login" 
-          variant="primary" 
-          onPress={handleLogin}
-          className="mt-4"
-        />
-        
-        <Button 
-          title="Back to Home" 
-          variant="ghost" 
-          onPress={() => router.back()}
-        />
-      </GlassCard>
+          <Button 
+            title="Login" 
+            variant="primary" 
+            onPress={handleLogin}
+            className="mt-4"
+          />
+          
+          <Button 
+            title="Back to Home" 
+            variant="ghost" 
+            onPress={() => router.back()}
+          />
+        </GlassCard>
+      </View>
     </View>
   );
 }

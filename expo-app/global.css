@@ -1,3 +1,27 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Reset styles for Expo Web to ensure correct viewport filling on small and large screens */
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #f8fafc; /* Tailwind bg-slate-50 equivalent for light mode */
+}
+
+/* Ensure root element also spans the entire viewport */
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+/* Dark mode overrides for html and body background to avoid white margins when loading or scrolling */
+html.dark,
+html.dark body {
+  background-color: #0f172a; /* Tailwind bg-slate-900 equivalent for dark mode */
+}

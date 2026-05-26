@@ -43,7 +43,7 @@ export const Button = forwardRef<View, ButtonProps>(({
       {isLoading ? (
         <ActivityIndicator color={variant === 'secondary' ? '#0F172A' : '#FFFFFF'} />
       ) : (
-        <Text className={`font-inter font-bold text-base ${textClasses[variant]}`}>
+        <Text className={`font-inter-bold text-base ${textClasses[variant]}`}>
           {title}
         </Text>
       )}

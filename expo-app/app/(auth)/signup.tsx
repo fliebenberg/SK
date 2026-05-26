@@ -21,60 +21,62 @@ export default function SignupScreen() {
 
   return (
     <View className="flex-1 bg-slate-50 dark:bg-slate-900 justify-center p-6">
-      <Text className="font-orbitron text-3xl text-brand-orange mb-6 text-center tracking-widest">
-        CREATE ACCOUNT
-      </Text>
-      
-      <GlassCard className="gap-4">
-        <View>
-          <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Full Name</Text>
-          <TextInput 
-            className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
-            placeholder="John Doe"
-            placeholderTextColor={placeholderColor}
-            value={name}
-            onChangeText={setName}
-          />
-        </View>
-
-        <View>
-          <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Email</Text>
-          <TextInput 
-            className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
-            placeholder="Enter your email"
-            placeholderTextColor={placeholderColor}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
+      <View className="w-full max-w-md mx-auto">
+        <Text className="font-orbitron-bold text-3xl text-brand-orange mb-6 text-center tracking-widest">
+          CREATE ACCOUNT
+        </Text>
         
-        <View>
-          <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Password</Text>
-          <TextInput 
-            className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
-            placeholder="Create a password"
-            placeholderTextColor={placeholderColor}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-        </View>
+        <GlassCard className="gap-4">
+          <View>
+            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Full Name</Text>
+            <TextInput 
+              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              placeholder="John Doe"
+              placeholderTextColor={placeholderColor}
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
 
-        <Button 
-          title="Sign Up" 
-          variant="primary" 
-          onPress={handleSignup}
-          className="mt-4"
-        />
-        
-        <Button 
-          title="Already have an account? Login" 
-          variant="ghost" 
-          onPress={() => router.push('/(auth)/login')}
-        />
-      </GlassCard>
+          <View>
+            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Email</Text>
+            <TextInput 
+              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              placeholder="Enter your email"
+              placeholderTextColor={placeholderColor}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+          
+          <View>
+            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Password</Text>
+            <TextInput 
+              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              placeholder="Create a password"
+              placeholderTextColor={placeholderColor}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
+
+          <Button 
+            title="Sign Up" 
+            variant="primary" 
+            onPress={handleSignup}
+            className="mt-4"
+          />
+          
+          <Button 
+            title="Already have an account? Login" 
+            variant="ghost" 
+            onPress={() => router.push('/(auth)/login')}
+          />
+        </GlassCard>
+      </View>
     </View>
   );
 }

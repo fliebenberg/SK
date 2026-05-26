@@ -21,8 +21,11 @@ module.exports = {
         textSecondary: "#94A3B8",
       },
       fontFamily: {
-        orbitron: ["Orbitron_400Regular", "Orbitron_700Bold", "sans-serif"],
-        inter: ["Inter_400Regular", "Inter_500Medium", "Inter_700Bold", "sans-serif"],
+        orbitron: ["Orbitron_400Regular", "sans-serif"],
+        "orbitron-bold": ["Orbitron_700Bold", "sans-serif"],
+        inter: ["Inter_400Regular", "sans-serif"],
+        "inter-medium": ["Inter_500Medium", "sans-serif"],
+        "inter-bold": ["Inter_700Bold", "sans-serif"],
       }
     },
   },

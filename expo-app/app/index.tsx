@@ -16,10 +16,10 @@ export default function LandingPage() {
 
   return (
     <View className="flex-1 items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
-      <Text className="font-orbitron text-5xl text-brand-orange font-bold tracking-widest mb-4">
+      <Text className="font-orbitron-bold text-3xl sm:text-4xl md:text-5xl text-brand-orange tracking-widest mb-4 text-center">
         SCOREKEEPER
       </Text>
-      <Text className="font-inter text-slate-600 dark:text-slate-400 text-lg text-center mb-12">
+      <Text className="font-inter text-slate-600 dark:text-slate-400 text-base sm:text-lg text-center mb-12">
         Manage your sports organization and follow live games in real-time.
       </Text>
       
