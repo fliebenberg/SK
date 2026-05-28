@@ -10,6 +10,7 @@ import { Orbitron_400Regular, Orbitron_700Bold } from '@expo-google-fonts/orbitr
 import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { wsService } from '../services/websocket';
 import { StatusBar } from 'expo-status-bar';
+import { useAuthStore } from '../store/authStore';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -25,12 +26,23 @@ export default function RootLayout() {
 
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
+  const verifySession = useAuthStore(state => state.verifySession);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-      wsService.connect();
+    async function prepare() {
+      if (loaded) {
+        try {
+          // Check persistent auth token and fetch fresh user profile if present
+          await verifySession();
+        } catch (error) {
+          console.warn('[RootLayout] Error verifying session on mount:', error);
+        } finally {
+          SplashScreen.hideAsync();
+          wsService.connect();
+        }
+      }
     }
+    prepare();
   }, [loaded]);
 
   if (!loaded) {

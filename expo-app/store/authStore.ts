@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { apiService } from '../services/api';
 
 const secureStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
@@ -39,6 +40,11 @@ export interface User {
   email: string;
   image?: string;
   globalRole: 'user' | 'admin';
+  hasPassword?: boolean;
+  avatarSource?: string | null;
+  customImage?: string | null;
+  theme?: string | null;
+  picture?: string | null;
 }
 
 interface AuthState {
@@ -47,16 +53,31 @@ interface AuthState {
   isAuthenticated: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
+  verifySession: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       token: null,
       user: null,
       isAuthenticated: false,
       login: (token, user) => set({ token, user, isAuthenticated: true }),
       logout: () => set({ token: null, user: null, isAuthenticated: false }),
+      verifySession: async () => {
+        const { token } = get();
+        if (!token) {
+          set({ token: null, user: null, isAuthenticated: false });
+          return;
+        }
+        try {
+          const response = await apiService.getMe(token);
+          set({ user: response.user, isAuthenticated: true });
+        } catch (error) {
+          console.warn('[AuthStore] Token verification failed. User session cleared:', error);
+          set({ token: null, user: null, isAuthenticated: false });
+        }
+      },
     }),
     {
       name: 'auth-storage',
