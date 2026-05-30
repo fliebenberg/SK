@@ -19,7 +19,7 @@ const getApiUrl = () => {
   return 'http://localhost:3001';
 };
 
-const API_BASE_URL = getApiUrl();
+export const API_BASE_URL = getApiUrl();
 console.log(`[API] Resolved base URL: ${API_BASE_URL}`);
 
 export interface UserPayload {
@@ -99,6 +99,92 @@ export const apiService = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Failed to verify session');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Fetch full user profile details including linked emails and social accounts
+   */
+  async getProfile(token: string): Promise<{ user: UserPayload; socialAccounts: any[]; emails: any[] }> {
+    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to retrieve profile');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Update name, custom base64 image avatar, avatar source, or theme preference
+   */
+  async updateProfile(
+    token: string,
+    data: { name?: string; customImage?: string; avatarSource?: string; theme?: string }
+  ): Promise<{ success: boolean; user: UserPayload }> {
+    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update profile');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Verify if the user's current password is correct (pre-verification check)
+   */
+  async verifyPassword(token: string, password: string): Promise<{ success: boolean }> {
+    const response = await fetch(`${API_BASE_URL}/auth/profile/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ password }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to verify password');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Update password securely (verifying old password first if existing)
+   */
+  async updatePassword(token: string, data: { password: string; oldPassword?: string }): Promise<{ success: boolean }> {
+    const response = await fetch(`${API_BASE_URL}/auth/profile/password`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update password');
     }
 
     return response.json();

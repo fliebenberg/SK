@@ -1,0 +1,12 @@
+# AI Agent Rules - SK Project
+
+## Deprecated Folders (Reference Only)
+
+The `client/` directory contains an older, web-only version of the application.
+It is **deprecated** and kept strictly for **reference purposes**.
+It is being replaced by the multi-platform Expo application located in the `expo-app/` directory.
+
+### CRITICAL RULES:
+1. **DO NOT MODIFY** any files under the `client/` directory. No edits, additions, or deletions are allowed there.
+2. All new client-side features, visual changes, components, and logic must be implemented inside the `expo-app/` directory.
+3. You may read the `client/` directory to reference past logic, API calls, or component styles, but any new implementations must be in `expo-app/`.

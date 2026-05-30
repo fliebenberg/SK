@@ -197,6 +197,227 @@ app.get('/auth/me', async (req, res) => {
   }
 });
 
+// Auth middleware for REST profile actions
+const requireAuth = (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: "No token provided" });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-development-only') as any;
+    req.userId = decoded.id;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+
+// GET /auth/profile
+app.get('/auth/profile', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.userId;
+    const userRes = await pool.query(
+      "SELECT id, name, email, global_role, password_hash, custom_image, avatar_source, theme, image FROM users WHERE id = $1",
+      [userId]
+    );
+    const user = userRes.rows[0];
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const accountsRes = await pool.query(
+      "SELECT provider, provider_image FROM accounts WHERE user_id = $1",
+      [userId]
+    );
+
+    const emailsRes = await pool.query(
+      "SELECT email, is_primary as \"isPrimary\", verified_at as \"verifiedAt\" FROM user_emails WHERE user_id = $1",
+      [userId]
+    );
+
+    let picture = user.custom_image || user.image || null;
+    if (user.avatar_source && user.avatar_source !== 'custom') {
+      const activeAccount = accountsRes.rows.find((a: any) => a.provider === user.avatar_source);
+      picture = activeAccount?.provider_image || user.image || null;
+    }
+
+    return res.status(200).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        globalRole: user.global_role,
+        hasPassword: !!user.password_hash,
+        avatarSource: user.avatar_source,
+        customImage: user.custom_image,
+        theme: user.theme,
+        picture
+      },
+      socialAccounts: accountsRes.rows,
+      emails: emailsRes.rows
+    });
+  } catch (error) {
+    console.error("GET /auth/profile error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /auth/profile
+app.patch('/auth/profile', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.userId;
+    const { name, theme, customImage, avatarSource } = req.body;
+
+    const userRes = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
+    const user = userRes.rows[0];
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (name) {
+      await pool.query("UPDATE users SET name = $1 WHERE id = $2", [name, userId]);
+    }
+
+    let finalCustomImage = customImage || null;
+    if (finalCustomImage && finalCustomImage.startsWith('data:image')) {
+      // Delete old profile image if it exists
+      if (user.custom_image) {
+        const { userManager } = await import('./managers/UserManager');
+        await userManager.safeDeleteProfileImage(user.custom_image);
+      }
+      // Process new base64 using imageService
+      const { imageService } = await import('./services/ImageService');
+      finalCustomImage = await imageService.processProfileImage(finalCustomImage, userId);
+      await pool.query("UPDATE users SET custom_image = $1 WHERE id = $2", [finalCustomImage, userId]);
+    } else if (finalCustomImage) {
+      await pool.query("UPDATE users SET custom_image = $1 WHERE id = $2", [finalCustomImage, userId]);
+    }
+
+    if (avatarSource) {
+      await pool.query("UPDATE users SET avatar_source = $1 WHERE id = $2", [avatarSource, userId]);
+
+      // Sync base 'image' for legacy and compatibility
+      if (avatarSource === 'custom') {
+        const activeImg = finalCustomImage || user.custom_image;
+        if (activeImg) {
+          await pool.query("UPDATE users SET image = $1 WHERE id = $2", [activeImg, userId]);
+        }
+      } else {
+        const accRes = await pool.query(
+          "SELECT provider_image FROM accounts WHERE user_id = $1 AND provider = $2",
+          [userId, avatarSource]
+        );
+        if (accRes.rows[0]?.provider_image) {
+          await pool.query("UPDATE users SET image = $1 WHERE id = $2", [accRes.rows[0].provider_image, userId]);
+        }
+      }
+    }
+
+    if (theme) {
+      await pool.query("UPDATE users SET theme = $1 WHERE id = $2", [theme, userId]);
+    }
+
+    // Fetch updated user to return
+    const updatedRes = await pool.query(
+      "SELECT id, name, email, global_role, password_hash, custom_image, avatar_source, theme, image FROM users WHERE id = $1",
+      [userId]
+    );
+    const updatedUser = updatedRes.rows[0];
+    
+    let picture = updatedUser.custom_image || updatedUser.image || null;
+    if (updatedUser.avatar_source && updatedUser.avatar_source !== 'custom') {
+      const accRes = await pool.query(
+        "SELECT provider_image FROM accounts WHERE user_id = $1 AND provider = $2",
+        [userId, updatedUser.avatar_source]
+      );
+      picture = accRes.rows[0]?.provider_image || updatedUser.image || null;
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        globalRole: updatedUser.global_role,
+        hasPassword: !!updatedUser.password_hash,
+        avatarSource: updatedUser.avatar_source,
+        customImage: updatedUser.custom_image,
+        theme: updatedUser.theme,
+        picture
+      }
+    });
+  } catch (error) {
+    console.error("PATCH /auth/profile error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /auth/profile/verify
+app.post('/auth/profile/verify', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.userId;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
+    const userRes = await pool.query("SELECT password_hash FROM users WHERE id = $1", [userId]);
+    const hash = userRes.rows[0]?.password_hash;
+    if (!hash) {
+      return res.status(400).json({ message: "No password set for this account" });
+    }
+
+    const isMatch = await bcrypt.compare(password, hash);
+    if (!isMatch) {
+      return res.status(403).json({ message: "Incorrect password" });
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("POST /auth/profile/verify error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /auth/profile/password
+app.patch('/auth/profile/password', requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.userId;
+    const { password, oldPassword } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
+    }
+
+    const userRes = await pool.query("SELECT password_hash FROM users WHERE id = $1", [userId]);
+    const existingHash = userRes.rows[0]?.password_hash;
+
+    // If a password already exists, require the old password to match
+    if (existingHash) {
+      if (!oldPassword) {
+        return res.status(400).json({ message: "Current password is required" });
+      }
+
+      const isMatch = await bcrypt.compare(oldPassword, existingHash);
+      if (!isMatch) {
+        return res.status(403).json({ message: "Incorrect current password" });
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, userId]);
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("PATCH /auth/profile/password error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {

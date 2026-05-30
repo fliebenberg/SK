@@ -1,5 +1,14 @@
 # SK Project
 
+## ⚠️ Deprecation Notice: `client` is replaced by `expo-app`
+
+The `client/` folder contains an older, web-only version of the application and is **deprecated**. It is kept strictly for reference purposes.
+All current and future multi-platform client development takes place in **`expo-app/`**.
+
+**AI Agents & Developers:** Do not make any changes to the `client/` directory.
+
+---
+
 ## Unified Versioning
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) to automatically handle Semantic Versioning (SemVer) across the `client`, `server`, and `shared` packages.

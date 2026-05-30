@@ -1,3 +1,14 @@
+# ⚠️ DEPRECATED - REFERENCE ONLY ⚠️
+
+**DO NOT MODIFY OR WORK ON THIS FOLDER.**
+
+This is an older, web-only version of the app. It is kept strictly for reference purposes.
+It is being replaced by the multi-platform Expo app located in the **`expo-app/`** directory.
+
+All new features, changes, and bug fixes must be implemented in `expo-app/`.
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

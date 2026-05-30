@@ -53,6 +53,7 @@ interface AuthState {
   isAuthenticated: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
+  updateUser: (user: Partial<User>) => void;
   verifySession: () => Promise<void>;
 }
 
@@ -64,6 +65,9 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       login: (token, user) => set({ token, user, isAuthenticated: true }),
       logout: () => set({ token: null, user: null, isAuthenticated: false }),
+      updateUser: (updatedFields) => set(state => ({
+        user: state.user ? { ...state.user, ...updatedFields } : null
+      })),
       verifySession: async () => {
         const { token } = get();
         if (!token) {
