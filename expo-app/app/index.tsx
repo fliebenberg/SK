@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore, useActiveTheme } from '../store/settingsStore';
 import { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { ResponsiveHeader } from '../components/ResponsiveHeader';
 
 export default function LandingPage() {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
@@ -35,31 +36,8 @@ export default function LandingPage() {
 
   return (
     <SafeAreaView style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }} className="bg-slate-50 dark:bg-slate-950">
-      {/* Top Header Navigation */}
-      <View className="flex-row justify-between items-center px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white/70 dark:bg-slate-950/70 backdrop-blur-md">
-        <View className="flex-row items-center gap-2">
-          {/* Extruded SK Logo Container */}
-          <View className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 border border-brand-orange shadow-sm dark:shadow-brand-orange/20 flex items-center justify-center">
-            <Text className="font-orbitron-bold text-base text-brand-orange mt-0.5">SK</Text>
-          </View>
-          <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white">
-            SCOREKEEPER
-          </Text>
-        </View>
-        
-        {/* Theme Toggle Button */}
-        <TouchableOpacity 
-          onPress={toggleTheme}
-          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 items-center justify-center active:opacity-80"
-          accessibilityLabel="Toggle Theme"
-        >
-          <Ionicons 
-            name={isDark ? "sunny" : "moon"} 
-            size={18} 
-            color={isDark ? "#00E5FF" : "#FF3E00"} 
-          />
-        </TouchableOpacity>
-      </View>
+      {/* Responsive Top Header Navigation */}
+      <ResponsiveHeader showNav={true} />
 
       <ScrollView 
         style={{ flex: 1 }}
