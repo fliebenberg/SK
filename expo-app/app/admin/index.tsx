@@ -4,9 +4,11 @@ import { useRouter } from 'expo-router';
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
+import { useActiveTheme } from '../../store/settingsStore';
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const isDark = useActiveTheme() === 'dark';
 
   const activeGames = [
     {
@@ -60,8 +62,8 @@ export default function AdminDashboard() {
 
           <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
             <View className="flex-row items-center gap-3.5 flex-1">
-              <View className="w-10 h-10 rounded-xl bg-brand-blue/10 border border-brand-blue/20 items-center justify-center flex-shrink-0">
-                <Ionicons name="calendar-outline" size={18} color="#00E5FF" />
+              <View className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-brand-blue/10 border border-cyan-200 dark:border-brand-blue/20 items-center justify-center flex-shrink-0">
+                <Ionicons name="calendar-outline" size={18} color={isDark ? "#00E5FF" : "#155e75"} />
               </View>
               <View className="flex-1">
                 <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">

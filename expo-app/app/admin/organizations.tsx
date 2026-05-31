@@ -3,8 +3,10 @@ import { View, Text, ScrollView } from 'react-native';
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
+import { useActiveTheme } from '../../store/settingsStore';
 
 export default function AdminOrganizations() {
+  const isDark = useActiveTheme() === 'dark';
   const managedOrgs = [
     {
       id: '1',
@@ -40,8 +42,8 @@ export default function AdminOrganizations() {
                   </Text>
                 </View>
                 <View className="flex-row items-center gap-1">
-                  <Ionicons name="shield-checkmark" size={12} color="#00E5FF" />
-                  <Text className="font-inter-bold text-[10px] text-brand-blue uppercase tracking-wider">
+                  <Ionicons name="shield-checkmark" size={12} color={isDark ? "#00E5FF" : "#155e75"} />
+                  <Text className="font-inter-bold text-[10px] text-cyan-800 dark:text-brand-blue uppercase tracking-wider">
                     {org.role}
                   </Text>
                 </View>

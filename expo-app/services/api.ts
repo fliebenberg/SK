@@ -58,7 +58,9 @@ export const apiService = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to sign in');
+      const err = new Error(errorData.message || 'Failed to sign in') as any;
+      err.tempToken = errorData.tempToken;
+      throw err;
     }
 
     return response.json();
@@ -185,6 +187,54 @@ export const apiService = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Failed to update password');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Request password recovery email (Privacy-first)
+   */
+  async requestForgotPassword(email: string): Promise<{ success: boolean }> {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to request recovery code');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Reset password using passcode or token
+   */
+  async resetPassword(
+    data: { passcode?: string; token?: string; password?: string },
+    tempToken?: string
+  ): Promise<{ success: boolean }> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (tempToken) {
+      headers['Authorization'] = `Bearer ${tempToken}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to reset password');
     }
 
     return response.json();

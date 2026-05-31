@@ -159,7 +159,7 @@ export default function SignupScreen() {
               <Button 
                 title="Already have an account? Login" 
                 variant="ghost" 
-                onPress={() => router.push('/(auth)/login')}
+                onPress={() => router.replace('/(auth)/login')}
               />
             </>
           )}

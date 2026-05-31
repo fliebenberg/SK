@@ -33,6 +33,10 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     } catch (err: any) {
       const msg = err.message || '';
+      if (msg === 'FORCE_PASSWORD_RESET') {
+        router.push(`/(auth)/reset-password?forceReset=true&tempToken=${err.tempToken}`);
+        return;
+      }
       if (msg === 'EMAIL_NOT_FOUND') {
         setError("This email isn't registered. If you used Google to sign up, please sign in via the web app.");
       } else if (msg === 'PASSWORD_MISMATCH') {
@@ -107,9 +111,15 @@ export default function LoginScreen() {
               />
               
               <Button 
+                title="Forgot Password?" 
+                variant="ghost" 
+                onPress={() => router.push('/(auth)/forgot-password')}
+              />
+
+              <Button 
                 title="Don't have an account? Sign Up" 
                 variant="ghost" 
-                onPress={() => router.push('/(auth)/signup')}
+                onPress={() => router.replace('/(auth)/signup')}
               />
               
               <Button 

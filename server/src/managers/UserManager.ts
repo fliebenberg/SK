@@ -6,7 +6,7 @@ import { imageService } from "../services/ImageService";
 
 export class UserManager extends BaseManager {
   // --- Account Management (Users Table) ---
-  private USER_COLUMNS = 'id, name, email, email_verified as "emailVerified", image, password_hash as "passwordHash", global_role as "globalRole", created_at as "createdAt", updated_at as "updatedAt", preferences';
+  private USER_COLUMNS = 'id, name, email, email_verified as "emailVerified", image, password_hash as "passwordHash", global_role as "globalRole", created_at as "createdAt", updated_at as "updatedAt", preferences, force_password_reset as "forcePasswordReset"';
   private USER_EMAIL_COLUMNS = 'id, user_id as "userId", email, is_primary as "isPrimary", verified_at as "verifiedAt", created_at as "createdAt"';
   private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId"';
   private ORG_MEMBERSHIP_COLUMNS = 'id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"';
@@ -18,7 +18,7 @@ export class UserManager extends BaseManager {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const res = await this.query(`
-      SELECT u.id, u.name, u.email, u.email_verified as "emailVerified", u.image, u.password_hash as "passwordHash", u.global_role as "globalRole", u.created_at as "createdAt", u.updated_at as "updatedAt", u.preferences 
+      SELECT u.id, u.name, u.email, u.email_verified as "emailVerified", u.image, u.password_hash as "passwordHash", u.global_role as "globalRole", u.created_at as "createdAt", u.updated_at as "updatedAt", u.preferences, u.force_password_reset as "forcePasswordReset"
       FROM users u
       LEFT JOIN user_emails ue ON u.id = ue.user_id
       WHERE u.email = $1 OR ue.email = $1
@@ -194,6 +194,10 @@ export class UserManager extends BaseManager {
 
   async deletePasswordResetToken(userId: string): Promise<void> {
     await this.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId]);
+  }
+
+  async setForcePasswordReset(userId: string, force: boolean): Promise<void> {
+    await this.query('UPDATE users SET force_password_reset = $1 WHERE id = $2', [force, userId]);
   }
 
   // --- Org Profiles (Replacement for Persons) ---

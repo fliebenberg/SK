@@ -13,6 +13,9 @@ import { accuracyAuditJob } from './jobs/handlers/AccuracyAuditJob';
 import pool from './db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import { emailService } from './services/EmailService';
+import { userManager } from './managers/UserManager';
 
 dotenv.config();
 
@@ -106,6 +109,15 @@ app.post('/auth/login', async (req, res) => {
 
     if (!isValid) {
       return res.status(401).json({ message: "PASSWORD_MISMATCH" });
+    }
+
+    if (user.force_password_reset) {
+      const tempToken = jwt.sign(
+        { id: user.id, forceReset: true },
+        process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-development-only',
+        { expiresIn: '15m' }
+      );
+      return res.status(401).json({ message: "FORCE_PASSWORD_RESET", tempToken });
     }
 
     // Resolve picture logic
@@ -414,6 +426,157 @@ app.patch('/auth/profile/password', requireAuth, async (req: any, res) => {
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error("PATCH /auth/profile/password error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Middleware to check for Admin Bearer JWT role
+const requireAdmin = async (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: "No token provided" });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-development-only') as any;
+    if (decoded.globalRole !== 'admin') {
+      const dbRes = await pool.query("SELECT global_role FROM users WHERE id = $1", [decoded.id]);
+      if (dbRes.rows[0]?.global_role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+    }
+    req.userId = decoded.id;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+};
+
+// POST /auth/forgot-password - Secure Privacy-First recovery dispatcher
+app.post('/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    console.log(`📬 [Forgot Password Endpoint] Request received for email: "${email}"`);
+    if (!email) {
+      console.log('⚠️ [Forgot Password Endpoint] Missing email in request body.');
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    console.log(`📡 [Forgot Password Endpoint] Querying database for: "${trimmedEmail}"`);
+    const user = await userManager.getUserByEmail(trimmedEmail);
+
+    // Privacy-First: Always return success on the screen to prevent user enumeration
+    if (!user) {
+      console.log(`⚠️ [Forgot Password Endpoint] Email "${trimmedEmail}" not found in database. Returning generic success.`);
+      return res.status(200).json({ success: true });
+    }
+
+    console.log(`✅ [Forgot Password Endpoint] Found matching user: Name="${user.name}", ID="${user.id}"`);
+
+    const socialAccountRes = await pool.query(
+      "SELECT provider FROM accounts WHERE user_id = $1 LIMIT 1",
+      [user.id]
+    );
+    const socialProvider = socialAccountRes.rows[0]?.provider;
+    const isSocialOnly = !user.passwordHash && !!socialProvider;
+    console.log(`ℹ️ [Forgot Password Endpoint] Account status: SocialLinked=${!!socialProvider} (${socialProvider}), PasswordLinked=${!!user.passwordHash}`);
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const passcode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const hashedPasscode = crypto.createHash('sha256').update(passcode).digest('hex');
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
+
+    console.log('📡 [Forgot Password Endpoint] Saving hashed token and passcode in database...');
+    await userManager.createPasswordResetToken(user.id, hashedToken, expiresAt);
+    await userManager.createPasswordResetToken(user.id, hashedPasscode, expiresAt);
+
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
+
+    console.log(`📧 [Forgot Password Endpoint] Dispatching transactional email: Recipient="${trimmedEmail}"`);
+    const dispatchSuccess = await emailService.sendPasswordRecoveryEmail(trimmedEmail, {
+      name: user.name || undefined,
+      resetUrl,
+      passcode,
+      isSocialOnly,
+      provider: socialProvider ? socialProvider.toUpperCase() : undefined
+    });
+    console.log(`📬 [Forgot Password Endpoint] Email dispatch completed. Success=${dispatchSuccess}`);
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("❌ [Forgot Password Endpoint] Exception encountered:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /auth/reset-password - Verify and set new credentials
+app.post('/auth/reset-password', async (req, res) => {
+  try {
+    const { passcode, token, password } = req.body;
+    
+    if (!password) {
+      return res.status(400).json({ message: "New password is required" });
+    }
+
+    const inputCredential = passcode || token;
+    if (!inputCredential) {
+      return res.status(400).json({ message: "Passcode or recovery token is required" });
+    }
+
+    const hashedCredential = crypto.createHash('sha256').update(inputCredential.trim()).digest('hex');
+
+    const dbRes = await pool.query(
+      `SELECT user_id FROM password_reset_tokens 
+       WHERE token_hash = $1 AND expires_at > NOW() 
+       LIMIT 1`,
+      [hashedCredential]
+    );
+
+    const tokenRecord = dbRes.rows[0];
+    if (!tokenRecord) {
+      return res.status(400).json({ message: "Invalid or expired recovery code or token" });
+    }
+
+    const userId = tokenRecord.user_id;
+    const passwordHash = await bcrypt.hash(password, 12);
+    await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, userId]);
+
+    await userManager.setForcePasswordReset(userId, false);
+    await userManager.deletePasswordResetToken(userId);
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// POST /api/admin/users/:id/temp-password - Admin-assisted recovery trigger
+app.post('/api/admin/users/:id/temp-password', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const segment1 = Math.floor(1000 + Math.random() * 9000).toString();
+    const segment2 = Math.floor(1000 + Math.random() * 9000).toString();
+    const tempPassword = `Score-${segment1}-${segment2}`;
+
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
+    await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, id]);
+
+    await userManager.setForcePasswordReset(id, true);
+    await userManager.deletePasswordResetToken(id);
+
+    return res.status(200).json({ 
+      success: true, 
+      tempPassword 
+    });
+  } catch (error) {
+    console.error("Admin temp-password error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

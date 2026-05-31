@@ -28,7 +28,7 @@ export const Button = forwardRef<View, ButtonProps>(({
     primary: "text-white",
     secondary: "text-slate-950",
     danger: "text-white",
-    ghost: "text-brand-blue",
+    ghost: "text-slate-700 dark:text-brand-blue",
   };
 
   const disabledClasses = disabled || isLoading ? "opacity-50" : "";
@@ -43,7 +43,7 @@ export const Button = forwardRef<View, ButtonProps>(({
       {isLoading ? (
         <ActivityIndicator color={variant === 'secondary' ? '#0F172A' : '#FFFFFF'} />
       ) : (
-        <Text className={`font-inter-bold text-base ${textClasses[variant]}`}>
+        <Text className={`font-inter-bold text-base text-center w-full ${textClasses[variant]}`}>
           {title}
         </Text>
       )}

@@ -14,7 +14,8 @@ The color system relies on a deep, dark foundation punctuated by highly saturate
 - **Backgrounds**: Deep slate and pure blacks (`#0F172A`, `#000000`). This reduces eye strain and makes bright colors pop.
 - **Surfaces/Cards**: Glassmorphism effects. Translucent dark grays with subtle blurs (`rgba(255, 255, 255, 0.05)` with `backdrop-filter: blur(10px)`). 
 - **Primary Accent (Brand)**: **Electric Orange** (`#FF3E00`). Used for primary buttons, active tabs, and the main logo glow. It provides a highly energetic, arena-like feel.
-- **Secondary Accent**: **Electric Blue** (`#00E5FF`). Provides sharp, electric visual relief from the orange. Used for secondary buttons, data visualizations, and standard links.
+- **Secondary Accent**: **Electric Blue** (`#00E5FF`). Provides sharp, electric visual relief from the orange. Used for secondary buttons, data visualizations, and standard links in **Dark Mode**. 
+  - *Light Mode Accessibility Rule*: Since `#00E5FF` has a failing contrast ratio (1.25:1) on white/light surfaces, all non-filled (ghost) buttons, text links, and role badges must adaptively swap to **Deep Slate** (`text-slate-700` / `#334155`) or **Deep Ocean Cyan** (`text-cyan-800` / `#155e75` with `bg-cyan-50` / `border-cyan-200` containers) in Light Mode to maintain a **7.6:1+ contrast ratio** and guarantee readability (WCAG AAA compliant).
 - **Live / Alert Accent**: **Pure Neon Red** (`#FF003C`). Used exclusively for "LIVE" indicators and destructive actions (e.g., Red Cards).
 - **Success Accent**: **Emerald Green** (`#00E676`). Used for positive confirmations and "Match Won" states.
 - **Text**: High contrast pure white (`#FFFFFF`) for primary data, soft silver (`#94A3B8`) for secondary labels.
@@ -135,7 +136,9 @@ To prevent confusion, the app uses a hybrid data submission approach:
 
 ### 6.3 Accessibility (a11y)
 - **Touch Targets**: Regardless of visual size, the interactive hitbox for *any* clickable element (buttons, tabs, icons) must be a minimum of **44x44 pixels** to prevent mis-taps.
-- **Contrast**: Ensure that text over glassmorphism backgrounds maintains a minimum WCAG AA contrast ratio.
+- **Contrast**: All components (both current and future) must maintain a sufficient contrast ratio across all of their constituent parts (text, icons, borders, active state indicators) to ensure every element is fully visible, readable, and distinguishable by users.
+  - Informative text, labels, and functional icons must maintain a minimum WCAG AA contrast ratio of **4.5:1** (aiming for WCAG AAA **7:1+** for secondary actions and text links) in both Light and Dark themes.
+  - Electric Blue (`#00E5FF`) must never be used as a text, fine border, or icon color directly over white or light-themed backgrounds; adaptive deep cyan or deep slate shades must be used instead.
 
 ### 6.4 Internationalization (i18n) Readiness
 - **Architecture over Content**: The app is not required to launch with multiple languages. However, the *architecture* (e.g., `i18next` or `react-intl`) must be implemented from Day 1. 

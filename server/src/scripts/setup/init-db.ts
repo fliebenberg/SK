@@ -130,8 +130,14 @@ const createTables = async () => {
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
                 preferences JSONB DEFAULT '{}',
-                theme TEXT DEFAULT 'light-orange'
+                theme TEXT DEFAULT 'light-orange',
+                force_password_reset BOOLEAN DEFAULT false
             );
+        `);
+
+        // Migration: Ensure force_password_reset column exists on older instances
+        await pool.query(`
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_reset BOOLEAN DEFAULT false;
         `);
 
         // Organization Profiles (Replaces Persons)

@@ -207,8 +207,8 @@ export default function LandingPage() {
 
             {/* Feature 2: Pro-level Admin Tools */}
             <GlassCard className="border border-slate-200 dark:border-white/5 flex-row items-start gap-4">
-              <View className="w-10 h-10 rounded-xl bg-brand-blue/10 border border-brand-blue/30 items-center justify-center flex-shrink-0">
-                <Ionicons name="shield-checkmark-outline" size={20} color="#00E5FF" />
+              <View className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-brand-blue/10 border border-cyan-200 dark:border-brand-blue/30 items-center justify-center flex-shrink-0">
+                <Ionicons name="shield-checkmark-outline" size={20} color={isDark ? "#00E5FF" : "#155e75"} />
               </View>
               <View className="flex-1">
                 <Text className="font-inter-bold text-base text-slate-800 dark:text-white mb-1">
@@ -237,8 +237,8 @@ export default function LandingPage() {
 
             {/* Feature 4: Multi-Sport Modularity */}
             <GlassCard className="border border-slate-200 dark:border-white/5 flex-row items-start gap-4">
-              <View className="w-10 h-10 rounded-xl bg-brand-blue/10 border border-brand-blue/30 items-center justify-center flex-shrink-0">
-                <Ionicons name="grid-outline" size={20} color="#00E5FF" />
+              <View className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-brand-blue/10 border border-cyan-200 dark:border-brand-blue/30 items-center justify-center flex-shrink-0">
+                <Ionicons name="grid-outline" size={20} color={isDark ? "#00E5FF" : "#155e75"} />
               </View>
               <View className="flex-1">
                 <Text className="font-inter-bold text-base text-slate-800 dark:text-white mb-1">
