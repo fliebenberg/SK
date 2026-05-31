@@ -5,7 +5,6 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
-  Alert,
   Platform,
   TouchableOpacity,
   Image,
@@ -66,6 +65,46 @@ export default function SettingsScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Branded Toast Notification state
+  const [toastConfig, setToastConfig] = useState<{
+    visible: boolean;
+    message: string;
+    type: 'success' | 'error' | 'info';
+  }>({
+    visible: false,
+    message: '',
+    type: 'info'
+  });
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToastConfig({
+      visible: true,
+      message,
+      type
+    });
+  };
+
+  // Auto-dismiss toast after 3 seconds
+  useEffect(() => {
+    if (toastConfig.visible) {
+      const timer = setTimeout(() => {
+        setToastConfig(prev => ({ ...prev, visible: false }));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastConfig.visible]);
+
+  // Custom Alert override to format native-like alert calls
+  const Alert = {
+    alert: (title: string, message: string) => {
+      const type = 
+        title.toLowerCase().includes('success') ? 'success' : 
+        title.toLowerCase().includes('error') || title.toLowerCase().includes('failed') || title.toLowerCase().includes('denied') ? 'error' : 
+        'info';
+      showToast(message, type);
+    }
+  };
+
   // Initialize and fetch extended profile data
   useEffect(() => {
     if (user) {
@@ -95,8 +134,21 @@ export default function SettingsScreen() {
     }
   }, [user?.id, isAuthenticated, token]);
 
-  const setTheme = (theme: ThemePreference) => {
+  const setTheme = async (theme: ThemePreference) => {
     setLocalOverride("theme", theme);
+    if (isAuthenticated && token) {
+      try {
+        const response = await apiService.updateProfile(token, { theme });
+        if (response.success && response.user) {
+          updateUser(response.user);
+          showToast("Theme preference updated!", "success");
+        }
+      } catch (err) {
+        console.error("[Settings] Failed to sync theme preference to backend:", err);
+      }
+    } else {
+      showToast("Theme preference updated locally!", "success");
+    }
   };
 
   const handleLogout = () => {
@@ -931,6 +983,36 @@ export default function SettingsScreen() {
       keyboardVerticalOffset={CONSTANTS.LAYOUT.keyboardVerticalOffset}
     >
       {content}
+
+      {/* Branded Floating Toast Notification */}
+      {toastConfig.visible && (
+        <View pointerEvents="none" className="absolute bottom-8 left-4 right-4 z-50 items-center">
+          <GlassCard className="flex-row items-center gap-3 px-5 py-3.5 border border-slate-200/20 dark:border-white/10 shadow-xl max-w-sm w-full rounded-2xl">
+            <View className={`w-8 h-8 rounded-full items-center justify-center ${
+              toastConfig.type === 'success' ? 'bg-green-500/15 border border-green-500/30' :
+              toastConfig.type === 'error' ? 'bg-red-500/15 border border-red-500/30' :
+              'bg-brand-blue/15 border border-brand-blue/30'
+            }`}>
+              <Ionicons 
+                name={
+                  toastConfig.type === 'success' ? 'checkmark-circle' :
+                  toastConfig.type === 'error' ? 'close-circle' :
+                  'information-circle'
+                } 
+                size={18} 
+                color={
+                  toastConfig.type === 'success' ? '#10B981' :
+                  toastConfig.type === 'error' ? '#EF4444' :
+                  '#00E5FF'
+                } 
+              />
+            </View>
+            <Text className="flex-1 font-inter-medium text-xs text-slate-800 dark:text-slate-200 leading-snug">
+              {toastConfig.message}
+            </Text>
+          </GlassCard>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }

@@ -94,8 +94,10 @@ export default function TabLayout() {
         }} 
         listeners={() => ({
           tabPress: (e) => {
-            e.preventDefault();
-            setMenuVisible(!menuVisible);
+            if (showAdminPortal) {
+              e.preventDefault();
+              setMenuVisible(!menuVisible);
+            }
           }
         })}
       />
@@ -107,7 +109,7 @@ export default function TabLayout() {
       {content}
       
       {/* Dynamic Popover Overlay Selector */}
-      {menuVisible && (
+      {menuVisible && showAdminPortal && (
         <>
           {/* Backdrop Dimming Button */}
           <TouchableOpacity

@@ -3,6 +3,7 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { apiService } from '../services/api';
+import { useSettingsStore } from './settingsStore';
 
 const secureStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
@@ -64,11 +65,58 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       isAuthenticated: false,
-      login: (token, user) => set({ token, user, isAuthenticated: true }),
+      login: (token, user) => {
+        // Sanitize theme string
+        if (user.theme === 'null' || user.theme === 'undefined') {
+          user.theme = null;
+        }
+        set({ token, user, isAuthenticated: true });
+        
+        // Sync theme preference on login
+        try {
+          const localTheme = useSettingsStore.getState().localOverrides.theme;
+          const dbTheme = user.theme;
+          
+          const isValidTheme = (t: any): t is 'system' | 'dark' | 'light' => t === 'system' || t === 'dark' || t === 'light';
+          
+          if (isValidTheme(dbTheme)) {
+            // Backend has a valid theme preference, overwrite local override
+            if (dbTheme !== localTheme) {
+              useSettingsStore.getState().setLocalOverride('theme', dbTheme);
+            }
+          } else {
+            // Backend theme is empty/invalid.
+            if (isValidTheme(localTheme)) {
+              // Sync the local guest theme up to the backend database
+              apiService.updateProfile(token, { theme: localTheme })
+                .then(res => {
+                  if (res.success && res.user) {
+                    let sanitizedUser = res.user;
+                    if (sanitizedUser.theme === 'null' || sanitizedUser.theme === 'undefined') {
+                      sanitizedUser.theme = null;
+                    }
+                    set({ user: sanitizedUser });
+                  }
+                })
+                .catch(err => console.error('[AuthStore] Failed to sync local theme to DB on login:', err));
+            } else {
+              // No DB theme and no guest theme — clear any stale override so selector shows Auto
+              useSettingsStore.getState().removeLocalOverride('theme');
+            }
+          }
+        } catch (err) {
+          console.error('[AuthStore] Theme sync logic failed during login:', err);
+        }
+      },
       logout: () => set({ token: null, user: null, isAuthenticated: false }),
-      updateUser: (updatedFields) => set(state => ({
-        user: state.user ? { ...state.user, ...updatedFields } : null
-      })),
+      updateUser: (updatedFields) => set(state => {
+        if (updatedFields.theme === 'null' || updatedFields.theme === 'undefined') {
+          updatedFields = { ...updatedFields, theme: null };
+        }
+        return {
+          user: state.user ? { ...state.user, ...updatedFields } : null
+        };
+      }),
       verifySession: async () => {
         const { token } = get();
         if (!token) {
@@ -77,7 +125,47 @@ export const useAuthStore = create<AuthState>()(
         }
         try {
           const response = await apiService.getMe(token);
-          set({ user: response.user, isAuthenticated: true });
+          let freshUser = response.user;
+          if (freshUser.theme === 'null' || freshUser.theme === 'undefined') {
+            freshUser = { ...freshUser, theme: null };
+          }
+          set({ user: freshUser, isAuthenticated: true });
+
+          // Sync theme preference on session verify
+          try {
+            const localTheme = useSettingsStore.getState().localOverrides.theme;
+            const dbTheme = freshUser.theme;
+            
+            const isValidTheme = (t: any): t is 'system' | 'dark' | 'light' => t === 'system' || t === 'dark' || t === 'light';
+            
+            if (isValidTheme(dbTheme)) {
+              // Backend has a valid theme preference, overwrite local override
+              if (dbTheme !== localTheme) {
+                useSettingsStore.getState().setLocalOverride('theme', dbTheme);
+              }
+            } else {
+              // Backend theme is empty/invalid.
+              if (isValidTheme(localTheme)) {
+                // Sync the local guest theme up to the backend database
+                apiService.updateProfile(token, { theme: localTheme })
+                  .then(res => {
+                    if (res.success && res.user) {
+                      let sanitizedUser = res.user;
+                      if (sanitizedUser.theme === 'null' || sanitizedUser.theme === 'undefined') {
+                        sanitizedUser.theme = null;
+                      }
+                      set({ user: sanitizedUser });
+                    }
+                  })
+                  .catch(err => console.error('[AuthStore] Failed to sync local theme to DB on session verify:', err));
+              } else {
+                // No DB theme and no guest theme — clear any stale override so selector shows Auto
+                useSettingsStore.getState().removeLocalOverride('theme');
+              }
+            }
+          } catch (err) {
+            console.error('[AuthStore] Theme sync logic failed during session verification:', err);
+          }
         } catch (error) {
           console.warn('[AuthStore] Token verification failed. User session cleared:', error);
           set({ token: null, user: null, isAuthenticated: false });
