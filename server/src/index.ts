@@ -130,6 +130,8 @@ app.post('/auth/login', async (req, res) => {
       picture = accRes.rows[0]?.provider_image || user.image || null;
     }
 
+    const isAdminOrCoach = await userManager.isAdminOrCoach(user.id, user.global_role);
+
     const userPayload = {
       id: user.id,
       name: user.name,
@@ -139,7 +141,8 @@ app.post('/auth/login', async (req, res) => {
       avatarSource: user.avatar_source,
       customImage: user.custom_image,
       theme: user.theme,
-      picture
+      picture,
+      isAdminOrCoach
     };
 
     const token = jwt.sign(
@@ -190,6 +193,8 @@ app.get('/auth/me', async (req, res) => {
       picture = accRes.rows[0]?.provider_image || user.image || null;
     }
 
+    const isAdminOrCoach = await userManager.isAdminOrCoach(user.id, user.global_role);
+
     const userPayload = {
       id: user.id,
       name: user.name,
@@ -199,7 +204,8 @@ app.get('/auth/me', async (req, res) => {
       avatarSource: user.avatar_source,
       customImage: user.custom_image,
       theme: user.theme,
-      picture
+      picture,
+      isAdminOrCoach
     };
 
     return res.status(200).json({ user: userPayload });
@@ -255,6 +261,8 @@ app.get('/auth/profile', requireAuth, async (req: any, res) => {
       picture = activeAccount?.provider_image || user.image || null;
     }
 
+    const isAdminOrCoach = await userManager.isAdminOrCoach(user.id, user.global_role);
+
     return res.status(200).json({
       user: {
         id: user.id,
@@ -265,7 +273,8 @@ app.get('/auth/profile', requireAuth, async (req: any, res) => {
         avatarSource: user.avatar_source,
         customImage: user.custom_image,
         theme: user.theme,
-        picture
+        picture,
+        isAdminOrCoach
       },
       socialAccounts: accountsRes.rows,
       emails: emailsRes.rows
@@ -347,6 +356,8 @@ app.patch('/auth/profile', requireAuth, async (req: any, res) => {
       picture = accRes.rows[0]?.provider_image || updatedUser.image || null;
     }
 
+    const isAdminOrCoach = await userManager.isAdminOrCoach(updatedUser.id, updatedUser.global_role);
+
     return res.status(200).json({
       success: true,
       user: {
@@ -358,7 +369,8 @@ app.patch('/auth/profile', requireAuth, async (req: any, res) => {
         avatarSource: updatedUser.avatar_source,
         customImage: updatedUser.custom_image,
         theme: updatedUser.theme,
-        picture
+        picture,
+        isAdminOrCoach
       }
     });
   } catch (error) {

@@ -45,6 +45,7 @@ export interface User {
   customImage?: string | null;
   theme?: string | null;
   picture?: string | null;
+  isAdminOrCoach?: boolean;
 }
 
 interface AuthState {

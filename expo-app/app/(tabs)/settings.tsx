@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Image,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { useSettingsStore, ThemePreference } from "../../store/settingsStore";
 import { GlassCard } from "../../components/GlassCard";
@@ -24,6 +25,8 @@ import { CONSTANTS } from '../../constants';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
   const { user, token, isAuthenticated, logout, updateUser } = useAuthStore();
 
   const localOverrides = useSettingsStore((state) => state.localOverrides);
@@ -98,7 +101,7 @@ export default function SettingsScreen() {
 
   const handleLogout = () => {
     logout();
-    router.replace("/");
+    router.replace("/landing");
   };
 
   const handleLogin = () => {
@@ -300,9 +303,11 @@ export default function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View className="w-full max-w-6xl mx-auto">
-        <Text className="font-orbitron-bold text-2xl text-brand-orange mb-6 tracking-widest text-center md:text-left">
-          SETTINGS
-        </Text>
+        {isLargeScreen && (
+          <Text className="font-orbitron-bold text-2xl text-brand-orange mb-6 tracking-widest text-center md:text-left">
+            SETTINGS
+          </Text>
+        )}
 
         {!isAuthenticated ? (
           <GlassCard className="mb-6 max-w-xl mx-auto">
@@ -498,7 +503,7 @@ export default function SettingsScreen() {
 
               {/* 1. EDIT PROFILE TAB */}
               {activeTab === "profile" && (
-                <GlassCard className="gap-6 animate-fadeIn">
+                <GlassCard className="gap-6">
                   <View className="flex-row items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
                     <Ionicons name="person-circle" size={20} color="#FF3E00" />
                     <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
@@ -582,7 +587,7 @@ export default function SettingsScreen() {
 
               {/* 2. SECURITY & PASSWORD TAB */}
               {activeTab === "security" && (
-                <GlassCard className="gap-6 animate-fadeIn">
+                <GlassCard className="gap-6">
                   <View className="flex-row items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
                     <Ionicons name="lock-closed" size={20} color="#FF3E00" />
                     <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
@@ -826,7 +831,7 @@ export default function SettingsScreen() {
 
               {/* 3. LINKED ACCOUNTS & EMAILS TAB */}
               {activeTab === "emails" && (
-                <GlassCard className="gap-6 animate-fadeIn">
+                <GlassCard className="gap-6">
                   <View className="flex-row items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
                     <Ionicons name="mail-open" size={20} color="#FF3E00" />
                     <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">

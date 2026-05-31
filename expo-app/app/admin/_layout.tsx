@@ -1,10 +1,23 @@
-import React from 'react';
-import { Stack } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Stack, useRouter } from 'expo-router';
 import { useActiveTheme } from '../../store/settingsStore';
+import { useAuthStore } from '../../store/authStore';
 
 export default function AdminLayout() {
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/landing');
+    }
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <Stack
@@ -22,7 +35,10 @@ export default function AdminLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'ADMIN PORTAL' }} />
-      <Stack.Screen name="organizations" options={{ title: 'MANAGE ORGANIZATIONS' }} />
+      <Stack.Screen name="organizations" options={{ title: 'MY ORGANIZATIONS' }} />
+      <Stack.Screen name="all-organizations" options={{ title: 'ALL ORGANIZATIONS' }} />
+      <Stack.Screen name="reports" options={{ title: 'SYSTEM AUDITS' }} />
+      <Stack.Screen name="[orgId]" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -42,14 +42,28 @@ The color system relies on a deep, dark foundation punctuated by highly saturate
 
 Because ScoreKeeper serves two distinct user archetypes (casual viewers vs. heavy administrators), the app employs a **Hybrid Navigation Model**:
 
-### 2.1 Viewer/Fan Navigation (Mobile Bottom Tabs -> Desktop Left Rail)
-- **Mobile (< 768px)**: A **Bottom Tab Bar** is the primary navigation mechanism (e.g., `Feed`, `Live`, `Search`, `Profile`). Uses a translucent glassmorphism background.
-- **Large Screens / Web (>= 768px)**: The bottom tabs automatically reposition into a **Left Navigation Rail** (similar to Twitter/X web). This utilizes horizontal screen real estate efficiently while keeping the core routing identical.
+### 2.1 Viewer/Fan & Administrative Routing (Mobile Bottom Tabs -> Desktop Left Rail)
+- **Mobile (< 768px)**: A **Bottom Tab Bar** is the primary navigation mechanism. To guarantee clean ergonomics and avoid clutter, the tab bar MUST NOT exceed 5 buttons:
+  - **Live** (`index` tab): Real-time games feed with live scoring triggers.
+  - **Orgs** (`organizations` tab): Public directory list of registered sports organizations.
+  - **Teams** (`teams` tab): Public directory list of active teams and records.
+  - **Sites** (`sites` tab): Public directory list of facilities and venues.
+  - **Settings** (`settings` tab): PROGRAMMATIC INTERCEPTOR. Tapping the settings tab icon must not navigate directly. Instead, it must toggle a translucent backdrop-dimmed **Speed Dial Popover Menu** floating directly above the bottom tab. The popover displays:
+    1. **Admin Portal** (links to `/admin` dashboard stack)
+    2. **My Account** (links to `/settings` account screen)
+- **Large Screens / Web (>= 768px)**: The bottom tabs automatically reposition into a **Left Navigation Rail** (similar to Twitter/X web) for direct and seamless traversal.
 
-### 2.2 Admin Navigation (Mobile Drawer -> Desktop Pinned Sidebar)
-For administrative routes (`/admin/*`), the navigation hierarchy is too deep for a bottom bar.
-- **Mobile (< 768px)**: A **Hamburger Drawer Menu** provides access to deep links (Teams, Members, Sites). A **Context Switcher** dropdown sits at the top header to pivot between Organizations.
-- **Large Screens / Web (>= 768px)**: The drawer becomes a **Persistent Pinned Left Sidebar**. Admins do not need to click a hamburger menu; the navigation tree is always visible. The Context Switcher remains pinned at the top of this sidebar.
+### 2.2 Admin Dashboard & Workspace Navigation (Mobile Drawer -> Desktop Pinned Sidebar)
+For deep administrative features:
+- **Mobile (< 768px)**: Handled via the `/admin` navigation stack. Pushing sub-panels (like dynamic workspaces `/admin/[orgId]`) mounts nested stack routers, keeping screen layout clean and relying on single native back routing triggers.
+- **Large Screens / Web (>= 768px)**: Renders a **Persistent Pinned Left Sidebar** for workspace context switching, list panels, and settings forms.
+
+
+### 2.3 Mobile Header & Back Navigation Design
+To guarantee a clean, professional, and uncluttered layout on mobile viewports:
+1. **Single Native Header Bar**: The application must utilize a single native navigation header bar (configured in Expo Router's `<Stack>` layout, styled with the custom Orbitron font and primary Burnt Orange accent). Double headers (such as displaying both the root stack header and a nested router header) are strictly prohibited.
+2. **Prevent Heading Duplication**: Do not repeat the active screen title (e.g., "Control Center" or "My Organizations") as a large heading inside the scrollable screen body if it is already displayed in the native header above. This saves precious screen real estate on mobile devices.
+3. **Standardized Back Routing**: All back navigation is handled natively by the stack header's back arrow (`<-`) or iOS edge swipe-back gestures, popping the active screen from the stack. Custom "Back" buttons must not be added to the screen body unless part of a high-friction multi-step wizard (like live scoring exit guards).
 
 ---
 

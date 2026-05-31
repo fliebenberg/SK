@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function TeamsPage() {
   const [followedTeams, setFollowedTeams] = useState<string[]>([]);
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
 
   const teams = [
     {
@@ -48,9 +50,11 @@ export default function TeamsPage() {
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* HEADER SECTION */}
         <View className="mb-6">
-          <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
-            Teams
-          </Text>
+          {isLargeScreen && (
+            <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
+              Teams
+            </Text>
+          )}
           <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
             Search active sports teams, check their records, and personalize your feed by following them.
           </Text>

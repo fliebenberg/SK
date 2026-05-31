@@ -32,6 +32,7 @@ export interface UserPayload {
   customImage?: string | null;
   theme?: string | null;
   picture?: string | null;
+  isAdminOrCoach?: boolean;
 }
 
 export interface AuthResponse {

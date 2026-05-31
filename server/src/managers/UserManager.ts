@@ -397,6 +397,40 @@ export class UserManager extends BaseManager {
     return res.rows;
   }
 
+  async isAdminOrCoach(userId: string, globalRole: string): Promise<boolean> {
+    if (globalRole === 'admin') return true;
+
+    // Check org memberships for 'role-org-admin'
+    const orgRes = await this.query(`
+      SELECT 1 FROM org_memberships
+      WHERE org_profile_id IN (
+        SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
+          SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
+          UNION
+          SELECT email FROM users WHERE id = $1
+        )
+      ) AND role_id = 'role-org-admin' AND (end_date IS NULL OR end_date > NOW())
+      LIMIT 1
+    `, [userId]);
+
+    if (orgRes.rowCount && orgRes.rowCount > 0) return true;
+
+    // Check team memberships for coach roles
+    const teamRes = await this.query(`
+      SELECT 1 FROM team_memberships
+      WHERE org_profile_id IN (
+        SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
+          SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
+          UNION
+          SELECT email FROM users WHERE id = $1
+        )
+      ) AND role_id IN ('role-coach', 'role-assistant-coach') AND (end_date IS NULL OR end_date > NOW())
+      LIMIT 1
+    `, [userId]);
+
+    return (teamRes.rowCount && teamRes.rowCount > 0) || false;
+  }
+
   // --- Search & Matching ---
 
   async searchProfiles(searchTerm: string, orgId?: string, orgDomain?: string): Promise<OrgProfile[]> {

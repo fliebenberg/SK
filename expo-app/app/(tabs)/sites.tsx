@@ -1,10 +1,13 @@
 import React from 'react';
-import { View, Text, ScrollView, TextInput } from 'react-native';
+import { View, Text, ScrollView, TextInput, useWindowDimensions } from 'react-native';
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function SitesPage() {
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
+
   const sites = [
     {
       id: '1',
@@ -27,9 +30,11 @@ export default function SitesPage() {
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* HEADER SECTION */}
         <View className="mb-6">
-          <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
-            Sites & Venues
-          </Text>
+          {isLargeScreen && (
+            <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
+              Sites & Venues
+            </Text>
+          )}
           <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
             Browse match locations, view facility lists, and see where games are scheduled near you.
           </Text>

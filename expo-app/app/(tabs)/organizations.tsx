@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function OrganizationsPage() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
 
   const orgs = [
     {
@@ -34,9 +36,11 @@ export default function OrganizationsPage() {
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* HEADER SECTION */}
         <View className="mb-6">
-          <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
-            Organizations
-          </Text>
+          {isLargeScreen && (
+            <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
+              Organizations
+            </Text>
+          )}
           <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
             Browse and search active sports clubs, schools, and leagues on ScoreKeeper.
           </Text>

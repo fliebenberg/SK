@@ -1,20 +1,30 @@
 import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
 
 export default function AdminOrganizations() {
+  const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
   const managedOrgs = [
     {
-      id: '1',
+      id: 'org-1',
       name: 'Premier Rugby Union',
       sport: 'Rugby Union',
       role: 'Owner',
       teamsCount: 24,
       facilitiesCount: 3,
+    },
+    {
+      id: 'org-2',
+      name: 'Metro Football League',
+      sport: 'Football',
+      role: 'Owner',
+      teamsCount: 48,
+      facilitiesCount: 6,
     },
   ];
 
@@ -22,11 +32,8 @@ export default function AdminOrganizations() {
     <View className="flex-1 bg-slate-50 dark:bg-slate-950">
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* HEADER */}
-        <View className="mb-8">
-          <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
-            My Organizations
-          </Text>
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+        <View className="mb-6 mt-2">
+          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 leading-5">
             Configure rosters, view registered players, manage game scheduling, and verify club settings.
           </Text>
         </View>
@@ -49,9 +56,22 @@ export default function AdminOrganizations() {
                 </View>
               </View>
 
-              <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white mb-4">
-                {org.name}
-              </Text>
+              <View className="flex-row justify-between items-center mb-4">
+                <TouchableOpacity 
+                  onPress={() => router.push(`/admin/${org.id}` as any)}
+                  className="flex-1 mr-2"
+                >
+                  <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white uppercase tracking-wide">
+                    {org.name}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push(`/admin/${org.id}` as any)}
+                  className="p-2 bg-brand-orange/10 dark:bg-brand-orange/20 rounded-lg active:opacity-85"
+                >
+                  <Ionicons name="arrow-forward" size={16} color="#FF3E00" />
+                </TouchableOpacity>
+              </View>
 
               {/* DETAILS */}
               <View className="flex-row gap-8 mb-5">
@@ -73,13 +93,13 @@ export default function AdminOrganizations() {
                 <Button
                   title="Configure Roster"
                   variant="secondary"
-                  onPress={() => {}}
+                  onPress={() => router.push(`/admin/${org.id}/people` as any)}
                   className="shadow-sm"
                 />
                 <Button
                   title="Manage Schedule"
                   variant="secondary"
-                  onPress={() => {}}
+                  onPress={() => router.push(`/admin/${org.id}/events` as any)}
                   className="shadow-sm"
                 />
               </View>
