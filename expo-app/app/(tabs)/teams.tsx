@@ -3,11 +3,26 @@ import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimension
 import { GlassCard } from '../../components/GlassCard';
 import { Button } from '../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '../../store/authStore';
 
 export default function TeamsPage() {
   const [followedTeams, setFollowedTeams] = useState<string[]>([]);
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
+  const { isAuthenticated, user } = useAuthStore();
+
+  const coachedTeams = [
+    {
+      id: 'coached-1',
+      name: 'Cape Town RFC (Development)',
+      sport: 'Rugby Union',
+      record: '6-2-1',
+      rank: '#2 in Western Dev Cup',
+      abbreviation: 'CTD',
+      color: 'bg-orange-600',
+      role: 'Head Coach',
+    },
+  ];
 
   const teams = [
     {
@@ -71,7 +86,59 @@ export default function TeamsPage() {
           />
         </View>
 
+        {/* COACHED TEAMS SECTION */}
+        {isAuthenticated && (user?.globalRole === 'admin' || user?.isAdminOrCoach) && (
+          <View className="mb-8">
+            <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+              My Coached Teams
+            </Text>
+            <View className="space-y-4">
+              {coachedTeams.map((team) => (
+                <GlassCard key={team.id} className="border border-slate-200 dark:border-white/5 shadow-sm p-4 relative overflow-hidden">
+                  {/* Premium glowing highlight line for coaching state */}
+                  <View className="absolute left-0 top-0 bottom-0 w-1.5 bg-brand-orange" />
+
+                  <View className="flex-row items-center justify-between pl-1.5">
+                    <View className="flex-row items-center gap-3.5 flex-1">
+                      <View className={`w-11 h-11 rounded-xl ${team.color} items-center justify-center shadow-inner`}>
+                        <Text className="font-orbitron-bold text-sm text-white">{team.abbreviation}</Text>
+                      </View>
+                      <View className="flex-1">
+                        <View className="flex-row items-center gap-2">
+                          <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white leading-tight">
+                            {team.name}
+                          </Text>
+                          <View className="bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded">
+                            <Text className="font-orbitron-bold text-[8px] text-brand-blue uppercase tracking-wider">
+                              {team.role}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-wider">
+                          {team.sport} • {team.record} ({team.rank})
+                        </Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={() => {}}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 active:opacity-85 shadow-sm"
+                    >
+                      <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300">
+                        Manage Team
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </GlassCard>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* LIST OF TEAMS */}
+        <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+          All Teams
+        </Text>
         <View className="space-y-4">
           {teams.map((team) => {
             const isFollowing = followedTeams.includes(team.id);

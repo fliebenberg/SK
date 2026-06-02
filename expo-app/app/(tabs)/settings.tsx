@@ -434,6 +434,21 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
 
+                {user?.globalRole === 'admin' && (
+                  <TouchableOpacity
+                    onPress={() => router.push('/admin' as any)}
+                    className="w-full bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/20 hover:bg-brand-orange/15 rounded-xl px-4 py-3.5 flex-row items-center justify-between mb-4 active:scale-[0.98]"
+                  >
+                    <View className="flex-row items-center gap-3">
+                      <Ionicons name="shield-checkmark" size={16} color="#FF3E00" />
+                      <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-widest mt-0.5">
+                        System Admin Portal
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={14} color="#FF3E00" />
+                  </TouchableOpacity>
+                )}
+
                 {/* Left Navigation Rails for Desktop/Tablets */}
                 <View className="hidden md:flex w-full border-t border-slate-200 dark:border-white/10 pt-4 gap-2">
                   <TouchableOpacity

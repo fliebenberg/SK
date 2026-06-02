@@ -13,8 +13,7 @@ export function LeftNavigationRail() {
   const isDark = activeTheme === 'dark';
   const { user, isAuthenticated } = useAuthStore();
 
-  // Determine if Admin Portal option should be displayed
-  const showAdminPortal = isAuthenticated && (user?.globalRole === 'admin' || user?.isAdminOrCoach);
+  const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
 
   // Extract current tab name based on active segment: segments = ["(tabs)", "organizations"]
   const activeTab = segments[0] === '(tabs)' 

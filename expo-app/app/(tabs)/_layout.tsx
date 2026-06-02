@@ -15,7 +15,7 @@ export default function TabLayout() {
   const [menuVisible, setMenuVisible] = useState(false);
   const { user, isAuthenticated } = useAuthStore();
 
-  const showAdminPortal = isAuthenticated && (user?.globalRole === 'admin' || user?.isAdminOrCoach);
+  const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
   
   const content = (
     <Tabs screenOptions={{

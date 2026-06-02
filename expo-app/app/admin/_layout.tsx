@@ -7,15 +7,18 @@ export default function AdminLayout() {
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const user = useAuthStore(state => state.user);
   const router = useRouter();
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace('/landing');
+    } else if (user?.globalRole !== 'admin') {
+      router.replace('/(tabs)/settings');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || user?.globalRole !== 'admin') {
     return null;
   }
 

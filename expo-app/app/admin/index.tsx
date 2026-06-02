@@ -67,28 +67,6 @@ export default function AdminDashboard() {
         <View className="space-y-4 mb-8">
           <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
             <View className="flex-row items-center gap-3.5 flex-1">
-              <View className="w-10 h-10 rounded-xl bg-brand-orange/10 border border-brand-orange/20 items-center justify-center flex-shrink-0">
-                <Ionicons name="business-outline" size={18} color="#FF3E00" />
-              </View>
-              <View className="flex-1">
-                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
-                  My Organizations
-                </Text>
-                <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                  Manage profiles, rosters, sites & schedules
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              onPress={() => router.push('/admin/organizations')}
-              className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg active:opacity-85"
-            >
-              <Ionicons name="arrow-forward" size={16} color="#FF3E00" />
-            </TouchableOpacity>
-          </GlassCard>
-
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
-            <View className="flex-row items-center gap-3.5 flex-1">
               <View className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-brand-blue/10 border border-cyan-200 dark:border-brand-blue/20 items-center justify-center flex-shrink-0">
                 <Ionicons name="globe-outline" size={18} color={isDark ? "#00E5FF" : "#155e75"} />
               </View>
