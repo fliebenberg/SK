@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
 import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps, View } from 'react-native';
+import { useActiveTheme } from '../store/settingsStore';
 
 interface ButtonProps extends TouchableOpacityProps {
   title: string;
@@ -15,13 +16,16 @@ export const Button = forwardRef<View, ButtonProps>(({
   disabled,
   ...props 
 }, ref) => {
+  const activeTheme = useActiveTheme();
+  const isDark = activeTheme === 'dark';
+
   const baseClasses = "min-h-[44px] flex-row items-center justify-center rounded-lg px-6 py-3 active:opacity-80";
   
   const variantClasses = {
     primary: "bg-brand-orange",
     secondary: "bg-brand-blue",
     danger: "bg-brand-red",
-    ghost: "bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5",
+    ghost: "bg-white border border-slate-200",
   };
 
   const textClasses = {
@@ -33,11 +37,17 @@ export const Button = forwardRef<View, ButtonProps>(({
 
   const disabledClasses = disabled || isLoading ? "opacity-50" : "";
 
+  const ghostStyle = variant === 'ghost' ? {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#FFFFFF',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#E2E8F0',
+  } : {};
+
   return (
     <TouchableOpacity 
       ref={ref}
       className={`${baseClasses} ${variantClasses[variant]} ${disabledClasses} ${className}`}
       disabled={disabled || isLoading}
+      style={[ghostStyle, props.style]}
       {...props}
     >
       {isLoading ? (

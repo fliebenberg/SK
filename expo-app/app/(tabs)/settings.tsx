@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   useWindowDimensions,
 } from "react-native";
-import { useSettingsStore, ThemePreference } from "../../store/settingsStore";
+import { useSettingsStore, ThemePreference, useActiveTheme } from "../../store/settingsStore";
 import { GlassCard } from "../../components/GlassCard";
 import { Button } from "../../components/Button";
 import { useAuthStore } from "../../store/authStore";
@@ -24,6 +24,7 @@ import { CONSTANTS } from '../../constants';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const activeTheme = useActiveTheme();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
   const { user, token, isAuthenticated, logout, updateUser } = useAuthStore();
@@ -347,6 +348,14 @@ export default function SettingsScreen() {
     user &&
     (name !== user.name || avatarSource !== (user.avatarSource || "custom"));
 
+  const activeTabStyle = {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.18,
+    shadowRadius: 1.0,
+    elevation: 1,
+  };
+
   const content = (
     <ScrollView
       className="flex-1 bg-slate-50 dark:bg-slate-900"
@@ -523,7 +532,8 @@ export default function SettingsScreen() {
               <View className="flex-row md:hidden bg-slate-200 dark:bg-slate-800 rounded-lg p-1 mb-2">
                 <TouchableOpacity
                   onPress={() => setActiveTab("profile")}
-                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "profile" ? "bg-white dark:bg-slate-950 shadow-sm" : ""}`}
+                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "profile" ? "bg-white dark:bg-slate-950" : ""}`}
+                  style={activeTab === "profile" ? activeTabStyle : undefined}
                 >
                   <Text
                     className={`font-inter-bold text-xs ${activeTab === "profile" ? "text-brand-orange" : "text-slate-600 dark:text-slate-400"}`}
@@ -533,7 +543,8 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setActiveTab("security")}
-                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "security" ? "bg-white dark:bg-slate-950 shadow-sm" : ""}`}
+                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "security" ? "bg-white dark:bg-slate-950" : ""}`}
+                  style={activeTab === "security" ? activeTabStyle : undefined}
                 >
                   <Text
                     className={`font-inter-bold text-xs ${activeTab === "security" ? "text-brand-orange" : "text-slate-600 dark:text-slate-400"}`}
@@ -543,7 +554,8 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setActiveTab("emails")}
-                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "emails" ? "bg-white dark:bg-slate-950 shadow-sm" : ""}`}
+                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "emails" ? "bg-white dark:bg-slate-950" : ""}`}
+                  style={activeTab === "emails" ? activeTabStyle : undefined}
                 >
                   <Text
                     className={`font-inter-bold text-xs ${activeTab === "emails" ? "text-brand-orange" : "text-slate-600 dark:text-slate-400"}`}
@@ -648,7 +660,13 @@ export default function SettingsScreen() {
                   </View>
 
                   {!isEditingPassword ? (
-                    <View className="p-4 rounded-xl bg-slate-100 dark:bg-slate-950/40 border border-slate-200 dark:border-white/5 items-center md:items-start gap-4">
+                    <View 
+                      className="p-4 rounded-xl border items-center md:items-start gap-4"
+                      style={{
+                        backgroundColor: activeTheme === 'dark' ? 'rgba(2, 6, 23, 0.4)' : '#F1F5F9',
+                        borderColor: activeTheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#E2E8F0',
+                      }}
+                    >
                       <View className="flex-row items-center gap-3">
                         <Ionicons
                           name={

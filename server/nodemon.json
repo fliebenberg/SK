@@ -1,5 +1,7 @@
 {
   "watch": ["src", "../shared/dist"],
   "ext": "ts,js,json",
+  "ignore": ["**/node_modules/**", "../shared/node_modules/**"],
+  "delay": "1000",
   "exec": "ts-node src/index.ts"
 }
