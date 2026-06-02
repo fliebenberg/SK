@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { GlassCard } from '../../../components/GlassCard';
-import { Button } from '../../../components/Button';
+import { GlassCard } from '../../../../components/GlassCard';
+import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../store/settingsStore';
+import { useActiveTheme } from '../../../../store/settingsStore';
 
 export default function OrgSettings() {
   const { orgId } = useLocalSearchParams<{ orgId: string }>();

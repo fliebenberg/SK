@@ -1,6 +1,6 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { useActiveTheme } from '../../../store/settingsStore';
+import { useActiveTheme } from '../../../../store/settingsStore';
 
 export default function OrgAdminLayout() {
   const activeTheme = useActiveTheme();
@@ -21,7 +21,7 @@ export default function OrgAdminLayout() {
         headerTintColor: '#FF3E00', // Burnt Orange highlights
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'ORG CONTROL PANEL' }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="settings" options={{ title: 'ORG PROFILE SETTINGS' }} />
       <Stack.Screen name="people" options={{ title: 'MANAGE PEOPLE & ROLES' }} />
       <Stack.Screen name="teams" options={{ title: 'MANAGE TEAMS' }} />

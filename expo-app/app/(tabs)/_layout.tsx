@@ -63,6 +63,14 @@ export default function TabLayout() {
           )
         }} 
       />
+
+      <Tabs.Screen 
+        name="admin/[orgId]" 
+        options={{ 
+          href: null,
+          headerShown: false,
+        }} 
+      />
       <Tabs.Screen 
         name="teams" 
         options={{ 

@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { GlassCard } from '../../../components/GlassCard';
-import { Button } from '../../../components/Button';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassCard } from '../../../../components/GlassCard';
+import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../store/settingsStore';
+import { useActiveTheme } from '../../../../store/settingsStore';
 
 export default function OrgControlDashboard() {
   const router = useRouter();
@@ -92,7 +93,24 @@ export default function OrgControlDashboard() {
   ];
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      {/* HEADER BAR */}
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/organizations')}
+          className="flex-row items-center gap-1 active:opacity-85"
+        >
+          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
+          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+            Back
+          </Text>
+        </TouchableOpacity>
+        <Text className="font-orbitron-bold text-xs tracking-widest text-slate-800 dark:text-white uppercase">
+          Org Control Panel
+        </Text>
+        <View className="w-10 h-2" />
+      </View>
+
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* BANNER WITH BACKGROUND ACCENT GLOW */}
         <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-8 relative overflow-hidden bg-brand-orange/5">
@@ -179,7 +197,7 @@ export default function OrgControlDashboard() {
 
         {/* EXIT BUTTON */}
         <TouchableOpacity
-          onPress={() => router.replace('/admin/organizations' as any)}
+          onPress={() => router.replace('/(tabs)/organizations' as any)}
           className="flex-row items-center justify-center gap-2 py-3 border border-dashed border-slate-300 dark:border-white/10 rounded-xl active:opacity-85"
         >
           <Ionicons name="chevron-back" size={16} color="#FF3E00" />
@@ -188,6 +206,6 @@ export default function OrgControlDashboard() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }

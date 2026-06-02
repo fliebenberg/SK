@@ -1,44 +1,45 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
-import { GlassCard } from '../../../components/GlassCard';
-import { Button } from '../../../components/Button';
+import { GlassCard } from '../../../../components/GlassCard';
+import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../store/settingsStore';
+import { useActiveTheme } from '../../../../store/settingsStore';
 
-export default function OrgEvents() {
+export default function OrgTeams() {
   const isDark = useActiveTheme() === 'dark';
   const [searchQuery, setSearchQuery] = useState('');
 
-  const events = [
+  const teams = [
     {
-      id: 'event-1',
-      name: 'Autumn Club Championship',
+      id: 'team-1',
+      name: 'Cape Town RFC 1st XV',
       sport: 'Rugby Union',
-      teamsCount: 8,
-      status: 'Active',
-      startDate: '2026-05-01',
+      division: '1st Division',
+      coach: 'John Doe',
+      athletesCount: 22,
     },
     {
-      id: 'event-2',
-      name: 'ScoreKeeper Winter League',
+      id: 'team-2',
+      name: 'Cape Town RFC Under 19',
+      sport: 'Rugby Union',
+      division: 'U19 League',
+      coach: 'Sarah Connor',
+      athletesCount: 18,
+    },
+    {
+      id: 'team-3',
+      name: 'Seapoint Rovers FC',
       sport: 'Football',
-      teamsCount: 16,
-      status: 'Scheduled',
-      startDate: '2026-07-15',
-    },
-    {
-      id: 'event-3',
-      name: 'Cape Town Squash Cup',
-      sport: 'Squash',
-      teamsCount: 12,
-      status: 'Completed',
-      startDate: '2026-04-10',
+      division: 'Premier Division',
+      coach: 'James Smith',
+      athletesCount: 16,
     },
   ];
 
-  const filteredEvents = events.filter(e =>
-    e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.sport.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTeams = teams.filter(t =>
+    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.sport.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.division.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -48,17 +49,17 @@ export default function OrgEvents() {
         <View className="mb-6 flex-row justify-between items-center">
           <View className="flex-1 mr-4">
             <Text className="font-orbitron-bold text-xl text-slate-800 dark:text-white uppercase mb-1">
-              Events & Leagues
+              Teams & Divisions
             </Text>
             <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-              Schedule active matches, organize group phases, or generate match scoreboard lists.
+              Create club divisions, register sports squads, and assign managers to touch-scoring consoles.
             </Text>
           </View>
           <TouchableOpacity 
             className="w-10 h-10 rounded-xl bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
             onPress={() => {}}
           >
-            <Ionicons name="calendar-outline" size={20} color="white" />
+            <Ionicons name="add-outline" size={20} color="white" />
           </TouchableOpacity>
         </View>
 
@@ -66,7 +67,7 @@ export default function OrgEvents() {
         <View className="flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 mb-6 shadow-sm">
           <Ionicons name="search-outline" size={18} color="#94A3B8" />
           <TextInput
-            placeholder="Search active leagues or events..."
+            placeholder="Search teams or sports..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -79,64 +80,48 @@ export default function OrgEvents() {
           )}
         </View>
 
-        {/* EVENTS LIST */}
+        {/* TEAMS LIST */}
         <View className="space-y-4">
-          {filteredEvents.map((event) => (
+          {filteredTeams.map((team) => (
             <GlassCard 
-              key={event.id}
+              key={team.id}
               className="border border-slate-200 dark:border-white/5 p-5"
             >
               <View className="flex-row justify-between items-start mb-3">
                 <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full">
                   <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    {event.sport}
+                    {team.division} • {team.sport}
                   </Text>
                 </View>
-                <View className="flex-row items-center gap-1.5">
-                  <View 
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      event.status === 'Active' 
-                        ? 'bg-brand-orange' 
-                        : event.status === 'Scheduled' 
-                        ? 'bg-cyan-500' 
-                        : 'bg-slate-400'
-                    }`} 
-                  />
-                  <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    {event.status}
+                <View className="flex-row items-center gap-1">
+                  <Ionicons name="people" size={12} color="#FF3E00" />
+                  <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400">
+                    {team.athletesCount} Athletes
                   </Text>
                 </View>
               </View>
 
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white mb-2">
-                {event.name}
+              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white mb-4">
+                {team.name}
               </Text>
 
-              {/* DATE & DETAILS */}
-              <View className="flex-row items-center gap-6 mb-4">
-                <View className="flex-row items-center gap-1.5">
-                  <Ionicons name="people-outline" size={14} color="#94A3B8" />
-                  <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                    {event.teamsCount} Teams Registered
-                  </Text>
-                </View>
-                <View className="flex-row items-center gap-1.5">
-                  <Ionicons name="time-outline" size={14} color="#94A3B8" />
-                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-                    Starts: {event.startDate}
-                  </Text>
-                </View>
+              {/* COACH / DETAILS */}
+              <View className="flex-row items-center gap-2 mb-4">
+                <Ionicons name="shield-checkmark" size={14} color="#94A3B8" />
+                <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                  Manager: <Text className="font-semibold">{team.coach}</Text>
+                </Text>
               </View>
 
               <View className="flex-row gap-3">
                 <Button
-                  title="Configure Fixtures"
+                  title="Configure Roster"
                   variant="secondary"
                   onPress={() => {}}
                   className="flex-1 shadow-sm py-2 rounded-lg"
                 />
                 <Button
-                  title="Scoring"
+                  title="Settings"
                   variant="secondary"
                   onPress={() => {}}
                   className="px-4 py-2 rounded-lg shadow-sm"
@@ -145,14 +130,14 @@ export default function OrgEvents() {
             </GlassCard>
           ))}
 
-          {filteredEvents.length === 0 && (
+          {filteredTeams.length === 0 && (
             <View className="items-center justify-center py-12">
-              <Ionicons name="calendar-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
+              <Ionicons name="trophy-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
               <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
-                No Events Scheduled
+                No Teams Registered
               </Text>
               <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
-                Schedule leagues or tournaments to list fixtures here.
+                Register club divisions and roster templates to get started.
               </Text>
             </View>
           )}
