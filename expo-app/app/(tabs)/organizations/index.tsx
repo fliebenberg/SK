@@ -1,71 +1,133 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, useWindowDimensions, Modal, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
+import { wsService } from '../../../services/websocket';
+import { useWsStore } from '../../../store/wsStore';
+import { SocketAction } from '@sk/types';
 
 export default function OrganizationsPage() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
   const isDark = useActiveTheme() === 'dark';
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, orgMemberships, setMemberships } = useAuthStore();
+  const isConnected = useWsStore(state => state.isConnected);
 
-  const [organizations, setOrganizations] = useState([
-    {
-      id: 'org-1',
-      name: 'Premier Rugby Union',
-      sports: ['Rugby Union', 'Seven-a-Side'],
-      icon: 'trophy-outline' as const,
-      teamsCount: 24,
-      eventsCount: 3,
-      membersCount: '1,450',
-      role: 'Owner',
-      facilitiesCount: 3,
-      isManaged: true,
-    },
-    {
-      id: 'org-2',
-      name: 'Metro Football League',
-      sports: ['Football', 'Futsal'],
-      icon: 'football-outline' as const,
-      teamsCount: 48,
-      eventsCount: 6,
-      membersCount: '3,200',
-      role: 'Owner',
-      facilitiesCount: 6,
-      isManaged: true,
-    },
-  ]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [sportsMap, setSportsMap] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgSport, setNewOrgSport] = useState('Football');
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
 
-  const managedOrgs = organizations.filter(org => org.isManaged);
-  const orgs = organizations;
+  const loadOrgsAndSports = () => {
+    if (!isConnected) return;
+    setIsLoading(true);
+
+    wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
+      const map: Record<string, string> = {};
+      if (Array.isArray(sportsList)) {
+        sportsList.forEach((s: any) => {
+          map[s.id] = s.name;
+        });
+      }
+      setSportsMap(map);
+
+      wsService.emit('get_data', { type: 'organizations', limit: 1000 }, (res: any) => {
+        setIsLoading(false);
+        if (res && Array.isArray(res.items)) {
+          setOrganizations(res.items);
+        } else {
+          setOrganizations([]);
+        }
+      });
+    });
+  };
+
+  useEffect(() => {
+    loadOrgsAndSports();
+  }, [isConnected]);
+
+  // Map database properties dynamically
+  const mappedOrgs = organizations.map(org => {
+    const userMembership = orgMemberships.find(m => m.orgId === org.id);
+    const isOwner = org.creatorId === user?.id;
+    
+    const isManaged = (user?.globalRole === 'admin') || (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'));
+
+    let role = 'Guest';
+    if (isOwner) {
+      role = 'Owner';
+    } else if (userMembership) {
+      if (userMembership.roleId === 'role-org-admin') role = 'Admin';
+      else if (userMembership.roleId === 'role-org-staff') role = 'Staff';
+      else if (userMembership.roleId === 'role-org-member') role = 'Member';
+    } else if (user?.globalRole === 'admin') {
+      role = 'Admin';
+    }
+
+    const sports = org.supportedSportIds?.map((id: string) => sportsMap[id] || id) || [];
+    const hasFootball = sports.some((s: string) => s.toLowerCase().includes('football'));
+    const icon = hasFootball ? ('football-outline' as const) : ('trophy-outline' as const);
+
+    return {
+      ...org,
+      sports: sports.length > 0 ? sports : ['General'],
+      icon,
+      teamsCount: org.teamCount || 0,
+      eventsCount: org.eventCount || 0,
+      facilitiesCount: org.siteCount || 0,
+      membersCount: String(org.memberCount || 0),
+      role,
+      isManaged,
+    };
+  });
+
+  const filteredOrgs = mappedOrgs.filter(org => 
+    org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    org.sports.some((s: string) => s.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const managedOrgs = filteredOrgs.filter(org => org.isManaged);
+  const orgs = filteredOrgs;
 
   const handleCreateOrg = () => {
     if (!newOrgName.trim()) return;
 
-    const newOrg = {
-      id: `org-${Date.now()}`,
+    const sportId = newOrgSport.trim().toLowerCase().replace(/\s+/g, '-');
+
+    const payload = {
       name: newOrgName.trim(),
-      sports: [newOrgSport.trim() || 'General'],
-      icon: (newOrgSport.toLowerCase().includes('football') ? 'football-outline' : 'trophy-outline') as any,
-      teamsCount: 0,
-      eventsCount: 0,
-      membersCount: '1',
-      role: 'Owner',
-      facilitiesCount: 0,
-      isManaged: true,
+      supportedSportIds: [sportId],
+      creatorId: user?.id,
+      isActive: true,
     };
 
-    setOrganizations(prev => [newOrg, ...prev]);
+    wsService.emit('action', { type: SocketAction.ADD_ORG, payload }, (res: any) => {
+      if (res) {
+        console.log('[OrganizationsPage] Created new organization:', res);
+        loadOrgsAndSports();
+
+        if (user?.id) {
+          wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (membershipRes: any) => {
+            if (membershipRes) {
+              setMemberships(membershipRes.orgs, membershipRes.teams);
+            }
+          });
+        }
+      } else {
+        console.error('[OrganizationsPage] Failed to create organization');
+      }
+    });
+
     setNewOrgName('');
     setNewOrgSport('Football');
     setModalVisible(false);
@@ -88,14 +150,15 @@ export default function OrganizationsPage() {
           </View>
         )}
 
-        {/* SEARCH BAR PLACEHOLDER */}
+        {/* SEARCH BAR */}
         <View className="flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 mb-6 shadow-sm">
           <Ionicons name="search-outline" size={18} color="#94A3B8" />
           <TextInput
             placeholder="Search organizations..."
             placeholderTextColor="#94A3B8"
             className="flex-1 font-inter text-slate-800 dark:text-white text-sm ml-2.5 outline-none"
-            editable={false}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
         </View>
 
@@ -130,7 +193,11 @@ export default function OrganizationsPage() {
         )}
 
         {/* TAB CONTENTS */}
-        {showTabs && activeTab === 'my' ? (
+        {isLoading ? (
+          <View className="py-20 items-center justify-center">
+            <Text className="font-inter text-slate-500 dark:text-slate-400">Loading organizations...</Text>
+          </View>
+        ) : showTabs && activeTab === 'my' ? (
           <View className="mb-8">
             <View className="space-y-4">
               {managedOrgs.length === 0 ? (
@@ -157,9 +224,9 @@ export default function OrganizationsPage() {
                       <View className="flex-row justify-between items-center mb-3">
                         {/* SPORTS BADGES */}
                         <View className="flex-row flex-wrap gap-1.5 max-w-[70%]">
-                          {org.sports.map((sport) => (
+                          {org.sports.map((sport: string) => (
                             <View key={sport} className="bg-slate-100 dark:bg-white/10 px-2.5 py-0.5 rounded-full border border-slate-200/50 dark:border-white/5">
-                              <Text className="font-inter-bold text-[8px] text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                              <Text className={`font-inter-bold text-[8px] uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                 {sport}
                               </Text>
                             </View>
@@ -167,26 +234,35 @@ export default function OrganizationsPage() {
                         </View>
                         <View className="flex-row items-center gap-1 bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/30 px-2.5 py-0.5 rounded">
                           <Ionicons name="shield-checkmark" size={12} color={isDark ? "#00E5FF" : "#0891B2"} />
-                          <Text className="font-orbitron-bold text-[9px] text-cyan-700 dark:text-cyan-400 uppercase tracking-widest">
+                          <Text className={`font-orbitron-bold text-[9px] uppercase tracking-widest ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
                             {org.role}
                           </Text>
                         </View>
                       </View>
 
-                      <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white uppercase tracking-wide leading-tight mb-3">
-                        {org.name}
-                      </Text>
+                      <View className="flex-row items-center gap-3 mb-3">
+                        {org.logo ? (
+                          <Image source={{ uri: org.logo }} className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white" />
+                        ) : (
+                          <View className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10">
+                            <Ionicons name="business" size={20} color="#94A3B8" />
+                          </View>
+                        )}
+                        <Text className={`flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                          {org.name}
+                        </Text>
+                      </View>
 
                       <View className="flex-row gap-6 mb-4">
                         <View className="flex-row items-center gap-1.5">
                           <Ionicons name="people-outline" size={15} color="#FF3E00" />
-                          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                          <Text className={`font-inter text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                             {org.teamsCount} Teams
                           </Text>
                         </View>
                         <View className="flex-row items-center gap-1.5">
                           <Ionicons name="location-outline" size={15} color="#FF3E00" />
-                          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                          <Text className={`font-inter text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                             {org.facilitiesCount} Facilities
                           </Text>
                         </View>
@@ -228,10 +304,10 @@ export default function OrganizationsPage() {
                   >
                     <View className="flex-row justify-between items-start mb-3">
                       <View className="flex-row flex-wrap gap-1.5 max-w-[70%]">
-                        {org.sports.map((sport) => (
+                        {org.sports.map((sport: string) => (
                           <View key={sport} className="flex-row items-center gap-1 bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-full border border-slate-200/50 dark:border-white/5">
                             <Ionicons name={org.icon} size={10} color="#FF3E00" />
-                            <Text className="font-inter-bold text-[8px] text-slate-700 dark:text-slate-300 uppercase tracking-wider ml-1">
+                            <Text className={`font-inter-bold text-[8px] uppercase tracking-wider ml-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                               {sport}
                             </Text>
                           </View>
@@ -241,48 +317,57 @@ export default function OrganizationsPage() {
                       {showManage ? (
                         <View className="flex-row items-center gap-1 bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/30 px-2.5 py-0.5 rounded">
                           <Ionicons name="shield-checkmark" size={12} color={isDark ? "#00E5FF" : "#0891B2"} />
-                          <Text className="font-orbitron-bold text-[9px] text-cyan-700 dark:text-cyan-400 uppercase tracking-widest">
+                          <Text className={`font-orbitron-bold text-[9px] uppercase tracking-widest ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
                             {org.role}
                           </Text>
                         </View>
                       ) : (
                         <View className="flex-row items-center gap-1">
                           <Ionicons name="people-outline" size={12} color="#94A3B8" />
-                          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+                          <Text className={`font-inter text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {org.membersCount} Members
                           </Text>
                         </View>
                       )}
                     </View>
 
-                    <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white mb-4 uppercase tracking-wide">
-                      {org.name}
-                    </Text>
+                    <View className="flex-row items-center gap-3 mb-4">
+                      {org.logo ? (
+                        <Image source={{ uri: org.logo }} className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white" />
+                      ) : (
+                        <View className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10">
+                          <Ionicons name="business" size={20} color="#94A3B8" />
+                        </View>
+                      )}
+                      <Text className={`flex-1 font-orbitron-bold text-lg uppercase tracking-wide ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                        {org.name}
+                      </Text>
+                    </View>
 
                     {/* STATS BLOCKS */}
                     <View className="flex-row gap-6 mb-4">
                       <View>
-                        <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300 leading-none">
+                        <Text className={`font-orbitron-bold text-base leading-none ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                           {org.teamsCount}
                         </Text>
-                        <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-wider">
+                        <Text className={`font-inter text-[9px] mt-1 uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                           Teams
                         </Text>
                       </View>
                       <View>
-                        <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300 leading-none">
+                        <Text className={`font-orbitron-bold text-base leading-none ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                           {org.eventsCount}
                         </Text>
-                        <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-wider">
+                        <Text className={`font-inter text-[9px] mt-1 uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                           Events
                         </Text>
                       </View>
                       {showManage && (
                         <View>
-                          <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300 leading-none">
+                          <Text className={`font-orbitron-bold text-base leading-none ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                             {org.facilitiesCount}
                           </Text>
-                          <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-wider">
+                          <Text className={`font-inter text-[9px] mt-1 uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                             Facilities
                           </Text>
                         </View>

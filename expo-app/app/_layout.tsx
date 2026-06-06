@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { Orbitron_400Regular, Orbitron_700Bold } from '@expo-google-fonts/orbitron';
 import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { wsService } from '../services/websocket';
+import { useWsStore } from '../store/wsStore';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/authStore';
 
@@ -27,6 +28,8 @@ export default function RootLayout() {
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const verifySession = useAuthStore(state => state.verifySession);
+  const { user, isAuthenticated, setMemberships } = useAuthStore();
+  const isConnected = useWsStore(state => state.isConnected);
 
   useEffect(() => {
     async function prepare() {
@@ -44,6 +47,40 @@ export default function RootLayout() {
     }
     prepare();
   }, [loaded]);
+
+  useEffect(() => {
+    if (loaded && isConnected && isAuthenticated && user?.id) {
+      console.log(`[RootLayout] User authenticated and WS connected. Joining room user:${user.id}`);
+      wsService.send('join_room', `user:${user.id}`);
+
+      const fetchMemberships = () => {
+        wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (res: any) => {
+          if (res) {
+            console.log(`[RootLayout] Fetched memberships:`, res);
+            setMemberships(res.orgs, res.teams);
+          } else {
+            console.warn(`[RootLayout] Failed to fetch memberships`);
+          }
+        });
+      };
+
+      fetchMemberships();
+
+      const handleUpdate = (update: any) => {
+        if (update && update.type === 'USER_MEMBERSHIPS_UPDATED') {
+          console.log(`[RootLayout] Live memberships update received. Re-fetching...`);
+          fetchMemberships();
+        }
+      };
+
+      wsService.on('update', handleUpdate);
+
+      return () => {
+        wsService.send('leave_room', `user:${user.id}`);
+        wsService.off('update', handleUpdate);
+      };
+    }
+  }, [loaded, isConnected, isAuthenticated, user?.id]);
 
   if (!loaded) {
     return null;

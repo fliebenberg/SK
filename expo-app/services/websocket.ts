@@ -53,6 +53,29 @@ class WebSocketService {
       console.warn('[WS] Cannot emit event. Socket is not connected.');
     }
   }
+
+  emit(event: string, data: any, callback?: (...args: any[]) => void) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit(event, data, callback);
+    } else {
+      console.warn('[WS] Cannot emit event. Socket is not connected.');
+      if (callback) {
+        callback(null);
+      }
+    }
+  }
+
+  on(event: string, callback: (...args: any[]) => void) {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+  }
+
+  off(event: string, callback?: (...args: any[]) => void) {
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
+  }
 }
 
 // Ensure the local dev URL maps to your machine's IP if testing on a physical device.

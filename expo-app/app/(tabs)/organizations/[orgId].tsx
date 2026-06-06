@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
+import { wsService } from '../../../services/websocket';
+import { useWsStore } from '../../../store/wsStore';
 
 interface Team {
   id: string;
@@ -58,70 +60,119 @@ export default function PublicOrgDetail() {
   const isLargeScreen = width >= 768;
 
   const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'fixtures' | 'facilities'>('overview');
+  const isConnected = useWsStore(state => state.isConnected);
 
-  // Multi-sports registry to support rich details & customized branding colors per org
-  const orgRegistry: Record<string, OrgDetails> = {
-    'org-1': {
-      name: 'Premier Rugby Union',
-      sports: ['Rugby Union', 'Seven-a-Side'],
-      membersCount: '1,450',
-      teamsCount: 24,
-      eventsCount: 3,
-      facilitiesCount: 3,
-      primaryColor: '#FF3E00', // Burnt Orange
-      secondaryColor: '#F59E0B', // Amber
-      description: 'Premier Rugby Union is the leading governing body and tournament organizer for rugby clubs across the western province. Established in 2012, we manage age-group leagues, professional development pathways, and local club fixtures. Our certified coaching programs have trained over 120 regional coaches.',
-      membershipStatus: 'Active Member since Nov 2022',
-      registrationStatus: 'Player Registrations Open for Winter League',
-      teams: [
-        { id: 't1', name: 'Cape Town RFC First XV', sport: 'Rugby Union', players: 32, coach: 'Hendrik van der Merwe' },
-        { id: 't2', name: 'PRU Sevens Chiefs', sport: 'Seven-a-Side', players: 14, coach: 'Sipho Ndlovu' },
-        { id: 't3', name: 'PRU Development Academy', sport: 'Rugby Union', players: 28, coach: 'Alan Shearer' }
-      ],
-      fixtures: [
-        { id: 'f1', title: 'Season Grand Final', sport: 'Rugby Union', home: 'Cape Town RFC First XV', away: 'Durban Rovers', date: 'June 10, 2026', time: '15:00', venue: 'Green Point Arena' },
-        { id: 'f2', title: 'Super Sevens Opener', sport: 'Seven-a-Side', home: 'PRU Sevens Chiefs', away: 'Boland Blitz', date: 'June 14, 2026', time: '10:30', venue: 'Coetzenburg Field' }
-      ],
-      facilities: [
-        { id: 's1', name: 'Green Point Arena', type: 'Match Venue', location: 'Green Point, Cape Town' },
-        { id: 's2', name: 'Coetzenburg Fields', type: 'Training Grounds', location: 'Stellenbosch' },
-        { id: 's3', name: 'PRU Gymnasium', type: 'High Performance Centre', location: 'Newlands, Cape Town' }
-      ]
-    },
-    'org-2': {
-      name: 'Metro Football League',
-      sports: ['Football', 'Futsal'],
-      membersCount: '3,200',
-      teamsCount: 48,
-      eventsCount: 6,
-      facilitiesCount: 6,
-      primaryColor: '#00E5FF', // Cyan
-      secondaryColor: '#10B981', // Emerald
-      description: "Metro Football League coordinates premier and community association football divisions. Hosting 48 clubs across multiple youth, amateur, and veteran leagues, MFL operates the region's largest community sports roster. We utilize top-class turf grounds and state-of-the-art futsal facilities.",
-      membershipStatus: 'Active Member since Jan 2021',
-      registrationStatus: 'Futsal Registrations Open for Summer Cup',
-      teams: [
-        { id: 't4', name: 'Metro Athletic FC', sport: 'Football', players: 22, coach: 'Marco Silva' },
-        { id: 't5', name: 'Metro City Futsal', sport: 'Futsal', players: 10, coach: 'Carlos Santos' },
-        { id: 't6', name: 'Metro Juniors Academy', sport: 'Football', players: 25, coach: 'Sarah Jenkins' }
-      ],
-      fixtures: [
-        { id: 'f3', title: 'Championship Cup Semi', sport: 'Football', home: 'Metro Athletic FC', away: 'Atlantic Coast FC', date: 'June 8, 2026', time: '19:30', venue: 'Champs Stadium' },
-        { id: 'f4', title: 'Futsal Friday League', sport: 'Futsal', home: 'Metro City Futsal', away: 'Vasco Futsal', date: 'June 12, 2026', time: '20:00', venue: 'Metro Indoor Arena' }
-      ],
-      facilities: [
-        { id: 's4', name: 'Champs Stadium', type: 'Grass Pitch', location: 'Green Point, Cape Town' },
-        { id: 's5', name: 'Metro Indoor Arena', type: 'Hard Court', location: 'Maitland, Cape Town' },
-        { id: 's6', name: 'City Astro Pitch', type: 'Artificial Turf', location: 'Rondebosch, Cape Town' }
-      ]
-    }
+  const [orgData, setOrgData] = useState<any>(null);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [games, setGames] = useState<any[]>([]);
+  const [sites, setSites] = useState<any[]>([]);
+  const [sportsMap, setSportsMap] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isConnected || !orgId) return;
+
+    setIsLoading(true);
+    let loadedCount = 0;
+    const checkDone = () => {
+      loadedCount++;
+      if (loadedCount === 5) setIsLoading(false);
+    };
+
+    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
+      const map: Record<string, string> = {};
+      if (Array.isArray(res)) res.forEach((s: any) => { map[s.id] = s.name; });
+      setSportsMap(map);
+      checkDone();
+    });
+
+    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+      setOrgData(res);
+      checkDone();
+    });
+
+    wsService.emit('get_data', { type: 'teams', orgId }, (res: any) => {
+      setTeams(Array.isArray(res) ? res : []);
+      checkDone();
+    });
+
+    wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
+      setGames(Array.isArray(res) ? res : []);
+      checkDone();
+    });
+
+    wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
+      setSites(Array.isArray(res) ? res : []);
+      checkDone();
+    });
+  }, [isConnected, orgId]);
+
+  if (isLoading || !orgData) {
+    return (
+      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center" edges={['top', 'left', 'right']}>
+        <ActivityIndicator size="large" color="#FF3E00" />
+      </SafeAreaView>
+    );
+  }
+
+  const primaryColor = orgData.primaryColor || '#FF3E00';
+  const secondaryColor = orgData.secondaryColor || '#F59E0B';
+  const mappedSports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
+
+  const getTeamName = (teamId: string) => {
+    const t = teams.find(t => t.id === teamId);
+    return t ? t.name : 'Unknown Team';
+  };
+  const getSiteName = (siteId: string) => {
+    const s = sites.find(s => s.id === siteId);
+    return s ? s.name : 'Unknown Venue';
   };
 
-  // Add fallbacks to allow resolving generic IDs '1' or '2'
-  orgRegistry['1'] = orgRegistry['org-1'];
-  orgRegistry['2'] = orgRegistry['org-2'];
+  const mappedTeams = teams.map(t => ({
+    id: t.id,
+    name: t.name,
+    sport: sportsMap[t.sportId] || t.sportId || 'Sport',
+    players: t.playerCount || 0,
+    coach: 'TBD'
+  }));
 
-  const org = orgRegistry[orgId || 'org-1'] || orgRegistry['org-1'];
+  const mappedFixtures = games.map(g => {
+    const dateObj = g.startTime ? new Date(g.startTime) : new Date();
+    return {
+      id: g.id,
+      title: g.name || 'Match',
+      sport: sportsMap[g.sportId] || 'Sport',
+      home: getTeamName(g.homeTeamId),
+      away: getTeamName(g.awayTeamId),
+      date: dateObj.toLocaleDateString(),
+      time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      venue: getSiteName(g.siteId)
+    };
+  });
+
+  const mappedFacilities = sites.map(s => ({
+    id: s.id,
+    name: s.name,
+    type: s.type || 'Venue',
+    location: s.address?.city || 'Location TBD'
+  }));
+
+  const org: OrgDetails = {
+    name: orgData.name || 'Unknown Organization',
+    sports: mappedSports,
+    membersCount: String(orgData.memberCount || 0),
+    teamsCount: orgData.teamCount || 0,
+    eventsCount: orgData.eventCount || 0,
+    facilitiesCount: orgData.siteCount || 0,
+    primaryColor: primaryColor,
+    secondaryColor: secondaryColor,
+    description: orgData.description || 'No description available for this organization.',
+    membershipStatus: 'Member',
+    registrationStatus: 'Registrations Open',
+    teams: mappedTeams,
+    fixtures: mappedFixtures,
+    facilities: mappedFacilities,
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>

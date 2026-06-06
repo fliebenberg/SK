@@ -1,52 +1,63 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
+import { wsService } from '../../../../services/websocket';
+import { useWsStore } from '../../../../store/wsStore';
 
 export default function OrgControlDashboard() {
   const router = useRouter();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
+  const isConnected = useWsStore(state => state.isConnected);
 
-  // Mock organizations registry to resolve name & styling dynamically
-  const orgRegistry: Record<string, { name: string; sport: string; primaryColor: string; teamsCount: number; facilitiesCount: number; membersCount: number }> = {
-    'org-1': {
-      name: 'Premier Rugby Union',
-      sport: 'Rugby Union',
-      primaryColor: '#FF3E00',
-      teamsCount: 24,
-      facilitiesCount: 3,
-      membersCount: 1450,
-    },
-    'org-2': {
-      name: 'Metro Football League',
-      sport: 'Football',
-      primaryColor: '#00E5FF',
-      teamsCount: 48,
-      facilitiesCount: 6,
-      membersCount: 3200,
-    },
-    '1': { // Fallback standard id
-      name: 'Premier Rugby Union',
-      sport: 'Rugby Union',
-      primaryColor: '#FF3E00',
-      teamsCount: 24,
-      facilitiesCount: 3,
-      membersCount: 1450,
-    },
-  };
+  const [orgData, setOrgData] = useState<any>(null);
+  const [sportsMap, setSportsMap] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  const org = orgRegistry[orgId] || {
-    name: 'Premier Rugby Union',
-    sport: 'Rugby Union',
-    primaryColor: '#FF3E00',
-    teamsCount: 24,
-    facilitiesCount: 3,
-    membersCount: 1450,
+  useEffect(() => {
+    if (!isConnected || !orgId) return;
+    
+    setIsLoading(true);
+    wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
+      const map: Record<string, string> = {};
+      if (Array.isArray(sportsList)) {
+        sportsList.forEach((s: any) => {
+          map[s.id] = s.name;
+        });
+      }
+      setSportsMap(map);
+
+      wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+        setOrgData(res);
+        setIsLoading(false);
+      });
+    });
+  }, [isConnected, orgId]);
+
+  if (isLoading || !orgData) {
+    return (
+      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center" edges={['top', 'left', 'right']}>
+        <ActivityIndicator size="large" color="#FF3E00" />
+      </SafeAreaView>
+    );
+  }
+
+  const primaryColor = orgData.primaryColor || '#FF3E00';
+  const sports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
+  const primarySport = sports[0];
+
+  const org = {
+    name: orgData.name || 'Unknown Organization',
+    sport: primarySport,
+    primaryColor: primaryColor,
+    teamsCount: orgData.teamCount || 0,
+    facilitiesCount: orgData.siteCount || 0,
+    membersCount: orgData.memberCount || 0,
   };
 
   const modules = [

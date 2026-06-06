@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { OrgMembership, TeamMembership } from '@sk/types';
 import { apiService } from '../services/api';
 import { useSettingsStore } from './settingsStore';
 
@@ -53,10 +54,13 @@ interface AuthState {
   token: string | null;
   user: User | null;
   isAuthenticated: boolean;
+  orgMemberships: OrgMembership[];
+  teamMemberships: TeamMembership[];
   login: (token: string, user: User) => void;
   logout: () => void;
   updateUser: (user: Partial<User>) => void;
   verifySession: () => Promise<void>;
+  setMemberships: (orgs: OrgMembership[], teams: TeamMembership[]) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -65,6 +69,9 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       isAuthenticated: false,
+      orgMemberships: [],
+      teamMemberships: [],
+      setMemberships: (orgs, teams) => set({ orgMemberships: orgs || [], teamMemberships: teams || [] }),
       login: (token, user) => {
         // Sanitize theme string
         if (user.theme === 'null' || user.theme === 'undefined') {
@@ -108,7 +115,7 @@ export const useAuthStore = create<AuthState>()(
           console.error('[AuthStore] Theme sync logic failed during login:', err);
         }
       },
-      logout: () => set({ token: null, user: null, isAuthenticated: false }),
+      logout: () => set({ token: null, user: null, isAuthenticated: false, orgMemberships: [], teamMemberships: [] }),
       updateUser: (updatedFields) => set(state => {
         if (updatedFields.theme === 'null' || updatedFields.theme === 'undefined') {
           updatedFields = { ...updatedFields, theme: null };
