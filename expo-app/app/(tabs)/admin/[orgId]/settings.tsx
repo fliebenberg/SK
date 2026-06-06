@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, useWindowDimensions, Platform, KeyboardAvoidingView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -8,6 +8,8 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction } from '@sk/types';
+import * as ImagePicker from 'expo-image-picker';
+import { CONSTANTS } from '../../../../constants';
 
 function getContrastColor(hexcolor: string | undefined): string {
   if (!hexcolor || hexcolor === 'transparent' || hexcolor === 'undefined') return '#ffffff';
@@ -38,6 +40,88 @@ function hexToRgba(hex: string | undefined, opacity: number): string {
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
+function hslToHex(h: number, s: number, l: number): string {
+  l /= 100;
+  const a = (s * Math.min(l, 1 - l)) / 100;
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  let r = 0, g = 0, b = 0;
+  let cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) {
+    cleanHex = cleanHex.split('').map(char => char + char).join('');
+  }
+  if (cleanHex.length === 6) {
+    r = parseInt(cleanHex.substring(0, 2), 16) / 255;
+    g = parseInt(cleanHex.substring(2, 4), 16) / 255;
+    b = parseInt(cleanHex.substring(4, 6), 16) / 255;
+  }
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+interface BaseHue {
+  name: string;
+  h: number;
+  s: number;
+  l: number;
+  isGrey?: boolean;
+}
+
+const BASE_HUES: BaseHue[] = [
+  { name: 'Red', h: 0, s: 95, l: 50 },
+  { name: 'Orange', h: 24, s: 95, l: 50 },
+  { name: 'Yellow', h: 45, s: 95, l: 50 },
+  { name: 'Green', h: 120, s: 75, l: 45 },
+  { name: 'Teal', h: 170, s: 85, l: 40 },
+  { name: 'Blue', h: 210, s: 90, l: 50 },
+  { name: 'Purple', h: 270, s: 80, l: 55 },
+  { name: 'Pink', h: 330, s: 85, l: 50 },
+  { name: 'Grey', h: 0, s: 0, l: 50, isGrey: true }
+];
+
+const getShades = (hue: number, isGrey?: boolean) => {
+  if (isGrey) {
+    return [
+      '#F8FAFC',
+      '#F1F5F9',
+      '#CBD5E1',
+      '#94A3B8',
+      '#64748B',
+      '#475569',
+      '#1E293B',
+      '#0F172A',
+    ];
+  }
+  return [
+    hslToHex(hue, 95, 90),
+    hslToHex(hue, 95, 75),
+    hslToHex(hue, 95, 62),
+    hslToHex(hue, 95, 50),
+    hslToHex(hue, 95, 42),
+    hslToHex(hue, 95, 32),
+    hslToHex(hue, 95, 22),
+    hslToHex(hue, 45, 50),
+  ];
+};
+
 export default function OrgSettings() {
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
@@ -54,25 +138,22 @@ export default function OrgSettings() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Inline editing states
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempName, setTempName] = useState('');
 
-  const [isEditingShortName, setIsEditingShortName] = useState(false);
-  const [tempShortName, setTempShortName] = useState('');
 
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [tempDescription, setTempDescription] = useState('');
+  // Refs for hidden inputs on web
+  const primaryInputRef = useRef<any>(null);
+  const secondaryInputRef = useRef<any>(null);
 
   // Overlay modal states
-  const [isEditingLogo, setIsEditingLogo] = useState(false);
-  const [tempLogo, setTempLogo] = useState('');
-
   const [isEditingPrimary, setIsEditingPrimary] = useState(false);
   const [tempPrimary, setTempPrimary] = useState('');
+  const [primaryHue, setPrimaryHue] = useState(0);
+  const [isPrimaryGrey, setIsPrimaryGrey] = useState(false);
 
   const [isEditingSecondary, setIsEditingSecondary] = useState(false);
   const [tempSecondary, setTempSecondary] = useState('');
+  const [secondaryHue, setSecondaryHue] = useState(0);
+  const [isSecondaryGrey, setIsSecondaryGrey] = useState(false);
 
   useEffect(() => {
     if (!isConnected || !orgId) return;
@@ -90,46 +171,60 @@ export default function OrgSettings() {
     });
   }, [isConnected, orgId]);
 
-  const startEditingName = () => {
-    setTempName(orgName);
-    setIsEditingName(true);
-  };
-  const saveNameEdit = () => {
-    if (tempName.trim()) {
-      setOrgName(tempName.trim());
+
+
+  const handlePickLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('We need camera roll permissions to change the organization logo.');
+      return;
     }
-    setIsEditingName(false);
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0].base64) {
+        const asset = result.assets[0];
+        const mime = asset.mimeType || 'image/png';
+        const base64Str = `data:${mime};base64,${asset.base64}`;
+        setLogo(base64Str);
+      }
+    } catch (err) {
+      console.error('[Branding] Error picking logo image:', err);
+      alert('Failed to process selected logo image');
+    }
   };
 
-  const startEditingShortName = () => {
-    setTempShortName(shortName);
-    setIsEditingShortName(true);
-  };
-  const saveShortNameEdit = () => {
-    setShortName(tempShortName.trim());
-    setIsEditingShortName(false);
-  };
-
-  const startEditingDescription = () => {
-    setTempDescription(description);
-    setIsEditingDescription(true);
-  };
-  const saveDescriptionEdit = () => {
-    setDescription(tempDescription.trim());
-    setIsEditingDescription(false);
-  };
-
-  const startEditingLogo = () => {
-    setTempLogo(logo);
-    setIsEditingLogo(true);
-  };
-  const saveLogoEdit = () => {
-    setLogo(tempLogo.trim());
-    setIsEditingLogo(false);
+  const handleOpenEyedropper = async (colorType: 'primary' | 'secondary') => {
+    if (typeof window !== 'undefined' && 'EyeDropper' in window) {
+      try {
+        const eyeDropper = new (window as any).EyeDropper();
+        const result = await eyeDropper.open();
+        if (result && result.sRGBHex) {
+          const hex = result.sRGBHex;
+          if (colorType === 'primary') {
+            setTempPrimary(hex);
+          } else {
+            setTempSecondary(hex);
+          }
+        }
+      } catch (err) {
+        console.log('[Eyedropper] Closed or failed:', err);
+      }
+    }
   };
 
   const startEditingPrimary = () => {
     setTempPrimary(primaryColor);
+    const hsl = hexToHsl(primaryColor);
+    setPrimaryHue(hsl.h);
+    setIsPrimaryGrey(hsl.s === 0);
     setIsEditingPrimary(true);
   };
   const savePrimaryEdit = () => {
@@ -141,6 +236,9 @@ export default function OrgSettings() {
 
   const startEditingSecondary = () => {
     setTempSecondary(secondaryColor);
+    const hsl = hexToHsl(secondaryColor);
+    setSecondaryHue(hsl.h);
+    setIsSecondaryGrey(hsl.s === 0);
     setIsEditingSecondary(true);
   };
   const saveSecondaryEdit = () => {
@@ -185,7 +283,12 @@ export default function OrgSettings() {
   }
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <KeyboardAvoidingView
+      behavior="padding"
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={CONSTANTS.LAYOUT.keyboardVerticalOffset}
+    >
+      <View className="flex-1 bg-slate-50 dark:bg-slate-950">
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
         {/* Title Section */}
         <View className="mb-6">
@@ -224,7 +327,7 @@ export default function OrgSettings() {
 
             {/* Squircle Logo Crest centered vertically on the left (Floating Style) */}
             <TouchableOpacity 
-              onPress={startEditingLogo}
+              onPress={handlePickLogo}
               className="w-32 h-32 rounded-3xl items-center justify-center overflow-hidden shadow-2xl relative border bg-white bg-opacity-15 border-white border-opacity-20 dark:bg-slate-950 dark:bg-opacity-20 dark:border-white dark:border-opacity-10"
               activeOpacity={0.9}
             >
@@ -243,7 +346,7 @@ export default function OrgSettings() {
             </TouchableOpacity>
           </View>
         </View>
-
+ 
         {/* PROFILE FIELD SECTION (BELOW BANNER) */}
         <View className="space-y-5 mb-6">
           {/* Organization Name Field */}
@@ -251,28 +354,16 @@ export default function OrgSettings() {
             <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
               Organization Name
             </Text>
-            {isEditingName ? (
-              <TextInput
-                value={tempName}
-                onChangeText={setTempName}
-                onBlur={saveNameEdit}
-                onSubmitEditing={saveNameEdit}
-                autoFocus
-                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5"
-              />
-            ) : (
-              <TouchableOpacity 
-                onPress={startEditingName}
-                className="flex-row items-center gap-2.5 py-2 px-3 rounded-xl border border-transparent bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5"
-              >
-                <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white uppercase tracking-wide flex-1">
-                  {orgName || 'Tap to add name'}
-                </Text>
-                <Ionicons name="create-outline" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
+            <TextInput
+              value={orgName}
+              onChangeText={setOrgName}
+              placeholder="Enter organization name"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="none"
+              className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5"
+            />
           </View>
-
+ 
           {/* Combined Row: Abbreviation & Brand Colors */}
           <View className="flex-row items-center gap-6 flex-wrap">
             {/* Short Name / Abbreviation Field */}
@@ -280,29 +371,17 @@ export default function OrgSettings() {
               <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
                 Abbreviation
               </Text>
-              {isEditingShortName ? (
-                <TextInput
-                  value={tempShortName}
-                  onChangeText={setTempShortName}
-                  onBlur={saveShortNameEdit}
-                  onSubmitEditing={saveShortNameEdit}
-                  maxLength={6}
-                  autoFocus
-                  className="font-orbitron-bold text-sm text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white dark:border-opacity-5 rounded-xl px-4 py-2"
-                />
-              ) : (
-                <TouchableOpacity 
-                  onPress={startEditingShortName}
-                  className="flex-row items-center gap-2 px-3 py-2 rounded-xl border border-transparent bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5 self-start"
-                >
-                  <View className="px-2.5 py-0.5 rounded-md border bg-slate-200 border-slate-300 border-opacity-50 dark:bg-white dark:bg-opacity-10 dark:border-white dark:border-opacity-5">
-                    <Text className="font-orbitron-bold text-[10px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                      {shortName || 'SHORT'}
-                    </Text>
-                  </View>
-                  <Ionicons name="create-outline" size={14} color="#94A3B8" className="ml-1" />
-                </TouchableOpacity>
-              )}
+              <TextInput
+                value={shortName}
+                onChangeText={setShortName}
+                maxLength={6}
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                placeholder="SHORT"
+                placeholderTextColor="#94A3B8"
+                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 w-36 text-center"
+              />
             </View>
 
             {/* Brand Colors Selector */}
@@ -346,28 +425,16 @@ export default function OrgSettings() {
             <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
               Description / Biography
             </Text>
-            {isEditingDescription ? (
-              <TextInput
-                value={tempDescription}
-                onChangeText={setTempDescription}
-                onBlur={saveDescriptionEdit}
-                onSubmitEditing={saveDescriptionEdit}
-                multiline
-                numberOfLines={3}
-                autoFocus
-                className="font-inter text-sm text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white dark:border-opacity-5 rounded-xl px-4 py-2.5 min-h-[80px]"
-              />
-            ) : (
-              <TouchableOpacity 
-                onPress={startEditingDescription}
-                className="flex-row items-start gap-3 py-2 px-3 rounded-xl border border-transparent min-h-[50px] bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5"
-              >
-                <Text className={`font-inter text-xs flex-grow leading-relaxed ${description ? 'text-slate-600 dark:text-slate-400' : 'text-slate-400 dark:text-slate-500 italic'}`}>
-                  {description || 'Tap to add organization description... This biography will be displayed on the public organization detail profile.'}
-                </Text>
-                <Ionicons name="create-outline" size={16} color="#94A3B8" className="mt-0.5" />
-              </TouchableOpacity>
-            )}
+            <TextInput
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={3}
+              placeholder="Enter organization description... This biography will be displayed on the public organization detail profile."
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="none"
+              className="font-inter text-sm text-slate-800 dark:text-white bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 min-h-[80px]"
+            />
           </View>
         </View>
 
@@ -442,59 +509,123 @@ export default function OrgSettings() {
         />
       </ScrollView>
 
-      {/* OVERLAY MODAL: EDIT LOGO URL */}
-      {isEditingLogo && (
-        <View className="absolute inset-0 bg-slate-950 bg-opacity-75 items-center justify-center z-50 p-6">
-          <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
-            <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase mb-2 tracking-wider">
-              Edit Logo Image URL
-            </Text>
-            <TextInput
-              value={tempLogo}
-              onChangeText={setTempLogo}
-              placeholder="e.g. https://domain.com/logo.png"
-              placeholderTextColor="#94A3B8"
-              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white dark:border-opacity-5 rounded-xl px-4 py-3 font-inter text-sm text-slate-800 dark:text-white w-full"
-              autoFocus
-            />
-            <View className="flex-row gap-3 mt-4">
-              <TouchableOpacity 
-                onPress={() => setIsEditingLogo(false)}
-                className="flex-1 py-3 bg-slate-100 dark:bg-white dark:bg-opacity-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white dark:border-opacity-5"
-              >
-                <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={saveLogoEdit}
-                className="flex-1 py-3 bg-brand-orange rounded-xl items-center justify-center"
-              >
-                <Text className="font-inter-bold text-xs text-white uppercase">Apply</Text>
-              </TouchableOpacity>
-            </View>
-          </GlassCard>
-        </View>
-      )}
-
       {/* OVERLAY MODAL: EDIT PRIMARY COLOR */}
       {isEditingPrimary && (
         <View className="absolute inset-0 bg-slate-950 bg-opacity-75 items-center justify-center z-50 p-6">
           <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
             <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase mb-2 tracking-wider">
-              Edit Primary Color (Hex)
+              Edit Primary Color
             </Text>
-            <TextInput
-              value={tempPrimary}
-              onChangeText={setTempPrimary}
-              placeholder="#FF3E00"
-              placeholderTextColor="#94A3B8"
-              maxLength={7}
-              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white dark:border-opacity-5 rounded-xl px-4 py-3 font-mono text-sm text-slate-800 dark:text-white w-full"
-              autoFocus
-            />
+            
+            {/* Hidden Input for Web Native Color Picker */}
+            {Platform.OS === 'web' && (
+              <input
+                ref={primaryInputRef}
+                type="color"
+                value={tempPrimary || '#FFFFFF'}
+                onChange={(e) => setTempPrimary(e.target.value)}
+                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, border: 'none', padding: 0 }}
+              />
+            )}
+
+            {/* Interactive Color Swatch to Open Spectrum Picker */}
+            <TouchableOpacity
+              onPress={() => {
+                if (Platform.OS === 'web') {
+                  primaryInputRef.current?.click();
+                }
+              }}
+              activeOpacity={0.8}
+              className="w-full h-24 rounded-2xl items-center justify-center border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden"
+              style={{ backgroundColor: tempPrimary || '#FFFFFF' }}
+            >
+              <Text 
+                className="font-orbitron-bold text-xs uppercase px-3 py-1.5 rounded-full bg-black/40 text-white text-center"
+                style={{ color: '#ffffff' }}
+              >
+                {Platform.OS === 'web' ? 'Tap swatch to open spectrum picker' : 'Primary Color Preview'}
+              </Text>
+            </TouchableOpacity>
+
+            <View className="flex-row items-center gap-3 w-full">
+              <TextInput
+                value={tempPrimary}
+                onChangeText={(text) => {
+                  let val = text;
+                  if (val && !val.startsWith('#')) val = '#' + val;
+                  val = val.substring(0, 7);
+                  setTempPrimary(val);
+                }}
+                placeholder="#FF3E00"
+                placeholderTextColor="#94A3B8"
+                maxLength={7}
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-mono text-sm text-slate-800 dark:text-white flex-grow"
+              />
+              
+              {Platform.OS === 'web' && typeof window !== 'undefined' && 'EyeDropper' in window && (
+                <TouchableOpacity
+                  onPress={() => handleOpenEyedropper('primary')}
+                  className="bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/5 rounded-xl p-3 items-center justify-center active:scale-95"
+                >
+                  <Ionicons name="color-palette-outline" size={20} color={isDark ? "white" : "#0F172A"} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* HSL base hue picker row */}
+            <View className="space-y-2">
+              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                Base Hue
+              </Text>
+              <View className="flex-row justify-between items-center gap-1.5 flex-wrap">
+                {BASE_HUES.map((hue) => (
+                  <TouchableOpacity
+                    key={hue.name}
+                    onPress={() => {
+                      setPrimaryHue(hue.h);
+                      setIsPrimaryGrey(!!hue.isGrey);
+                      const baseColor = hslToHex(hue.h, hue.s, hue.l);
+                      setTempPrimary(baseColor);
+                    }}
+                    className={`w-7 h-7 rounded-full border items-center justify-center active:scale-95 ${
+                      (primaryHue === hue.h && isPrimaryGrey === !!hue.isGrey)
+                        ? 'border-brand-orange border-2 scale-105 shadow-md'
+                        : 'border-slate-200 dark:border-white/10'
+                    }`}
+                    style={{ backgroundColor: hslToHex(hue.h, hue.s, hue.l) }}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Dynamic shade selector */}
+            <View className="space-y-2 pt-1">
+              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                Select Shade
+              </Text>
+              <View className="flex-row justify-between items-center gap-1.5 flex-wrap">
+                {getShades(primaryHue, isPrimaryGrey).map((shade, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => setTempPrimary(shade)}
+                    className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 ${
+                      tempPrimary.toUpperCase() === shade.toUpperCase()
+                        ? 'border-brand-orange border-2 scale-105 shadow-md'
+                        : 'border-slate-200 dark:border-white/10'
+                    }`}
+                    style={{ backgroundColor: shade }}
+                  />
+                ))}
+              </View>
+            </View>
+
             <View className="flex-row gap-3 mt-4">
               <TouchableOpacity 
                 onPress={() => setIsEditingPrimary(false)}
-                className="flex-1 py-3 bg-slate-100 dark:bg-white dark:bg-opacity-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white dark:border-opacity-5"
+                className="flex-1 py-3 bg-slate-100 dark:bg-white dark:bg-opacity-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
               >
                 <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
               </TouchableOpacity>
@@ -514,21 +645,118 @@ export default function OrgSettings() {
         <View className="absolute inset-0 bg-slate-950 bg-opacity-75 items-center justify-center z-50 p-6">
           <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
             <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase mb-2 tracking-wider">
-              Edit Secondary Color (Hex)
+              Edit Secondary Color
             </Text>
-            <TextInput
-              value={tempSecondary}
-              onChangeText={setTempSecondary}
-              placeholder="#00E5FF"
-              placeholderTextColor="#94A3B8"
-              maxLength={7}
-              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white dark:border-opacity-5 rounded-xl px-4 py-3 font-mono text-sm text-slate-800 dark:text-white w-full"
-              autoFocus
-            />
+            
+            {/* Hidden Input for Web Native Color Picker */}
+            {Platform.OS === 'web' && (
+              <input
+                ref={secondaryInputRef}
+                type="color"
+                value={tempSecondary || '#FFFFFF'}
+                onChange={(e) => setTempSecondary(e.target.value)}
+                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, border: 'none', padding: 0 }}
+              />
+            )}
+
+            {/* Interactive Color Swatch to Open Spectrum Picker */}
+            <TouchableOpacity
+              onPress={() => {
+                if (Platform.OS === 'web') {
+                  secondaryInputRef.current?.click();
+                }
+              }}
+              activeOpacity={0.8}
+              className="w-full h-24 rounded-2xl items-center justify-center border border-slate-200 dark:border-white/10 shadow-sm relative overflow-hidden"
+              style={{ backgroundColor: tempSecondary || '#FFFFFF' }}
+            >
+              <Text 
+                className="font-orbitron-bold text-xs uppercase px-3 py-1.5 rounded-full bg-black/40 text-white text-center"
+                style={{ color: '#ffffff' }}
+              >
+                {Platform.OS === 'web' ? 'Tap swatch to open spectrum picker' : 'Secondary Color Preview'}
+              </Text>
+            </TouchableOpacity>
+
+            <View className="flex-row items-center gap-3 w-full">
+              <TextInput
+                value={tempSecondary}
+                onChangeText={(text) => {
+                  let val = text;
+                  if (val && !val.startsWith('#')) val = '#' + val;
+                  val = val.substring(0, 7);
+                  setTempSecondary(val);
+                }}
+                placeholder="#00E5FF"
+                placeholderTextColor="#94A3B8"
+                maxLength={7}
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-mono text-sm text-slate-800 dark:text-white flex-grow"
+              />
+              
+              {Platform.OS === 'web' && typeof window !== 'undefined' && 'EyeDropper' in window && (
+                <TouchableOpacity
+                  onPress={() => handleOpenEyedropper('secondary')}
+                  className="bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/5 rounded-xl p-3 items-center justify-center active:scale-95"
+                >
+                  <Ionicons name="color-palette-outline" size={20} color={isDark ? "white" : "#0F172A"} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* HSL base hue picker row */}
+            <View className="space-y-2">
+              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                Base Hue
+              </Text>
+              <View className="flex-row justify-between items-center gap-1.5 flex-wrap">
+                {BASE_HUES.map((hue) => (
+                  <TouchableOpacity
+                    key={hue.name}
+                    onPress={() => {
+                      setSecondaryHue(hue.h);
+                      setIsSecondaryGrey(!!hue.isGrey);
+                      const baseColor = hslToHex(hue.h, hue.s, hue.l);
+                      setTempSecondary(baseColor);
+                    }}
+                    className={`w-7 h-7 rounded-full border items-center justify-center active:scale-95 ${
+                      (secondaryHue === hue.h && isSecondaryGrey === !!hue.isGrey)
+                        ? 'border-brand-orange border-2 scale-105 shadow-md'
+                        : 'border-slate-200 dark:border-white/10'
+                    }`}
+                    style={{ backgroundColor: hslToHex(hue.h, hue.s, hue.l) }}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Dynamic shade selector */}
+            <View className="space-y-2 pt-1">
+              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                Select Shade
+              </Text>
+              <View className="flex-row justify-between items-center gap-1.5 flex-wrap">
+                {getShades(secondaryHue, isSecondaryGrey).map((shade, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => setTempSecondary(shade)}
+                    className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 ${
+                      tempSecondary.toUpperCase() === shade.toUpperCase()
+                        ? 'border-brand-orange border-2 scale-105 shadow-md'
+                        : 'border-slate-200 dark:border-white/10'
+                    }`}
+                    style={{ backgroundColor: shade }}
+                  />
+                ))}
+              </View>
+            </View>
+
             <View className="flex-row gap-3 mt-4">
               <TouchableOpacity 
                 onPress={() => setIsEditingSecondary(false)}
-                className="flex-1 py-3 bg-slate-100 dark:bg-white dark:bg-opacity-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white dark:border-opacity-5"
+                className="flex-1 py-3 bg-slate-100 dark:bg-white dark:bg-opacity-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
               >
                 <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
               </TouchableOpacity>
@@ -542,6 +770,7 @@ export default function OrgSettings() {
           </GlassCard>
         </View>
       )}
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
