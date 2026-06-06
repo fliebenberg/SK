@@ -42,7 +42,6 @@ export default function AdminLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'ADMIN PORTAL' }} />
-      <Stack.Screen name="organizations" options={{ title: 'MY ORGANIZATIONS' }} />
       <Stack.Screen name="all-organizations" options={{ title: 'ALL ORGANIZATIONS' }} />
       <Stack.Screen name="reports" options={{ title: 'SYSTEM AUDITS' }} />
       <Stack.Screen name="[orgId]" options={{ headerShown: false }} />

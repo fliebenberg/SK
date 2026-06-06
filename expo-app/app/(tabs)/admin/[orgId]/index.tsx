@@ -206,16 +206,7 @@ export default function OrgControlDashboard() {
           ))}
         </View>
 
-        {/* EXIT BUTTON */}
-        <TouchableOpacity
-          onPress={() => router.replace('/(tabs)/organizations' as any)}
-          className="flex-row items-center justify-center gap-2 py-3 border border-dashed border-slate-300 dark:border-white/10 rounded-xl active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={16} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Exit Workspace & Select Other Org
-          </Text>
-        </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );

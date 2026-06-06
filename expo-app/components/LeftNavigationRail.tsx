@@ -181,7 +181,7 @@ export function LeftNavigationRail() {
 
             {/* Exit Workspace Button */}
             <TouchableOpacity
-              onPress={() => router.push('/admin/organizations' as any)}
+              onPress={() => router.push('/(tabs)/organizations' as any)}
               className="flex-row items-center gap-3.5 px-3 py-3 mt-4 rounded-xl border border-dashed border-slate-300 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 active:opacity-85"
             >
               <Ionicons name="arrow-back-outline" size={20} color="#FF3E00" />
