@@ -54,6 +54,37 @@ class WebSocketService {
     }
   }
 
+  private roomSubscriptions = new Map<string, Set<string>>();
+
+  subscribeToRoom(room: string): () => void {
+    const token = Math.random().toString(36).substring(2);
+    let subscribers = this.roomSubscriptions.get(room);
+    
+    if (!subscribers) {
+      subscribers = new Set();
+      this.roomSubscriptions.set(room, subscribers);
+    }
+    
+    if (subscribers.size === 0) {
+      console.log(`[WS] Subscribing to room: ${room}`);
+      this.send('join_room', room);
+    }
+    
+    subscribers.add(token);
+
+    return () => {
+      const currentSubscribers = this.roomSubscriptions.get(room);
+      if (currentSubscribers) {
+        currentSubscribers.delete(token);
+        if (currentSubscribers.size === 0) {
+          this.roomSubscriptions.delete(room);
+          console.log(`[WS] Unsubscribing from room: ${room}`);
+          this.send('leave_room', room);
+        }
+      }
+    };
+  }
+
   emit(event: string, data: any, callback?: (...args: any[]) => void) {
     if (this.socket && this.socket.connected) {
       this.socket.emit(event, data, callback);

@@ -4,7 +4,7 @@ import { useRouter, useSegments, useGlobalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
 import { useAuthStore } from '../store/authStore';
-import { API_BASE_URL } from '../services/api';
+import { API_BASE_URL, getOrgLogoUrl } from '../services/api';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
 
@@ -31,14 +31,32 @@ export function LeftNavigationRail() {
       return;
     }
 
-    if (lastFetchedId.current === orgId) return;
+    if (lastFetchedId.current !== orgId) {
+      wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+        if (res && !res.error) {
+          setOrgData(res);
+          lastFetchedId.current = orgId;
+        }
+      });
+    }
 
-    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (res && !res.error) {
-        setOrgData(res);
-        lastFetchedId.current = orgId;
+    const room = `org:${orgId}:summary`;
+    const unsubscribe = wsService.subscribeToRoom(room);
+
+    const handleUpdate = (event: any) => {
+      if (event && event.type === 'ORGANIZATION_UPDATED') {
+        if (event.data && event.data.id === orgId) {
+          setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
+        }
       }
-    });
+    };
+
+    wsService.on('update', handleUpdate);
+
+    return () => {
+      unsubscribe();
+      wsService.off('update', handleUpdate);
+    };
   }, [isConnected, orgId, isOrgAdmin]);
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
@@ -126,7 +144,7 @@ export function LeftNavigationRail() {
                     }`}
                   >
                     {orgData.logo ? (
-                      <Image source={{ uri: orgData.logo }} className="w-full h-full object-cover" />
+                      <Image source={{ uri: getOrgLogoUrl(orgData.logo, 'medium') }} className="w-full h-full object-cover" />
                     ) : (
                       <Ionicons name="business" size={22} color={textColor} />
                     )}

@@ -10,6 +10,7 @@ import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction } from '@sk/types';
 import * as ImagePicker from 'expo-image-picker';
 import { CONSTANTS } from '../../../../constants';
+import { getOrgLogoUrl } from '../../../../services/api';
 
 function getContrastColor(hexcolor: string | undefined): string {
   if (!hexcolor || hexcolor === 'transparent' || hexcolor === 'undefined') return '#ffffff';
@@ -332,7 +333,7 @@ export default function OrgSettings() {
               activeOpacity={0.9}
             >
               {logo ? (
-                <Image source={{ uri: logo }} className="w-full h-full object-cover" />
+                <Image source={{ uri: getOrgLogoUrl(logo, 'large') }} className="w-full h-full object-cover" />
               ) : (
                 <View className="w-full h-full items-center justify-center bg-slate-100 bg-opacity-10 dark:bg-slate-800 dark:bg-opacity-10">
                   <Ionicons name="business" size={56} color={getContrastColor(primaryColor)} />
@@ -449,7 +450,7 @@ export default function OrgSettings() {
             <View className="flex-row justify-between items-center mb-3 pb-2 border-b border-slate-200 border-opacity-50 dark:border-white dark:border-opacity-5">
               <View className="flex-row items-center gap-2">
                 {logo ? (
-                  <Image source={{ uri: logo }} className="w-4 h-4 rounded-full" />
+                  <Image source={{ uri: getOrgLogoUrl(logo, 'thumb') }} className="w-4 h-4 rounded-full" />
                 ) : (
                   <View className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center">
                     <Ionicons name="business" size={9} color={primaryColor || "#FF3E00"} />

@@ -51,7 +51,8 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded && isConnected && isAuthenticated && user?.id) {
       console.log(`[RootLayout] User authenticated and WS connected. Joining room user:${user.id}`);
-      wsService.send('join_room', `user:${user.id}`);
+      const room = `user:${user.id}`;
+      const unsubscribe = wsService.subscribeToRoom(room);
 
       const fetchMemberships = () => {
         wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (res: any) => {
@@ -76,7 +77,7 @@ export default function RootLayout() {
       wsService.on('update', handleUpdate);
 
       return () => {
-        wsService.send('leave_room', `user:${user.id}`);
+        unsubscribe();
         wsService.off('update', handleUpdate);
       };
     }

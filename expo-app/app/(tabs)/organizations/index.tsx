@@ -9,6 +9,7 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
 import { SocketAction } from '@sk/types';
+import { getOrgLogoUrl } from '../../../services/api';
 
 export default function OrganizationsPage() {
   const router = useRouter();
@@ -55,6 +56,33 @@ export default function OrganizationsPage() {
   useEffect(() => {
     loadOrgsAndSports();
   }, [isConnected]);
+
+  useEffect(() => {
+    if (!isConnected || organizations.length === 0) return;
+
+    // Dynamically join the summary room for each organization loaded in the list
+    const unsubscribes = organizations.map(org => {
+      const room = `org:${org.id}:summary`;
+      return wsService.subscribeToRoom(room);
+    });
+
+    const handleUpdate = (event: any) => {
+      if (event && event.type === 'ORGANIZATION_UPDATED') {
+        if (event.data && event.data.id) {
+          setOrganizations(prev =>
+            prev.map(org => org.id === event.data.id ? { ...org, ...event.data } : org)
+          );
+        }
+      }
+    };
+
+    wsService.on('update', handleUpdate);
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+      wsService.off('update', handleUpdate);
+    };
+  }, [isConnected, organizations.map(org => org.id).join(',')]);
 
   // Map database properties dynamically
   const mappedOrgs = organizations.map(org => {
@@ -242,7 +270,7 @@ export default function OrganizationsPage() {
 
                       <View className="flex-row items-center gap-3 mb-3">
                         {org.logo ? (
-                          <Image source={{ uri: org.logo }} className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white" />
+                          <Image source={{ uri: getOrgLogoUrl(org.logo, 'medium') }} className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white" />
                         ) : (
                           <View className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10">
                             <Ionicons name="business" size={20} color="#94A3B8" />
@@ -333,7 +361,7 @@ export default function OrganizationsPage() {
 
                     <View className="flex-row items-center gap-3 mb-4">
                       {org.logo ? (
-                        <Image source={{ uri: org.logo }} className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white" />
+                        <Image source={{ uri: getOrgLogoUrl(org.logo, 'medium') }} className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white" />
                       ) : (
                         <View className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10">
                           <Ionicons name="business" size={20} color="#94A3B8" />

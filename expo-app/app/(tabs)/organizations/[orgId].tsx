@@ -105,6 +105,24 @@ export default function PublicOrgDetail() {
       setSites(Array.isArray(res) ? res : []);
       checkDone();
     });
+
+    const room = `org:${orgId}:summary`;
+    const unsubscribe = wsService.subscribeToRoom(room);
+
+    const handleUpdate = (event: any) => {
+      if (event && event.type === 'ORGANIZATION_UPDATED') {
+        if (event.data && event.data.id === orgId) {
+          setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
+        }
+      }
+    };
+
+    wsService.on('update', handleUpdate);
+
+    return () => {
+      unsubscribe();
+      wsService.off('update', handleUpdate);
+    };
   }, [isConnected, orgId]);
 
   if (isLoading || !orgData) {

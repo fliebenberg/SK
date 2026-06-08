@@ -22,6 +22,12 @@ const getApiUrl = () => {
 export const API_BASE_URL = getApiUrl();
 console.log(`[API] Resolved base URL: ${API_BASE_URL}`);
 
+export function getOrgLogoUrl(logo?: string, tier: 'large' | 'medium' | 'thumb' = 'medium') {
+  if (!logo) return "";
+  if (logo.startsWith('http') || logo.startsWith('data:')) return logo;
+  return `${API_BASE_URL}/uploads/logos/${logo}_${tier}.webp`;
+}
+
 export interface UserPayload {
   id: string;
   name: string;

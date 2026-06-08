@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
+import { getOrgLogoUrl } from '../../services/api';
 
 export default function TabLayout() {
   const router = useRouter();
@@ -35,14 +36,32 @@ export default function TabLayout() {
       return;
     }
 
-    if (lastFetchedId.current === orgId) return;
+    if (lastFetchedId.current !== orgId) {
+      wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+        if (res && !res.error) {
+          setOrgData(res);
+          lastFetchedId.current = orgId;
+        }
+      });
+    }
 
-    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (res && !res.error) {
-        setOrgData(res);
-        lastFetchedId.current = orgId;
+    const room = `org:${orgId}:summary`;
+    const unsubscribe = wsService.subscribeToRoom(room);
+
+    const handleUpdate = (event: any) => {
+      if (event && event.type === 'ORGANIZATION_UPDATED') {
+        if (event.data && event.data.id === orgId) {
+          setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
+        }
       }
-    });
+    };
+
+    wsService.on('update', handleUpdate);
+
+    return () => {
+      unsubscribe();
+      wsService.off('update', handleUpdate);
+    };
   }, [isConnected, orgId, isOrgAdmin]);
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
@@ -223,7 +242,7 @@ export default function TabLayout() {
             <Ionicons name="close-outline" size={22} color={fabTextColor} />
           ) : (
             orgData?.logo ? (
-              <Image source={{ uri: orgData.logo }} className="w-full h-full object-cover" />
+              <Image source={{ uri: getOrgLogoUrl(orgData.logo, 'medium') }} className="w-full h-full object-cover" />
             ) : (
               <Ionicons name="grid" size={22} color={fabTextColor} />
             )
@@ -266,7 +285,7 @@ export default function TabLayout() {
 
                   <View className="w-8 h-8 rounded bg-white/10 border border-white/20 items-center justify-center overflow-hidden flex-shrink-0 z-10">
                     {orgData.logo ? (
-                      <Image source={{ uri: orgData.logo }} className="w-full h-full object-cover" />
+                      <Image source={{ uri: getOrgLogoUrl(orgData.logo, 'thumb') }} className="w-full h-full object-cover" />
                     ) : (
                       <Ionicons name="business" size={16} color="white" />
                     )}

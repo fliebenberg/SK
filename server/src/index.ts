@@ -831,7 +831,7 @@ io.on('connection', (socket) => {
             } else if (type === 'summary') {
                 const org = await dataManager.getOrganization(orgId);
                 if (org) {
-                    socket.emit('update', { type: 'ORGANIZATIONS_UPDATED', data: org });
+                    socket.emit('update', { type: 'ORGANIZATION_UPDATED', data: org });
                 } else {
                     socket.emit('update', { type: 'ENTITY_NOT_FOUND', data: { id: orgId, type: 'organization' } });
                 }
@@ -899,9 +899,6 @@ io.on('connection', (socket) => {
             if (channel === 'games') {
                 // No longer pushing all games on subscribe. 
                 // Client must request via 'get_live_games' or 'join_room' for specific game updates.
-            } else if (channel === 'organizations') {
-                // No longer pushing all organizations on subscribe.
-                // Client requests via 'get_data' type: 'organizations'.
             }
         } catch (error) {
              console.error(`Error pushing data for channel ${channel}:`, error);
@@ -933,9 +930,7 @@ io.on('connection', (socket) => {
                 // Emit to the specific organization summary room (for dashboards)
                 const room = `org:${orgId}:summary`;
                 io.to(room).emit('update', { type: 'ORGANIZATION_UPDATED', data: updatedOrg });
-                // Also emit to the global organizations list room (for admin overview)
-                io.to('organizations').emit('update', { type: 'ORGANIZATION_UPDATED', data: updatedOrg });
-                console.log(`Server: Broadcasted ORGANIZATION_UPDATED for ${orgId} to ${room} and global`);
+                console.log(`Server: Broadcasted ORGANIZATION_UPDATED for ${orgId} to ${room}`);
             } else {
                 console.warn(`Server: Could not find organization ${orgId} for summary broadcast`);
             }
