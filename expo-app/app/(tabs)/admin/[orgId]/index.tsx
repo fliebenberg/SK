@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
+import { OrgBrandedCard } from '@/components/OrgBrandedCard';
+import { getContrastColor } from '@/utils/colorUtils';
 
 export default function OrgControlDashboard() {
   const router = useRouter();
@@ -48,6 +50,7 @@ export default function OrgControlDashboard() {
   }
 
   const primaryColor = orgData.primaryColor || '#FF3E00';
+  const secondaryColor = orgData.secondaryColor || '#00E5FF';
   const sports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
   const primarySport = sports[0];
 
@@ -55,10 +58,18 @@ export default function OrgControlDashboard() {
     name: orgData.name || 'Unknown Organization',
     sport: primarySport,
     primaryColor: primaryColor,
+    secondaryColor: secondaryColor,
     teamsCount: orgData.teamCount || 0,
     facilitiesCount: orgData.siteCount || 0,
     membersCount: orgData.memberCount || 0,
   };
+
+  const contrastColor = getContrastColor(org.primaryColor);
+  const isLightBg = contrastColor === '#000000';
+  const textColor = contrastColor;
+  const subtextColor = isLightBg ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)';
+  const badgeBgColor = isLightBg ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.15)';
+  const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
 
   const modules = [
     {
@@ -124,54 +135,53 @@ export default function OrgControlDashboard() {
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* BANNER WITH BACKGROUND ACCENT GLOW */}
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-8 relative overflow-hidden bg-brand-orange/5">
-          <View 
-            className="absolute -right-24 -top-24 w-48 h-48 rounded-full blur-[60px] opacity-[0.05]"
-            style={{ backgroundColor: org.primaryColor }}
-          />
-
-          <View className="flex-row items-center gap-2 bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full w-fit mb-3">
-            <Ionicons name="shield-checkmark" size={12} color={org.primaryColor} />
-            <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+        <OrgBrandedCard
+          primaryColor={org.primaryColor}
+          secondaryColor={org.secondaryColor}
+          className="p-6 mb-8"
+        >
+          <View style={{ backgroundColor: badgeBgColor, borderColor: borderColor }} className="flex-row items-center gap-2 px-2.5 py-1 rounded-full w-fit mb-3 border">
+            <Ionicons name="shield-checkmark" size={12} color={textColor} />
+            <Text style={{ color: textColor }} className="font-inter-bold text-[9px] uppercase tracking-wider">
               {org.sport} WORKSPACE
             </Text>
           </View>
 
-          <Text className="font-orbitron-bold text-xl text-slate-800 dark:text-white mb-2 uppercase tracking-wide">
+          <Text style={{ color: textColor }} className="font-orbitron-bold text-xl mb-2 uppercase tracking-wide">
             {org.name}
           </Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-5 leading-4">
+          <Text style={{ color: subtextColor }} className="font-inter text-xs mb-5 leading-4">
             Select an admin dashboard below to modify branding details, athlete registrations, or manage court fixture slots.
           </Text>
 
           {/* QUICK STATS ROW */}
-          <View className="flex-row gap-6 border-t border-slate-200/50 dark:border-white/5 pt-4">
+          <View style={{ borderTopColor: borderColor }} className="flex-row gap-6 border-t pt-4">
             <View>
-              <Text className="font-orbitron-bold text-sm text-slate-700 dark:text-slate-300">
+              <Text style={{ color: textColor }} className="font-orbitron-bold text-sm">
                 {org.membersCount}
               </Text>
-              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
+              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
                 Roster
               </Text>
             </View>
             <View>
-              <Text className="font-orbitron-bold text-sm text-slate-700 dark:text-slate-300">
+              <Text style={{ color: textColor }} className="font-orbitron-bold text-sm">
                 {org.teamsCount}
               </Text>
-              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
+              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
                 Teams
               </Text>
             </View>
             <View>
-              <Text className="font-orbitron-bold text-sm text-slate-700 dark:text-slate-300">
+              <Text style={{ color: textColor }} className="font-orbitron-bold text-sm">
                 {org.facilitiesCount}
               </Text>
-              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
+              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
                 Sites
               </Text>
             </View>
           </View>
-        </GlassCard>
+        </OrgBrandedCard>
 
         {/* LIST OF MODULES */}
         <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">

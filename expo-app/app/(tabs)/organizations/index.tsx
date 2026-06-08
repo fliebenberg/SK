@@ -11,6 +11,8 @@ import { useWsStore } from '../../../store/wsStore';
 import { SocketAction } from '@sk/types';
 import { getOrgLogoUrl } from '../../../services/api';
 import { OrgLogo } from '../../../components/OrgLogo';
+import { OrgBrandedCard } from '@/components/OrgBrandedCard';
+import { getContrastColor } from '@/utils/colorUtils';
 
 export default function OrganizationsPage() {
   const router = useRouter();
@@ -240,73 +242,93 @@ export default function OrganizationsPage() {
                   </Text>
                 </GlassCard>
               ) : (
-                managedOrgs.map((org) => (
-                  <GlassCard key={org.id} className="border border-slate-200 dark:border-white/5 p-5 relative overflow-hidden">
-                    {/* Glowing vertical highlight bar for premium managing state */}
-                    <View className="absolute left-0 top-0 bottom-0 w-1.5 bg-brand-orange" />
-                    
-                    <TouchableOpacity 
-                      onPress={() => router.push(`/organizations/${org.id}` as any)}
-                      className="pl-1.5 flex-1"
-                      activeOpacity={0.7}
+                managedOrgs.map((org) => {
+                  const primaryColor = org.primaryColor || '#FF3E00';
+                  const secondaryColor = org.secondaryColor || '#00E5FF';
+                  const contrastColor = getContrastColor(primaryColor);
+                  const isLightBg = contrastColor === '#000000';
+                  const textColor = contrastColor;
+                  const subtextColor = isLightBg ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)';
+                  const badgeBgColor = isLightBg ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.15)';
+                  const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
+
+                  return (
+                    <OrgBrandedCard
+                      key={org.id}
+                      primaryColor={primaryColor}
+                      secondaryColor={secondaryColor}
+                      className="p-5"
                     >
-                      <View className="flex-row justify-between items-center mb-3">
-                        {/* SPORTS BADGES */}
-                        <View className="flex-row flex-wrap gap-1.5 max-w-[70%]">
-                          {org.sports.map((sport: string) => (
-                            <View key={sport} className="bg-slate-100 dark:bg-white/10 px-2.5 py-0.5 rounded-full border border-slate-200/50 dark:border-white/5">
-                              <Text className={`font-inter-bold text-[8px] uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                {sport}
-                              </Text>
-                            </View>
-                          ))}
+                      <TouchableOpacity 
+                        onPress={() => router.push(`/organizations/${org.id}` as any)}
+                        className="flex-1"
+                        activeOpacity={0.7}
+                      >
+                        <View className="flex-row justify-between items-center mb-3">
+                          {/* SPORTS BADGES */}
+                          <View className="flex-row flex-wrap gap-1.5 max-w-[70%]">
+                            {org.sports.map((sport: string) => (
+                              <View key={sport} style={{ backgroundColor: badgeBgColor, borderColor: borderColor }} className="px-2.5 py-0.5 rounded-full border">
+                                <Text style={{ color: textColor }} className="font-inter-bold text-[8px] uppercase tracking-wider">
+                                  {sport}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                          <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
+                            <Ionicons name="shield-checkmark" size={12} color={textColor} />
+                            <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
+                              {org.role}
+                            </Text>
+                          </View>
                         </View>
-                        <View className="flex-row items-center gap-1 bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/30 px-2.5 py-0.5 rounded">
-                          <Ionicons name="shield-checkmark" size={12} color={isDark ? "#00E5FF" : "#0891B2"} />
-                          <Text className={`font-orbitron-bold text-[9px] uppercase tracking-widest ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
-                            {org.role}
+
+                        <View className="flex-row items-center gap-3 mb-3">
+                          <OrgLogo 
+                            logo={org.logo} 
+                            settings={org.settings} 
+                            size={40} 
+                            className="border bg-white rounded-full" 
+                            style={{ borderColor: borderColor }}
+                          />
+                          <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight">
+                            {org.name}
                           </Text>
                         </View>
-                      </View>
 
-                      <View className="flex-row items-center gap-3 mb-3">
-                        <OrgLogo 
-                          logo={org.logo} 
-                          settings={org.settings} 
-                          size={40} 
-                          className="border border-slate-200 dark:border-white/10 bg-white rounded-full" 
-                        />
-                        <Text className={`flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                          {org.name}
-                        </Text>
-                      </View>
-
-                      <View className="flex-row gap-6 mb-4">
-                        <View className="flex-row items-center gap-1.5">
-                          <Ionicons name="people-outline" size={15} color="#FF3E00" />
-                          <Text className={`font-inter text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                            {org.teamsCount} Teams
-                          </Text>
+                        <View className="flex-row gap-6 mb-4">
+                          <View className="flex-row items-center gap-1.5">
+                            <Ionicons name="people-outline" size={15} color={textColor} />
+                            <Text style={{ color: subtextColor }} className="font-inter text-xs">
+                              {org.teamsCount} Teams
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center gap-1.5">
+                            <Ionicons name="location-outline" size={15} color={textColor} />
+                            <Text style={{ color: subtextColor }} className="font-inter text-xs">
+                              {org.facilitiesCount} Facilities
+                            </Text>
+                          </View>
                         </View>
-                        <View className="flex-row items-center gap-1.5">
-                          <Ionicons name="location-outline" size={15} color="#FF3E00" />
-                          <Text className={`font-inter text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                            {org.facilitiesCount} Facilities
-                          </Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
+                      </TouchableOpacity>
 
-                    <View className="mt-2 pl-1.5 border-t border-slate-100 dark:border-white/5 pt-3">
-                      <Button
-                        title="Manage Workspace"
-                        variant="secondary"
-                        onPress={() => router.push(`/admin/${org.id}` as any)}
-                        className="w-full shadow-sm py-2"
-                      />
-                    </View>
-                  </GlassCard>
-                ))
+                      <View style={{ borderTopColor: borderColor }} className="mt-2 border-t pt-3">
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.2)',
+                            borderColor: borderColor,
+                          }}
+                          className="w-full border py-2.5 rounded-lg items-center justify-center active:opacity-85"
+                          onPress={() => router.push(`/admin/${org.id}` as any)}
+                        >
+                          <Text style={{ color: textColor }} className="font-inter-bold text-sm">
+                            Manage Workspace
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </OrgBrandedCard>
+                  );
+                })
               )}
 
               <Button
@@ -320,22 +342,33 @@ export default function OrganizationsPage() {
         ) : (
           <View className="space-y-4">
             {orgs.map((org) => {
+              const primaryColor = org.primaryColor || '#FF3E00';
+              const secondaryColor = org.secondaryColor || '#00E5FF';
+              const contrastColor = getContrastColor(primaryColor);
+              const isLightBg = contrastColor === '#000000';
+              const textColor = contrastColor;
+              const subtextColor = isLightBg ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)';
+              const badgeBgColor = isLightBg ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.15)';
+              const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
               const showManage = isAuthenticated && org.isManaged && (user?.globalRole === 'admin' || user?.isAdminOrCoach);
+
               return (
-                <GlassCard key={org.id} className="border border-slate-200 dark:border-white/5 shadow-sm p-5 relative overflow-hidden">
-                  {showManage && <View className="absolute left-0 top-0 bottom-0 w-1.5 bg-brand-orange" />}
-                  
+                <OrgBrandedCard
+                  key={org.id}
+                  primaryColor={primaryColor}
+                  secondaryColor={secondaryColor}
+                  className="p-5"
+                >
                   <TouchableOpacity
                     onPress={() => router.push(`/organizations/${org.id}` as any)}
                     activeOpacity={0.7}
-                    className={showManage ? "pl-1.5" : ""}
                   >
                     <View className="flex-row justify-between items-start mb-3">
                       <View className="flex-row flex-wrap gap-1.5 max-w-[70%]">
                         {org.sports.map((sport: string) => (
-                          <View key={sport} className="flex-row items-center gap-1 bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-full border border-slate-200/50 dark:border-white/5">
-                            <Ionicons name={org.icon} size={10} color="#FF3E00" />
-                            <Text className={`font-inter-bold text-[8px] uppercase tracking-wider ml-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                          <View key={sport} style={{ backgroundColor: badgeBgColor, borderColor: borderColor }} className="flex-row items-center gap-1 px-2.5 py-0.5 rounded-full border">
+                            <Ionicons name={org.icon} size={10} color={textColor} />
+                            <Text style={{ color: textColor }} className="font-inter-bold text-[8px] uppercase tracking-wider ml-1">
                               {sport}
                             </Text>
                           </View>
@@ -343,16 +376,16 @@ export default function OrganizationsPage() {
                       </View>
                       
                       {showManage ? (
-                        <View className="flex-row items-center gap-1 bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/30 px-2.5 py-0.5 rounded">
-                          <Ionicons name="shield-checkmark" size={12} color={isDark ? "#00E5FF" : "#0891B2"} />
-                          <Text className={`font-orbitron-bold text-[9px] uppercase tracking-widest ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>
+                        <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
+                          <Ionicons name="shield-checkmark" size={12} color={textColor} />
+                          <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
                             {org.role}
                           </Text>
                         </View>
                       ) : (
                         <View className="flex-row items-center gap-1">
-                          <Ionicons name="people-outline" size={12} color="#94A3B8" />
-                          <Text className={`font-inter text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <Ionicons name="people-outline" size={12} color={textColor} />
+                          <Text style={{ color: subtextColor }} className="font-inter text-[10px]">
                             {org.membersCount} Members
                           </Text>
                         </View>
@@ -364,9 +397,10 @@ export default function OrganizationsPage() {
                         logo={org.logo} 
                         settings={org.settings} 
                         size={40} 
-                        className="border border-slate-200 dark:border-white/10 bg-white rounded-full" 
+                        className="border bg-white rounded-full" 
+                        style={{ borderColor: borderColor }}
                       />
-                      <Text className={`flex-1 font-orbitron-bold text-lg uppercase tracking-wide ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                      <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide">
                         {org.name}
                       </Text>
                     </View>
@@ -374,27 +408,27 @@ export default function OrganizationsPage() {
                     {/* STATS BLOCKS */}
                     <View className="flex-row gap-6 mb-4">
                       <View>
-                        <Text className={`font-orbitron-bold text-base leading-none ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
                           {org.teamsCount}
                         </Text>
-                        <Text className={`font-inter text-[9px] mt-1 uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
                           Teams
                         </Text>
                       </View>
                       <View>
-                        <Text className={`font-orbitron-bold text-base leading-none ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
                           {org.eventsCount}
                         </Text>
-                        <Text className={`font-inter text-[9px] mt-1 uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
                           Events
                         </Text>
                       </View>
                       {showManage && (
                         <View>
-                          <Text className={`font-orbitron-bold text-base leading-none ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                          <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
                             {org.facilitiesCount}
                           </Text>
-                          <Text className={`font-inter text-[9px] mt-1 uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                          <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
                             Facilities
                           </Text>
                         </View>
@@ -402,23 +436,35 @@ export default function OrganizationsPage() {
                     </View>
                   </TouchableOpacity>
 
-                  <View className={`flex-row gap-2 mt-1 ${showManage ? "pl-1.5" : ""}`}>
-                    <Button
-                      title="View Profile"
-                      variant="secondary"
+                  <View className="flex-row gap-2 mt-1">
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.2)',
+                        borderColor: borderColor,
+                      }}
+                      className="flex-1 border py-2 rounded-lg items-center justify-center active:opacity-85"
                       onPress={() => router.push(`/organizations/${org.id}` as any)}
-                      className="flex-1 shadow-sm mt-1"
-                    />
+                    >
+                      <Text style={{ color: textColor }} className="font-inter-bold text-sm">
+                        View Profile
+                      </Text>
+                    </TouchableOpacity>
                     {showManage && (
-                      <Button
-                        title="Manage"
-                        variant="primary"
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.15)' : '#FFFFFF',
+                          borderColor: isLightBg ? 'rgba(0, 0, 0, 0.2)' : 'transparent',
+                        }}
+                        className="flex-1 border py-2 rounded-lg items-center justify-center active:opacity-85"
                         onPress={() => router.push(`/admin/${org.id}` as any)}
-                        className="flex-1 shadow-sm mt-1"
-                      />
+                      >
+                        <Text style={{ color: isLightBg ? textColor : '#0F172A' }} className="font-inter-bold text-sm">
+                          Manage
+                        </Text>
+                      </TouchableOpacity>
                     )}
                   </View>
-                </GlassCard>
+                </OrgBrandedCard>
               );
             })}
           </View>

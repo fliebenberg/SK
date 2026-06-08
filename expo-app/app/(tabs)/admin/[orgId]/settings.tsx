@@ -12,35 +12,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { CONSTANTS } from '../../../../constants';
 import { getOrgLogoUrl } from '../../../../services/api';
 import { OrgLogo } from '../../../../components/OrgLogo';
-
-function getContrastColor(hexcolor: string | undefined): string {
-  if (!hexcolor || hexcolor === 'transparent' || hexcolor === 'undefined') return '#ffffff';
-  let hex = hexcolor.replace('#', '');
-  if (hex.length === 3) {
-    hex = hex.split('').map(char => char + char).join('');
-  }
-  if (hex.length !== 6) return '#ffffff';
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return '#ffffff';
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 128 ? '#000000' : '#ffffff';
-}
-
-function hexToRgba(hex: string | undefined, opacity: number): string {
-  if (!hex || hex === 'transparent' || hex === 'undefined') return `rgba(255, 62, 0, ${opacity})`;
-  let cleanHex = hex.replace('#', '');
-  if (cleanHex.length === 3) {
-    cleanHex = cleanHex.split('').map(char => char + char).join('');
-  }
-  if (cleanHex.length !== 6) return `rgba(255, 62, 0, ${opacity})`;
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return `rgba(255, 62, 0, ${opacity})`;
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-}
+import { OrgBrandedCard } from '@/components/OrgBrandedCard';
+import { getContrastColor, hexToRgba } from '@/utils/colorUtils';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -494,42 +467,31 @@ export default function OrgSettings() {
         )}
 
         {/* Social Profile Header Banner */}
-        <View className="relative mb-6">
-          <View 
-            className="h-36 w-full rounded-2xl overflow-hidden shadow-sm justify-center pl-2 pr-6"
-            style={{ backgroundColor: primaryColor || '#FF3E00' }}
+        <OrgBrandedCard
+          primaryColor={primaryColor}
+          secondaryColor={secondaryColor}
+          className="h-36 w-full justify-center pl-2 pr-6 mb-6"
+        >
+          {/* Squircle Logo Crest centered vertically on the left (Floating Style) */}
+          <TouchableOpacity 
+            onPress={handleOpenLogoEditor}
+            className="w-32 h-32 rounded-3xl items-center justify-center overflow-hidden shadow-2xl relative border bg-white bg-opacity-15 border-white border-opacity-20 dark:bg-slate-950 dark:bg-opacity-20 dark:border-white dark:border-opacity-10"
+            activeOpacity={0.9}
           >
-            {/* Secondary color accent shapes inside banner */}
-            <View 
-              className="absolute -right-10 -bottom-10 w-32 h-32 rounded-full opacity-40"
-              style={{ backgroundColor: secondaryColor || '#00E5FF' }}
-            />
-            <View 
-              className="absolute -left-6 -top-6 w-20 h-20 rounded-full opacity-20"
-              style={{ backgroundColor: secondaryColor || '#00E5FF' }}
-            />
-
-            {/* Squircle Logo Crest centered vertically on the left (Floating Style) */}
-            <TouchableOpacity 
-              onPress={handleOpenLogoEditor}
-              className="w-32 h-32 rounded-3xl items-center justify-center overflow-hidden shadow-2xl relative border bg-white bg-opacity-15 border-white border-opacity-20 dark:bg-slate-950 dark:bg-opacity-20 dark:border-white dark:border-opacity-10"
-              activeOpacity={0.9}
-            >
-              {logo ? (
-                <OrgLogo logo={logo} settings={{ ...settings, logoConfig }} size={128} />
-              ) : (
-                <View className="w-full h-full items-center justify-center bg-slate-100 bg-opacity-10 dark:bg-slate-800 dark:bg-opacity-10">
-                  <Ionicons name="business" size={56} color={getContrastColor(primaryColor)} />
-                </View>
-              )}
-              
-              {/* Floating edit badge */}
-              <View className="absolute bottom-1.5 right-1.5 bg-brand-orange w-6 h-6 rounded-full items-center justify-center border border-white dark:border-slate-900 shadow-md">
-                <Ionicons name="pencil-sharp" size={10} color="white" />
+            {logo ? (
+              <OrgLogo logo={logo} settings={{ ...settings, logoConfig }} size={128} />
+            ) : (
+              <View className="w-full h-full items-center justify-center bg-slate-100 bg-opacity-10 dark:bg-slate-800 dark:bg-opacity-10">
+                <Ionicons name="business" size={56} color={getContrastColor(primaryColor)} />
               </View>
-            </TouchableOpacity>
-          </View>
-        </View>
+            )}
+            
+            {/* Floating edit badge */}
+            <View className="absolute bottom-1.5 right-1.5 bg-brand-orange w-6 h-6 rounded-full items-center justify-center border border-white dark:border-slate-900 shadow-md">
+              <Ionicons name="pencil-sharp" size={10} color="white" />
+            </View>
+          </TouchableOpacity>
+        </OrgBrandedCard>
  
         {/* PROFILE FIELD SECTION (BELOW BANNER) */}
         <View className="space-y-5 mb-6">
