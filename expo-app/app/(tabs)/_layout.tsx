@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
 import { getOrgLogoUrl } from '../../services/api';
+import { OrgLogo } from '../../components/OrgLogo';
 
 export default function TabLayout() {
   const router = useRouter();
@@ -242,7 +243,7 @@ export default function TabLayout() {
             <Ionicons name="close-outline" size={22} color={fabTextColor} />
           ) : (
             orgData?.logo ? (
-              <Image source={{ uri: getOrgLogoUrl(orgData.logo, 'medium') }} className="w-full h-full object-cover" />
+              <OrgLogo logo={orgData.logo} settings={orgData.settings} size={44} />
             ) : (
               <Ionicons name="grid" size={22} color={fabTextColor} />
             )
@@ -283,12 +284,14 @@ export default function TabLayout() {
                     style={{ backgroundColor: orgData.secondaryColor || '#00E5FF' }}
                   />
 
-                  <View className="w-8 h-8 rounded bg-white/10 border border-white/20 items-center justify-center overflow-hidden flex-shrink-0 z-10">
-                    {orgData.logo ? (
-                      <Image source={{ uri: getOrgLogoUrl(orgData.logo, 'thumb') }} className="w-full h-full object-cover" />
-                    ) : (
-                      <Ionicons name="business" size={16} color="white" />
-                    )}
+                  <View className="z-10 flex-shrink-0">
+                    <OrgLogo 
+                      logo={orgData.logo} 
+                      settings={orgData.settings} 
+                      size={32} 
+                      className="bg-white/10 border border-white/20"
+                      primaryColor="white"
+                    />
                   </View>
 
                   <View className="flex-1 min-w-0 z-10 justify-center">

@@ -10,6 +10,7 @@ import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
 import { SocketAction } from '@sk/types';
 import { getOrgLogoUrl } from '../../../services/api';
+import { OrgLogo } from '../../../components/OrgLogo';
 
 export default function OrganizationsPage() {
   const router = useRouter();
@@ -269,13 +270,12 @@ export default function OrganizationsPage() {
                       </View>
 
                       <View className="flex-row items-center gap-3 mb-3">
-                        {org.logo ? (
-                          <Image source={{ uri: getOrgLogoUrl(org.logo, 'medium') }} className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white" />
-                        ) : (
-                          <View className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10">
-                            <Ionicons name="business" size={20} color="#94A3B8" />
-                          </View>
-                        )}
+                        <OrgLogo 
+                          logo={org.logo} 
+                          settings={org.settings} 
+                          size={40} 
+                          className="border border-slate-200 dark:border-white/10 bg-white rounded-full" 
+                        />
                         <Text className={`flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
                           {org.name}
                         </Text>
@@ -360,13 +360,12 @@ export default function OrganizationsPage() {
                     </View>
 
                     <View className="flex-row items-center gap-3 mb-4">
-                      {org.logo ? (
-                        <Image source={{ uri: getOrgLogoUrl(org.logo, 'medium') }} className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-white" />
-                      ) : (
-                        <View className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10">
-                          <Ionicons name="business" size={20} color="#94A3B8" />
-                        </View>
-                      )}
+                      <OrgLogo 
+                        logo={org.logo} 
+                        settings={org.settings} 
+                        size={40} 
+                        className="border border-slate-200 dark:border-white/10 bg-white rounded-full" 
+                      />
                       <Text className={`flex-1 font-orbitron-bold text-lg uppercase tracking-wide ${isDark ? 'text-white' : 'text-slate-800'}`}>
                         {org.name}
                       </Text>

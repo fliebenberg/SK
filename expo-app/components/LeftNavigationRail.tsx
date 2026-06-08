@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
 import { useAuthStore } from '../store/authStore';
 import { API_BASE_URL, getOrgLogoUrl } from '../services/api';
+import { OrgLogo } from './OrgLogo';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
 
@@ -136,18 +137,14 @@ export function LeftNavigationRail() {
                   />
 
                   {/* Organization Logo Crest / Fallback Crest */}
-                  <View 
-                    className={`w-11 h-11 rounded-lg items-center justify-center overflow-hidden flex-shrink-0 z-10 border ${
-                      isDarkBg 
-                        ? 'bg-white/10 border-white/20' 
-                        : 'bg-black/5 border-black/10'
-                    }`}
-                  >
-                    {orgData.logo ? (
-                      <Image source={{ uri: getOrgLogoUrl(orgData.logo, 'medium') }} className="w-full h-full object-cover" />
-                    ) : (
-                      <Ionicons name="business" size={22} color={textColor} />
-                    )}
+                  <View className="z-10 flex-shrink-0">
+                    <OrgLogo 
+                      logo={orgData.logo} 
+                      settings={orgData.settings} 
+                      size={44} 
+                      className={isDarkBg ? 'border border-white/20' : 'border border-black/10'}
+                      primaryColor={textColor}
+                    />
                   </View>
 
                   <View className="flex-1 min-w-0 z-10 justify-center">
