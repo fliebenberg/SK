@@ -264,16 +264,18 @@ export default function OrganizationsPage() {
                         className="flex-1"
                         activeOpacity={0.7}
                       >
-                        <View className="flex-row justify-between items-center mb-3">
-                          {/* SPORTS BADGES */}
-                          <View className="flex-row flex-wrap gap-1.5 max-w-[70%]">
-                            {org.sports.map((sport: string) => (
-                              <View key={sport} style={{ backgroundColor: badgeBgColor, borderColor: borderColor }} className="px-2.5 py-0.5 rounded-full border">
-                                <Text style={{ color: textColor }} className="font-inter-bold text-[8px] uppercase tracking-wider">
-                                  {sport}
-                                </Text>
-                              </View>
-                            ))}
+                        <View className="flex-row justify-between items-center gap-3 mb-3">
+                          <View className="flex-row items-center gap-3 flex-1">
+                            <OrgLogo 
+                              logo={org.logo} 
+                              settings={org.settings} 
+                              size={40} 
+                              className="border bg-white rounded-full" 
+                              style={{ borderColor: borderColor }}
+                            />
+                            <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight flex-shrink">
+                              {org.name}
+                            </Text>
                           </View>
                           <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
                             <Ionicons name="shield-checkmark" size={12} color={textColor} />
@@ -283,30 +285,29 @@ export default function OrganizationsPage() {
                           </View>
                         </View>
 
-                        <View className="flex-row items-center gap-3 mb-3">
-                          <OrgLogo 
-                            logo={org.logo} 
-                            settings={org.settings} 
-                            size={40} 
-                            className="border bg-white rounded-full" 
-                            style={{ borderColor: borderColor }}
-                          />
-                          <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight">
-                            {org.name}
-                          </Text>
-                        </View>
-
-                        <View className="flex-row gap-6 mb-4">
-                          <View className="flex-row items-center gap-1.5">
-                            <Ionicons name="people-outline" size={15} color={textColor} />
+                        <View className="flex-row gap-4 mb-4">
+                          <View className="flex-row items-center gap-1">
+                            <Ionicons name="trophy-outline" size={14} color={textColor} />
                             <Text style={{ color: subtextColor }} className="font-inter text-xs">
-                              {org.teamsCount} Teams
+                              {org.sports.length} {org.sports.length === 1 ? 'Sport' : 'Sports'}
                             </Text>
                           </View>
-                          <View className="flex-row items-center gap-1.5">
-                            <Ionicons name="location-outline" size={15} color={textColor} />
+                          <View className="flex-row items-center gap-1">
+                            <Ionicons name="people-outline" size={14} color={textColor} />
                             <Text style={{ color: subtextColor }} className="font-inter text-xs">
-                              {org.facilitiesCount} Facilities
+                              {org.membersCount} {org.membersCount === '1' ? 'Member' : 'Members'}
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center gap-1">
+                            <Ionicons name="shirt-outline" size={14} color={textColor} />
+                            <Text style={{ color: subtextColor }} className="font-inter text-xs">
+                              {org.teamsCount} {org.teamsCount === 1 ? 'Team' : 'Teams'}
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center gap-1">
+                            <Ionicons name="location-outline" size={14} color={textColor} />
+                            <Text style={{ color: subtextColor }} className="font-inter text-xs">
+                              {org.facilitiesCount} {org.facilitiesCount === 1 ? 'Facility' : 'Facilities'}
                             </Text>
                           </View>
                         </View>
@@ -363,16 +364,18 @@ export default function OrganizationsPage() {
                     onPress={() => router.push(`/organizations/${org.id}` as any)}
                     activeOpacity={0.7}
                   >
-                    <View className="flex-row justify-between items-start mb-3">
-                      <View className="flex-row flex-wrap gap-1.5 max-w-[70%]">
-                        {org.sports.map((sport: string) => (
-                          <View key={sport} style={{ backgroundColor: badgeBgColor, borderColor: borderColor }} className="flex-row items-center gap-1 px-2.5 py-0.5 rounded-full border">
-                            <Ionicons name={org.icon} size={10} color={textColor} />
-                            <Text style={{ color: textColor }} className="font-inter-bold text-[8px] uppercase tracking-wider ml-1">
-                              {sport}
-                            </Text>
-                          </View>
-                        ))}
+                    <View className="flex-row justify-between items-center gap-3 mb-4">
+                      <View className="flex-row items-center gap-3 flex-1">
+                        <OrgLogo 
+                          logo={org.logo} 
+                          settings={org.settings} 
+                          size={40} 
+                          className="border bg-white rounded-full" 
+                          style={{ borderColor: borderColor }}
+                        />
+                        <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide flex-shrink">
+                          {org.name}
+                        </Text>
                       </View>
                       
                       {showManage ? (
@@ -383,56 +386,49 @@ export default function OrganizationsPage() {
                           </Text>
                         </View>
                       ) : (
-                        <View className="flex-row items-center gap-1">
+                        <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
                           <Ionicons name="people-outline" size={12} color={textColor} />
-                          <Text style={{ color: subtextColor }} className="font-inter text-[10px]">
-                            {org.membersCount} Members
+                          <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
+                            {org.membersCount}
                           </Text>
                         </View>
                       )}
-                    </View>
-
-                    <View className="flex-row items-center gap-3 mb-4">
-                      <OrgLogo 
-                        logo={org.logo} 
-                        settings={org.settings} 
-                        size={40} 
-                        className="border bg-white rounded-full" 
-                        style={{ borderColor: borderColor }}
-                      />
-                      <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide">
-                        {org.name}
-                      </Text>
                     </View>
 
                     {/* STATS BLOCKS */}
                     <View className="flex-row gap-6 mb-4">
                       <View>
                         <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
-                          {org.teamsCount}
+                          {org.sports.length}
                         </Text>
                         <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
-                          Teams
+                          {org.sports.length === 1 ? 'Sport' : 'Sports'}
                         </Text>
                       </View>
                       <View>
                         <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
-                          {org.eventsCount}
+                          {org.membersCount}
                         </Text>
                         <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
-                          Events
+                          {org.membersCount === '1' ? 'Member' : 'Members'}
                         </Text>
                       </View>
-                      {showManage && (
-                        <View>
-                          <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
-                            {org.facilitiesCount}
-                          </Text>
-                          <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
-                            Facilities
-                          </Text>
-                        </View>
-                      )}
+                      <View>
+                        <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
+                          {org.teamsCount}
+                        </Text>
+                        <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
+                          {org.teamsCount === 1 ? 'Team' : 'Teams'}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={{ color: textColor }} className="font-orbitron-bold text-base leading-none">
+                          {org.facilitiesCount}
+                        </Text>
+                        <Text style={{ color: subtextColor }} className="font-inter text-[9px] mt-1 uppercase tracking-wider">
+                          {org.facilitiesCount === 1 ? 'Facility' : 'Facilities'}
+                        </Text>
+                      </View>
                     </View>
                   </TouchableOpacity>
 

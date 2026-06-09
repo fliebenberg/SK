@@ -90,7 +90,7 @@ export function LeftNavigationRail() {
     if (isOrgAdmin && orgId) {
       const orgNavItems = [
         { name: 'dashboard', label: 'Control Panel', icon: 'grid' as const, route: `/admin/${orgId}` as const },
-        { name: 'settings', label: 'Profile Settings', icon: 'settings' as const, route: `/admin/${orgId}/settings` as const },
+        { name: 'settings', label: 'Org Settings', icon: 'settings' as const, route: `/admin/${orgId}/settings` as const },
         { name: 'people', label: 'People & Roles', icon: 'people' as const, route: `/admin/${orgId}/people` as const },
         { name: 'teams', label: 'Teams & Divisions', icon: 'trophy' as const, route: `/admin/${orgId}/teams` as const },
         { name: 'sites', label: 'Facilities & Courts', icon: 'location' as const, route: `/admin/${orgId}/sites` as const },

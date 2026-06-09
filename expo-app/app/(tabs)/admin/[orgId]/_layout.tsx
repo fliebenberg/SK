@@ -22,7 +22,7 @@ export default function OrgAdminLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="settings" options={{ title: 'ORG PROFILE SETTINGS' }} />
+      <Stack.Screen name="settings" options={{ title: 'ORG SETTINGS' }} />
       <Stack.Screen name="people" options={{ title: 'MANAGE PEOPLE & ROLES' }} />
       <Stack.Screen name="teams" options={{ title: 'MANAGE TEAMS' }} />
       <Stack.Screen name="sites" options={{ title: 'MANAGE FACILITIES' }} />

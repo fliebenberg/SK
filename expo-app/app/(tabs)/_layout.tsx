@@ -310,7 +310,7 @@ export default function TabLayout() {
             <View className="space-y-0.5">
               {[
                 { label: 'Control Panel', icon: 'grid', route: `/admin/${orgId}` },
-                { label: 'Profile Settings', icon: 'settings', route: `/admin/${orgId}/settings` },
+                { label: 'Org Settings', icon: 'settings', route: `/admin/${orgId}/settings` },
                 { label: 'People & Roles', icon: 'people', route: `/admin/${orgId}/people` },
                 { label: 'Teams & Divisions', icon: 'trophy', route: `/admin/${orgId}/teams` },
                 { label: 'Facilities & Courts', icon: 'location', route: `/admin/${orgId}/sites` },

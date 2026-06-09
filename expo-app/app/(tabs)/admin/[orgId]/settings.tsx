@@ -116,6 +116,19 @@ export default function OrgSettings() {
   const [logoConfig, setLogoConfig] = useState({ scale: 1, x: 0, y: 0 });
   const [settings, setSettings] = useState<Record<string, any>>({});
   
+  const [allSports, setAllSports] = useState<any[]>([]);
+  const [supportedSportIds, setSupportedSportIds] = useState<string[]>([]);
+  const [originalData, setOriginalData] = useState<{
+    orgName: string;
+    shortName: string;
+    primaryColor: string;
+    secondaryColor: string;
+    logo: string;
+    description: string;
+    logoConfig: { scale: number; x: number; y: number };
+    supportedSportIds: string[];
+  } | null>(null);
+  
   // Temp logo states for the editor modal
   const [isEditingLogo, setIsEditingLogo] = useState(false);
   const [tempLogo, setTempLogo] = useState('');
@@ -144,6 +157,12 @@ export default function OrgSettings() {
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
+    wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
+      if (Array.isArray(sportsList)) {
+        setAllSports(sportsList);
+      }
+    });
+
     wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
       if (res) {
         setOrgName(res.name || '');
@@ -156,7 +175,22 @@ export default function OrgSettings() {
         // Load settings and logoConfig
         const orgSettings = res.settings || {};
         setSettings(orgSettings);
-        setLogoConfig(orgSettings.logoConfig || { scale: 1, x: 0, y: 0 });
+        const lConfig = orgSettings.logoConfig || { scale: 1, x: 0, y: 0 };
+        setLogoConfig(lConfig);
+
+        const sIds = res.supportedSportIds || [];
+        setSupportedSportIds(sIds);
+
+        setOriginalData({
+          orgName: res.name || '',
+          shortName: res.shortName || '',
+          primaryColor: res.primaryColor || '#FF3E00',
+          secondaryColor: res.secondaryColor || '#00E5FF',
+          logo: res.logo || '',
+          description: res.description || '',
+          logoConfig: lConfig,
+          supportedSportIds: sIds,
+        });
       }
       setIsLoading(false);
     });
@@ -176,7 +210,22 @@ export default function OrgSettings() {
           
           const orgSettings = event.data.settings || {};
           setSettings(orgSettings);
-          setLogoConfig(orgSettings.logoConfig || { scale: 1, x: 0, y: 0 });
+          const lConfig = orgSettings.logoConfig || { scale: 1, x: 0, y: 0 };
+          setLogoConfig(lConfig);
+
+          const sIds = event.data.supportedSportIds || [];
+          setSupportedSportIds(sIds);
+
+          setOriginalData({
+            orgName: event.data.name || '',
+            shortName: event.data.shortName || '',
+            primaryColor: event.data.primaryColor || '#FF3E00',
+            secondaryColor: event.data.secondaryColor || '#00E5FF',
+            logo: event.data.logo || '',
+            description: event.data.description || '',
+            logoConfig: lConfig,
+            supportedSportIds: sIds,
+          });
         }
       }
     };
@@ -401,6 +450,31 @@ export default function OrgSettings() {
     setIsEditingSecondary(false);
   };
 
+  const hasChanges = originalData ? (
+    orgName.trim() !== originalData.orgName ||
+    shortName.trim() !== originalData.shortName ||
+    primaryColor.trim() !== originalData.primaryColor ||
+    secondaryColor.trim() !== originalData.secondaryColor ||
+    logo.trim() !== originalData.logo ||
+    description.trim() !== originalData.description ||
+    logoConfig.scale !== originalData.logoConfig.scale ||
+    logoConfig.x !== originalData.logoConfig.x ||
+    logoConfig.y !== originalData.logoConfig.y ||
+    JSON.stringify([...supportedSportIds].sort()) !== JSON.stringify([...originalData.supportedSportIds].sort())
+  ) : false;
+
+  const handleCancel = () => {
+    if (!originalData) return;
+    setOrgName(originalData.orgName);
+    setShortName(originalData.shortName);
+    setPrimaryColor(originalData.primaryColor);
+    setSecondaryColor(originalData.secondaryColor);
+    setLogo(originalData.logo);
+    setDescription(originalData.description);
+    setLogoConfig(originalData.logoConfig);
+    setSupportedSportIds(originalData.supportedSportIds);
+  };
+
   const handleSave = () => {
     setIsSaving(true);
     
@@ -413,6 +487,7 @@ export default function OrgSettings() {
         secondaryColor: secondaryColor.trim(),
         logo: logo.trim(),
         description: description.trim(),
+        supportedSportIds: supportedSportIds,
         settings: {
           ...settings,
           logoConfig: logoConfig
@@ -424,6 +499,16 @@ export default function OrgSettings() {
       setIsSaving(false);
       if (res && res.status !== 'error') {
         setSaveSuccess(true);
+        setOriginalData({
+          orgName: orgName.trim(),
+          shortName: shortName.trim(),
+          primaryColor: primaryColor.trim(),
+          secondaryColor: secondaryColor.trim(),
+          logo: logo.trim(),
+          description: description.trim(),
+          logoConfig: logoConfig,
+          supportedSportIds: supportedSportIds,
+        });
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         console.error('Failed to update organization');
@@ -446,11 +531,11 @@ export default function OrgSettings() {
       keyboardVerticalOffset={CONSTANTS.LAYOUT.keyboardVerticalOffset}
     >
       <View className="flex-1 bg-slate-50 dark:bg-slate-950">
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: hasChanges ? 140 : 60 }}>
         {/* Title Section */}
         <View className="mb-6">
           <Text className="font-orbitron-bold text-xl text-slate-800 dark:text-white uppercase mb-1">
-            Branding & Profile Settings
+            Org Settings
           </Text>
           <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
             Customize the organization profile details, branding colors, logo crest, and preview scoreboard feed representation in real time.
@@ -584,75 +669,52 @@ export default function OrgSettings() {
           </View>
         </View>
 
-        {/* MOCK SCOREBOARD PREVIEW */}
-        <View className="mb-6">
-          <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
-            Live Feed Display Mockup
+        {/* Supported Sports Section */}
+        <View className="mb-6 mt-6">
+          <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+            Supported Sports
           </Text>
-          
-          <View className="bg-white dark:bg-slate-900 border border-slate-200 border-opacity-50 dark:border-white dark:border-opacity-5 rounded-2xl p-4 shadow-sm">
-            {/* Mock Scoreboard Header */}
-            <View className="flex-row justify-between items-center mb-3 pb-2 border-b border-slate-200 border-opacity-50 dark:border-white dark:border-opacity-5">
-              <View className="flex-row items-center gap-2">
-                {logo ? (
-                  <OrgLogo logo={logo} settings={{ ...settings, logoConfig }} size={16} className="rounded-full" />
-                ) : (
-                  <View className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center">
-                    <Ionicons name="business" size={9} color={primaryColor || "#FF3E00"} />
-                  </View>
-                )}
-                <Text className="font-orbitron-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  {shortName || orgName || 'ORG'}
-                </Text>
-              </View>
-              <View className="flex-row items-center gap-1">
-                <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <Text className="font-inter-bold text-[8px] text-emerald-500 uppercase tracking-widest">LIVE</Text>
-              </View>
+          <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Toggle the sports supported by this organization. Enabling a sport allows creating teams and scheduling fixtures for it.
+            </Text>
+            
+            <View className="flex-row flex-wrap gap-2.5">
+              {allSports.map((sport) => {
+                const isEnabled = supportedSportIds.includes(sport.id);
+                return (
+                  <TouchableOpacity
+                    key={sport.id}
+                    onPress={() => {
+                      if (isEnabled) {
+                        setSupportedSportIds(prev => prev.filter(id => id !== sport.id));
+                      } else {
+                        setSupportedSportIds(prev => [...prev, sport.id]);
+                      }
+                    }}
+                    style={{
+                      borderColor: isEnabled ? secondaryColor : (isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0'),
+                      backgroundColor: isEnabled ? primaryColor : 'transparent',
+                    }}
+                    className="flex-row items-center gap-2 border px-3.5 py-2 rounded-xl active:scale-95 transition-all"
+                  >
+                    <Ionicons 
+                      name={isEnabled ? "checkmark-circle" : "add-circle-outline"} 
+                      size={16} 
+                      color={isEnabled ? secondaryColor : (isDark ? '#94A3B8' : '#64748B')} 
+                    />
+                    <Text 
+                      style={{ color: isEnabled ? getContrastColor(primaryColor) : undefined }}
+                      className={`font-inter-bold text-xs ${isEnabled ? '' : 'text-slate-500 dark:text-slate-400'}`}
+                    >
+                      {sport.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-
-            {/* Mock Scoreboard Teams */}
-            <View className="flex-row justify-between items-center py-1">
-              <View className="flex-1">
-                <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">Home Team</Text>
-                <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">Host</Text>
-              </View>
-              
-              <View className="flex-row items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: hexToRgba(primaryColor, 0.08) }}>
-                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">4</Text>
-                <Text className="font-inter text-slate-400 dark:text-slate-500 text-[10px]">-</Text>
-                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">2</Text>
-              </View>
-              
-              <View className="flex-1 items-end">
-                <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">Away Team</Text>
-                <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">Visitor</Text>
-              </View>
-            </View>
-
-            {/* Mock Scoreboard Button */}
-            <View 
-              className="mt-4 py-2.5 rounded-xl items-center justify-center active:opacity-90 shadow-sm"
-              style={{ backgroundColor: primaryColor || '#FF3E00' }}
-            >
-              <Text 
-                className="font-orbitron-bold text-[10px] uppercase tracking-widest"
-                style={{ color: getContrastColor(primaryColor) }}
-              >
-                View Match Centre
-              </Text>
-            </View>
-          </View>
+          </GlassCard>
         </View>
-
-        {/* Global Save Button */}
-        <Button
-          title="Save Branding Profile"
-          variant="primary"
-          onPress={handleSave}
-          isLoading={isSaving}
-          className="w-full shadow-md shadow-brand-orange/20 py-3.5 rounded-xl"
-        />
       </ScrollView>
 
       {/* OVERLAY MODAL: EDIT PRIMARY COLOR */}
@@ -1128,6 +1190,39 @@ export default function OrgSettings() {
               </TouchableOpacity>
             </View>
           </GlassCard>
+        </View>
+      )}
+
+      {/* FLOATING SAVE CHANGES BAR */}
+      {hasChanges && (
+        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+          <View className="flex-1 mr-4">
+            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">Unsaved Changes</Text>
+            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">You have modified this organization's settings.</Text>
+          </View>
+          <View className="flex-row items-center gap-2.5">
+            <TouchableOpacity
+              onPress={handleCancel}
+              disabled={isSaving}
+              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+            >
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={isSaving}
+              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={14} color="white" />
+                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">Save</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       )}
       </View>

@@ -8,6 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
+import { OrgBrandedCard } from '@/components/OrgBrandedCard';
+import { OrgLogo } from '@/components/OrgLogo';
+import { getContrastColor } from '@/utils/colorUtils';
+import { useAuthStore } from '@/store/authStore';
 
 interface Team {
   id: string;
@@ -61,6 +65,7 @@ export default function PublicOrgDetail() {
 
   const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'fixtures' | 'facilities'>('overview');
   const isConnected = useWsStore(state => state.isConnected);
+  const { isAuthenticated, user, orgMemberships } = useAuthStore();
 
   const [orgData, setOrgData] = useState<any>(null);
   const [teams, setTeams] = useState<any[]>([]);
@@ -134,8 +139,30 @@ export default function PublicOrgDetail() {
   }
 
   const primaryColor = orgData.primaryColor || '#FF3E00';
-  const secondaryColor = orgData.secondaryColor || '#F59E0B';
+  const secondaryColor = orgData.secondaryColor || '#00E5FF';
   const mappedSports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
+
+  const contrastColor = getContrastColor(primaryColor);
+  const isLightBg = contrastColor === '#000000';
+  const textColor = contrastColor;
+  const subtextColor = isLightBg ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)';
+  const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
+
+  const userMembership = orgMemberships.find(m => m.orgId === orgId);
+  const isOwner = orgData.creatorId === user?.id;
+
+  let membershipStatus: string | null = null;
+  if (isAuthenticated) {
+    if (isOwner) {
+      membershipStatus = 'Owner';
+    } else if (userMembership) {
+      if (userMembership.roleId === 'role-org-admin') membershipStatus = 'Admin';
+      else if (userMembership.roleId === 'role-org-staff') membershipStatus = 'Staff';
+      else if (userMembership.roleId === 'role-org-member') membershipStatus = 'Member';
+    } else if (user?.globalRole === 'admin') {
+      membershipStatus = 'Admin';
+    }
+  }
 
   const getTeamName = (teamId: string) => {
     const t = teams.find(t => t.id === teamId);
@@ -185,7 +212,7 @@ export default function PublicOrgDetail() {
     primaryColor: primaryColor,
     secondaryColor: secondaryColor,
     description: orgData.description || 'No description available for this organization.',
-    membershipStatus: 'Member',
+    membershipStatus: membershipStatus || '',
     registrationStatus: 'Registrations Open',
     teams: mappedTeams,
     fixtures: mappedFixtures,
@@ -213,73 +240,70 @@ export default function PublicOrgDetail() {
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* BRANDED HERO CARD WITH ACCENT GLOW */}
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6 relative overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
-          <View
-            className="absolute -right-24 -top-24 w-48 h-48 rounded-full blur-[60px] opacity-[0.08]"
-            style={{ backgroundColor: org.primaryColor }}
-          />
-
-          {/* SPORTS BADGES ROW */}
-          <View className="flex-row flex-wrap gap-2 mb-3">
-            {org.sports.map((sport) => (
-              <View
-                key={sport}
-                className="bg-slate-100 dark:bg-white/10 px-3 py-1 rounded-full border border-slate-200/50 dark:border-white/5"
-              >
-                <Text className="font-inter-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                  {sport}
+        <OrgBrandedCard
+          primaryColor={org.primaryColor}
+          secondaryColor={org.secondaryColor}
+          className="p-6 mb-6"
+        >
+          <View className="flex-row justify-between items-center gap-3 mb-4">
+            <View className="flex-row items-center gap-3 flex-1">
+              <OrgLogo 
+                logo={orgData.logo} 
+                settings={orgData.settings} 
+                size={40} 
+                className="border bg-white rounded-full" 
+                style={{ borderColor: borderColor }}
+              />
+              <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-xl uppercase tracking-wide leading-tight flex-shrink">
+                {org.name}
+              </Text>
+            </View>
+            {org.membershipStatus ? (
+              <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-1 rounded-lg">
+                <Ionicons name="ribbon-outline" size={12} color={textColor} />
+                <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
+                  {org.membershipStatus}
                 </Text>
               </View>
-            ))}
-          </View>
-
-          <Text className="font-orbitron-bold text-2xl text-slate-800 dark:text-white mb-2 uppercase tracking-wide">
-            {org.name}
-          </Text>
-
-          <View className="flex-row items-center gap-1.5 mb-5 bg-brand-orange/5 dark:bg-brand-orange/10 px-3 py-1 rounded-lg w-fit">
-            <Ionicons name="ribbon-outline" size={14} color="#FF3E00" />
-            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-              {org.membershipStatus}
-            </Text>
+            ) : null}
           </View>
 
           {/* QUICK METRICS GRID */}
-          <View className="flex-row justify-between border-t border-slate-200/50 dark:border-white/5 pt-4">
+          <View style={{ borderTopColor: borderColor }} className="flex-row justify-between border-t pt-4">
             <View className="items-center flex-1">
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+              <Text style={{ color: textColor }} className="font-orbitron-bold text-base">
+                {org.sports.length}
+              </Text>
+              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
+                {org.sports.length === 1 ? 'Sport' : 'Sports'}
+              </Text>
+            </View>
+            <View style={{ borderLeftColor: borderColor }} className="items-center flex-1 border-l">
+              <Text style={{ color: textColor }} className="font-orbitron-bold text-base">
                 {org.membersCount}
               </Text>
-              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
+              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
                 Members
               </Text>
             </View>
-            <View className="items-center flex-1 border-l border-slate-200/50 dark:border-white/5">
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+            <View style={{ borderLeftColor: borderColor }} className="items-center flex-1 border-l">
+              <Text style={{ color: textColor }} className="font-orbitron-bold text-base">
                 {org.teamsCount}
               </Text>
-              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
+              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
                 Teams
               </Text>
             </View>
-            <View className="items-center flex-1 border-l border-slate-200/50 dark:border-white/5">
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
-                {org.eventsCount}
-              </Text>
-              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
-                Fixtures
-              </Text>
-            </View>
-            <View className="items-center flex-1 border-l border-slate-200/50 dark:border-white/5">
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+            <View style={{ borderLeftColor: borderColor }} className="items-center flex-1 border-l">
+              <Text style={{ color: textColor }} className="font-orbitron-bold text-base">
                 {org.facilitiesCount}
               </Text>
-              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
-                Sites
+              <Text style={{ color: subtextColor }} className="font-inter text-[9px] uppercase tracking-widest mt-0.5">
+                Facilities
               </Text>
             </View>
           </View>
-        </GlassCard>
+        </OrgBrandedCard>
 
         {/* INTERACTIVE NAVIGATION TABS */}
         <View className="flex-row bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-1 rounded-xl mb-6 gap-1">
