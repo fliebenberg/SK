@@ -10,3 +10,10 @@ It is being replaced by the multi-platform Expo application located in the `expo
 1. **DO NOT MODIFY** any files under the `client/` directory. No edits, additions, or deletions are allowed there.
 2. All new client-side features, visual changes, components, and logic must be implemented inside the `expo-app/` directory.
 3. You may read the `client/` directory to reference past logic, API calls, or component styles, but any new implementations must be in `expo-app/`.
+
+## Forbidden / Restructured Dependencies
+
+To prevent native JSI runtime/bridge crashes on Android/iOS (e.g. `installTurboModule` argument count mismatch):
+* **DO NOT** install or use `react-native-reanimated` or `react-native-worklets`/`react-native-worklets-core`.
+* **DO NOT** add `'react-native-reanimated/plugin'` or similar animation plugins to `babel.config.js`.
+* **DO NOT** use NativeWind animation/transition utility classes (such as `transition-all`, `transition-colors`, etc.) which trigger NativeWind to search for Reanimated at runtime. Use standard stylesheet animations or React Native's core `Animated` library instead.

@@ -9,24 +9,15 @@ export default function OrgAdminLayout() {
   return (
     <Stack
       screenOptions={{
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-        },
-        headerTitleStyle: {
-          color: isDark ? '#FFFFFF' : '#0F172A',
-          fontFamily: 'Orbitron_700Bold',
-          fontSize: 13,
-        },
-        headerTintColor: '#FF3E00', // Burnt Orange highlights
+        headerShown: false,
       }}
     >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="settings" options={{ title: 'ORG SETTINGS' }} />
-      <Stack.Screen name="people" options={{ title: 'MANAGE PEOPLE & ROLES' }} />
-      <Stack.Screen name="teams" options={{ title: 'MANAGE TEAMS' }} />
-      <Stack.Screen name="sites" options={{ title: 'MANAGE FACILITIES' }} />
-      <Stack.Screen name="events" options={{ title: 'MANAGE FIXTURES' }} />
+      <Stack.Screen name="index" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="people" />
+      <Stack.Screen name="teams" />
+      <Stack.Screen name="sites" />
+      <Stack.Screen name="events" />
     </Stack>
   );
 }

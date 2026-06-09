@@ -54,7 +54,7 @@ export function ResponsiveHeader({ currentPath, showNav = false }: ResponsiveHea
             onPress={() => router.push('/(tabs)')}
             className="py-1"
           >
-            <Text className={`font-orbitron-bold text-xs tracking-widest transition-colors ${
+            <Text className={`font-orbitron-bold text-xs tracking-widest ${
               currentPath === 'index' 
                 ? 'text-brand-orange' 
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -66,7 +66,7 @@ export function ResponsiveHeader({ currentPath, showNav = false }: ResponsiveHea
             onPress={() => router.push('/(tabs)/settings')}
             className="py-1"
           >
-            <Text className={`font-orbitron-bold text-xs tracking-widest transition-colors ${
+            <Text className={`font-orbitron-bold text-xs tracking-widest ${
               currentPath === 'settings' 
                 ? 'text-brand-orange' 
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'

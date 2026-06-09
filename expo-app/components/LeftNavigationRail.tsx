@@ -169,7 +169,7 @@ export function LeftNavigationRail() {
                 <TouchableOpacity
                   key={item.name}
                   onPress={() => router.push(item.route as any)}
-                  className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl transition-all ${
+                  className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl ${
                     isActive 
                       ? 'bg-slate-100 dark:bg-white/5 border-l-4'
                       : 'hover:bg-slate-50 dark:hover:bg-white/5 border-l-4 border-transparent'
@@ -230,7 +230,7 @@ export function LeftNavigationRail() {
             <TouchableOpacity
               key={item.name}
               onPress={() => router.push((item.name === 'index' ? '/' : `/${item.name}`) as any)}
-              className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl transition-all ${
+              className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl ${
                 isActive 
                   ? 'bg-brand-orange/10 dark:bg-brand-orange/15 border-l-4 border-brand-orange'
                   : 'hover:bg-slate-100 dark:hover:bg-white/5 border-l-4 border-transparent'

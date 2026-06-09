@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
 
 export default function OrgTeams() {
+  const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -43,25 +46,30 @@ export default function OrgTeams() {
   );
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      {/* HEADER BAR */}
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="flex-row items-center gap-1 active:opacity-85"
+        >
+          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
+          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+            Back
+          </Text>
+        </TouchableOpacity>
+        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+          Teams & Divisions
+        </Text>
+        <TouchableOpacity 
+          className="w-8 h-8 rounded-lg bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
+          onPress={() => {}}
+        >
+          <Ionicons name="add-outline" size={16} color="white" />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* HEADER SECTION */}
-        <View className="mb-6 flex-row justify-between items-center">
-          <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-xl text-slate-800 dark:text-white uppercase mb-1">
-              Teams & Divisions
-            </Text>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-              Create club divisions, register sports squads, and assign managers to touch-scoring consoles.
-            </Text>
-          </View>
-          <TouchableOpacity 
-            className="w-10 h-10 rounded-xl bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
-            onPress={() => {}}
-          >
-            <Ionicons name="add-outline" size={20} color="white" />
-          </TouchableOpacity>
-        </View>
 
         {/* SEARCH BAR */}
         <View className="flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 mb-6 shadow-sm">
@@ -143,6 +151,6 @@ export default function OrgTeams() {
           )}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }

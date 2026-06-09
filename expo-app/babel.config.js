@@ -7,7 +7,6 @@ module.exports = function (api) {
     ],
     plugins: [
       'babel-plugin-transform-import-meta',
-      'react-native-reanimated/plugin',
     ],
   };
 };

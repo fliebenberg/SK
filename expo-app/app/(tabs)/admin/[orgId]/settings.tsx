@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, useWindowDimensions, Platform, KeyboardAvoidingView, PanResponder } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
@@ -98,6 +99,7 @@ const getShades = (hue: number, isGrey?: boolean) => {
 };
 
 export default function OrgSettings() {
+  const router = useRouter();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
@@ -530,20 +532,29 @@ export default function OrgSettings() {
       style={{ flex: 1 }}
       keyboardVerticalOffset={CONSTANTS.LAYOUT.keyboardVerticalOffset}
     >
-      <View className="flex-1 bg-slate-50 dark:bg-slate-950">
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: hasChanges ? 140 : 60 }}>
-        {/* Title Section */}
-        <View className="mb-6">
-          <Text className="font-orbitron-bold text-xl text-slate-800 dark:text-white uppercase mb-1">
+      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+        {/* HEADER BAR */}
+        <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="flex-row items-center gap-1 active:opacity-85"
+          >
+            <Ionicons name="chevron-back" size={20} color="#FF3E00" />
+            <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+              Back
+            </Text>
+          </TouchableOpacity>
+          <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
             Org Settings
           </Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-            Customize the organization profile details, branding colors, logo crest, and preview scoreboard feed representation in real time.
-          </Text>
+          <View className="w-10 h-2" />
         </View>
 
+        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: hasChanges ? 140 : 60 }}>
+
+
         {saveSuccess && (
-          <GlassCard className="bg-emerald-500 bg-opacity-10 border border-emerald-500 border-opacity-20 p-4 mb-6 flex-row items-center gap-3 rounded-xl">
+          <GlassCard className="bg-emerald-500/10 border border-emerald-500/20 p-4 mb-6 flex-row items-center gap-3 rounded-xl">
             <Ionicons name="checkmark-circle" size={20} color="#10B981" />
             <Text className="font-inter-bold text-xs text-emerald-600 dark:text-emerald-400">
               Settings saved successfully!
@@ -560,13 +571,13 @@ export default function OrgSettings() {
           {/* Squircle Logo Crest centered vertically on the left (Floating Style) */}
           <TouchableOpacity 
             onPress={handleOpenLogoEditor}
-            className="w-32 h-32 rounded-3xl items-center justify-center overflow-hidden shadow-2xl relative border bg-white bg-opacity-15 border-white border-opacity-20 dark:bg-slate-950 dark:bg-opacity-20 dark:border-white dark:border-opacity-10"
+            className="w-32 h-32 rounded-3xl items-center justify-center overflow-hidden shadow-2xl relative border bg-white/15 border-white/20 dark:bg-slate-950/20 dark:border-white/10"
             activeOpacity={0.9}
           >
             {logo ? (
               <OrgLogo logo={logo} settings={{ ...settings, logoConfig }} size={128} />
             ) : (
-              <View className="w-full h-full items-center justify-center bg-slate-100 bg-opacity-10 dark:bg-slate-800 dark:bg-opacity-10">
+              <View className="w-full h-full items-center justify-center bg-slate-100/10 dark:bg-slate-800/10">
                 <Ionicons name="business" size={56} color={getContrastColor(primaryColor)} />
               </View>
             )}
@@ -591,7 +602,7 @@ export default function OrgSettings() {
               placeholder="Enter organization name"
               placeholderTextColor="#94A3B8"
               autoCapitalize="none"
-              className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5"
+              className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100/30 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5"
             />
           </View>
  
@@ -611,7 +622,7 @@ export default function OrgSettings() {
                 spellCheck={false}
                 placeholder="SHORT"
                 placeholderTextColor="#94A3B8"
-                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 w-36 text-center"
+                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100/30 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 w-36 text-center"
               />
             </View>
 
@@ -625,7 +636,7 @@ export default function OrgSettings() {
                 {/* Primary Color Swatch */}
                 <TouchableOpacity 
                   onPress={startEditingPrimary}
-                  className="flex-1 flex-row items-center gap-2 border border-transparent rounded-xl p-2 bg-slate-100 bg-opacity-20 dark:bg-white dark:bg-opacity-5"
+                  className="flex-1 flex-row items-center gap-2 border border-transparent rounded-xl p-2 bg-slate-100/20 dark:bg-white/5"
                 >
                   <View className="w-8 h-8 rounded-lg border border-slate-300 dark:border-white dark:border-opacity-10" style={{ backgroundColor: primaryColor }} />
                   <View className="flex-1">
@@ -638,7 +649,7 @@ export default function OrgSettings() {
                 {/* Secondary Color Swatch */}
                 <TouchableOpacity 
                   onPress={startEditingSecondary}
-                  className="flex-1 flex-row items-center gap-2 border border-transparent rounded-xl p-2 bg-slate-100 bg-opacity-20 dark:bg-white dark:bg-opacity-5"
+                  className="flex-1 flex-row items-center gap-2 border border-transparent rounded-xl p-2 bg-slate-100/20 dark:bg-white/5"
                 >
                   <View className="w-8 h-8 rounded-lg border border-slate-300 dark:border-white dark:border-opacity-10" style={{ backgroundColor: secondaryColor }} />
                   <View className="flex-1">
@@ -664,7 +675,7 @@ export default function OrgSettings() {
               placeholder="Enter organization description... This biography will be displayed on the public organization detail profile."
               placeholderTextColor="#94A3B8"
               autoCapitalize="none"
-              className="font-inter text-sm text-slate-800 dark:text-white bg-slate-100 bg-opacity-30 dark:bg-white dark:bg-opacity-5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 min-h-[80px]"
+              className="font-inter text-sm text-slate-800 dark:text-white bg-slate-100/30 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 min-h-[80px]"
             />
           </View>
         </View>
@@ -696,7 +707,7 @@ export default function OrgSettings() {
                       borderColor: isEnabled ? secondaryColor : (isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0'),
                       backgroundColor: isEnabled ? primaryColor : 'transparent',
                     }}
-                    className="flex-row items-center gap-2 border px-3.5 py-2 rounded-xl active:scale-95 transition-all"
+                    className="flex-row items-center gap-2 border px-3.5 py-2 rounded-xl active:scale-95"
                   >
                     <Ionicons 
                       name={isEnabled ? "checkmark-circle" : "add-circle-outline"} 
@@ -719,7 +730,7 @@ export default function OrgSettings() {
 
       {/* OVERLAY MODAL: EDIT PRIMARY COLOR */}
       {isEditingPrimary && (
-        <View className="absolute inset-0 bg-slate-950 bg-opacity-75 items-center justify-center z-50 p-6">
+        <View className="absolute inset-0 bg-slate-950/75 items-center justify-center z-50 p-6">
           <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
             <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase mb-2 tracking-wider">
               Edit Primary Color
@@ -833,7 +844,7 @@ export default function OrgSettings() {
             <View className="flex-row gap-3 mt-4">
               <TouchableOpacity 
                 onPress={() => setIsEditingPrimary(false)}
-                className="flex-1 py-3 bg-slate-100 dark:bg-white dark:bg-opacity-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
+                className="flex-1 py-3 bg-slate-100 dark:bg-white/10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
               >
                 <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
               </TouchableOpacity>
@@ -850,7 +861,7 @@ export default function OrgSettings() {
 
       {/* OVERLAY MODAL: EDIT SECONDARY COLOR */}
       {isEditingSecondary && (
-        <View className="absolute inset-0 bg-slate-950 bg-opacity-75 items-center justify-center z-50 p-6">
+        <View className="absolute inset-0 bg-slate-950/75 items-center justify-center z-50 p-6">
           <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
             <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase mb-2 tracking-wider">
               Edit Secondary Color
@@ -964,7 +975,7 @@ export default function OrgSettings() {
             <View className="flex-row gap-3 mt-4">
               <TouchableOpacity 
                 onPress={() => setIsEditingSecondary(false)}
-                className="flex-1 py-3 bg-slate-100 dark:bg-white dark:bg-opacity-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
+                className="flex-1 py-3 bg-slate-100 dark:bg-white/10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
               >
                 <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
               </TouchableOpacity>
@@ -981,7 +992,7 @@ export default function OrgSettings() {
 
       {/* OVERLAY MODAL: EDIT LOGO */}
       {isEditingLogo && (
-        <View className="absolute inset-0 bg-slate-950 bg-opacity-75 items-center justify-center z-50 p-6">
+        <View className="absolute inset-0 bg-slate-950/75 items-center justify-center z-50 p-6">
           <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
             <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase mb-2 tracking-wider">
               Adjust Logo Placement
@@ -1178,7 +1189,7 @@ export default function OrgSettings() {
             <View className="flex-row gap-3 mt-6">
               <TouchableOpacity 
                 onPress={() => setIsEditingLogo(false)}
-                className="flex-1 py-3 bg-slate-100 dark:bg-white dark:bg-opacity-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5 active:scale-98"
+                className="flex-1 py-3 bg-slate-100 dark:bg-white/10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5 active:scale-98"
               >
                 <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
               </TouchableOpacity>
@@ -1225,7 +1236,7 @@ export default function OrgSettings() {
           </View>
         </View>
       )}
-      </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }
