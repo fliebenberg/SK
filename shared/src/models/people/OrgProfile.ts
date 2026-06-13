@@ -9,4 +9,6 @@ export interface OrgProfile {
   identifier?: string;
   image?: string;
   primaryRoleId?: string;
+  lastInviteSentAt?: string;
+  imageConfig?: { scale: number; x: number; y: number };
 }

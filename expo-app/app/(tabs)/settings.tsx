@@ -19,6 +19,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { apiService, API_BASE_URL } from "../../services/api";
 import { CONSTANTS } from '../../constants';
 
@@ -201,13 +202,41 @@ export default function SettingsScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.7,
-        base64: true,
+        quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0].base64) {
+      if (!result.canceled && result.assets?.[0]) {
         setIsSaving(true);
-        const base64Str = `data:image/webp;base64,${result.assets[0].base64}`;
+        const asset = result.assets[0];
+        const minDim = Math.min(asset.width, asset.height);
+
+        const actions: any[] = [
+          {
+            crop: {
+              originX: Math.round((asset.width - minDim) / 2),
+              originY: Math.round((asset.height - minDim) / 2),
+              width: minDim,
+              height: minDim,
+            },
+          },
+        ];
+
+        if (minDim > 1024) {
+          actions.push({
+            resize: {
+              width: 1024,
+              height: 1024,
+            },
+          });
+        }
+
+        const manipulateResult = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          actions,
+          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
+        );
+
+        const base64Str = `data:image/png;base64,${manipulateResult.base64}`;
 
         const response = await apiService.updateProfile(token!, {
           customImage: base64Str,

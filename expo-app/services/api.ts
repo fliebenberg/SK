@@ -28,6 +28,16 @@ export function getOrgLogoUrl(logo?: string, tier: 'large' | 'medium' | 'thumb' 
   return `${API_BASE_URL}/uploads/logos/${logo}_${tier}.webp`;
 }
 
+/**
+ * Returns the URL for a member/user avatar stored on the server.
+ * Falls through for already-absolute URLs (http/data:) so ImageEditor can display both.
+ */
+export function getAvatarUrl(avatar?: string, tier: 'large' | 'medium' | 'thumb' = 'medium') {
+  if (!avatar) return "";
+  if (avatar.startsWith('http') || avatar.startsWith('data:')) return avatar;
+  return `${API_BASE_URL}/uploads/profiles/${avatar}_${tier}.webp`;
+}
+
 export interface UserPayload {
   id: string;
   name: string;

@@ -16,6 +16,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { emailService } from './services/EmailService';
 import { userManager } from './managers/UserManager';
+import { mailManager } from './managers/MailManager';
 
 dotenv.config();
 
@@ -595,6 +596,7 @@ app.post('/api/admin/users/:id/temp-password', requireAdmin, async (req, res) =>
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
+  maxHttpBufferSize: 1e7, // 10MB
   cors: {
     origin: "*", // allow all for now
     methods: ["GET", "POST"]
@@ -1413,13 +1415,93 @@ io.on('connection', (socket) => {
                     await broadcastOrgSummaries([orgMembershipToRem.orgId]);
                 }
                 break;
-            case SocketAction.ADD_ORG_PROFILE:
-                result = await dataManager.addOrgProfile(action.payload);
+            case SocketAction.SEND_MEMBER_INVITE: {
+                const { memberId } = action.payload; // org_profile_id
+                console.log(`DataManager: Requesting invite for member profile ${memberId}`);
+                
+                const profile = await dataManager.getOrgProfile(memberId);
+                if (!profile) {
+                    throw new Error('Member profile not found');
+                }
+                
+                if (!profile.email) {
+                    throw new Error('Member does not have a registered email address');
+                }
+                
+                // Get invite cooldown setting from DB system_settings
+                const settingsRes = await pool.query("SELECT value FROM system_settings WHERE key = 'invite_cooldown_hours'");
+                const cooldownHours = settingsRes.rows[0] ? parseInt(settingsRes.rows[0].value) : 168; // default to 7 days
+                
+                if (profile.lastInviteSentAt) {
+                    const lastSent = new Date(profile.lastInviteSentAt);
+                    const diffMs = Date.now() - lastSent.getTime();
+                    const diffHours = diffMs / (1000 * 60 * 60);
+                    if (diffHours < cooldownHours) {
+                        const remainingHours = Math.ceil(cooldownHours - diffHours);
+                        throw new Error(`Invite is on cooldown. Please wait another ${remainingHours} hours.`);
+                    }
+                }
+                
+                // Update timestamp in DB
+                const nowStr = new Date().toISOString();
+                const updatedProfile = await dataManager.updateOrgProfile(memberId, { lastInviteSentAt: nowStr });
+                
+                // Send email
+                const org = await dataManager.getOrganization(profile.orgId);
+                const orgName = org ? org.name : 'ScoreKeeper Organization';
+                const claimUrl = `${process.env.APP_URL || 'http://localhost:3000'}/landing`; // fallback invitation link
+                
+                try {
+                    // Send Invitation Email using mailManager
+                    await mailManager.sendClaimInvitation(profile.email.toLowerCase().trim(), orgName, claimUrl);
+                } catch (mailErr) {
+                    console.error('Failed to send mail:', mailErr);
+                    // Do not fail the transaction, as state is updated
+                }
+                
+                // Broadcast ORG_MEMBER_UPDATED to all organization admins
+                updateTopic = `org:${profile.orgId}:members`;
+                updateType = 'ORG_MEMBER_UPDATED';
+                
+                // Construct the updated rich member data to broadcast
+                const richMember = (await dataManager.getOrganizationMembers(profile.orgId)).find((m: any) => m.id === memberId);
+                result = richMember || updatedProfile;
+                
                 break;
-            case SocketAction.UPDATE_ORG_PROFILE:
-                console.log(`DataManager: Updating org profile ${action.payload.id}`, action.payload.data);
-                result = await dataManager.updateOrgProfile(action.payload.id, action.payload.data);
+            }
+            case SocketAction.ADD_ORG_PROFILE: {
+                const addPayload = { ...action.payload };
+                // If a base64 image was provided, process and save it as a server file
+                if (addPayload.image && addPayload.image.startsWith('data:')) {
+                    const { imageService } = await import('./services/ImageService');
+                    addPayload.image = await imageService.processProfileImage(addPayload.image, addPayload.id || `new-${Date.now()}`);
+                }
+                result = await dataManager.addOrgProfile(addPayload);
                 break;
+            }
+            case SocketAction.UPDATE_ORG_PROFILE: {
+                const updateData = { ...action.payload.data };
+                // If a base64 image was provided, process and save it as a server file
+                if (updateData.image && updateData.image.startsWith('data:')) {
+                    const { imageService } = await import('./services/ImageService');
+                    // Delete the old image file if there was one
+                    const existing = await dataManager.getOrgProfile(action.payload.id);
+                    if (existing?.image && !existing.image.startsWith('http') && !existing.image.startsWith('data:')) {
+                        await imageService.deleteProfileImage(existing.image);
+                    }
+                    updateData.image = await imageService.processProfileImage(updateData.image, action.payload.id);
+                } else if (updateData.image === '') {
+                    // Explicit removal — delete old file
+                    const { imageService } = await import('./services/ImageService');
+                    const existing = await dataManager.getOrgProfile(action.payload.id);
+                    if (existing?.image && !existing.image.startsWith('http') && !existing.image.startsWith('data:')) {
+                        await imageService.deleteProfileImage(existing.image);
+                    }
+                }
+                console.log(`DataManager: Updating org profile ${action.payload.id}`, updateData);
+                result = await dataManager.updateOrgProfile(action.payload.id, updateData);
+                break;
+            }
             case SocketAction.DELETE_ORG_PROFILE:
                 console.log(`DataManager: Deleting org profile ${action.payload.id}`);
                 result = await dataManager.deleteOrgProfile(action.payload.id);

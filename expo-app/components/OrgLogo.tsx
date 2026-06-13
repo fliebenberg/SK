@@ -56,7 +56,16 @@ export function OrgLogo({
     }
   }
 
-  const logoConfig = settings?.logoConfig || { scale: 1, x: 0, y: 0 };
+  let parsedSettings = settings;
+  if (typeof settings === 'string') {
+    try {
+      parsedSettings = JSON.parse(settings);
+    } catch (e) {
+      parsedSettings = {};
+    }
+  }
+
+  const logoConfig = parsedSettings?.logoConfig || { scale: 1, x: 0, y: 0 };
   const scale = logoConfig.scale ?? 1;
   const x = logoConfig.x ?? 0;
   const y = logoConfig.y ?? 0;
@@ -71,17 +80,15 @@ export function OrgLogo({
           overflow: 'hidden', 
           justifyContent: 'center', 
           alignItems: 'center',
-          backgroundColor: '#FFFFFF',
+          backgroundColor: 'transparent',
         },
         style
       ]}
-      className={className}
     >
       {logo ? (
-        <Image 
-          source={{ uri: getOrgLogoUrl(logo, typeof size === 'string' && size === 'sm' ? 'thumb' : 'medium') }} 
-          style={{ 
-            width: '100%', 
+        <View
+          style={{
+            width: '100%',
             height: '100%',
             transform: [
               { scale: scale },
@@ -89,8 +96,16 @@ export function OrgLogo({
               { translateY: y * dim }
             ]
           }}
-          resizeMode="cover"
-        />
+        >
+          <Image 
+            source={{ uri: getOrgLogoUrl(logo, typeof size === 'string' && size === 'sm' ? 'thumb' : 'medium') }} 
+            style={{ 
+              width: '100%', 
+              height: '100%',
+            }}
+            resizeMode="cover"
+          />
+        </View>
       ) : (
         <View 
           className="w-full h-full items-center justify-center bg-slate-100 dark:bg-slate-800"

@@ -226,14 +226,28 @@ export class OrganizationManager extends BaseManager {
     this.cacheLoaded = false;
   }
 
+  private cleanLogoField(logo?: string): string {
+    if (!logo) return "";
+    if (logo.includes('/uploads/logos/')) {
+      const parts = logo.split('/uploads/logos/');
+      const filenameWithSuffix = parts[parts.length - 1];
+      return filenameWithSuffix.replace(/_(large|medium|thumb)\.\w+$/, '');
+    }
+    return logo;
+  }
+
   async addOrganization(org: Omit<Organization, "id"> & { id?: string }): Promise<Organization> {
     const id = org.id || `org-${Date.now()}`;
     const supportedSportIds = org.supportedSportIds || [];
     const supportedRoleIds = org.supportedRoleIds || [];
     
     let logo = org.logo;
-    if (logo && logo.startsWith('data:image')) {
-      logo = await imageService.processLogo(logo, id);
+    if (logo) {
+      if (logo.startsWith('data:image')) {
+        logo = await imageService.processLogo(logo, id);
+      } else {
+        logo = this.cleanLogoField(logo);
+      }
     }
 
     let addressId = org.addressId;
@@ -253,12 +267,16 @@ export class OrganizationManager extends BaseManager {
 
   async updateOrganization(id: string, data: Partial<Organization>): Promise<Organization | null> {
     // If logo is being updated and it's base64, process it
-    if (data.logo && data.logo.startsWith('data:image')) {
-        const oldOrg = await this.getOrganization(id);
-        if (oldOrg && oldOrg.logo) {
-            await imageService.deleteLogo(oldOrg.logo);
-        }
-        data.logo = await imageService.processLogo(data.logo, id);
+    if (data.logo) {
+      if (data.logo.startsWith('data:image')) {
+          const oldOrg = await this.getOrganization(id);
+          if (oldOrg && oldOrg.logo) {
+              await imageService.deleteLogo(oldOrg.logo);
+          }
+          data.logo = await imageService.processLogo(data.logo, id);
+      } else {
+          data.logo = this.cleanLogoField(data.logo);
+      }
     }
 
     // Handle Address update

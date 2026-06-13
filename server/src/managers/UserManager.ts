@@ -8,7 +8,7 @@ export class UserManager extends BaseManager {
   // --- Account Management (Users Table) ---
   private USER_COLUMNS = 'id, name, email, email_verified as "emailVerified", image, password_hash as "passwordHash", global_role as "globalRole", created_at as "createdAt", updated_at as "updatedAt", preferences, force_password_reset as "forcePasswordReset"';
   private USER_EMAIL_COLUMNS = 'id, user_id as "userId", email, is_primary as "isPrimary", verified_at as "verifiedAt", created_at as "createdAt"';
-  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId"';
+  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"';
   private ORG_MEMBERSHIP_COLUMNS = 'id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"';
 
   async getUser(id: string): Promise<User | undefined> {
@@ -203,23 +203,35 @@ export class UserManager extends BaseManager {
   // --- Org Profiles (Replacement for Persons) ---
   
   async getOrgProfile(id: string): Promise<OrgProfile | undefined> {
-    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId" FROM org_profiles WHERE id = $1', [id]);
+    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig" FROM org_profiles WHERE id = $1', [id]);
     return res.rows[0];
+  }
+
+  private cleanAvatarField(avatar?: string): string {
+    if (!avatar) return "";
+    if (avatar.includes('/uploads/profiles/')) {
+      const parts = avatar.split('/uploads/profiles/');
+      const filenameWithSuffix = parts[parts.length - 1];
+      return filenameWithSuffix.replace(/_(large|medium|thumb)\.\w+$/, '');
+    }
+    return avatar;
   }
 
   async addOrgProfile(profile: Omit<OrgProfile, 'id'> & { id?: string }): Promise<OrgProfile> {
     const id = profile.id || `op-${Date.now()}`;
     let processedImage: string | null = null;
 
-    if (profile.image && profile.image.startsWith('data:image')) {
+    if (profile.image) {
+      if (profile.image.startsWith('data:image')) {
         processedImage = await imageService.processProfileImage(profile.image, id);
-    } else {
-        processedImage = profile.image || null;
+      } else {
+        processedImage = this.cleanAvatarField(profile.image);
+      }
     }
 
     const res = await this.query(
-      `INSERT INTO org_profiles (id, org_id, user_id, name, email, birthdate, national_id, identifier, image, primary_role_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      `INSERT INTO org_profiles (id, org_id, user_id, name, email, birthdate, national_id, identifier, image, primary_role_id, image_config) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
        ON CONFLICT (org_id, identifier) DO UPDATE SET 
          user_id = EXCLUDED.user_id,
          name = EXCLUDED.name,
@@ -227,9 +239,22 @@ export class UserManager extends BaseManager {
          birthdate = COALESCE(org_profiles.birthdate, EXCLUDED.birthdate),
          national_id = COALESCE(org_profiles.national_id, EXCLUDED.national_id),
          image = COALESCE(EXCLUDED.image, org_profiles.image),
-         primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id)
-       RETURNING id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId"`, 
-      [id, profile.orgId, profile.userId, profile.name, profile.email, profile.birthdate, profile.nationalId, profile.identifier, processedImage, profile.primaryRoleId]
+         primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id),
+         image_config = COALESCE(EXCLUDED.image_config, org_profiles.image_config)
+       RETURNING id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`, 
+      [
+        id, 
+        profile.orgId, 
+        profile.userId, 
+        profile.name, 
+        profile.email, 
+        profile.birthdate, 
+        profile.nationalId, 
+        profile.identifier, 
+        processedImage, 
+        profile.primaryRoleId,
+        profile.imageConfig ? JSON.stringify(profile.imageConfig) : null
+      ]
     );
     return res.rows[0];
   }
@@ -243,7 +268,7 @@ export class UserManager extends BaseManager {
         if (data.image.startsWith('data:image')) {
             processedImage = await imageService.processProfileImage(data.image, id);
         } else {
-            processedImage = data.image; // e.g. a deletion or keeping it same
+            processedImage = this.cleanAvatarField(data.image);
         }
     }
 
@@ -255,7 +280,9 @@ export class UserManager extends BaseManager {
       nationalId: 'national_id',
       identifier: 'identifier',
       image: 'image',
-      primaryRoleId: 'primary_role_id'
+      primaryRoleId: 'primary_role_id',
+      lastInviteSentAt: 'last_invite_sent_at',
+      imageConfig: 'image_config'
     };
 
     const clauses: string[] = [];
@@ -273,7 +300,13 @@ export class UserManager extends BaseManager {
     keys.forEach(key => {
       if (map[key]) {
         clauses.push(`${map[key]} = $${idx}`);
-        values.push(key === 'image' && processedImage !== undefined ? processedImage : (data as any)[key]);
+        let val = (data as any)[key];
+        if (key === 'image' && processedImage !== undefined) {
+          val = processedImage;
+        } else if (key === 'imageConfig' && val !== undefined) {
+          val = val ? JSON.stringify(val) : null;
+        }
+        values.push(val);
         idx++;
       }
     });
@@ -282,7 +315,7 @@ export class UserManager extends BaseManager {
 
     values.push(id);
     const res = await this.query(
-      `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId"`,
+      `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`,
       values
     );
     return res.rows[0] || null;
@@ -294,7 +327,8 @@ export class UserManager extends BaseManager {
             om.id as "membershipId", om.role_id as "roleId", om.start_date as "startDate", om.end_date as "endDate",
             op.id, op.name, op.email, op.birthdate, op.national_id as "nationalId",
             op.identifier as "personOrgId",
-            op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId"
+            op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId",
+            op.last_invite_sent_at as "lastInviteSentAt", op.image_config as "imageConfig"
         FROM org_memberships om
         JOIN org_profiles op ON om.org_profile_id = op.id
         WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())

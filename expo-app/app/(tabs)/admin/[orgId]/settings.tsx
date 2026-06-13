@@ -15,6 +15,7 @@ import { getOrgLogoUrl } from '../../../../services/api';
 import { OrgLogo } from '../../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { getContrastColor, hexToRgba } from '@/utils/colorUtils';
+import { ImageEditor } from '../../../../components/ImageEditor';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -394,9 +395,9 @@ export default function OrgSettings() {
     }
   };
 
-  const handleApplyLogoConfig = () => {
-    setLogo(tempLogo);
-    const newConfig = { scale: tempScale, x: tempX, y: tempY };
+  const handleApplyLogoConfig = (newUri: string, newConfig: { scale: number; x: number; y: number }) => {
+    console.log('[OrgSettings] handleApplyLogoConfig called. newUri starts with:', newUri ? newUri.substring(0, 50) : 'null/empty');
+    setLogo(newUri);
     setLogoConfig(newConfig);
     setSettings((prev) => ({
       ...prev,
@@ -990,219 +991,16 @@ export default function OrgSettings() {
         </View>
       )}
 
-      {/* OVERLAY MODAL: EDIT LOGO */}
-      {isEditingLogo && (
-        <View className="absolute inset-0 bg-slate-950/75 items-center justify-center z-50 p-6">
-          <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
-            <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase mb-2 tracking-wider">
-              Adjust Logo Placement
-            </Text>
-
-            {/* Preview Area */}
-            <View className="items-center justify-center py-4">
-              <View 
-                ref={previewContainerRef}
-                style={{ width: 144, height: 144, borderRadius: 36, overflow: 'hidden', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-                className="bg-white dark:bg-slate-950 shadow-lg justify-center items-center relative"
-                {...panResponder.panHandlers}
-              >
-                {tempLogo ? (
-                  <Image 
-                    source={{ uri: getOrgLogoUrl(tempLogo, 'large') }} 
-                    style={{ 
-                      width: '100%', 
-                      height: '100%',
-                      transform: [
-                        { scale: tempScale },
-                        { translateX: tempX * 144 },
-                        { translateY: tempY * 144 }
-                      ]
-                    }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View className="w-full h-full items-center justify-center bg-slate-100 dark:bg-slate-800">
-                    <Ionicons name="business" size={64} color={isDark ? "white" : "#64748B"} />
-                  </View>
-                )}
-                
-                {tempLogo ? (
-                  <View className="absolute bottom-1 bg-black/40 rounded-full px-2 py-0.5 pointer-events-none">
-                    <Text className="font-inter text-[8px] text-white">Drag to Move / Scroll to Zoom</Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-
-            {/* Choose / Change Image buttons */}
-            <View className="flex-row gap-2 justify-center">
-              <TouchableOpacity
-                onPress={handleChooseImageForTempLogo}
-                className="px-4 py-2.5 bg-slate-100 dark:bg-white/10 rounded-xl flex-row items-center gap-2 border border-slate-200 dark:border-white/5 active:scale-95"
-              >
-                <Ionicons name="image" size={14} color={isDark ? "white" : "#0F172A"} />
-                <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
-                  {tempLogo ? 'Change Image' : 'Choose Image'}
-                </Text>
-              </TouchableOpacity>
-
-              {tempLogo ? (
-                <TouchableOpacity
-                  onPress={() => {
-                    setTempLogo('');
-                    setTempScale(1);
-                    setTempX(0);
-                    setTempY(0);
-                  }}
-                  className="px-4 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl flex-row items-center gap-2 active:scale-95"
-                >
-                  <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                  <Text className="font-inter-bold text-xs text-red-500">Remove</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-
-            {tempLogo ? (
-              <View className="space-y-4">
-                {/* Zoom Controls */}
-                <View className="space-y-1.5">
-                  <View className="flex-row justify-between items-center">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                      Zoom ({tempScale.toFixed(2)}x)
-                    </Text>
-                    <TouchableOpacity onPress={() => setTempScale(1)}>
-                      <Text className="font-orbitron-bold text-[8px] text-brand-orange uppercase">Reset Zoom</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View className="flex-row items-center gap-3 justify-center">
-                    <TouchableOpacity 
-                      onPress={() => setTempScale(Math.max(0.5, tempScale - 0.1))} 
-                      className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:scale-95"
-                    >
-                      <Ionicons name="remove" size={18} color={isDark ? "white" : "#0F172A"} />
-                    </TouchableOpacity>
-
-                    {/* Pre-set zoom segments */}
-                    <View className="flex-row gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl flex-1 justify-around">
-                      {[0.75, 1.0, 1.5, 2.0].map((val) => (
-                        <TouchableOpacity
-                          key={val}
-                          onPress={() => setTempScale(val)}
-                          className={`px-2 py-1 rounded-lg ${tempScale.toFixed(2) === val.toFixed(2) ? 'bg-brand-orange' : ''}`}
-                        >
-                          <Text className={`font-orbitron-bold text-[9px] ${tempScale.toFixed(2) === val.toFixed(2) ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`}>
-                            {val}x
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-
-                    <TouchableOpacity 
-                      onPress={() => setTempScale(Math.min(3.0, tempScale + 0.1))} 
-                      className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:scale-95"
-                    >
-                      <Ionicons name="add" size={18} color={isDark ? "white" : "#0F172A"} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Position Fine Tuning (D-Pad) */}
-                <View className="space-y-1.5">
-                  <View className="flex-row justify-between items-center">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                      Position Adjust (X: {Math.round(tempX * 100)}%, Y: {Math.round(tempY * 100)}%)
-                    </Text>
-                    <TouchableOpacity onPress={() => { setTempX(0); setTempY(0); }}>
-                      <Text className="font-orbitron-bold text-[8px] text-brand-orange uppercase">Center Image</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View className="flex-row justify-between items-center gap-6">
-                    {/* D-Pad Controller */}
-                    <View className="w-28 h-28 items-center justify-center relative bg-slate-100 dark:bg-slate-950 rounded-full border border-slate-200 dark:border-white/5 p-1">
-                      {/* Up */}
-                      <TouchableOpacity 
-                        onPress={() => setTempY(Math.max(-1, tempY - nudgeSpeed))} 
-                        className="absolute top-1.5 w-8 h-8 rounded-full items-center justify-center bg-white dark:bg-white/10 active:scale-95 shadow-sm"
-                      >
-                        <Ionicons name="chevron-up" size={16} color={isDark ? "white" : "#0F172A"} />
-                      </TouchableOpacity>
-                      {/* Left */}
-                      <TouchableOpacity 
-                        onPress={() => setTempX(Math.max(-1, tempX - nudgeSpeed))} 
-                        className="absolute left-1.5 w-8 h-8 rounded-full items-center justify-center bg-white dark:bg-white/10 active:scale-95 shadow-sm"
-                      >
-                        <Ionicons name="chevron-back" size={16} color={isDark ? "white" : "#0F172A"} />
-                      </TouchableOpacity>
-                      {/* Center Reset */}
-                      <TouchableOpacity 
-                        onPress={() => { setTempX(0); setTempY(0); }} 
-                        className="w-8 h-8 rounded-full items-center justify-center bg-brand-orange active:scale-95 shadow-md shadow-brand-orange/30"
-                      >
-                        <Ionicons name="contract" size={14} color="white" />
-                      </TouchableOpacity>
-                      {/* Right */}
-                      <TouchableOpacity 
-                        onPress={() => setTempX(Math.min(1, tempX + nudgeSpeed))} 
-                        className="absolute right-1.5 w-8 h-8 rounded-full items-center justify-center bg-white dark:bg-white/10 active:scale-95 shadow-sm"
-                      >
-                        <Ionicons name="chevron-forward" size={16} color={isDark ? "white" : "#0F172A"} />
-                      </TouchableOpacity>
-                      {/* Down */}
-                      <TouchableOpacity 
-                        onPress={() => setTempY(Math.min(1, tempY + nudgeSpeed))} 
-                        className="absolute bottom-1.5 w-8 h-8 rounded-full items-center justify-center bg-white dark:bg-white/10 active:scale-95 shadow-sm"
-                      >
-                        <Ionicons name="chevron-down" size={16} color={isDark ? "white" : "#0F172A"} />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Step Size Selector */}
-                    <View className="flex-1 space-y-1">
-                      <Text className="font-orbitron-bold text-[7px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                        Nudge Sensitivity
-                      </Text>
-                      <View className="space-y-1.5">
-                        {[
-                          { label: 'Fine (1%)', value: 0.01 },
-                          { label: 'Medium (3%)', value: 0.03 },
-                          { label: 'Coarse (8%)', value: 0.08 },
-                        ].map((item) => (
-                          <TouchableOpacity
-                            key={item.value}
-                            onPress={() => setNudgeSpeed(item.value)}
-                            className={`px-3 py-1.5 rounded-lg border text-center ${nudgeSpeed === item.value ? 'bg-brand-orange/10 border-brand-orange/30' : 'border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-950'}`}
-                          >
-                            <Text className={`font-inter-bold text-[9px] text-center ${nudgeSpeed === item.value ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'}`}>
-                              {item.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ) : null}
-
-            {/* Apply / Cancel */}
-            <View className="flex-row gap-3 mt-6">
-              <TouchableOpacity 
-                onPress={() => setIsEditingLogo(false)}
-                className="flex-1 py-3 bg-slate-100 dark:bg-white/10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5 active:scale-98"
-              >
-                <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={handleApplyLogoConfig}
-                className="flex-1 py-3 bg-brand-orange rounded-xl items-center justify-center active:scale-98 shadow-md shadow-brand-orange/20"
-              >
-                <Text className="font-inter-bold text-xs text-white uppercase">Apply</Text>
-              </TouchableOpacity>
-            </View>
-          </GlassCard>
-        </View>
-      )}
+      {/* LOGO EDITOR — shared ImageEditor component */}
+      <ImageEditor
+        visible={isEditingLogo}
+        imageUri={logo.startsWith('data:') || logo.startsWith('http') ? logo : (logo ? getOrgLogoUrl(logo, 'large') : '')}
+        config={logoConfig}
+        title="Adjust Logo Placement"
+        allowRemove
+        onApply={handleApplyLogoConfig}
+        onCancel={() => setIsEditingLogo(false)}
+      />
 
       {/* FLOATING SAVE CHANGES BAR */}
       {hasChanges && (

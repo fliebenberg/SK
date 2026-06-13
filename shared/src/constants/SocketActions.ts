@@ -220,6 +220,12 @@ export enum SocketAction {
      */
     REMOVE_ORG_MEMBER = 'REMOVE_ORG_MEMBER',
 
+    /**
+     * Action to invite an unlinked member profile to join the app.
+     * Expects payload: { memberId: string }
+     */
+    SEND_MEMBER_INVITE = 'SEND_MEMBER_INVITE',
+
     // --- Memberships (Team) ---
     /**
      * Action to add a person to a team.

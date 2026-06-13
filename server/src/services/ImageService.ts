@@ -51,7 +51,7 @@ export class ImageService {
 
             await sharp(buffer)
                 .resize(tier.size, tier.size, {
-                    fit: 'inside',
+                    fit: 'cover',
                     withoutEnlargement: true
                 })
                 .webp({ quality: 80 })
@@ -101,7 +101,7 @@ export class ImageService {
 
             await sharp(buffer)
                 .resize(tier.size, tier.size, {
-                    fit: 'inside',
+                    fit: 'cover',
                     withoutEnlargement: true
                 })
                 .webp({ quality: 80 })
