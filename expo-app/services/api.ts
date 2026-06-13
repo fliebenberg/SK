@@ -256,4 +256,66 @@ export const apiService = {
 
     return response.json();
   },
+
+  /**
+   * Search all users and members (Admin only)
+   */
+  async searchAdminUsers(
+    token: string,
+    name?: string,
+    email?: string,
+    id?: string,
+    page?: number,
+    limit?: number
+  ): Promise<PaginatedAdminSearchUserResult> {
+    const params = new URLSearchParams();
+    if (name) params.append('name', name);
+    if (email) params.append('email', email);
+    if (id) params.append('id', id);
+    if (page) params.append('page', page.toString());
+    if (limit) params.append('limit', limit.toString());
+
+    const response = await fetch(`${API_BASE_URL}/api/admin/users/search?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to search users');
+    }
+
+    return response.json();
+  },
 };
+
+export interface PaginatedAdminSearchUserResult {
+  results: AdminSearchUserResult[];
+  totalCount: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface AdminSearchUserResult {
+  type: 'user' | 'member';
+  id: string;
+  name: string;
+  email: string | null;
+  globalRole?: 'user' | 'admin' | null;
+  image?: string | null;
+  profiles: Array<{
+    id: string;
+    orgId: string;
+    orgName: string;
+    name: string;
+    email: string | null;
+    nationalId?: string | null;
+    identifier?: string | null;
+  }>;
+  linkedEmails: string[];
+  matchScore: number;
+}

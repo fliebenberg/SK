@@ -15,6 +15,7 @@ export default function TabLayout() {
   const segments = useSegments();
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
+  const isSettingsActive = segments[1] === 'settings' || segments[1] === 'admin';
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
   const [menuVisible, setMenuVisible] = useState(false);
@@ -115,7 +116,7 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen 
-        name="admin/[orgId]" 
+        name="admin" 
         options={{ 
           href: null,
           headerShown: false,
@@ -146,9 +147,12 @@ export default function TabLayout() {
         options={{ 
           headerTitle: 'ACCOUNT SETTINGS',
           tabBarLabel: 'Settings',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "settings" : "settings-outline"} size={22} color={color} />
-          )
+          tabBarIcon: () => (
+            <Ionicons name={isSettingsActive ? "settings" : "settings-outline"} size={22} color={isSettingsActive ? '#FF3E00' : (isDark ? '#94A3B8' : '#64748B')} />
+          ),
+          tabBarLabelStyle: {
+            color: isSettingsActive ? '#FF3E00' : (isDark ? '#94A3B8' : '#64748B')
+          }
         }} 
         listeners={() => ({
           tabPress: (e) => {

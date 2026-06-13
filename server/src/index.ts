@@ -594,6 +594,186 @@ app.post('/api/admin/users/:id/temp-password', requireAdmin, async (req, res) =>
   }
 });
 
+// GET /api/admin/users/search - Search across users and organization members
+app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
+  try {
+    const { name, email, id, page, limit } = req.query;
+
+    const nameParam = (typeof name === 'string' && name.trim()) ? name.trim() : null;
+    const emailParam = (typeof email === 'string' && email.trim()) ? email.trim() : null;
+    const idParam = (typeof id === 'string' && id.trim()) ? id.trim() : null;
+
+    let parsedPage = parseInt(page as string, 10);
+    if (isNaN(parsedPage) || parsedPage < 1) parsedPage = 1;
+
+    let parsedLimit = parseInt(limit as string, 10);
+    if (isNaN(parsedLimit) || parsedLimit < 50) parsedLimit = 50;
+    if (parsedLimit > 200) parsedLimit = 200;
+
+    const offset = (parsedPage - 1) * parsedLimit;
+
+    // Return empty results immediately if no search criteria is provided
+    if (!nameParam && !emailParam && !idParam) {
+      return res.json({
+        results: [],
+        totalCount: 0,
+        page: parsedPage,
+        limit: parsedLimit,
+        totalPages: 0
+      });
+    }
+
+    const nameLike = nameParam ? `%${nameParam}%` : null;
+    const emailLike = emailParam ? `%${emailParam}%` : null;
+    const idLike = idParam ? `%${idParam}%` : null;
+
+    const queryStr = `
+      WITH user_candidates AS (
+        SELECT 
+          'user' AS type,
+          u.id AS id,
+          u.name AS name,
+          u.email AS email,
+          u.global_role AS "globalRole",
+          u.image AS image,
+          COALESCE(
+            json_agg(
+              DISTINCT jsonb_build_object(
+                'id', op.id,
+                'orgId', op.org_id,
+                'orgName', org.name,
+                'name', op.name,
+                'email', op.email,
+                'nationalId', op.national_id,
+                'identifier', op.identifier
+              )
+            ) FILTER (WHERE op.id IS NOT NULL),
+            '[]'::json
+          ) AS profiles,
+          COALESCE(
+            json_agg(DISTINCT ue.email) FILTER (WHERE ue.email IS NOT NULL),
+            '[]'::json
+          ) AS "linkedEmails",
+          MAX(CASE WHEN $1::text IS NOT NULL THEN
+            GREATEST(
+              CASE WHEN u.name ILIKE $2::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN op.name ILIKE $2::text THEN 1.0 ELSE 0.0 END,
+              similarity(COALESCE(u.name, ''), $1::text),
+              similarity(COALESCE(op.name, ''), $1::text)
+            )
+          ELSE 0.0 END) AS name_score,
+          MAX(CASE WHEN $3::text IS NOT NULL THEN
+            GREATEST(
+              CASE WHEN u.email ILIKE $4::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN ue.email ILIKE $4::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN op.email ILIKE $4::text THEN 1.0 ELSE 0.0 END,
+              similarity(COALESCE(u.email, ''), $3::text),
+              similarity(COALESCE(ue.email, ''), $3::text),
+              similarity(COALESCE(op.email, ''), $3::text)
+            )
+          ELSE 0.0 END) AS email_score,
+          MAX(CASE WHEN $5::text IS NOT NULL THEN
+            GREATEST(
+              CASE WHEN op.national_id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN op.identifier ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN u.id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN op.id ILIKE $6::text THEN 1.0 ELSE 0.0 END
+            )
+          ELSE 0.0 END) AS id_score
+        FROM users u
+        LEFT JOIN user_emails ue ON u.id = ue.user_id
+        LEFT JOIN org_profiles op ON u.id = op.user_id
+        LEFT JOIN organizations org ON op.org_id = org.id
+        GROUP BY u.id
+      ),
+      member_candidates AS (
+        SELECT 
+          'member' AS type,
+          op.id AS id,
+          op.name AS name,
+          op.email AS email,
+          NULL AS "globalRole",
+          op.image AS image,
+          json_build_array(
+            jsonb_build_object(
+              'id', op.id,
+              'orgId', op.org_id,
+              'orgName', org.name,
+              'name', op.name,
+              'email', op.email,
+              'nationalId', op.national_id,
+              'identifier', op.identifier
+            )
+          ) AS profiles,
+          '[]'::json AS "linkedEmails",
+          (CASE WHEN $1::text IS NOT NULL THEN
+            GREATEST(
+              CASE WHEN op.name ILIKE $2::text THEN 1.0 ELSE 0.0 END,
+              similarity(op.name, $1::text)
+            )
+          ELSE 0.0 END) AS name_score,
+          (CASE WHEN $3::text IS NOT NULL THEN
+            GREATEST(
+              CASE WHEN op.email ILIKE $4::text THEN 1.0 ELSE 0.0 END,
+              similarity(COALESCE(op.email, ''), $3::text)
+            )
+          ELSE 0.0 END) AS email_score,
+          (CASE WHEN $5::text IS NOT NULL THEN
+            GREATEST(
+              CASE WHEN op.national_id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN op.identifier ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN op.id ILIKE $6::text THEN 1.0 ELSE 0.0 END
+            )
+          ELSE 0.0 END) AS id_score
+        FROM org_profiles op
+        LEFT JOIN organizations org ON op.org_id = org.id
+        WHERE op.user_id IS NULL
+      ),
+      all_candidates AS (
+        SELECT * FROM user_candidates
+        UNION ALL
+        SELECT * FROM member_candidates
+      )
+      SELECT 
+        type, id, name, email, "globalRole", image, profiles, "linkedEmails",
+        (name_score + email_score + id_score) AS "matchScore",
+        COUNT(*) OVER()::int AS "totalCount"
+      FROM all_candidates
+      WHERE 
+        (
+          ($1::text IS NOT NULL AND name_score > 0.05) OR
+          ($3::text IS NOT NULL AND email_score > 0.05) OR
+          ($5::text IS NOT NULL AND id_score > 0.05)
+        )
+      ORDER BY "matchScore" DESC, name ASC
+      LIMIT $7 OFFSET $8;
+    `;
+
+    const dbRes = await pool.query(queryStr, [
+      nameParam, nameLike,
+      emailParam, emailLike,
+      idParam, idLike,
+      parsedLimit, offset
+    ]);
+
+    const results = dbRes.rows;
+    const totalCount = results.length > 0 ? results[0].totalCount : 0;
+    const cleanedResults = results.map(({ totalCount, ...rest }) => rest);
+    const totalPages = Math.ceil(totalCount / parsedLimit);
+
+    return res.json({
+      results: cleanedResults,
+      totalCount,
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages
+    });
+  } catch (error) {
+    console.error("Admin user search error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   maxHttpBufferSize: 1e7, // 10MB

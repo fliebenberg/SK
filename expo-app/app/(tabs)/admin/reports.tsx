@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
-import { GlassCard } from '../../components/GlassCard';
+import { GlassCard } from '../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../store/settingsStore';
+import { useActiveTheme } from '../../../store/settingsStore';
 
 export default function SystemReports() {
   const isDark = useActiveTheme() === 'dark';

@@ -1,9 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
-import { useActiveTheme } from '../../store/settingsStore';
-import { useAuthStore } from '../../store/authStore';
-import { useWindowDimensions, View } from 'react-native';
-import { LeftNavigationRail } from '../../components/LeftNavigationRail';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { useAuthStore } from '../../../store/authStore';
 
 export default function AdminLayout() {
   const activeTheme = useActiveTheme();
@@ -11,8 +9,6 @@ export default function AdminLayout() {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const user = useAuthStore(state => state.user);
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isLargeScreen = width >= 768;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -26,7 +22,7 @@ export default function AdminLayout() {
     return null;
   }
 
-  const stackContent = (
+  return (
     <Stack
       screenOptions={{
         headerShown: true,
@@ -42,23 +38,9 @@ export default function AdminLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'ADMIN PORTAL' }} />
-      <Stack.Screen name="all-organizations" options={{ title: 'ALL ORGANIZATIONS' }} />
       <Stack.Screen name="reports" options={{ title: 'SYSTEM AUDITS' }} />
+      <Stack.Screen name="users" options={{ title: 'USER MANAGEMENT' }} />
       <Stack.Screen name="[orgId]" options={{ headerShown: false }} />
     </Stack>
   );
-
-  if (isLargeScreen) {
-    return (
-      <View className="flex-1 flex-row bg-slate-50 dark:bg-slate-950">
-        <LeftNavigationRail />
-        <View className="flex-grow h-full bg-slate-50 dark:bg-slate-950">
-          {stackContent}
-        </View>
-      </View>
-    );
-  }
-
-  return stackContent;
 }
-
