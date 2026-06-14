@@ -29,7 +29,7 @@ async function cleanupTestOrgs() {
             // Delete Game Events (if they exist)
             // Note: Game events are often linked to games
             // Since we don't have a direct org link for game events in some schemas, we find games first
-            const gamesRes = await query('SELECT id FROM games WHERE event_id IN (SELECT id FROM events WHERE org_id = $1 OR $1 = ANY(participating_org_ids))', [orgId]);
+            const gamesRes = await query('SELECT id FROM games WHERE event_id IN (SELECT id FROM events WHERE org_id = $1 OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1))', [orgId]);
             const gameIds = gamesRes.rows.map(g => g.id);
             
             if (gameIds.length > 0) {
@@ -38,7 +38,7 @@ async function cleanupTestOrgs() {
             }
 
             // Delete Events
-            await query('DELETE FROM events WHERE org_id = $1 OR $1 = ANY(participating_org_ids)', [orgId]);
+            await query('DELETE FROM events WHERE org_id = $1 OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1)', [orgId]);
 
             // Delete Team Memberships
             await query('DELETE FROM team_memberships WHERE team_id IN (SELECT id FROM teams WHERE org_id = $1)', [orgId]);

@@ -145,18 +145,15 @@ const seedDb = async () => {
                 await pool.query(`
                     INSERT INTO organizations (
                         id, name, logo, primary_color, secondary_color, 
-                        supported_sport_ids, short_name, supported_role_ids, 
-                        is_claimed, is_active, creator_id, settings
+                        short_name, is_claimed, is_active, creator_id, settings
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                     ON CONFLICT (id) DO UPDATE SET
                         name = EXCLUDED.name,
                         logo = EXCLUDED.logo,
                         primary_color = EXCLUDED.primary_color,
                         secondary_color = EXCLUDED.secondary_color,
-                        supported_sport_ids = EXCLUDED.supported_sport_ids,
                         short_name = EXCLUDED.short_name,
-                        supported_role_ids = EXCLUDED.supported_role_ids,
                         is_claimed = EXCLUDED.is_claimed,
                         is_active = EXCLUDED.is_active,
                         creator_id = EXCLUDED.creator_id,
@@ -167,14 +164,32 @@ const seedDb = async () => {
                     org.logo, 
                     org.primary_color || org.primaryColor, 
                     org.secondary_color || org.secondaryColor, 
-                    org.supported_sport_ids || org.supportedSportIds, 
                     org.short_name || org.shortName, 
-                    org.supported_role_ids || org.supportedRoleIds,
                     org.is_claimed ?? false,
                     org.is_active ?? true,
                     org.creator_id ?? null,
                     org.settings ?? '{}'
                 ]);
+
+                // Seed organization_sports
+                const sports = org.supported_sport_ids || org.supportedSportIds || [];
+                for (const sportId of sports) {
+                    await pool.query(`
+                        INSERT INTO organization_sports (org_id, sport_id)
+                        VALUES ($1, $2)
+                        ON CONFLICT DO NOTHING
+                    `, [org.id, sportId]);
+                }
+
+                // Seed organization_roles
+                const roles = org.supported_role_ids || org.supportedRoleIds || [];
+                for (const roleId of roles) {
+                    await pool.query(`
+                        INSERT INTO organization_roles (org_id, role_id)
+                        VALUES ($1, $2)
+                        ON CONFLICT DO NOTHING
+                    `, [org.id, roleId]);
+                }
             }
 
             // Sites
@@ -212,10 +227,18 @@ const seedDb = async () => {
 
             for (const facility of facilities) {
                 await pool.query(`
-                    INSERT INTO facilities (id, name, site_id, primary_sport_id)
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO facilities (id, name, site_id)
+                    VALUES ($1, $2, $3)
                     ON CONFLICT (id) DO NOTHING
-                `, [facility.id, facility.name, facility.siteId, facility.primarySportId]);
+                `, [facility.id, facility.name, facility.siteId]);
+
+                if (facility.primarySportId) {
+                    await pool.query(`
+                        INSERT INTO facility_sports (facility_id, sport_id)
+                        VALUES ($1, $2)
+                        ON CONFLICT DO NOTHING
+                    `, [facility.id, facility.primarySportId]);
+                }
             }
 
             // Teams

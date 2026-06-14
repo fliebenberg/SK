@@ -5,14 +5,14 @@ import { organizationManager } from "./OrganizationManager";
 import { sportManager } from "./SportManager";
 
 export class EventManager extends BaseManager {
-  private EVENT_COLUMNS = 'id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", participating_org_ids as "participatingOrgIds", sport_ids as "sportIds", settings, status';
+  private EVENT_COLUMNS = 'id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id) as "participatingOrgIds", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
   private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
   async getEvents(orgId?: string): Promise<Event[]> {
     console.log(`EventManager: getEvents called for org ${orgId}`);
     let queryText = `SELECT ${this.EVENT_COLUMNS} FROM events`;
     const params: any[] = [];
     if (orgId) {
-        queryText += ' WHERE org_id = $1 OR $1 = ANY(participating_org_ids)';
+        queryText += ' WHERE org_id = $1 OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1)';
         params.push(orgId);
     }
     const res = await this.query(queryText, params);
@@ -27,52 +27,110 @@ export class EventManager extends BaseManager {
 
   async addEvent(event: Omit<Event, "id"> & { id?: string }): Promise<Event> {
     const id = event.id || `event-${Date.now()}`;
-    const res = await this.query(
-        `INSERT INTO events (id, name, type, start_date, end_date, site_id, facility_id, org_id, participating_org_ids, sport_ids, settings, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         RETURNING ${this.EVENT_COLUMNS}`,
-         [id, event.name, event.type, event.startDate, event.endDate, event.siteId, event.facilityId, event.orgId, event.participatingOrgIds, event.sportIds, JSON.stringify(event.settings), event.status]
-    );
+    const sportIds = event.sportIds || [];
+    const participatingOrgIds = event.participatingOrgIds || [];
+
+    await this.query('BEGIN');
+    try {
+        await this.query(
+            `INSERT INTO events (id, name, type, start_date, end_date, site_id, facility_id, org_id, settings, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+             [id, event.name, event.type, event.startDate, event.endDate, event.siteId, event.facilityId, event.orgId, JSON.stringify(event.settings), event.status]
+        );
+
+        for (const sportId of sportIds) {
+            await this.query('INSERT INTO event_sports (event_id, sport_id) VALUES ($1, $2)', [id, sportId]);
+        }
+
+        for (const orgId of participatingOrgIds) {
+            await this.query('INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2)', [id, orgId]);
+        }
+
+        await this.query('COMMIT');
+    } catch (error) {
+        await this.query('ROLLBACK');
+        throw error;
+    }
+
     organizationManager.invalidateCache();
-    return res.rows[0];
+    return (await this.getEvent(id))!;
   }
 
   async updateEvent(id: string, data: Partial<Event>): Promise<Event | null> {
      const keys = Object.keys(data).filter(k => k !== 'id');
      if (keys.length === 0) return (await this.getEvent(id)) || null;
 
-     const map: Record<string, string> = {
-         name: 'name', type: 'type', startDate: 'start_date', endDate: 'end_date', siteId: 'site_id', facilityId: 'facility_id', orgId: 'org_id',
-         participatingOrgIds: 'participating_org_ids', sportIds: 'sport_ids', settings: 'settings', status: 'status'
-     };
+     await this.query('BEGIN');
+     try {
+         const sportIds = data.sportIds;
+         const participatingOrgIds = data.participatingOrgIds;
+         delete data.sportIds;
+         delete data.participatingOrgIds;
 
-     const setClauses: string[] = [];
-     const values: any[] = [];
-     let idx = 1;
+         const map: Record<string, string> = {
+             name: 'name', type: 'type', startDate: 'start_date', endDate: 'end_date', siteId: 'site_id', facilityId: 'facility_id', orgId: 'org_id',
+             settings: 'settings', status: 'status'
+         };
 
-     keys.forEach(key => {
-        if (map[key]) {
-            setClauses.push(`${map[key]} = $${idx}`);
-            values.push((data as any)[key]);
-            idx++;
-        }
-     });
-     values.push(id);
-     
-     const res = await this.query(
-         `UPDATE events SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING ${this.EVENT_COLUMNS}`,
-         values
-     );
+         const setClauses: string[] = [];
+         const values: any[] = [];
+         let idx = 1;
+
+         keys.forEach(key => {
+            if (map[key]) {
+                setClauses.push(`${map[key]} = $${idx}`);
+                values.push(key === 'settings' ? JSON.stringify((data as any)[key]) : (data as any)[key]);
+                idx++;
+            }
+         });
+
+         if (setClauses.length > 0) {
+             values.push(id);
+             await this.query(
+                 `UPDATE events SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+                 values
+             );
+         }
+
+         if (sportIds !== undefined) {
+             await this.query('DELETE FROM event_sports WHERE event_id = $1', [id]);
+             for (const sportId of sportIds) {
+                 await this.query('INSERT INTO event_sports (event_id, sport_id) VALUES ($1, $2)', [id, sportId]);
+             }
+         }
+
+         if (participatingOrgIds !== undefined) {
+             await this.query('DELETE FROM event_organizations WHERE event_id = $1', [id]);
+             for (const orgId of participatingOrgIds) {
+                 await this.query('INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2)', [id, orgId]);
+             }
+         }
+
+         await this.query('COMMIT');
+     } catch (error) {
+         await this.query('ROLLBACK');
+         throw error;
+     }
+
      organizationManager.invalidateCache();
-     return res.rows[0] || null;
+     return (await this.getEvent(id)) || null;
   }
 
   async deleteEvent(id: string): Promise<Event | null> {
     const event = await this.getEvent(id);
     if (!event) return null;
     
-    await this.query('DELETE FROM games WHERE event_id = $1', [id]);
-    await this.query('DELETE FROM events WHERE id = $1', [id]);
+    await this.query('BEGIN');
+    try {
+        await this.query('DELETE FROM games WHERE event_id = $1', [id]);
+        await this.query('DELETE FROM event_sports WHERE event_id = $1', [id]);
+        await this.query('DELETE FROM event_organizations WHERE event_id = $1', [id]);
+        await this.query('DELETE FROM events WHERE id = $1', [id]);
+        await this.query('COMMIT');
+    } catch (error) {
+        await this.query('ROLLBACK');
+        throw error;
+    }
     organizationManager.invalidateCache();
     return event;
   }
@@ -87,7 +145,7 @@ export class EventManager extends BaseManager {
         SELECT ${selectClause}
         FROM games g
         JOIN events e ON g.event_id = e.id
-        WHERE e.org_id = $1 OR $1 = ANY(e.participating_org_ids)
+        WHERE e.org_id = $1 OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1)
     `, [orgId]);
     return res.rows;
   }

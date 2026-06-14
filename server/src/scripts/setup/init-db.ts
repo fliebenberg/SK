@@ -43,7 +43,8 @@ const createTables = async () => {
                 participant_type TEXT, -- 'TEAM' | 'INDIVIDUAL'
                 match_topology TEXT, -- 'HEAD_TO_HEAD' | 'MULTI_COMPETITOR'
                 default_settings JSONB DEFAULT '{}'::jsonb,
-                facility_term TEXT
+                facility_term TEXT,
+                period_term TEXT
             );
         `);
 
@@ -65,14 +66,30 @@ const createTables = async () => {
                 logo TEXT,
                 primary_color TEXT,
                 secondary_color TEXT,
-                supported_sport_ids TEXT[],
                 short_name TEXT,
-                supported_role_ids TEXT[],
                 is_claimed BOOLEAN DEFAULT false,
                 creator_id TEXT,
                 is_active BOOLEAN DEFAULT true,
                 settings JSONB DEFAULT '{}'::jsonb,
                 address_id TEXT REFERENCES addresses(id)
+            );
+        `);
+
+        // Organization Sports Join Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS organization_sports (
+                org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+                sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
+                PRIMARY KEY (org_id, sport_id)
+            );
+        `);
+
+        // Organization Roles Join Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS organization_roles (
+                org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+                role_id TEXT NOT NULL,
+                PRIMARY KEY (org_id, role_id)
             );
         `);
 
@@ -93,12 +110,20 @@ const createTables = async () => {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 site_id TEXT REFERENCES sites(id),
-                primary_sport_id TEXT REFERENCES sports(id),
                 address_id TEXT REFERENCES addresses(id),
                 surface_type TEXT,
                 latitude DOUBLE PRECISION,
                 longitude DOUBLE PRECISION,
                 is_active BOOLEAN DEFAULT true
+            );
+        `);
+
+        // Facility Sports Join Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS facility_sports (
+                facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
+                sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
+                PRIMARY KEY (facility_id, sport_id)
             );
         `);
 
@@ -111,7 +136,8 @@ const createTables = async () => {
                 sport_id TEXT REFERENCES sports(id),
                 org_id TEXT REFERENCES organizations(id),
                 is_active BOOLEAN DEFAULT true,
-                creator_id TEXT
+                creator_id TEXT,
+                short_name TEXT
             );
         `);
 
@@ -153,6 +179,8 @@ const createTables = async () => {
                 identifier TEXT,
                 image TEXT,
                 primary_role_id TEXT,
+                last_invite_sent_at TIMESTAMPTZ,
+                image_config JSONB DEFAULT NULL,
                 UNIQUE(org_id, identifier)
             );
         `);
@@ -177,7 +205,8 @@ const createTables = async () => {
                 org_id TEXT REFERENCES organizations(id),
                 role_id TEXT,
                 start_date TIMESTAMPTZ,
-                end_date TIMESTAMPTZ
+                end_date TIMESTAMPTZ,
+                expiry_processed BOOLEAN DEFAULT false
             );
         `);
 
@@ -192,10 +221,26 @@ const createTables = async () => {
                 site_id TEXT REFERENCES sites(id),
                 facility_id TEXT REFERENCES facilities(id),
                 org_id TEXT REFERENCES organizations(id),
-                participating_org_ids TEXT[],
-                sport_ids TEXT[],
                 settings JSONB,
                 status TEXT
+            );
+        `);
+
+        // Event Sports Join Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS event_sports (
+                event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+                sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
+                PRIMARY KEY (event_id, sport_id)
+            );
+        `);
+
+        // Event Organizations Join Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS event_organizations (
+                event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+                org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+                PRIMARY KEY (event_id, org_id)
             );
         `);
 
@@ -279,7 +324,9 @@ const createTables = async () => {
             CREATE TABLE IF NOT EXISTS games (
                 id TEXT PRIMARY KEY,
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+                sport_id TEXT,
                 start_time TIMESTAMPTZ,
+                scheduled_start_time TIMESTAMPTZ,
                 status TEXT,
                 site_id TEXT REFERENCES sites(id),
                 facility_id TEXT REFERENCES facilities(id),
@@ -394,6 +441,14 @@ const createTables = async () => {
                 link TEXT,
                 is_read BOOLEAN DEFAULT false,
                 created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        // System Settings
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
             );
         `);
 

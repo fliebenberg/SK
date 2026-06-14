@@ -6,14 +6,34 @@ async function migrate() {
         await pool.query('ALTER TABLE games ADD COLUMN IF NOT EXISTS sport_id TEXT;');
         
         console.log('Populating sport_id from associated events...');
-        // Populate from the first sport in the associated event's sport_ids array
-        await pool.query(`
-            UPDATE games g
-            SET sport_id = e.sport_ids[1]
-            FROM events e
-            WHERE g.event_id = e.id
-            AND g.sport_id IS NULL;
+        const colCheck = await pool.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'events' AND column_name = 'sport_ids'
         `);
+
+        if (colCheck.rows.length > 0) {
+            console.log('Using events.sport_ids array...');
+            await pool.query(`
+                UPDATE games g
+                SET sport_id = e.sport_ids[1]
+                FROM events e
+                WHERE g.event_id = e.id
+                AND g.sport_id IS NULL;
+            `);
+        } else {
+            console.log('Using event_sports join table...');
+            await pool.query(`
+                UPDATE games g
+                SET sport_id = (
+                    SELECT sport_id 
+                    FROM event_sports es 
+                    WHERE es.event_id = g.event_id 
+                    LIMIT 1
+                )
+                WHERE g.sport_id IS NULL;
+            `);
+        }
 
         // Final check for those without an event or where event had no sport_ids
         console.log('Populating missing sport_ids from team sports...');

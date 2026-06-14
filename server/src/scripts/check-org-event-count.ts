@@ -7,7 +7,7 @@ async function checkEventCount() {
     
     const query = `
         SELECT o.id, o.name,
-        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR o.id = ANY(e.participating_org_ids)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount"
+        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount"
         FROM organizations o
         WHERE o.id = $1
     `;
