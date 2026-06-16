@@ -45,7 +45,7 @@ const loadGoogleMapsScript = (callback: () => void) => {
 };
 
 // Interactive Web Map component rendering standard div via createElement
-const InteractiveWebMap = ({ latitude, longitude, onChange }: { latitude: number; longitude: number; onChange: (lat: number, lng: number) => void }) => {
+const InteractiveWebMap = ({ latitude, longitude, title, onChange }: { latitude: number; longitude: number; title?: string; onChange: (lat: number, lng: number) => void }) => {
   const containerRef = React.useRef<any>(null);
   const mapRef = React.useRef<any>(null);
   const markerRef = React.useRef<any>(null);
@@ -77,6 +77,7 @@ const InteractiveWebMap = ({ latitude, longitude, onChange }: { latitude: number
           position: center,
           map: mapRef.current,
           draggable: true,
+          title: title,
         });
 
         // Track drag movement
@@ -95,6 +96,9 @@ const InteractiveWebMap = ({ latitude, longitude, onChange }: { latitude: number
         });
       } else {
         mapRef.current.setMapTypeId(currentMapTypeId);
+        if (title) {
+          markerRef.current.setTitle(title);
+        }
         const currentPos = markerRef.current.getPosition();
         if (currentPos && (Math.abs(currentPos.lat() - latitude) > 0.0001 || Math.abs(currentPos.lng() - longitude) > 0.0001)) {
           const newPos = { lat: latitude, lng: longitude };
@@ -103,7 +107,7 @@ const InteractiveWebMap = ({ latitude, longitude, onChange }: { latitude: number
         }
       }
     });
-  }, [latitude, longitude, onChange, mapType]);
+  }, [latitude, longitude, title, onChange, mapType]);
 
   return React.createElement('div', {
     ref: containerRef,
@@ -715,6 +719,7 @@ export default function SiteDetails() {
                             longitude: siteForm.address.longitude
                           }}
                           draggable
+                          title={siteForm.name || "Site Location"}
                           onDragEnd={(e: any) => {
                             const coords = e.nativeEvent.coordinate;
                             setSiteForm(prev => ({
@@ -741,6 +746,7 @@ export default function SiteDetails() {
                     <InteractiveWebMap
                       latitude={siteForm.address.latitude}
                       longitude={siteForm.address.longitude}
+                      title={siteForm.name || "Site Location"}
                       onChange={(lat, lng) => {
                         setSiteForm(prev => ({
                           ...prev,
@@ -1009,6 +1015,7 @@ export default function SiteDetails() {
                             longitude: facilityForm.longitude
                           }}
                           draggable
+                          title={facilityForm.name || "Facility Location"}
                           onDragEnd={(e: any) => {
                             const coords = e.nativeEvent.coordinate;
                             setFacilityForm(prev => ({
@@ -1032,6 +1039,7 @@ export default function SiteDetails() {
                     <InteractiveWebMap
                       latitude={facilityForm.latitude}
                       longitude={facilityForm.longitude}
+                      title={facilityForm.name || "Facility Location"}
                       onChange={(lat, lng) => {
                         setFacilityForm(prev => ({
                           ...prev,
