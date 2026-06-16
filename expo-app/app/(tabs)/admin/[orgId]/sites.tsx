@@ -78,6 +78,21 @@ export default function OrgSites() {
   // Check map availability
   const isMapAvailable = MapView && Marker && Platform.OS !== 'web';
 
+  // Map Ref for animation and control
+  const mapRef = React.useRef<any>(null);
+
+  // Animate map to new coordinates when address coordinates change
+  useEffect(() => {
+    if (siteForm.address.latitude != null && siteForm.address.longitude != null && mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: siteForm.address.latitude,
+        longitude: siteForm.address.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005
+      }, 1000);
+    }
+  }, [siteForm.address.latitude, siteForm.address.longitude]);
+
   // Load Initial Data
   useEffect(() => {
     if (!isConnected || !orgId) return;
@@ -168,15 +183,25 @@ export default function OrgSites() {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryText)}&format=json&addressdetails=1&limit=5`;
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'ScoreKeeper-MobileApp/1.0'
+          'User-Agent': 'ScoreKeeper-MobileApp/1.0 (admin@scorekeeper.live)',
+          'Accept': 'application/json'
         }
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       if (Array.isArray(data)) {
         setAddressSuggestions(data);
+      } else {
+        setAddressSuggestions([]);
       }
     } catch (e) {
-      console.error('Nominatim lookup failed:', e);
+      console.warn('Nominatim lookup failed:', e);
+      Alert.alert(
+        'Search Failed',
+        'Could not connect to the address search service. Please check your internet connection or try again later.'
+      );
     } finally {
       setIsSearchingAddress(false);
     }
@@ -709,6 +734,7 @@ export default function OrgSites() {
                       <Text className="font-inter-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-wider">Map Preview (Tap to Pin Location)</Text>
                       {isMapAvailable ? (
                         <MapView
+                          ref={mapRef}
                           style={{ width: '100%', height: 160, borderRadius: 12, overflow: 'hidden' }}
                           initialRegion={{
                             latitude: siteForm.address.latitude,
@@ -716,12 +742,9 @@ export default function OrgSites() {
                             latitudeDelta: 0.005,
                             longitudeDelta: 0.005
                           }}
-                          region={{
-                            latitude: siteForm.address.latitude,
-                            longitude: siteForm.address.longitude,
-                            latitudeDelta: 0.005,
-                            longitudeDelta: 0.005
-                          }}
+                          onMapReady={() => console.log('MapView: onMapReady triggered')}
+                          onMapLoaded={() => console.log('MapView: onMapLoaded triggered')}
+                          onMountError={(err: any) => console.warn('MapView: onMountError triggered with:', err)}
                           onPress={(e: any) => {
                             const coords = e.nativeEvent.coordinate;
                             setSiteForm(prev => ({
@@ -754,34 +777,44 @@ export default function OrgSites() {
                           />
                         </MapView>
                       ) : (
-                        <View className="bg-slate-100 dark:bg-white/5 p-4 rounded-xl border border-slate-200 dark:border-white/5">
-                          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-normal">
-                            Interactive maps are supported on mobile devices. You can edit the coordinates manually:
-                          </Text>
-                          <View className="flex-row gap-3 mt-3">
-                            <View className="flex-1">
-                              <Text className="font-inter-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase mb-1">Latitude</Text>
-                              <TextInput
-                                value={siteForm.address.latitude ? String(siteForm.address.latitude) : ''}
-                                onChangeText={(val) => setSiteForm(prev => ({
-                                  ...prev,
-                                  address: { ...prev.address, latitude: parseFloat(val) || 0 }
-                                }))}
-                                keyboardType="numeric"
-                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg p-2 font-inter text-xs text-slate-800 dark:text-white"
-                              />
-                            </View>
-                            <View className="flex-1">
-                              <Text className="font-inter-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase mb-1">Longitude</Text>
-                              <TextInput
-                                value={siteForm.address.longitude ? String(siteForm.address.longitude) : ''}
-                                onChangeText={(val) => setSiteForm(prev => ({
-                                  ...prev,
-                                  address: { ...prev.address, longitude: parseFloat(val) || 0 }
-                                }))}
-                                keyboardType="numeric"
-                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg p-2 font-inter text-xs text-slate-800 dark:text-white"
-                              />
+                        <View style={{ gap: 12 }}>
+                          {Platform.OS === 'web' && (
+                            React.createElement('iframe', {
+                              style: { width: '100%', height: 160, border: 0, borderRadius: 12 },
+                              src: `https://www.google.com/maps/embed/v1/place?key=${process.env.EXPO_PUBLIC_WEB_GOOGLE_MAPS_API_KEY || ''}&q=${siteForm.address.latitude},${siteForm.address.longitude}`
+                            })
+                          )}
+                          <View className="bg-slate-100 dark:bg-white/5 p-4 rounded-xl border border-slate-200 dark:border-white/5">
+                            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-normal">
+                              {Platform.OS === 'web' 
+                                ? 'Preview map shown above. You can edit the coordinates manually:'
+                                : 'Interactive maps are supported on mobile devices. You can edit the coordinates manually:'}
+                            </Text>
+                            <View className="flex-row gap-3 mt-3">
+                              <View className="flex-1">
+                                <Text className="font-inter-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase mb-1">Latitude</Text>
+                                <TextInput
+                                  value={siteForm.address.latitude ? String(siteForm.address.latitude) : ''}
+                                  onChangeText={(val) => setSiteForm(prev => ({
+                                    ...prev,
+                                    address: { ...prev.address, latitude: parseFloat(val) || 0 }
+                                  }))}
+                                  keyboardType="numeric"
+                                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg p-2 font-inter text-xs text-slate-800 dark:text-white"
+                                />
+                              </View>
+                              <View className="flex-1">
+                                <Text className="font-inter-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase mb-1">Longitude</Text>
+                                <TextInput
+                                  value={siteForm.address.longitude ? String(siteForm.address.longitude) : ''}
+                                  onChangeText={(val) => setSiteForm(prev => ({
+                                    ...prev,
+                                    address: { ...prev.address, longitude: parseFloat(val) || 0 }
+                                  }))}
+                                  keyboardType="numeric"
+                                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-lg p-2 font-inter text-xs text-slate-800 dark:text-white"
+                                />
+                              </View>
                             </View>
                           </View>
                         </View>

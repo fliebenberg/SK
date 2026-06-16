@@ -39,10 +39,13 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "postinstall": "patch-package"
+  },
+  "overrides": {
+    "react-native-worklets": "0.7.3"
   },
   "private": true
 }

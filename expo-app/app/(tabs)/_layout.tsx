@@ -120,6 +120,8 @@ export default function TabLayout() {
         options={{ 
           href: null,
           headerShown: false,
+          // @ts-ignore
+          unmountOnBlur: true,
         }} 
       />
       <Tabs.Screen 

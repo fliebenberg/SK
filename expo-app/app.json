@@ -25,7 +25,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyASr1uGyFbClXmWoaX4LAdFpj4n0l3j5N0"
+        }
+      },
+      "package": "com.anonymous.expoapp"
     },
     "web": {
       "favicon": "./assets/favicon.png",
