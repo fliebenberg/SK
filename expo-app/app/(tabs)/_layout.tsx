@@ -68,11 +68,13 @@ export default function TabLayout() {
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
   
+  const shouldHideTabBar = (segments as string[]).includes('settings') || (segments as string[]).includes('[siteId]');
+
   const content = (
     <Tabs screenOptions={{
       headerShown: !isLargeScreen, // Left rail handles navigation and branding on desktop
       tabBarStyle: {
-        display: isLargeScreen ? 'none' : 'flex',
+        display: (isLargeScreen || shouldHideTabBar) ? 'none' : 'flex',
         backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
         borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
         height: 60,

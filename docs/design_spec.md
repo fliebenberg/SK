@@ -5,6 +5,9 @@ This document outlines the visual and interaction design principles for the new 
 ## 1. Design System Architecture (Variable-Driven)
 **Critical Rule**: All styling (colors, typography, spacing, border radiuses) *must* be strictly variable-driven. Whether using a Tailwind configuration file or a dedicated theme provider, no hardcoded hex codes or arbitrary spacing values should exist in component code. This ensures the entire application theme can be updated from a single central file.
 
+In the Expo mobile app, all theme colors must be referenced using the centralized [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts) configuration and the `getThemeColor(isDark, key)` helper function (imported from `c:\Fred\Coding\SK\expo-app\constants`). Hardcoded hex strings (e.g. `'#94A3B8'`) or raw `rgba` expressions are strictly prohibited in component markup and inline styling.
+
+
 ## 2. Core Aesthetic: "Immersive & Dynamic" (Dark Mode First)
 
 The application prioritizes a premium, dark-mode-first aesthetic inspired by modern live sports and esports applications (like Flashscore), with a heavy emphasis on dynamic feedback and deep contrasts.

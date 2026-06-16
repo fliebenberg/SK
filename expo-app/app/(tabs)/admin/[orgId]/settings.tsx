@@ -10,7 +10,7 @@ import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction } from '@sk/types';
 import * as ImagePicker from 'expo-image-picker';
-import { CONSTANTS } from '../../../../constants';
+import { CONSTANTS, getThemeColor } from '../../../../constants';
 import { getOrgLogoUrl } from '../../../../services/api';
 import { OrgLogo } from '../../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
@@ -705,7 +705,7 @@ export default function OrgSettings() {
                       }
                     }}
                     style={{
-                      borderColor: isEnabled ? secondaryColor : (isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0'),
+                      borderColor: isEnabled ? secondaryColor : getThemeColor(isDark, 'border'),
                       backgroundColor: isEnabled ? primaryColor : 'transparent',
                     }}
                     className="flex-row items-center gap-2 border px-3.5 py-2 rounded-xl active:scale-95"
@@ -713,11 +713,11 @@ export default function OrgSettings() {
                     <Ionicons 
                       name={isEnabled ? "checkmark-circle" : "add-circle-outline"} 
                       size={16} 
-                      color={isEnabled ? secondaryColor : (isDark ? '#94A3B8' : '#64748B')} 
+                      color={isEnabled ? secondaryColor : getThemeColor(isDark, 'textSecondary')} 
                     />
                     <Text 
-                      style={{ color: isEnabled ? getContrastColor(primaryColor) : undefined }}
-                      className={`font-inter-bold text-xs ${isEnabled ? '' : 'text-slate-500 dark:text-slate-400'}`}
+                      style={{ color: isEnabled ? getContrastColor(primaryColor) : getThemeColor(isDark, 'textSecondary') }}
+                      className="font-inter-bold text-xs"
                     >
                       {sport.name}
                     </Text>
