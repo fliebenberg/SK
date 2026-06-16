@@ -114,7 +114,9 @@ const createTables = async () => {
                 surface_type TEXT,
                 latitude DOUBLE PRECISION,
                 longitude DOUBLE PRECISION,
-                is_active BOOLEAN DEFAULT true
+                is_active BOOLEAN DEFAULT true,
+                category TEXT DEFAULT 'other',
+                primary_sport_id TEXT REFERENCES sports(id) ON DELETE SET NULL
             );
         `);
 

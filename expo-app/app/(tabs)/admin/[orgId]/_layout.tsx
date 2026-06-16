@@ -18,6 +18,7 @@ export default function OrgAdminLayout() {
       <Stack.Screen name="teams" />
       <Stack.Screen name="sites" />
       <Stack.Screen name="sites/[siteId]" />
+      <Stack.Screen name="sites/[siteId]/facilities/[facilityId]" />
       <Stack.Screen name="events" />
     </Stack>
   );

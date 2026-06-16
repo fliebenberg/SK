@@ -287,11 +287,36 @@ export default function OrgSites() {
                     <View className="flex-row flex-wrap gap-2">
                       {siteFacilities.map((fac) => {
                         const term = getFacilityTerm(fac.supportedSportIds);
+                        
+                        // Map category / sport to an icon name
+                        let iconName: any = "location-outline";
+                        if (fac.primarySportId) {
+                          const sport = sports.find(s => s.id === fac.primarySportId);
+                          const sportNameLower = (sport?.name || '').toLowerCase();
+                          if (sportNameLower.includes('rugby')) iconName = 'american-football';
+                          else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
+                          else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
+                          else if (sportNameLower.includes('cricket')) iconName = 'baseball';
+                          else if (sportNameLower.includes('golf')) iconName = 'golf';
+                          else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
+                        } else {
+                          switch(fac.category) {
+                            case 'sport_field': iconName = 'tennisball-outline'; break;
+                            case 'venue_hall': iconName = 'business-outline'; break;
+                            case 'clubhouse': iconName = 'home-outline'; break;
+                            case 'shop': iconName = 'cart-outline'; break;
+                            case 'parking': iconName = 'car-outline'; break;
+                            case 'restroom': iconName = 'water-outline'; break;
+                            default: iconName = 'location-outline';
+                          }
+                        }
+
                         return (
                           <View 
                             key={fac.id} 
-                            className={`flex-row items-center gap-1 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg border border-slate-200/50 dark:border-white/5 ${fac.isActive === false ? 'opacity-50' : ''}`}
+                            className={`flex-row items-center gap-1.5 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg border border-slate-200/50 dark:border-white/5 ${fac.isActive === false ? 'opacity-50' : ''}`}
                           >
+                            <Ionicons name={iconName} size={12} color="#FF3E00" />
                             <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
                               {fac.name}
                             </Text>

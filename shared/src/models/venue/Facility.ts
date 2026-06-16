@@ -7,4 +7,7 @@ export interface Facility {
   latitude?: number;
   longitude?: number;
   isActive?: boolean;
+  category?: string;
+  primarySportId?: string;
 }
+

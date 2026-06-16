@@ -9,7 +9,8 @@ export class FacilityManager extends BaseManager {
     let queryText = `
         SELECT f.id, f.name, f.site_id as "siteId", 
                ARRAY(SELECT sport_id FROM facility_sports WHERE facility_id = f.id) as "supportedSportIds",
-               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive"
+               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive",
+               f.category, f.primary_sport_id as "primarySportId"
         FROM facilities f
     `;
     const params: any[] = [];
@@ -25,7 +26,8 @@ export class FacilityManager extends BaseManager {
     const res = await this.query(`
         SELECT f.id, f.name, f.site_id as "siteId", 
                ARRAY(SELECT sport_id FROM facility_sports WHERE facility_id = f.id) as "supportedSportIds",
-               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive"
+               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive",
+               f.category, f.primary_sport_id as "primarySportId"
         FROM facilities f
         JOIN sites s ON f.site_id = s.id
         WHERE s.org_id = $1
@@ -37,7 +39,8 @@ export class FacilityManager extends BaseManager {
     const res = await this.query(`
         SELECT f.id, f.name, f.site_id as "siteId", 
                ARRAY(SELECT sport_id FROM facility_sports WHERE facility_id = f.id) as "supportedSportIds",
-               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive"
+               f.surface_type as "surfaceType", f.latitude, f.longitude, f.is_active as "isActive",
+               f.category, f.primary_sport_id as "primarySportId"
         FROM facilities f
         WHERE f.id = $1
     `, [id]);
@@ -48,13 +51,15 @@ export class FacilityManager extends BaseManager {
   async addFacility(facility: Omit<Facility, "id" | "siteId"> & { siteId: string, id?: string }): Promise<Facility> {
     const id = facility.id || `facility-${Date.now()}`;
     const isActive = facility.isActive !== undefined ? facility.isActive : true;
+    const category = facility.category || 'other';
+    const primarySportId = facility.primarySportId || null;
 
     await this.query('BEGIN');
     try {
         await this.query(
-            `INSERT INTO facilities (id, name, site_id, surface_type, latitude, longitude, is_active)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-             [id, facility.name, facility.siteId, facility.surfaceType, facility.latitude, facility.longitude, isActive]
+            `INSERT INTO facilities (id, name, site_id, surface_type, latitude, longitude, is_active, category, primary_sport_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+             [id, facility.name, facility.siteId, facility.surfaceType, facility.latitude, facility.longitude, isActive, category, primarySportId]
         );
 
         if (facility.supportedSportIds && facility.supportedSportIds.length > 0) {
@@ -91,13 +96,15 @@ export class FacilityManager extends BaseManager {
                 surfaceType: 'surface_type',
                 latitude: 'latitude',
                 longitude: 'longitude',
-                isActive: 'is_active'
+                isActive: 'is_active',
+                category: 'category',
+                primarySportId: 'primary_sport_id'
             };
             const clauses: string[] = [];
             const values: any[] = [];
             let idx = 1;
             keys.forEach(k => {
-                if (map[k]) {
+                if (map[k] !== undefined) {
                     clauses.push(`${map[k]} = $${idx}`);
                     values.push((data as any)[k]);
                     idx++;

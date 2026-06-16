@@ -45,11 +45,65 @@ const loadGoogleMapsScript = (callback: () => void) => {
 };
 
 // Interactive Web Map component rendering standard div via createElement
-const InteractiveWebMap = ({ latitude, longitude, title, onChange }: { latitude: number; longitude: number; title?: string; onChange: (lat: number, lng: number) => void }) => {
+const InteractiveWebMap = ({ latitude, longitude, title, onChange, facilities = [], sports = [] }: { latitude: number; longitude: number; title?: string; onChange: (lat: number, lng: number) => void; facilities?: Facility[]; sports?: any[] }) => {
   const containerRef = React.useRef<any>(null);
   const mapRef = React.useRef<any>(null);
-  const markerRef = React.useRef<any>(null);
+  const mainMarkerRef = React.useRef<any>(null);
+  const facilityMarkersRef = React.useRef<any[]>([]);
   const mapType = useSettingsStore(state => state.getEffectivePreference('mapType') || 'standard');
+  const isDark = useActiveTheme() === 'dark';
+
+  // Helper to generate dynamic SVG Marker as data URL
+  const getSvgMarker = (iconName: string, color: string, isDarkTheme: boolean) => {
+    const bgColor = isDarkTheme ? '#1E293B' : '#FFFFFF';
+    let innerSvg = '';
+    switch (iconName) {
+      case 'american-football':
+        innerSvg = `<ellipse cx="16" cy="16" rx="8" ry="4.5" fill="none" stroke="${color}" stroke-width="1.8" transform="rotate(-45 16 16)"/><line x1="11" y1="21" x2="21" y2="11" stroke="${color}" stroke-width="1.5"/><line x1="13" y1="15" x2="17" y2="19" stroke="${color}" stroke-width="1"/><line x1="15" y1="13" x2="19" y2="17" stroke="${color}" stroke-width="1"/>`;
+        break;
+      case 'football':
+        innerSvg = `<circle cx="16" cy="16" r="7" fill="none" stroke="${color}" stroke-width="1.8"/><path d="M16 9v14M9 16h14M11.5 11.5l9 9m0-9l-9 9" stroke="${color}" stroke-width="1" opacity="0.6"/>`;
+        break;
+      case 'tennisball':
+      case 'tennisball-outline':
+        innerSvg = `<circle cx="16" cy="16" r="7" fill="none" stroke="${color}" stroke-width="1.8"/><path d="M11.5 11.5a7 7 0 0 1 9 9M20.5 11.5a7 7 0 0 0-9 9" fill="none" stroke="${color}" stroke-width="1" opacity="0.8"/>`;
+        break;
+      case 'golf':
+        innerSvg = `<path d="M13 8v16m0-16l8 4-8 4" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+        break;
+      case 'baseball':
+        innerSvg = `<line x1="10" y1="22" x2="20" y2="12" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/><circle cx="21" cy="11" r="2.5" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+        break;
+      case 'trophy-outline':
+      case 'ribbon-outline':
+        innerSvg = `<path d="M11 9h10v5c0 2.5-2 4.5-4.5 4.5h-1C13 18.5 11 16.5 11 14V9zm2.5 9.5V22h-2v1h9v-1h-2v-3.5" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+        break;
+      case 'home-outline':
+        innerSvg = `<path d="M10 21v-7h12v7M8 12.5L16 6l8 6.5" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
+        break;
+      case 'cart-outline':
+        innerSvg = `<path d="M9 10h14l-1.5 8h-10L9 10zm0 0L7.5 7H5" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11" cy="21" r="1.5" fill="${color}"/><circle cx="20" cy="21" r="1.5" fill="${color}"/>`;
+        break;
+      case 'business-outline':
+        innerSvg = `<path d="M9 22V8h14v14" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="11" x2="14" y2="11" stroke="${color}" stroke-width="1.5"/><line x1="12" y1="15" x2="14" y2="15" stroke="${color}" stroke-width="1.5"/><line x1="18" y1="11" x2="20" y2="11" stroke="${color}" stroke-width="1.5"/><line x1="18" y1="15" x2="20" y2="15" stroke="${color}" stroke-width="1.5"/>`;
+        break;
+      case 'car-outline':
+        innerSvg = `<text x="16" y="16.5" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" font-size="12" fill="${color}" dominant-baseline="middle" text-anchor="middle">P</text>`;
+        break;
+      case 'water-outline':
+        innerSvg = `<text x="16" y="16.5" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" font-size="9" fill="${color}" dominant-baseline="middle" text-anchor="middle">WC</text>`;
+        break;
+      default:
+        innerSvg = `<circle cx="16" cy="16" r="3.5" fill="${color}"/>`;
+        break;
+    }
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="13" fill="${bgColor}" stroke="${color}" stroke-width="2" />
+        ${innerSvg}
+      </svg>
+    `).trim()}`;
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -73,7 +127,7 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange }: { latitude:
           mapTypeId: currentMapTypeId,
         });
 
-        markerRef.current = new google.maps.Marker({
+        mainMarkerRef.current = new google.maps.Marker({
           position: center,
           map: mapRef.current,
           draggable: true,
@@ -81,8 +135,8 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange }: { latitude:
         });
 
         // Track drag movement
-        markerRef.current.addListener('dragend', () => {
-          const pos = markerRef.current.getPosition();
+        mainMarkerRef.current.addListener('dragend', () => {
+          const pos = mainMarkerRef.current.getPosition();
           onChange(pos.lat(), pos.lng());
         });
 
@@ -97,17 +151,75 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange }: { latitude:
       } else {
         mapRef.current.setMapTypeId(currentMapTypeId);
         if (title) {
-          markerRef.current.setTitle(title);
+          mainMarkerRef.current.setTitle(title);
         }
-        const currentPos = markerRef.current.getPosition();
+        const currentPos = mainMarkerRef.current.getPosition();
         if (currentPos && (Math.abs(currentPos.lat() - latitude) > 0.0001 || Math.abs(currentPos.lng() - longitude) > 0.0001)) {
           const newPos = { lat: latitude, lng: longitude };
-          markerRef.current.setPosition(newPos);
+          mainMarkerRef.current.setPosition(newPos);
           mapRef.current.setCenter(newPos);
         }
       }
+
+      // Clear existing facility markers
+      facilityMarkersRef.current.forEach(m => m.setMap(null));
+      facilityMarkersRef.current = [];
+
+      // Add markers for all facilities
+      facilities.forEach(fac => {
+        if (fac.latitude == null || fac.longitude == null) return;
+        
+        let markerColor = '#475569'; // Default other/gray
+        if (fac.primarySportId) {
+          markerColor = '#FF3E00'; // Sport orange
+        } else {
+          switch (fac.category) {
+            case 'sport_field':
+            case 'venue_hall': markerColor = '#FF8C00'; break;
+            case 'clubhouse': markerColor = '#3B82F6'; break;
+            case 'shop': markerColor = '#10B981'; break;
+            case 'parking': markerColor = '#6B7280'; break;
+            case 'restroom': markerColor = '#8B5CF6'; break;
+          }
+        }
+
+        // Get matching clean vector icon name
+        let iconName = 'location-outline';
+        if (fac.primarySportId) {
+          const sport = sports.find(s => s.id === fac.primarySportId);
+          const sportNameLower = (sport?.name || '').toLowerCase();
+          if (sportNameLower.includes('rugby')) iconName = 'american-football';
+          else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
+          else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
+          else if (sportNameLower.includes('cricket')) iconName = 'baseball';
+          else if (sportNameLower.includes('golf')) iconName = 'golf';
+          else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
+        } else {
+          switch (fac.category) {
+            case 'sport_field': iconName = 'tennisball-outline'; break;
+            case 'venue_hall': iconName = 'business-outline'; break;
+            case 'clubhouse': iconName = 'home-outline'; break;
+            case 'shop': iconName = 'cart-outline'; break;
+            case 'parking': iconName = 'car-outline'; break;
+            case 'restroom': iconName = 'water-outline'; break;
+          }
+        }
+
+        const facMarker = new google.maps.Marker({
+          position: { lat: fac.latitude, lng: fac.longitude },
+          map: mapRef.current,
+          title: fac.name,
+          icon: {
+            url: getSvgMarker(iconName, markerColor, isDark),
+            anchor: new google.maps.Point(16, 16),
+            scaledSize: new google.maps.Size(32, 32)
+          }
+        });
+
+        facilityMarkersRef.current.push(facMarker);
+      });
     });
-  }, [latitude, longitude, title, onChange, mapType]);
+  }, [latitude, longitude, title, onChange, mapType, facilities, sports, isDark]);
 
   return React.createElement('div', {
     ref: containerRef,
@@ -207,18 +319,6 @@ export default function SiteDetails() {
   const [addressSearchQuery, setAddressSearchQuery] = useState('');
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
-
-  // Facility Sub-form State (nested modals)
-  const [isFacilityModalOpen, setIsFacilityModalOpen] = useState(false);
-  const [editingFacility, setEditingFacility] = useState<Facility | null>(null);
-  const [facilityForm, setFacilityForm] = useState({
-    name: '',
-    surfaceType: '',
-    supportedSportIds: [] as string[],
-    latitude: undefined as number | undefined,
-    longitude: undefined as number | undefined,
-    isActive: true
-  });
 
   // Check map availability
   const isMapAvailable = MapView && Marker && Platform.OS !== 'web';
@@ -493,71 +593,14 @@ export default function SiteDetails() {
   // Open Facility Editor
   const handleOpenFacilityModal = (facility: Facility | null) => {
     if (facility) {
-      setEditingFacility(facility);
-      setFacilityForm({
-        name: facility.name,
-        surfaceType: facility.surfaceType || '',
-        supportedSportIds: facility.supportedSportIds || [],
-        latitude: facility.latitude ?? siteForm.address.latitude,
-        longitude: facility.longitude ?? siteForm.address.longitude,
-        isActive: facility.isActive !== false
+      router.push({
+        pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]',
+        params: { orgId: orgId!, siteId: siteId!, facilityId: facility.id }
       });
     } else {
-      setEditingFacility(null);
-      setFacilityForm({
-        name: '',
-        surfaceType: '',
-        supportedSportIds: [],
-        latitude: siteForm.address.latitude,
-        longitude: siteForm.address.longitude,
-        isActive: true
-      });
-    }
-    setIsFacilityModalOpen(true);
-  };
-
-  // Save Facility
-  const handleSaveFacility = () => {
-    if (!facilityForm.name.trim()) {
-      Alert.alert('Validation Error', 'Facility Name is required');
-      return;
-    }
-    if (!editingSite) return;
-
-    setIsProcessing(true);
-    const payload = {
-      name: facilityForm.name,
-      siteId: editingSite.id,
-      surfaceType: facilityForm.surfaceType || undefined,
-      supportedSportIds: facilityForm.supportedSportIds,
-      latitude: facilityForm.latitude,
-      longitude: facilityForm.longitude,
-      isActive: facilityForm.isActive
-    };
-
-    if (editingFacility) {
-      wsService.emit('action', {
-        type: SocketAction.UPDATE_FACILITY,
-        payload: { id: editingFacility.id, data: payload }
-      }, (res: any) => {
-        setIsProcessing(false);
-        if (res.status === 'ok') {
-          setIsFacilityModalOpen(false);
-        } else {
-          Alert.alert('Save Failed', res.message || 'Could not update facility');
-        }
-      });
-    } else {
-      wsService.emit('action', {
-        type: SocketAction.ADD_FACILITY,
-        payload: payload
-      }, (res: any) => {
-        setIsProcessing(false);
-        if (res.status === 'ok') {
-          setIsFacilityModalOpen(false);
-        } else {
-          Alert.alert('Save Failed', res.message || 'Could not create facility');
-        }
+      router.push({
+        pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]',
+        params: { orgId: orgId!, siteId: siteId!, facilityId: 'new' }
       });
     }
   };
@@ -587,20 +630,6 @@ export default function SiteDetails() {
         }
       ]
     );
-  };
-
-  // Toggle Sport Selection
-  const handleToggleSport = (sportId: string) => {
-    setFacilityForm(prev => {
-      const idx = prev.supportedSportIds.indexOf(sportId);
-      const updated = [...prev.supportedSportIds];
-      if (idx > -1) {
-        updated.splice(idx, 1);
-      } else {
-        updated.push(sportId);
-      }
-      return { ...prev, supportedSportIds: updated };
-    });
   };
 
   return (
@@ -732,6 +761,78 @@ export default function SiteDetails() {
                             }));
                           }}
                         />
+
+                        {facilities.filter(fac => fac.siteId === editingSite?.id).map((fac) => {
+                          if (fac.latitude == null || fac.longitude == null) return null;
+
+                          let markerColor = '#475569'; // Default other/gray
+                          if (fac.primarySportId) {
+                            markerColor = '#FF3E00'; // Sport orange
+                          } else {
+                            switch (fac.category) {
+                              case 'sport_field':
+                              case 'venue_hall': markerColor = '#FF8C00'; break;
+                              case 'clubhouse': markerColor = '#3B82F6'; break;
+                              case 'shop': markerColor = '#10B981'; break;
+                              case 'parking': markerColor = '#6B7280'; break;
+                              case 'restroom': markerColor = '#8B5CF6'; break;
+                            }
+                          }
+
+                          // Get Ionicons icon name and color for the custom view marker
+                          let iconName: any = "location-outline";
+                          if (fac.primarySportId) {
+                            const sport = sports.find(s => s.id === fac.primarySportId);
+                            const sportNameLower = (sport?.name || '').toLowerCase();
+                            if (sportNameLower.includes('rugby')) iconName = 'american-football';
+                            else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
+                            else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
+                            else if (sportNameLower.includes('cricket')) iconName = 'baseball';
+                            else if (sportNameLower.includes('golf')) iconName = 'golf';
+                            else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
+                          } else {
+                            switch (fac.category) {
+                              case 'sport_field': iconName = 'tennisball-outline'; break;
+                              case 'venue_hall': iconName = 'business-outline'; break;
+                              case 'clubhouse': iconName = 'home-outline'; break;
+                              case 'shop': iconName = 'cart-outline'; break;
+                              case 'parking': iconName = 'car-outline'; break;
+                              case 'restroom': iconName = 'water-outline'; break;
+                            }
+                          }
+
+                          return (
+                            <Marker
+                              key={fac.id}
+                              coordinate={{
+                                latitude: fac.latitude,
+                                longitude: fac.longitude
+                              }}
+                              title={fac.name}
+                              description={fac.surfaceType || undefined}
+                              tracksViewChanges={false}
+                            >
+                              <View 
+                                style={{
+                                  backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                                  padding: 6,
+                                  borderRadius: 20,
+                                  borderWidth: 1.5,
+                                  borderColor: markerColor,
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  shadowColor: '#000',
+                                  shadowOffset: { width: 0, height: 2 },
+                                  shadowOpacity: 0.25,
+                                  shadowRadius: 3.84,
+                                  elevation: 5,
+                                }}
+                              >
+                                <Ionicons name={iconName} size={14} color={markerColor} />
+                              </View>
+                            </Marker>
+                          );
+                        })}
                       </MapView>
                       <TouchableOpacity
                         onPress={() => setMapType(mapType === 'standard' ? 'satellite' : 'standard')}
@@ -747,6 +848,8 @@ export default function SiteDetails() {
                       latitude={siteForm.address.latitude}
                       longitude={siteForm.address.longitude}
                       title={siteForm.name || "Site Location"}
+                      facilities={facilities}
+                      sports={sports}
                       onChange={(lat, lng) => {
                         setSiteForm(prev => ({
                           ...prev,
@@ -796,6 +899,30 @@ export default function SiteDetails() {
                         >
                           <View className="flex-1 mr-4">
                             <View className="flex-row items-center gap-1.5 flex-wrap">
+                              {(() => {
+                                let iconName: any = "location-outline";
+                                if (fac.primarySportId) {
+                                  const sport = sports.find(s => s.id === fac.primarySportId);
+                                  const sportNameLower = (sport?.name || '').toLowerCase();
+                                  if (sportNameLower.includes('rugby')) iconName = 'american-football';
+                                  else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
+                                  else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
+                                  else if (sportNameLower.includes('cricket')) iconName = 'baseball';
+                                  else if (sportNameLower.includes('golf')) iconName = 'golf';
+                                  else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
+                                } else {
+                                  switch(fac.category) {
+                                    case 'sport_field': iconName = 'tennisball-outline'; break;
+                                    case 'venue_hall': iconName = 'business-outline'; break;
+                                    case 'clubhouse': iconName = 'home-outline'; break;
+                                    case 'shop': iconName = 'cart-outline'; break;
+                                    case 'parking': iconName = 'car-outline'; break;
+                                    case 'restroom': iconName = 'water-outline'; break;
+                                    default: iconName = 'location-outline';
+                                  }
+                                }
+                                return <Ionicons name={iconName} size={12} color="#FF3E00" />;
+                              })()}
                               <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">{fac.name}</Text>
                               <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 italic">({term})</Text>
                               {fac.isActive === false && (
@@ -893,183 +1020,6 @@ export default function SiteDetails() {
                 </>
               )}
             </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* ADD / EDIT FACILITY MODAL (NESTED SUB-MODAL) */}
-      {isFacilityModalOpen && (
-        <View className="absolute inset-0 bg-slate-950/90 items-center justify-center z-50 p-4">
-          <View 
-            className="w-full max-w-md border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl"
-            style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF', maxHeight: '90%' }}
-          >
-            {/* Sub-Modal Header */}
-            <View className="flex-row items-center justify-between border-b border-slate-200 dark:border-white/5 px-5 pt-5 pb-4">
-              <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider">
-                {editingFacility ? 'Edit Facility Details' : 'Add New Facility'}
-              </Text>
-              <TouchableOpacity onPress={() => setIsFacilityModalOpen(false)}>
-                <Ionicons name="close" size={20} color="#94A3B8" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Scrollable Form */}
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24 }}
-              showsVerticalScrollIndicator={false}
-            >
-              <View className="space-y-4">
-                {/* Facility Name */}
-                <View>
-                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase mb-1.5 tracking-wider">Facility Name</Text>
-                  <TextInput
-                    value={facilityForm.name}
-                    onChangeText={(val) => setFacilityForm(prev => ({ ...prev, name: val }))}
-                    placeholder="e.g. Field A or Court 2"
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white outline-none"
-                  />
-                </View>
-
-                {/* Surface Type */}
-                <View>
-                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase mb-1.5 tracking-wider">Surface Type</Text>
-                  <TextInput
-                    value={facilityForm.surfaceType}
-                    onChangeText={(val) => setFacilityForm(prev => ({ ...prev, surfaceType: val }))}
-                    placeholder="e.g. Grass, Clay, Hardcourt, Indoor"
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white outline-none"
-                  />
-                </View>
-
-                {/* Active Status */}
-                <TouchableOpacity 
-                  onPress={() => setFacilityForm(prev => ({ ...prev, isActive: !prev.isActive }))}
-                  className="flex-row items-center gap-2 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 bg-slate-50 dark:bg-slate-900 self-start"
-                >
-                  <Ionicons name={facilityForm.isActive ? "checkbox" : "square-outline"} size={18} color={facilityForm.isActive ? "#FF3E00" : "#94A3B8"} />
-                  <Text className="font-inter text-sm text-slate-800 dark:text-white font-medium">Active Facility</Text>
-                </TouchableOpacity>
-
-                {/* Supported Sports (Multiple Select) */}
-                <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-wider">Supported Sports (Select all that apply)</Text>
-                  <View className="space-y-1.5">
-                    {sports.map(s => {
-                      const isSelected = facilityForm.supportedSportIds.includes(s.id);
-                      return (
-                        <TouchableOpacity
-                          key={s.id}
-                          onPress={() => handleToggleSport(s.id)}
-                          className={`flex-row items-center justify-between px-4 py-2.5 border rounded-xl ${isSelected ? 'bg-brand-orange/5 border-brand-orange/30' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-white/5'}`}
-                        >
-                          <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
-                            {s.name}
-                          </Text>
-                          <Ionicons 
-                            name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
-                            size={16} 
-                            color={isSelected ? "#FF3E00" : "#94A3B8"} 
-                          />
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {sports.length === 0 && (
-                      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">No sports registered on server.</Text>
-                    )}
-                  </View>
-                </View>
-
-                {/* Facility Specific Coordinate Pin Map */}
-                <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-                  <View className="flex-row justify-between items-center mb-2">
-                    <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                      Facility Coordinates (Drag pin to position)
-                    </Text>
-                  </View>
-                  
-                  {isMapAvailable && facilityForm.latitude != null && facilityForm.longitude != null ? (
-                    <View style={{ position: 'relative', width: '100%', height: 140, borderRadius: 12, overflow: 'hidden' }}>
-                      <MapView
-                        mapType={mapType}
-                        style={{ width: '100%', height: '100%' }}
-                        initialRegion={{
-                          latitude: facilityForm.latitude,
-                          longitude: facilityForm.longitude,
-                          latitudeDelta: 0.002,
-                          longitudeDelta: 0.002
-                        }}
-                        region={{
-                          latitude: facilityForm.latitude,
-                          longitude: facilityForm.longitude,
-                          latitudeDelta: 0.002,
-                          longitudeDelta: 0.002
-                        }}
-                      >
-                        <Marker
-                          coordinate={{
-                            latitude: facilityForm.latitude,
-                            longitude: facilityForm.longitude
-                          }}
-                          draggable
-                          title={facilityForm.name || "Facility Location"}
-                          onDragEnd={(e: any) => {
-                            const coords = e.nativeEvent.coordinate;
-                            setFacilityForm(prev => ({
-                              ...prev,
-                              latitude: coords.latitude,
-                              longitude: coords.longitude
-                            }));
-                          }}
-                        />
-                      </MapView>
-                      <TouchableOpacity
-                        onPress={() => setMapType(mapType === 'standard' ? 'satellite' : 'standard')}
-                        style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}
-                        className="flex-row items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-2.5 py-1.5 rounded-lg shadow-md active:opacity-85"
-                      >
-                        <Ionicons name={mapType === 'satellite' ? "map" : "earth"} size={12} color="#FF3E00" />
-                        <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">{mapType === 'satellite' ? 'Map' : 'Satellite'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : Platform.OS === 'web' && facilityForm.latitude != null && facilityForm.longitude != null ? (
-                    <InteractiveWebMap
-                      latitude={facilityForm.latitude}
-                      longitude={facilityForm.longitude}
-                      title={facilityForm.name || "Facility Location"}
-                      onChange={(lat, lng) => {
-                        setFacilityForm(prev => ({
-                          ...prev,
-                          latitude: lat,
-                          longitude: lng
-                        }));
-                      }}
-                    />
-                  ) : null}
-                </View>
-              </View>
-            </ScrollView>
-
-            {/* Sub-Modal Footer Actions */}
-            <View className="flex-row justify-end gap-3 border-t border-slate-200 dark:border-white/5 px-5 pt-4 pb-4 bg-slate-50 dark:bg-slate-900 rounded-b-2xl">
-              <Button
-                title="Cancel"
-                variant="secondary"
-                onPress={() => setIsFacilityModalOpen(false)}
-                disabled={isProcessing}
-                className="px-6 rounded-lg py-2"
-              />
-              <Button
-                title={isProcessing ? "Saving..." : (editingFacility ? "Save Changes" : "Create Facility")}
-                variant="primary"
-                onPress={handleSaveFacility}
-                disabled={isProcessing || !facilityForm.name.trim()}
-                className="px-6 rounded-lg py-2"
-              />
-            </View>
           </View>
         </View>
       )}
