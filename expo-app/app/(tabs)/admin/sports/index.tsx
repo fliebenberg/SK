@@ -38,10 +38,21 @@ export default function SportsList() {
     <View className="flex-1 bg-slate-50 dark:bg-slate-950">
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* HEADER SECTION */}
-        <View className="mb-6">
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
-            View and configure the rules, terminology, and default player positions for all active sports.
-          </Text>
+        <View className="flex-row items-center justify-between gap-4 mb-6">
+          <View className="flex-1">
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-normal">
+              View and configure the rules, terminology, and default player positions for all active sports.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => router.push('/admin/sports/new' as any)}
+            className="bg-brand-orange px-3.5 py-2 rounded-xl flex-row items-center gap-1.5 active:scale-95 shadow-md shadow-brand-orange/20 flex-shrink-0"
+          >
+            <Ionicons name="add-circle" size={14} color="white" />
+            <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-wider mt-0.5">
+              Add Sport
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {isLoading ? (

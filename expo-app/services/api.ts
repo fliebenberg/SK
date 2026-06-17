@@ -348,9 +348,28 @@ export const apiService = {
       body: JSON.stringify(data),
     });
 
+    return response.json();
+  },
+
+  /**
+   * Create a new sport configuration (Admin only)
+   */
+  async createAdminSport(
+    token: string,
+    data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any }
+  ): Promise<Sport> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/sports`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to update sport');
+      throw new Error(errorData.message || 'Failed to create sport');
     }
 
     return response.json();

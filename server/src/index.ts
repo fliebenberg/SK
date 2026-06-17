@@ -606,6 +606,38 @@ app.get('/api/admin/sports', requireAdmin, async (req: any, res: any) => {
   }
 });
 
+// POST /api/admin/sports - Create a new sport
+app.post('/api/admin/sports', requireAdmin, async (req: any, res: any) => {
+  try {
+    const { name, facilityTerm, periodTerm, defaultSettings } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: "Name is required" });
+    }
+
+    const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const id = `sport-${slug}`;
+
+    const existing = await sportManager.getSport(id);
+    if (existing) {
+      return res.status(400).json({ message: `A sport with name matching "${name}" already exists.` });
+    }
+
+    const createdSport = await sportManager.createSport({
+      id,
+      name: name.trim(),
+      facilityTerm: (facilityTerm || '').trim(),
+      periodTerm: (periodTerm || '').trim(),
+      defaultSettings: defaultSettings || {}
+    });
+
+    return res.status(201).json(createdSport);
+  } catch (error) {
+    console.error("Admin create sport error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 // GET /api/admin/sports/:id - Get details of a single sport
 app.get('/api/admin/sports/:id', requireAdmin, async (req: any, res: any) => {
   try {

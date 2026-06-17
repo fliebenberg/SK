@@ -67,6 +67,15 @@ export class SportManager extends BaseManager {
     return dbSport;
   }
 
+  async createSport(data: { id: string; name: string; facilityTerm: string; periodTerm: string; defaultSettings: any }): Promise<Sport | undefined> {
+    await this.query(
+      `INSERT INTO sports (id, name, facility_term, period_term, default_settings) 
+       VALUES ($1, $2, $3, $4, $5)`,
+      [data.id, data.name, data.facilityTerm, data.periodTerm, JSON.stringify(data.defaultSettings || {})]
+    );
+    return this.getSport(data.id);
+  }
+
   async updateSport(id: string, data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any }): Promise<Sport | undefined> {
     await this.query(
       `UPDATE sports 
