@@ -321,7 +321,7 @@ export default function TabLayout() {
                 { label: 'Org Settings', icon: 'settings', route: `/admin/${orgId}/settings` },
                 { label: 'People & Roles', icon: 'people', route: `/admin/${orgId}/people` },
                 { label: 'Teams & Divisions', icon: 'trophy', route: `/admin/${orgId}/teams` },
-                { label: 'Facilities & Courts', icon: 'location', route: `/admin/${orgId}/sites` },
+                { label: 'Sites and Facilities', icon: 'location', route: `/admin/${orgId}/sites` },
                 { label: 'Fixtures & Events', icon: 'calendar', route: `/admin/${orgId}/events` },
               ].map((item) => (
                 <TouchableOpacity

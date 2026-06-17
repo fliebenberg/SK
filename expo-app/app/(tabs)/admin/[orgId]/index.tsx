@@ -115,7 +115,7 @@ export default function OrgControlDashboard() {
       bgColor: 'bg-cyan-500/10',
     },
     {
-      title: 'Facilities & Courts',
+      title: 'Sites and Facilities',
       description: 'Configure facilities, playgrounds, and arenas',
       icon: 'location-outline' as const,
       route: `/admin/${orgId}/sites` as const,

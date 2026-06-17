@@ -93,7 +93,7 @@ export function LeftNavigationRail() {
         { name: 'settings', label: 'Org Settings', icon: 'settings' as const, route: `/admin/${orgId}/settings` as const },
         { name: 'people', label: 'People & Roles', icon: 'people' as const, route: `/admin/${orgId}/people` as const },
         { name: 'teams', label: 'Teams & Divisions', icon: 'trophy' as const, route: `/admin/${orgId}/teams` as const },
-        { name: 'sites', label: 'Facilities & Courts', icon: 'location' as const, route: `/admin/${orgId}/sites` as const },
+        { name: 'sites', label: 'Sites and Facilities', icon: 'location' as const, route: `/admin/${orgId}/sites` as const },
         { name: 'events', label: 'Fixtures & Events', icon: 'calendar' as const, route: `/admin/${orgId}/events` as const },
       ];
 
