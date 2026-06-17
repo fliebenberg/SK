@@ -26,11 +26,6 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyASr1uGyFbClXmWoaX4LAdFpj4n0l3j5N0"
-        }
-      },
       "package": "com.anonymous.expoapp"
     },
     "web": {
