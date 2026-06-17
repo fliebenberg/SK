@@ -6,7 +6,7 @@ const pool = new Pool({
   user: 'sk_admin',
   password: 'scorekeeper'
 });
-pool.query('SELECT id, name FROM sports').then(res => {
+pool.query('SELECT id, name, default_settings FROM sports').then(res => {
   console.log(JSON.stringify(res.rows, null, 2));
   process.exit(0);
 }).catch(err => {

@@ -69,6 +69,29 @@ export default function AdminDashboard() {
               <Ionicons name="arrow-forward" size={16} color="#FF3E00" />
             </TouchableOpacity>
           </GlassCard>
+
+          {/* SPORT MANAGEMENT CARD */}
+          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
+            <View className="flex-row items-center gap-3.5 flex-1">
+              <View className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-850/20 items-center justify-center flex-shrink-0">
+                <Ionicons name="trophy-outline" size={18} color={isDark ? "#60A5FA" : "#1D4ED8"} />
+              </View>
+              <View className="flex-1">
+                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
+                  Sport Management
+                </Text>
+                <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                  View and edit sport rules, names, terms, and player positions
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/admin/sports' as any)}
+              className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg active:opacity-85"
+            >
+              <Ionicons name="arrow-forward" size={16} color="#FF3E00" />
+            </TouchableOpacity>
+          </GlassCard>
         </View>
       </ScrollView>
     </View>

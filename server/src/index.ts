@@ -17,6 +17,7 @@ import crypto from 'crypto';
 import { emailService } from './services/EmailService';
 import { userManager } from './managers/UserManager';
 import { mailManager } from './managers/MailManager';
+import { sportManager } from './managers/SportManager';
 
 dotenv.config();
 
@@ -590,6 +591,60 @@ app.post('/api/admin/users/:id/temp-password', requireAdmin, async (req, res) =>
     });
   } catch (error) {
     console.error("Admin temp-password error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/admin/sports - List all sports
+app.get('/api/admin/sports', requireAdmin, async (req: any, res: any) => {
+  try {
+    const sports = await sportManager.getSports();
+    return res.json(sports);
+  } catch (error) {
+    console.error("Admin list sports error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// GET /api/admin/sports/:id - Get details of a single sport
+app.get('/api/admin/sports/:id', requireAdmin, async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const sport = await sportManager.getSport(id);
+    if (!sport) {
+      return res.status(404).json({ message: "Sport not found" });
+    }
+    return res.json(sport);
+  } catch (error) {
+    console.error("Admin get sport error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// PATCH /api/admin/sports/:id - Update a sport's settings
+app.patch('/api/admin/sports/:id', requireAdmin, async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const { name, facilityTerm, periodTerm, defaultSettings } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: "Name is required" });
+    }
+
+    const updatedSport = await sportManager.updateSport(id, {
+      name: name.trim(),
+      facilityTerm: (facilityTerm || '').trim(),
+      periodTerm: (periodTerm || '').trim(),
+      defaultSettings: defaultSettings || {}
+    });
+
+    if (!updatedSport) {
+      return res.status(404).json({ message: "Sport not found" });
+    }
+
+    return res.json(updatedSport);
+  } catch (error) {
+    console.error("Admin update sport error:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

@@ -290,6 +290,71 @@ export const apiService = {
 
     return response.json();
   },
+
+  /**
+   * Fetch all sports configurations (Admin only)
+   */
+  async getAdminSports(token: string): Promise<Sport[]> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/sports`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to fetch sports');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Fetch a single sport's details (Admin only)
+   */
+  async getAdminSport(token: string, id: string): Promise<Sport> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/sports/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to fetch sport details');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Update a sport's settings (Admin only)
+   */
+  async updateAdminSport(
+    token: string,
+    id: string,
+    data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any }
+  ): Promise<Sport> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/sports/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to update sport');
+    }
+
+    return response.json();
+  },
 };
 
 export interface PaginatedAdminSearchUserResult {
@@ -318,4 +383,28 @@ export interface AdminSearchUserResult {
   }>;
   linkedEmails: string[];
   matchScore: number;
+}
+
+export interface SportPosition {
+  id: string;
+  name: string;
+}
+
+export interface SportSettings {
+  maxReserves?: number;
+  positions?: SportPosition[];
+  yellowCardDurationMS?: number;
+  redCardDurationMS?: number;
+  allowTimedRedCard?: boolean;
+}
+
+export interface Sport {
+  id: string;
+  name: string;
+  facilityTerm?: string;
+  periodTerm?: string;
+  participantType?: 'TEAM' | 'INDIVIDUAL';
+  matchTopology?: 'HEAD_TO_HEAD' | 'MULTI_COMPETITOR';
+  defaultSettings?: SportSettings;
+  eventTemplates?: any[];
 }
