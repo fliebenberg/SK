@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../../components/GlassCard';
-import { Button } from '../../../../../components/Button';
+import { GlassCard } from '../../../../components/GlassCard';
+import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useSettingsStore, useActiveTheme } from '../../../../../store/settingsStore';
-import { wsService } from '../../../../../services/websocket';
-import { useWsStore } from '../../../../../store/wsStore';
+import { useSettingsStore, useActiveTheme } from '../../../../store/settingsStore';
+import { wsService } from '../../../../services/websocket';
+import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Site, Facility, Address } from '@sk/types';
+import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -50,7 +51,7 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, facilities = 
   const mapRef = React.useRef<any>(null);
   const mainMarkerRef = React.useRef<any>(null);
   const facilityMarkersRef = React.useRef<any[]>([]);
-  const mapType = useSettingsStore(state => state.getEffectivePreference('mapType') || 'standard');
+  const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
   const isDark = useActiveTheme() === 'dark';
 
   // Helper to generate dynamic SVG Marker as data URL
@@ -232,22 +233,26 @@ export default function SiteDetails() {
   const { orgId, siteId } = useLocalSearchParams<{ orgId: string; siteId: string }>();
   const isNew = siteId === 'new';
   const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore(state => state.isConnected);
+  const isConnected = useWsStore((state: any) => state.isConnected);
 
   // Loading States
-  const [isLoading, setIsLoading] = useState(!isNew);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const mapType = useSettingsStore(state => state.getEffectivePreference('mapType') || 'standard');
+  const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
   const setMapType = (val: 'standard' | 'satellite') => {
     useSettingsStore.getState().setLocalOverride('mapType', val);
   };
 
   // Data State
+  const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites } = useSocketQuery<Site[]>('sites', { orgId });
+  const { data: sportsData } = useSocketQuery<any[]>('sports');
+
+  const sports = sportsData || [];
+  const sites = sitesData || [];
+
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [facilities, setFacilities] = useState<Facility[]>([]);
-  const [sports, setSports] = useState<any[]>([]);
 
   // Site Form State
   const [siteForm, setSiteForm] = useState({
@@ -338,63 +343,51 @@ export default function SiteDetails() {
     }
   }, [siteForm.address.latitude, siteForm.address.longitude]);
 
-  // Load Initial Data
+  // Reactively populate editing site and form when sitesData loads
+  useEffect(() => {
+    if (sitesData && !isNew) {
+      const site = sitesData.find(s => s.id === siteId);
+      if (site) {
+        setEditingSite(site);
+        const initialAddress = site.address || {
+          id: '',
+          fullAddress: '',
+          addressLine1: '',
+          addressLine2: '',
+          city: '',
+          province: '',
+          postalCode: '',
+          country: '',
+          latitude: undefined,
+          longitude: undefined,
+        } as Address;
+        setSiteForm(prev => {
+          if (prev.name === '' && prev.address.fullAddress === '') {
+            return {
+              name: site.name,
+              isActive: site.isActive !== false,
+              address: initialAddress
+            };
+          }
+          return prev;
+        });
+        setOriginalData({
+          name: site.name,
+          isActive: site.isActive !== false,
+          address: { ...initialAddress }
+        });
+        setAddressSearchQuery(prev => prev === '' ? (site.address?.fullAddress || '') : prev);
+      } else {
+        Alert.alert('Error', 'Site not found');
+        router.back();
+      }
+    }
+  }, [sitesData, siteId, isNew]);
+
+  // Subscribe to updates for Sites & Facilities rooms
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
-    let active = true;
-
-    if (!isNew) {
-      setIsLoading(true);
-    }
-
-    // Fetch Sites to populate if editing
-    wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-      if (!active) return;
-      if (Array.isArray(res) && !isNew) {
-        const site = res.find(s => s.id === siteId);
-        if (site) {
-          setEditingSite(site);
-          const initialAddress = site.address || {
-            id: '',
-            fullAddress: '',
-            addressLine1: '',
-            addressLine2: '',
-            city: '',
-            province: '',
-            postalCode: '',
-            country: '',
-            latitude: undefined,
-            longitude: undefined,
-          } as Address;
-          setSiteForm({
-            name: site.name,
-            isActive: site.isActive !== false,
-            address: initialAddress
-          });
-          setOriginalData({
-            name: site.name,
-            isActive: site.isActive !== false,
-            address: { ...initialAddress }
-          });
-          setAddressSearchQuery(site.address?.fullAddress || '');
-        } else {
-          Alert.alert('Error', 'Site not found');
-          router.back();
-        }
-      }
-      setIsLoading(false);
-    });
-
-    // Fetch Sports
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (!active) return;
-      if (Array.isArray(res)) {
-        setSports(res);
-      }
-    });
-
-    // Subscribe to updates for Sites & Facilities rooms
     const sitesRoom = `org:${orgId}:sites`;
     const facilitiesRoom = `org:${orgId}:facilities`;
     
@@ -402,42 +395,10 @@ export default function SiteDetails() {
     const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom);
 
     const handleUpdate = (event: any) => {
-      if (!active) return;
       if (!event) return;
 
       if (!isNew && (event.type === 'SITES_SYNC' || event.type === 'SITE_ADDED' || event.type === 'SITE_UPDATED' || event.type === 'SITE_DELETED')) {
-        wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-          if (!active) return;
-          if (Array.isArray(res)) {
-            const site = res.find(s => s.id === siteId);
-            if (site) {
-              setEditingSite(site);
-              const initialAddress = site.address || {
-                id: '',
-                fullAddress: '',
-                addressLine1: '',
-                addressLine2: '',
-                city: '',
-                province: '',
-                postalCode: '',
-                country: '',
-                latitude: undefined,
-                longitude: undefined,
-              } as Address;
-              setSiteForm(prev => ({
-                ...prev,
-                name: site.name,
-                isActive: site.isActive !== false,
-                address: site.address || prev.address
-              }));
-              setOriginalData({
-                name: site.name,
-                isActive: site.isActive !== false,
-                address: { ...initialAddress }
-              });
-            }
-          }
-        });
+        refetchSites();
       }
       
       if (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_ADDED' || event.type === 'FACILITY_UPDATED' || event.type === 'FACILITY_DELETED') {
@@ -454,12 +415,13 @@ export default function SiteDetails() {
     wsService.emit('join_room', `org:${orgId}:facilities`);
 
     return () => {
-      active = false;
       unsubscribeSites();
       unsubscribeFacilities();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId, siteId, isNew]);
+  }, [isConnected, orgId, isNew, refetchSites]);
+
+  const isLoading = !isNew && (isSitesLoading || !sportsData || !editingSite);
 
   // Resolve Sport-Specific Facility Term
   const getFacilityTerm = (supportedSportIds?: string[]) => {

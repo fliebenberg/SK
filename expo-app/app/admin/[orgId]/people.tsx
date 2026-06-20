@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../components/GlassCard';
-import { Button } from '../../../../components/Button';
+import { GlassCard } from '../../../components/GlassCard';
+import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../../store/settingsStore';
-import { wsService } from '../../../../services/websocket';
-import { useWsStore } from '../../../../store/wsStore';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { wsService } from '../../../services/websocket';
+import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, OrgProfile, OrgMember } from '@sk/types';
-import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
-import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
-import { getAvatarUrl } from '../../../../services/api';
+import { PersonnelAutocomplete } from '../../../components/PersonnelAutocomplete';
+import { ImageEditor, ImageConfig } from '../../../components/ImageEditor';
+import { getAvatarUrl } from '../../../services/api';
+import { useSocketQuery } from '../../../hooks/useSocketQuery';
 
 interface OrgRole {
   id: string;
@@ -40,11 +41,13 @@ export default function OrgPeople() {
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [members, setMembers] = useState<OrgMember[]>([]);
-  const [availableRoles, setAvailableRoles] = useState<OrgRole[]>([]);
-  const [cooldownSetting, setCooldownSetting] = useState<number>(168); // default to 168 hours (7 days)
+  const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers } = useSocketQuery<OrgMember[]>('org_members', { orgId });
+  const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
+  const { data: settingsData } = useSocketQuery<any>('system_settings');
 
+  const members = membersData || [];
+  const availableRoles: any[] = rolesData?.org || [];
+  
   // Filtering / Sorting state
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -69,6 +72,18 @@ export default function OrgPeople() {
     image: '',
     imageConfig: { scale: 1, x: 0, y: 0 },
   });
+
+  // Set default roleId once roles load
+  useEffect(() => {
+    if (rolesData && Array.isArray(rolesData.org)) {
+      const defaultRole = rolesData.org.find((r: any) => r.name === 'Member')?.id || rolesData.org[0]?.id;
+      setNewMemberData(prev => ({ ...prev, roleId: defaultRole || 'role-org-member' }));
+    }
+  }, [rolesData]);
+
+  const cooldownSetting = settingsData?.invite_cooldown_hours ? parseInt(settingsData.invite_cooldown_hours) : 168;
+
+  const isLoading = isMembersLoading || isRolesLoading;
 
   // Edit Member Modal State
   const [isEditing, setIsEditing] = useState(false);
@@ -114,66 +129,26 @@ export default function OrgPeople() {
     setImageEditorTarget(null);
   };
 
-  // Load Initial Data
+  // Subscribe to updates
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
-    let active = true;
-    setIsLoading(true);
-
-    // Get members
-    wsService.emit('get_data', { type: 'org_members', orgId }, (res: any) => {
-      if (!active) return;
-      if (Array.isArray(res)) {
-        setMembers(res);
-      }
-      setIsLoading(false);
-    });
-
-    // Get roles
-    wsService.emit('get_data', { type: 'roles' }, (res: any) => {
-      if (!active) return;
-      if (res && Array.isArray(res.org)) {
-        setAvailableRoles(res.org);
-        // default roleId
-        const defaultRole = res.org.find((r: any) => r.name === 'Member')?.id || res.org[0]?.id;
-        setNewMemberData(prev => ({ ...prev, roleId: defaultRole || 'role-org-member' }));
-      }
-    });
-
-    // Get system settings
-    wsService.emit('get_data', { type: 'system_settings' }, (res: any) => {
-      if (!active) return;
-      if (res && res.invite_cooldown_hours) {
-        setCooldownSetting(parseInt(res.invite_cooldown_hours));
-      }
-    });
-
-    // Subscribe to updates
     const room = `org:${orgId}:members`;
     const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
-      if (!active) return;
       if (event && (event.type === 'ORG_MEMBERS_SYNC' || event.type === 'ORG_MEMBER_UPDATED')) {
-        // Refresh members
-        wsService.emit('get_data', { type: 'org_members', orgId }, (res: any) => {
-          if (!active) return;
-          if (Array.isArray(res)) {
-            setMembers(res);
-          }
-        });
+        refetchMembers();
       }
     };
 
     wsService.on('update', handleUpdate);
 
     return () => {
-      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId]);
+  }, [isConnected, orgId, refetchMembers]);
 
   // Add Member Submission
   const handleAddMember = async () => {

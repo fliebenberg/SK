@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../components/GlassCard';
-import { Button } from '../../../../components/Button';
+import { GlassCard } from '../../../components/GlassCard';
+import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../../store/settingsStore';
-import { wsService } from '../../../../services/websocket';
-import { useWsStore } from '../../../../store/wsStore';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { wsService } from '../../../services/websocket';
+import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, Site, Facility, Address } from '@sk/types';
+import { useSocketQuery } from '../../../hooks/useSocketQuery';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -28,10 +29,13 @@ export default function OrgSites() {
   const isConnected = useWsStore(state => state.isConnected);
 
   // Data State
-  const [isLoading, setIsLoading] = useState(true);
-  const [sites, setSites] = useState<Site[]>([]);
+  const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites } = useSocketQuery<Site[]>('sites', { orgId });
+  const { data: sportsData } = useSocketQuery<any[]>('sports');
+
   const [facilities, setFacilities] = useState<Facility[]>([]);
-  const [sports, setSports] = useState<any[]>([]);
+
+  const sites = sitesData || [];
+  const sports = sportsData || [];
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,31 +44,10 @@ export default function OrgSites() {
   // Modals & Forms State
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Load Initial Data
+  // Load Initial Data & Subscribe to updates for Sites & Facilities
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
-    let active = true;
-    setIsLoading(true);
-
-    // Fetch Sites
-    wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-      if (!active) return;
-      if (Array.isArray(res)) {
-        setSites(res);
-      }
-      setIsLoading(false);
-    });
-
-    // Fetch Sports
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (!active) return;
-      if (Array.isArray(res)) {
-        setSports(res);
-      }
-    });
-
-    // Subscribe to updates for Sites & Facilities
     const sitesRoom = `org:${orgId}:sites`;
     const facilitiesRoom = `org:${orgId}:facilities`;
     
@@ -72,22 +55,15 @@ export default function OrgSites() {
     const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom);
 
     const handleUpdate = (event: any) => {
-      if (!active) return;
       if (!event) return;
 
       if (event.type === 'SITES_SYNC' || event.type === 'SITE_ADDED' || event.type === 'SITE_UPDATED' || event.type === 'SITE_DELETED') {
-        wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-          if (!active) return;
-          if (Array.isArray(res)) setSites(res);
-        });
+        refetchSites();
       }
       
       if (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_ADDED' || event.type === 'FACILITY_UPDATED' || event.type === 'FACILITY_DELETED') {
         if (event.type === 'FACILITIES_SYNC' && Array.isArray(event.data)) {
           setFacilities(event.data);
-        } else {
-          // Re-sync by room subscription trigger or read cache
-          // If the event payload doesn't carry full data, we can get it from room broadcast
         }
       }
     };
@@ -95,20 +71,13 @@ export default function OrgSites() {
     wsService.on('update', handleUpdate);
 
     return () => {
-      active = false;
       unsubscribeSites();
       unsubscribeFacilities();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId]);
+  }, [isConnected, orgId, refetchSites]);
 
-  // Sync facilities on connection room messages
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
-    // We register event update listener, but also query once to populate
-    // Because facilities sync is room broadcast, we can trigger room query
-    wsService.emit('join_room', `org:${orgId}:facilities`);
-  }, [isConnected, orgId]);
+  const isLoading = isSitesLoading || !sportsData;
 
   // Resolve Sport-Specific Facility Term
   const getFacilityTerm = (supportedSportIds?: string[]) => {

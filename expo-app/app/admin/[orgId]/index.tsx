@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useGlobalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../components/GlassCard';
-import { Button } from '../../../../components/Button';
+import { GlassCard } from '../../../components/GlassCard';
+import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../../store/settingsStore';
-import { wsService } from '../../../../services/websocket';
-import { useWsStore } from '../../../../store/wsStore';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { OrgLogo } from '@/components/OrgLogo';
 import { getContrastColor } from '@/utils/colorUtils';
@@ -15,43 +14,26 @@ import { useAuthStore } from '@/store/authStore';
 
 export default function OrgControlDashboard() {
   const router = useRouter();
-  const { orgId } = useLocalSearchParams<{ orgId: string }>();
+  const { orgId } = useGlobalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore(state => state.isConnected);
   const { user, orgMemberships } = useAuthStore();
 
-  const [orgData, setOrgData] = useState<any>(null);
-  const [sportsMap, setSportsMap] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: sportsList } = useSocketQuery('sports');
+  const { data: orgData, isLoading: isOrgLoading } = useSocketQuery('organization', { id: orgId });
 
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
-    
-    let active = true;
-    setIsLoading(true);
-    wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
-      if (!active) return;
-      const map: Record<string, string> = {};
-      if (Array.isArray(sportsList)) {
-        sportsList.forEach((s: any) => {
-          map[s.id] = s.name;
-        });
-      }
-      setSportsMap(map);
-
-      wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-        if (!active) return;
-        setOrgData(res);
-        setIsLoading(false);
+  const sportsMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (Array.isArray(sportsList)) {
+      sportsList.forEach((s: any) => {
+        map[s.id] = s.name;
       });
-    });
+    }
+    return map;
+  }, [sportsList]);
 
-    return () => {
-      active = false;
-    };
-  }, [isConnected, orgId]);
+  const isLoading = isOrgLoading || !sportsList || !orgData;
 
-  if (isLoading || !orgData) {
+  if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center" edges={['top', 'left', 'right']}>
         <ActivityIndicator size="large" color="#FF3E00" />

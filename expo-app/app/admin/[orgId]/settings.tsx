@@ -2,20 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, useWindowDimensions, Platform, KeyboardAvoidingView, PanResponder } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../components/GlassCard';
-import { Button } from '../../../../components/Button';
+import { GlassCard } from '../../../components/GlassCard';
+import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../../store/settingsStore';
-import { wsService } from '../../../../services/websocket';
-import { useWsStore } from '../../../../store/wsStore';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { wsService } from '../../../services/websocket';
+import { useWsStore } from '../../../store/wsStore';
 import { SocketAction } from '@sk/types';
 import * as ImagePicker from 'expo-image-picker';
-import { CONSTANTS, getThemeColor } from '../../../../constants';
-import { getOrgLogoUrl } from '../../../../services/api';
-import { OrgLogo } from '../../../../components/OrgLogo';
+import { CONSTANTS, getThemeColor } from '../../../constants';
+import { getOrgLogoUrl } from '../../../services/api';
+import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { getContrastColor, hexToRgba } from '@/utils/colorUtils';
-import { ImageEditor } from '../../../../components/ImageEditor';
+import { ImageEditor } from '../../../components/ImageEditor';
+import { useSocketQuery } from '../../../hooks/useSocketQuery';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -105,7 +106,6 @@ export default function OrgSettings() {
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
 
-  const [isLoading, setIsLoading] = useState(true);
   const [orgName, setOrgName] = useState('');
   const [shortName, setShortName] = useState('');
   const [primaryColor, setPrimaryColor] = useState('');
@@ -165,90 +165,65 @@ export default function OrgSettings() {
   const [sportToDeactivate, setSportToDeactivate] = useState<{ id: string; name: string } | null>(null);
   const [deactivationPending, setDeactivationPending] = useState<{ sportIds: string[]; details: { id: string; name: string; activeTeams: any[] }[] } | null>(null);
 
+  const { data: sportsList } = useSocketQuery('sports');
+  const { data: teamsList } = useSocketQuery('teams', { orgId });
+  const { data: orgData, isLoading: isOrgLoading, refetch: refetchOrg } = useSocketQuery('organization', { id: orgId });
+
+  useEffect(() => {
+    if (Array.isArray(sportsList)) {
+      setAllSports(sportsList);
+    }
+  }, [sportsList]);
+
+  useEffect(() => {
+    if (Array.isArray(teamsList)) {
+      setOrgTeams(teamsList);
+    }
+  }, [teamsList]);
+
+  useEffect(() => {
+    if (orgData) {
+      setOrgName(orgData.name || '');
+      setShortName(orgData.shortName || '');
+      setPrimaryColor(orgData.primaryColor || '#FF3E00');
+      setSecondaryColor(orgData.secondaryColor || '#00E5FF');
+      setLogo(orgData.logo || '');
+      setDescription(orgData.description || '');
+      
+      // Load settings and logoConfig
+      const orgSettings = orgData.settings || {};
+      setSettings(orgSettings);
+      const lConfig = orgSettings.logoConfig || { scale: 1, x: 0, y: 0 };
+      setLogoConfig(lConfig);
+
+      const sIds = orgData.supportedSportIds || [];
+      setSupportedSportIds(sIds);
+
+      setOriginalData({
+        orgName: orgData.name || '',
+        shortName: orgData.shortName || '',
+        primaryColor: orgData.primaryColor || '#FF3E00',
+        secondaryColor: orgData.secondaryColor || '#00E5FF',
+        logo: orgData.logo || '',
+        description: orgData.description || '',
+        logoConfig: lConfig,
+        supportedSportIds: sIds,
+      });
+    }
+  }, [orgData]);
+
+  const isLoading = isOrgLoading || !sportsList || !teamsList || !orgData;
+
   useEffect(() => {
     if (!isConnected || !orgId) return;
-
-    let active = true;
-
-    wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
-      if (!active) return;
-      if (Array.isArray(sportsList)) {
-        setAllSports(sportsList);
-      }
-    });
-
-    wsService.emit('get_data', { type: 'teams', orgId }, (teamsList: any) => {
-      if (!active) return;
-      if (Array.isArray(teamsList)) {
-        setOrgTeams(teamsList);
-      }
-    });
-
-    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (!active) return;
-      if (res) {
-        setOrgName(res.name || '');
-        setShortName(res.shortName || '');
-        setPrimaryColor(res.primaryColor || '#FF3E00');
-        setSecondaryColor(res.secondaryColor || '#00E5FF');
-        setLogo(res.logo || '');
-        setDescription(res.description || '');
-        
-        // Load settings and logoConfig
-        const orgSettings = res.settings || {};
-        setSettings(orgSettings);
-        const lConfig = orgSettings.logoConfig || { scale: 1, x: 0, y: 0 };
-        setLogoConfig(lConfig);
-
-        const sIds = res.supportedSportIds || [];
-        setSupportedSportIds(sIds);
-
-        setOriginalData({
-          orgName: res.name || '',
-          shortName: res.shortName || '',
-          primaryColor: res.primaryColor || '#FF3E00',
-          secondaryColor: res.secondaryColor || '#00E5FF',
-          logo: res.logo || '',
-          description: res.description || '',
-          logoConfig: lConfig,
-          supportedSportIds: sIds,
-        });
-      }
-      setIsLoading(false);
-    });
 
     const room = `org:${orgId}:summary`;
     const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
-      if (!active) return;
       if (event && event.type === 'ORGANIZATION_UPDATED') {
         if (event.data && event.data.id === orgId) {
-          setOrgName(event.data.name || '');
-          setShortName(event.data.shortName || '');
-          setPrimaryColor(event.data.primaryColor || '#FF3E00');
-          setSecondaryColor(event.data.secondaryColor || '#00E5FF');
-          setLogo(event.data.logo || '');
-          setDescription(event.data.description || '');
-          
-          const orgSettings = event.data.settings || {};
-          setSettings(orgSettings);
-          const lConfig = orgSettings.logoConfig || { scale: 1, x: 0, y: 0 };
-          setLogoConfig(lConfig);
-
-          const sIds = event.data.supportedSportIds || [];
-          setSupportedSportIds(sIds);
-
-          setOriginalData({
-            orgName: event.data.name || '',
-            shortName: event.data.shortName || '',
-            primaryColor: event.data.primaryColor || '#FF3E00',
-            secondaryColor: event.data.secondaryColor || '#00E5FF',
-            logo: event.data.logo || '',
-            description: event.data.description || '',
-            logoConfig: lConfig,
-            supportedSportIds: sIds,
-          });
+          refetchOrg();
         }
       }
     };
@@ -256,11 +231,10 @@ export default function OrgSettings() {
     wsService.on('update', handleUpdate);
 
     return () => {
-      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId]);
+  }, [isConnected, orgId, refetchOrg]);
 
 
 

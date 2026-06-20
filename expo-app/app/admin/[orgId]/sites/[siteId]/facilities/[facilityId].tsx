@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../../../../../../../components/Button';
+import { Button } from '../../../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useSettingsStore, useActiveTheme } from '../../../../../../../store/settingsStore';
-import { wsService } from '../../../../../../../services/websocket';
-import { useWsStore } from '../../../../../../../store/wsStore';
-import { SocketAction, Facility } from '@sk/types';
+import { useSettingsStore, useActiveTheme } from '../../../../../../store/settingsStore';
+import { wsService } from '../../../../../../services/websocket';
+import { useWsStore } from '../../../../../../store/wsStore';
+import { SocketAction, Facility, Site } from '@sk/types';
+import { useSocketQuery } from '../../../../../../hooks/useSocketQuery';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -47,7 +48,7 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, category, pri
   const containerRef = React.useRef<any>(null);
   const mapRef = React.useRef<any>(null);
   const markerRef = React.useRef<any>(null);
-  const mapType = useSettingsStore(state => state.getEffectivePreference('mapType') || 'standard');
+  const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
   const isDark = useActiveTheme() === 'dark';
 
   // Helper to generate dynamic SVG Marker as data URL
@@ -225,20 +226,24 @@ export default function FacilityDetails() {
   const { orgId, siteId, facilityId } = useLocalSearchParams<{ orgId: string; siteId: string; facilityId: string }>();
   const isNew = facilityId === 'new';
   const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore(state => state.isConnected);
+  const isConnected = useWsStore((state: any) => state.isConnected);
 
   // Loading States
-  const [isLoading, setIsLoading] = useState(!isNew);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const mapType = useSettingsStore(state => state.getEffectivePreference('mapType') || 'standard');
+  const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
   const setMapType = (val: 'standard' | 'satellite') => {
     useSettingsStore.getState().setLocalOverride('mapType', val);
   };
 
   // Data State
-  const [sports, setSports] = useState<any[]>([]);
+  const { data: sportsData } = useSocketQuery<any[]>('sports');
+  const { data: sitesData } = useSocketQuery<Site[]>('sites', { orgId });
+  const { data: facilitiesData, isLoading: isFacilitiesLoading, refetch: refetchFacilities } = useSocketQuery<Facility[]>('facilities', { siteId });
+
+  const sports = sportsData || [];
+  const sites = sitesData || [];
   const [facilityForm, setFacilityForm] = useState({
     name: '',
     surfaceType: '',
@@ -296,103 +301,87 @@ export default function FacilityDetails() {
     }
   };
 
-  // Load Data
+  // Populate facility form
+  useEffect(() => {
+    if (!isNew) {
+      if (facilitiesData) {
+        const fac = facilitiesData.find(f => f.id === facilityId);
+        if (fac) {
+          const data = {
+            name: fac.name || '',
+            surfaceType: fac.surfaceType || '',
+            supportedSportIds: fac.supportedSportIds || [],
+            latitude: fac.latitude,
+            longitude: fac.longitude,
+            category: fac.category || 'other',
+            primarySportId: fac.primarySportId || ''
+          };
+          setFacilityForm(prev => {
+            if (prev.name === '' && prev.category === 'other') {
+              return data;
+            }
+            return prev;
+          });
+          setOriginalData({ ...data, supportedSportIds: [...data.supportedSportIds] });
+        }
+      }
+    } else {
+      // For a new facility, default to parent site coordinates if available
+      if (sitesData) {
+        const site = sitesData.find(s => s.id === siteId);
+        if (site && site.address) {
+          setFacilityForm(prev => {
+            if (prev.latitude === undefined && prev.longitude === undefined) {
+              return {
+                ...prev,
+                latitude: site.address?.latitude,
+                longitude: site.address?.longitude
+              };
+            }
+            return prev;
+          });
+          setOriginalData(prev => prev ? {
+            ...prev,
+            latitude: site.address?.latitude,
+            longitude: site.address?.longitude
+          } : {
+            name: '',
+            surfaceType: '',
+            supportedSportIds: [],
+            latitude: site.address?.latitude,
+            longitude: site.address?.longitude,
+            category: 'other',
+            primarySportId: ''
+          });
+        }
+      }
+    }
+  }, [facilitiesData, sitesData, facilityId, isNew, siteId]);
+
+  // Subscribe to updates for facilities room
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
-    let active = true;
+    const facilitiesRoom = `org:${orgId}:facilities`;
+    const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom);
 
-    // Fetch Sports
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (!active) return;
-      if (Array.isArray(res)) {
-        setSports(res);
+    const handleUpdate = (event: any) => {
+      if (!event) return;
+      if (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_ADDED' || event.type === 'FACILITY_UPDATED' || event.type === 'FACILITY_DELETED') {
+        refetchFacilities();
       }
-    });
+    };
 
-    if (!isNew) {
-      setIsLoading(true);
-      // Fetch specifically the facility
-      wsService.emit('join_room', `org:${orgId}:facilities`);
-      
-      const handleFacilitiesSync = (event: any) => {
-        if (!active) return;
-        if (event && (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_UPDATED') && Array.isArray(event.data)) {
-          const fac = event.data.find((f: any) => f.id === facilityId);
-          if (fac) {
-            const data = {
-              name: fac.name || '',
-              surfaceType: fac.surfaceType || '',
-              supportedSportIds: fac.supportedSportIds || [],
-              latitude: fac.latitude,
-              longitude: fac.longitude,
-              category: fac.category || 'other',
-              primarySportId: fac.primarySportId || ''
-            };
-            setFacilityForm(data);
-            setOriginalData({ ...data, supportedSportIds: [...data.supportedSportIds] });
-            setIsLoading(false);
-          }
-        }
-      };
+    wsService.on('update', handleUpdate);
+    wsService.emit('join_room', `org:${orgId}:facilities`);
 
-      wsService.on('update', handleFacilitiesSync);
+    return () => {
+      unsubscribeFacilities();
+      wsService.off('update', handleUpdate);
+    };
+  }, [isConnected, orgId, refetchFacilities]);
 
-      // Trigger a room fetch
-      wsService.emit('action', {
-        type: 'GET_FACILITIES',
-        payload: { siteId }
-      }, (res: any) => {
-        if (!active) return;
-        if (res && Array.isArray(res)) {
-          const fac = res.find((f: any) => f.id === facilityId);
-          if (fac) {
-            const data = {
-              name: fac.name || '',
-              surfaceType: fac.surfaceType || '',
-              supportedSportIds: fac.supportedSportIds || [],
-              latitude: fac.latitude,
-              longitude: fac.longitude,
-              category: fac.category || 'other',
-              primarySportId: fac.primarySportId || ''
-            };
-            setFacilityForm(data);
-            setOriginalData({ ...data, supportedSportIds: [...data.supportedSportIds] });
-            setIsLoading(false);
-          }
-        }
-      });
-
-      return () => {
-        active = false;
-        wsService.off('update', handleFacilitiesSync);
-      };
-    } else {
-      // For a new facility, default to parent site coordinates if available
-      wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-        if (!active) return;
-        if (Array.isArray(res)) {
-          const site = res.find(s => s.id === siteId);
-          if (site && site.address) {
-            setFacilityForm(prev => ({
-              ...prev,
-              latitude: site.address.latitude,
-              longitude: site.address.longitude
-            }));
-            setOriginalData(prev => prev ? {
-              ...prev,
-              latitude: site.address.latitude,
-              longitude: site.address.longitude
-            } : null);
-          }
-        }
-      });
-
-      return () => {
-        active = false;
-      };
-    }
-  }, [isConnected, orgId, facilityId, isNew, siteId]);
+  const isLoading = !isNew && (isFacilitiesLoading || !sportsData || !originalData);
 
   // Save Facility
   const handleSaveFacility = () => {

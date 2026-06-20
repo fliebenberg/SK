@@ -1,4 +1,4 @@
-import { Tabs, useRouter, useSegments, useGlobalSearchParams } from 'expo-router';
+import { Tabs, useRouter, useSegments, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { useActiveTheme } from '../../store/settingsStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useWindowDimensions, View, TouchableOpacity, Text, Image } from 'react-native';
@@ -9,10 +9,12 @@ import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
 import { getOrgLogoUrl } from '../../services/api';
 import { OrgLogo } from '../../components/OrgLogo';
+import { CommonActions } from '@react-navigation/native';
 
 export default function TabLayout() {
   const router = useRouter();
   const segments = useSegments();
+  const navigation = useNavigation();
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const isSettingsActive = segments[1] === 'settings' || segments[1] === 'admin';
@@ -28,7 +30,7 @@ export default function TabLayout() {
   const [workspaceMenuVisible, setWorkspaceMenuVisible] = useState(false);
   const lastFetchedId = useRef<string | null>(null);
 
-  const isOrgAdmin = segments[0] === '(tabs)' && segments[1] === 'admin' && segments[2] === '[orgId]';
+  const isOrgAdmin = false;
 
   useEffect(() => {
     if (!isConnected || !orgId || !isOrgAdmin) {
@@ -350,7 +352,11 @@ export default function TabLayout() {
               <TouchableOpacity
                 onPress={() => {
                   setWorkspaceMenuVisible(false);
-                  router.push('/(tabs)/organizations' as any);
+                  console.log('[Exit Workspace Mobile] Navigating back to organizations.', {
+                    currentSegments: segments,
+                    currentOrgId: orgId,
+                  });
+                  router.replace('/(tabs)/organizations' as any);
                 }}
                 className="flex-row items-center gap-3 px-3 py-2 rounded-lg active:bg-red-50 dark:active:bg-red-950/25"
               >

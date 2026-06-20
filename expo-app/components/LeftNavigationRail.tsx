@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Platform, Image } from 'react-native';
-import { useRouter, useSegments, useGlobalSearchParams } from 'expo-router';
+import { useRouter, useSegments, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
 import { useAuthStore } from '../store/authStore';
@@ -8,10 +8,12 @@ import { API_BASE_URL, getOrgLogoUrl } from '../services/api';
 import { OrgLogo } from './OrgLogo';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
+import { CommonActions } from '@react-navigation/native';
 
 export function LeftNavigationRail() {
   const router = useRouter();
   const segments = useSegments();
+  const navigation = useNavigation();
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const { user, isAuthenticated } = useAuthStore();
@@ -22,8 +24,8 @@ export function LeftNavigationRail() {
   const lastFetchedId = useRef<string | null>(null);
 
   // Check if we are in the org admin panel
-  const isOrgAdmin = segments[0] === '(tabs)' && segments[1] === 'admin' && segments[2] === '[orgId]';
-  const orgSubTab = isOrgAdmin ? (segments[3] || 'dashboard') : '';
+  const isOrgAdmin = segments[0] === 'admin';
+  const orgSubTab = isOrgAdmin ? (segments[2] || 'dashboard') : '';
 
   useEffect(() => {
     if (!isConnected || !orgId || !isOrgAdmin) {
@@ -196,7 +198,13 @@ export function LeftNavigationRail() {
 
             {/* Exit Workspace Button */}
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/organizations' as any)}
+               onPress={() => {
+                  console.log('[Exit Workspace Desktop] Navigating back to organizations.', {
+                    currentSegments: segments,
+                    currentOrgId: orgId,
+                  });
+                  router.replace('/(tabs)/organizations' as any);
+               }}
               className="flex-row items-center gap-3.5 px-3 py-3 mt-4 rounded-xl border border-dashed border-slate-300 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 active:opacity-85"
             >
               <Ionicons name="arrow-back-outline" size={20} color="#FF3E00" />

@@ -42,7 +42,6 @@ export default function AdminLayout() {
       <Stack.Screen name="users" options={{ title: 'USER MANAGEMENT' }} />
       <Stack.Screen name="sports/index" options={{ title: 'SPORT MANAGEMENT' }} />
       <Stack.Screen name="sports/[sportId]" options={{ title: 'EDIT SPORT' }} />
-      <Stack.Screen name="[orgId]" options={{ headerShown: false }} />
     </Stack>
   );
 }
