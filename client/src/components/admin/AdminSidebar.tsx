@@ -30,19 +30,15 @@ import {
 import { useState } from "react";
 import { Organization } from "@sk/types";
 import { useAdminNavigation } from "@/hooks/useAdminNavigation";
-import { useNavigationGuardContext } from "@/contexts/NavigationGuardContext";
 
 interface AdminSidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 export function AdminSidebar({ className }: AdminSidebarProps) {
   const router = useRouter();
   const { pathname, organizations, currentOrg, sidebarItems, hasOwnedOrg } = useAdminNavigation();
-  const { confirmNavigation } = useNavigationGuardContext();
 
   const handleOrgChange = (org: Organization) => {
-      confirmNavigation(() => {
-          router.push(`/admin/organizations/${org.id}`);
-      });
+      router.push(`/admin/organizations/${org.id}`);
   };
 
   const contrastColor = currentOrg?.primaryColor ? getContrastColor(currentOrg.primaryColor) : undefined;
@@ -101,7 +97,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
                 );
               })}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => confirmNavigation(() => router.push("/admin/organizations/new"))}>
+              <DropdownMenuItem onSelect={() => router.push("/admin/organizations/new")}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create New
               </DropdownMenuItem>
@@ -119,15 +115,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
                 className="w-full justify-start"
                 asChild
               >
-                <Link 
-                  href={item.href}
-                  onClick={(e) => {
-                      e.preventDefault();
-                      confirmNavigation(() => {
-                          router.push(item.href);
-                      });
-                  }}
-                >
+                <Link href={item.href}>
                   <item.icon className="mr-2 h-4 w-4" />
                   {item.title}
                 </Link>
@@ -145,15 +133,7 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
                 className="w-full justify-start"
                 asChild
             >
-                <Link 
-                  href="/admin/settings"
-                  onClick={(e) => {
-                      e.preventDefault();
-                      confirmNavigation(() => {
-                          router.push("/admin/settings");
-                      });
-                  }}
-                >
+                <Link href="/admin/settings">
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                 </Link>
@@ -168,7 +148,6 @@ export function MobileSidebar() {
     const [open, setOpen] = useState(false);
     const router = useRouter();
     const { pathname, organizations, currentOrg, sidebarItems, hasOwnedOrg } = useAdminNavigation();
-    const { confirmNavigation } = useNavigationGuardContext();
     const contrastColor = currentOrg?.primaryColor ? getContrastColor(currentOrg.primaryColor) : undefined;
     const hasActualLogo = currentOrg?.logo && !isPlaceholderLogo(currentOrg.logo);
 
@@ -217,10 +196,8 @@ export function MobileSidebar() {
                                 <DropdownMenuItem
                                 key={org.id}
                                 onSelect={() => {
-                                    confirmNavigation(() => {
-                                        router.push(`/admin/organizations/${org.id}`);
-                                        setOpen(false);
-                                    });
+                                    router.push(`/admin/organizations/${org.id}`);
+                                    setOpen(false);
                                 }}
                                 className="justify-between mb-1 cursor-pointer"
                                 style={{
@@ -241,10 +218,8 @@ export function MobileSidebar() {
                         })}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => {
-                            confirmNavigation(() => {
-                                router.push("/admin/organizations/new");
-                                setOpen(false);
-                            });
+                            router.push("/admin/organizations/new");
+                            setOpen(false);
                         }}>
                             <Plus className="mr-2 h-4 w-4" />
                             Create New
@@ -262,17 +237,9 @@ export function MobileSidebar() {
                                 variant={pathname === item.href ? "secondary" : "ghost"}
                                 className="w-full justify-start"
                                 asChild
+                                onClick={() => setOpen(false)}
                             >
-                                <Link 
-                                    href={item.href}
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        confirmNavigation(() => {
-                                            router.push(item.href);
-                                            setOpen(false);
-                                        });
-                                    }}
-                                >
+                                <Link href={item.href}>
                                     <item.icon className="mr-2 h-4 w-4" />
                                     {item.title}
                                 </Link>
@@ -288,17 +255,9 @@ export function MobileSidebar() {
                             variant={pathname === "/admin/settings" ? "secondary" : "ghost"}
                             className="w-full justify-start"
                             asChild
+                            onClick={() => setOpen(false)}
                         >
-                            <Link 
-                                href="/admin/settings"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    confirmNavigation(() => {
-                                        router.push("/admin/settings");
-                                        setOpen(false);
-                                    });
-                                }}
-                            >
+                            <Link href="/admin/settings">
                                 <Settings className="mr-2 h-4 w-4" />
                                 Settings
                             </Link>
