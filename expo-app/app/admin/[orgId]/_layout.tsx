@@ -86,6 +86,7 @@ export default function OrgAdminLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="people" />
+      <Stack.Screen name="people/[membershipId]" />
       <Stack.Screen name="teams" />
       <Stack.Screen name="teams/new" />
       <Stack.Screen name="teams/[teamId]" />

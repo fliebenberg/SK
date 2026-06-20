@@ -103,47 +103,24 @@ export default function OrgPeople() {
 
   const isLoading = isMembersLoading || isRolesLoading;
 
-  // Edit Member Modal State
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingPerson, setEditingPerson] = useState<{
-    id: string;
-    membershipId: string;
-    name: string;
-    email: string;
-    cellphone: string;
-    birthdate: string;
-    nationalId: string;
-    personOrgId: string;
-    roleId: string;
-    image: string;
-    imageConfig: { scale: number; x: number; y: number };
-  } | null>(null);
-  const [originalEditData, setOriginalEditData] = useState<any>(null);
-
   // Remove Confirmation State
   const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; membershipId: string; name: string } | null>(null);
 
-  // Image Editor state — which form slot (add / edit) is being edited
-  const [imageEditorTarget, setImageEditorTarget] = useState<'add' | 'edit' | null>(null);
+  // Image Editor state — which form slot (add) is being edited
+  const [imageEditorTarget, setImageEditorTarget] = useState<'add' | null>(null);
 
   // Resolve the image URI to pass to ImageEditor (must be a displayable absolute URI)
   const getEditorImage = () => {
-    const raw = imageEditorTarget === 'add' ? newMemberData.image
-      : imageEditorTarget === 'edit' ? (editingPerson?.image ?? '')
-      : '';
+    const raw = imageEditorTarget === 'add' ? newMemberData.image : '';
     return getAvatarUrl(raw, 'large') || raw;
   };
 
   const getEditorConfig = (): ImageConfig =>
-    imageEditorTarget === 'add' ? newMemberData.imageConfig
-    : imageEditorTarget === 'edit' ? (editingPerson?.imageConfig ?? { scale: 1, x: 0, y: 0 })
-    : { scale: 1, x: 0, y: 0 };
+    imageEditorTarget === 'add' ? newMemberData.imageConfig : { scale: 1, x: 0, y: 0 };
 
   const handleImageEditorApply = (uri: string, config: ImageConfig) => {
     if (imageEditorTarget === 'add') {
       setNewMemberData(prev => ({ ...prev, image: uri, imageConfig: config }));
-    } else if (imageEditorTarget === 'edit') {
-      setEditingPerson(prev => prev ? ({ ...prev, image: uri, imageConfig: config }) : null);
     }
     setImageEditorTarget(null);
   };
@@ -252,85 +229,6 @@ export default function OrgPeople() {
     } catch (error) {
       console.error(error);
       alert('Failed to add member');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Edit member selection
-  const handleStartEdit = (member: OrgMember) => {
-    const lConfig = parseImageConfig(member.imageConfig || (member as any).settings?.logoConfig);
-    const initialData = {
-      id: member.id,
-      membershipId: member.membershipId,
-      name: member.name,
-      email: member.email || '',
-      cellphone: member.cellphone || '',
-      birthdate: member.birthdate || '',
-      nationalId: member.nationalId || '',
-      personOrgId: member.personOrgId || '',
-      roleId: member.roleId,
-      image: member.image || '',
-      imageConfig: lConfig,
-    };
-    setEditingPerson(initialData);
-    setOriginalEditData(JSON.stringify(initialData));
-    setIsEditing(true);
-  };
-
-  const isEditDirty = () => {
-    if (!editingPerson || !originalEditData) return false;
-    return JSON.stringify(editingPerson) !== originalEditData;
-  };
-
-  // Save changes
-  const handleSaveEdit = async () => {
-    if (!editingPerson || !editingPerson.name.trim()) return;
-
-    setIsProcessing(true);
-    try {
-      // 1. Update Profile
-      await new Promise((resolve, reject) => {
-        wsService.emit('action', {
-          type: SocketAction.UPDATE_ORG_PROFILE,
-          payload: {
-            id: editingPerson.id,
-            data: {
-              name: editingPerson.name,
-              email: editingPerson.email || undefined,
-              cellphone: editingPerson.cellphone || undefined,
-              birthdate: editingPerson.birthdate || undefined,
-              nationalId: editingPerson.nationalId || undefined,
-              image: editingPerson.image || undefined,
-              imageConfig: editingPerson.imageConfig,
-              identifier: editingPerson.personOrgId || undefined,
-            }
-          }
-        }, (res: any) => {
-          if (res.status === 'ok') resolve(res.data);
-          else reject(new Error(res.message || 'Failed to update profile'));
-        });
-      });
-
-      // 2. Update Member Role
-      await new Promise((resolve, reject) => {
-        wsService.emit('action', {
-          type: SocketAction.UPDATE_ORG_MEMBER,
-          payload: {
-            id: editingPerson.membershipId,
-            roleId: editingPerson.roleId
-          }
-        }, (res: any) => {
-          if (res.status === 'ok') resolve(res.data);
-          else reject(new Error(res.message || 'Failed to update role'));
-        });
-      });
-
-      setIsEditing(false);
-      setEditingPerson(null);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to save changes');
     } finally {
       setIsProcessing(false);
     }
@@ -613,7 +511,10 @@ export default function OrgPeople() {
 
                   <TouchableOpacity
                     className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg"
-                    onPress={() => handleStartEdit(member)}
+                    onPress={() => router.push({
+                      pathname: '/admin/[orgId]/people/[membershipId]',
+                      params: { orgId: orgId!, membershipId: member.membershipId }
+                    })}
                   >
                     <Ionicons name="pencil-outline" size={15} color="#94A3B8" />
                   </TouchableOpacity>
@@ -822,186 +723,7 @@ export default function OrgPeople() {
         </View>
       )}
 
-      {/* EDIT MEMBER MODAL */}
-      {isEditing && editingPerson && (
-        <View className="absolute inset-0 bg-slate-950/80 items-center justify-center z-40 p-4">
-          <View 
-            className="w-full max-w-md border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl"
-            style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF', maxHeight: '90%' }}
-          >
-            {/* Fixed Header */}
-            <View className="flex-row items-center justify-between border-b border-slate-200 dark:border-white/5 px-5 pt-5 pb-4">
-              <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider">
-                Edit Member Details
-              </Text>
-              <TouchableOpacity onPress={() => setIsEditing(false)}>
-                <Ionicons name="close" size={20} color="#94A3B8" />
-              </TouchableOpacity>
-            </View>
 
-            {/* Scrollable Form Fields */}
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Row 1: Avatar Uploader + Name Input side-by-side */}
-              <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center', marginBottom: 24 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <TouchableOpacity
-                    onPress={() => setImageEditorTarget('edit')}
-                    style={{ width: 64, height: 64, borderRadius: 32, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#CBD5E1' }}
-                  >
-                    {editingPerson.image ? (
-                      <View style={{ width: 64, height: 64, overflow: 'hidden' }}>
-                        <View
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            transform: [
-                              { scale: editingPerson.imageConfig.scale },
-                              { translateX: editingPerson.imageConfig.x * 64 },
-                              { translateY: editingPerson.imageConfig.y * 64 },
-                            ],
-                          }}
-                        >
-                          <Image
-                            source={{ uri: getAvatarUrl(editingPerson.image, 'medium') }}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                            }}
-                            resizeMode="cover"
-                          />
-                        </View>
-                      </View>
-                    ) : (
-                      <Ionicons name="camera-outline" size={20} color="#94A3B8" />
-                    )}
-                  </TouchableOpacity>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 7, color: '#94A3B8', textTransform: 'uppercase', marginTop: 4 }}>
-                    Avatar
-                  </Text>
-                </View>
-
-                {/* Name Input */}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Name
-                  </Text>
-                  <TextInput
-                    value={editingPerson.name}
-                    onChangeText={(text) => setEditingPerson(prev => prev ? ({ ...prev, name: text }) : null)}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 }}
-                  />
-                </View>
-              </View>
-
-              {/* Row 2: Email Address & Cell Number */}
-              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Email Address
-                  </Text>
-                  <TextInput
-                    placeholder="email@example.com"
-                    placeholderTextColor="#94A3B8"
-                    value={editingPerson.email}
-                    onChangeText={(text) => setEditingPerson(prev => prev ? ({ ...prev, email: text }) : null)}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Cell Number
-                  </Text>
-                  <TextInput
-                    placeholder="e.g. +1 234 567 8900"
-                    placeholderTextColor="#94A3B8"
-                    value={editingPerson.cellphone}
-                    onChangeText={(text) => setEditingPerson(prev => prev ? ({ ...prev, cellphone: text }) : null)}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
-                  />
-                </View>
-              </View>
-
-              {/* Row 3: Org ID + Birthdate side-by-side */}
-              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Org ID (e.g. Student #)
-                  </Text>
-                  <TextInput
-                    placeholder="ID number"
-                    placeholderTextColor="#94A3B8"
-                    value={editingPerson.personOrgId}
-                    onChangeText={(text) => setEditingPerson(prev => prev ? ({ ...prev, personOrgId: text }) : null)}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Birthdate
-                  </Text>
-                  <TextInput
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94A3B8"
-                    value={editingPerson.birthdate}
-                    onChangeText={(text) => setEditingPerson(prev => prev ? ({ ...prev, birthdate: text }) : null)}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
-                  />
-                </View>
-              </View>
-
-              {/* Row 4: Assigned Role */}
-              <View style={{ marginBottom: 8 }}>
-                <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 }}>
-                  Assigned Role
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {availableRoles.map(role => (
-                    <TouchableOpacity
-                      key={role.id}
-                      onPress={() => setEditingPerson(prev => prev ? ({ ...prev, roleId: role.id }) : null)}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: editingPerson.roleId === role.id ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.1)' : '#CBD5E1'),
-                        backgroundColor: editingPerson.roleId === role.id ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)'),
-                      }}
-                    >
-                      <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, textTransform: 'uppercase', letterSpacing: 1.5, color: editingPerson.roleId === role.id ? '#fff' : (isDark ? '#94A3B8' : '#64748B') }}>
-                        {role.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </ScrollView>
-
-            {/* Fixed Footer Action Buttons */}
-            <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0' }}>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={() => setIsEditing(false)}
-                className="flex-1 min-h-[40px] py-2"
-              />
-              <Button
-                title={isProcessing ? 'Saving...' : 'Save Changes'}
-                variant="primary"
-                onPress={handleSaveEdit}
-                disabled={isProcessing || !isEditDirty() || !editingPerson.name.trim()}
-                className="flex-1 min-h-[40px] py-2"
-              />
-            </View>
-          </View>
-        </View>
-      )}
 
       {/* CONFIRM DELETE MODAL */}
       {confirmDelete && confirmDelete.isOpen && (
