@@ -168,19 +168,24 @@ export default function OrgSettings() {
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
+    let active = true;
+
     wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
+      if (!active) return;
       if (Array.isArray(sportsList)) {
         setAllSports(sportsList);
       }
     });
 
     wsService.emit('get_data', { type: 'teams', orgId }, (teamsList: any) => {
+      if (!active) return;
       if (Array.isArray(teamsList)) {
         setOrgTeams(teamsList);
       }
     });
 
     wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+      if (!active) return;
       if (res) {
         setOrgName(res.name || '');
         setShortName(res.shortName || '');
@@ -216,6 +221,7 @@ export default function OrgSettings() {
     const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
+      if (!active) return;
       if (event && event.type === 'ORGANIZATION_UPDATED') {
         if (event.data && event.data.id === orgId) {
           setOrgName(event.data.name || '');
@@ -250,6 +256,7 @@ export default function OrgSettings() {
     wsService.on('update', handleUpdate);
 
     return () => {
+      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };

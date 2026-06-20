@@ -300,8 +300,11 @@ export default function FacilityDetails() {
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
+    let active = true;
+
     // Fetch Sports
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
+      if (!active) return;
       if (Array.isArray(res)) {
         setSports(res);
       }
@@ -313,6 +316,7 @@ export default function FacilityDetails() {
       wsService.emit('join_room', `org:${orgId}:facilities`);
       
       const handleFacilitiesSync = (event: any) => {
+        if (!active) return;
         if (event && (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_UPDATED') && Array.isArray(event.data)) {
           const fac = event.data.find((f: any) => f.id === facilityId);
           if (fac) {
@@ -339,6 +343,7 @@ export default function FacilityDetails() {
         type: 'GET_FACILITIES',
         payload: { siteId }
       }, (res: any) => {
+        if (!active) return;
         if (res && Array.isArray(res)) {
           const fac = res.find((f: any) => f.id === facilityId);
           if (fac) {
@@ -359,11 +364,13 @@ export default function FacilityDetails() {
       });
 
       return () => {
+        active = false;
         wsService.off('update', handleFacilitiesSync);
       };
     } else {
       // For a new facility, default to parent site coordinates if available
       wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
+        if (!active) return;
         if (Array.isArray(res)) {
           const site = res.find(s => s.id === siteId);
           if (site && site.address) {
@@ -380,6 +387,10 @@ export default function FacilityDetails() {
           }
         }
       });
+
+      return () => {
+        active = false;
+      };
     }
   }, [isConnected, orgId, facilityId, isNew, siteId]);
 

@@ -38,8 +38,11 @@ export default function TabLayout() {
       return;
     }
 
+    let active = true;
+
     if (lastFetchedId.current !== orgId) {
       wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+        if (!active) return;
         if (res && !res.error) {
           setOrgData(res);
           lastFetchedId.current = orgId;
@@ -51,6 +54,7 @@ export default function TabLayout() {
     const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
+      if (!active) return;
       if (event && event.type === 'ORGANIZATION_UPDATED') {
         if (event.data && event.data.id === orgId) {
           setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
@@ -61,6 +65,7 @@ export default function TabLayout() {
     wsService.on('update', handleUpdate);
 
     return () => {
+      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };

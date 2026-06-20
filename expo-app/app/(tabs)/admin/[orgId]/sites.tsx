@@ -44,10 +44,12 @@ export default function OrgSites() {
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
+    let active = true;
     setIsLoading(true);
 
     // Fetch Sites
     wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
+      if (!active) return;
       if (Array.isArray(res)) {
         setSites(res);
       }
@@ -56,6 +58,7 @@ export default function OrgSites() {
 
     // Fetch Sports
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
+      if (!active) return;
       if (Array.isArray(res)) {
         setSports(res);
       }
@@ -69,10 +72,12 @@ export default function OrgSites() {
     const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom);
 
     const handleUpdate = (event: any) => {
+      if (!active) return;
       if (!event) return;
 
       if (event.type === 'SITES_SYNC' || event.type === 'SITE_ADDED' || event.type === 'SITE_UPDATED' || event.type === 'SITE_DELETED') {
         wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
+          if (!active) return;
           if (Array.isArray(res)) setSites(res);
         });
       }
@@ -90,6 +95,7 @@ export default function OrgSites() {
     wsService.on('update', handleUpdate);
 
     return () => {
+      active = false;
       unsubscribeSites();
       unsubscribeFacilities();
       wsService.off('update', handleUpdate);

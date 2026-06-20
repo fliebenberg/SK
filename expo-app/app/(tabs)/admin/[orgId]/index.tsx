@@ -27,8 +27,10 @@ export default function OrgControlDashboard() {
   useEffect(() => {
     if (!isConnected || !orgId) return;
     
+    let active = true;
     setIsLoading(true);
     wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
+      if (!active) return;
       const map: Record<string, string> = {};
       if (Array.isArray(sportsList)) {
         sportsList.forEach((s: any) => {
@@ -38,10 +40,15 @@ export default function OrgControlDashboard() {
       setSportsMap(map);
 
       wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+        if (!active) return;
         setOrgData(res);
         setIsLoading(false);
       });
     });
+
+    return () => {
+      active = false;
+    };
   }, [isConnected, orgId]);
 
   if (isLoading || !orgData) {

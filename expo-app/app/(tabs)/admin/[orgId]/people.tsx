@@ -118,10 +118,12 @@ export default function OrgPeople() {
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
+    let active = true;
     setIsLoading(true);
 
     // Get members
     wsService.emit('get_data', { type: 'org_members', orgId }, (res: any) => {
+      if (!active) return;
       if (Array.isArray(res)) {
         setMembers(res);
       }
@@ -130,6 +132,7 @@ export default function OrgPeople() {
 
     // Get roles
     wsService.emit('get_data', { type: 'roles' }, (res: any) => {
+      if (!active) return;
       if (res && Array.isArray(res.org)) {
         setAvailableRoles(res.org);
         // default roleId
@@ -140,6 +143,7 @@ export default function OrgPeople() {
 
     // Get system settings
     wsService.emit('get_data', { type: 'system_settings' }, (res: any) => {
+      if (!active) return;
       if (res && res.invite_cooldown_hours) {
         setCooldownSetting(parseInt(res.invite_cooldown_hours));
       }
@@ -150,9 +154,11 @@ export default function OrgPeople() {
     const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
+      if (!active) return;
       if (event && (event.type === 'ORG_MEMBERS_SYNC' || event.type === 'ORG_MEMBER_UPDATED')) {
         // Refresh members
         wsService.emit('get_data', { type: 'org_members', orgId }, (res: any) => {
+          if (!active) return;
           if (Array.isArray(res)) {
             setMembers(res);
           }
@@ -163,6 +169,7 @@ export default function OrgPeople() {
     wsService.on('update', handleUpdate);
 
     return () => {
+      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };

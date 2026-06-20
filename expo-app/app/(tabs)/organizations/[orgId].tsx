@@ -77,14 +77,17 @@ export default function PublicOrgDetail() {
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
+    let active = true;
     setIsLoading(true);
     let loadedCount = 0;
     const checkDone = () => {
+      if (!active) return;
       loadedCount++;
       if (loadedCount === 5) setIsLoading(false);
     };
 
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
+      if (!active) return;
       const map: Record<string, string> = {};
       if (Array.isArray(res)) res.forEach((s: any) => { map[s.id] = s.name; });
       setSportsMap(map);
@@ -92,21 +95,25 @@ export default function PublicOrgDetail() {
     });
 
     wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+      if (!active) return;
       setOrgData(res);
       checkDone();
     });
 
     wsService.emit('get_data', { type: 'teams', orgId }, (res: any) => {
+      if (!active) return;
       setTeams(Array.isArray(res) ? res : []);
       checkDone();
     });
 
     wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
+      if (!active) return;
       setGames(Array.isArray(res) ? res : []);
       checkDone();
     });
 
     wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
+      if (!active) return;
       setSites(Array.isArray(res) ? res : []);
       checkDone();
     });
@@ -115,6 +122,7 @@ export default function PublicOrgDetail() {
     const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
+      if (!active) return;
       if (event && event.type === 'ORGANIZATION_UPDATED') {
         if (event.data && event.data.id === orgId) {
           setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
@@ -125,6 +133,7 @@ export default function PublicOrgDetail() {
     wsService.on('update', handleUpdate);
 
     return () => {
+      active = false;
       unsubscribe();
       wsService.off('update', handleUpdate);
     };

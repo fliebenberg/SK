@@ -342,12 +342,15 @@ export default function SiteDetails() {
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
+    let active = true;
+
     if (!isNew) {
       setIsLoading(true);
     }
 
     // Fetch Sites to populate if editing
     wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
+      if (!active) return;
       if (Array.isArray(res) && !isNew) {
         const site = res.find(s => s.id === siteId);
         if (site) {
@@ -385,6 +388,7 @@ export default function SiteDetails() {
 
     // Fetch Sports
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
+      if (!active) return;
       if (Array.isArray(res)) {
         setSports(res);
       }
@@ -398,10 +402,12 @@ export default function SiteDetails() {
     const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom);
 
     const handleUpdate = (event: any) => {
+      if (!active) return;
       if (!event) return;
 
       if (!isNew && (event.type === 'SITES_SYNC' || event.type === 'SITE_ADDED' || event.type === 'SITE_UPDATED' || event.type === 'SITE_DELETED')) {
         wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
+          if (!active) return;
           if (Array.isArray(res)) {
             const site = res.find(s => s.id === siteId);
             if (site) {
@@ -448,6 +454,7 @@ export default function SiteDetails() {
     wsService.emit('join_room', `org:${orgId}:facilities`);
 
     return () => {
+      active = false;
       unsubscribeSites();
       unsubscribeFacilities();
       wsService.off('update', handleUpdate);
