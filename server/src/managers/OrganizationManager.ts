@@ -349,6 +349,11 @@ export class OrganizationManager extends BaseManager {
             for (const sportId of supportedSportIds) {
                 await this.query('INSERT INTO organization_sports (org_id, sport_id) VALUES ($1, $2)', [id, sportId]);
             }
+            // Deactivate teams for sports that are no longer supported
+            await this.query(
+                'UPDATE teams SET is_active = false WHERE org_id = $1 AND NOT (sport_id = ANY($2))',
+                [id, supportedSportIds]
+            );
         }
 
         if (supportedRoleIds !== undefined) {

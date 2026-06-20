@@ -157,12 +157,26 @@ export default function OrgSettings() {
   const [secondaryHue, setSecondaryHue] = useState(0);
   const [isSecondaryGrey, setIsSecondaryGrey] = useState(false);
 
+  // Sports selector and deactivation states
+  const [orgTeams, setOrgTeams] = useState<any[]>([]);
+  const [isEditingSports, setIsEditingSports] = useState(false);
+  const [tempSupportedSportIds, setTempSupportedSportIds] = useState<string[]>([]);
+  const [sportSearchQuery, setSportSearchQuery] = useState('');
+  const [sportToDeactivate, setSportToDeactivate] = useState<{ id: string; name: string } | null>(null);
+  const [deactivationPending, setDeactivationPending] = useState<{ sportIds: string[]; details: { id: string; name: string; activeTeams: any[] }[] } | null>(null);
+
   useEffect(() => {
     if (!isConnected || !orgId) return;
 
     wsService.emit('get_data', { type: 'sports' }, (sportsList: any) => {
       if (Array.isArray(sportsList)) {
         setAllSports(sportsList);
+      }
+    });
+
+    wsService.emit('get_data', { type: 'teams', orgId }, (teamsList: any) => {
+      if (Array.isArray(teamsList)) {
+        setOrgTeams(teamsList);
       }
     });
 
@@ -453,6 +467,55 @@ export default function OrgSettings() {
     setIsEditingSecondary(false);
   };
 
+  const handleOpenSportsModal = () => {
+    setTempSupportedSportIds(supportedSportIds);
+    setSportSearchQuery('');
+    setIsEditingSports(true);
+  };
+
+  const handleDeactivateSportClick = (sportId: string, sportName: string) => {
+    const activeTeams = orgTeams.filter(t => t.sportId === sportId && t.isActive);
+    if (activeTeams.length > 0) {
+      setSportToDeactivate({ id: sportId, name: sportName });
+    } else {
+      setSupportedSportIds(prev => prev.filter(id => id !== sportId));
+    }
+  };
+
+  const confirmDeactivateSport = () => {
+    if (sportToDeactivate) {
+      setSupportedSportIds(prev => prev.filter(id => id !== sportToDeactivate.id));
+      setSportToDeactivate(null);
+    }
+  };
+
+  const handleApplySportsModal = () => {
+    const removedSportIds = supportedSportIds.filter(id => !tempSupportedSportIds.includes(id));
+    const sportsWithActiveTeams = removedSportIds.map(id => {
+      const sport = allSports.find(s => s.id === id);
+      const activeTeams = orgTeams.filter(t => t.sportId === id && t.isActive);
+      return { id, name: sport?.name || 'Unknown', activeTeams };
+    }).filter(item => item.activeTeams.length > 0);
+
+    if (sportsWithActiveTeams.length > 0) {
+      setDeactivationPending({
+        sportIds: tempSupportedSportIds,
+        details: sportsWithActiveTeams
+      });
+    } else {
+      setSupportedSportIds(tempSupportedSportIds);
+      setIsEditingSports(false);
+    }
+  };
+
+  const confirmDeactivationPending = () => {
+    if (deactivationPending) {
+      setSupportedSportIds(deactivationPending.sportIds);
+      setDeactivationPending(null);
+      setIsEditingSports(false);
+    }
+  };
+
   const hasChanges = originalData ? (
     orgName.trim() !== originalData.orgName ||
     shortName.trim() !== originalData.shortName ||
@@ -688,43 +751,63 @@ export default function OrgSettings() {
           </Text>
           <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
             <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Toggle the sports supported by this organization. Enabling a sport allows creating teams and scheduling fixtures for it.
+              Manage the sports supported by this organization. Enabling a sport allows creating teams and scheduling fixtures for it.
             </Text>
             
             <View className="flex-row flex-wrap gap-2.5">
-              {allSports.map((sport) => {
-                const isEnabled = supportedSportIds.includes(sport.id);
-                return (
-                  <TouchableOpacity
-                    key={sport.id}
-                    onPress={() => {
-                      if (isEnabled) {
-                        setSupportedSportIds(prev => prev.filter(id => id !== sport.id));
-                      } else {
-                        setSupportedSportIds(prev => [...prev, sport.id]);
-                      }
-                    }}
-                    style={{
-                      borderColor: isEnabled ? secondaryColor : getThemeColor(isDark, 'border'),
-                      backgroundColor: isEnabled ? primaryColor : 'transparent',
-                    }}
-                    className="flex-row items-center gap-2 border px-3.5 py-2 rounded-xl active:scale-95"
-                  >
-                    <Ionicons 
-                      name={isEnabled ? "checkmark-circle" : "add-circle-outline"} 
-                      size={16} 
-                      color={isEnabled ? secondaryColor : getThemeColor(isDark, 'textSecondary')} 
-                    />
-                    <Text 
-                      style={{ color: isEnabled ? getContrastColor(primaryColor) : getThemeColor(isDark, 'textSecondary') }}
-                      className="font-inter-bold text-xs"
+              {allSports
+                .filter((sport) => supportedSportIds.includes(sport.id))
+                .map((sport) => {
+                  return (
+                    <TouchableOpacity
+                      key={sport.id}
+                      onPress={() => handleDeactivateSportClick(sport.id, sport.name)}
+                      style={{
+                        borderColor: secondaryColor,
+                        backgroundColor: primaryColor,
+                      }}
+                      className="flex-row items-center gap-2 border px-3.5 py-2 rounded-xl active:scale-95 animate-none"
                     >
-                      {sport.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                      <Text 
+                        style={{ color: getContrastColor(primaryColor) }}
+                        className="font-inter-bold text-xs"
+                      >
+                        {sport.name}
+                      </Text>
+                      <Ionicons 
+                        name="close" 
+                        size={14} 
+                        color={getContrastColor(primaryColor)} 
+                        style={{ opacity: 0.8 }}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+
+              <TouchableOpacity
+                onPress={handleOpenSportsModal}
+                style={{
+                  borderColor: secondaryColor,
+                  borderStyle: 'dashed',
+                  borderWidth: 1,
+                }}
+                className="flex-row items-center gap-2 px-3.5 py-2 rounded-xl active:scale-95 animate-none"
+              >
+                <Ionicons name="add" size={16} color={secondaryColor} />
+                <Text 
+                  style={{ color: secondaryColor }}
+                  className="font-inter-bold text-xs"
+                >
+                  Add Sports
+                </Text>
+              </TouchableOpacity>
             </View>
+
+            {supportedSportIds.length === 0 && (
+              <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 mt-3">
+                No sports currently selected. Tap "Add Sports" to enable sports.
+              </Text>
+            )}
           </GlassCard>
         </View>
       </ScrollView>
@@ -985,6 +1068,174 @@ export default function OrgSettings() {
                 className="flex-1 py-3 bg-brand-orange rounded-xl items-center justify-center"
               >
                 <Text className="font-inter-bold text-xs text-white uppercase">Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </GlassCard>
+        </View>
+      )}
+
+      {/* SPORTS SELECTION MODAL */}
+      {isEditingSports && (
+        <View className="absolute inset-0 bg-slate-950/75 items-center justify-center z-50 p-6">
+          <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
+            <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase mb-2 tracking-wider">
+              Manage Sports
+            </Text>
+
+            {/* Search Filter */}
+            <View className="flex-row items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 shadow-sm">
+              <Ionicons name="search-outline" size={16} color="#94A3B8" />
+              <TextInput
+                placeholder="Search sports..."
+                placeholderTextColor="#94A3B8"
+                value={sportSearchQuery}
+                onChangeText={setSportSearchQuery}
+                className="flex-1 font-inter text-slate-800 dark:text-white text-xs ml-2 outline-none"
+              />
+              {sportSearchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSportSearchQuery('')}>
+                  <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Sports List ScrollView */}
+            <ScrollView style={{ maxHeight: 300 }} className="space-y-2 mt-2">
+              {allSports
+                .filter((sport) =>
+                  sport.name.toLowerCase().includes(sportSearchQuery.toLowerCase())
+                )
+                .map((sport) => {
+                  const isSelected = tempSupportedSportIds.includes(sport.id);
+                  return (
+                    <TouchableOpacity
+                      key={sport.id}
+                      onPress={() => {
+                        if (isSelected) {
+                          setTempSupportedSportIds(prev => prev.filter(id => id !== sport.id));
+                        } else {
+                          setTempSupportedSportIds(prev => [...prev, sport.id]);
+                        }
+                      }}
+                      className="flex-row items-center justify-between p-3 rounded-xl bg-slate-100/30 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 active:opacity-80 mb-2"
+                    >
+                      <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">
+                        {sport.name}
+                      </Text>
+                      <Ionicons
+                        name={isSelected ? "checkbox" : "square-outline"}
+                        size={20}
+                        color={isSelected ? secondaryColor : getThemeColor(isDark, 'textSecondary')}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+            </ScrollView>
+
+            {/* Modal Action Buttons */}
+            <View className="flex-row gap-3 mt-4">
+              <TouchableOpacity 
+                onPress={() => setIsEditingSports(false)}
+                className="flex-1 py-3 bg-slate-100 dark:bg-white/10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
+              >
+                <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={handleApplySportsModal}
+                className="flex-1 py-3 bg-brand-orange rounded-xl items-center justify-center"
+              >
+                <Text className="font-inter-bold text-xs text-white uppercase">Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </GlassCard>
+        </View>
+      )}
+
+      {/* SINGLE SPORT DEACTIVATION WARNING MODAL */}
+      {sportToDeactivate && (
+        <View className="absolute inset-0 bg-slate-950/75 items-center justify-center z-50 p-6">
+          <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
+            <View className="items-center mb-2">
+              <Ionicons name="warning" size={48} color="#F97316" />
+              <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider mt-2">
+                Deactivate Sport?
+              </Text>
+            </View>
+
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center">
+              Deactivating <Text className="font-inter-bold text-slate-800 dark:text-white">{sportToDeactivate.name}</Text> will also deactivate the following teams associated with it:
+            </Text>
+
+            <ScrollView style={{ maxHeight: 150 }} className="bg-slate-100/50 dark:bg-slate-950/50 rounded-xl p-3 border border-slate-200 dark:border-white/5">
+              {orgTeams
+                .filter(t => t.sportId === sportToDeactivate.id && t.isActive)
+                .map((team, idx) => (
+                  <Text key={team.id || idx} className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 py-1">
+                    • {team.name}
+                  </Text>
+                ))}
+            </ScrollView>
+
+            <View className="flex-row gap-3 mt-4">
+              <TouchableOpacity 
+                onPress={() => setSportToDeactivate(null)}
+                className="flex-1 py-3 bg-slate-100 dark:bg-white/10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
+              >
+                <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={confirmDeactivateSport}
+                className="flex-1 py-3 bg-red-500 rounded-xl items-center justify-center"
+              >
+                <Text className="font-inter-bold text-xs text-white uppercase">Deactivate</Text>
+              </TouchableOpacity>
+            </View>
+          </GlassCard>
+        </View>
+      )}
+
+      {/* BATCH DEACTIVATION WARNING MODAL */}
+      {deactivationPending && (
+        <View className="absolute inset-0 bg-slate-950/75 items-center justify-center z-50 p-6">
+          <GlassCard className="w-full max-w-md border border-slate-200 dark:border-white dark:border-opacity-10 p-6 space-y-4 shadow-2xl">
+            <View className="items-center mb-2">
+              <Ionicons name="warning" size={48} color="#F97316" />
+              <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider mt-2">
+                Deactivate Sports?
+              </Text>
+            </View>
+
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center">
+              Deactivating these sports will also deactivate the following teams associated with them:
+            </Text>
+
+            <ScrollView style={{ maxHeight: 200 }} className="bg-slate-100/50 dark:bg-slate-950/50 rounded-xl p-3 border border-slate-200 dark:border-white/5">
+              {deactivationPending.details.map((item, idx) => (
+                <View key={item.id || idx} className="mb-2">
+                  <Text className="font-inter-bold text-xs text-brand-orange uppercase">
+                    {item.name}
+                  </Text>
+                  {item.activeTeams.map((team, tIdx) => (
+                    <Text key={team.id || tIdx} className="font-inter text-xs text-slate-600 dark:text-slate-400 pl-3 py-0.5">
+                      • {team.name}
+                    </Text>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+
+            <View className="flex-row gap-3 mt-4">
+              <TouchableOpacity 
+                onPress={() => setDeactivationPending(null)}
+                className="flex-1 py-3 bg-slate-100 dark:bg-white/10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/5"
+              >
+                <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300 uppercase">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={confirmDeactivationPending}
+                className="flex-1 py-3 bg-red-500 rounded-xl items-center justify-center"
+              >
+                <Text className="font-inter-bold text-xs text-white uppercase">Deactivate</Text>
               </TouchableOpacity>
             </View>
           </GlassCard>
