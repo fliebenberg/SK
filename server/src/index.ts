@@ -731,6 +731,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
                 'orgName', org.name,
                 'name', op.name,
                 'email', op.email,
+                'cellphone', op.cellphone,
                 'nationalId', op.national_id,
                 'identifier', op.identifier
               )
@@ -763,6 +764,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
             GREATEST(
               CASE WHEN op.national_id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.identifier ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN op.cellphone ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN u.id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.id ILIKE $6::text THEN 1.0 ELSE 0.0 END
             )
@@ -788,6 +790,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
               'orgName', org.name,
               'name', op.name,
               'email', op.email,
+              'cellphone', op.cellphone,
               'nationalId', op.national_id,
               'identifier', op.identifier
             )
@@ -809,6 +812,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
             GREATEST(
               CASE WHEN op.national_id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.identifier ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN op.cellphone ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.id ILIKE $6::text THEN 1.0 ELSE 0.0 END
             )
           ELSE 0.0 END) AS id_score

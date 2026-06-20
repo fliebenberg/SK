@@ -168,6 +168,11 @@ const createTables = async () => {
             ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_reset BOOLEAN DEFAULT false;
         `);
 
+        // Migration: Ensure cellphone column exists on older instances of org_profiles
+        await pool.query(`
+            ALTER TABLE org_profiles ADD COLUMN IF NOT EXISTS cellphone TEXT;
+        `);
+
         // Organization Profiles (Replaces Persons)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS org_profiles (
@@ -176,6 +181,7 @@ const createTables = async () => {
                 user_id TEXT REFERENCES users(id),
                 name TEXT NOT NULL,
                 email TEXT,
+                cellphone TEXT,
                 birthdate DATE,
                 national_id TEXT,
                 identifier TEXT,

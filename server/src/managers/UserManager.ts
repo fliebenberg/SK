@@ -8,7 +8,7 @@ export class UserManager extends BaseManager {
   // --- Account Management (Users Table) ---
   private USER_COLUMNS = 'id, name, email, email_verified as "emailVerified", image, password_hash as "passwordHash", global_role as "globalRole", created_at as "createdAt", updated_at as "updatedAt", preferences, force_password_reset as "forcePasswordReset"';
   private USER_EMAIL_COLUMNS = 'id, user_id as "userId", email, is_primary as "isPrimary", verified_at as "verifiedAt", created_at as "createdAt"';
-  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"';
+  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"';
   private ORG_MEMBERSHIP_COLUMNS = 'id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"';
 
   async getUser(id: string): Promise<User | undefined> {
@@ -203,7 +203,7 @@ export class UserManager extends BaseManager {
   // --- Org Profiles (Replacement for Persons) ---
   
   async getOrgProfile(id: string): Promise<OrgProfile | undefined> {
-    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig" FROM org_profiles WHERE id = $1', [id]);
+    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig" FROM org_profiles WHERE id = $1', [id]);
     return res.rows[0];
   }
 
@@ -230,24 +230,26 @@ export class UserManager extends BaseManager {
     }
 
     const res = await this.query(
-      `INSERT INTO org_profiles (id, org_id, user_id, name, email, birthdate, national_id, identifier, image, primary_role_id, image_config) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      `INSERT INTO org_profiles (id, org_id, user_id, name, email, cellphone, birthdate, national_id, identifier, image, primary_role_id, image_config) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
        ON CONFLICT (org_id, identifier) DO UPDATE SET 
          user_id = EXCLUDED.user_id,
          name = EXCLUDED.name,
          email = COALESCE(org_profiles.email, EXCLUDED.email),
+         cellphone = COALESCE(org_profiles.cellphone, EXCLUDED.cellphone),
          birthdate = COALESCE(org_profiles.birthdate, EXCLUDED.birthdate),
          national_id = COALESCE(org_profiles.national_id, EXCLUDED.national_id),
          image = COALESCE(EXCLUDED.image, org_profiles.image),
          primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id),
          image_config = COALESCE(EXCLUDED.image_config, org_profiles.image_config)
-       RETURNING id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`, 
+       RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`, 
       [
         id, 
         profile.orgId, 
         profile.userId, 
         profile.name, 
         profile.email, 
+        profile.cellphone,
         profile.birthdate, 
         profile.nationalId, 
         profile.identifier, 
@@ -276,6 +278,7 @@ export class UserManager extends BaseManager {
       userId: 'user_id',
       name: 'name',
       email: 'email',
+      cellphone: 'cellphone',
       birthdate: 'birthdate',
       nationalId: 'national_id',
       identifier: 'identifier',
@@ -315,7 +318,7 @@ export class UserManager extends BaseManager {
 
     values.push(id);
     const res = await this.query(
-      `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`,
+      `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`,
       values
     );
     return res.rows[0] || null;
@@ -325,7 +328,7 @@ export class UserManager extends BaseManager {
     const res = await this.query(`
         SELECT 
             om.id as "membershipId", om.role_id as "roleId", om.start_date as "startDate", om.end_date as "endDate",
-            op.id, op.name, op.email, op.birthdate, op.national_id as "nationalId",
+            op.id, op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId",
             op.identifier as "personOrgId",
             op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId",
             op.last_invite_sent_at as "lastInviteSentAt", op.image_config as "imageConfig"
@@ -473,16 +476,16 @@ export class UserManager extends BaseManager {
     const queryStr = `
       WITH search_results AS (
         SELECT 
-          op.id, op.org_id as "orgId", op.user_id as "userId", op.name, op.email, op.birthdate, op.national_id as "nationalId", op.identifier, op.image, op.primary_role_id as "primaryRoleId",
+          op.id, op.org_id as "orgId", op.user_id as "userId", op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId", op.identifier, op.image, op.primary_role_id as "primaryRoleId",
           similarity(op.name, $1) as name_sim,
           similarity(op.email, $1) as email_sim,
           EXISTS(SELECT 1 FROM org_memberships om WHERE om.org_profile_id = op.id AND om.org_id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())) as is_member,
           (CASE WHEN op.email ILIKE $4 THEN 1 ELSE 0 END) as domain_match
         FROM org_profiles op
-        WHERE (op.name % $1 OR op.email % $1 OR op.name ILIKE $3 OR op.email ILIKE $3)
+        WHERE (op.name % $1 OR op.email % $1 OR op.name ILIKE $3 OR op.email ILIKE $3 OR op.cellphone ILIKE $3)
           AND (op.org_id = $2 OR $2 IS NULL)
       )
-      SELECT id, "orgId", "userId", name, email, birthdate, "nationalId", identifier, image, "primaryRoleId",
+      SELECT id, "orgId", "userId", name, email, cellphone, birthdate, "nationalId", identifier, image, "primaryRoleId",
         (GREATEST(name_sim, email_sim) + (CASE WHEN is_member THEN 0.5 ELSE 0 END) + (CASE WHEN domain_match = 1 THEN 0.3 ELSE 0 END)) as final_score
       FROM search_results
       ORDER BY final_score DESC

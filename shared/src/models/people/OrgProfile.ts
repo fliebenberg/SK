@@ -4,6 +4,7 @@ export interface OrgProfile {
   userId?: string;
   name: string;
   email?: string;
+  cellphone?: string;
   birthdate?: string;
   nationalId?: string;
   identifier?: string;

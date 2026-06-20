@@ -65,6 +65,7 @@ export default function OrgPeople() {
   const [newMemberData, setNewMemberData] = useState({
     name: '',
     email: '',
+    cellphone: '',
     birthdate: '',
     nationalId: '',
     personOrgId: '',
@@ -81,6 +82,23 @@ export default function OrgPeople() {
     }
   }, [rolesData]);
 
+  const handleCloseAddModal = () => {
+    setIsAdding(false);
+    const defaultRole = rolesData?.org?.find((r: any) => r.name === 'Member')?.id || 'role-org-member';
+    setNewMemberData({
+      name: '',
+      email: '',
+      cellphone: '',
+      birthdate: '',
+      nationalId: '',
+      personOrgId: '',
+      roleId: defaultRole,
+      image: '',
+      imageConfig: { scale: 1, x: 0, y: 0 },
+    });
+    setSelectedPerson(null);
+  };
+
   const cooldownSetting = settingsData?.invite_cooldown_hours ? parseInt(settingsData.invite_cooldown_hours) : 168;
 
   const isLoading = isMembersLoading || isRolesLoading;
@@ -92,6 +110,7 @@ export default function OrgPeople() {
     membershipId: string;
     name: string;
     email: string;
+    cellphone: string;
     birthdate: string;
     nationalId: string;
     personOrgId: string;
@@ -175,6 +194,7 @@ export default function OrgPeople() {
             id: matchingUser?.id || `profile-${Date.now()}`,
             name: newMemberData.name,
             email: newMemberData.email || undefined,
+            cellphone: newMemberData.cellphone || undefined,
             birthdate: newMemberData.birthdate || undefined,
             nationalId: newMemberData.nationalId || undefined,
             orgId,
@@ -197,6 +217,7 @@ export default function OrgPeople() {
               id: profileId,
               data: {
                 email: newMemberData.email || undefined,
+                cellphone: newMemberData.cellphone || undefined,
                 birthdate: newMemberData.birthdate || undefined,
                 nationalId: newMemberData.nationalId || undefined,
                 image: newMemberData.image || undefined,
@@ -226,19 +247,8 @@ export default function OrgPeople() {
         });
       }
 
-      // Reset
-      setNewMemberData({
-        name: '',
-        email: '',
-        birthdate: '',
-        nationalId: '',
-        personOrgId: '',
-        roleId: availableRoles[0]?.id || 'role-org-member',
-        image: '',
-        imageConfig: { scale: 1, x: 0, y: 0 },
-      });
-      setSelectedPerson(null);
-      setIsAdding(false);
+      // Reset and close
+      handleCloseAddModal();
     } catch (error) {
       console.error(error);
       alert('Failed to add member');
@@ -255,6 +265,7 @@ export default function OrgPeople() {
       membershipId: member.membershipId,
       name: member.name,
       email: member.email || '',
+      cellphone: member.cellphone || '',
       birthdate: member.birthdate || '',
       nationalId: member.nationalId || '',
       personOrgId: member.personOrgId || '',
@@ -287,6 +298,7 @@ export default function OrgPeople() {
             data: {
               name: editingPerson.name,
               email: editingPerson.email || undefined,
+              cellphone: editingPerson.cellphone || undefined,
               birthdate: editingPerson.birthdate || undefined,
               nationalId: editingPerson.nationalId || undefined,
               image: editingPerson.image || undefined,
@@ -393,6 +405,7 @@ export default function OrgPeople() {
         ...prev,
         name: person.name,
         email: person.email || prev.email,
+        cellphone: person.cellphone || prev.cellphone,
         birthdate: person.birthdate || prev.birthdate,
         nationalId: person.nationalId || prev.nationalId,
         personOrgId: person.identifier || prev.personOrgId,
@@ -465,24 +478,24 @@ export default function OrgPeople() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView className="flex-1 px-4 py-3" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* FILTERS */}
-        <View className="flex-row gap-3 mb-6 flex-wrap">
-          <View className="flex-1 flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 min-w-[200px] shadow-sm">
-            <Ionicons name="search-outline" size={18} color="#94A3B8" />
+        <View className="flex-row gap-2 mb-3 flex-wrap">
+          <View className="flex-1 flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-1.5 min-w-[200px] shadow-sm">
+            <Ionicons name="search-outline" size={16} color="#94A3B8" />
             <TextInput
               placeholder="Search roster members..."
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}
-              className="flex-1 font-inter text-slate-800 dark:text-white text-xs ml-2.5 outline-none"
+              className="flex-1 font-inter text-slate-800 dark:text-white text-xs ml-2 outline-none"
             />
           </View>
 
-          <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden min-w-[120px] justify-center px-2">
+          <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden min-w-[120px] justify-center px-2 py-0.5">
             <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5 ml-1">Role Filter</Text>
             <View className="flex-row items-center gap-1">
-              <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'all' ? 'role-org-member' : 'all')} className="flex-row items-center gap-1 py-1 px-1">
+              <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'all' ? 'role-org-member' : 'all')} className="flex-row items-center gap-1 py-0.5 px-1">
                 <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
                   {roleFilter === 'all' ? 'All Roles' : availableRoles.find(r => r.id === roleFilter)?.name || 'Role'}
                 </Text>
@@ -493,7 +506,7 @@ export default function OrgPeople() {
         </View>
 
         {/* SORT CONTROLS */}
-        <View className="flex-row items-center gap-4 mb-4">
+        <View className="flex-row items-center gap-4 mb-2">
           <TouchableOpacity onPress={() => toggleSort('name')} className="flex-row items-center gap-1">
             <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
               Name
@@ -514,7 +527,7 @@ export default function OrgPeople() {
         </View>
 
         {/* MEMBER LIST */}
-        <View className="space-y-4">
+        <View className="space-y-2">
           {sortedMembers.map((member) => {
             const inviteStatus = getInviteButtonStatus(member);
             const avatarSrc = getAvatarSource(member);
@@ -523,20 +536,20 @@ export default function OrgPeople() {
             return (
               <GlassCard
                 key={member.membershipId}
-                className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between"
+                className="border border-slate-200 dark:border-white/5 p-2.5 flex-row items-center justify-between"
               >
                 <View className="flex-row items-center gap-3 flex-1 mr-4">
-                  <View className="w-10 h-10 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
+                  <View className="w-8 h-8 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
                     {avatarSrc ? (
-                      <View style={{ width: 40, height: 40, overflow: 'hidden' }}>
+                      <View style={{ width: 32, height: 32, overflow: 'hidden' }}>
                         <View
                           style={{
                             width: '100%',
                             height: '100%',
                             transform: [
                               { scale: logoConf.scale },
-                              { translateX: logoConf.x * 40 },
-                              { translateY: logoConf.y * 40 },
+                              { translateX: logoConf.x * 32 },
+                              { translateY: logoConf.y * 32 },
                             ],
                           }}
                         >
@@ -551,46 +564,46 @@ export default function OrgPeople() {
                         </View>
                       </View>
                     ) : (
-                      <Text className="font-orbitron-bold text-sm text-brand-orange">
+                      <Text className="font-orbitron-bold text-xs text-brand-orange">
                         {member.name.charAt(0).toUpperCase()}
                       </Text>
                     )}
                   </View>
 
                   <View className="flex-1">
-                    <View className="flex-row items-center gap-2 mb-0.5 flex-wrap">
-                      <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">
+                    <View className="flex-row items-center gap-1.5 mb-0.5 flex-wrap">
+                      <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
                         {member.name}
                       </Text>
-                      <View className="px-2 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
-                        <Text className="font-inter-bold text-[8px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                      <View className="px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
+                        <Text className="font-inter-bold text-[7px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
                           {member.roleName || 'Member'}
                         </Text>
                       </View>
                     </View>
-                    <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
-                      {member.email || 'No Email'}
+                    <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
+                      {[member.email, member.cellphone].filter(Boolean).join('  |  ') || 'No Contact Info'}
                     </Text>
                     {member.personOrgId ? (
-                      <Text className="font-mono text-[9px] text-slate-400 dark:text-slate-600 mt-0.5">
+                      <Text className="font-mono text-[8px] text-slate-400 dark:text-slate-600 mt-0.5">
                         ID: {member.personOrgId}
                       </Text>
                     ) : null}
                   </View>
                 </View>
 
-                <View className="flex-row items-center gap-2">
+                <View className="flex-row items-center gap-1.5">
                   {inviteStatus && (
                     <TouchableOpacity
                       disabled={inviteStatus.disabled}
                       onPress={() => handleSendInvite(member)}
-                      className={`px-3 py-1.5 rounded-lg active:scale-95 ${
+                      className={`px-2 py-1 rounded-lg active:scale-95 ${
                         inviteStatus.disabled
                           ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
                           : 'bg-brand-orange'
                       }`}
                     >
-                      <Text className={`font-orbitron-bold text-[9px] uppercase tracking-widest ${
+                      <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
                         inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
                       }`}>
                         {inviteStatus.text}
@@ -599,17 +612,17 @@ export default function OrgPeople() {
                   )}
 
                   <TouchableOpacity
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg"
+                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg"
                     onPress={() => handleStartEdit(member)}
                   >
-                    <Ionicons name="pencil-outline" size={16} color="#94A3B8" />
+                    <Ionicons name="pencil-outline" size={15} color="#94A3B8" />
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg"
+                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg"
                     onPress={() => setConfirmDelete({ membershipId: member.membershipId, name: member.name, isOpen: true })}
                   >
-                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    <Ionicons name="trash-outline" size={15} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               </GlassCard>
@@ -639,7 +652,7 @@ export default function OrgPeople() {
               <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider">
                 Add Person to Organization
               </Text>
-              <TouchableOpacity onPress={() => setIsAdding(false)}>
+              <TouchableOpacity onPress={handleCloseAddModal}>
                 <Ionicons name="close" size={20} color="#94A3B8" />
               </TouchableOpacity>
             </View>
@@ -651,7 +664,7 @@ export default function OrgPeople() {
               showsVerticalScrollIndicator={false}
             >
               {/* Row 1: Avatar Uploader + Name Input side-by-side */}
-              <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center', marginBottom: 24 }}>
+              <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center', marginBottom: 24, zIndex: 10 }}>
                 <View style={{ alignItems: 'center' }}>
                   <TouchableOpacity
                     onPress={() => setImageEditorTarget('add')}
@@ -703,18 +716,33 @@ export default function OrgPeople() {
                 </View>
               </View>
 
-              {/* Row 2: Email Address */}
-              <View style={{ marginBottom: 24 }}>
-                <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                  Email Address
-                </Text>
-                <TextInput
-                  placeholder="email@example.com"
-                  placeholderTextColor="#94A3B8"
-                  value={newMemberData.email}
-                  onChangeText={(text) => setNewMemberData(prev => ({ ...prev, email: text }))}
-                  style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 }}
-                />
+              {/* Row 2: Email Address & Cell Number */}
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                    Email Address
+                  </Text>
+                  <TextInput
+                    placeholder="email@example.com"
+                    placeholderTextColor="#94A3B8"
+                    value={newMemberData.email}
+                    onChangeText={(text) => setNewMemberData(prev => ({ ...prev, email: text }))}
+                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                    Cell Number
+                  </Text>
+                  <TextInput
+                    placeholder="e.g. +1 234 567 8900"
+                    placeholderTextColor="#94A3B8"
+                    value={newMemberData.cellphone}
+                    onChangeText={(text) => setNewMemberData(prev => ({ ...prev, cellphone: text }))}
+                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
+                  />
+                </View>
               </View>
 
               {/* Row 3: Org ID + Birthdate side-by-side */}
@@ -779,7 +807,7 @@ export default function OrgPeople() {
               <Button
                 title="Cancel"
                 variant="ghost"
-                onPress={() => setIsAdding(false)}
+                onPress={handleCloseAddModal}
                 className="flex-1 min-h-[40px] py-2"
               />
               <Button
@@ -869,18 +897,33 @@ export default function OrgPeople() {
                 </View>
               </View>
 
-              {/* Row 2: Email Address */}
-              <View style={{ marginBottom: 24 }}>
-                <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                  Email Address
-                </Text>
-                <TextInput
-                  placeholder="email@example.com"
-                  placeholderTextColor="#94A3B8"
-                  value={editingPerson.email}
-                  onChangeText={(text) => setEditingPerson(prev => prev ? ({ ...prev, email: text }) : null)}
-                  style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 }}
-                />
+              {/* Row 2: Email Address & Cell Number */}
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                    Email Address
+                  </Text>
+                  <TextInput
+                    placeholder="email@example.com"
+                    placeholderTextColor="#94A3B8"
+                    value={editingPerson.email}
+                    onChangeText={(text) => setEditingPerson(prev => prev ? ({ ...prev, email: text }) : null)}
+                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                    Cell Number
+                  </Text>
+                  <TextInput
+                    placeholder="e.g. +1 234 567 8900"
+                    placeholderTextColor="#94A3B8"
+                    value={editingPerson.cellphone}
+                    onChangeText={(text) => setEditingPerson(prev => prev ? ({ ...prev, cellphone: text }) : null)}
+                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
+                  />
+                </View>
               </View>
 
               {/* Row 3: Org ID + Birthdate side-by-side */}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, FlatList, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
 import { wsService } from '../services/websocket';
@@ -81,66 +81,71 @@ export function PersonnelAutocomplete({
 
       {isOpen && value.trim().length > 0 && (
         <View 
-          className="absolute left-0 right-0 z-50 rounded-xl border border-slate-200 dark:border-white/10 mt-1 overflow-hidden"
+          className="absolute left-0 right-0 z-50 rounded-xl border border-slate-300 dark:border-brand-orange/40 mt-1 overflow-hidden bg-white dark:bg-slate-900"
           style={{
             top: 50,
-            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+            maxHeight: 280,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.15,
             shadowRadius: 8,
             elevation: 5,
+            flexDirection: 'column',
           }}
         >
-          <View style={{ maxHeight: 200 }}>
-            {suggestions.length > 0 && (
-              <View>
-                <View className="bg-slate-100/50 dark:bg-slate-800/30 px-3 py-1.5 border-b border-slate-200 dark:border-white/5">
-                  <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                    Existing Roster Matches
-                  </Text>
-                </View>
-                {suggestions.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    onPress={() => handleSelect(item)}
-                    className="flex-row items-center px-4 py-3 border-b border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-slate-800"
-                  >
-                    <View className="w-6 h-6 rounded-full bg-brand-orange/10 items-center justify-center mr-3">
-                      <Text className="font-orbitron-bold text-xs text-brand-orange">
-                        {item.name.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View className="flex-1">
-                      <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
-                        {item.name}
-                      </Text>
-                      {item.email && (
-                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
-                          {item.email}
-                        </Text>
-                      )}
-                    </View>
-                    <Ionicons name="checkmark-circle-outline" size={16} color="#10B981" />
-                  </TouchableOpacity>
-                ))}
+          {suggestions.length > 0 ? (
+            <ScrollView 
+              style={{ flex: 1, maxHeight: 200 }}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View className="bg-slate-100/50 dark:bg-slate-800/30 px-3 py-1 border-b border-slate-200 dark:border-white/5">
+                <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Existing Roster Matches
+                </Text>
               </View>
-            )}
+              {suggestions.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => handleSelect(item)}
+                  className="flex-row items-center px-4 py-2 border-b border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-slate-800"
+                >
+                  <View className="w-5 h-5 rounded-full bg-brand-orange/10 items-center justify-center mr-3">
+                    <Text className="font-orbitron-bold text-[10px] text-brand-orange">
+                      {item.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
+                      {item.name}
+                    </Text>
+                    {item.email && (
+                      <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">
+                        {item.email}
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          ) : null}
 
-            <View className="bg-slate-100/50 dark:bg-slate-800/30 px-3 py-1.5 border-b border-slate-200 dark:border-white/5">
+          <View className="border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900">
+            <View className="bg-slate-100/50 dark:bg-slate-800/30 px-3 py-1 border-b border-slate-200 dark:border-white/5">
               <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 Create New Member
               </Text>
             </View>
             <TouchableOpacity
               onPress={handleNewPerson}
-              className="flex-row items-center px-4 py-3 active:bg-slate-100 dark:active:bg-slate-800"
+              className="flex-row items-center px-4 py-2 active:bg-slate-100 dark:active:bg-slate-800"
             >
-              <View className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 items-center justify-center mr-3">
-                <Ionicons name="person-add-outline" size={12} color={isDark ? 'white' : '#1E293B'} />
+              <View className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 items-center justify-center mr-3">
+                <Ionicons name="person-add-outline" size={10} color={isDark ? 'white' : '#1E293B'} />
               </View>
-              <Text className="font-inter-bold text-xs text-brand-orange">
-                Use literal "{value}" as a new person
+              <Text className="font-inter-bold text-[11px] text-brand-orange">
+                Add "{value}" as a new person
               </Text>
             </TouchableOpacity>
           </View>
