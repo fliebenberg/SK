@@ -5,7 +5,7 @@
 The `client/` folder contains an older, web-only version of the application and is **deprecated**. It is kept strictly for reference purposes.
 All current and future multi-platform client development takes place in **`expo-app/`**.
 
-**AI Agents & Developers:** Do not make any changes to the `client/` directory.
+**AI Agents:** Start by reading the [OKF Index](file:///c:/Fred/Coding/SK/okf/index.md) to understand the codebase architecture, design system requirements, database schema layouts, and active workspace rules before making any changes. Do not modify files in the `client/` directory.
 
 ---
 
