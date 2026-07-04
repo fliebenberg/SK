@@ -17,6 +17,7 @@ import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { getContrastColor, hexToRgba } from '@/utils/colorUtils';
 import { ImageEditor } from '../../../components/ImageEditor';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
+import { useUnsavedChanges } from '../../../hooks/useUnsavedChanges';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -521,6 +522,8 @@ export default function OrgSettings() {
     setLogoConfig(originalData.logoConfig);
     setSupportedSportIds(originalData.supportedSportIds);
   };
+
+  useUnsavedChanges(hasChanges, handleCancel);
 
   const handleSave = () => {
     setIsSaving(true);

@@ -139,6 +139,15 @@ To prevent confusion, the app uses a hybrid data submission approach:
 - **Explicit Save/Cancel**: Used for complex forms (editing a roster, creating an event, changing organization details). These forms require a deliberate "Save" button click. 
 - **Navigation Guards**: Whenever a user is in an Explicit Save view, any attempt to navigate away with unsaved changes must trigger a warning modal to prevent data loss.
 
+### 5.4 Card Actions Consistency (List Screens)
+To maintain a clean and consistent layout across administrative list screens (e.g., Teams, Sites/Facilities, People):
+- **Avoid Large Bottom Action Buttons**: Do not use full-width action buttons (e.g., "Manage Roster") at the bottom of cards on list screens.
+- **Top-Right Mini Action Row**: Instead, place small, interactive action buttons in the top-right corner of the card.
+  - Buttons should be styled as `44x44px` minimum touch target (visually `w-7 h-7` with padding/hitSlop) using a clean, border-defined background.
+  - Use standard icons (e.g., `pencil` for edit/manage, `trash-outline` for delete).
+  - Destructive actions (like Delete) must utilize the warning/red colors (e.g., `bg-red-500/10 border-red-500/20 text-[#EF4444]`) and require a confirmation modal before execution.
+- **Card Title & Meta Layout**: Keep the entity name (card title) in the top-left section (adjacent to the action buttons) and arrange meta-information (e.g., badges, tags, statistics) below the title.
+
 ---
 
 ## 6. Cross-Cutting UX Principles

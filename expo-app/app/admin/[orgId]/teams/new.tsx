@@ -9,6 +9,7 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Sport, Organization } from '@sk/types';
+import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 
 export default function NewTeam() {
   const router = useRouter();
@@ -27,6 +28,9 @@ export default function NewTeam() {
   const [ageGroup, setAgeGroup] = useState('');
   const [selectedSportId, setSelectedSportId] = useState('');
 
+  // Flag as dirty once the user has typed anything
+  const isFormDirty = name.trim().length > 0 || ageGroup.trim().length > 0 || selectedSportId.length > 0;
+  useUnsavedChanges(isFormDirty);
   // Load org supported sports
   useEffect(() => {
     if (!isConnected || !orgId) return;
@@ -94,6 +98,11 @@ export default function NewTeam() {
     }, (res: any) => {
       setIsSaving(false);
       if (res.status === 'ok') {
+        // Clear form state inputs to disable the dirty flag synchronously
+        setName('');
+        setAgeGroup('');
+        setSelectedSportId('');
+
         router.replace({
           pathname: '/admin/[orgId]/teams/[teamId]',
           params: { orgId: orgId!, teamId: res.data.id }
@@ -138,34 +147,6 @@ export default function NewTeam() {
         <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6">
           <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Team details</Text>
 
-          {/* TEAM NAME */}
-          <View className="mb-4">
-            <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Team Name
-            </Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. First XI, Under 15 A"
-              placeholderTextColor="#94A3B8"
-              className="font-inter text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
-            />
-          </View>
-
-          {/* AGE GROUP */}
-          <View className="mb-6">
-            <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Age Group / Division
-            </Text>
-            <TextInput
-              value={ageGroup}
-              onChangeText={setAgeGroup}
-              placeholder="e.g. U19, U15, Seniors"
-              placeholderTextColor="#94A3B8"
-              className="font-inter text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
-            />
-          </View>
-
           {/* SPORT SELECTOR */}
           <View className="mb-6">
             <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
@@ -196,6 +177,34 @@ export default function NewTeam() {
                 </Text>
               )}
             </View>
+          </View>
+
+          {/* TEAM NAME */}
+          <View className="mb-4">
+            <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+              Team Name
+            </Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. First XI, Under 15 A"
+              placeholderTextColor="#94A3B8"
+              className="font-inter text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
+            />
+          </View>
+
+          {/* AGE GROUP */}
+          <View className="mb-6">
+            <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+              Age Group / Division
+            </Text>
+            <TextInput
+              value={ageGroup}
+              onChangeText={setAgeGroup}
+              placeholder="e.g. U19, U15, Seniors"
+              placeholderTextColor="#94A3B8"
+              className="font-inter text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
+            />
           </View>
 
           <Button

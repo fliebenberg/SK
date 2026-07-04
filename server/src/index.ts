@@ -1581,6 +1581,13 @@ io.on('connection', (socket) => {
                          type: 'TEAM_UPDATED', 
                          data: { ...teamForAdd } 
                      });
+                     // Broadcast ORG_MEMBER_UPDATED to notify the People & Roles list of the new member
+                     const orgMemberForAdd = (await dataManager.getOrganizationMembers(teamForAdd.orgId)).find((m: any) => m.id === result.orgProfileId);
+                     additionalBroadcasts.push({
+                         topic: `org:${teamForAdd.orgId}:members`,
+                         type: 'ORG_MEMBER_UPDATED',
+                         data: orgMemberForAdd || {}
+                     });
                 }
 
                 const richMemberAdd = (await dataManager.getTeamMembers(result.teamId)).find((m: any) => m.membershipId === result.id);
@@ -1771,6 +1778,10 @@ io.on('connection', (socket) => {
                 }
                 console.log(`DataManager: Updating org profile ${action.payload.id}`, updateData);
                 result = await dataManager.updateOrgProfile(action.payload.id, updateData);
+                if (result && result.orgId) {
+                    updateTopic = `org:${result.orgId}:members`;
+                    updateType = 'ORG_MEMBER_UPDATED';
+                }
                 break;
             }
             case SocketAction.DELETE_ORG_PROFILE:

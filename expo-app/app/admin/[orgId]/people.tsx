@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
+import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
@@ -41,7 +42,7 @@ export default function OrgPeople() {
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
 
-  const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers } = useSocketQuery<OrgMember[]>('org_members', { orgId });
+  const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers, setData: setMembersData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
   const { data: settingsData } = useSocketQuery<any>('system_settings');
 
@@ -133,8 +134,35 @@ export default function OrgPeople() {
     const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
-      if (event && (event.type === 'ORG_MEMBERS_SYNC' || event.type === 'ORG_MEMBER_UPDATED')) {
-        refetchMembers();
+      if (!event) return;
+      if (event.type === 'ORG_MEMBERS_SYNC') {
+        setMembersData(event.data);
+      } else if (event.type === 'ORG_MEMBER_UPDATED') {
+        const updatedData = event.data;
+        if (updatedData) {
+          if (updatedData.endDate) {
+            // Member was removed
+            setMembersData(prev => {
+              if (!prev) return null;
+              return prev.filter(m => m.membershipId !== updatedData.id && m.membershipId !== updatedData.membershipId);
+            });
+          } else if (updatedData.id) {
+            setMembersData(prev => {
+              if (!prev) return null;
+              const idx = prev.findIndex(m => m.id === updatedData.id);
+              if (idx !== -1) {
+                // Update existing member
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], ...updatedData };
+                return copy;
+              } else if (updatedData.membershipId) {
+                // Add new member to list
+                return [...prev, updatedData];
+              }
+              return prev;
+            });
+          }
+        }
       }
     };
 
@@ -144,7 +172,7 @@ export default function OrgPeople() {
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId, refetchMembers]);
+  }, [isConnected, orgId, setMembersData]);
 
   // Add Member Submission
   const handleAddMember = async () => {
@@ -726,33 +754,21 @@ export default function OrgPeople() {
 
 
       {/* CONFIRM DELETE MODAL */}
-      {confirmDelete && confirmDelete.isOpen && (
-        <View className="absolute inset-0 bg-slate-950/75 items-center justify-center z-40 p-6">
-          <GlassCard className="w-full max-w-sm border border-slate-200 dark:border-white/10 p-6 space-y-4 shadow-2xl">
-            <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider">
-              Remove Member
-            </Text>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-              Are you sure you want to remove {confirmDelete.name} from the organization? They will also be removed from all teams in this organization.
-            </Text>
-            <View className="flex-row gap-3 pt-3">
-              <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={() => setConfirmDelete(null)}
-                className="flex-1"
-              />
-              <Button
-                title={isProcessing ? 'Removing...' : 'Remove'}
-                variant="primary"
-                onPress={handleRemoveMember}
-                disabled={isProcessing}
-                className="flex-1 bg-red-600 border-red-600"
-              />
-            </View>
-          </GlassCard>
-        </View>
-      )}
+      <ConfirmationModal
+        isOpen={confirmDelete !== null && confirmDelete.isOpen}
+        onClose={() => setConfirmDelete(null)}
+        title="Remove Member"
+        description={
+          confirmDelete
+            ? `Are you sure you want to remove ${confirmDelete.name} from the organization? They will also be removed from all teams in this organization.`
+            : ''
+        }
+        onConfirm={handleRemoveMember}
+        confirmText={isProcessing ? 'Removing...' : 'Remove'}
+        cancelText="Cancel"
+        variant="danger"
+        isProcessing={isProcessing}
+      />
 
 
       {/* SHARED IMAGE EDITOR */}

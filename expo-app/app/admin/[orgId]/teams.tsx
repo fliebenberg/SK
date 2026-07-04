@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
+import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
@@ -30,6 +31,11 @@ export default function OrgTeams() {
   const [isDeactivatedExpanded, setIsDeactivatedExpanded] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
 
+  // Modals & Deletion States
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   // Load Data & Subscribe
   useEffect(() => {
     if (!isConnected || !orgId) return;
@@ -49,6 +55,8 @@ export default function OrgTeams() {
         if (!active) return;
         if (Array.isArray(res)) {
           setTeams(res);
+          const uniqueSportIds = new Set(res.map((t: Team) => t.sportId));
+          setGroupBy(uniqueSportIds.size > 1 ? 'sport' : 'age');
         }
         setIsLoading(false);
       });
@@ -88,6 +96,29 @@ export default function OrgTeams() {
       wsService.off('update', handleUpdate);
     };
   }, [isConnected, orgId]);
+
+  // Delete Team Confirmation
+  const handleDeleteTeam = (team: Team) => {
+    setTeamToDelete(team);
+    setDeleteError(null);
+  };
+
+  const confirmDeleteTeam = () => {
+    if (!teamToDelete) return;
+    setIsProcessing(true);
+    setDeleteError(null);
+    wsService.emit('action', {
+      type: SocketAction.DELETE_TEAM,
+      payload: { id: teamToDelete.id }
+    }, (res: any) => {
+      setIsProcessing(false);
+      if (res.status === 'ok') {
+        setTeamToDelete(null);
+      } else {
+        setDeleteError(res.message || 'Team is currently linked to games or events and cannot be deleted.');
+      }
+    });
+  };
 
   // Derived Sport List
   const availableSports = org?.supportedSportIds
@@ -131,37 +162,54 @@ export default function OrgTeams() {
   const renderTeamCard = (team: Team) => (
     <GlassCard 
       key={team.id}
-      className="border border-slate-200 dark:border-white/5 p-5 mb-4"
+      className={`border border-slate-200 dark:border-white/5 p-5 mb-4 ${team.isActive === false ? 'opacity-60' : ''}`}
     >
-      <View className="flex-row justify-between items-start mb-3">
-        <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full flex-row items-center gap-1">
-          <Ionicons name={getSportIcon(team.sportId) as any} size={10} color={isDark ? '#94A3B8' : '#64748B'} />
-          <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            {team.ageGroup} • {getSportName(team.sportId)}
-          </Text>
+      <View className="flex-row justify-between items-start">
+        <View className="flex-1 mr-4">
+          <View className="flex-row items-center gap-2 mb-1.5 flex-wrap">
+            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+              {team.name}
+            </Text>
+            {team.isActive === false && (
+              <View className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
+                <Text className="text-[8px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Inactive</Text>
+              </View>
+            )}
+          </View>
+          
+          <View className="flex-row flex-wrap items-center gap-2">
+            <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full flex-row items-center gap-1">
+              <Ionicons name={getSportIcon(team.sportId) as any} size={10} color={isDark ? '#94A3B8' : '#64748B'} />
+              <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                {team.ageGroup} • {getSportName(team.sportId)}
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-1 bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full">
+              <Ionicons name="people" size={10} color="#FF3E00" />
+              <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                {team.playerCount || 0} Athletes
+              </Text>
+            </View>
+          </View>
         </View>
-        <View className="flex-row items-center gap-1">
-          <Ionicons name="people" size={12} color="#FF3E00" />
-          <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400">
-            {team.playerCount || 0} Athletes
-          </Text>
+
+        <View className="flex-row items-center gap-2">
+          <TouchableOpacity 
+            onPress={() => router.push({
+              pathname: '/admin/[orgId]/teams/[teamId]',
+              params: { orgId: orgId!, teamId: team.id }
+            })}
+            className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
+          >
+            <Ionicons name="pencil" size={12} color={isDark ? "#E2E8F0" : "#475569"} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => handleDeleteTeam(team)}
+            className="w-7 h-7 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-80"
+          >
+            <Ionicons name="trash-outline" size={12} color="#EF4444" />
+          </TouchableOpacity>
         </View>
-      </View>
-
-      <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white mb-4">
-        {team.name}
-      </Text>
-
-      <View className="flex-row gap-3">
-        <Button
-          title="Manage Roster"
-          variant="secondary"
-          onPress={() => router.push({
-            pathname: '/admin/[orgId]/teams/[teamId]',
-            params: { orgId: orgId!, teamId: team.id }
-          })}
-          className="flex-1 shadow-sm py-2 rounded-lg"
-        />
       </View>
     </GlassCard>
   );
@@ -367,6 +415,21 @@ export default function OrgTeams() {
           )}
         </ScrollView>
       )}
+
+      <ConfirmationModal
+        isOpen={teamToDelete !== null}
+        onClose={() => setTeamToDelete(null)}
+        title="Delete Team?"
+        description={
+          teamToDelete 
+            ? `Are you sure you want to delete "${teamToDelete.name}"? This action cannot be undone.${deleteError ? '\n\nError: ' + deleteError : ''}` 
+            : ''
+        }
+        onConfirm={confirmDeleteTeam}
+        confirmText={isProcessing ? 'Deleting...' : 'Delete'}
+        variant="danger"
+        isProcessing={isProcessing}
+      />
     </SafeAreaView>
   );
 }

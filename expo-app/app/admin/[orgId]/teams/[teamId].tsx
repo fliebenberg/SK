@@ -1,15 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
+import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Team, Sport, Organization, TeamMember, Game } from '@sk/types';
 import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
+import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
+import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
+import { getAvatarUrl } from '../../../../services/api';
+
+const parseImageConfig = (config: any): ImageConfig => {
+  if (!config) return { scale: 1, x: 0, y: 0 };
+  if (typeof config === 'string') {
+    try {
+      return JSON.parse(config);
+    } catch (e) {
+      return { scale: 1, x: 0, y: 0 };
+    }
+  }
+  return {
+    scale: config.scale ?? 1,
+    x: config.x ?? 0,
+    y: config.y ?? 0
+  };
+};
 
 interface TeamRole {
   id: string;
@@ -53,6 +73,7 @@ export default function TeamWorkspace() {
   const [playerSearchVal, setPlayerSearchVal] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<any>(null);
   const [editingPlayer, setEditingPlayer] = useState<any>(null); // profile id
+  const [isCreatingNewPlayer, setIsCreatingNewPlayer] = useState(false);
 
   // Add/Edit Staff Modal State
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -60,6 +81,39 @@ export default function TeamWorkspace() {
   const [selectedStaffPerson, setSelectedStaffPerson] = useState<any>(null);
   const [staffRoleVal, setStaffRoleVal] = useState('role-coach');
   const [editingStaff, setEditingStaff] = useState<any>(null); // membership id
+  const [isCreatingNewStaff, setIsCreatingNewStaff] = useState(false);
+
+  // Delete team confirmation state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Deactivate team with games warning state
+  const [deactivateWarningOpen, setDeactivateWarningOpen] = useState(false);
+
+  // Roster remove member state
+  const [rosterMemberToRemove, setRosterMemberToRemove] = useState<{ membershipId: string; name: string; isPlayer: boolean } | null>(null);
+  const [rosterRemoveError, setRosterRemoveError] = useState<string | null>(null);
+
+  // Detailed profile creation state (shared by player & staff modal)
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberCellphone, setMemberCellphone] = useState('');
+  const [memberBirthdate, setMemberBirthdate] = useState('');
+  const [memberOrgId, setMemberOrgId] = useState('');
+  const [memberImage, setMemberImage] = useState('');
+  const [memberImageConfig, setMemberImageConfig] = useState<ImageConfig>({ scale: 1, x: 0, y: 0 });
+  const [cooldownHours, setCooldownHours] = useState(168);
+  const [imageEditorTarget, setImageEditorTarget] = useState<'player' | 'staff' | null>(null);
+
+  const resetMemberForm = () => {
+    setMemberEmail('');
+    setMemberCellphone('');
+    setMemberBirthdate('');
+    setMemberOrgId('');
+    setMemberImage('');
+    setMemberImageConfig({ scale: 1, x: 0, y: 0 });
+    setIsCreatingNewPlayer(false);
+    setIsCreatingNewStaff(false);
+  };
 
   // Load Data and Set Subscriptions
   useEffect(() => {
@@ -73,6 +127,14 @@ export default function TeamWorkspace() {
       wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
         if (!active) return;
         if (res) setOrg(res);
+      });
+
+      // Get system settings for invite cooldown
+      wsService.emit('get_data', { type: 'system_settings' }, (res: any) => {
+        if (!active) return;
+        if (res && res.invite_cooldown_hours) {
+          setCooldownHours(parseInt(res.invite_cooldown_hours));
+        }
       });
 
       // Get sports
@@ -190,6 +252,28 @@ export default function TeamWorkspace() {
     };
   }, [isConnected, orgId, teamId]);
 
+  // Derived state values
+  const hasDetailsChanges = originalDetails ? (
+    detailsForm.name.trim() !== originalDetails.name ||
+    detailsForm.shortName.trim() !== originalDetails.shortName ||
+    detailsForm.sportId !== originalDetails.sportId ||
+    detailsForm.ageGroup.trim() !== originalDetails.ageGroup ||
+    detailsForm.isActive !== originalDetails.isActive
+  ) : false;
+
+  const handleDiscardDetails = () => {
+    if (!originalDetails) return;
+    setDetailsForm({
+      name: originalDetails.name,
+      shortName: originalDetails.shortName,
+      sportId: originalDetails.sportId,
+      ageGroup: originalDetails.ageGroup,
+      isActive: originalDetails.isActive,
+    });
+  };
+
+  useUnsavedChanges(hasDetailsChanges, handleDiscardDetails);
+
   if (isLoading || !team) {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
@@ -200,15 +284,6 @@ export default function TeamWorkspace() {
       </SafeAreaView>
     );
   }
-
-  // Derived state values
-  const hasDetailsChanges = originalDetails ? (
-    detailsForm.name.trim() !== originalDetails.name ||
-    detailsForm.shortName.trim() !== originalDetails.shortName ||
-    detailsForm.sportId !== originalDetails.sportId ||
-    detailsForm.ageGroup.trim() !== originalDetails.ageGroup ||
-    detailsForm.isActive !== originalDetails.isActive
-  ) : false;
 
   const teamGames = games.filter(g => g.participants?.some(p => p.teamId === teamId));
   const hasGames = teamGames.length > 0;
@@ -264,52 +339,68 @@ export default function TeamWorkspace() {
   const handleDeactivateToggle = (nextValue: boolean) => {
     if (!nextValue && hasGames) {
       // Trigger user warning dialog when deactivating with games
-      Alert.alert(
-        'Warning: Team has Games',
-        `This team is associated with ${teamGames.length} existing games. Deactivating it will prevent it from being selected for new schedules, but won't delete past game history. Are you sure you want to deactivate ${team.name}?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Deactivate', 
-            style: 'destructive', 
-            onPress: () => setDetailsForm(prev => ({ ...prev, isActive: false }))
-          }
-        ]
-      );
+      setDeactivateWarningOpen(true);
     } else {
       setDetailsForm(prev => ({ ...prev, isActive: nextValue }));
     }
   };
 
   const handleDeleteTeam = () => {
-    Alert.alert(
-      'Delete Team',
-      `Are you sure you want to permanently delete the team "${team.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setIsProcessing(true);
-            wsService.emit('action', {
-              type: SocketAction.DELETE_TEAM,
-              payload: { id: teamId }
-            }, (res: any) => {
-              setIsProcessing(false);
-              if (res.status === 'ok') {
-                router.replace(`/admin/${orgId}/teams`);
-              } else {
-                Alert.alert('Delete Failed', res.message || 'Could not delete team');
-              }
-            });
-          }
-        }
-      ]
-    );
+    setIsProcessing(true);
+    setDeleteError(null);
+    wsService.emit('action', {
+      type: SocketAction.DELETE_TEAM,
+      payload: { id: teamId }
+    }, (res: any) => {
+      setIsProcessing(false);
+      if (res.status === 'ok') {
+        setIsDeleteModalOpen(false);
+        router.replace(`/admin/${orgId}/teams`);
+      } else {
+        setDeleteError(res.message || 'Could not delete team');
+      }
+    });
   };
 
   // ---------------- ROSTER / ROLES FLOW HELPERS ----------------
+  const handleSendInvite = (member: any) => {
+    if (!member.email) return;
+
+    wsService.emit('action', {
+      type: SocketAction.SEND_MEMBER_INVITE,
+      payload: { memberId: member.id }
+    }, (res: any) => {
+      if (res && res.status === 'error') {
+        Alert.alert('Invite Error', res.message);
+      } else {
+        Alert.alert('Success', `Invitation sent to ${member.name}`);
+        wsService.emit('get_data', { type: 'team_members', teamId }, (resData: any) => {
+          if (Array.isArray(resData)) setRoster(resData);
+        });
+      }
+    });
+  };
+
+  const getInviteButtonStatus = (member: any) => {
+    if (member.userId) return null; // already linked
+    if (!member.email) return null;
+
+    if (member.lastInviteSentAt) {
+      const lastSent = new Date(member.lastInviteSentAt);
+      const diffMs = Date.now() - lastSent.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      if (diffHours < cooldownHours) {
+        const remainingHours = Math.ceil(cooldownHours - diffHours);
+        const remainingDays = Math.ceil(remainingHours / 24);
+        const text = remainingDays > 1 ? `Invited (${remainingDays}d)` : `Invited (${remainingHours}h)`;
+        return { disabled: true, text };
+      }
+    }
+
+    return { disabled: false, text: 'Invite' };
+  };
+
   const handleAddRosterMember = async (name: string, roleId: string, searchPerson: any, closeFn: () => void) => {
     if (!name.trim()) return;
     setIsProcessing(true);
@@ -322,7 +413,9 @@ export default function TeamWorkspace() {
         const matchingUser: any = await new Promise((resolve) => {
           wsService.emit('get_data', {
             type: 'find_matching_user',
-            name: name.trim()
+            email: memberEmail || undefined,
+            name: name.trim(),
+            birthdate: memberBirthdate || undefined
           }, (res: any) => resolve(res));
         });
 
@@ -333,6 +426,12 @@ export default function TeamWorkspace() {
             payload: {
               id: matchingUser?.id || `profile-${Date.now()}`,
               name: name.trim(),
+              email: memberEmail || undefined,
+              cellphone: memberCellphone || undefined,
+              birthdate: memberBirthdate || undefined,
+              identifier: memberOrgId || undefined,
+              image: memberImage || undefined,
+              imageConfig: memberImageConfig,
               orgId
             }
           }, (response: any) => {
@@ -361,6 +460,7 @@ export default function TeamWorkspace() {
       }
 
       closeFn();
+      resetMemberForm();
       // Re-fetch local data just in case
       wsService.emit('get_data', { type: 'team_members', teamId }, (res: any) => {
         if (Array.isArray(res)) setRoster(res);
@@ -373,34 +473,29 @@ export default function TeamWorkspace() {
   };
 
   const handleRemoveRosterMember = (membershipId: string, name: string, isPlayer: boolean) => {
-    Alert.alert(
-      isPlayer ? 'Remove Player' : 'Remove Staff',
-      `Are you sure you want to remove ${name} from this team's roster?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            setIsProcessing(true);
-            wsService.emit('action', {
-              type: SocketAction.REMOVE_TEAM_MEMBER,
-              payload: { id: membershipId }
-            }, (res: any) => {
-              setIsProcessing(false);
-              if (res.status !== 'ok') {
-                Alert.alert('Action Failed', res.message || 'Could not remove member');
-              } else {
-                // Refresh list
-                wsService.emit('get_data', { type: 'team_members', teamId }, (resData: any) => {
-                  if (Array.isArray(resData)) setRoster(resData);
-                });
-              }
-            });
-          }
-        }
-      ]
-    );
+    setRosterMemberToRemove({ membershipId, name, isPlayer });
+    setRosterRemoveError(null);
+  };
+
+  const confirmRemoveRosterMember = () => {
+    if (!rosterMemberToRemove) return;
+    setIsProcessing(true);
+    setRosterRemoveError(null);
+    wsService.emit('action', {
+      type: SocketAction.REMOVE_TEAM_MEMBER,
+      payload: { id: rosterMemberToRemove.membershipId }
+    }, (res: any) => {
+      setIsProcessing(false);
+      if (res.status !== 'ok') {
+        setRosterRemoveError(res.message || 'Could not remove member');
+      } else {
+        setRosterMemberToRemove(null);
+        // Refresh list
+        wsService.emit('get_data', { type: 'team_members', teamId }, (resData: any) => {
+          if (Array.isArray(resData)) setRoster(resData);
+        });
+      }
+    });
   };
 
   const handleEditRosterName = async (profileId: string, newName: string, membershipId?: string, newRole?: string) => {
@@ -638,7 +733,7 @@ export default function TeamWorkspace() {
                 </Text>
                 <Button
                   title="Delete Team"
-                  onPress={handleDeleteTeam}
+                  onPress={() => { setIsDeleteModalOpen(true); setDeleteError(null); }}
                   className="bg-red-500 border-red-500 py-3 rounded-xl"
                 />
               </GlassCard>
@@ -674,37 +769,86 @@ export default function TeamWorkspace() {
             </View>
 
             <View className="space-y-3">
-              {players.map(item => (
-                <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-3">
-                    <View className="w-10 h-10 rounded-full bg-brand-orange/10 items-center justify-center">
-                      <Ionicons name="person" size={18} color="#FF3E00" />
+              {players.map(item => {
+                const inviteStatus = getInviteButtonStatus(item);
+                const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
+                const logoConf = parseImageConfig(item.imageConfig);
+
+                return (
+                  <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 p-3 flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-3 flex-1 mr-4">
+                      <View className="w-10 h-10 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
+                        {avatarSource ? (
+                          <View style={{ width: 40, height: 40, overflow: 'hidden' }}>
+                            <View
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                transform: [
+                                  { scale: logoConf.scale },
+                                  { translateX: logoConf.x * 40 },
+                                  { translateY: logoConf.y * 40 },
+                                ],
+                              }}
+                            >
+                              <Image
+                                source={avatarSource}
+                                style={{ width: '100%', height: '100%' }}
+                                resizeMode="cover"
+                              />
+                            </View>
+                          </View>
+                        ) : (
+                          <Text className="font-orbitron-bold text-sm text-brand-orange">
+                            {item.name.charAt(0).toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      <View className="flex-1">
+                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">{item.name}</Text>
+                        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
+                          {[item.email, item.cellphone].filter(Boolean).join('  |  ') || 'Athlete'}
+                        </Text>
+                      </View>
                     </View>
-                    <View>
-                      <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">{item.name}</Text>
-                      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">Athlete</Text>
+                    <View className="flex-row items-center gap-2">
+                      {inviteStatus && (
+                        <TouchableOpacity
+                          disabled={inviteStatus.disabled}
+                          onPress={() => handleSendInvite(item)}
+                          className={`px-2.5 py-1.5 rounded-lg active:scale-95 ${
+                            inviteStatus.disabled
+                              ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
+                              : 'bg-brand-orange'
+                          }`}
+                        >
+                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
+                            inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
+                          }`}>
+                            {inviteStatus.text}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        onPress={() => {
+                          setEditingPlayer({ id: item.id, name: item.name });
+                          setPlayerSearchVal(item.name);
+                          setIsPlayerModalOpen(true);
+                        }}
+                        className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:opacity-85"
+                      >
+                        <Ionicons name="pencil" size={14} color={isDark ? '#94A3B8' : '#475569'} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveRosterMember(item.membershipId, item.name, true)}
+                        className="w-8 h-8 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-85"
+                      >
+                        <Ionicons name="trash" size={14} color="#EF4444" />
+                      </TouchableOpacity>
                     </View>
-                  </View>
-                  <View className="flex-row gap-2">
-                    <TouchableOpacity
-                      onPress={() => {
-                        setEditingPlayer({ id: item.id, name: item.name });
-                        setPlayerSearchVal(item.name);
-                        setIsPlayerModalOpen(true);
-                      }}
-                      className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:opacity-85"
-                    >
-                      <Ionicons name="pencil" size={14} color={isDark ? '#94A3B8' : '#475569'} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleRemoveRosterMember(item.membershipId, item.name, true)}
-                      className="w-8 h-8 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-85"
-                    >
-                      <Ionicons name="trash" size={14} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                </GlassCard>
-              ))}
+                  </GlassCard>
+                );
+              })}
 
               {players.length === 0 && (
                 <View className="items-center justify-center py-12 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
@@ -743,19 +887,66 @@ export default function TeamWorkspace() {
 
             <View className="space-y-3">
               {staff.map(item => {
+                const inviteStatus = getInviteButtonStatus(item);
+                const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
+                const logoConf = parseImageConfig(item.imageConfig);
                 const roleName = availableRoles.find(r => r.id === item.roleId)?.name || 'Staff';
+
                 return (
-                  <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between">
-                    <View className="flex-row items-center gap-3">
-                      <View className="w-10 h-10 rounded-full bg-slate-200 dark:bg-white/10 items-center justify-center">
-                        <Ionicons name="briefcase" size={18} color={isDark ? '#94A3B8' : '#475569'} />
+                  <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 p-3 flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-3 flex-1 mr-4">
+                      <View className="w-10 h-10 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden items-center justify-center">
+                        {avatarSource ? (
+                          <View style={{ width: 40, height: 40, overflow: 'hidden' }}>
+                            <View
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                transform: [
+                                  { scale: logoConf.scale },
+                                  { translateX: logoConf.x * 40 },
+                                  { translateY: logoConf.y * 40 },
+                                ],
+                              }}
+                            >
+                              <Image
+                                source={avatarSource}
+                                style={{ width: '100%', height: '100%' }}
+                                resizeMode="cover"
+                              />
+                            </View>
+                          </View>
+                        ) : (
+                          <Text className="font-orbitron-bold text-sm text-slate-500 dark:text-slate-400">
+                            {item.name.charAt(0).toUpperCase()}
+                          </Text>
+                        )}
                       </View>
-                      <View>
+                      <View className="flex-1">
                         <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">{item.name}</Text>
-                        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">{roleName}</Text>
+                        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
+                          {[item.email, item.cellphone].filter(Boolean).join('  |  ') || roleName}
+                        </Text>
                       </View>
                     </View>
-                    <View className="flex-row gap-2">
+                    <View className="flex-row items-center gap-2">
+                      {inviteStatus && (
+                        <TouchableOpacity
+                          disabled={inviteStatus.disabled}
+                          onPress={() => handleSendInvite(item)}
+                          className={`px-2.5 py-1.5 rounded-lg active:scale-95 ${
+                            inviteStatus.disabled
+                              ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
+                              : 'bg-brand-orange'
+                          }`}
+                        >
+                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
+                            inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
+                          }`}>
+                            {inviteStatus.text}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                       <TouchableOpacity
                         onPress={() => {
                           setEditingStaff({ membershipId: item.membershipId, id: item.id, name: item.name, roleId: item.roleId });
@@ -939,19 +1130,25 @@ export default function TeamWorkspace() {
 
       {/* ==================== ADD/EDIT PLAYER MODAL ==================== */}
       <Modal visible={isPlayerModalOpen} transparent animationType="slide">
-        <View className="flex-1 bg-black/60 justify-end">
-          <GlassCard className="border-t border-slate-200 dark:border-white/5 rounded-t-3xl p-6 bg-white dark:bg-slate-900 min-h-[350px]">
+        <View className="flex-1 bg-black/60 justify-end md:justify-center md:items-center md:p-4">
+          <GlassCard
+            className="w-full md:max-w-md border-t md:border border-slate-200 dark:border-white/5 rounded-t-3xl md:rounded-2xl p-6 bg-white dark:bg-slate-900 min-h-[400px] md:min-h-[460px]"
+            style={{ overflow: 'visible' }}
+          >
             <View className="flex-row justify-between items-center mb-6">
               <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider">
                 {editingPlayer ? 'Edit Player' : 'Add Player to Roster'}
               </Text>
-              <TouchableOpacity onPress={() => setIsPlayerModalOpen(false)}>
+              <TouchableOpacity onPress={() => {
+                setIsPlayerModalOpen(false);
+                resetMemberForm();
+              }}>
                 <Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#475569'} />
               </TouchableOpacity>
             </View>
 
-            <View className="space-y-4 mb-8">
-              <View>
+            <View className="space-y-4 mb-4" style={{ zIndex: 50 }}>
+              <View style={{ zIndex: 10 }}>
                 <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase mb-2">Player Name</Text>
                 {editingPlayer ? (
                   <TextInput
@@ -963,19 +1160,132 @@ export default function TeamWorkspace() {
                   <PersonnelAutocomplete
                     orgId={orgId}
                     value={playerSearchVal}
-                    onChangeText={setPlayerSearchVal}
-                    onSelectPerson={setSelectedPerson}
+                    onChangeText={(text) => {
+                      setPlayerSearchVal(text);
+                      setIsCreatingNewPlayer(false);
+                      setSelectedPerson(null);
+                    }}
+                    onSelectPerson={(person) => {
+                      setSelectedPerson(person);
+                      if (person) {
+                        setMemberEmail(person.email || '');
+                        setMemberCellphone(person.cellphone || '');
+                        setMemberBirthdate(person.birthdate || '');
+                        setMemberOrgId(person.identifier || '');
+                        setMemberImage(person.image || '');
+                        setMemberImageConfig(parseImageConfig(person.imageConfig));
+                      } else {
+                        resetMemberForm();
+                      }
+                    }}
+                    onSelectNewPerson={() => setIsCreatingNewPlayer(true)}
                     placeholder="Search or enter new player name..."
                   />
                 )}
               </View>
             </View>
 
-            <View className="flex-row gap-3">
+            {/* Conditional extra fields for new player creation */}
+            {!editingPlayer && isCreatingNewPlayer && (
+              <ScrollView 
+                showsVerticalScrollIndicator={false} 
+                className="space-y-4 mb-4 max-h-[220px]"
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Avatar Display & Edit button */}
+                <View className="flex-row items-center gap-4 mb-2 pt-2">
+                  <TouchableOpacity
+                    onPress={() => setImageEditorTarget('player')}
+                    className="w-14 h-14 rounded-full overflow-hidden items-center justify-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10"
+                  >
+                    {memberImage ? (
+                      <View style={{ width: 56, height: 56, overflow: 'hidden' }}>
+                        <View
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            transform: [
+                              { scale: memberImageConfig.scale },
+                              { translateX: memberImageConfig.x * 56 },
+                              { translateY: memberImageConfig.y * 56 },
+                            ],
+                          }}
+                        >
+                          <Image
+                            source={{ uri: memberImage }}
+                            style={{ width: '100%', height: '100%' }}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <Ionicons name="camera-outline" size={18} color="#94A3B8" />
+                    )}
+                  </TouchableOpacity>
+                  <View>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">Avatar Photo</Text>
+                    <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Tap circle to edit/upload image</Text>
+                  </View>
+                </View>
+
+                {/* Email Address & Cell Number */}
+                <View className="flex-row gap-3 mb-2">
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Email Address</Text>
+                    <TextInput
+                      placeholder="email@example.com"
+                      placeholderTextColor="#94A3B8"
+                      value={memberEmail}
+                      onChangeText={setMemberEmail}
+                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Cell Number</Text>
+                    <TextInput
+                      placeholder="+1 234..."
+                      placeholderTextColor="#94A3B8"
+                      value={memberCellphone}
+                      onChangeText={setMemberCellphone}
+                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+                    />
+                  </View>
+                </View>
+
+                {/* Org ID & Birthdate */}
+                <View className="flex-row gap-3 mb-2">
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Org ID / Student #</Text>
+                    <TextInput
+                      placeholder="Identifier"
+                      placeholderTextColor="#94A3B8"
+                      value={memberOrgId}
+                      onChangeText={setMemberOrgId}
+                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Birthdate</Text>
+                    <TextInput
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#94A3B8"
+                      value={memberBirthdate}
+                      onChangeText={setMemberBirthdate}
+                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+
+            <View className="flex-row gap-3 mt-2">
               <Button
                 title="Cancel"
                 variant="secondary"
-                onPress={() => setIsPlayerModalOpen(false)}
+                onPress={() => {
+                  setIsPlayerModalOpen(false);
+                  resetMemberForm();
+                }}
                 className="flex-1 py-3"
               />
               <Button
@@ -985,8 +1295,11 @@ export default function TeamWorkspace() {
                   if (editingPlayer) {
                     handleEditRosterName(editingPlayer.id, playerSearchVal);
                     setIsPlayerModalOpen(false);
+                    resetMemberForm();
                   } else {
-                    handleAddRosterMember(playerSearchVal, 'role-player', selectedPerson, () => setIsPlayerModalOpen(false));
+                    handleAddRosterMember(playerSearchVal, 'role-player', selectedPerson, () => {
+                      setIsPlayerModalOpen(false);
+                    });
                   }
                 }}
                 className="flex-1 py-3"
@@ -998,19 +1311,25 @@ export default function TeamWorkspace() {
 
       {/* ==================== ADD/EDIT STAFF MODAL ==================== */}
       <Modal visible={isStaffModalOpen} transparent animationType="slide">
-        <View className="flex-1 bg-black/60 justify-end">
-          <GlassCard className="border-t border-slate-200 dark:border-white/5 rounded-t-3xl p-6 bg-white dark:bg-slate-900 min-h-[420px]">
+        <View className="flex-1 bg-black/60 justify-end md:justify-center md:items-center md:p-4">
+          <GlassCard
+            className="w-full md:max-w-md border-t md:border border-slate-200 dark:border-white/5 rounded-t-3xl md:rounded-2xl p-6 bg-white dark:bg-slate-900 min-h-[460px] md:min-h-[520px]"
+            style={{ overflow: 'visible' }}
+          >
             <View className="flex-row justify-between items-center mb-6">
               <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider">
                 {editingStaff ? 'Edit Staff Member' : 'Add Staff to Roster'}
               </Text>
-              <TouchableOpacity onPress={() => setIsStaffModalOpen(false)}>
+              <TouchableOpacity onPress={() => {
+                setIsStaffModalOpen(false);
+                resetMemberForm();
+              }}>
                 <Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#475569'} />
               </TouchableOpacity>
             </View>
 
-            <View className="space-y-4 mb-8">
-              <View>
+            <View className="space-y-4 mb-4" style={{ zIndex: 50 }}>
+              <View style={{ zIndex: 10 }}>
                 <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase mb-2">Staff Name</Text>
                 {editingStaff ? (
                   <TextInput
@@ -1022,8 +1341,25 @@ export default function TeamWorkspace() {
                   <PersonnelAutocomplete
                     orgId={orgId}
                     value={staffSearchVal}
-                    onChangeText={setStaffSearchVal}
-                    onSelectPerson={setSelectedStaffPerson}
+                    onChangeText={(text) => {
+                      setStaffSearchVal(text);
+                      setIsCreatingNewStaff(false);
+                      setSelectedStaffPerson(null);
+                    }}
+                    onSelectPerson={(person) => {
+                      setSelectedStaffPerson(person);
+                      if (person) {
+                        setMemberEmail(person.email || '');
+                        setMemberCellphone(person.cellphone || '');
+                        setMemberBirthdate(person.birthdate || '');
+                        setMemberOrgId(person.identifier || '');
+                        setMemberImage(person.image || '');
+                        setMemberImageConfig(parseImageConfig(person.imageConfig));
+                      } else {
+                        resetMemberForm();
+                      }
+                    }}
+                    onSelectNewPerson={() => setIsCreatingNewStaff(true)}
                     placeholder="Search or enter staff name..."
                   />
                 )}
@@ -1052,11 +1388,107 @@ export default function TeamWorkspace() {
               </View>
             </View>
 
-            <View className="flex-row gap-3">
+            {/* Conditional extra fields for new staff creation */}
+            {!editingStaff && isCreatingNewStaff && (
+              <ScrollView 
+                showsVerticalScrollIndicator={false} 
+                className="space-y-4 mb-4 max-h-[160px]"
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Avatar Display & Edit button */}
+                <View className="flex-row items-center gap-4 mb-2 pt-2">
+                  <TouchableOpacity
+                    onPress={() => setImageEditorTarget('staff')}
+                    className="w-14 h-14 rounded-full overflow-hidden items-center justify-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10"
+                  >
+                    {memberImage ? (
+                      <View style={{ width: 56, height: 56, overflow: 'hidden' }}>
+                        <View
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            transform: [
+                              { scale: memberImageConfig.scale },
+                              { translateX: memberImageConfig.x * 56 },
+                              { translateY: memberImageConfig.y * 56 },
+                            ],
+                          }}
+                        >
+                          <Image
+                            source={{ uri: memberImage }}
+                            style={{ width: '100%', height: '100%' }}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <Ionicons name="camera-outline" size={18} color="#94A3B8" />
+                    )}
+                  </TouchableOpacity>
+                  <View>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">Avatar Photo</Text>
+                    <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Tap circle to edit/upload image</Text>
+                  </View>
+                </View>
+
+                {/* Email Address & Cell Number */}
+                <View className="flex-row gap-3 mb-2">
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Email Address</Text>
+                    <TextInput
+                      placeholder="email@example.com"
+                      placeholderTextColor="#94A3B8"
+                      value={memberEmail}
+                      onChangeText={setMemberEmail}
+                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Cell Number</Text>
+                    <TextInput
+                      placeholder="+1 234..."
+                      placeholderTextColor="#94A3B8"
+                      value={memberCellphone}
+                      onChangeText={setMemberCellphone}
+                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+                    />
+                  </View>
+                </View>
+
+                {/* Org ID & Birthdate */}
+                <View className="flex-row gap-3 mb-2">
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Org ID / Student #</Text>
+                    <TextInput
+                      placeholder="Identifier"
+                      placeholderTextColor="#94A3B8"
+                      value={memberOrgId}
+                      onChangeText={setMemberOrgId}
+                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Birthdate</Text>
+                    <TextInput
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#94A3B8"
+                      value={memberBirthdate}
+                      onChangeText={setMemberBirthdate}
+                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+
+            <View className="flex-row gap-3 mt-2">
               <Button
                 title="Cancel"
                 variant="secondary"
-                onPress={() => setIsStaffModalOpen(false)}
+                onPress={() => {
+                  setIsStaffModalOpen(false);
+                  resetMemberForm();
+                }}
                 className="flex-1 py-3"
               />
               <Button
@@ -1066,8 +1498,11 @@ export default function TeamWorkspace() {
                   if (editingStaff) {
                     handleEditRosterName(editingStaff.id, staffSearchVal, editingStaff.membershipId, staffRoleVal);
                     setIsStaffModalOpen(false);
+                    resetMemberForm();
                   } else {
-                    handleAddRosterMember(staffSearchVal, staffRoleVal, selectedStaffPerson, () => setIsStaffModalOpen(false));
+                    handleAddRosterMember(staffSearchVal, staffRoleVal, selectedStaffPerson, () => {
+                      setIsStaffModalOpen(false);
+                    });
                   }
                 }}
                 className="flex-1 py-3"
@@ -1076,6 +1511,63 @@ export default function TeamWorkspace() {
           </GlassCard>
         </View>
       </Modal>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete Team?"
+        description={`Are you sure you want to permanently delete the team "${team?.name}"? This action cannot be undone.${deleteError ? '\n\nError: ' + deleteError : ''}`}
+        onConfirm={handleDeleteTeam}
+        confirmText={isProcessing ? "Deleting..." : "Delete"}
+        variant="danger"
+        isProcessing={isProcessing}
+      />
+
+      {/* DEACTIVATE WARNING MODAL */}
+      <ConfirmationModal
+        isOpen={deactivateWarningOpen}
+        onClose={() => setDeactivateWarningOpen(false)}
+        title="Warning: Team has Games"
+        description={`This team is associated with ${teamGames.length} existing games. Deactivating it will prevent it from being selected for new schedules, but won't delete past game history. Are you sure you want to deactivate ${team?.name}?`}
+        onConfirm={() => {
+          setDetailsForm(prev => ({ ...prev, isActive: false }));
+          setDeactivateWarningOpen(false);
+        }}
+        confirmText="Deactivate"
+        variant="danger"
+      />
+
+      {/* ROSTER REMOVE MEMBER CONFIRMATION MODAL */}
+      <ConfirmationModal
+        isOpen={rosterMemberToRemove !== null}
+        onClose={() => setRosterMemberToRemove(null)}
+        title={rosterMemberToRemove?.isPlayer ? 'Remove Player' : 'Remove Staff'}
+        description={
+          rosterMemberToRemove 
+            ? `Are you sure you want to remove ${rosterMemberToRemove.name} from this team's roster?${rosterRemoveError ? '\n\nError: ' + rosterRemoveError : ''}` 
+            : ''
+        }
+        onConfirm={confirmRemoveRosterMember}
+        confirmText={isProcessing ? "Removing..." : "Remove"}
+        variant="danger"
+        isProcessing={isProcessing}
+      />
+
+      {/* Resolve the image URI to pass to ImageEditor */}
+      <ImageEditor
+        visible={imageEditorTarget !== null}
+        imageUri={memberImage}
+        config={memberImageConfig}
+        title="Edit Avatar"
+        allowRemove
+        onApply={(uri, config) => {
+          setMemberImage(uri);
+          setMemberImageConfig(config);
+          setImageEditorTarget(null);
+        }}
+        onCancel={() => setImageEditorTarget(null)}
+      />
     </SafeAreaView>
   );
 }

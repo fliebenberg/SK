@@ -1,0 +1,93 @@
+import { useEffect, useCallback } from 'react';
+import { Alert } from 'react-native';
+import { useNavigation } from 'expo-router';
+import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
+
+/**
+ * Hook to warn users about unsaved changes when navigating away.
+ *
+ * - Intercepts the hardware/gesture back button via Expo Router's `beforeRemove` event.
+ * - Writes dirty state to the global store so the LeftNavigationRail and mobile
+ *   workspace menu can also check before performing programmatic navigation.
+ *
+ * @param isDirty   Whether the form currently has unsaved changes.
+ * @param onDiscard Optional callback to reset the form when the user chooses to discard.
+ * @returns confirmThenNavigate — call this instead of router.push/replace when you want
+ *          the same confirmation before a programmatic navigation from within the page.
+ */
+export function useUnsavedChanges(
+  isDirty: boolean,
+  onDiscard?: () => void,
+) {
+  const navigation = useNavigation();
+  const { setDirty, clear } = useUnsavedChangesStore();
+
+  // Keep global store in sync
+  useEffect(() => {
+    setDirty(isDirty, onDiscard);
+    return () => {
+      clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty]);
+
+  // Intercept back navigation (hardware back / swipe-back / header back button)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      if (!isDirty) return; // allow navigation if clean
+
+      e.preventDefault(); // block the default removal
+
+      Alert.alert(
+        'Unsaved Changes',
+        'You have unsaved changes that will be lost if you leave. Do you want to discard them?',
+        [
+          { text: 'Stay', style: 'cancel' },
+          {
+            text: 'Discard & Leave',
+            style: 'destructive',
+            onPress: () => {
+              onDiscard?.();
+              clear();
+              navigation.dispatch(e.data.action); // continue with the blocked action
+            },
+          },
+        ],
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation, isDirty, onDiscard, clear]);
+
+  /**
+   * Use this to wrap any programmatic navigation inside the page that should
+   * also respect the unsaved-changes check (e.g. a "Go to Teams" button on the page).
+   */
+  const confirmThenNavigate = useCallback(
+    (action: () => void) => {
+      if (!isDirty) {
+        action();
+        return;
+      }
+      Alert.alert(
+        'Unsaved Changes',
+        'You have unsaved changes that will be lost if you leave. Do you want to discard them?',
+        [
+          { text: 'Stay', style: 'cancel' },
+          {
+            text: 'Discard & Leave',
+            style: 'destructive',
+            onPress: () => {
+              onDiscard?.();
+              clear();
+              action();
+            },
+          },
+        ],
+      );
+    },
+    [isDirty, onDiscard, clear],
+  );
+
+  return { confirmThenNavigate };
+}

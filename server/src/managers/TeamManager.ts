@@ -131,7 +131,10 @@ export class TeamManager extends BaseManager {
     const res = await this.query(`
         SELECT 
             tm.id as "membershipId", tm.role_id as "roleId", tm.start_date as "startDate", tm.end_date as "endDate",
-            p.id, p.name,
+            p.id, p.name, p.email, p.cellphone, p.birthdate, p.national_id as "nationalId",
+            p.identifier as "personOrgId",
+            p.org_id as "orgId", p.user_id as "userId", p.image, p.primary_role_id as "primaryRoleId",
+            p.last_invite_sent_at as "lastInviteSentAt", p.image_config as "imageConfig",
             tm.team_id as "teamId"
         FROM team_memberships tm
         JOIN org_profiles p ON tm.org_profile_id = p.id

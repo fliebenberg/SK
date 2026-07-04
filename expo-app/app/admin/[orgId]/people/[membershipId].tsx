@@ -6,12 +6,14 @@ import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
+import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, OrgMember } from '@sk/types';
 import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../../services/api';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
+import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -35,7 +37,7 @@ export default function EditMember() {
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
 
-  const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers } = useSocketQuery<OrgMember[]>('org_members', { orgId });
+  const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers, setData: setMembersData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
 
   const availableRoles: any[] = rolesData?.org || [];
@@ -59,6 +61,7 @@ export default function EditMember() {
   const [originalData, setOriginalData] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [imageEditorVisible, setImageEditorVisible] = useState(false);
 
   useEffect(() => {
@@ -90,8 +93,35 @@ export default function EditMember() {
     const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
-      if (event && (event.type === 'ORG_MEMBERS_SYNC' || event.type === 'ORG_MEMBER_UPDATED')) {
-        refetchMembers();
+      if (!event) return;
+      if (event.type === 'ORG_MEMBERS_SYNC') {
+        setMembersData(event.data);
+      } else if (event.type === 'ORG_MEMBER_UPDATED') {
+        const updatedData = event.data;
+        if (updatedData) {
+          if (updatedData.endDate) {
+            // Member was removed
+            setMembersData(prev => {
+              if (!prev) return null;
+              return prev.filter(m => m.membershipId !== updatedData.id && m.membershipId !== updatedData.membershipId);
+            });
+          } else if (updatedData.id) {
+            setMembersData(prev => {
+              if (!prev) return null;
+              const idx = prev.findIndex(m => m.id === updatedData.id);
+              if (idx !== -1) {
+                // Update existing member
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], ...updatedData };
+                return copy;
+              } else if (updatedData.membershipId) {
+                // Add new member to list
+                return [...prev, updatedData];
+              }
+              return prev;
+            });
+          }
+        }
       }
     };
 
@@ -101,7 +131,7 @@ export default function EditMember() {
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId, refetchMembers]);
+  }, [isConnected, orgId, setMembersData]);
 
   const hasChanges = useMemo(() => {
     if (!form || !originalData) return false;
@@ -113,6 +143,8 @@ export default function EditMember() {
       setForm(JSON.parse(originalData));
     }
   };
+
+  useUnsavedChanges(hasChanges, handleCancel);
 
   const handleSave = async () => {
     if (!form || !form.name.trim()) return;
@@ -169,6 +201,7 @@ export default function EditMember() {
     if (!form) return;
 
     setIsProcessing(true);
+    setDeleteError(null);
     try {
       await new Promise((resolve, reject) => {
         wsService.emit('action', {
@@ -183,7 +216,7 @@ export default function EditMember() {
       router.back();
     } catch (err: any) {
       console.error(err);
-      Alert.alert('Delete Failed', err.message || 'Failed to remove member');
+      setDeleteError(err.message || 'Failed to remove member');
     } finally {
       setIsProcessing(false);
     }
@@ -389,7 +422,7 @@ export default function EditMember() {
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => setIsDeleteModalOpen(true)}
+                onPress={() => { setIsDeleteModalOpen(true); setDeleteError(null); }}
                 className="bg-red-500 px-4 py-2.5 rounded-xl items-center justify-center active:opacity-85"
               >
                 <Text className="font-inter-bold text-xs text-white uppercase tracking-wider">Remove</Text>
@@ -439,44 +472,20 @@ export default function EditMember() {
       )}
 
       {/* DELETE CONFIRMATION MODAL */}
-      {isDeleteModalOpen && (
-        <View className="absolute inset-0 bg-slate-950/80 items-center justify-center z-50 p-4">
-          <View
-            className="w-full max-w-sm border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-6"
-            style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
-          >
-            <View className="items-center justify-center mb-4">
-              <View className="w-12 h-12 rounded-full bg-red-500/10 items-center justify-center mb-3">
-                <Ionicons name="warning-outline" size={24} color="#EF4444" />
-              </View>
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider text-center">
-                Remove Member?
-              </Text>
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mt-2 leading-relaxed">
-                Are you sure you want to remove <Text className="font-semibold text-slate-700 dark:text-slate-300">"{form.name}"</Text> from the organization? This action is irreversible.
-              </Text>
-            </View>
-
-            <View className="flex-row gap-3 mt-4">
-              <TouchableOpacity
-                onPress={() => setIsDeleteModalOpen(false)}
-                className="flex-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/5 py-3 rounded-xl items-center justify-center active:opacity-85"
-              >
-                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleDelete}
-                disabled={isProcessing}
-                className="flex-1 bg-red-500 py-3 rounded-xl items-center justify-center active:opacity-85"
-              >
-                <Text className="font-inter-bold text-xs text-white uppercase tracking-wider">
-                  {isProcessing ? "Removing..." : "Remove"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Remove Member?"
+        description={
+          form 
+            ? `Are you sure you want to remove "${form.name}" from the organization? This action is irreversible.${deleteError ? '\n\nError: ' + deleteError : ''}` 
+            : ''
+        }
+        onConfirm={handleDelete}
+        confirmText={isProcessing ? 'Removing...' : 'Remove'}
+        variant="danger"
+        isProcessing={isProcessing}
+      />
 
       {/* IMAGE EDITOR */}
       <ImageEditor

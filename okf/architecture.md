@@ -33,3 +33,6 @@ For details on the extensible multi-sport architecture, see [multi_sport_archite
 2. **Native Reanimated Restrictions**:
    - To prevent native JSI runtime bridge crashes on Android and iOS devices, **DO NOT** install or use `react-native-reanimated` or `react-native-worklets-core`.
    - Custom transitions must use standard React Native `Animated` utilities or stylesheet animations instead of Reanimated or NativeWind transition classes.
+3. **UI Dialogue & Alerts Boundary**:
+   - **DO NOT** use default native popups (like React Native's `Alert.alert` or standard browser popup dialogs) for warnings or delete confirm actions.
+   - Use custom overlay layouts/modals to ensure consistent styling and prevent silent browser intercept blocks.

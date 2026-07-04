@@ -9,6 +9,7 @@ import { wsService } from '../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Facility, Site } from '@sk/types';
 import { useSocketQuery } from '../../../../../../hooks/useSocketQuery';
+import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -300,6 +301,8 @@ export default function FacilityDetails() {
       });
     }
   };
+
+  useUnsavedChanges(hasChanges, handleCancel);
 
   // Populate facility form
   useEffect(() => {

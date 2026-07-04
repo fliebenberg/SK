@@ -6,10 +6,12 @@ import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettingsStore, useActiveTheme } from '../../../../store/settingsStore';
+import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Site, Facility, Address } from '@sk/types';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
+import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -238,6 +240,9 @@ export default function SiteDetails() {
   // Loading States
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [facilityToDelete, setFacilityToDelete] = useState<Facility | null>(null);
+  const [facilityDeleteError, setFacilityDeleteError] = useState<string | null>(null);
 
   const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
   const setMapType = (val: 'standard' | 'satellite') => {
@@ -319,6 +324,8 @@ export default function SiteDetails() {
       setAddressSearchQuery(originalData.address?.fullAddress || '');
     }
   };
+
+  useUnsavedChanges(hasChanges, handleCancel);
 
   // Nominatim geocoding autocomplete state
   const [addressSearchQuery, setAddressSearchQuery] = useState('');
@@ -545,16 +552,17 @@ export default function SiteDetails() {
   const handleDeleteSite = () => {
     if (!editingSite) return;
     setIsProcessing(true);
+    setDeleteError(null);
     wsService.emit('action', {
       type: SocketAction.DELETE_SITE,
       payload: { id: editingSite.id }
     }, (res: any) => {
       setIsProcessing(false);
-      setIsDeleteModalOpen(false);
       if (res.status === 'ok') {
+        setIsDeleteModalOpen(false);
         router.back();
       } else {
-        Alert.alert('Delete Failed', res.message || 'Site is currently linked to events or games and cannot be deleted.');
+        setDeleteError(res.message || 'Site is currently linked to events or games and cannot be deleted.');
       }
     });
   };
@@ -576,29 +584,25 @@ export default function SiteDetails() {
 
   // Delete Facility Confirmation
   const handleDeleteFacility = (facility: Facility) => {
-    Alert.alert(
-      'Delete Facility',
-      `Are you sure you want to delete "${facility.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: () => {
-            setIsProcessing(true);
-            wsService.emit('action', {
-              type: SocketAction.DELETE_FACILITY,
-              payload: { id: facility.id }
-            }, (res: any) => {
-              setIsProcessing(false);
-              if (res.status !== 'ok') {
-                Alert.alert('Delete Failed', res.message || 'Facility is used in games and cannot be deleted.');
-              }
-            });
-          }
-        }
-      ]
-    );
+    setFacilityToDelete(facility);
+    setFacilityDeleteError(null);
+  };
+
+  const confirmDeleteFacility = () => {
+    if (!facilityToDelete) return;
+    setIsProcessing(true);
+    setFacilityDeleteError(null);
+    wsService.emit('action', {
+      type: SocketAction.DELETE_FACILITY,
+      payload: { id: facilityToDelete.id }
+    }, (res: any) => {
+      setIsProcessing(false);
+      if (res.status === 'ok') {
+        setFacilityToDelete(null);
+      } else {
+        setFacilityDeleteError(res.message || 'Facility is used in games and cannot be deleted.');
+      }
+    });
   };
 
   return (
@@ -941,7 +945,7 @@ export default function SiteDetails() {
                     </Text>
                   </View>
                   <TouchableOpacity
-                    onPress={() => setIsDeleteModalOpen(true)}
+                    onPress={() => { setIsDeleteModalOpen(true); setDeleteError(null); }}
                     className="bg-red-500 px-4 py-2.5 rounded-xl items-center justify-center active:opacity-85"
                   >
                     <Text className="font-inter-bold text-xs text-white uppercase tracking-wider">Delete</Text>
@@ -994,44 +998,36 @@ export default function SiteDetails() {
       )}
 
       {/* DELETE CONFIRMATION MODAL */}
-      {isDeleteModalOpen && (
-        <View className="absolute inset-0 bg-slate-950/80 items-center justify-center z-50 p-4">
-          <View 
-            className="w-full max-w-sm border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-6"
-            style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
-          >
-            <View className="items-center justify-center mb-4">
-              <View className="w-12 h-12 rounded-full bg-red-500/10 items-center justify-center mb-3">
-                <Ionicons name="warning-outline" size={24} color="#EF4444" />
-              </View>
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider text-center">
-                Delete Site?
-              </Text>
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mt-2 leading-relaxed">
-                Are you sure you want to delete <Text className="font-semibold text-slate-700 dark:text-slate-300">"{editingSite?.name}"</Text>? This will permanently delete all associated facilities.
-              </Text>
-            </View>
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete Site?"
+        description={
+          editingSite 
+            ? `Are you sure you want to delete "${editingSite.name}"? This will permanently delete all associated facilities.${deleteError ? '\n\nError: ' + deleteError : ''}` 
+            : ''
+        }
+        onConfirm={handleDeleteSite}
+        confirmText={isProcessing ? 'Deleting...' : 'Delete'}
+        variant="danger"
+        isProcessing={isProcessing}
+      />
 
-            <View className="flex-row gap-3 mt-4">
-              <TouchableOpacity
-                onPress={() => setIsDeleteModalOpen(false)}
-                className="flex-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/5 py-3 rounded-xl items-center justify-center active:opacity-85"
-              >
-                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleDeleteSite}
-                disabled={isProcessing}
-                className="flex-1 bg-red-500 py-3 rounded-xl items-center justify-center active:opacity-85"
-              >
-                <Text className="font-inter-bold text-xs text-white uppercase tracking-wider">
-                  {isProcessing ? "Deleting..." : "Delete"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+      {/* DELETE FACILITY CONFIRMATION MODAL */}
+      <ConfirmationModal
+        isOpen={facilityToDelete !== null}
+        onClose={() => setFacilityToDelete(null)}
+        title="Delete Facility"
+        description={
+          facilityToDelete 
+            ? `Are you sure you want to delete "${facilityToDelete.name}"? This action cannot be undone.${facilityDeleteError ? '\n\nError: ' + facilityDeleteError : ''}` 
+            : ''
+        }
+        onConfirm={confirmDeleteFacility}
+        confirmText={isProcessing ? 'Deleting...' : 'Delete'}
+        variant="danger"
+        isProcessing={isProcessing}
+      />
     </SafeAreaView>
   );
 }

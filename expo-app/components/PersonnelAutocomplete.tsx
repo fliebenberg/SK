@@ -10,6 +10,7 @@ interface PersonnelAutocompleteProps {
   value: string;
   onChangeText: (text: string) => void;
   onSelectPerson: (person: OrgProfile | null) => void;
+  onSelectNewPerson?: () => void;
   placeholder?: string;
 }
 
@@ -18,6 +19,7 @@ export function PersonnelAutocomplete({
   value,
   onChangeText,
   onSelectPerson,
+  onSelectNewPerson,
   placeholder = 'Search roster or enter name...',
 }: PersonnelAutocompleteProps) {
   const isDark = useActiveTheme() === 'dark';
@@ -54,6 +56,9 @@ export function PersonnelAutocomplete({
 
   const handleNewPerson = () => {
     onSelectPerson(null);
+    if (onSelectNewPerson) {
+      onSelectNewPerson();
+    }
     setIsOpen(false);
   };
 
@@ -84,18 +89,19 @@ export function PersonnelAutocomplete({
           className="absolute left-0 right-0 z-50 rounded-xl border border-slate-300 dark:border-brand-orange/40 mt-1 overflow-hidden bg-white dark:bg-slate-900"
           style={{
             top: 50,
-            maxHeight: 280,
+            maxHeight: 220,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.15,
             shadowRadius: 8,
             elevation: 5,
             flexDirection: 'column',
+            backgroundColor: isDark ? '#0f172a' : '#ffffff',
           }}
         >
           {suggestions.length > 0 ? (
             <ScrollView 
-              style={{ flex: 1, maxHeight: 200 }}
+              style={{ flex: 1, maxHeight: 150 }}
               nestedScrollEnabled={true}
               keyboardShouldPersistTaps="handled"
             >

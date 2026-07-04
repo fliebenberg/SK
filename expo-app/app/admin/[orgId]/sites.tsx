@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
+import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
@@ -43,6 +44,8 @@ export default function OrgSites() {
 
   // Modals & Forms State
   const [isProcessing, setIsProcessing] = useState(false);
+  const [siteToDelete, setSiteToDelete] = useState<Site | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Load Initial Data & Subscribe to updates for Sites & Facilities
   useEffect(() => {
@@ -106,29 +109,25 @@ export default function OrgSites() {
 
   // Delete Site Confirmation
   const handleDeleteSite = (site: Site) => {
-    Alert.alert(
-      'Delete Site',
-      `Are you sure you want to delete "${site.name}"? This will also delete all facilities under this site.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: () => {
-            setIsProcessing(true);
-            wsService.emit('action', {
-              type: SocketAction.DELETE_SITE,
-              payload: { id: site.id }
-            }, (res: any) => {
-              setIsProcessing(false);
-              if (res.status !== 'ok') {
-                Alert.alert('Delete Failed', res.message || 'Site is currently linked to events or games and cannot be deleted.');
-              }
-            });
-          }
-        }
-      ]
-    );
+    setSiteToDelete(site);
+    setDeleteError(null);
+  };
+
+  const confirmDeleteSite = () => {
+    if (!siteToDelete) return;
+    setIsProcessing(true);
+    setDeleteError(null);
+    wsService.emit('action', {
+      type: SocketAction.DELETE_SITE,
+      payload: { id: siteToDelete.id }
+    }, (res: any) => {
+      setIsProcessing(false);
+      if (res.status === 'ok') {
+        setSiteToDelete(null);
+      } else {
+        setDeleteError(res.message || 'Site is currently linked to events or games and cannot be deleted.');
+      }
+    });
   };
 
   // Filter & Search Sites List
@@ -325,6 +324,20 @@ export default function OrgSites() {
         </ScrollView>
       )}
 
+      <ConfirmationModal
+        isOpen={siteToDelete !== null}
+        onClose={() => setSiteToDelete(null)}
+        title="Delete Site?"
+        description={
+          siteToDelete 
+            ? `Are you sure you want to delete "${siteToDelete.name}"? This will permanently delete all associated facilities.${deleteError ? '\n\nError: ' + deleteError : ''}` 
+            : ''
+        }
+        onConfirm={confirmDeleteSite}
+        confirmText={isProcessing ? 'Deleting...' : 'Delete'}
+        variant="danger"
+        isProcessing={isProcessing}
+      />
     </SafeAreaView>
   );
 }

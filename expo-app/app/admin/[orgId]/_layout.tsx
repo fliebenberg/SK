@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stack, useGlobalSearchParams, useRouter, useSegments } from 'expo-router';
 import { useActiveTheme } from '../../../store/settingsStore';
-import { useWindowDimensions, View, TouchableOpacity, Text } from 'react-native';
+import { useWindowDimensions, View, TouchableOpacity, Text, Alert } from 'react-native';
 import { LeftNavigationRail } from '../../../components/LeftNavigationRail';
 import { useAuthStore } from '../../../store/authStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { Ionicons } from '@expo/vector-icons';
+import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
+import { BottomMenu } from '../../../components/BottomMenu';
 
 export default function OrgAdminLayout() {
   const activeTheme = useActiveTheme();
@@ -22,6 +24,24 @@ export default function OrgAdminLayout() {
   const [workspaceMenuVisible, setWorkspaceMenuVisible] = useState(false);
   const lastFetchedId = useRef<string | null>(null);
   const isConnected = useWsStore(state => state.isConnected);
+  const { isDirty, onDiscard, clear } = useUnsavedChangesStore();
+
+  const confirmThenNavigate = useCallback((action: () => void) => {
+    setWorkspaceMenuVisible(false);
+    if (!isDirty) { action(); return; }
+    Alert.alert(
+      'Unsaved Changes',
+      'You have unsaved changes that will be lost if you leave. Do you want to discard them?',
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: 'Discard & Leave',
+          style: 'destructive',
+          onPress: () => { onDiscard?.(); clear(); action(); },
+        },
+      ],
+    );
+  }, [isDirty, onDiscard, clear]);
 
   useEffect(() => {
     if (!isConnected || !orgId) {
@@ -101,11 +121,11 @@ export default function OrgAdminLayout() {
     <View className="flex-1 bg-slate-50 dark:bg-slate-950 relative">
       {stackContent}
 
-      {/* Floating Workspace Hub Button (Mobile Only) */}
+      {/* Floating Workspace Hub Button (Mobile Only) - Positioned higher to clear the bottom menu */}
       {!isLargeScreen && orgId && (
         <TouchableOpacity
           onPress={() => setWorkspaceMenuVisible(!workspaceMenuVisible)}
-          className="absolute bottom-6 right-6 w-14 h-14 rounded-full items-center justify-center shadow-lg z-50 border overflow-hidden active:scale-95"
+          className="absolute bottom-[75px] right-4 w-12 h-12 rounded-full items-center justify-center shadow-lg z-50 border overflow-hidden active:scale-95"
           style={{ 
             backgroundColor: orgData?.primaryColor || '#FF3E00',
             borderColor: orgData?.secondaryColor || '#00E5FF',
@@ -113,18 +133,18 @@ export default function OrgAdminLayout() {
           }}
         >
           {workspaceMenuVisible ? (
-            <Ionicons name="close-outline" size={26} color={fabTextColor} />
+            <Ionicons name="close-outline" size={22} color={fabTextColor} />
           ) : (
             orgData?.logo ? (
-              <OrgLogo logo={orgData.logo} settings={orgData.settings} size={48} />
+              <OrgLogo logo={orgData.logo} settings={orgData.settings} size={44} />
             ) : (
-              <Ionicons name="grid" size={24} color={fabTextColor} />
+              <Ionicons name="grid" size={22} color={fabTextColor} />
             )
           )}
         </TouchableOpacity>
       )}
 
-      {/* Workspace Menu Overlay (Mobile Only) */}
+      {/* Workspace Menu Overlay (Mobile Only) - Positioned higher to clear the bottom menu */}
       {workspaceMenuVisible && orgId && (
         <>
           {/* Backdrop Dimming */}
@@ -135,7 +155,7 @@ export default function OrgAdminLayout() {
           />
 
           {/* Workspace Action Menu Sheet floating above FAB */}
-          <View className="absolute bottom-24 right-6 z-50 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl shadow-xl overflow-hidden p-2.5">
+          <View className="absolute bottom-[135px] right-4 z-50 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl shadow-xl overflow-hidden p-2.5">
             {/* Header section inside the menu */}
             {orgData && (
               <View className="mb-2.5">
@@ -191,8 +211,7 @@ export default function OrgAdminLayout() {
                 <TouchableOpacity
                   key={item.route}
                   onPress={() => {
-                    setWorkspaceMenuVisible(false);
-                    router.push(item.route as any);
+                    confirmThenNavigate(() => router.push(item.route as any));
                   }}
                   className="flex-row items-center gap-3 px-3 py-2 rounded-lg active:bg-slate-100 dark:active:bg-white/5"
                 >
@@ -208,12 +227,7 @@ export default function OrgAdminLayout() {
               {/* Exit Workspace */}
               <TouchableOpacity
                 onPress={() => {
-                  setWorkspaceMenuVisible(false);
-                  console.log('[Exit Workspace Mobile] Navigating back to organizations.', {
-                    currentSegments: segments,
-                    currentOrgId: orgId,
-                  });
-                  router.replace('/(tabs)/organizations' as any);
+                  confirmThenNavigate(() => router.replace('/(tabs)/organizations' as any));
                 }}
                 className="flex-row items-center gap-3 px-3 py-2 rounded-lg active:bg-red-50 dark:active:bg-red-950/25"
               >
@@ -225,6 +239,11 @@ export default function OrgAdminLayout() {
             </View>
           </View>
         </>
+      )}
+
+      {/* Bottom Menu (Mobile Only) */}
+      {!isLargeScreen && (
+        <BottomMenu confirmThenNavigate={confirmThenNavigate} />
       )}
     </View>
   );

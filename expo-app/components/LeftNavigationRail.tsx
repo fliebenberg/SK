@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Platform, Image } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Platform, Image, Alert } from 'react-native';
 import { useRouter, useSegments, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
@@ -9,6 +9,7 @@ import { OrgLogo } from './OrgLogo';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
 import { CommonActions } from '@react-navigation/native';
+import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 
 export function LeftNavigationRail() {
   const router = useRouter();
@@ -22,6 +23,23 @@ export function LeftNavigationRail() {
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
   const [orgData, setOrgData] = useState<any>(null);
   const lastFetchedId = useRef<string | null>(null);
+  const { isDirty, onDiscard, clear } = useUnsavedChangesStore();
+
+  const confirmThenNavigate = useCallback((action: () => void) => {
+    if (!isDirty) { action(); return; }
+    Alert.alert(
+      'Unsaved Changes',
+      'You have unsaved changes that will be lost if you leave. Do you want to discard them?',
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: 'Discard & Leave',
+          style: 'destructive',
+          onPress: () => { onDiscard?.(); clear(); action(); },
+        },
+      ],
+    );
+  }, [isDirty, onDiscard, clear]);
 
   // Check if we are in the org admin panel
   const isOrgAdmin = segments[0] === 'admin';
@@ -170,7 +188,7 @@ export function LeftNavigationRail() {
               return (
                 <TouchableOpacity
                   key={item.name}
-                  onPress={() => router.push(item.route as any)}
+                  onPress={() => confirmThenNavigate(() => router.push(item.route as any))}
                   className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl ${
                     isActive 
                       ? 'bg-slate-100 dark:bg-white/5 border-l-4'
@@ -198,13 +216,13 @@ export function LeftNavigationRail() {
 
             {/* Exit Workspace Button */}
             <TouchableOpacity
-               onPress={() => {
+               onPress={() => confirmThenNavigate(() => {
                   console.log('[Exit Workspace Desktop] Navigating back to organizations.', {
                     currentSegments: segments,
                     currentOrgId: orgId,
                   });
                   router.replace('/(tabs)/organizations' as any);
-               }}
+               })}
               className="flex-row items-center gap-3.5 px-3 py-3 mt-4 rounded-xl border border-dashed border-slate-300 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 active:opacity-85"
             >
               <Ionicons name="arrow-back-outline" size={20} color="#FF3E00" />
@@ -237,7 +255,7 @@ export function LeftNavigationRail() {
           return (
             <TouchableOpacity
               key={item.name}
-              onPress={() => router.push((item.name === 'index' ? '/' : `/${item.name}`) as any)}
+              onPress={() => confirmThenNavigate(() => router.push((item.name === 'index' ? '/' : `/${item.name}`) as any))}
               className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl ${
                 isActive 
                   ? 'bg-brand-orange/10 dark:bg-brand-orange/15 border-l-4 border-brand-orange'

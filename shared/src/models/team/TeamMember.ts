@@ -8,4 +8,9 @@ export interface TeamMember {
   roleName?: string;
   startDate: string; // ISO UTC
   endDate?: string; // ISO UTC
+  email?: string;
+  cellphone?: string;
+  image?: string;
+  imageConfig?: any;
+  lastInviteSentAt?: string;
 }

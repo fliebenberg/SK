@@ -10,6 +10,7 @@ import { useWsStore } from '../../store/wsStore';
 import { getOrgLogoUrl } from '../../services/api';
 import { OrgLogo } from '../../components/OrgLogo';
 import { CommonActions } from '@react-navigation/native';
+import { BottomMenu } from '../../components/BottomMenu';
 
 export default function TabLayout() {
   const router = useRouter();
@@ -78,31 +79,36 @@ export default function TabLayout() {
   const shouldHideTabBar = (segments as string[]).includes('settings') || (segments as string[]).includes('[siteId]');
 
   const content = (
-    <Tabs screenOptions={{
-      headerShown: !isLargeScreen, // Left rail handles navigation and branding on desktop
-      tabBarStyle: {
-        display: (isLargeScreen || shouldHideTabBar) ? 'none' : 'flex',
-        backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-        borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
-        height: 60,
-        paddingBottom: 8,
-        paddingTop: 8,
-      },
-      tabBarActiveTintColor: '#FF3E00',
-      tabBarInactiveTintColor: isDark ? '#94A3B8' : '#64748B',
-      headerStyle: {
-        backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-        borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
-        shadowOpacity: 0,
-        elevation: 0,
-      },
-      headerTitleStyle: {
-        color: isDark ? '#FFFFFF' : '#0F172A',
-        fontFamily: 'Orbitron_700Bold',
-        fontSize: 16,
-      },
-      headerTintColor: isDark ? '#FFFFFF' : '#0F172A',
-    }}>
+    <Tabs 
+      tabBar={() => !isLargeScreen && !shouldHideTabBar ? (
+        <BottomMenu 
+          onSettingsPress={() => {
+            if (showAdminPortal) {
+              setMenuVisible(!menuVisible);
+            } else {
+              router.push('/(tabs)/settings');
+            }
+          }}
+        />
+      ) : null}
+      screenOptions={{
+        headerShown: !isLargeScreen, // Left rail handles navigation and branding on desktop
+        tabBarActiveTintColor: '#FF3E00',
+        tabBarInactiveTintColor: isDark ? '#94A3B8' : '#64748B',
+        headerStyle: {
+          backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+          borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+          shadowOpacity: 0,
+          elevation: 0,
+        },
+        headerTitleStyle: {
+          color: isDark ? '#FFFFFF' : '#0F172A',
+          fontFamily: 'Orbitron_700Bold',
+          fontSize: 16,
+        },
+        headerTintColor: isDark ? '#FFFFFF' : '#0F172A',
+      }}
+    >
       <Tabs.Screen 
         name="index" 
         options={{ 

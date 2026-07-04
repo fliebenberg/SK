@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useGlobalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,15 +11,40 @@ import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { OrgLogo } from '@/components/OrgLogo';
 import { getContrastColor } from '@/utils/colorUtils';
 import { useAuthStore } from '@/store/authStore';
+import { wsService } from '../../../services/websocket';
+import { useWsStore } from '../../../store/wsStore';
 
 export default function OrgControlDashboard() {
   const router = useRouter();
   const { orgId } = useGlobalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const { user, orgMemberships } = useAuthStore();
+  const isConnected = useWsStore(state => state.isConnected);
 
   const { data: sportsList } = useSocketQuery('sports');
-  const { data: orgData, isLoading: isOrgLoading } = useSocketQuery('organization', { id: orgId });
+  const { data: orgData, isLoading: isOrgLoading, setData: setOrgData } = useSocketQuery('organization', { id: orgId });
+
+  useEffect(() => {
+    if (!isConnected || !orgId) return;
+
+    const room = `org:${orgId}:summary`;
+    const unsubscribe = wsService.subscribeToRoom(room);
+
+    const handleUpdate = (event: any) => {
+      if (event && event.type === 'ORGANIZATION_UPDATED') {
+        if (event.data && event.data.id === orgId) {
+          setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
+        }
+      }
+    };
+
+    wsService.on('update', handleUpdate);
+
+    return () => {
+      unsubscribe();
+      wsService.off('update', handleUpdate);
+    };
+  }, [isConnected, orgId, setOrgData]);
 
   const sportsMap = useMemo(() => {
     const map: Record<string, string> = {};
