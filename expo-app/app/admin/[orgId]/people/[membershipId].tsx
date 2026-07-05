@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -138,13 +138,13 @@ export default function EditMember() {
     return JSON.stringify(form) !== originalData;
   }, [form, originalData]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (originalData) {
       setForm(JSON.parse(originalData));
     }
-  };
+  }, [originalData]);
 
-  useUnsavedChanges(hasChanges, handleCancel);
+  useUnsavedChanges(hasChanges && !isProcessing, handleCancel);
 
   const handleSave = async () => {
     if (!form || !form.name.trim()) return;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, useWindowDimensions, Platform, KeyboardAvoidingView, PanResponder } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction } from '@sk/types';
+import { SocketAction, OrganizationType } from '@sk/types';
+
+const orgTypes: { value: OrganizationType; label: string }[] = [
+  { value: 'SCHOOL', label: 'School' },
+  { value: 'CLUB', label: 'Sports Club' },
+  { value: 'ACADEMY', label: 'Academy' },
+  { value: 'LEAGUE', label: 'League' },
+  { value: 'CORPORATE', label: 'Corporate' },
+  { value: 'COMMUNITY', label: 'Community' },
+  { value: 'OTHER', label: 'Other' },
+];
 import * as ImagePicker from 'expo-image-picker';
 import { CONSTANTS, getThemeColor } from '../../../constants';
 import { getOrgLogoUrl } from '../../../services/api';
@@ -122,6 +132,9 @@ export default function OrgSettings() {
   
   const [allSports, setAllSports] = useState<any[]>([]);
   const [supportedSportIds, setSupportedSportIds] = useState<string[]>([]);
+  const [type, setType] = useState<OrganizationType | null>(null);
+  const [customType, setCustomType] = useState('');
+
   const [originalData, setOriginalData] = useState<{
     orgName: string;
     shortName: string;
@@ -131,6 +144,8 @@ export default function OrgSettings() {
     description: string;
     logoConfig: { scale: number; x: number; y: number };
     supportedSportIds: string[];
+    type: OrganizationType | null;
+    customType: string;
   } | null>(null);
   
   // Temp logo states for the editor modal
@@ -168,7 +183,7 @@ export default function OrgSettings() {
 
   const { data: sportsList } = useSocketQuery('sports');
   const { data: teamsList } = useSocketQuery('teams', { orgId });
-  const { data: orgData, isLoading: isOrgLoading, refetch: refetchOrg } = useSocketQuery('organization', { id: orgId });
+  const { data: orgData, isLoading: isOrgLoading, refetch: refetchOrg, setData: setOrgData } = useSocketQuery('organization', { id: orgId });
 
   useEffect(() => {
     if (Array.isArray(sportsList)) {
@@ -200,6 +215,9 @@ export default function OrgSettings() {
       const sIds = orgData.supportedSportIds || [];
       setSupportedSportIds(sIds);
 
+      setType(orgData.type || null);
+      setCustomType(orgData.customType || '');
+
       setOriginalData({
         orgName: orgData.name || '',
         shortName: orgData.shortName || '',
@@ -209,6 +227,8 @@ export default function OrgSettings() {
         description: orgData.description || '',
         logoConfig: lConfig,
         supportedSportIds: sIds,
+        type: orgData.type || null,
+        customType: orgData.customType || '',
       });
     }
   }, [orgData]);
@@ -224,7 +244,7 @@ export default function OrgSettings() {
     const handleUpdate = (event: any) => {
       if (event && event.type === 'ORGANIZATION_UPDATED') {
         if (event.data && event.data.id === orgId) {
-          refetchOrg();
+          setOrgData(event.data);
         }
       }
     };
@@ -235,7 +255,7 @@ export default function OrgSettings() {
       unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId, refetchOrg]);
+  }, [isConnected, orgId, setOrgData]);
 
 
 
@@ -498,20 +518,24 @@ export default function OrgSettings() {
     }
   };
 
-  const hasChanges = originalData ? (
-    orgName.trim() !== originalData.orgName ||
-    shortName.trim() !== originalData.shortName ||
-    primaryColor.trim() !== originalData.primaryColor ||
-    secondaryColor.trim() !== originalData.secondaryColor ||
-    logo.trim() !== originalData.logo ||
-    description.trim() !== originalData.description ||
-    logoConfig.scale !== originalData.logoConfig.scale ||
-    logoConfig.x !== originalData.logoConfig.x ||
-    logoConfig.y !== originalData.logoConfig.y ||
-    JSON.stringify([...supportedSportIds].sort()) !== JSON.stringify([...originalData.supportedSportIds].sort())
-  ) : false;
+  const hasChanges = useMemo(() => {
+    return originalData ? (
+      orgName.trim() !== originalData.orgName ||
+      shortName.trim() !== originalData.shortName ||
+      primaryColor.trim() !== originalData.primaryColor ||
+      secondaryColor.trim() !== originalData.secondaryColor ||
+      logo.trim() !== originalData.logo ||
+      description.trim() !== originalData.description ||
+      logoConfig.scale !== originalData.logoConfig.scale ||
+      logoConfig.x !== originalData.logoConfig.x ||
+      logoConfig.y !== originalData.logoConfig.y ||
+      JSON.stringify([...supportedSportIds].sort()) !== JSON.stringify([...originalData.supportedSportIds].sort()) ||
+      type !== originalData.type ||
+      customType !== originalData.customType
+    ) : false;
+  }, [orgName, shortName, primaryColor, secondaryColor, logo, description, logoConfig, supportedSportIds, type, customType, originalData]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (!originalData) return;
     setOrgName(originalData.orgName);
     setShortName(originalData.shortName);
@@ -521,11 +545,16 @@ export default function OrgSettings() {
     setDescription(originalData.description);
     setLogoConfig(originalData.logoConfig);
     setSupportedSportIds(originalData.supportedSportIds);
-  };
+    setType(originalData.type);
+    setCustomType(originalData.customType);
+  }, [originalData]);
 
   useUnsavedChanges(hasChanges, handleCancel);
 
   const handleSave = () => {
+    if (!type) return;
+    if (type === 'OTHER' && !customType.trim()) return;
+
     setIsSaving(true);
     
     const payload = {
@@ -538,6 +567,8 @@ export default function OrgSettings() {
         logo: logo.trim(),
         description: description.trim(),
         supportedSportIds: supportedSportIds,
+        type: type,
+        customType: type === 'OTHER' ? customType.trim() : null,
         settings: {
           ...settings,
           logoConfig: logoConfig
@@ -558,6 +589,8 @@ export default function OrgSettings() {
           description: description.trim(),
           logoConfig: logoConfig,
           supportedSportIds: supportedSportIds,
+          type: type,
+          customType: type === 'OTHER' ? customType.trim() : '',
         });
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
@@ -653,6 +686,55 @@ export default function OrgSettings() {
               className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100/30 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5"
             />
           </View>
+
+          {/* Organization Type Field */}
+          <View>
+            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              Organization Type (Required)
+            </Text>
+            <View className="flex-row flex-wrap gap-2 bg-slate-100/30 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl p-3">
+              {orgTypes.map((t) => (
+                <TouchableOpacity
+                  key={t.value}
+                  onPress={() => {
+                    setType(t.value);
+                    if (t.value !== 'OTHER') {
+                      setCustomType('');
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-xl border ${
+                    type === t.value
+                      ? 'bg-brand-orange/15 border-brand-orange'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-white/5'
+                  }`}
+                >
+                  <Text className={`font-inter text-xs ${
+                    type === t.value
+                      ? 'text-brand-orange font-inter-bold'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}>
+                    {t.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Custom Organization Type Specification */}
+          {type === 'OTHER' && (
+            <View>
+              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+                Specify Custom Type (Required)
+              </Text>
+              <TextInput
+                value={customType}
+                onChangeText={setCustomType}
+                placeholder="e.g. Charity / Social Group"
+                placeholderTextColor="#94A3B8"
+                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100/30 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5"
+              />
+            </View>
+          )}
  
           {/* Combined Row: Abbreviation & Brand Colors */}
           <View className="flex-row items-center gap-6 flex-wrap">
@@ -1254,8 +1336,12 @@ export default function OrgSettings() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
-              disabled={isSaving}
-              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+              disabled={isSaving || !type || (type === 'OTHER' && !customType.trim())}
+              className={`px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md ${
+                !type || (type === 'OTHER' && !customType.trim())
+                  ? 'bg-brand-orange/40 shadow-none'
+                  : 'bg-brand-orange shadow-brand-orange/30'
+              }`}
             >
               {isSaving ? (
                 <ActivityIndicator size="small" color="white" />

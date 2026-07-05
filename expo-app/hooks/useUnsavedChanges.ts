@@ -1,5 +1,4 @@
 import { useEffect, useCallback } from 'react';
-import { Alert } from 'react-native';
 import { useNavigation } from 'expo-router';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 
@@ -20,7 +19,7 @@ export function useUnsavedChanges(
   onDiscard?: () => void,
 ) {
   const navigation = useNavigation();
-  const { setDirty, clear } = useUnsavedChangesStore();
+  const { setDirty, clear, setShowDialog, setPendingAction, triggerDiscardPrompt } = useUnsavedChangesStore();
 
   // Keep global store in sync
   useEffect(() => {
@@ -28,8 +27,7 @@ export function useUnsavedChanges(
     return () => {
       clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDirty]);
+  }, [isDirty, onDiscard, setDirty, clear]);
 
   // Intercept back navigation (hardware back / swipe-back / header back button)
   useEffect(() => {
@@ -38,26 +36,14 @@ export function useUnsavedChanges(
 
       e.preventDefault(); // block the default removal
 
-      Alert.alert(
-        'Unsaved Changes',
-        'You have unsaved changes that will be lost if you leave. Do you want to discard them?',
-        [
-          { text: 'Stay', style: 'cancel' },
-          {
-            text: 'Discard & Leave',
-            style: 'destructive',
-            onPress: () => {
-              onDiscard?.();
-              clear();
-              navigation.dispatch(e.data.action); // continue with the blocked action
-            },
-          },
-        ],
-      );
+      setShowDialog(true);
+      setPendingAction(() => {
+        navigation.dispatch(e.data.action);
+      });
     });
 
     return unsubscribe;
-  }, [navigation, isDirty, onDiscard, clear]);
+  }, [navigation, isDirty, setShowDialog, setPendingAction]);
 
   /**
    * Use this to wrap any programmatic navigation inside the page that should
@@ -65,28 +51,9 @@ export function useUnsavedChanges(
    */
   const confirmThenNavigate = useCallback(
     (action: () => void) => {
-      if (!isDirty) {
-        action();
-        return;
-      }
-      Alert.alert(
-        'Unsaved Changes',
-        'You have unsaved changes that will be lost if you leave. Do you want to discard them?',
-        [
-          { text: 'Stay', style: 'cancel' },
-          {
-            text: 'Discard & Leave',
-            style: 'destructive',
-            onPress: () => {
-              onDiscard?.();
-              clear();
-              action();
-            },
-          },
-        ],
-      );
+      triggerDiscardPrompt(action);
     },
-    [isDirty, onDiscard, clear],
+    [triggerDiscardPrompt],
   );
 
   return { confirmThenNavigate };

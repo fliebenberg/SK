@@ -120,7 +120,8 @@ const seedDb = async () => {
                   short_name: "SHS",
                   supported_role_ids: ["role-org-admin", "role-org-member"],
                   is_active: true,
-                  is_claimed: true
+                  is_claimed: true,
+                  type: 'SCHOOL'
                 },
             ];
 
@@ -145,9 +146,10 @@ const seedDb = async () => {
                 await pool.query(`
                     INSERT INTO organizations (
                         id, name, logo, primary_color, secondary_color, 
-                        short_name, is_claimed, is_active, creator_id, settings
+                        short_name, is_claimed, is_active, creator_id, settings,
+                        type, custom_type
                     )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     ON CONFLICT (id) DO UPDATE SET
                         name = EXCLUDED.name,
                         logo = EXCLUDED.logo,
@@ -157,7 +159,9 @@ const seedDb = async () => {
                         is_claimed = EXCLUDED.is_claimed,
                         is_active = EXCLUDED.is_active,
                         creator_id = EXCLUDED.creator_id,
-                        settings = EXCLUDED.settings
+                        settings = EXCLUDED.settings,
+                        type = EXCLUDED.type,
+                        custom_type = EXCLUDED.custom_type
                 `, [
                     org.id, 
                     org.name, 
@@ -168,7 +172,9 @@ const seedDb = async () => {
                     org.is_claimed ?? false,
                     org.is_active ?? true,
                     org.creator_id ?? null,
-                    org.settings ?? '{}'
+                    org.settings ?? '{}',
+                    org.type || 'OTHER',
+                    org.custom_type || org.customType || null
                 ]);
 
                 // Seed organization_sports

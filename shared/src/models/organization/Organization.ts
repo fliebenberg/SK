@@ -1,5 +1,7 @@
 import { Address } from "../Address";
 
+export type OrganizationType = 'SCHOOL' | 'CLUB' | 'LEAGUE' | 'ACADEMY' | 'CORPORATE' | 'COMMUNITY' | 'OTHER';
+
 export interface Organization {
   id: string;
   name: string;
@@ -19,4 +21,7 @@ export interface Organization {
   creatorId?: string;
   isActive?: boolean;
   settings?: Record<string, any>;
+  type?: OrganizationType;
+  customType?: string;
 }
+

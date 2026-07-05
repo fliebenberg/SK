@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,7 +40,7 @@ const loadGoogleMapsScript = (callback: () => void) => {
   }
   script = document.createElement('script');
   script.id = scriptId;
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.EXPO_PUBLIC_WEB_GOOGLE_MAPS_API_KEY || ''}`;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.EXPO_PUBLIC_WEB_GOOGLE_MAPS_API_KEY || ''}&libraries=places`;
   script.async = true;
   script.defer = true;
   script.addEventListener('load', callback);
@@ -250,7 +250,7 @@ export default function SiteDetails() {
   };
 
   // Data State
-  const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites } = useSocketQuery<Site[]>('sites', { orgId });
+  const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites, setData: setSitesData } = useSocketQuery<Site[]>('sites', { orgId });
   const { data: sportsData } = useSocketQuery<any[]>('sports');
 
   const sports = sportsData || [];
@@ -298,23 +298,33 @@ export default function SiteDetails() {
     } as Address
   } : null);
 
-  const hasChanges = originalData ? (
-    siteForm.name.trim() !== originalData.name ||
-    siteForm.isActive !== originalData.isActive ||
-    (siteForm.address?.fullAddress || '') !== (originalData.address?.fullAddress || '') ||
-    (siteForm.address?.addressLine1 || '') !== (originalData.address?.addressLine1 || '') ||
-    (siteForm.address?.addressLine2 || '') !== (originalData.address?.addressLine2 || '') ||
-    (siteForm.address?.city || '') !== (originalData.address?.city || '') ||
-    (siteForm.address?.province || '') !== (originalData.address?.province || '') ||
-    (siteForm.address?.postalCode || '') !== (originalData.address?.postalCode || '') ||
-    (siteForm.address?.country || '') !== (originalData.address?.country || '') ||
-    siteForm.address?.latitude !== originalData.address?.latitude ||
-    siteForm.address?.longitude !== originalData.address?.longitude
-  ) : false;
+  const hasChanges = useMemo(() => {
+    return originalData ? (
+      siteForm.name.trim() !== originalData.name ||
+      siteForm.isActive !== originalData.isActive ||
+      (siteForm.address?.fullAddress || '') !== (originalData.address?.fullAddress || '') ||
+      (siteForm.address?.addressLine1 || '') !== (originalData.address?.addressLine1 || '') ||
+      (siteForm.address?.addressLine2 || '') !== (originalData.address?.addressLine2 || '') ||
+      (siteForm.address?.city || '') !== (originalData.address?.city || '') ||
+      (siteForm.address?.province || '') !== (originalData.address?.province || '') ||
+      (siteForm.address?.postalCode || '') !== (originalData.address?.postalCode || '') ||
+      (siteForm.address?.country || '') !== (originalData.address?.country || '') ||
+      siteForm.address?.latitude !== originalData.address?.latitude ||
+      siteForm.address?.longitude !== originalData.address?.longitude
+    ) : false;
+  }, [siteForm, originalData]);
 
-  const handleCancel = () => {
-    if (isNew) {
+  const safeGoBack = useCallback(() => {
+    if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace(`/admin/${orgId}/sites` as any);
+    }
+  }, [router, orgId]);
+
+  const handleCancel = useCallback(() => {
+    if (isNew) {
+      safeGoBack();
     } else if (originalData) {
       setSiteForm({
         name: originalData.name,
@@ -323,14 +333,110 @@ export default function SiteDetails() {
       });
       setAddressSearchQuery(originalData.address?.fullAddress || '');
     }
-  };
+  }, [isNew, originalData, safeGoBack]);
 
-  useUnsavedChanges(hasChanges, handleCancel);
+  useUnsavedChanges(hasChanges && !isProcessing, handleCancel);
 
-  // Nominatim geocoding autocomplete state
+  // Google Places Autocomplete state
   const [addressSearchQuery, setAddressSearchQuery] = useState('');
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+  const [sessionToken, setSessionToken] = useState('');
+  const webSessionTokenRef = React.useRef<any>(null);
+
+  // Helper to generate a random 32-character ASCII alphanumeric session token for Google Places
+  const generateSessionToken = useCallback(() => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let token = '';
+    for (let i = 0; i < 32; i++) {
+      token += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return token;
+  }, []);
+
+  const fetchAutocompleteSuggestions = async (queryText: string) => {
+    setIsSearchingAddress(true);
+    try {
+      if (Platform.OS === 'web') {
+        loadGoogleMapsScript(() => {
+          const google = (window as any).google;
+          if (!google || !google.maps || !google.maps.places) {
+            setIsSearchingAddress(false);
+            return;
+          }
+          if (!webSessionTokenRef.current) {
+            webSessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+          }
+
+          const autocompleteService = new google.maps.places.AutocompleteService();
+          autocompleteService.getPlacePredictions({
+            input: queryText,
+            sessionToken: webSessionTokenRef.current
+          }, (predictions: any, status: any) => {
+            setIsSearchingAddress(false);
+            if (status === google.maps.places.PlacesServiceStatus.OK && Array.isArray(predictions)) {
+              setAddressSuggestions(predictions);
+            } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+              setAddressSuggestions([]);
+            } else {
+              console.warn('Google Places Autocomplete SDK error status:', status);
+              setAddressSuggestions([]);
+            }
+          });
+        });
+      } else {
+        const apiKey = process.env.EXPO_PUBLIC_ANDROID_GOOGLE_MAPS_API_KEY || '';
+        let currentToken = sessionToken;
+        if (!currentToken) {
+          currentToken = generateSessionToken();
+          setSessionToken(currentToken);
+        }
+
+        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(queryText)}&key=${apiKey}&sessiontoken=${currentToken}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setIsSearchingAddress(false);
+        if (data.status === 'OK' && Array.isArray(data.predictions)) {
+          setAddressSuggestions(data.predictions);
+        } else if (data.status === 'ZERO_RESULTS') {
+          setAddressSuggestions([]);
+        } else {
+          console.warn('Google Places Autocomplete error:', data.status, data.error_message);
+          setAddressSuggestions([]);
+        }
+      }
+    } catch (e) {
+      console.warn('Autocomplete fetch failed:', e);
+      setIsSearchingAddress(false);
+    }
+  };
+
+  // Debounced address search
+  useEffect(() => {
+    if (addressSearchQuery.trim().length < 3) {
+      setAddressSuggestions([]);
+      setSessionToken('');
+      webSessionTokenRef.current = null;
+      return;
+    }
+
+    // If query matches the selected address exactly, don't show suggestions
+    if (addressSearchQuery === siteForm.address?.fullAddress) {
+      setAddressSuggestions([]);
+      return;
+    }
+
+    const handler = setTimeout(() => {
+      fetchAutocompleteSuggestions(addressSearchQuery);
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [addressSearchQuery, siteForm.address?.fullAddress, sessionToken]);
 
   // Check map availability
   const isMapAvailable = MapView && Marker && Platform.OS !== 'web';
@@ -369,7 +475,7 @@ export default function SiteDetails() {
           longitude: undefined,
         } as Address;
         setSiteForm(prev => {
-          if (prev.name === '' && prev.address.fullAddress === '') {
+          if (editingSite?.id !== site.id || (prev.name === '' && prev.address.fullAddress === '')) {
             return {
               name: site.name,
               isActive: site.isActive !== false,
@@ -384,12 +490,13 @@ export default function SiteDetails() {
           address: { ...initialAddress }
         });
         setAddressSearchQuery(prev => prev === '' ? (site.address?.fullAddress || '') : prev);
+        setIsProcessing(false);
       } else {
         Alert.alert('Error', 'Site not found');
-        router.back();
+        safeGoBack();
       }
     }
-  }, [sitesData, siteId, isNew]);
+  }, [sitesData, siteId, isNew, editingSite, safeGoBack]);
 
   // Subscribe to updates for Sites & Facilities rooms
   useEffect(() => {
@@ -405,15 +512,26 @@ export default function SiteDetails() {
       if (!event) return;
 
       if (!isNew && (event.type === 'SITES_SYNC' || event.type === 'SITE_ADDED' || event.type === 'SITE_UPDATED' || event.type === 'SITE_DELETED')) {
-        refetchSites();
+        if (event.type === 'SITES_SYNC' && Array.isArray(event.data)) {
+          setSitesData(event.data);
+        } else if (event.type === 'SITE_ADDED') {
+          setSitesData(prev => prev ? [...prev, event.data] : [event.data]);
+        } else if (event.type === 'SITE_UPDATED') {
+          setSitesData(prev => prev ? prev.map(s => s.id === event.data.id ? event.data : s) : [event.data]);
+        } else if (event.type === 'SITE_DELETED') {
+          setSitesData(prev => prev ? prev.filter(s => s.id !== event.data.id) : []);
+        }
       }
       
       if (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_ADDED' || event.type === 'FACILITY_UPDATED' || event.type === 'FACILITY_DELETED') {
         if (event.type === 'FACILITIES_SYNC' && Array.isArray(event.data)) {
           setFacilities(event.data);
-        } else {
-          // Re-sync by triggering room broadcast
-          wsService.emit('join_room', `org:${orgId}:facilities`);
+        } else if (event.type === 'FACILITY_ADDED') {
+          setFacilities(prev => [...prev, event.data]);
+        } else if (event.type === 'FACILITY_UPDATED') {
+          setFacilities(prev => prev.map(f => f.id === event.data.id ? event.data : f));
+        } else if (event.type === 'FACILITY_DELETED') {
+          setFacilities(prev => prev.filter(f => f.id !== event.data.id));
         }
       }
     };
@@ -426,7 +544,7 @@ export default function SiteDetails() {
       unsubscribeFacilities();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId, isNew, refetchSites]);
+  }, [isConnected, orgId, isNew, setSitesData]);
 
   const isLoading = !isNew && (isSitesLoading || !sportsData || !editingSite);
 
@@ -445,66 +563,128 @@ export default function SiteDetails() {
     return 'Field/Court';
   };
 
-  // Nominatim Address Lookup
+  // Trigger immediate search
   const searchAddress = async (queryText: string) => {
-    if (!queryText.trim()) {
-      setAddressSuggestions([]);
+    if (!queryText.trim() || queryText.trim().length < 3) {
       return;
     }
-    setIsSearchingAddress(true);
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryText)}&format=json&addressdetails=1&limit=5`;
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'ScoreKeeper-MobileApp/1.0 (admin@scorekeeper.live)',
-          'Accept': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setAddressSuggestions(data);
-      } else {
-        setAddressSuggestions([]);
-      }
-    } catch (e) {
-      console.warn('Nominatim lookup failed:', e);
-      Alert.alert(
-        'Search Failed',
-        'Could not connect to the address search service. Please check your internet connection or try again later.'
-      );
-    } finally {
-      setIsSearchingAddress(false);
-    }
+    await fetchAutocompleteSuggestions(queryText);
   };
 
-  const handleSelectAddress = (item: any) => {
-    const addr = item.address || {};
-    const cityVal = addr.city || addr.town || addr.village || addr.suburb || '';
-    const provinceVal = addr.state || addr.region || '';
-    const countryVal = addr.country || '';
-    const postalVal = addr.postcode || '';
-    const line1 = addr.road ? `${addr.house_number || ''} ${addr.road}`.trim() : item.display_name.split(',')[0];
+  const parseAndSetPlaceDetails = (place: any) => {
+    let houseNumber = '';
+    let road = '';
+    let cityVal = '';
+    let provinceVal = '';
+    let countryVal = '';
+    let postalVal = '';
+
+    if (Array.isArray(place.address_components)) {
+      for (const comp of place.address_components) {
+        const types = comp.types || [];
+        if (types.includes('street_number')) {
+          houseNumber = comp.long_name;
+        } else if (types.includes('route')) {
+          road = comp.long_name;
+        } else if (types.includes('locality') || types.includes('sublocality') || types.includes('postal_town')) {
+          cityVal = comp.long_name;
+        } else if (types.includes('administrative_area_level_1')) {
+          provinceVal = comp.long_name;
+        } else if (types.includes('country')) {
+          countryVal = comp.long_name;
+        } else if (types.includes('postal_code')) {
+          postalVal = comp.long_name;
+        }
+      }
+    }
+
+    // Fallback for city
+    if (!cityVal && Array.isArray(place.address_components)) {
+      const admin2 = place.address_components.find((c: any) => c.types.includes('administrative_area_level_2'));
+      if (admin2) cityVal = admin2.long_name;
+    }
+
+    const line1 = road ? `${houseNumber} ${road}`.trim() : place.formatted_address.split(',')[0];
+    
+    let latVal: number | undefined;
+    let lngVal: number | undefined;
+    if (place.geometry?.location) {
+      const loc = place.geometry.location;
+      latVal = typeof loc.lat === 'function' ? loc.lat() : parseFloat(loc.lat);
+      lngVal = typeof loc.lng === 'function' ? loc.lng() : parseFloat(loc.lng);
+    }
 
     setSiteForm(prev => ({
       ...prev,
       address: {
         id: prev.address?.id || '',
-        fullAddress: item.display_name,
+        fullAddress: place.formatted_address,
         addressLine1: line1,
         addressLine2: '',
         city: cityVal,
         province: provinceVal,
         postalCode: postalVal,
         country: countryVal,
-        latitude: parseFloat(item.lat),
-        longitude: parseFloat(item.lon),
+        latitude: latVal,
+        longitude: lngVal,
       }
     }));
-    setAddressSearchQuery(item.display_name);
-    setAddressSuggestions([]);
+    setAddressSearchQuery(place.formatted_address);
+  };
+
+  const handleSelectAddress = async (item: any) => {
+    setIsSearchingAddress(true);
+    try {
+      if (Platform.OS === 'web') {
+        const google = (window as any).google;
+        if (!google || !google.maps || !google.maps.places) {
+          setIsSearchingAddress(false);
+          return;
+        }
+
+        const dummyDiv = document.createElement('div');
+        const placesService = new google.maps.places.PlacesService(dummyDiv);
+        
+        placesService.getDetails({
+          placeId: item.place_id,
+          sessionToken: webSessionTokenRef.current,
+          fields: ['address_components', 'formatted_address', 'geometry']
+        }, (place: any, status: any) => {
+          setIsSearchingAddress(false);
+          if (status === google.maps.places.PlacesServiceStatus.OK && place) {
+            parseAndSetPlaceDetails(place);
+          } else {
+            console.warn('Place Details failed with status:', status);
+            Alert.alert('Error', 'Could not retrieve address details.');
+          }
+          webSessionTokenRef.current = null; // Clear session token
+          setAddressSuggestions([]);
+        });
+      } else {
+        const apiKey = process.env.EXPO_PUBLIC_ANDROID_GOOGLE_MAPS_API_KEY || '';
+        const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${item.place_id}&key=${apiKey}&sessiontoken=${sessionToken}&fields=address_components,formatted_address,geometry`;
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setIsSearchingAddress(false);
+        if (data.status === 'OK' && data.result) {
+          parseAndSetPlaceDetails(data.result);
+        } else {
+          throw new Error(data.error_message || `Place Details failed with status: ${data.status}`);
+        }
+        setSessionToken(''); // Clear the token
+        setAddressSuggestions([]);
+      }
+    } catch (e: any) {
+      console.warn('Google Place Details lookup failed:', e);
+      Alert.alert(
+        'Error',
+        'Could not retrieve address details. Please check your connection and try again.'
+      );
+      setIsSearchingAddress(false);
+    }
   };
 
   // Save Site Details
@@ -526,10 +706,10 @@ export default function SiteDetails() {
         type: SocketAction.UPDATE_SITE,
         payload: { id: editingSite.id, data: payload }
       }, (res: any) => {
-        setIsProcessing(false);
         if (res.status === 'ok') {
-          router.back();
+          safeGoBack();
         } else {
+          setIsProcessing(false);
           Alert.alert('Save Failed', res.message || 'Could not update site');
         }
       });
@@ -538,10 +718,13 @@ export default function SiteDetails() {
         type: SocketAction.ADD_SITE,
         payload: { ...payload, orgId }
       }, (res: any) => {
-        setIsProcessing(false);
         if (res.status === 'ok') {
-          router.back();
+          router.replace({
+            pathname: '/admin/[orgId]/sites/[siteId]',
+            params: { orgId: orgId!, siteId: res.data.id }
+          });
         } else {
+          setIsProcessing(false);
           Alert.alert('Save Failed', res.message || 'Could not create site');
         }
       });
@@ -560,7 +743,7 @@ export default function SiteDetails() {
       setIsProcessing(false);
       if (res.status === 'ok') {
         setIsDeleteModalOpen(false);
-        router.back();
+        router.replace(`/admin/${orgId}/sites` as any);
       } else {
         setDeleteError(res.message || 'Site is currently linked to events or games and cannot be deleted.');
       }
@@ -610,7 +793,7 @@ export default function SiteDetails() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeGoBack()}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />
@@ -661,7 +844,7 @@ export default function SiteDetails() {
                   <TextInput
                     value={addressSearchQuery}
                     onChangeText={setAddressSearchQuery}
-                    placeholder="Search address using OpenStreetMap..."
+                    placeholder="Search address using Google Maps..."
                     placeholderTextColor="#94A3B8"
                     className="flex-1 font-inter text-sm text-slate-800 dark:text-white outline-none"
                   />
@@ -678,7 +861,7 @@ export default function SiteDetails() {
                   )}
                 </TouchableOpacity>
               </View>
-
+ 
               {/* Suggestions List */}
               {addressSuggestions.length > 0 && (
                 <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden mb-4 shadow-lg">
@@ -688,7 +871,7 @@ export default function SiteDetails() {
                       onPress={() => handleSelectAddress(item)}
                       className="px-4 py-3 border-b border-slate-200/50 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 active:bg-slate-100 dark:active:bg-white/5"
                     >
-                      <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">{item.display_name}</Text>
+                      <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">{item.description}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -979,7 +1162,7 @@ export default function SiteDetails() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSaveSite}
-              disabled={isProcessing || !siteForm.name.trim()}
+              disabled={isProcessing}
               className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
             >
               {isProcessing ? (

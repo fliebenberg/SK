@@ -24,24 +24,12 @@ export default function OrgAdminLayout() {
   const [workspaceMenuVisible, setWorkspaceMenuVisible] = useState(false);
   const lastFetchedId = useRef<string | null>(null);
   const isConnected = useWsStore(state => state.isConnected);
-  const { isDirty, onDiscard, clear } = useUnsavedChangesStore();
+  const { isDirty, onDiscard, clear, triggerDiscardPrompt } = useUnsavedChangesStore();
 
   const confirmThenNavigate = useCallback((action: () => void) => {
     setWorkspaceMenuVisible(false);
-    if (!isDirty) { action(); return; }
-    Alert.alert(
-      'Unsaved Changes',
-      'You have unsaved changes that will be lost if you leave. Do you want to discard them?',
-      [
-        { text: 'Stay', style: 'cancel' },
-        {
-          text: 'Discard & Leave',
-          style: 'destructive',
-          onPress: () => { onDiscard?.(); clear(); action(); },
-        },
-      ],
-    );
-  }, [isDirty, onDiscard, clear]);
+    triggerDiscardPrompt(action);
+  }, [triggerDiscardPrompt]);
 
   useEffect(() => {
     if (!isConnected || !orgId) {
@@ -217,7 +205,7 @@ export default function OrgAdminLayout() {
                   className="flex-row items-center gap-3 px-3 py-2 rounded-lg active:bg-slate-100 dark:active:bg-white/5"
                 >
                   <Ionicons name={`${item.icon}-outline` as any} size={16} color={isDark ? '#94A3B8' : '#64748B'} />
-                  <Text className="font-inter-bold text-[8px] text-slate-700 dark:text-slate-200">
+                  <Text className="font-inter-bold text-sm text-slate-700 dark:text-slate-200">
                     {item.label}
                   </Text>
                 </TouchableOpacity>
@@ -233,7 +221,7 @@ export default function OrgAdminLayout() {
                 className="flex-row items-center gap-3 px-3 py-2 rounded-lg active:bg-red-50 dark:active:bg-red-950/25"
               >
                 <Ionicons name="arrow-back-outline" size={16} color="#EF4444" />
-                <Text className="font-inter-bold text-xs text-red-500">
+                <Text className="font-inter-bold text-sm text-red-500">
                   Exit Workspace
                 </Text>
               </TouchableOpacity>

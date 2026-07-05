@@ -30,7 +30,7 @@ export default function NewTeam() {
 
   // Flag as dirty once the user has typed anything
   const isFormDirty = name.trim().length > 0 || ageGroup.trim().length > 0 || selectedSportId.length > 0;
-  useUnsavedChanges(isFormDirty);
+  useUnsavedChanges(isFormDirty && !isSaving);
   // Load org supported sports
   useEffect(() => {
     if (!isConnected || !orgId) return;

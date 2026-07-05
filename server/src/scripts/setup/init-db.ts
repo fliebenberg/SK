@@ -71,7 +71,12 @@ const createTables = async () => {
                 creator_id TEXT,
                 is_active BOOLEAN DEFAULT true,
                 settings JSONB DEFAULT '{}'::jsonb,
-                address_id TEXT REFERENCES addresses(id)
+                address_id TEXT REFERENCES addresses(id),
+                type TEXT DEFAULT 'OTHER',
+                custom_type TEXT DEFAULT NULL,
+                team_count INTEGER DEFAULT 0,
+                member_count INTEGER DEFAULT 0,
+                site_count INTEGER DEFAULT 0
             );
         `);
 
@@ -168,10 +173,7 @@ const createTables = async () => {
             ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_reset BOOLEAN DEFAULT false;
         `);
 
-        // Migration: Ensure cellphone column exists on older instances of org_profiles
-        await pool.query(`
-            ALTER TABLE org_profiles ADD COLUMN IF NOT EXISTS cellphone TEXT;
-        `);
+
 
         // Organization Profiles (Replaces Persons)
         await pool.query(`
@@ -191,6 +193,11 @@ const createTables = async () => {
                 image_config JSONB DEFAULT NULL,
                 UNIQUE(org_id, identifier)
             );
+        `);
+
+        // Migration: Ensure cellphone column exists on older instances of org_profiles
+        await pool.query(`
+            ALTER TABLE org_profiles ADD COLUMN IF NOT EXISTS cellphone TEXT;
         `);
 
         // Team Memberships

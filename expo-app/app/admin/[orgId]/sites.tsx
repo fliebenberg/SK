@@ -30,7 +30,7 @@ export default function OrgSites() {
   const isConnected = useWsStore(state => state.isConnected);
 
   // Data State
-  const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites } = useSocketQuery<Site[]>('sites', { orgId });
+  const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites, setData: setSitesData } = useSocketQuery<Site[]>('sites', { orgId });
   const { data: sportsData } = useSocketQuery<any[]>('sports');
 
   const [facilities, setFacilities] = useState<Facility[]>([]);
@@ -61,12 +61,26 @@ export default function OrgSites() {
       if (!event) return;
 
       if (event.type === 'SITES_SYNC' || event.type === 'SITE_ADDED' || event.type === 'SITE_UPDATED' || event.type === 'SITE_DELETED') {
-        refetchSites();
+        if (event.type === 'SITES_SYNC' && Array.isArray(event.data)) {
+          setSitesData(event.data);
+        } else if (event.type === 'SITE_ADDED') {
+          setSitesData(prev => prev ? [...prev, event.data] : [event.data]);
+        } else if (event.type === 'SITE_UPDATED') {
+          setSitesData(prev => prev ? prev.map(s => s.id === event.data.id ? event.data : s) : [event.data]);
+        } else if (event.type === 'SITE_DELETED') {
+          setSitesData(prev => prev ? prev.filter(s => s.id !== event.data.id) : []);
+        }
       }
       
       if (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_ADDED' || event.type === 'FACILITY_UPDATED' || event.type === 'FACILITY_DELETED') {
         if (event.type === 'FACILITIES_SYNC' && Array.isArray(event.data)) {
           setFacilities(event.data);
+        } else if (event.type === 'FACILITY_ADDED') {
+          setFacilities(prev => [...prev, event.data]);
+        } else if (event.type === 'FACILITY_UPDATED') {
+          setFacilities(prev => prev.map(f => f.id === event.data.id ? event.data : f));
+        } else if (event.type === 'FACILITY_DELETED') {
+          setFacilities(prev => prev.filter(f => f.id !== event.data.id));
         }
       }
     };
@@ -78,7 +92,7 @@ export default function OrgSites() {
       unsubscribeFacilities();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId, refetchSites]);
+  }, [isConnected, orgId, setSitesData]);
 
   const isLoading = isSitesLoading || !sportsData;
 
@@ -99,12 +113,10 @@ export default function OrgSites() {
 
   // Open Site Editor
   const handleOpenSiteModal = (site: Site | null) => {
-    if (site) {
-      router.push({
-        pathname: '/admin/[orgId]/sites/[siteId]',
-        params: { orgId: orgId!, siteId: site.id }
-      });
-    }
+    router.push({
+      pathname: '/admin/[orgId]/sites/[siteId]',
+      params: { orgId: orgId!, siteId: site ? site.id : 'new' }
+    });
   };
 
   // Delete Site Confirmation

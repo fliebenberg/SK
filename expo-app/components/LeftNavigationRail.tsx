@@ -23,23 +23,11 @@ export function LeftNavigationRail() {
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
   const [orgData, setOrgData] = useState<any>(null);
   const lastFetchedId = useRef<string | null>(null);
-  const { isDirty, onDiscard, clear } = useUnsavedChangesStore();
+  const { isDirty, onDiscard, clear, triggerDiscardPrompt } = useUnsavedChangesStore();
 
   const confirmThenNavigate = useCallback((action: () => void) => {
-    if (!isDirty) { action(); return; }
-    Alert.alert(
-      'Unsaved Changes',
-      'You have unsaved changes that will be lost if you leave. Do you want to discard them?',
-      [
-        { text: 'Stay', style: 'cancel' },
-        {
-          text: 'Discard & Leave',
-          style: 'destructive',
-          onPress: () => { onDiscard?.(); clear(); action(); },
-        },
-      ],
-    );
-  }, [isDirty, onDiscard, clear]);
+    triggerDiscardPrompt(action);
+  }, [triggerDiscardPrompt]);
 
   // Check if we are in the org admin panel
   const isOrgAdmin = segments[0] === 'admin';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -241,7 +241,7 @@ export default function FacilityDetails() {
   // Data State
   const { data: sportsData } = useSocketQuery<any[]>('sports');
   const { data: sitesData } = useSocketQuery<Site[]>('sites', { orgId });
-  const { data: facilitiesData, isLoading: isFacilitiesLoading, refetch: refetchFacilities } = useSocketQuery<Facility[]>('facilities', { siteId });
+  const { data: facilitiesData, isLoading: isFacilitiesLoading, refetch: refetchFacilities, setData: setFacilitiesData } = useSocketQuery<Facility[]>('facilities', { siteId });
 
   const sports = sportsData || [];
   const sites = sitesData || [];
@@ -276,17 +276,19 @@ export default function FacilityDetails() {
   const isMapAvailable = MapView && Marker && Platform.OS !== 'web';
 
   // Check Changes
-  const hasChanges = originalData ? (
-    facilityForm.name.trim() !== originalData.name ||
-    facilityForm.surfaceType.trim() !== originalData.surfaceType ||
-    JSON.stringify([...facilityForm.supportedSportIds].sort()) !== JSON.stringify([...originalData.supportedSportIds].sort()) ||
-    facilityForm.latitude !== originalData.latitude ||
-    facilityForm.longitude !== originalData.longitude ||
-    facilityForm.category !== originalData.category ||
-    facilityForm.primarySportId !== originalData.primarySportId
-  ) : false;
+  const hasChanges = useMemo(() => {
+    return originalData ? (
+      facilityForm.name.trim() !== originalData.name ||
+      facilityForm.surfaceType.trim() !== originalData.surfaceType ||
+      JSON.stringify([...facilityForm.supportedSportIds].sort()) !== JSON.stringify([...originalData.supportedSportIds].sort()) ||
+      facilityForm.latitude !== originalData.latitude ||
+      facilityForm.longitude !== originalData.longitude ||
+      facilityForm.category !== originalData.category ||
+      facilityForm.primarySportId !== originalData.primarySportId
+    ) : false;
+  }, [facilityForm, originalData]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (isNew) {
       router.back();
     } else if (originalData) {
@@ -300,12 +302,17 @@ export default function FacilityDetails() {
         primarySportId: originalData.primarySportId
       });
     }
-  };
+  }, [isNew, originalData, router]);
 
-  useUnsavedChanges(hasChanges, handleCancel);
+  useUnsavedChanges(hasChanges && !isProcessing, handleCancel);
 
   // Populate facility form
+  // Populate facility form and fallback to parent site coordinates
   useEffect(() => {
+    const parentSite = sitesData?.find(s => s.id === siteId);
+    const siteLat = parentSite?.address?.latitude;
+    const siteLng = parentSite?.address?.longitude;
+
     if (!isNew) {
       if (facilitiesData) {
         const fac = facilitiesData.find(f => f.id === facilityId);
@@ -314,8 +321,8 @@ export default function FacilityDetails() {
             name: fac.name || '',
             surfaceType: fac.surfaceType || '',
             supportedSportIds: fac.supportedSportIds || [],
-            latitude: fac.latitude,
-            longitude: fac.longitude,
+            latitude: fac.latitude ?? siteLat,
+            longitude: fac.longitude ?? siteLng,
             category: fac.category || 'other',
             primarySportId: fac.primarySportId || ''
           };
@@ -323,40 +330,54 @@ export default function FacilityDetails() {
             if (prev.name === '' && prev.category === 'other') {
               return data;
             }
-            return prev;
-          });
-          setOriginalData({ ...data, supportedSportIds: [...data.supportedSportIds] });
-        }
-      }
-    } else {
-      // For a new facility, default to parent site coordinates if available
-      if (sitesData) {
-        const site = sitesData.find(s => s.id === siteId);
-        if (site && site.address) {
-          setFacilityForm(prev => {
-            if (prev.latitude === undefined && prev.longitude === undefined) {
+            if (prev.latitude === undefined && prev.longitude === undefined && data.latitude !== undefined) {
               return {
                 ...prev,
-                latitude: site.address?.latitude,
-                longitude: site.address?.longitude
+                latitude: data.latitude,
+                longitude: data.longitude
               };
             }
             return prev;
           });
-          setOriginalData(prev => prev ? {
-            ...prev,
-            latitude: site.address?.latitude,
-            longitude: site.address?.longitude
-          } : {
-            name: '',
-            surfaceType: '',
-            supportedSportIds: [],
-            latitude: site.address?.latitude,
-            longitude: site.address?.longitude,
-            category: 'other',
-            primarySportId: ''
+          setOriginalData(prev => {
+            if (!prev) return { ...data, supportedSportIds: [...data.supportedSportIds] };
+            if (prev.latitude === undefined && prev.longitude === undefined && data.latitude !== undefined) {
+              return {
+                ...prev,
+                latitude: data.latitude,
+                longitude: data.longitude
+              };
+            }
+            return prev;
           });
         }
+      }
+    } else {
+      // For a new facility, default to parent site coordinates if available
+      if (parentSite && parentSite.address) {
+        setFacilityForm(prev => {
+          if (prev.latitude === undefined && prev.longitude === undefined) {
+            return {
+              ...prev,
+              latitude: siteLat,
+              longitude: siteLng
+            };
+          }
+          return prev;
+        });
+        setOriginalData(prev => prev ? {
+          ...prev,
+          latitude: siteLat,
+          longitude: siteLng
+        } : {
+          name: '',
+          surfaceType: '',
+          supportedSportIds: [],
+          latitude: siteLat,
+          longitude: siteLng,
+          category: 'other',
+          primarySportId: ''
+        });
       }
     }
   }, [facilitiesData, sitesData, facilityId, isNew, siteId]);
@@ -371,7 +392,15 @@ export default function FacilityDetails() {
     const handleUpdate = (event: any) => {
       if (!event) return;
       if (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_ADDED' || event.type === 'FACILITY_UPDATED' || event.type === 'FACILITY_DELETED') {
-        refetchFacilities();
+        if (event.type === 'FACILITIES_SYNC' && Array.isArray(event.data)) {
+          setFacilitiesData(event.data);
+        } else if (event.type === 'FACILITY_ADDED') {
+          setFacilitiesData(prev => prev ? [...prev, event.data] : [event.data]);
+        } else if (event.type === 'FACILITY_UPDATED') {
+          setFacilitiesData(prev => prev ? prev.map(f => f.id === event.data.id ? event.data : f) : [event.data]);
+        } else if (event.type === 'FACILITY_DELETED') {
+          setFacilitiesData(prev => prev ? prev.filter(f => f.id !== event.data.id) : []);
+        }
       }
     };
 
@@ -382,7 +411,7 @@ export default function FacilityDetails() {
       unsubscribeFacilities();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, orgId, refetchFacilities]);
+  }, [isConnected, orgId, setFacilitiesData]);
 
   const isLoading = !isNew && (isFacilitiesLoading || !sportsData || !originalData);
 
@@ -411,10 +440,10 @@ export default function FacilityDetails() {
         type: SocketAction.UPDATE_FACILITY,
         payload: { id: facilityId, data: payload }
       }, (res: any) => {
-        setIsProcessing(false);
         if (res.status === 'ok') {
           router.back();
         } else {
+          setIsProcessing(false);
           Alert.alert('Save Failed', res.message || 'Could not update facility');
         }
       });
@@ -423,10 +452,10 @@ export default function FacilityDetails() {
         type: SocketAction.ADD_FACILITY,
         payload: payload
       }, (res: any) => {
-        setIsProcessing(false);
         if (res.status === 'ok') {
           router.back();
         } else {
+          setIsProcessing(false);
           Alert.alert('Save Failed', res.message || 'Could not create facility');
         }
       });
@@ -812,7 +841,7 @@ export default function FacilityDetails() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSaveFacility}
-              disabled={isProcessing || !facilityForm.name.trim()}
+              disabled={isProcessing}
               className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
             >
               {isProcessing ? (

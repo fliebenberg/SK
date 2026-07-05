@@ -1,6 +1,6 @@
 
 import { SocketAction } from "../constants/SocketActions";
-import { Organization } from "../models/organization/Organization";
+import { Organization, OrganizationType } from "../models/organization/Organization";
 import { OrgMembership } from "../models/organization/OrgMembership";
 import { Team } from "../models/team/Team";
 import { TeamMembership } from "../models/team/TeamMembership";
@@ -54,7 +54,8 @@ export interface PaginatedResponse<T> {
 export interface AddOrgPayload {
     name: string;
     description?: string;
-    organizationType?: string;
+    type?: OrganizationType;
+    customType?: string;
     email?: string;
     website?: string;
     logo?: string;

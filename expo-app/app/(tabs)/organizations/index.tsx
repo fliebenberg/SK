@@ -8,7 +8,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction } from '@sk/types';
+import { SocketAction, OrganizationType } from '@sk/types';
 import { getOrgLogoUrl } from '../../../services/api';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
@@ -30,6 +30,8 @@ export default function OrganizationsPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgSport, setNewOrgSport] = useState('Football');
+  const [newOrgType, setNewOrgType] = useState<OrganizationType | null>(null);
+  const [newOrgCustomType, setNewOrgCustomType] = useState('');
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
 
   const loadOrgsAndSports = () => {
@@ -131,7 +133,8 @@ export default function OrganizationsPage() {
   const orgs = filteredOrgs;
 
   const handleCreateOrg = () => {
-    if (!newOrgName.trim()) return;
+    if (!newOrgName.trim() || !newOrgType) return;
+    if (newOrgType === 'OTHER' && !newOrgCustomType.trim()) return;
 
     const sportId = newOrgSport.trim().toLowerCase().replace(/\s+/g, '-');
 
@@ -140,6 +143,8 @@ export default function OrganizationsPage() {
       supportedSportIds: [sportId],
       creatorId: user?.id,
       isActive: true,
+      type: newOrgType,
+      customType: newOrgType === 'OTHER' ? newOrgCustomType.trim() : undefined,
     };
 
     wsService.emit('action', { type: SocketAction.ADD_ORG, payload }, (res: any) => {
@@ -161,8 +166,20 @@ export default function OrganizationsPage() {
 
     setNewOrgName('');
     setNewOrgSport('Football');
+    setNewOrgType(null);
+    setNewOrgCustomType('');
     setModalVisible(false);
   };
+
+  const orgTypes: { value: OrganizationType; label: string }[] = [
+    { value: 'SCHOOL', label: 'School' },
+    { value: 'CLUB', label: 'Sports Club' },
+    { value: 'ACADEMY', label: 'Academy' },
+    { value: 'LEAGUE', label: 'League' },
+    { value: 'CORPORATE', label: 'Corporate' },
+    { value: 'COMMUNITY', label: 'Community' },
+    { value: 'OTHER', label: 'Other' },
+  ];
 
   const showTabs = isAuthenticated && (user?.globalRole === 'admin' || user?.isAdminOrCoach);
 
@@ -535,18 +552,77 @@ export default function OrganizationsPage() {
               </View>
             </View>
 
-            <View className="flex-row gap-3">
+            {/* Organization Type Selector */}
+            <View className="mb-4">
+              <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                Organization Type (Required)
+              </Text>
+              <View className="flex-row flex-wrap gap-2 mb-2">
+                {orgTypes.map((t) => (
+                  <TouchableOpacity
+                    key={t.value}
+                    onPress={() => {
+                      setNewOrgType(t.value);
+                      if (t.value !== 'OTHER') {
+                        setNewOrgCustomType('');
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl border ${
+                      newOrgType === t.value
+                        ? 'bg-brand-orange/15 border-brand-orange'
+                        : 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-white/5'
+                    }`}
+                  >
+                    <Text className={`font-inter text-xs ${
+                      newOrgType === t.value
+                        ? 'text-brand-orange font-inter-bold'
+                        : 'text-slate-600 dark:text-slate-400'
+                    }`}>
+                      {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Custom Organization Type Specification */}
+            {newOrgType === 'OTHER' && (
+              <View className="mb-6">
+                <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                  Specify Custom Type (Required)
+                </Text>
+                <TextInput
+                  value={newOrgCustomType}
+                  onChangeText={setNewOrgCustomType}
+                  placeholder="e.g. Charity / Social Group"
+                  placeholderTextColor="#94A3B8"
+                  className="bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white outline-none"
+                />
+              </View>
+            )}
+
+            <View className="flex-row gap-3 mt-2">
               <Button
                 title="Cancel"
                 variant="ghost"
-                onPress={() => setModalVisible(false)}
+                onPress={() => {
+                  setModalVisible(false);
+                  setNewOrgName('');
+                  setNewOrgSport('Football');
+                  setNewOrgType(null);
+                  setNewOrgCustomType('');
+                }}
                 className="flex-1"
               />
               <Button
                 title="Add"
                 variant="primary"
                 onPress={handleCreateOrg}
-                disabled={!newOrgName.trim()}
+                disabled={
+                  !newOrgName.trim() || 
+                  !newOrgType || 
+                  (newOrgType === 'OTHER' && !newOrgCustomType.trim())
+                }
                 className="flex-1"
               />
             </View>

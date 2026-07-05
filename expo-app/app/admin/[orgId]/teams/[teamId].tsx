@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -253,15 +253,17 @@ export default function TeamWorkspace() {
   }, [isConnected, orgId, teamId]);
 
   // Derived state values
-  const hasDetailsChanges = originalDetails ? (
-    detailsForm.name.trim() !== originalDetails.name ||
-    detailsForm.shortName.trim() !== originalDetails.shortName ||
-    detailsForm.sportId !== originalDetails.sportId ||
-    detailsForm.ageGroup.trim() !== originalDetails.ageGroup ||
-    detailsForm.isActive !== originalDetails.isActive
-  ) : false;
+  const hasDetailsChanges = useMemo(() => {
+    return originalDetails ? (
+      detailsForm.name.trim() !== originalDetails.name ||
+      detailsForm.shortName.trim() !== originalDetails.shortName ||
+      detailsForm.sportId !== originalDetails.sportId ||
+      detailsForm.ageGroup.trim() !== originalDetails.ageGroup ||
+      detailsForm.isActive !== originalDetails.isActive
+    ) : false;
+  }, [detailsForm, originalDetails]);
 
-  const handleDiscardDetails = () => {
+  const handleDiscardDetails = useCallback(() => {
     if (!originalDetails) return;
     setDetailsForm({
       name: originalDetails.name,
@@ -270,9 +272,9 @@ export default function TeamWorkspace() {
       ageGroup: originalDetails.ageGroup,
       isActive: originalDetails.isActive,
     });
-  };
+  }, [originalDetails]);
 
-  useUnsavedChanges(hasDetailsChanges, handleDiscardDetails);
+  useUnsavedChanges(hasDetailsChanges && !isProcessing, handleDiscardDetails);
 
   if (isLoading || !team) {
     return (

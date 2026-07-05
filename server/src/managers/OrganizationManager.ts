@@ -34,6 +34,8 @@ export class OrganizationManager extends BaseManager {
         o.creator_id as "creatorId", 
         o.is_active as "isActive",
         o.settings,
+        o.type,
+        o.custom_type as "customType",
         o.address_id as "addressId",
         a.full_address as "fullAddress",
         a.city,
@@ -144,6 +146,8 @@ export class OrganizationManager extends BaseManager {
         o.creator_id as "creatorId",
         o.is_active as "isActive",
         o.settings,
+        o.type,
+        o.custom_type as "customType",
         o.address_id as "addressId",
         a.full_address as "fullAddress",
         a.city,
@@ -203,6 +207,7 @@ export class OrganizationManager extends BaseManager {
         o.id, o.name, o.logo, o.primary_color as "primaryColor", o.secondary_color as "secondaryColor", 
         ARRAY(SELECT sport_id FROM organization_sports WHERE org_id = o.id) as "supportedSportIds", o.short_name as "shortName", ARRAY(SELECT role_id FROM organization_roles WHERE org_id = o.id) as "supportedRoleIds",
         o.is_claimed as "isClaimed", o.creator_id as "creatorId", o.is_active as "isActive", o.settings,
+        o.type, o.custom_type as "customType",
         o.address_id as "addressId", a.full_address as "fullAddress", a.city, a.province, a.postal_code as "postalCode",
         a.country, a.latitude, a.longitude, o.team_count as "teamCount", o.site_count as "siteCount",
         (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
@@ -259,9 +264,9 @@ export class OrganizationManager extends BaseManager {
     await this.query('BEGIN');
     try {
         await this.query(
-          `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [id, org.name, logo, org.primaryColor, org.secondaryColor, org.shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId]
+          `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [id, org.name, logo, org.primaryColor, org.secondaryColor, org.shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null]
         );
 
         for (const sportId of supportedSportIds) {
@@ -324,7 +329,8 @@ export class OrganizationManager extends BaseManager {
             const map: Record<string, string> = {
                 name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
                 shortName: 'short_name', isClaimed: 'is_claimed', creatorId: 'creator_id', 
-                isActive: 'is_active', settings: 'settings', addressId: 'address_id'
+                isActive: 'is_active', settings: 'settings', addressId: 'address_id',
+                type: 'type', customType: 'custom_type'
             };
 
             keys.forEach(key => {

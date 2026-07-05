@@ -12,6 +12,8 @@ import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/authStore';
+import { ConfirmationModal } from '../components/ConfirmationModal';
+import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -114,6 +116,7 @@ function ThemeManager({ children }: { children: React.ReactNode }) {
   const activeTheme = useActiveTheme();
   const { setColorScheme } = useColorScheme();
   const isDark = activeTheme === 'dark';
+  const { showDialog, confirmDiscard, cancelDiscard } = useUnsavedChangesStore();
 
   useEffect(() => {
     setColorScheme(activeTheme);
@@ -123,6 +126,16 @@ function ThemeManager({ children }: { children: React.ReactNode }) {
     <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {children}
+      <ConfirmationModal
+        isOpen={showDialog}
+        onClose={cancelDiscard}
+        title="Unsaved Changes"
+        description="You have unsaved changes that will be lost if you leave. Do you want to discard them?"
+        onConfirm={confirmDiscard}
+        confirmText="Discard & Leave"
+        cancelText="Stay"
+        variant="danger"
+      />
     </ThemeProvider>
   );
 }
