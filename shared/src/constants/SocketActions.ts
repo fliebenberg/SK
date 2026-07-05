@@ -104,6 +104,48 @@ export enum SocketAction {
      */
     DELETE_EVENT = 'DELETE_EVENT',
 
+    // --- Leagues & Seasons ---
+    /**
+     * Action to create a new league.
+     */
+    ADD_LEAGUE = 'ADD_LEAGUE',
+    /**
+     * Action to update an existing league.
+     */
+    UPDATE_LEAGUE = 'UPDATE_LEAGUE',
+    /**
+     * Action to delete a league.
+     */
+    DELETE_LEAGUE = 'DELETE_LEAGUE',
+    /**
+     * Action to create a new season for a league.
+     */
+    ADD_SEASON = 'ADD_SEASON',
+    /**
+     * Action to update an existing season.
+     */
+    UPDATE_SEASON = 'UPDATE_SEASON',
+    /**
+     * Action to delete a season.
+     */
+    DELETE_SEASON = 'DELETE_SEASON',
+    /**
+     * Action to add a team to a season.
+     */
+    ADD_SEASON_TEAM = 'ADD_SEASON_TEAM',
+    /**
+     * Action to remove a team from a season.
+     */
+    REMOVE_SEASON_TEAM = 'REMOVE_SEASON_TEAM',
+    /**
+     * Action to link a game to a season.
+     */
+    ADD_GAME_TO_SEASON = 'ADD_GAME_TO_SEASON',
+    /**
+     * Action to remove a game from a season.
+     */
+    REMOVE_GAME_FROM_SEASON = 'REMOVE_GAME_FROM_SEASON',
+
     // --- Games ---
     /**
      * Action to create a new game.

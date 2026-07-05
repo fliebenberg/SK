@@ -144,6 +144,14 @@ export default function OrgControlDashboard() {
       color: '#F59E0B',
       bgColor: 'bg-amber-500/10',
     },
+    {
+      title: 'Leagues & Seasons',
+      description: 'Configure standings rules, league rosters, and view leaderboards',
+      icon: 'list-outline' as const,
+      route: `/admin/${orgId}/leagues` as const,
+      color: '#EC4899',
+      bgColor: 'bg-pink-500/10',
+    },
   ];
 
   return (

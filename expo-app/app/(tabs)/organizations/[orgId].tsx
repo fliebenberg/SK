@@ -63,7 +63,7 @@ export default function PublicOrgDetail() {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'fixtures' | 'facilities'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'fixtures' | 'facilities' | 'leagues'>('overview');
   const isConnected = useWsStore(state => state.isConnected);
   const { isAuthenticated, user, orgMemberships } = useAuthStore();
 
@@ -71,6 +71,7 @@ export default function PublicOrgDetail() {
   const [teams, setTeams] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
+  const [leagues, setLeagues] = useState<any[]>([]);
   const [sportsMap, setSportsMap] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
 
@@ -83,7 +84,7 @@ export default function PublicOrgDetail() {
     const checkDone = () => {
       if (!active) return;
       loadedCount++;
-      if (loadedCount === 5) setIsLoading(false);
+      if (loadedCount === 6) setIsLoading(false);
     };
 
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
@@ -118,14 +119,29 @@ export default function PublicOrgDetail() {
       checkDone();
     });
 
+    wsService.emit('get_data', { type: 'leagues', orgId }, (res: any) => {
+      if (!active) return;
+      setLeagues(Array.isArray(res) ? res : []);
+      checkDone();
+    });
+
     const room = `org:${orgId}:summary`;
     const unsubscribe = wsService.subscribeToRoom(room);
 
+    const leagueRoom = `org:${orgId}:leagues`;
+    const unsubscribeLeagues = wsService.subscribeToRoom(leagueRoom);
+
     const handleUpdate = (event: any) => {
       if (!active) return;
-      if (event && event.type === 'ORGANIZATION_UPDATED') {
-        if (event.data && event.data.id === orgId) {
+      if (event) {
+        if (event.type === 'ORGANIZATION_UPDATED' && event.data && event.data.id === orgId) {
           setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
+        } else if (event.type === 'LEAGUE_ADDED') {
+          setLeagues(prev => [event.data, ...prev]);
+        } else if (event.type === 'LEAGUE_UPDATED') {
+          setLeagues(prev => prev.map(l => l.id === event.data.id ? event.data : l));
+        } else if (event.type === 'LEAGUE_DELETED') {
+          setLeagues(prev => prev.filter(l => l.id !== event.data.id));
         }
       }
     };
@@ -135,6 +151,7 @@ export default function PublicOrgDetail() {
     return () => {
       active = false;
       unsubscribe();
+      unsubscribeLeagues();
       wsService.off('update', handleUpdate);
     };
   }, [isConnected, orgId]);
@@ -316,7 +333,7 @@ export default function PublicOrgDetail() {
 
         {/* INTERACTIVE NAVIGATION TABS */}
         <View className="flex-row bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-1 rounded-xl mb-6 gap-1">
-          {(['overview', 'teams', 'fixtures', 'facilities'] as const).map((tab) => {
+          {(['overview', 'teams', 'fixtures', 'facilities', 'leagues'] as const).map((tab) => {
             const isTabActive = activeTab === tab;
             return (
               <TouchableOpacity
@@ -459,6 +476,51 @@ export default function PublicOrgDetail() {
                   </View>
                 </GlassCard>
               ))}
+            </View>
+          )}
+
+          {activeTab === 'leagues' && (
+            <View className="space-y-4">
+              {leagues.map((league) => (
+                <GlassCard key={league.id} className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
+                  <View className="w-10 h-10 rounded-xl bg-brand-orange/10 items-center justify-center border border-brand-orange/20">
+                    <Ionicons name="trophy" size={16} color="#FF3E00" />
+                  </View>
+                  
+                  <View className="flex-1">
+                    <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wide">
+                      {league.name}
+                    </Text>
+                    <View className="flex-row items-center gap-2 mt-1">
+                      <Text className="font-inter-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                        {sportsMap[league.sportId] || 'Sport'}
+                      </Text>
+                      {league.ageGroup && (
+                        <>
+                          <Text className="text-slate-350 dark:text-slate-650">•</Text>
+                          <Text className="font-inter-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                            {league.ageGroup}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+
+                  <Button
+                    title="View"
+                    variant="secondary"
+                    onPress={() => router.push(`/leagues/${league.id}` as any)}
+                    className="px-4 py-1.5 rounded-lg shadow-sm"
+                  />
+                </GlassCard>
+              ))}
+
+              {leagues.length === 0 && (
+                <View className="items-center justify-center py-10">
+                  <Ionicons name="trophy-outline" size={36} color="#94A3B8" className="opacity-45 mb-2" />
+                  <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400">No Active Leagues</Text>
+                </View>
+              )}
             </View>
           )}
         </View>

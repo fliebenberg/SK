@@ -11,7 +11,7 @@ interface BottomMenuProps {
 
 export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuProps) {
   const router = useRouter();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
 

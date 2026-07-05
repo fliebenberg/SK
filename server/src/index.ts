@@ -957,6 +957,28 @@ io.on('connection', (socket) => {
             case 'event':
                 callback(await dataManager.getEvent(id));
                 break;
+            case 'leagues':
+                callback(await dataManager.getLeagues(orgId || request.orgId));
+                break;
+            case 'league':
+                callback(await dataManager.getLeague(id));
+                break;
+            case 'seasons':
+                callback(await dataManager.getSeasons(request.leagueId));
+                break;
+            case 'season':
+                callback(await dataManager.getSeason(id));
+                break;
+            case 'season_standings':
+                const seasonObj = await dataManager.getSeason(id);
+                callback(seasonObj?.cachedStandings || []);
+                break;
+            case 'season_teams':
+                callback(await dataManager.getSeasonTeams(request.seasonId));
+                break;
+            case 'season_games':
+                callback(await dataManager.getSeasonGames(request.seasonId));
+                break;
             case 'sports':
                 callback(await dataManager.getSports());
                 break;
@@ -1217,6 +1239,95 @@ io.on('connection', (socket) => {
                 // Broadcast to room that the org is gone
                 io.to(`org:${action.payload.id}:summary`).emit('update', { type: 'ORGANIZATION_UPDATED', data: { id: action.payload.id, deleted: true } });
                 break;
+
+            case SocketAction.ADD_LEAGUE:
+                result = await dataManager.createLeague(action.payload);
+                if (result) {
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:leagues`, type: 'LEAGUE_ADDED', data: result });
+                }
+                break;
+            case SocketAction.UPDATE_LEAGUE:
+                result = await dataManager.updateLeague(action.payload.id, action.payload.data);
+                if (result) {
+                    additionalBroadcasts.push({ topic: `org:${result.orgId}:leagues`, type: 'LEAGUE_UPDATED', data: result });
+                }
+                break;
+            case SocketAction.DELETE_LEAGUE:
+                const leagueToDelete = await dataManager.getLeague(action.payload.id);
+                result = await dataManager.deleteLeague(action.payload.id);
+                if (result && leagueToDelete) {
+                    additionalBroadcasts.push({ topic: `org:${leagueToDelete.orgId}:leagues`, type: 'LEAGUE_DELETED', data: { id: action.payload.id } });
+                }
+                break;
+            case SocketAction.ADD_SEASON:
+                result = await dataManager.createSeason(action.payload);
+                if (result) {
+                    const parentLeague = await dataManager.getLeague(result.leagueId);
+                    if (parentLeague) {
+                        additionalBroadcasts.push({ topic: `org:${parentLeague.orgId}:leagues`, type: 'SEASON_ADDED', data: result });
+                    }
+                    additionalBroadcasts.push({ topic: `league:${result.leagueId}:seasons`, type: 'SEASON_ADDED', data: result });
+                }
+                break;
+            case SocketAction.UPDATE_SEASON:
+                result = await dataManager.updateSeason(action.payload.id, action.payload.data);
+                if (result) {
+                    const parentLeague = await dataManager.getLeague(result.leagueId);
+                    if (parentLeague) {
+                        additionalBroadcasts.push({ topic: `org:${parentLeague.orgId}:leagues`, type: 'SEASON_UPDATED', data: result });
+                    }
+                    additionalBroadcasts.push({ topic: `league:${result.leagueId}:seasons`, type: 'SEASON_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: `season:${result.id}:standings`, type: 'STANDINGS_UPDATED', data: result.cachedStandings });
+                }
+                break;
+            case SocketAction.DELETE_SEASON:
+                const seasonToDelete = await dataManager.getSeason(action.payload.id);
+                result = await dataManager.deleteSeason(action.payload.id);
+                if (result && seasonToDelete) {
+                    const parentLeague = await dataManager.getLeague(seasonToDelete.leagueId);
+                    if (parentLeague) {
+                        additionalBroadcasts.push({ topic: `org:${parentLeague.orgId}:leagues`, type: 'SEASON_DELETED', data: { id: action.payload.id } });
+                    }
+                    additionalBroadcasts.push({ topic: `league:${seasonToDelete.leagueId}:seasons`, type: 'SEASON_DELETED', data: { id: action.payload.id } });
+                }
+                break;
+            case SocketAction.ADD_SEASON_TEAM:
+                result = await dataManager.addTeamToSeason(action.payload.seasonId, action.payload.teamId, action.payload.status);
+                if (result) {
+                    const updatedSeason = await dataManager.getSeason(action.payload.seasonId);
+                    if (updatedSeason) {
+                        additionalBroadcasts.push({ topic: `season:${action.payload.seasonId}:standings`, type: 'STANDINGS_UPDATED', data: updatedSeason.cachedStandings });
+                    }
+                }
+                break;
+            case SocketAction.REMOVE_SEASON_TEAM:
+                result = await dataManager.removeTeamFromSeason(action.payload.seasonId, action.payload.teamId);
+                if (result) {
+                    const updatedSeason = await dataManager.getSeason(action.payload.seasonId);
+                    if (updatedSeason) {
+                        additionalBroadcasts.push({ topic: `season:${action.payload.seasonId}:standings`, type: 'STANDINGS_UPDATED', data: updatedSeason.cachedStandings });
+                    }
+                }
+                break;
+            case SocketAction.ADD_GAME_TO_SEASON:
+                result = await dataManager.addGameToSeason(action.payload.gameId, action.payload.seasonId);
+                if (result) {
+                    const updatedSeason = await dataManager.getSeason(action.payload.seasonId);
+                    if (updatedSeason) {
+                        additionalBroadcasts.push({ topic: `season:${action.payload.seasonId}:standings`, type: 'STANDINGS_UPDATED', data: updatedSeason.cachedStandings });
+                    }
+                }
+                break;
+            case SocketAction.REMOVE_GAME_FROM_SEASON:
+                result = await dataManager.removeGameFromSeason(action.payload.gameId, action.payload.seasonId);
+                if (result) {
+                    const updatedSeason = await dataManager.getSeason(action.payload.seasonId);
+                    if (updatedSeason) {
+                        additionalBroadcasts.push({ topic: `season:${action.payload.seasonId}:standings`, type: 'STANDINGS_UPDATED', data: updatedSeason.cachedStandings });
+                    }
+                }
+                break;
+
             case SocketAction.ADD_TEAM:
                 result = await dataManager.addTeam(action.payload);
                 if (result) {
@@ -1876,6 +1987,29 @@ io.on('connection', (socket) => {
             console.log(`Broadcasted ${updateType} to ${updateTopic}`);
         }
         
+        // Standings Broadcast Helper
+        if (result && result.id && (
+            action.type === SocketAction.UPDATE_GAME ||
+            action.type === SocketAction.UPDATE_GAME_STATUS ||
+            action.type === SocketAction.UPDATE_GAME_SCORE ||
+            action.type === SocketAction.RESET_GAME ||
+            action.type === SocketAction.ADD_GAME_EVENT ||
+            action.type === SocketAction.UPDATE_GAME_EVENT ||
+            action.type === SocketAction.UNDO_GAME_EVENT
+        )) {
+            const seasonIds = await dataManager.getGameSeasons(result.id);
+            for (const seasonId of seasonIds) {
+                const updatedSeason = await dataManager.getSeason(seasonId);
+                if (updatedSeason) {
+                    additionalBroadcasts.push({
+                        topic: `season:${seasonId}:standings`,
+                        type: 'STANDINGS_UPDATED',
+                        data: updatedSeason.cachedStandings
+                    });
+                }
+            }
+        }
+
         additionalBroadcasts.forEach(b => {
              io.to(b.topic).emit('update', { type: b.type, data: b.data });
              console.log(`Broadcasted ${b.type} to ${b.topic}`);

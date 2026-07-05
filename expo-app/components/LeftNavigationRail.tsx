@@ -115,6 +115,7 @@ export function LeftNavigationRail() {
         { name: 'teams', label: 'Teams & Divisions', icon: 'trophy' as const, route: `/admin/${orgId}/teams` as const },
         { name: 'sites', label: 'Sites and Facilities', icon: 'location' as const, route: `/admin/${orgId}/sites` as const },
         { name: 'events', label: 'Fixtures & Events', icon: 'calendar' as const, route: `/admin/${orgId}/events` as const },
+        { name: 'leagues', label: 'Leagues & Seasons', icon: 'list' as const, route: `/admin/${orgId}/leagues` as const },
       ];
 
       return (

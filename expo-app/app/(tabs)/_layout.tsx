@@ -336,6 +336,7 @@ export default function TabLayout() {
                 { label: 'Teams & Divisions', icon: 'trophy', route: `/admin/${orgId}/teams` },
                 { label: 'Sites and Facilities', icon: 'location', route: `/admin/${orgId}/sites` },
                 { label: 'Fixtures & Events', icon: 'calendar', route: `/admin/${orgId}/events` },
+                { label: 'Leagues & Seasons', icon: 'list', route: `/admin/${orgId}/leagues` },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.route}

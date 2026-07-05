@@ -452,6 +452,60 @@ const createTables = async () => {
             );
         `);
 
+        // Leagues Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS leagues (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                sport_id TEXT NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
+                age_group TEXT,
+                join_policy TEXT NOT NULL DEFAULT 'CLOSED',
+                criteria JSONB DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        // Seasons Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS seasons (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                start_date TIMESTAMPTZ NOT NULL,
+                end_date TIMESTAMPTZ NOT NULL,
+                status TEXT NOT NULL DEFAULT 'UPCOMING',
+                settings JSONB DEFAULT '{"pointsPerWin": 4, "pointsPerDraw": 2, "pointsPerLoss": 0}'::jsonb,
+                cached_standings JSONB DEFAULT '[]'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        // Season Teams Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS season_teams (
+                season_id TEXT REFERENCES seasons(id) ON DELETE CASCADE,
+                team_id TEXT REFERENCES teams(id) ON DELETE CASCADE,
+                status TEXT NOT NULL DEFAULT 'approved',
+                PRIMARY KEY (season_id, team_id)
+            );
+        `);
+
+        // Game Seasons Table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_seasons (
+                game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
+                season_id TEXT REFERENCES seasons(id) ON DELETE CASCADE,
+                PRIMARY KEY (game_id, season_id)
+            );
+        `);
+
+        // Indexes for performance
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_leagues_org ON leagues(org_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_seasons_league ON seasons(league_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_seasons_season ON game_seasons(season_id);`);
+
         // System Settings
         await pool.query(`
             CREATE TABLE IF NOT EXISTS system_settings (

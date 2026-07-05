@@ -17,6 +17,7 @@ import { GameDispute } from "../models/event/GameDispute";
 import { OrgClaimReferral } from "../models/referral/OrgClaimReferral";
 import { Report } from "../models/Report";
 import { Notification } from "../models/notification/Notification";
+import { League, Season, SeasonTeam, LeagueSettings, LeagueStandingRow } from "../models/league/League";
 // --- Shared Response Type ---
 /**
  * Standard response wrapper for all socket actions.
@@ -312,6 +313,63 @@ export interface UndoGameEventPayload {
     initiatorId: string;
 }
 
+export interface AddLeaguePayload {
+    name: string;
+    orgId: string;
+    sportId: string;
+    ageGroup?: string;
+    joinPolicy: 'CLOSED' | 'INVITE' | 'OPEN';
+    criteria?: Record<string, any>;
+}
+
+export interface UpdateLeaguePayload {
+    id: string;
+    data: Partial<Omit<League, 'id' | 'orgId'>>;
+}
+
+export interface DeleteLeaguePayload {
+    id: string;
+}
+
+export interface AddSeasonPayload {
+    leagueId: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    status: 'UPCOMING' | 'ACTIVE' | 'COMPLETED';
+    settings?: Partial<LeagueSettings>;
+}
+
+export interface UpdateSeasonPayload {
+    id: string;
+    data: Partial<Omit<Season, 'id' | 'leagueId'>>;
+}
+
+export interface DeleteSeasonPayload {
+    id: string;
+}
+
+export interface AddSeasonTeamPayload {
+    seasonId: string;
+    teamId: string;
+    status?: 'approved' | 'pending';
+}
+
+export interface RemoveSeasonTeamPayload {
+    seasonId: string;
+    teamId: string;
+}
+
+export interface AddGameToSeasonPayload {
+    gameId: string;
+    seasonId: string;
+}
+
+export interface RemoveGameFromSeasonPayload {
+    gameId: string;
+    seasonId: string;
+}
+
 export interface GetSystemSettingsPayload {}
 
 // --- Protocol Map ---
@@ -341,6 +399,17 @@ export interface ProtocolMap {
     [SocketAction.ADD_EVENT]: { payload: AddEventPayload; response: Event };
     [SocketAction.UPDATE_EVENT]: { payload: UpdateEventPayload; response: Event };
     [SocketAction.DELETE_EVENT]: { payload: DeleteEventPayload; response: void };
+
+    [SocketAction.ADD_LEAGUE]: { payload: AddLeaguePayload; response: League };
+    [SocketAction.UPDATE_LEAGUE]: { payload: UpdateLeaguePayload; response: League };
+    [SocketAction.DELETE_LEAGUE]: { payload: DeleteLeaguePayload; response: void };
+    [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };
+    [SocketAction.UPDATE_SEASON]: { payload: UpdateSeasonPayload; response: Season };
+    [SocketAction.DELETE_SEASON]: { payload: DeleteSeasonPayload; response: void };
+    [SocketAction.ADD_SEASON_TEAM]: { payload: AddSeasonTeamPayload; response: SeasonTeam };
+    [SocketAction.REMOVE_SEASON_TEAM]: { payload: RemoveSeasonTeamPayload; response: void };
+    [SocketAction.ADD_GAME_TO_SEASON]: { payload: AddGameToSeasonPayload; response: void };
+    [SocketAction.REMOVE_GAME_FROM_SEASON]: { payload: RemoveGameFromSeasonPayload; response: void };
 
     [SocketAction.ADD_GAME]: { payload: AddGamePayload; response: Game };
     [SocketAction.UPDATE_GAME_STATUS]: { payload: UpdateGameStatusPayload; response: Game };

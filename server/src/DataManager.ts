@@ -13,6 +13,9 @@ import { notificationManager } from "./managers/NotificationManager";
 import { reportManager } from "./managers/ReportManager";
 import { feedManager } from "./managers/FeedManager";
 import { gameEventManager } from "./managers/GameEventManager";
+import { LeagueManager } from "./managers/LeagueManager";
+
+const leagueManager = new LeagueManager();
 import { 
   Organization, Site, Facility, Team, TeamMembership, TeamMember, 
   OrgMembership, OrgMember, OrgProfile, Event, Game, GameEvent,
@@ -233,6 +236,30 @@ export class DataManager {
     organizationManager.invalidateCache();
     console.log("DataManager: All caches invalidated.");
   };
+
+  // Leagues
+  getLeagues = (orgId?: string) => leagueManager.getLeagues(orgId);
+  getLeague = (id: string) => leagueManager.getLeague(id);
+  createLeague = (data: any) => leagueManager.createLeague(data);
+  updateLeague = (id: string, data: any) => leagueManager.updateLeague(id, data);
+  deleteLeague = (id: string) => leagueManager.deleteLeague(id);
+
+  // Seasons
+  getSeasons = (leagueId: string) => leagueManager.getSeasons(leagueId);
+  getSeason = (id: string) => leagueManager.getSeason(id);
+  createSeason = (data: any) => leagueManager.createSeason(data);
+  updateSeason = (id: string, data: any) => leagueManager.updateSeason(id, data);
+  deleteSeason = (id: string) => leagueManager.deleteSeason(id);
+  getSeasonTeams = (seasonId: string) => leagueManager.getSeasonTeams(seasonId);
+  addTeamToSeason = (seasonId: string, teamId: string, status?: any) => leagueManager.addTeamToSeason(seasonId, teamId, status);
+  removeTeamFromSeason = (seasonId: string, teamId: string) => leagueManager.removeTeamFromSeason(seasonId, teamId);
+  
+  // Game Seasons
+  addGameToSeason = (gameId: string, seasonId: string) => leagueManager.addGameToSeason(gameId, seasonId);
+  removeGameFromSeason = (gameId: string, seasonId: string) => leagueManager.removeGameFromSeason(gameId, seasonId);
+  getSeasonGames = (seasonId: string) => leagueManager.getSeasonGames(seasonId);
+  getGameSeasons = (gameId: string) => leagueManager.getGameSeasons(gameId);
+  recalculateSeasonStandings = (seasonId: string) => leagueManager.recalculateSeasonStandings(seasonId);
 }
 
 export const dataManager = new DataManager();

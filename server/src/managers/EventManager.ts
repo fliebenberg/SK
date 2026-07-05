@@ -215,6 +215,7 @@ export class EventManager extends BaseManager {
       } else {
           await this.query(`UPDATE games SET status = $1, updated_at = NOW() WHERE id = $2`, [status, id]);
       }
+      await this.triggerLeagueRecalculations(id);
       return (await this.getGame(id)) || null;
   }
 
@@ -238,6 +239,7 @@ export class EventManager extends BaseManager {
           await this.query(`DELETE FROM game_events WHERE game_id = $1`, [id]);
           
           await this.query('COMMIT');
+          await this.triggerLeagueRecalculations(id);
           return (await this.getGame(id)) || null;
       } catch (e) {
           await this.query('ROLLBACK');
@@ -430,6 +432,7 @@ export class EventManager extends BaseManager {
           }
 
           await this.query('COMMIT');
+          await this.triggerLeagueRecalculations(id);
           console.log(`EventManager: updateGame successful for ${id}`);
           return (await this.getGame(id)) || null;
       } catch (e) {
@@ -479,6 +482,23 @@ export class EventManager extends BaseManager {
         await this.query('ROLLBACK');
         console.error('Error saving game roster:', e);
         throw e;
+    }
+  }
+
+  private async triggerLeagueRecalculations(gameId: string) {
+    try {
+      const res = await this.query(`SELECT season_id as "seasonId" FROM game_seasons WHERE game_id = $1`, [gameId]);
+      const seasonIds = res.rows.map(r => r.seasonId);
+      if (seasonIds.length > 0) {
+        console.log(`EventManager: Triggering standings recalculation for seasons: ${seasonIds.join(', ')}`);
+        const { LeagueManager } = require("./LeagueManager");
+        const leagueMgr = new LeagueManager();
+        for (const seasonId of seasonIds) {
+          await leagueMgr.recalculateSeasonStandings(seasonId);
+        }
+      }
+    } catch (err) {
+      console.error(`EventManager: Error in triggerLeagueRecalculations for game ${gameId}:`, err);
     }
   }
 }
