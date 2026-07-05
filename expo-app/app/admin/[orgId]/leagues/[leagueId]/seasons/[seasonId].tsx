@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput } from 'react-native';
+import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../../../components/GlassCard';
@@ -117,6 +118,33 @@ export default function SeasonDetails() {
     };
   }, [isConnected, seasonId, orgId]);
 
+  const hasSettingsChanges = season ? (
+    ptsWin !== String(season.settings?.pointsPerWin ?? 4) ||
+    ptsDraw !== String(season.settings?.pointsPerDraw ?? 2) ||
+    ptsLoss !== String(season.settings?.pointsPerLoss ?? 0) ||
+    seasonStatus !== season.status
+  ) : false;
+
+  const safeGoBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(`/admin/${orgId}/leagues/${leagueId}` as any);
+    }
+  }, [router, orgId, leagueId]);
+
+  const handleCancelSettings = useCallback(() => {
+    if (season) {
+      setPtsWin(String(season.settings?.pointsPerWin ?? 4));
+      setPtsDraw(String(season.settings?.pointsPerDraw ?? 2));
+      setPtsLoss(String(season.settings?.pointsPerLoss ?? 0));
+      setSeasonStatus(season.status);
+      setActionError(null);
+    }
+  }, [season]);
+
+  useUnsavedChanges(hasSettingsChanges && !isProcessing, handleCancelSettings);
+
   // Refresh season lists (teams/games)
   const refreshSeasonData = () => {
     wsService.emit('get_data', { type: 'season_teams', id: seasonId }, (res: any) => {
@@ -229,11 +257,11 @@ export default function SeasonDetails() {
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_SEASON as any, payload }, (res: any) => {
-      setIsProcessing(false);
       if (res && res.status === 'error') {
+        setIsProcessing(false);
         setActionError(res.message || "Failed to update settings.");
       } else {
-        refreshSeasonData();
+        safeGoBack();
       }
     });
   };
@@ -255,7 +283,7 @@ export default function SeasonDetails() {
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity onPress={() => router.back()} className="flex-row items-center gap-1 active:opacity-85">
+        <TouchableOpacity onPress={safeGoBack} className="flex-row items-center gap-1 active:opacity-85">
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />
           <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">Back</Text>
         </TouchableOpacity>
@@ -298,7 +326,7 @@ export default function SeasonDetails() {
           <ActivityIndicator size="large" color="#FF3E00" />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: (activeTab === 'settings' && hasSettingsChanges) ? 140 : 40 }}>
           {/* TAB 1: STANDINGS */}
           {activeTab === 'standings' && (
             <GlassCard className="border border-slate-200 dark:border-white/5 p-4 overflow-hidden">
@@ -539,12 +567,6 @@ export default function SeasonDetails() {
                 </View>
               </View>
 
-              <Button
-                title={isProcessing ? "Saving Settings..." : "Save Settings"}
-                onPress={handleSaveSettings}
-                disabled={isProcessing}
-                className="py-3 rounded-xl mt-2"
-              />
             </GlassCard>
           )}
         </ScrollView>
@@ -645,6 +667,45 @@ export default function SeasonDetails() {
         onClose={() => setGameToUnlink(null)}
         isProcessing={isProcessing}
       />
+
+      {/* FLOATING SAVE CHANGES BAR */}
+      {activeTab === 'settings' && hasSettingsChanges && (
+        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+          <View className="flex-1 mr-4">
+            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+              Unsaved Changes
+            </Text>
+            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+              You have modified this season's settings.
+            </Text>
+          </View>
+          <View className="flex-row items-center gap-2.5">
+            <TouchableOpacity
+              onPress={handleCancelSettings}
+              disabled={isProcessing}
+              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+            >
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSaveSettings}
+              disabled={isProcessing}
+              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={14} color="white" />
+                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+                    Save
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

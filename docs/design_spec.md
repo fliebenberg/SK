@@ -138,6 +138,13 @@ To prevent confusion, the app uses a hybrid data submission approach:
 - **Instant/Auto-Save**: Used for all Live Scoring actions (WebSockets) and simple boolean toggles in settings.
 - **Explicit Save/Cancel**: Used for complex forms (editing a roster, creating an event, changing organization details). These forms require a deliberate "Save" button click. 
 - **Navigation Guards**: Whenever a user is in an Explicit Save view, any attempt to navigate away with unsaved changes must trigger a warning modal to prevent data loss.
+- **Floating Save Changes Bar (Mobile App UI)**:
+  - For pages with explicit save forms, the save/cancel actions should not be placed inline at the bottom of form cards.
+  - Instead, use a **Floating Save Changes Bar** anchored to the bottom of the viewport (styled as `absolute bottom-6 left-6 right-6` with white/slate-900 background, border, border-radius `rounded-2xl`, flex-row layout, and shadow-xl).
+  - This bar should only become visible when there are active unsaved changes (i.e. `hasChanges` or `isFormDirty` is true).
+  - When the bar is visible, the page's ScrollView container MUST dynamically increase its `paddingBottom` (e.g., from `60` to `140`) using `contentContainerStyle` to prevent the floating bar from overlapping and hiding the lowest form elements.
+  - The bar should include a compact "Cancel" (or "Clear" for new creation forms) button and a primary themed "Save" (or "Create") button (with an `ActivityIndicator` spinner during saving operations).
+  - **Race Condition Prevention**: To prevent the navigation guard from intercepting programmatic redirect navigation after a successful save (which causes a race condition before the dirty state is updated), the guard hook should accept `hasChanges && !isProcessing` (or similar loading state check) as its dirty flag. When the page is saving, the guard is temporarily bypassed to allow smooth navigation.
 
 ### 5.4 Card Actions Consistency (List Screens)
 To maintain a clean and consistent layout across administrative list screens (e.g., Teams, Sites/Facilities, People):

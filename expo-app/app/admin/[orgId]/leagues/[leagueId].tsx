@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
+import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
@@ -99,6 +100,29 @@ export default function LeagueDetails() {
     };
   }, [isConnected, leagueId]);
 
+  const hasLeagueChanges = league ? (
+    leagueName.trim() !== league.name ||
+    joinPolicy !== league.joinPolicy
+  ) : false;
+
+  const safeGoBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(`/admin/${orgId}/leagues` as any);
+    }
+  }, [router, orgId]);
+
+  const handleCancelLeague = useCallback(() => {
+    if (league) {
+      setLeagueName(league.name);
+      setJoinPolicy(league.joinPolicy);
+      setEditError(null);
+    }
+  }, [league]);
+
+  useUnsavedChanges(hasLeagueChanges && !isSavingLeague, handleCancelLeague);
+
   // Save League Settings
   const handleSaveLeague = () => {
     if (!leagueName.trim()) {
@@ -118,14 +142,15 @@ export default function LeagueDetails() {
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_LEAGUE as any, payload }, (res: any) => {
-      setIsSavingLeague(false);
       if (res && res.status === 'error') {
+        setIsSavingLeague(false);
         setEditError(res.message || "Failed to update league settings.");
       } else {
         // Direct merge to local state
         if (res && res.data) {
           setLeague(res.data);
         }
+        safeGoBack();
       }
     });
   };
@@ -209,7 +234,7 @@ export default function LeagueDetails() {
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity onPress={() => router.back()} className="flex-row items-center gap-1 active:opacity-85">
+        <TouchableOpacity onPress={safeGoBack} className="flex-row items-center gap-1 active:opacity-85">
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />
           <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">Back</Text>
         </TouchableOpacity>
@@ -222,7 +247,7 @@ export default function LeagueDetails() {
           <ActivityIndicator size="large" color="#FF3E00" />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: hasLeagueChanges ? 140 : 40 }}>
           {/* League Details Editor */}
           <GlassCard className="border border-slate-200 dark:border-white/5 p-5 mb-8">
             <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">League Settings</Text>
@@ -276,13 +301,6 @@ export default function LeagueDetails() {
                   </select>
                 </View>
               </View>
-
-              <Button
-                title={isSavingLeague ? "Saving..." : "Save Changes"}
-                onPress={handleSaveLeague}
-                disabled={isSavingLeague}
-                className="py-3 rounded-xl"
-              />
             </View>
           </GlassCard>
 
@@ -495,6 +513,45 @@ export default function LeagueDetails() {
         onClose={() => setSeasonToDelete(null)}
         isProcessing={isProcessing}
       />
+
+      {/* FLOATING SAVE CHANGES BAR */}
+      {hasLeagueChanges && (
+        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+          <View className="flex-1 mr-4">
+            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+              Unsaved Changes
+            </Text>
+            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+              You have modified this league's details.
+            </Text>
+          </View>
+          <View className="flex-row items-center gap-2.5">
+            <TouchableOpacity
+              onPress={handleCancelLeague}
+              disabled={isSavingLeague}
+              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+            >
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSaveLeague}
+              disabled={isSavingLeague || !leagueName.trim()}
+              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+            >
+              {isSavingLeague ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={14} color="white" />
+                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+                    Save
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

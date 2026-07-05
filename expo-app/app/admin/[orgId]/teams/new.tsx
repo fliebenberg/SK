@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,9 +28,21 @@ export default function NewTeam() {
   const [ageGroup, setAgeGroup] = useState('');
   const [selectedSportId, setSelectedSportId] = useState('');
 
-  // Flag as dirty once the user has typed anything
   const isFormDirty = name.trim().length > 0 || ageGroup.trim().length > 0 || selectedSportId.length > 0;
-  useUnsavedChanges(isFormDirty && !isSaving);
+
+  const safeGoBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(`/admin/${orgId}/teams` as any);
+    }
+  }, [router, orgId]);
+
+  const handleCancel = useCallback(() => {
+    safeGoBack();
+  }, [safeGoBack]);
+
+  useUnsavedChanges(isFormDirty && !isSaving, handleCancel);
   // Load org supported sports
   useEffect(() => {
     if (!isConnected || !orgId) return;
@@ -129,7 +141,7 @@ export default function NewTeam() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={handleCancel}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />
@@ -143,7 +155,7 @@ export default function NewTeam() {
         <View className="w-8" />
       </View>
 
-      <ScrollView className="flex-1 px-6 py-6" keyboardShouldPersistTaps="handled">
+      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: isFormDirty ? 140 : 60 }} keyboardShouldPersistTaps="handled">
         <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6">
           <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Team details</Text>
 
@@ -206,15 +218,47 @@ export default function NewTeam() {
               className="font-inter text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
             />
           </View>
-
-          <Button
-            title={isSaving ? "Creating Team..." : "Create Team"}
-            onPress={handleSave}
-            disabled={isSaving || !name.trim() || !ageGroup.trim() || !selectedSportId}
-            className="w-full py-3.5 rounded-xl shadow-lg mt-4"
-          />
         </GlassCard>
       </ScrollView>
+
+      {/* FLOATING SAVE CHANGES BAR */}
+      {isFormDirty && (
+        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+          <View className="flex-1 mr-4">
+            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+              New Team
+            </Text>
+            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+              You are creating a new team.
+            </Text>
+          </View>
+          <View className="flex-row items-center gap-2.5">
+            <TouchableOpacity
+              onPress={handleCancel}
+              disabled={isSaving}
+              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+            >
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={isSaving || !name.trim() || !ageGroup.trim() || !selectedSportId}
+              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={14} color="white" />
+                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+                    Create
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

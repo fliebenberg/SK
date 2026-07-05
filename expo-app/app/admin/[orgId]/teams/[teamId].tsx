@@ -263,6 +263,14 @@ export default function TeamWorkspace() {
     ) : false;
   }, [detailsForm, originalDetails]);
 
+  const safeGoBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(`/admin/${orgId}/teams` as any);
+    }
+  }, [router, orgId]);
+
   const handleDiscardDetails = useCallback(() => {
     if (!originalDetails) return;
     setDetailsForm({
@@ -329,10 +337,10 @@ export default function TeamWorkspace() {
         }
       }
     }, (res: any) => {
-      setIsProcessing(false);
       if (res.status === 'ok') {
-        Alert.alert('Success', 'Team details updated successfully');
+        safeGoBack();
       } else {
+        setIsProcessing(false);
         Alert.alert('Save Failed', res.message || 'Could not update details');
       }
     });
@@ -575,7 +583,7 @@ export default function TeamWorkspace() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={safeGoBack}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />
@@ -619,7 +627,7 @@ export default function TeamWorkspace() {
       </View>
 
       {/* SUB-VIEW RENDERING CONTAINER */}
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: (activeTab === 'details' && hasDetailsChanges) ? 140 : 60 }} keyboardShouldPersistTaps="handled">
         {isProcessing && (
           <View className="flex-row items-center justify-center bg-brand-orange/10 border border-brand-orange/30 rounded-xl p-3 mb-4">
             <ActivityIndicator size="small" color="#FF3E00" className="mr-2" />
@@ -704,26 +712,7 @@ export default function TeamWorkspace() {
                 </TouchableOpacity>
               </View>
 
-              {/* SAVE / CANCEL BUTTONS */}
-              {hasDetailsChanges && (
-                <View className="flex-row gap-3">
-                  <Button
-                    title="Cancel"
-                    variant="secondary"
-                    onPress={() => {
-                      if (originalDetails) {
-                        setDetailsForm({ ...originalDetails });
-                      }
-                    }}
-                    className="flex-1 py-2.5"
-                  />
-                  <Button
-                    title="Save Changes"
-                    onPress={handleSaveDetails}
-                    className="flex-1 py-2.5"
-                  />
-                </View>
-              )}
+
             </GlassCard>
 
             {/* DELETE SECTION */}
@@ -1570,6 +1559,44 @@ export default function TeamWorkspace() {
         }}
         onCancel={() => setImageEditorTarget(null)}
       />
+      {/* FLOATING SAVE CHANGES BAR */}
+      {activeTab === 'details' && hasDetailsChanges && (
+        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+          <View className="flex-1 mr-4">
+            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+              Unsaved Changes
+            </Text>
+            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+              You have modified this team's details.
+            </Text>
+          </View>
+          <View className="flex-row items-center gap-2.5">
+            <TouchableOpacity
+              onPress={handleDiscardDetails}
+              disabled={isProcessing}
+              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+            >
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSaveDetails}
+              disabled={isProcessing || !detailsForm.name.trim() || !detailsForm.ageGroup.trim()}
+              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={14} color="white" />
+                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+                    Save
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
