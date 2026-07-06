@@ -626,14 +626,14 @@ export default function OrgPeople() {
                       <Ionicons name="camera-outline" size={20} color="#94A3B8" />
                     )}
                   </TouchableOpacity>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 7, color: '#94A3B8', textTransform: 'uppercase', marginTop: 4 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 7, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', marginTop: 4 }}>
                     Avatar
                   </Text>
                 </View>
 
                 {/* Name Input */}
                 <View style={{ flex: 1, zIndex: 50 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
                     Name
                   </Text>
                   <PersonnelAutocomplete
@@ -648,7 +648,7 @@ export default function OrgPeople() {
               {/* Row 2: Email Address & Cell Number */}
               <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
                     Email Address
                   </Text>
                   <TextInput
@@ -661,7 +661,7 @@ export default function OrgPeople() {
                 </View>
 
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
                     Cell Number
                   </Text>
                   <TextInput
@@ -677,7 +677,7 @@ export default function OrgPeople() {
               {/* Row 3: Org ID + Birthdate side-by-side */}
               <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
                     Org ID (e.g. Student #)
                   </Text>
                   <TextInput
@@ -690,7 +690,7 @@ export default function OrgPeople() {
                 </View>
 
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
+                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
                     Birthdate
                   </Text>
                   <TextInput
@@ -705,7 +705,7 @@ export default function OrgPeople() {
 
               {/* Row 4: Assigned Role */}
               <View style={{ marginBottom: 8 }}>
-                <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 }}>
+                <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 }}>
                   Assigned Role
                 </Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -740,7 +740,7 @@ export default function OrgPeople() {
                 className="flex-1 min-h-[40px] py-2"
               />
               <Button
-                title={isProcessing ? 'Adding...' : 'Add Member'}
+                title={isProcessing ? 'Adding...' : 'Add Person'}
                 variant="primary"
                 onPress={handleAddMember}
                 disabled={isProcessing || !newMemberData.name.trim()}

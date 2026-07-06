@@ -503,7 +503,7 @@ export default function OrganizationsPage() {
             </View>
 
             <View className="mb-4">
-              <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                 Organization Name
               </Text>
               <TextInput
@@ -517,7 +517,7 @@ export default function OrganizationsPage() {
             </View>
 
             <View className="mb-6">
-              <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                 Primary Sport
               </Text>
               <TextInput
@@ -554,7 +554,7 @@ export default function OrganizationsPage() {
 
             {/* Organization Type Selector */}
             <View className="mb-4">
-              <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                 Organization Type (Required)
               </Text>
               <View className="flex-row flex-wrap gap-2 mb-2">
@@ -588,7 +588,7 @@ export default function OrganizationsPage() {
             {/* Custom Organization Type Specification */}
             {newOrgType === 'OTHER' && (
               <View className="mb-6">
-                <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                   Specify Custom Type (Required)
                 </Text>
                 <TextInput

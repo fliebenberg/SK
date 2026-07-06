@@ -823,7 +823,7 @@ export default function SiteDetails() {
           <View className="space-y-4">
             {/* Site Name */}
             <View>
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                 Site Name
               </Text>
               <TextInput
@@ -837,7 +837,7 @@ export default function SiteDetails() {
 
             {/* Address Autocomplete & Search */}
             <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-              <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase mb-1.5 tracking-wider">Physical Address</Text>
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-1.5 tracking-wider">Physical Address</Text>
               
               <View className="flex-row gap-2 mb-2">
                 <View className="flex-1 flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5">

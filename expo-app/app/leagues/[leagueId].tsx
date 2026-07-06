@@ -8,6 +8,7 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
 import { League, Season, LeagueStandingRow, Game, Sport } from '@sk/types';
+import CustomSelect from '../../components/CustomSelect';
 
 export default function PublicLeagueStandings() {
   const router = useRouter();
@@ -155,32 +156,14 @@ export default function PublicLeagueStandings() {
           {/* Season Selector bar */}
           <View className="flex-row items-center justify-between px-6 py-3 bg-white dark:bg-slate-900/50 border-b border-slate-200 dark:border-white/5 gap-4">
             <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active Season:</Text>
-            <View className="flex-1 max-w-[200px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden">
-              <select
-                value={selectedSeasonId}
-                onChange={(e) => setSelectedSeasonId(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: 38,
-                  padding: '0 12px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: isDark ? '#FFFFFF' : '#0F172A',
-                  fontFamily: 'Inter, System, sans-serif',
-                  fontSize: 12,
-                  outline: 'none'
-                }}
-              >
-                {seasons.map(s => (
-                  <option key={s.id} value={s.id} style={{ background: isDark ? '#0F172A' : '#FFFFFF' }}>
-                    {s.name} ({s.status})
-                  </option>
-                ))}
-                {seasons.length === 0 && (
-                  <option value="">No Seasons</option>
-                )}
-              </select>
-            </View>
+            <CustomSelect
+              value={selectedSeasonId}
+              onChange={setSelectedSeasonId}
+              options={seasons.map(s => ({ value: s.id, label: `${s.name} (${s.status})` }))}
+              placeholder="Select Season"
+              className="flex-1 max-w-[200px]"
+              style={{ height: 38, paddingVertical: 0 }}
+            />
           </View>
 
           {/* Tabs */}

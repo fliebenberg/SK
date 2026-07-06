@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Platform, Image } from 'react-native';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,45 @@ import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team } from '@sk/types';
+import DatePicker from '../../../../../../components/DatePicker';
+import { getOrgLogoUrl } from '../../../../../../services/api';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+
+const calculateSeasonStatus = (startDateStr: string, endDateStr: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
+  if (!startDateStr || !endDateStr) return 'UPCOMING';
+  try {
+    const cleanStart = startDateStr.split('T')[0];
+    const cleanEnd = endDateStr.split('T')[0];
+    
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(cleanStart) || !dateRegex.test(cleanEnd)) {
+      return 'UPCOMING';
+    }
+
+    const [startYear, startMonth, startDay] = cleanStart.split('-').map(Number);
+    const [endYear, endMonth, endDay] = cleanEnd.split('-').map(Number);
+    
+    const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+    const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return 'UPCOMING';
+    }
+
+    const now = new Date();
+    
+    if (now < start) {
+      return 'UPCOMING';
+    } else if (now > end) {
+      return 'COMPLETED';
+    } else {
+      return 'ACTIVE';
+    }
+  } catch (e) {
+    return 'UPCOMING';
+  }
+};
 
 export default function SeasonDetails() {
   const router = useRouter();
@@ -46,7 +85,53 @@ export default function SeasonDetails() {
   const [ptsWin, setPtsWin] = useState('4');
   const [ptsDraw, setPtsDraw] = useState('2');
   const [ptsLoss, setPtsLoss] = useState('0');
-  const [seasonStatus, setSeasonStatus] = useState<'UPCOMING' | 'ACTIVE' | 'COMPLETED'>('ACTIVE');
+  const [seasonName, setSeasonName] = useState('');
+  const [startDateStr, setStartDateStr] = useState('');
+  const [endDateStr, setEndDateStr] = useState('');
+  const [seasonLogo, setSeasonLogo] = useState('');
+
+  const computedStatus = calculateSeasonStatus(startDateStr, endDateStr);
+
+  // Logo Picker Handler
+  const handlePickSeasonLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('We need camera roll permissions to change the season logo.');
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const minDim = Math.min(asset.width, asset.height);
+        const actions = [{
+          crop: {
+            originX: Math.round((asset.width - minDim) / 2),
+            originY: Math.round((asset.height - minDim) / 2),
+            width: minDim,
+            height: minDim,
+          }
+        }];
+        if (minDim > 1024) actions.push({ resize: { width: 1024, height: 1024 } } as any);
+        const manipulateResult = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          actions,
+          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
+        );
+        setSeasonLogo(`data:image/png;base64,${manipulateResult.base64}`);
+      }
+    } catch (err) {
+      console.error('[SeasonDetails] Error picking season logo:', err);
+      alert('Failed to process selected logo');
+    }
+  };
 
   // Load Data
   useEffect(() => {
@@ -65,7 +150,10 @@ export default function SeasonDetails() {
           setPtsWin(String(res.settings?.pointsPerWin ?? 4));
           setPtsDraw(String(res.settings?.pointsPerDraw ?? 2));
           setPtsLoss(String(res.settings?.pointsPerLoss ?? 0));
-          setSeasonStatus(res.status);
+          setSeasonName(res.name || '');
+          setStartDateStr(res.startDate ? res.startDate.split('T')[0] : '');
+          setEndDateStr(res.endDate ? res.endDate.split('T')[0] : '');
+          setSeasonLogo(res.logo || '');
         }
       });
 
@@ -119,10 +207,13 @@ export default function SeasonDetails() {
   }, [isConnected, seasonId, orgId]);
 
   const hasSettingsChanges = season ? (
+    seasonName.trim() !== (season.name || '') ||
+    startDateStr !== (season.startDate ? season.startDate.split('T')[0] : '') ||
+    endDateStr !== (season.endDate ? season.endDate.split('T')[0] : '') ||
     ptsWin !== String(season.settings?.pointsPerWin ?? 4) ||
     ptsDraw !== String(season.settings?.pointsPerDraw ?? 2) ||
     ptsLoss !== String(season.settings?.pointsPerLoss ?? 0) ||
-    seasonStatus !== season.status
+    seasonLogo !== (season.logo || '')
   ) : false;
 
   const safeGoBack = useCallback(() => {
@@ -135,10 +226,13 @@ export default function SeasonDetails() {
 
   const handleCancelSettings = useCallback(() => {
     if (season) {
+      setSeasonName(season.name || '');
+      setStartDateStr(season.startDate ? season.startDate.split('T')[0] : '');
+      setEndDateStr(season.endDate ? season.endDate.split('T')[0] : '');
       setPtsWin(String(season.settings?.pointsPerWin ?? 4));
       setPtsDraw(String(season.settings?.pointsPerDraw ?? 2));
       setPtsLoss(String(season.settings?.pointsPerLoss ?? 0));
-      setSeasonStatus(season.status);
+      setSeasonLogo(season.logo || '');
       setActionError(null);
     }
   }, [season]);
@@ -241,18 +335,33 @@ export default function SeasonDetails() {
 
   // Save Settings Handler
   const handleSaveSettings = () => {
+    if (!seasonName.trim() || !startDateStr || !endDateStr) {
+      setActionError("Name and start/end dates are required.");
+      return;
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(startDateStr) || !dateRegex.test(endDateStr)) {
+      setActionError("Dates must be in YYYY-MM-DD format.");
+      return;
+    }
+
     setIsProcessing(true);
     setActionError(null);
 
     const payload = {
       id: seasonId,
       data: {
-        status: seasonStatus,
+        name: seasonName.trim(),
+        startDate: new Date(startDateStr).toISOString(),
+        endDate: new Date(endDateStr).toISOString(),
+        status: computedStatus,
         settings: {
           pointsPerWin: parseInt(ptsWin) || 4,
           pointsPerDraw: parseInt(ptsDraw) || 2,
           pointsPerLoss: parseInt(ptsLoss) || 0
-        }
+        },
+        logo: seasonLogo || null
       }
     };
 
@@ -508,28 +617,75 @@ export default function SeasonDetails() {
                 </View>
               )}
 
+              {/* Season Logo Upload */}
+              <View className="items-center py-2">
+                <TouchableOpacity
+                  onPress={handlePickSeasonLogo}
+                  className="w-24 h-24 rounded-2xl items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 relative"
+                  activeOpacity={0.85}
+                >
+                  {seasonLogo ? (
+                    <Image source={{ uri: getOrgLogoUrl(seasonLogo) }} className="w-full h-full" resizeMode="cover" />
+                  ) : (
+                    <Ionicons name="calendar-outline" size={40} color={isDark ? "#94A3B8" : "#64748B"} />
+                  )}
+                  <View className="absolute bottom-1.5 right-1.5 bg-brand-orange w-6 h-6 rounded-full items-center justify-center border border-white dark:border-slate-900 shadow-md">
+                    <Ionicons name="camera" size={12} color="white" />
+                  </View>
+                </TouchableOpacity>
+                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-2">Season Branding Logo</Text>
+              </View>
+
               <View className="space-y-1">
-                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Season Status</Text>
-                <View className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden">
-                  <select
-                    value={seasonStatus}
-                    onChange={(e: any) => setSeasonStatus(e.target.value)}
-                    style={{
-                      width: '100%',
-                      height: 44,
-                      padding: '0 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      color: isDark ? '#FFFFFF' : '#0F172A',
-                      fontFamily: 'Inter, System, sans-serif',
-                      fontSize: 14,
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="UPCOMING">UPCOMING</option>
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="COMPLETED">COMPLETED</option>
-                  </select>
+                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Season Name</Text>
+                <TextInput
+                  value={seasonName}
+                  onChangeText={setSeasonName}
+                  placeholder="e.g. 2026 Season"
+                  placeholderTextColor="#94A3B8"
+                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                />
+              </View>
+
+              <View className="grid grid-cols-2 gap-4">
+                <View className="space-y-1">
+                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Start Date</Text>
+                  <DatePicker
+                    value={startDateStr}
+                    onChange={setStartDateStr}
+                    placeholder="YYYY-MM-DD"
+                  />
+                </View>
+                <View className="space-y-1">
+                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">End Date</Text>
+                  <DatePicker
+                    value={endDateStr}
+                    onChange={setEndDateStr}
+                    placeholder="YYYY-MM-DD"
+                  />
+                </View>
+              </View>
+
+              <View className="space-y-1.5">
+                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Season Status (Calculated)</Text>
+                <View className="flex-row items-center">
+                  <View className={`px-3 py-1.5 rounded-lg ${
+                    computedStatus === 'ACTIVE' 
+                      ? 'bg-cyan-500/10 border border-cyan-500/20' 
+                      : computedStatus === 'COMPLETED' 
+                      ? 'bg-slate-200/50 dark:bg-white/10' 
+                      : 'bg-orange-500/10 border border-orange-500/20'
+                  }`}>
+                    <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${
+                      computedStatus === 'ACTIVE' 
+                        ? 'text-cyan-500' 
+                        : computedStatus === 'COMPLETED' 
+                        ? 'text-slate-500 dark:text-slate-400' 
+                        : 'text-brand-orange'
+                    }`}>
+                      {computedStatus}
+                    </Text>
+                  </View>
                 </View>
               </View>
 

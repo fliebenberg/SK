@@ -469,6 +469,7 @@ const createTables = async () => {
                 age_group TEXT,
                 join_policy TEXT NOT NULL DEFAULT 'CLOSED',
                 criteria JSONB DEFAULT '{}'::jsonb,
+                logo TEXT DEFAULT NULL,
                 created_at TIMESTAMPTZ DEFAULT NOW()
             );
         `);
@@ -484,6 +485,7 @@ const createTables = async () => {
                 status TEXT NOT NULL DEFAULT 'UPCOMING',
                 settings JSONB DEFAULT '{"pointsPerWin": 4, "pointsPerDraw": 2, "pointsPerLoss": 0}'::jsonb,
                 cached_standings JSONB DEFAULT '[]'::jsonb,
+                logo TEXT DEFAULT NULL,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             );

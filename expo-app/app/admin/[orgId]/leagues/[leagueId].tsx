@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Platform, Image } from 'react-native';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,46 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Season, Sport } from '@sk/types';
+import DatePicker from '../../../../components/DatePicker';
+import { getOrgLogoUrl } from '../../../../services/api';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import CustomSelect from '../../../../components/CustomSelect';
+
+const calculateSeasonStatus = (startDateStr: string, endDateStr: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
+  if (!startDateStr || !endDateStr) return 'UPCOMING';
+  try {
+    const cleanStart = startDateStr.split('T')[0];
+    const cleanEnd = endDateStr.split('T')[0];
+    
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(cleanStart) || !dateRegex.test(cleanEnd)) {
+      return 'UPCOMING';
+    }
+
+    const [startYear, startMonth, startDay] = cleanStart.split('-').map(Number);
+    const [endYear, endMonth, endDay] = cleanEnd.split('-').map(Number);
+    
+    const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+    const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return 'UPCOMING';
+    }
+
+    const now = new Date();
+    
+    if (now < start) {
+      return 'UPCOMING';
+    } else if (now > end) {
+      return 'COMPLETED';
+    } else {
+      return 'ACTIVE';
+    }
+  } catch (e) {
+    return 'UPCOMING';
+  }
+};
 
 export default function LeagueDetails() {
   const router = useRouter();
@@ -27,6 +67,7 @@ export default function LeagueDetails() {
   // League Edit State
   const [leagueName, setLeagueName] = useState('');
   const [joinPolicy, setJoinPolicy] = useState<'CLOSED' | 'INVITE' | 'OPEN'>('CLOSED');
+  const [leagueLogo, setLeagueLogo] = useState('');
   const [isSavingLeague, setIsSavingLeague] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -35,16 +76,99 @@ export default function LeagueDetails() {
   const [newSeasonName, setNewSeasonName] = useState('');
   const [startDateStr, setStartDateStr] = useState(''); // YYYY-MM-DD
   const [endDateStr, setEndDateStr] = useState(''); // YYYY-MM-DD
-  const [seasonStatus, setSeasonStatus] = useState<'UPCOMING' | 'ACTIVE' | 'COMPLETED'>('ACTIVE');
   const [ptsWin, setPtsWin] = useState('4');
   const [ptsDraw, setPtsDraw] = useState('2');
   const [ptsLoss, setPtsLoss] = useState('0');
+  const [newSeasonLogo, setNewSeasonLogo] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Logo pickers
+  const handlePickLeagueLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('We need camera roll permissions to change the league logo.');
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const minDim = Math.min(asset.width, asset.height);
+        const actions = [{
+          crop: {
+            originX: Math.round((asset.width - minDim) / 2),
+            originY: Math.round((asset.height - minDim) / 2),
+            width: minDim,
+            height: minDim,
+          }
+        }];
+        if (minDim > 1024) actions.push({ resize: { width: 1024, height: 1024 } } as any);
+        const manipulateResult = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          actions,
+          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
+        );
+        setLeagueLogo(`data:image/png;base64,${manipulateResult.base64}`);
+      }
+    } catch (err) {
+      console.error('[LeagueDetails] Error picking league logo:', err);
+      alert('Failed to process selected logo');
+    }
+  };
+
+  const handlePickSeasonLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('We need camera roll permissions to set the season logo.');
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const minDim = Math.min(asset.width, asset.height);
+        const actions = [{
+          crop: {
+            originX: Math.round((asset.width - minDim) / 2),
+            originY: Math.round((asset.height - minDim) / 2),
+            width: minDim,
+            height: minDim,
+          }
+        }];
+        if (minDim > 1024) actions.push({ resize: { width: 1024, height: 1024 } } as any);
+        const manipulateResult = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          actions,
+          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
+        );
+        setNewSeasonLogo(`data:image/png;base64,${manipulateResult.base64}`);
+      }
+    } catch (err) {
+      console.error('[LeagueDetails] Error picking season logo:', err);
+      alert('Failed to process selected logo');
+    }
+  };
 
   // Season Deletion State
   const [seasonToDelete, setSeasonToDelete] = useState<Season | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const computedStatus = calculateSeasonStatus(startDateStr, endDateStr);
 
   // Fetch Data & Subscribe
   useEffect(() => {
@@ -59,6 +183,7 @@ export default function LeagueDetails() {
         setLeague(res);
         setLeagueName(res.name);
         setJoinPolicy(res.joinPolicy);
+        setLeagueLogo(res.logo || '');
       }
     });
 
@@ -82,7 +207,12 @@ export default function LeagueDetails() {
       if (!active) return;
       if (event) {
         if (event.type === 'SEASON_ADDED') {
-          setSeasons(prev => [event.data, ...prev]);
+          setSeasons(prev => {
+            if (prev.some(s => s.id === event.data.id)) {
+              return prev.map(s => s.id === event.data.id ? event.data : s);
+            }
+            return [event.data, ...prev];
+          });
         } else if (event.type === 'SEASON_UPDATED') {
           setSeasons(prev => prev.map(s => s.id === event.data.id ? event.data : s));
         } else if (event.type === 'SEASON_DELETED') {
@@ -102,7 +232,8 @@ export default function LeagueDetails() {
 
   const hasLeagueChanges = league ? (
     leagueName.trim() !== league.name ||
-    joinPolicy !== league.joinPolicy
+    joinPolicy !== league.joinPolicy ||
+    leagueLogo !== (league.logo || '')
   ) : false;
 
   const safeGoBack = useCallback(() => {
@@ -117,6 +248,7 @@ export default function LeagueDetails() {
     if (league) {
       setLeagueName(league.name);
       setJoinPolicy(league.joinPolicy);
+      setLeagueLogo(league.logo || '');
       setEditError(null);
     }
   }, [league]);
@@ -137,7 +269,8 @@ export default function LeagueDetails() {
       id: leagueId,
       data: {
         name: leagueName.trim(),
-        joinPolicy
+        joinPolicy,
+        logo: leagueLogo || null
       }
     };
 
@@ -177,12 +310,13 @@ export default function LeagueDetails() {
       name: newSeasonName.trim(),
       startDate: new Date(startDateStr).toISOString(),
       endDate: new Date(endDateStr).toISOString(),
-      status: seasonStatus,
+      status: computedStatus,
       settings: {
         pointsPerWin: parseInt(ptsWin) || 4,
         pointsPerDraw: parseInt(ptsDraw) || 2,
         pointsPerLoss: parseInt(ptsLoss) || 0
-      }
+      },
+      logo: newSeasonLogo || undefined
     };
 
     wsService.emit('action', { type: SocketAction.ADD_SEASON as any, payload }, (res: any) => {
@@ -197,6 +331,7 @@ export default function LeagueDetails() {
         setPtsWin('4');
         setPtsDraw('2');
         setPtsLoss('0');
+        setNewSeasonLogo('');
       }
     });
   };
@@ -259,6 +394,25 @@ export default function LeagueDetails() {
             )}
 
             <View className="space-y-4">
+              {/* League Logo Upload */}
+              <View className="items-center py-2">
+                <TouchableOpacity
+                  onPress={handlePickLeagueLogo}
+                  className="w-24 h-24 rounded-2xl items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 relative"
+                  activeOpacity={0.85}
+                >
+                  {leagueLogo ? (
+                    <Image source={{ uri: getOrgLogoUrl(leagueLogo) }} className="w-full h-full" resizeMode="cover" />
+                  ) : (
+                    <Ionicons name="trophy-outline" size={40} color={isDark ? "#94A3B8" : "#64748B"} />
+                  )}
+                  <View className="absolute bottom-1.5 right-1.5 bg-brand-orange w-6 h-6 rounded-full items-center justify-center border border-white dark:border-slate-900 shadow-md">
+                    <Ionicons name="camera" size={12} color="white" />
+                  </View>
+                </TouchableOpacity>
+                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-2">League Branding Logo</Text>
+              </View>
+
               <View className="space-y-1">
                 <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">League Name</Text>
                 <TextInput
@@ -268,37 +422,47 @@ export default function LeagueDetails() {
                 />
               </View>
 
-              <View className="space-y-1">
-                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Sport (Read Only)</Text>
-                <TextInput
-                  value={league ? getSportName(league.sportId) : ''}
-                  editable={false}
-                  className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-500"
-                />
+              <View className="flex-row items-center gap-2 mt-1">
+                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Sport:</Text>
+                <View className="bg-slate-150 dark:bg-white/10 px-2.5 py-0.5 rounded-full border border-slate-200/50 dark:border-white/5">
+                  <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                    {league ? getSportName(league.sportId) : ''}
+                  </Text>
+                </View>
               </View>
 
-              <View className="space-y-1">
+              <View className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
                 <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Join Policy</Text>
-                <View className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden">
-                  <select
-                    value={joinPolicy}
-                    onChange={(e: any) => setJoinPolicy(e.target.value)}
-                    style={{
-                      width: '100%',
-                      height: 44,
-                      padding: '0 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      color: isDark ? '#FFFFFF' : '#0F172A',
-                      fontFamily: 'Inter, System, sans-serif',
-                      fontSize: 14,
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="CLOSED">CLOSED</option>
-                    <option value="INVITE">INVITE</option>
-                    <option value="OPEN">OPEN</option>
-                  </select>
+                <View className="flex-row gap-2.5">
+                  {(['CLOSED', 'INVITE', 'OPEN'] as const).map((policy) => {
+                    const isSelected = joinPolicy === policy;
+                    return (
+                      <TouchableOpacity
+                        key={policy}
+                        onPress={() => setJoinPolicy(policy)}
+                        className={`flex-1 py-2 rounded-xl border items-center justify-center ${
+                          isSelected
+                            ? 'bg-brand-orange/15 border-brand-orange'
+                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200/50 dark:border-white/5'
+                        }`}
+                      >
+                        <Text className={`font-orbitron-bold text-[10px] tracking-wider ${
+                          isSelected
+                            ? 'text-brand-orange'
+                            : 'text-slate-500 dark:text-slate-450'
+                        }`}>
+                          {policy}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <View className="bg-slate-100/50 dark:bg-white/5 p-3 rounded-xl border border-slate-200/30 dark:border-white/5">
+                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    {joinPolicy === 'CLOSED' && "CLOSED: Only administrators can manually assign teams to this league."}
+                    {joinPolicy === 'INVITE' && "INVITE: Teams can apply, but administrators must approve their entry."}
+                    {joinPolicy === 'OPEN' && "OPEN: Any team that meets the qualifying criteria can join, even from outside the organization."}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -319,47 +483,66 @@ export default function LeagueDetails() {
           {/* Seasons List */}
           <View className="space-y-4">
             {seasons.map((season) => (
-              <GlassCard key={season.id} className="border border-slate-200 dark:border-white/5 p-5">
-                <View className="flex-row justify-between items-start mb-2">
-                  <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white leading-tight">
-                    {season.name}
-                  </Text>
-                  <View className={`px-2 py-0.5 rounded ${
-                    season.status === 'ACTIVE' 
-                      ? 'bg-cyan-500/10 border border-cyan-500/20' 
-                      : season.status === 'COMPLETED' 
-                      ? 'bg-slate-200/50 dark:bg-white/10' 
-                      : 'bg-orange-500/10 border border-orange-500/20'
-                  }`}>
-                    <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${
-                      season.status === 'ACTIVE' 
-                        ? 'text-cyan-500' 
-                        : season.status === 'COMPLETED' 
-                        ? 'text-slate-500 dark:text-slate-400' 
-                        : 'text-brand-orange'
-                    }`}>
-                      {season.status}
-                    </Text>
+              <GlassCard key={season.id} className="border border-slate-200 dark:border-white/5 p-4">
+                <View className="flex-row justify-between items-center">
+                  <View className="flex-row items-center flex-1 mr-4 gap-3.5">
+                    {season.logo ? (
+                      <View className="w-11 h-11 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200/50 dark:border-white/5">
+                        <Image 
+                          source={{ uri: getOrgLogoUrl(season.logo, 'thumb') }} 
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
+                      </View>
+                    ) : (
+                      <View className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 items-center justify-center shrink-0 border border-slate-200/50 dark:border-white/5">
+                        <Ionicons name="calendar" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+                      </View>
+                    )}
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-2 mb-1 flex-wrap">
+                        <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+                          {season.name}
+                        </Text>
+                        <View className={`px-2 py-0.5 rounded ${
+                          season.status === 'ACTIVE' 
+                            ? 'bg-cyan-500/10 border border-cyan-500/20' 
+                            : season.status === 'COMPLETED' 
+                            ? 'bg-slate-200/50 dark:bg-white/10' 
+                            : 'bg-orange-500/10 border border-orange-500/20'
+                        }`}>
+                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${
+                            season.status === 'ACTIVE' 
+                              ? 'text-cyan-500' 
+                              : season.status === 'COMPLETED' 
+                              ? 'text-slate-500 dark:text-slate-400' 
+                              : 'text-brand-orange'
+                          }`}>
+                            {season.status}
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                        {formatDate(season.startDate)} to {formatDate(season.endDate)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-4">
-                  Duration: {formatDate(season.startDate)} to {formatDate(season.endDate)}
-                </Text>
-
-                <View className="flex-row gap-3">
-                  <Button
-                    title="Manage Season"
-                    variant="secondary"
-                    onPress={() => router.push(`/admin/${orgId}/leagues/${leagueId}/seasons/${season.id}`)}
-                    className="flex-1 py-2 rounded-lg"
-                  />
-                  <TouchableOpacity
-                    onPress={() => setSeasonToDelete(season)}
-                    className="w-10 h-10 rounded-lg bg-red-500/10 border border-red-500/20 items-center justify-center active:opacity-85"
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                  </TouchableOpacity>
+                  <View className="flex-row items-center gap-2">
+                    <TouchableOpacity 
+                      onPress={() => router.push(`/admin/${orgId}/leagues/${leagueId}/seasons/${season.id}`)}
+                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-85"
+                    >
+                      <Ionicons name="pencil" size={12} color={isDark ? "#E2E8F0" : "#475569"} />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={() => setSeasonToDelete(season)}
+                      className="w-7 h-7 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-85"
+                    >
+                      <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </GlassCard>
             ))}
@@ -393,8 +576,27 @@ export default function LeagueDetails() {
             )}
 
             <ScrollView className="space-y-4 pr-1">
+              {/* Season Logo Upload */}
+              <View className="items-center py-1">
+                <TouchableOpacity
+                  onPress={handlePickSeasonLogo}
+                  className="w-20 h-20 rounded-2xl items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 relative"
+                  activeOpacity={0.8}
+                >
+                  {newSeasonLogo ? (
+                    <Image source={{ uri: newSeasonLogo }} className="w-full h-full" resizeMode="cover" />
+                  ) : (
+                    <Ionicons name="calendar-outline" size={32} color={isDark ? "#94A3B8" : "#64748B"} />
+                  )}
+                  <View className="absolute bottom-1 right-1 bg-brand-orange w-5 h-5 rounded-full items-center justify-center border border-white dark:border-slate-900 shadow-sm">
+                    <Ionicons name="camera" size={10} color="white" />
+                  </View>
+                </TouchableOpacity>
+                <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mt-1.5">Season Logo</Text>
+              </View>
+
               <View className="space-y-1">
-                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Season Name</Text>
+                <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Season Name</Text>
                 <TextInput
                   value={newSeasonName}
                   onChangeText={setNewSeasonName}
@@ -406,55 +608,49 @@ export default function LeagueDetails() {
 
               <View className="grid grid-cols-2 gap-4">
                 <View className="space-y-1">
-                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Start Date</Text>
-                  <TextInput
+                  <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Start Date</Text>
+                  <DatePicker
                     value={startDateStr}
-                    onChangeText={setStartDateStr}
+                    onChange={setStartDateStr}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
                   />
                 </View>
                 <View className="space-y-1">
-                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">End Date</Text>
-                  <TextInput
+                  <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">End Date</Text>
+                  <DatePicker
                     value={endDateStr}
-                    onChangeText={setEndDateStr}
+                    onChange={setEndDateStr}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
                   />
                 </View>
               </View>
 
-              <View className="space-y-1">
-                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Status</Text>
-                <View className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden">
-                  <select
-                    value={seasonStatus}
-                    onChange={(e: any) => setSeasonStatus(e.target.value)}
-                    style={{
-                      width: '100%',
-                      height: 44,
-                      padding: '0 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      color: isDark ? '#FFFFFF' : '#0F172A',
-                      fontFamily: 'Inter, System, sans-serif',
-                      fontSize: 14,
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="UPCOMING">UPCOMING</option>
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="COMPLETED">COMPLETED</option>
-                  </select>
+              <View className="space-y-1.5">
+                <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Status (Calculated)</Text>
+                <View className="flex-row items-center">
+                  <View className={`px-3 py-1.5 rounded-lg ${
+                    computedStatus === 'ACTIVE' 
+                      ? 'bg-cyan-500/10 border border-cyan-500/20' 
+                      : computedStatus === 'COMPLETED' 
+                      ? 'bg-slate-200/50 dark:bg-white/10' 
+                      : 'bg-orange-500/10 border border-orange-500/20'
+                  }`}>
+                    <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${
+                      computedStatus === 'ACTIVE' 
+                        ? 'text-cyan-500' 
+                        : computedStatus === 'COMPLETED' 
+                        ? 'text-slate-500 dark:text-slate-400' 
+                        : 'text-brand-orange'
+                    }`}>
+                      {computedStatus}
+                    </Text>
+                  </View>
                 </View>
               </View>
 
               {/* Point settings */}
               <View className="pt-2 border-t border-slate-100 dark:border-white/5 space-y-2">
-                <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Point Allocations</Text>
+                <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Point Allocations</Text>
                 <View className="grid grid-cols-3 gap-3">
                   <View className="space-y-1">
                     <Text className="font-inter-bold text-[8px] text-slate-400 uppercase">Win</Text>

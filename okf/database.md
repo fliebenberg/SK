@@ -8,7 +8,7 @@ tags:
   - PostgreSQL
   - migrations
   - persistence
-timestamp: 2026-07-02T14:56:00Z
+timestamp: 2026-07-05T22:54:00Z
 ---
 
 # Database & Data Persistence
@@ -30,6 +30,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
 *   **Database Config**: [server/src/db.ts](file:///c:/Fred/Coding/SK/server/src/db.ts) initializes the PostgreSQL connection pool (using the `pg` package).
 *   **Data Manager**: [server/src/DataManager.ts](file:///c:/Fred/Coding/SK/server/src/DataManager.ts) orchestrates reads and writes across the relational models and cache systems.
 *   **Shared Models**: [shared/src/types/](file:///c:/Fred/Coding/SK/shared/src/types/) contains standard type declarations shared between client and server.
+*   **Migrations**: [server/src/scripts/migrations/](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/) holds sequential database modification scripts. (e.g. `20260705_add_league_and_season_logos.ts` adding branding logo support to leagues/seasons).
 
 ## Integration Test Rule: Test Org Reuse
 

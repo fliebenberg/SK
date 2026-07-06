@@ -137,7 +137,12 @@ export default function PublicOrgDetail() {
         if (event.type === 'ORGANIZATION_UPDATED' && event.data && event.data.id === orgId) {
           setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
         } else if (event.type === 'LEAGUE_ADDED') {
-          setLeagues(prev => [event.data, ...prev]);
+          setLeagues(prev => {
+            if (prev.some(l => l.id === event.data.id)) {
+              return prev.map(l => l.id === event.data.id ? event.data : l);
+            }
+            return [event.data, ...prev];
+          });
         } else if (event.type === 'LEAGUE_UPDATED') {
           setLeagues(prev => prev.map(l => l.id === event.data.id ? event.data : l));
         } else if (event.type === 'LEAGUE_DELETED') {

@@ -639,7 +639,7 @@ export default function TeamWorkspace() {
         {activeTab === 'details' && (
           <View>
             <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6">
-              <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Edit Team Information</Text>
+              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-4">Edit Team Information</Text>
 
               {/* NAME */}
               <View className="mb-4">
@@ -759,26 +759,26 @@ export default function TeamWorkspace() {
               </TouchableOpacity>
             </View>
 
-            <View className="space-y-3">
+            <View className="space-y-1.5">
               {players.map(item => {
                 const inviteStatus = getInviteButtonStatus(item);
                 const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
                 const logoConf = parseImageConfig(item.imageConfig);
 
                 return (
-                  <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 p-3 flex-row items-center justify-between">
-                    <View className="flex-row items-center gap-3 flex-1 mr-4">
-                      <View className="w-10 h-10 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
+                  <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 py-1.5 px-3 flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-2.5 flex-1 mr-4">
+                      <View className="w-8 h-8 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
                         {avatarSource ? (
-                          <View style={{ width: 40, height: 40, overflow: 'hidden' }}>
+                          <View style={{ width: 32, height: 32, overflow: 'hidden' }}>
                             <View
                               style={{
                                 width: '100%',
                                 height: '100%',
                                 transform: [
                                   { scale: logoConf.scale },
-                                  { translateX: logoConf.x * 40 },
-                                  { translateY: logoConf.y * 40 },
+                                  { translateX: logoConf.x * 32 },
+                                  { translateY: logoConf.y * 32 },
                                 ],
                               }}
                             >
@@ -790,30 +790,30 @@ export default function TeamWorkspace() {
                             </View>
                           </View>
                         ) : (
-                          <Text className="font-orbitron-bold text-sm text-brand-orange">
+                          <Text className="font-orbitron-bold text-xs text-brand-orange">
                             {item.name.charAt(0).toUpperCase()}
                           </Text>
                         )}
                       </View>
                       <View className="flex-1">
-                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">{item.name}</Text>
-                        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
+                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white leading-tight">{item.name}</Text>
+                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
                           {[item.email, item.cellphone].filter(Boolean).join('  |  ') || 'Athlete'}
                         </Text>
                       </View>
                     </View>
-                    <View className="flex-row items-center gap-2">
+                    <View className="flex-row items-center gap-1.5">
                       {inviteStatus && (
                         <TouchableOpacity
                           disabled={inviteStatus.disabled}
                           onPress={() => handleSendInvite(item)}
-                          className={`px-2.5 py-1.5 rounded-lg active:scale-95 ${
+                          className={`px-2 py-1 rounded-lg active:scale-95 ${
                             inviteStatus.disabled
                               ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
                               : 'bg-brand-orange'
                           }`}
                         >
-                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
+                          <Text className={`font-orbitron-bold text-[7px] uppercase tracking-widest ${
                             inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
                           }`}>
                             {inviteStatus.text}
@@ -826,15 +826,15 @@ export default function TeamWorkspace() {
                           setPlayerSearchVal(item.name);
                           setIsPlayerModalOpen(true);
                         }}
-                        className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:opacity-85"
+                        className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:opacity-85"
                       >
-                        <Ionicons name="pencil" size={14} color={isDark ? '#94A3B8' : '#475569'} />
+                        <Ionicons name="pencil" size={13} color={isDark ? '#94A3B8' : '#475569'} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => handleRemoveRosterMember(item.membershipId, item.name, true)}
-                        className="w-8 h-8 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-85"
+                        className="w-7 h-7 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-85"
                       >
-                        <Ionicons name="trash" size={14} color="#EF4444" />
+                        <Ionicons name="trash" size={13} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
                   </GlassCard>
@@ -876,7 +876,7 @@ export default function TeamWorkspace() {
               </TouchableOpacity>
             </View>
 
-            <View className="space-y-3">
+            <View className="space-y-1.5">
               {staff.map(item => {
                 const inviteStatus = getInviteButtonStatus(item);
                 const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
@@ -884,19 +884,19 @@ export default function TeamWorkspace() {
                 const roleName = availableRoles.find(r => r.id === item.roleId)?.name || 'Staff';
 
                 return (
-                  <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 p-3 flex-row items-center justify-between">
-                    <View className="flex-row items-center gap-3 flex-1 mr-4">
-                      <View className="w-10 h-10 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden items-center justify-center">
+                  <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 py-1.5 px-3 flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-2.5 flex-1 mr-4">
+                      <View className="w-8 h-8 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden items-center justify-center">
                         {avatarSource ? (
-                          <View style={{ width: 40, height: 40, overflow: 'hidden' }}>
+                          <View style={{ width: 32, height: 32, overflow: 'hidden' }}>
                             <View
                               style={{
                                 width: '100%',
                                 height: '100%',
                                 transform: [
                                   { scale: logoConf.scale },
-                                  { translateX: logoConf.x * 40 },
-                                  { translateY: logoConf.y * 40 },
+                                  { translateX: logoConf.x * 32 },
+                                  { translateY: logoConf.y * 32 },
                                 ],
                               }}
                             >
@@ -908,30 +908,30 @@ export default function TeamWorkspace() {
                             </View>
                           </View>
                         ) : (
-                          <Text className="font-orbitron-bold text-sm text-slate-500 dark:text-slate-400">
+                          <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400">
                             {item.name.charAt(0).toUpperCase()}
                           </Text>
                         )}
                       </View>
                       <View className="flex-1">
-                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">{item.name}</Text>
-                        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
+                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white leading-tight">{item.name}</Text>
+                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
                           {[item.email, item.cellphone].filter(Boolean).join('  |  ') || roleName}
                         </Text>
                       </View>
                     </View>
-                    <View className="flex-row items-center gap-2">
+                    <View className="flex-row items-center gap-1.5">
                       {inviteStatus && (
                         <TouchableOpacity
                           disabled={inviteStatus.disabled}
                           onPress={() => handleSendInvite(item)}
-                          className={`px-2.5 py-1.5 rounded-lg active:scale-95 ${
+                          className={`px-2 py-1 rounded-lg active:scale-95 ${
                             inviteStatus.disabled
                               ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
                               : 'bg-brand-orange'
                           }`}
                         >
-                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
+                          <Text className={`font-orbitron-bold text-[7px] uppercase tracking-widest ${
                             inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
                           }`}>
                             {inviteStatus.text}
@@ -945,15 +945,15 @@ export default function TeamWorkspace() {
                           setStaffRoleVal(item.roleId);
                           setIsStaffModalOpen(true);
                         }}
-                        className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:opacity-85"
+                        className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:opacity-85"
                       >
-                        <Ionicons name="pencil" size={14} color={isDark ? '#94A3B8' : '#475569'} />
+                        <Ionicons name="pencil" size={13} color={isDark ? '#94A3B8' : '#475569'} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => handleRemoveRosterMember(item.membershipId, item.name, false)}
-                        className="w-8 h-8 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-85"
+                        className="w-7 h-7 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-85"
                       >
-                        <Ionicons name="trash" size={14} color="#EF4444" />
+                        <Ionicons name="trash" size={13} color="#EF4444" />
                       </TouchableOpacity>
                     </View>
                   </GlassCard>
@@ -1214,7 +1214,7 @@ export default function TeamWorkspace() {
                     )}
                   </TouchableOpacity>
                   <View>
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">Avatar Photo</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest">Avatar Photo</Text>
                     <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Tap circle to edit/upload image</Text>
                   </View>
                 </View>
@@ -1222,7 +1222,7 @@ export default function TeamWorkspace() {
                 {/* Email Address & Cell Number */}
                 <View className="flex-row gap-3 mb-2">
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Email Address</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Email Address</Text>
                     <TextInput
                       placeholder="email@example.com"
                       placeholderTextColor="#94A3B8"
@@ -1232,7 +1232,7 @@ export default function TeamWorkspace() {
                     />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Cell Number</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Cell Number</Text>
                     <TextInput
                       placeholder="+1 234..."
                       placeholderTextColor="#94A3B8"
@@ -1246,7 +1246,7 @@ export default function TeamWorkspace() {
                 {/* Org ID & Birthdate */}
                 <View className="flex-row gap-3 mb-2">
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Org ID / Student #</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Org ID / Student #</Text>
                     <TextInput
                       placeholder="Identifier"
                       placeholderTextColor="#94A3B8"
@@ -1256,7 +1256,7 @@ export default function TeamWorkspace() {
                     />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Birthdate</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Birthdate</Text>
                     <TextInput
                       placeholder="YYYY-MM-DD"
                       placeholderTextColor="#94A3B8"
@@ -1417,7 +1417,7 @@ export default function TeamWorkspace() {
                     )}
                   </TouchableOpacity>
                   <View>
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">Avatar Photo</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest">Avatar Photo</Text>
                     <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Tap circle to edit/upload image</Text>
                   </View>
                 </View>
@@ -1425,7 +1425,7 @@ export default function TeamWorkspace() {
                 {/* Email Address & Cell Number */}
                 <View className="flex-row gap-3 mb-2">
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Email Address</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Email Address</Text>
                     <TextInput
                       placeholder="email@example.com"
                       placeholderTextColor="#94A3B8"
@@ -1435,7 +1435,7 @@ export default function TeamWorkspace() {
                     />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Cell Number</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Cell Number</Text>
                     <TextInput
                       placeholder="+1 234..."
                       placeholderTextColor="#94A3B8"
@@ -1449,7 +1449,7 @@ export default function TeamWorkspace() {
                 {/* Org ID & Birthdate */}
                 <View className="flex-row gap-3 mb-2">
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Org ID / Student #</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Org ID / Student #</Text>
                     <TextInput
                       placeholder="Identifier"
                       placeholderTextColor="#94A3B8"
@@ -1459,7 +1459,7 @@ export default function TeamWorkspace() {
                     />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Birthdate</Text>
+                    <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Birthdate</Text>
                     <TextInput
                       placeholder="YYYY-MM-DD"
                       placeholderTextColor="#94A3B8"

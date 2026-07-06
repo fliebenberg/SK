@@ -1,19 +1,20 @@
 import { BaseManager } from "./BaseManager";
 import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team } from "@sk/types";
 import { v4 as uuidv4 } from "uuid";
+import { imageService } from "../services/ImageService";
 
 export class LeagueManager extends BaseManager {
   // --- Leagues CRUD ---
   async getLeagues(orgId?: string): Promise<League[]> {
     if (orgId) {
       const res = await this.query(
-        `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria FROM leagues WHERE org_id = $1 ORDER BY created_at DESC`,
+        `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria, logo FROM leagues WHERE org_id = $1 ORDER BY created_at DESC`,
         [orgId]
       );
       return res.rows;
     } else {
       const res = await this.query(
-        `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria FROM leagues ORDER BY created_at DESC`
+        `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria, logo FROM leagues ORDER BY created_at DESC`
       );
       return res.rows;
     }
@@ -21,16 +22,36 @@ export class LeagueManager extends BaseManager {
 
   async getLeague(id: string): Promise<League | null> {
     const res = await this.query(
-      `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria FROM leagues WHERE id = $1`,
+      `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria, logo FROM leagues WHERE id = $1`,
       [id]
     );
     return res.rows[0] || null;
   }
 
+  private cleanLogoField(logo?: string): string {
+    if (!logo) return "";
+    if (logo.includes('/uploads/logos/')) {
+      const parts = logo.split('/uploads/logos/');
+      const filenameWithSuffix = parts[parts.length - 1];
+      return filenameWithSuffix.replace(/_(large|medium|thumb)\.\w+$/, '');
+    }
+    return logo;
+  }
+
   async createLeague(data: Omit<League, "id"> & { id?: string }): Promise<League> {
     const id = data.id || `lg-${uuidv4()}`;
+    
+    let logo = data.logo;
+    if (logo) {
+      if (logo.startsWith('data:image')) {
+        logo = await imageService.processLogo(logo, id);
+      } else {
+        logo = this.cleanLogoField(logo);
+      }
+    }
+
     await this.query(
-      `INSERT INTO leagues (id, name, org_id, sport_id, age_group, join_policy, criteria) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO leagues (id, name, org_id, sport_id, age_group, join_policy, criteria, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         id,
         data.name,
@@ -38,7 +59,8 @@ export class LeagueManager extends BaseManager {
         data.sportId,
         data.ageGroup || null,
         data.joinPolicy || 'CLOSED',
-        JSON.stringify(data.criteria || {})
+        JSON.stringify(data.criteria || {}),
+        logo || null
       ]
     );
     return (await this.getLeague(id))!;
@@ -48,6 +70,23 @@ export class LeagueManager extends BaseManager {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
+
+    if (data.logo !== undefined) {
+      let logo = data.logo;
+      if (logo) {
+        if (logo.startsWith('data:image')) {
+          const oldLeague = await this.getLeague(id);
+          if (oldLeague && oldLeague.logo) {
+            await imageService.deleteLogo(oldLeague.logo);
+          }
+          logo = await imageService.processLogo(logo, id);
+        } else {
+          logo = this.cleanLogoField(logo);
+        }
+      }
+      fields.push(`logo = $${idx++}`);
+      values.push(logo || null);
+    }
 
     if (data.name !== undefined) {
       fields.push(`name = $${idx++}`);
@@ -74,6 +113,10 @@ export class LeagueManager extends BaseManager {
   }
 
   async deleteLeague(id: string): Promise<boolean> {
+    const league = await this.getLeague(id);
+    if (league && league.logo) {
+      await imageService.deleteLogo(league.logo);
+    }
     const res = await this.query(`DELETE FROM leagues WHERE id = $1`, [id]);
     return (res.rowCount ?? 0) > 0;
   }
@@ -81,7 +124,7 @@ export class LeagueManager extends BaseManager {
   // --- Seasons CRUD ---
   async getSeasons(leagueId: string): Promise<Season[]> {
     const res = await this.query(
-      `SELECT id, league_id as "leagueId", name, start_date as "startDate", end_date as "endDate", status, settings, cached_standings as "cachedStandings", created_at as "createdAt", updated_at as "updatedAt" FROM seasons WHERE league_id = $1 ORDER BY start_date DESC`,
+      `SELECT id, league_id as "leagueId", name, start_date as "startDate", end_date as "endDate", status, settings, cached_standings as "cachedStandings", created_at as "createdAt", updated_at as "updatedAt", logo FROM seasons WHERE league_id = $1 ORDER BY start_date DESC`,
       [leagueId]
     );
     return res.rows;
@@ -89,7 +132,7 @@ export class LeagueManager extends BaseManager {
 
   async getSeason(id: string): Promise<Season | null> {
     const res = await this.query(
-      `SELECT id, league_id as "leagueId", name, start_date as "startDate", end_date as "endDate", status, settings, cached_standings as "cachedStandings", created_at as "createdAt", updated_at as "updatedAt" FROM seasons WHERE id = $1`,
+      `SELECT id, league_id as "leagueId", name, start_date as "startDate", end_date as "endDate", status, settings, cached_standings as "cachedStandings", created_at as "createdAt", updated_at as "updatedAt", logo FROM seasons WHERE id = $1`,
       [id]
     );
     return res.rows[0] || null;
@@ -97,8 +140,18 @@ export class LeagueManager extends BaseManager {
 
   async createSeason(data: Omit<Season, "id" | "cachedStandings" | "createdAt" | "updatedAt"> & { id?: string }): Promise<Season> {
     const id = data.id || `sn-${uuidv4()}`;
+
+    let logo = data.logo;
+    if (logo) {
+      if (logo.startsWith('data:image')) {
+        logo = await imageService.processLogo(logo, id);
+      } else {
+        logo = this.cleanLogoField(logo);
+      }
+    }
+
     await this.query(
-      `INSERT INTO seasons (id, league_id, name, start_date, end_date, status, settings) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO seasons (id, league_id, name, start_date, end_date, status, settings, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         id,
         data.leagueId,
@@ -106,7 +159,8 @@ export class LeagueManager extends BaseManager {
         data.startDate,
         data.endDate,
         data.status || 'UPCOMING',
-        JSON.stringify(data.settings || { pointsPerWin: 4, pointsPerDraw: 2, pointsPerLoss: 0 })
+        JSON.stringify(data.settings || { pointsPerWin: 4, pointsPerDraw: 2, pointsPerLoss: 0 }),
+        logo || null
       ]
     );
     return (await this.getSeason(id))!;
@@ -116,6 +170,23 @@ export class LeagueManager extends BaseManager {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
+
+    if (data.logo !== undefined) {
+      let logo = data.logo;
+      if (logo) {
+        if (logo.startsWith('data:image')) {
+          const oldSeason = await this.getSeason(id);
+          if (oldSeason && oldSeason.logo) {
+            await imageService.deleteLogo(oldSeason.logo);
+          }
+          logo = await imageService.processLogo(logo, id);
+        } else {
+          logo = this.cleanLogoField(logo);
+        }
+      }
+      fields.push(`logo = $${idx++}`);
+      values.push(logo || null);
+    }
 
     if (data.name !== undefined) {
       fields.push(`name = $${idx++}`);
@@ -146,6 +217,10 @@ export class LeagueManager extends BaseManager {
   }
 
   async deleteSeason(id: string): Promise<boolean> {
+    const season = await this.getSeason(id);
+    if (season && season.logo) {
+      await imageService.deleteLogo(season.logo);
+    }
     const res = await this.query(`DELETE FROM seasons WHERE id = $1`, [id]);
     return (res.rowCount ?? 0) > 0;
   }

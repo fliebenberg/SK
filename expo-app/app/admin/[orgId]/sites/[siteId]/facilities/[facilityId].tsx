@@ -530,7 +530,7 @@ export default function FacilityDetails() {
           <View className="space-y-4">
             {/* Facility Name */}
             <View>
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                 Facility Name
               </Text>
               <TextInput
@@ -544,7 +544,7 @@ export default function FacilityDetails() {
 
             {/* Surface Type */}
             <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-              <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase mb-1.5 tracking-wider">Surface Type</Text>
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-1.5 tracking-wider">Surface Type</Text>
               <TextInput
                 value={facilityForm.surfaceType}
                 onChangeText={(val) => setFacilityForm(prev => ({ ...prev, surfaceType: val }))}
@@ -556,7 +556,7 @@ export default function FacilityDetails() {
 
             {/* Facility Category Selection with Icons */}
             <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-              <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-wider">Facility Category</Text>
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-2 tracking-wider">Facility Category</Text>
               <View className="flex-row flex-wrap gap-2">
                 {CATEGORIES.map(cat => {
                   const isSelected = facilityForm.category === cat.key;
@@ -578,7 +578,7 @@ export default function FacilityDetails() {
 
             {/* Supported Sports (Multiple Select) */}
             <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-              <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-wider">Supported Sports (Select all that apply)</Text>
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-2 tracking-wider">Supported Sports (Select all that apply)</Text>
               <View className="space-y-1.5">
                 {sports.map(s => {
                   const isSelected = facilityForm.supportedSportIds.includes(s.id);
@@ -622,7 +622,7 @@ export default function FacilityDetails() {
             {/* Primary Sport Selector */}
             {facilityForm.supportedSportIds.length > 0 && (
               <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase mb-1.5 tracking-wider">Primary Sport (Representing Marker Icon)</Text>
+                <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-1.5 tracking-wider">Primary Sport (Representing Marker Icon)</Text>
                 <View className="flex-row flex-wrap gap-2">
                   <TouchableOpacity
                     onPress={() => setFacilityForm(prev => ({ ...prev, primarySportId: '' }))}

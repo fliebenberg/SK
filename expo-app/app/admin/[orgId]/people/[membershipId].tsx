@@ -301,14 +301,14 @@ export default function EditMember() {
                   <Ionicons name="camera-outline" size={28} color="#94A3B8" />
                 )}
               </TouchableOpacity>
-              <Text className="font-orbitron-bold text-[8px] color-[#94A3B8] uppercase mt-1.5">
+              <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase mt-1.5">
                 Avatar
               </Text>
             </View>
 
             {/* Name Input */}
             <View className="flex-1">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                 Name
               </Text>
               <TextInput
@@ -324,7 +324,7 @@ export default function EditMember() {
           {/* Email Address & Cell Number */}
           <View className="flex-row gap-4 flex-wrap md:flex-nowrap">
             <View className="flex-1 min-w-[200px]">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                 Email Address
               </Text>
               <TextInput
@@ -337,7 +337,7 @@ export default function EditMember() {
             </View>
 
             <View className="flex-1 min-w-[200px]">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                 Cell Number
               </Text>
               <TextInput
@@ -353,7 +353,7 @@ export default function EditMember() {
           {/* Org ID & Birthdate */}
           <View className="flex-row gap-4 flex-wrap md:flex-nowrap">
             <View className="flex-1 min-w-[200px]">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                 Org ID (e.g. Student #)
               </Text>
               <TextInput
@@ -366,7 +366,7 @@ export default function EditMember() {
             </View>
 
             <View className="flex-1 min-w-[200px]">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                 Birthdate
               </Text>
               <TextInput
@@ -381,7 +381,7 @@ export default function EditMember() {
 
           {/* Assigned Role */}
           <View>
-            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+            <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-3">
               Assigned Role
             </Text>
             <View className="flex-row flex-wrap gap-2.5">

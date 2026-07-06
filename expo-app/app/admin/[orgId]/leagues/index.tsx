@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
@@ -10,6 +10,10 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Sport, Organization } from '@sk/types';
+import { getOrgLogoUrl } from '../../../../services/api';
+import CustomSelect from '../../../../components/CustomSelect';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 export default function OrgLeagues() {
   const router = useRouter();
@@ -30,12 +34,67 @@ export default function OrgLeagues() {
   const [selectedSportId, setSelectedSportId] = useState('');
   const [newLeagueAgeGroup, setNewLeagueAgeGroup] = useState('');
   const [selectedJoinPolicy, setSelectedJoinPolicy] = useState<'CLOSED' | 'INVITE' | 'OPEN'>('CLOSED');
+  const [newLeagueLogo, setNewLeagueLogo] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Deletion Modal State
   const [leagueToDelete, setLeagueToDelete] = useState<League | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Logo Picker Handler
+  const handlePickLeagueLogo = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('We need camera roll permissions to set the league logo.');
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const minDim = Math.min(asset.width, asset.height);
+
+        const actions: any[] = [
+          {
+            crop: {
+              originX: Math.round((asset.width - minDim) / 2),
+              originY: Math.round((asset.height - minDim) / 2),
+              width: minDim,
+              height: minDim,
+            },
+          },
+        ];
+
+        if (minDim > 1024) {
+          actions.push({
+            resize: {
+              width: 1024,
+              height: 1024,
+            },
+          });
+        }
+
+        const manipulateResult = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          actions,
+          { compress: 0.8, format: ImageManipulator.SaveFormat.PNG, base64: true }
+        );
+
+        setNewLeagueLogo(`data:image/png;base64,${manipulateResult.base64}`);
+      }
+    } catch (err) {
+      console.error('[Leagues] Error picking logo image:', err);
+      alert('Failed to process selected logo image');
+    }
+  };
 
   // Fetch Data & Subscribe
   useEffect(() => {
@@ -44,7 +103,7 @@ export default function OrgLeagues() {
     let active = true;
     setIsLoading(true);
 
-    // Initial fetch
+    // ... keeping other loads
     wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
       if (active && res) setOrg(res);
     });
@@ -68,7 +127,12 @@ export default function OrgLeagues() {
       if (!active) return;
       if (event) {
         if (event.type === 'LEAGUE_ADDED') {
-          setLeagues(prev => [event.data, ...prev]);
+          setLeagues(prev => {
+            if (prev.some(l => l.id === event.data.id)) {
+              return prev.map(l => l.id === event.data.id ? event.data : l);
+            }
+            return [event.data, ...prev];
+          });
         } else if (event.type === 'LEAGUE_UPDATED') {
           setLeagues(prev => prev.map(l => l.id === event.data.id ? event.data : l));
         } else if (event.type === 'LEAGUE_DELETED') {
@@ -102,7 +166,8 @@ export default function OrgLeagues() {
       sportId: selectedSportId,
       ageGroup: newLeagueAgeGroup.trim() || undefined,
       joinPolicy: selectedJoinPolicy,
-      criteria: {}
+      criteria: {},
+      logo: newLeagueLogo || undefined
     };
 
     wsService.emit('action', { type: SocketAction.ADD_LEAGUE as any, payload }, (res: any) => {
@@ -115,6 +180,7 @@ export default function OrgLeagues() {
         setSelectedSportId('');
         setNewLeagueAgeGroup('');
         setSelectedJoinPolicy('CLOSED');
+        setNewLeagueLogo('');
       }
     });
   };
@@ -187,23 +253,38 @@ export default function OrgLeagues() {
             {filteredLeagues.map((league) => (
               <GlassCard key={league.id} className="border border-slate-200 dark:border-white/5 p-4">
                 <View className="flex-row justify-between items-center">
-                  <View className="flex-1 mr-4">
-                    <View className="flex-row items-center gap-2 mb-1">
-                      <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
-                        {league.name}
-                      </Text>
-                    </View>
-                    
-                    <View className="flex-row flex-wrap items-center gap-2">
-                      <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full">
-                        <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                          {getSportName(league.sportId)}{league.ageGroup ? ` • ${league.ageGroup}` : ''}
+                  <View className="flex-row items-center flex-1 mr-4 gap-3.5">
+                    {league.logo ? (
+                      <View className="w-11 h-11 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200/50 dark:border-white/5">
+                        <Image 
+                          source={{ uri: getOrgLogoUrl(league.logo, 'thumb') }} 
+                          className="w-full h-full"
+                          resizeMode="cover"
+                        />
+                      </View>
+                    ) : (
+                      <View className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 items-center justify-center shrink-0 border border-slate-200/50 dark:border-white/5">
+                        <Ionicons name="trophy" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+                      </View>
+                    )}
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-2 mb-1">
+                        <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+                          {league.name}
                         </Text>
                       </View>
-                      <View className="bg-orange-500/10 px-2.5 py-1 rounded-full border border-orange-500/20">
-                        <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-wider">
-                          {league.joinPolicy}
-                        </Text>
+                      
+                      <View className="flex-row flex-wrap items-center gap-2">
+                        <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full">
+                          <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                            {getSportName(league.sportId)}{league.ageGroup ? ` • ${league.ageGroup}` : ''}
+                          </Text>
+                        </View>
+                        <View className="bg-orange-500/10 px-2.5 py-1 rounded-full border border-orange-500/20">
+                          <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-wider">
+                            {league.joinPolicy}
+                          </Text>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -254,8 +335,27 @@ export default function OrgLeagues() {
               </View>
             )}
 
+            {/* League Logo Selector */}
+            <View className="items-center py-2">
+              <TouchableOpacity
+                onPress={handlePickLeagueLogo}
+                className="w-20 h-20 rounded-2xl items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 relative"
+                activeOpacity={0.8}
+              >
+                {newLeagueLogo ? (
+                  <Image source={{ uri: newLeagueLogo }} className="w-full h-full" resizeMode="cover" />
+                ) : (
+                  <Ionicons name="trophy-outline" size={32} color={isDark ? "#94A3B8" : "#64748B"} />
+                )}
+                <View className="absolute bottom-1 right-1 bg-brand-orange w-5 h-5 rounded-full items-center justify-center border border-white dark:border-slate-900 shadow-sm">
+                  <Ionicons name="camera" size={10} color="white" />
+                </View>
+              </TouchableOpacity>
+              <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mt-1.5">League Logo</Text>
+            </View>
+
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">League Name</Text>
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">League Name</Text>
               <TextInput
                 value={newLeagueName}
                 onChangeText={setNewLeagueName}
@@ -266,33 +366,17 @@ export default function OrgLeagues() {
             </View>
 
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Sport</Text>
-              <View className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden">
-                <select
-                  value={selectedSportId}
-                  onChange={(e) => setSelectedSportId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    height: 44,
-                    padding: '0 16px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: isDark ? '#FFFFFF' : '#0F172A',
-                    fontFamily: 'Inter, System, sans-serif',
-                    fontSize: 14,
-                    outline: 'none'
-                  }}
-                >
-                  <option value="">Select a Sport</option>
-                  {sports.map(s => (
-                    <option key={s.id} value={s.id} style={{ background: isDark ? '#0F172A' : '#FFFFFF' }}>{s.name}</option>
-                  ))}
-                </select>
-              </View>
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Sport</Text>
+              <CustomSelect
+                value={selectedSportId}
+                onChange={setSelectedSportId}
+                options={sports.map(s => ({ value: s.id, label: s.name }))}
+                placeholder="Select a Sport"
+              />
             </View>
 
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Age Group (Optional)</Text>
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Age Group (Optional)</Text>
               <TextInput
                 value={newLeagueAgeGroup}
                 onChangeText={setNewLeagueAgeGroup}
@@ -303,28 +387,17 @@ export default function OrgLeagues() {
             </View>
 
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Join Policy</Text>
-              <View className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden">
-                <select
-                  value={selectedJoinPolicy}
-                  onChange={(e: any) => setSelectedJoinPolicy(e.target.value)}
-                  style={{
-                    width: '100%',
-                    height: 44,
-                    padding: '0 16px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: isDark ? '#FFFFFF' : '#0F172A',
-                    fontFamily: 'Inter, System, sans-serif',
-                    fontSize: 14,
-                    outline: 'none'
-                  }}
-                >
-                  <option value="CLOSED" style={{ background: isDark ? '#0F172A' : '#FFFFFF' }}>CLOSED (Owner Adds Teams)</option>
-                  <option value="INVITE" style={{ background: isDark ? '#0F172A' : '#FFFFFF' }}>INVITE (Apply to Join)</option>
-                  <option value="OPEN" style={{ background: isDark ? '#0F172A' : '#FFFFFF' }}>OPEN (Anyone Can Join)</option>
-                </select>
-              </View>
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Join Policy</Text>
+              <CustomSelect
+                value={selectedJoinPolicy}
+                onChange={(val) => setSelectedJoinPolicy(val as 'CLOSED' | 'INVITE' | 'OPEN')}
+                options={[
+                  { value: 'CLOSED', label: 'CLOSED (Owner Adds Teams)' },
+                  { value: 'INVITE', label: 'INVITE (Apply to Join)' },
+                  { value: 'OPEN', label: 'OPEN (Anyone Can Join)' }
+                ]}
+                placeholder="Select Join Policy"
+              />
             </View>
 
             <View className="flex-row gap-4 pt-2">

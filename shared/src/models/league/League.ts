@@ -13,6 +13,7 @@ export interface League {
   ageGroup?: string;
   joinPolicy: 'CLOSED' | 'INVITE' | 'OPEN';
   criteria?: Record<string, any>;
+  logo?: string;
 }
 
 export interface Season {
@@ -26,6 +27,7 @@ export interface Season {
   cachedStandings?: LeagueStandingRow[];
   createdAt?: string;
   updatedAt?: string;
+  logo?: string;
 }
 
 export interface SeasonTeam {
