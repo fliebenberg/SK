@@ -100,7 +100,7 @@ export default function OrgPeople() {
     setSelectedPerson(null);
   };
 
-  const cooldownSetting = settingsData?.invite_cooldown_hours ? parseInt(settingsData.invite_cooldown_hours) : 168;
+  const cooldownSetting = settingsData?.org_admin_invite_cooldown_hours ? parseInt(settingsData.org_admin_invite_cooldown_hours) : 168;
 
   const isLoading = isMembersLoading || isRolesLoading;
 

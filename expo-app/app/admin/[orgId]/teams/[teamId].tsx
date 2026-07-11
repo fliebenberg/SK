@@ -132,8 +132,8 @@ export default function TeamWorkspace() {
       // Get system settings for invite cooldown
       wsService.emit('get_data', { type: 'system_settings' }, (res: any) => {
         if (!active) return;
-        if (res && res.invite_cooldown_hours) {
-          setCooldownHours(parseInt(res.invite_cooldown_hours));
+        if (res && res.org_admin_invite_cooldown_hours) {
+          setCooldownHours(parseInt(res.org_admin_invite_cooldown_hours));
         }
       });
 

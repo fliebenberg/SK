@@ -1,5 +1,5 @@
 import { BaseManager } from "./BaseManager";
-import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team } from "@sk/types";
+import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, calculateStandings } from "@sk/types";
 import { v4 as uuidv4 } from "uuid";
 import { imageService } from "../services/ImageService";
 
@@ -319,23 +319,6 @@ export class LeagueManager extends BaseManager {
     );
     const teams = teamsRes.rows;
 
-    // Initialize standings rows
-    const standings: Record<string, LeagueStandingRow> = {};
-    teams.forEach(team => {
-      standings[team.id] = {
-        teamId: team.id,
-        teamName: team.name,
-        played: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        pointsFor: 0,
-        pointsAgainst: 0,
-        pointsDifference: 0,
-        points: 0
-      };
-    });
-
     // Fetch all finished games associated with this season
     const gamesRes = await this.query(
       `SELECT g.id, g.final_score_data as "finalScoreData",
@@ -356,83 +339,13 @@ export class LeagueManager extends BaseManager {
     );
     const games = gamesRes.rows;
 
-    const pointsPerWin = season.settings.pointsPerWin ?? 4;
-    const pointsPerDraw = season.settings.pointsPerDraw ?? 2;
-    const pointsPerLoss = season.settings.pointsPerLoss ?? 0;
+    const config = {
+      pointsPerWin: season.settings.pointsPerWin ?? 4,
+      pointsPerDraw: season.settings.pointsPerDraw ?? 2,
+      pointsPerLoss: season.settings.pointsPerLoss ?? 0,
+    };
 
-    games.forEach(game => {
-      const participants = game.participants;
-      const scores = game.finalScoreData;
-
-      if (!participants || participants.length < 2 || !scores) return;
-
-      const pHome = participants[0];
-      const pAway = participants[1];
-
-      if (!pHome || !pAway || !pHome.teamId || !pAway.teamId) return;
-
-      const homeScore = scores.home ?? 0;
-      const awayScore = scores.away ?? 0;
-
-      const rowHome = standings[pHome.teamId];
-      const rowAway = standings[pAway.teamId];
-
-      // Only count scores if the team is actively registered in the season
-      if (rowHome) {
-        rowHome.played++;
-        rowHome.pointsFor += homeScore;
-        rowHome.pointsAgainst += awayScore;
-      }
-
-      if (rowAway) {
-        rowAway.played++;
-        rowAway.pointsFor += awayScore;
-        rowAway.pointsAgainst += homeScore;
-      }
-
-      if (homeScore > awayScore) {
-        if (rowHome) {
-          rowHome.wins++;
-          rowHome.points += pointsPerWin;
-        }
-        if (rowAway) {
-          rowAway.losses++;
-          rowAway.points += pointsPerLoss;
-        }
-      } else if (homeScore < awayScore) {
-        if (rowAway) {
-          rowAway.wins++;
-          rowAway.points += pointsPerWin;
-        }
-        if (rowHome) {
-          rowHome.losses++;
-          rowHome.points += pointsPerLoss;
-        }
-      } else {
-        if (rowHome) {
-          rowHome.draws++;
-          rowHome.points += pointsPerDraw;
-        }
-        if (rowAway) {
-          rowAway.draws++;
-          rowAway.points += pointsPerDraw;
-        }
-      }
-
-      if (rowHome) {
-        rowHome.pointsDifference = rowHome.pointsFor - rowHome.pointsAgainst;
-      }
-      if (rowAway) {
-        rowAway.pointsDifference = rowAway.pointsFor - rowAway.pointsAgainst;
-      }
-    });
-
-    // Sort standings: Points desc -> Diff desc -> Points For desc
-    const sortedStandings = Object.values(standings).sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.pointsDifference !== a.pointsDifference) return b.pointsDifference - a.pointsDifference;
-      return b.pointsFor - a.pointsFor;
-    });
+    const sortedStandings = calculateStandings(games, teams, config);
 
     // Save standings to DB
     await this.query(

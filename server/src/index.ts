@@ -1818,7 +1818,7 @@ io.on('connection', (socket) => {
                 }
                 
                 // Get invite cooldown setting from DB system_settings
-                const settingsRes = await pool.query("SELECT value FROM system_settings WHERE key = 'invite_cooldown_hours'");
+                const settingsRes = await pool.query("SELECT value FROM system_settings WHERE key = 'org_admin_invite_cooldown_hours'");
                 const cooldownHours = settingsRes.rows[0] ? parseInt(settingsRes.rows[0].value) : 168; // default to 7 days
                 
                 if (profile.lastInviteSentAt) {
