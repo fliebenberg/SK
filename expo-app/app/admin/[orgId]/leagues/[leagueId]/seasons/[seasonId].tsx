@@ -379,9 +379,13 @@ export default function SeasonDetails() {
   const availableTeams = orgTeams.filter(t => !seasonTeams.some(st => st.teamId === t.id));
   const availableGames = orgGames.filter(g => !seasonGames.some(sg => sg.id === g.id));
 
-  const formatTime = (isoString: string) => {
+  const formatTime = (game: any) => {
+    const isoString = game?.scheduledStartTime || game?.startTime || '';
     try {
       const d = new Date(isoString);
+      if (game?.customSettings?.timeTbd) {
+        return `${d.toLocaleDateString()} @ TBD`;
+      }
       return `${d.toLocaleDateString()} @ ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } catch {
       return isoString;
@@ -563,7 +567,7 @@ export default function SeasonDetails() {
                 <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4">
                   <View className="flex-row justify-between items-center mb-2">
                     <Text className="font-inter-bold text-[9px] text-slate-400 uppercase tracking-wide">
-                      {formatTime(game.scheduledStartTime || '')}
+                      {formatTime(game)}
                     </Text>
                     <View className={`px-2 py-0.5 rounded ${game.status === 'Finished' ? 'bg-slate-200/50 dark:bg-white/10' : 'bg-cyan-500/10 border border-cyan-500/20'}`}>
                       <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${game.status === 'Finished' ? 'text-slate-500' : 'text-cyan-500'}`}>
@@ -784,7 +788,7 @@ export default function SeasonDetails() {
                   onPress={() => handleLinkGame(game.id)}
                   className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 p-4 rounded-xl active:opacity-85"
                 >
-                  <Text className="font-inter-bold text-[9px] text-slate-400 uppercase mb-1">{formatTime(game.scheduledStartTime || '')}</Text>
+                  <Text className="font-inter-bold text-[9px] text-slate-400 uppercase mb-1">{formatTime(game)}</Text>
                   <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
                     {(game.participants?.[0] as any)?.teamName || 'Home'} vs {(game.participants?.[1] as any)?.teamName || 'Away'}
                   </Text>

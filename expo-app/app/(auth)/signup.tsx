@@ -1,4 +1,4 @@
-import { View, Text, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../../components/Button';
 import { GlassCard } from '../../components/GlassCard';
@@ -6,6 +6,7 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
 import { useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -55,7 +56,26 @@ export default function SignupScreen() {
       
       // Auto-login upon successful registration
       login(response.token, response.user);
-      router.replace('/(tabs)');
+      
+      // Check for pending claim token stored during unauthenticated claim link access
+      let pendingToken = null;
+      try {
+        if (Platform.OS === 'web') {
+          pendingToken = localStorage.getItem('pendingClaimToken');
+          if (pendingToken) localStorage.removeItem('pendingClaimToken');
+        } else {
+          pendingToken = await SecureStore.getItemAsync('pendingClaimToken');
+          if (pendingToken) await SecureStore.deleteItemAsync('pendingClaimToken');
+        }
+      } catch (e) {
+        console.error('Failed to retrieve pendingClaimToken:', e);
+      }
+
+      if (pendingToken) {
+        router.replace({ pathname: '/claim/index', params: { token: pendingToken } });
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (err: any) {
       setError(err.message || 'Signup failed. Please try again.');
     } finally {

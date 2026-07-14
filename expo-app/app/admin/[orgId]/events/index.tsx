@@ -258,7 +258,13 @@ export default function OrgEventsList() {
                   {/* Right-Aligned Compact Actions (Pencil / Trash) */}
                   <View className="absolute right-4 top-4 flex-row items-center gap-2 z-10">
                     <TouchableOpacity
-                      onPress={() => router.push(`/admin/${orgId}/events/${event.id}`)}
+                      onPress={() => {
+                        if (event.type === 'SingleMatch' && eventGames.length > 0) {
+                          router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/edit`);
+                        } else {
+                          router.push(`/admin/${orgId}/events/${event.id}`);
+                        }
+                      }}
                       className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
                     >
                       <Ionicons name="pencil" size={12} color={getThemeColor(isDark, 'textSecondary')} />
@@ -274,7 +280,7 @@ export default function OrgEventsList() {
                   <View className="flex-row items-center gap-2 mb-2 pr-20">
                     <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-md">
                       <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                        {event.type === 'SingleMatch' ? 'Friendly Match' : event.type === 'SportsDay' ? 'Sports Day' : 'Tournament'}
+                        {event.type === 'SingleMatch' ? 'Single Match' : event.type === 'SportsDay' ? 'Sports Day' : 'Tournament'}
                       </Text>
                     </View>
                     {event.status === 'Cancelled' && (
@@ -287,7 +293,13 @@ export default function OrgEventsList() {
                   </View>
 
                   <TouchableOpacity
-                    onPress={() => router.push(`/admin/${orgId}/events/${event.id}`)}
+                    onPress={() => {
+                      if (event.type === 'SingleMatch' && eventGames.length > 0) {
+                        router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/edit`);
+                      } else {
+                        router.push(`/admin/${orgId}/events/${event.id}`);
+                      }
+                    }}
                     className="active:opacity-85 pr-20"
                   >
                     <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white mb-2 leading-tight">
@@ -346,7 +358,7 @@ export default function OrgEventsList() {
                   No {viewMode} Events
                 </Text>
                 <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
-                  Click the plus icon in the header to schedule a friendly match, sports day, or tournament.
+                  Click the plus icon in the header to schedule a single match, sports day, or tournament.
                 </Text>
               </View>
             )}
@@ -389,7 +401,7 @@ export default function OrgEventsList() {
                 </View>
                 <View className="flex-1">
                   <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">
-                    Schedule Friendly Match
+                    Schedule Single Match
                   </Text>
                   <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Standard head-to-head game between two teams

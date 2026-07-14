@@ -273,8 +273,16 @@ export default function EventDetailsPage() {
 
         if (event.type === 'SingleMatch' && matchFormData) {
             payload.sportIds = matchFormData.sportId ? [matchFormData.sportId] : [];
+            const homeTeam = store.getTeam(matchFormData.homeTeamId);
             const awayTeam = store.getTeam(matchFormData.awayTeamId);
-            payload.participatingOrgIds = awayTeam ? [awayTeam.orgId] : [];
+            const participatingIds: string[] = [];
+            if (homeTeam && homeTeam.orgId !== orgId) {
+                participatingIds.push(homeTeam.orgId);
+            }
+            if (awayTeam && awayTeam.orgId !== orgId) {
+                participatingIds.push(awayTeam.orgId);
+            }
+            payload.participatingOrgIds = participatingIds;
         } else {
             payload.participatingOrgIds = selectedOrgIds;
             payload.sportIds = selectedSportIds;

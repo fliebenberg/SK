@@ -255,14 +255,16 @@ export class ReferralManager {
         [userId, token]
       );
 
-      // Award "Community Builder" badge if threshold reached
+      // Award badges based on successful referrals
       if (referredByUserId) {
           const referralCountRes = await client.query(
               `SELECT COUNT(*) FROM org_claim_referrals WHERE referred_by_user_id = $1 AND status = 'claimed'`,
               [referredByUserId]
           );
           const count = parseInt(referralCountRes.rows[0].count);
-          if (count >= 3) {
+
+          // 1. Award "Community Builder" badge on the first claim
+          if (count >= 1) {
               const badgeExists = await client.query(
                   `SELECT 1 FROM user_badges WHERE user_id = $1 AND badge_type = 'community_builder'`,
                   [referredByUserId]
@@ -274,6 +276,22 @@ export class ReferralManager {
                       [badgeId, referredByUserId, 'community_builder']
                   );
                   console.log(`ReferralManager: Awarded 'community_builder' badge to user ${referredByUserId}`);
+              }
+          }
+
+          // 2. Award "Community Champion" badge on 5 or more claims
+          if (count >= 5) {
+              const badgeExists = await client.query(
+                  `SELECT 1 FROM user_badges WHERE user_id = $1 AND badge_type = 'community_champion'`,
+                  [referredByUserId]
+              );
+              if (badgeExists.rows.length === 0) {
+                  const badgeId = `badge-${randomBytes(8).toString('hex')}`;
+                  await client.query(
+                      `INSERT INTO user_badges (id, user_id, badge_type) VALUES ($1, $2, $3)`,
+                      [badgeId, referredByUserId, 'community_champion']
+                  );
+                  console.log(`ReferralManager: Awarded 'community_champion' badge to user ${referredByUserId}`);
               }
           }
       }

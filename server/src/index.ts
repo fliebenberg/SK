@@ -508,7 +508,7 @@ app.post('/auth/forgot-password', async (req, res) => {
     await userManager.createPasswordResetToken(user.id, hashedToken, expiresAt);
     await userManager.createPasswordResetToken(user.id, hashedPasscode, expiresAt);
 
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.APP_URL || 'http://localhost:8081';
     const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
 
     console.log(`📧 [Forgot Password Endpoint] Dispatching transactional email: Recipient="${trimmedEmail}"`);
@@ -1838,7 +1838,7 @@ io.on('connection', (socket) => {
                 // Send email
                 const org = await dataManager.getOrganization(profile.orgId);
                 const orgName = org ? org.name : 'ScoreKeeper Organization';
-                const claimUrl = `${process.env.APP_URL || 'http://localhost:3000'}/landing`; // fallback invitation link
+                const claimUrl = `${process.env.APP_URL || 'http://localhost:8081'}/landing`; // fallback invitation link
                 
                 try {
                     // Send Invitation Email using mailManager

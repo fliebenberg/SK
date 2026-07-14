@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, ScrollView, Pressable } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Modal, TouchableOpacity, ScrollView, Pressable, TextInput } from 'react-native';
 import { useActiveTheme } from '../store/settingsStore';
 import { Ionicons } from '@expo/vector-icons';
+import { getThemeColor } from '../constants/Colors';
 
 interface Option {
   value: string;
@@ -15,6 +16,8 @@ interface CustomSelectProps {
   placeholder?: string;
   className?: string;
   style?: any;
+  showSearch?: boolean;
+  searchPlaceholder?: string;
 }
 
 export default function CustomSelect({
@@ -24,16 +27,29 @@ export default function CustomSelect({
   placeholder = 'Select an option',
   className = '',
   style,
+  showSearch = false,
+  searchPlaceholder = 'Search...',
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const isDark = useActiveTheme() === 'dark';
 
   const selectedOption = options.find((opt) => opt.value === value);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchText('');
+    }
+  }, [isOpen]);
 
   const handleSelect = (val: string) => {
     onChange(val);
     setIsOpen(false);
   };
+
+  const filteredOptions = options.filter((opt) =>
+    opt.label.toLowerCase().includes(searchText.toLowerCase())
+  );
 
   return (
     <>
@@ -72,12 +88,23 @@ export default function CustomSelect({
               </TouchableOpacity>
             </View>
 
+            {showSearch && (
+              <TextInput
+                placeholder={searchPlaceholder}
+                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                value={searchText}
+                onChangeText={setSearchText}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 font-inter text-xs text-slate-850 dark:text-white mb-2"
+              />
+            )}
+
             <ScrollView 
               className="space-y-1.5"
               contentContainerStyle={{ gap: 6 }}
               showsVerticalScrollIndicator={true}
+              style={{ maxHeight: 250 }}
             >
-              {options.map((opt) => {
+              {filteredOptions.map((opt) => {
                 const isSelected = opt.value === value;
                 return (
                   <TouchableOpacity
@@ -100,9 +127,9 @@ export default function CustomSelect({
                 );
               })}
 
-              {options.length === 0 && (
+              {filteredOptions.length === 0 && (
                 <View className="items-center justify-center py-4">
-                  <Text className="font-inter text-xs text-slate-450">No options available</Text>
+                  <Text className="font-inter text-xs text-slate-450">No options found</Text>
                 </View>
               )}
             </ScrollView>

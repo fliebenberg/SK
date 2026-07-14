@@ -185,7 +185,7 @@ export default function CreateEventPage() {
             }
 
             const homeTeam = store.getTeam(matchFormData.homeTeamId);
-            const homeOrg = store.getOrganization(orgId);
+            const homeOrg = store.getOrganization(homeTeam?.orgId || orgId);
             const awayTeam = store.getTeam(matchFormData.awayTeamId);
             const awayOrg = store.getOrganization(awayTeam?.orgId || "");
             
@@ -193,6 +193,14 @@ export default function CreateEventPage() {
             const awayChunk = `${awayOrg?.shortName || awayOrg?.name || 'Away'} ${awayTeam?.name || 'Team'}`;
             const defaultName = `${homeChunk} vs ${awayChunk}`;
             
+            const participatingIds: string[] = [];
+            if (homeTeam && homeTeam.orgId !== orgId) {
+                participatingIds.push(homeTeam.orgId);
+            }
+            if (awayTeam && awayTeam.orgId !== orgId) {
+                participatingIds.push(awayTeam.orgId);
+            }
+
             const newEvent = await store.addEvent({
                 name: name || defaultName,
                 startDate,
@@ -200,7 +208,7 @@ export default function CreateEventPage() {
                 orgId,
                 type: 'SingleMatch',
                 sportIds: matchFormData.sportId ? [matchFormData.sportId] : [],
-                participatingOrgIds: awayTeam ? [awayTeam.orgId] : []
+                participatingOrgIds: participatingIds
             });
 
             // Handle Referrals

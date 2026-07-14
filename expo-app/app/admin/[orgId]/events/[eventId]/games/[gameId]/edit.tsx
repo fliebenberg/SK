@@ -11,6 +11,7 @@ import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game, Sport, Site, Team, Organization } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
+import DatePicker from '../../../../../../../components/DatePicker';
 
 export default function EditGame() {
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function EditGame() {
   const [selectedAwayOrgId, setSelectedAwayOrgId] = useState('');
   const [selectedAwayTeamId, setSelectedAwayTeamId] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('');
+  const [gameDate, setGameDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [isTbd, setIsTbd] = useState(false);
   const [gameStatus, setGameStatus] = useState<'Scheduled' | 'Live' | 'Finished' | 'Cancelled'>('Scheduled');
@@ -63,8 +65,10 @@ export default function EditGame() {
         setSelectedSportId(res.sportId || '');
         setSelectedSiteId(res.siteId || '');
         setGameStatus(res.status || 'Scheduled');
-        setIsTbd(!res.startTime);
+        setIsTbd(!res.startTime || res.customSettings?.timeTbd);
         if (res.startTime) {
+          const d = res.startTime.split('T')[0];
+          setGameDate(d);
           const t = res.startTime.split('T')[1]?.substring(0, 5) || '09:00';
           setStartTime(t);
         }
@@ -80,9 +84,21 @@ export default function EditGame() {
     });
 
     wsService.emit('get_data', { type: 'organizations' }, (res: any) => {
-      if (Array.isArray(res)) setOrgsList(res);
+      if (res && Array.isArray(res.items)) {
+        setOrgsList(res.items);
+      } else if (Array.isArray(res)) {
+        setOrgsList(res);
+      }
     });
   }, [isConnected, orgId, eventId, gameId]);
+
+  // Fallback gameDate to event.startDate if not set
+  useEffect(() => {
+    if (event && !gameDate) {
+      const d = event.startDate?.split('T')[0] || '';
+      setGameDate(d);
+    }
+  }, [event, gameDate]);
 
   // Load teams for host and participating orgs
   useEffect(() => {
@@ -131,9 +147,16 @@ export default function EditGame() {
     if (!event || !game || !selectedHomeTeamId || !selectedAwayTeamId) return;
     setIsProcessing(true);
 
-    const dateBase = event.startDate.split('T')[0];
-    const dateObj = new Date(`${dateBase}T${startTime}:00`);
-    const scheduledTime = isTbd ? null : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${startTime}:00`);
+    const dateBase = gameDate || event.startDate.split('T')[0];
+    let scheduledTime: string | null = null;
+
+    if (isTbd) {
+      const dateObj = new Date(`${dateBase}T12:00:00`);
+      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T12:00:00`;
+    } else {
+      const dateObj = new Date(`${dateBase}T${startTime}:00`);
+      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${startTime}:00`;
+    }
 
     const payload = {
       id: gameId,
@@ -143,13 +166,45 @@ export default function EditGame() {
         scheduledStartTime: scheduledTime,
         startTime: scheduledTime,
         siteId: selectedSiteId || undefined,
-        status: gameStatus
+        status: gameStatus,
+        customSettings: {
+          ...(game.customSettings || {}),
+          timeTbd: isTbd
+        }
       }
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_GAME, payload }, (res: any) => {
-      setIsProcessing(false);
-      if (res) router.back();
+      if (res && event.type === 'SingleMatch') {
+        const homeTeam = (orgTeams[selectedHomeOrgId] || []).find(t => t.id === selectedHomeTeamId);
+        const awayTeam = (orgTeams[selectedAwayOrgId] || []).find(t => t.id === selectedAwayTeamId);
+        const homeOrg = orgsList.find(o => o.id === selectedHomeOrgId);
+        const awayOrg = orgsList.find(o => o.id === selectedAwayOrgId);
+        
+        const homeNameStr = homeOrg ? `${homeOrg.shortName || homeOrg.name} ${homeTeam?.name || ''}`.trim() : 'Home';
+        const awayNameStr = awayOrg ? `${awayOrg.shortName || awayOrg.name} ${awayTeam?.name || ''}`.trim() : 'Away';
+        const eventNameStr = `${homeNameStr} vs ${awayNameStr}`;
+
+        const eventPayload = {
+          id: eventId,
+          data: {
+            name: eventNameStr,
+            startDate: `${dateBase}T12:00:00.000Z`,
+            siteId: selectedSiteId || null,
+            sportIds: selectedSportId ? [selectedSportId] : [],
+            participatingOrgIds: selectedAwayOrgId && selectedAwayOrgId !== orgId ? [selectedAwayOrgId] : [],
+            status: gameStatus === 'Cancelled' ? 'Cancelled' : event.status
+          }
+        };
+
+        wsService.emit('action', { type: SocketAction.UPDATE_EVENT, payload: eventPayload }, (eventRes: any) => {
+          setIsProcessing(false);
+          router.back();
+        });
+      } else {
+        setIsProcessing(false);
+        if (res) router.back();
+      }
     });
   };
 
@@ -162,9 +217,21 @@ export default function EditGame() {
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_GAME, payload }, (res: any) => {
-      setIsProcessing(false);
-      setIsCancelling(false);
-      setGameStatus('Cancelled');
+      if (res && event?.type === 'SingleMatch') {
+        const eventPayload = {
+          id: eventId,
+          data: { status: 'Cancelled' }
+        };
+        wsService.emit('action', { type: SocketAction.UPDATE_EVENT, payload: eventPayload }, (eventRes: any) => {
+          setIsProcessing(false);
+          setIsCancelling(false);
+          setGameStatus('Cancelled');
+        });
+      } else {
+        setIsProcessing(false);
+        setIsCancelling(false);
+        setGameStatus('Cancelled');
+      }
     });
   };
 
@@ -445,31 +512,44 @@ export default function EditGame() {
             </View>
           </View>
 
-          {/* Match Time */}
-          <View className="space-y-3 pt-2">
-            <View className="flex-row justify-between items-center">
+          {/* Match Date & Time */}
+          <View className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">
+            <View className="space-y-1.5">
               <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Start Time
+                Match Date
               </Text>
-              <View className="flex-row items-center gap-2">
-                <Text className="font-inter text-xs text-slate-500">TBD</Text>
-                <Switch
-                  value={isTbd}
-                  onValueChange={setIsTbd}
-                  trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
-                />
-              </View>
+              <DatePicker
+                value={gameDate}
+                onChange={setGameDate}
+                placeholder="Select Date"
+              />
             </View>
 
-            {!isTbd && (
-              <TextInput
-                placeholder="e.g. 09:00"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={startTime}
-                onChangeText={setStartTime}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            )}
+            <View className="space-y-3 pt-2">
+              <View className="flex-row justify-between items-center">
+                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Start Time
+                </Text>
+                <View className="flex-row items-center gap-2">
+                  <Text className="font-inter text-xs text-slate-500">TBD</Text>
+                  <Switch
+                    value={isTbd}
+                    onValueChange={setIsTbd}
+                    trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
+                  />
+                </View>
+              </View>
+
+              {!isTbd && (
+                <TextInput
+                  placeholder="e.g. 09:00"
+                  placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                  value={startTime}
+                  onChangeText={setStartTime}
+                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                />
+              )}
+            </View>
           </View>
         </GlassCard>
 
@@ -525,7 +605,7 @@ export default function EditGame() {
         title="Delete Match?"
         description={
           event?.type === 'SingleMatch'
-            ? 'Deleting this game will also permanently delete the entire Friendly Match event record. This cannot be undone.'
+            ? 'Deleting this game will also permanently delete the entire Single Match event record. This cannot be undone.'
             : 'Are you sure you want to permanently delete this game matchup? This will remove all database records for this match and cannot be undone.'
         }
         confirmText="Delete Match"

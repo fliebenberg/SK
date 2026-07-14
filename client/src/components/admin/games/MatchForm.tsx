@@ -143,6 +143,9 @@ export function MatchForm({
       const org = store.getOrganization(orgId);
       if (org) {
           setCurrentOrg(org);
+          if (!homeOrgName && homeOrgId === orgId) {
+              setHomeOrgName(org.name);
+          }
       } else if (orgId && lastFetchedOrgId.current !== orgId) {
           store.fetchOrganization(orgId);
           lastFetchedOrgId.current = orgId;
@@ -516,79 +519,70 @@ export function MatchForm({
         <h3 className="text-sm font-bold uppercase tracking-wider text-primary/70">Teams</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-          <div className="space-y-1.5">
-            <Label className="uppercase">Team 1</Label>
-                {isSportsDay ? (
-                  <div className="space-y-2">
-                     <GenericAutocomplete 
-                        items={searchedOrgs.map(o => ({ 
-                            id: o.id, 
-                            label: o.name, 
-                            subLabel: o.shortName,
-                            data: o 
-                        }))}
-                        value={homeOrgName}
-                        onChange={(val) => {
-                            setHomeOrgName(val);
-                            setSearchTerm(val);
-                            setIsSearching(true);
-                            if (!val) setHomeOrgId("");
-                        }}
-                        onSelect={(item) => {
-                            if (item) {
-                                setHomeOrgId(item.id);
-                                setHomeOrgName(item.label);
-                                setHomeTeamId("");
-                                setHomeTeamName("");
-                            } else {
-                                setHomeOrgId("");
-                                setHomeTeamId("");
-                                setHomeTeamName("");
-                            }
-                        }}
-                        onCreateNew={(name) => handleCreateOrg(name, true)}
-                        placeholder="Search school/club..."
-                        createLabel="Register Org"
-                        isLoading={isSearching}
-                        disableFiltering={true}
-                    />
-                    <GenericAutocomplete 
-                        items={homeOrgTeams
-                          .filter(t => homeOrgId !== selectedOrgId || t.id !== selectedTeamId)
-                          .map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
-                        value={homeTeamName || homeOrgTeams.find(t => t.id === homeTeamId)?.name || ""}
-                        onChange={setHomeTeamName} 
-                        onSelect={(item) => {
-                          setHomeTeamId(item?.id || "");
-                          if (item) setHomeTeamName(item.label);
-                        }}
-                        onCreateNew={(name) => handleCreateTeam(name, true)}
-                        placeholder={selectedSportId ? "Select team..." : "Select Sport First"}
-                        createLabel="Add Team"
-                        isLoading={loading || !selectedSportId}
-                    />
-                    {(() => {
-                        const org = store.getOrganization(homeOrgId);
-                        return org ? renderReferralPrompt(org) : null;
-                    })()}
-                  </div>
-                ) : (
-                  <Select value={homeTeamId} onValueChange={setHomeTeamId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select our team..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {homeOrgTeams
-                        .filter(t => homeOrgId !== selectedOrgId || t.id !== selectedTeamId)
-                        .map(t => (
-                        <SelectItem key={t.id} value={t.id}>{t.name} ({t.ageGroup})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+          <div className="space-y-3">
+            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-widest">Team 1</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Organization</Label>
+                 <GenericAutocomplete 
+                    items={searchedOrgs.map(o => ({ 
+                        id: o.id, 
+                        label: o.name, 
+                        subLabel: o.shortName,
+                        data: o 
+                    }))}
+                    value={homeOrgName}
+                    onChange={(val) => {
+                        setHomeOrgName(val);
+                        setSearchTerm(val);
+                        setIsSearching(true);
+                        if (!val) setHomeOrgId("");
+                    }}
+                    onSelect={(item) => {
+                        if (item) {
+                            setHomeOrgId(item.id);
+                            setHomeOrgName(item.label);
+                            setHomeTeamId("");
+                            setHomeTeamName("");
+                        } else {
+                            setHomeOrgId("");
+                            setHomeTeamId("");
+                            setHomeTeamName("");
+                        }
+                    }}
+                    onCreateNew={(name) => handleCreateOrg(name, true)}
+                    placeholder="Search For Team 1 Organisation"
+                    createLabel="Register Org"
+                    isLoading={isSearching}
+                    disableFiltering={true}
+                />
               </div>
+              <div className="space-y-1">
+                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Team</Label>
+                 <GenericAutocomplete 
+                    items={homeOrgTeams
+                      .filter(t => homeOrgId !== selectedOrgId || t.id !== selectedTeamId)
+                      .map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
+                    value={homeTeamName || homeOrgTeams.find(t => t.id === homeTeamId)?.name || ""}
+                    onChange={setHomeTeamName} 
+                    onSelect={(item) => {
+                      setHomeTeamId(item?.id || "");
+                      if (item) setHomeTeamName(item.label);
+                    }}
+                    onCreateNew={(name) => handleCreateTeam(name, true)}
+                    placeholder={selectedSportId ? "Select team..." : "Select Sport First"}
+                    createLabel="Add Team"
+                    isLoading={loading || !selectedSportId}
+                />
+              </div>
+            </div>
+            {(() => {
+                const org = store.getOrganization(homeOrgId);
+                return org ? renderReferralPrompt(org) : null;
+            })()}
+          </div>
 
-          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center justify-center pointer-events-none mt-2">
+          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center justify-center pointer-events-none mt-4">
             <span className="bg-background px-2 text-[10px] font-black italic text-muted-foreground uppercase tracking-widest z-10">vs</span>
           </div>
 
@@ -599,10 +593,12 @@ export function MatchForm({
             <span className="relative bg-background px-2 text-[10px] font-black italic text-muted-foreground uppercase tracking-widest">vs</span>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="uppercase">Team 2</Label>
-                <div className="space-y-2">
-                  <GenericAutocomplete
+          <div className="space-y-3">
+            <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase tracking-widest">Team 2</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Organization</Label>
+                 <GenericAutocomplete
                     items={searchedOrgs.map(o => ({ 
                         id: o.id, 
                         label: o.name, 
@@ -628,12 +624,15 @@ export function MatchForm({
                       }
                     }}
                     onCreateNew={(name) => handleCreateOrg(name, false)}
-                    placeholder="Search opponent org..."
+                    placeholder="Search for Team 2 Organisation"
                     createLabel="Register Org"
                     isLoading={isSearching}
                     disableFiltering={true}
                   />
-                  <GenericAutocomplete
+              </div>
+              <div className="space-y-1">
+                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Team</Label>
+                 <GenericAutocomplete
                     items={opponentOrgTeams
                       .filter(t => selectedOrgId !== homeOrgId || t.id !== homeTeamId)
                       .map(t => ({ id: t.id, label: t.name, subLabel: t.ageGroup, data: t }))}
@@ -645,12 +644,13 @@ export function MatchForm({
                     createLabel="Add Team"
                     isLoading={loading || !selectedOrgId}
                   />
-                  {(() => {
-                      const org = selectedOrgId ? store.getOrganization(selectedOrgId) : null;
-                      return org ? renderReferralPrompt(org) : null;
-                  })()}
-                </div>
               </div>
+            </div>
+            {(() => {
+                const org = selectedOrgId ? store.getOrganization(selectedOrgId) : null;
+                return org ? renderReferralPrompt(org) : null;
+            })()}
+          </div>
         </div>
       </div>
 

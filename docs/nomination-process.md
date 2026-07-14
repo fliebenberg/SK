@@ -88,11 +88,16 @@ CREATE TABLE org_claim_referrals (
 * **`claimed`**: Invitee logged in and successfully took ownership of the organization.
 * **`declined`**: Invitee rejected the invitation.
 * **`referred`**: Invitee selected "Refer Someone Else" and provided a different email. A new referral record was spawned.
-* **`expired`**: The nomination expired automatically (after 2 weeks) or was marked expired/voided because another nominee accepted first.
+* **`voided`**: Another nominee claimed the organization first, making this nomination inactive.
 
-### Expiration & Conflict Resolution Policy
-* **Single Active Claim Rule**: An organization can have multiple open/pending nominations. However, as soon as *one* of the nominations is successfully claimed, all other remaining `pending` nominations for that organization must automatically have their status updated to `expired` (voiding them).
-* **Time-based Expiration**: Active invitations expire automatically based on the `org_admin_invite_cooldown_hours` setting in the `system_settings` table (currently configured as `336` hours / 2 weeks). When verifying a token, any `pending` status older than this duration must be treated as `expired`.
+### Expiration, Conflict Resolution & Cooldown Policy
+* **No Token Expiration**: Invitation links/tokens do not expire over time. A nominee can use their link to claim the organization at any time, provided the organization remains unclaimed.
+* **Single Active Claim Rule (Conflict Resolution)**: Once an organization is successfully claimed by *any* nominee, all other remaining `pending` nominations for that organization must automatically have their status updated to `voided`.
+* **Invitation Cooldown (`org_admin_invite_cooldown_hours`)**: 
+  * This setting (configured in the `system_settings` table, currently `336` hours / 2 weeks) prevents sending duplicate invitations to the same person in short succession.
+  * If a user tries to nominate an email that already has a `pending` nomination for the same organization:
+    * **Within Cooldown**: The invite request is ignored, and no new email is sent.
+    * **Outside Cooldown**: A new token is generated. The existing database record is updated with the new `claim_token`, the new `referred_by_user_id` (so the new nominator gets credit), and the `created_at` timestamp is reset to `NOW()`. A new invitation email is then sent.
 
 ---
 
@@ -118,7 +123,7 @@ The backend exposes several methods to manage nominations:
    * Elevates the claimant to administrator:
      * Creates/ensures an organization profile for the user in the org.
      * Inserts an entry in `org_memberships` with `role_id = 'role-org-admin'`.
-   * Tracks metrics: If the referrer (`referred_by_user_id`) has reached $\ge 3$ successfully claimed referrals, awards them the `'community_builder'` badge.
+   * Tracks metrics: Awards the `'community_builder'` badge on the first successfully claimed referral, and the `'community_champion'` badge when the referrer (`referred_by_user_id`) reaches $\ge 5$ successfully claimed referrals.
 
 4. **`referOrgContactViaToken(token, contactEmails)`**
    * Finds the original referral and marks it as `referred`.

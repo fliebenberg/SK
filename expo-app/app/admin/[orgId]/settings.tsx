@@ -28,6 +28,7 @@ import { getContrastColor, hexToRgba } from '@/utils/colorUtils';
 import { ImageEditor } from '../../../components/ImageEditor';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../hooks/useUnsavedChanges';
+import { NominationModal } from '@/components/NominationModal';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -176,14 +177,17 @@ export default function OrgSettings() {
   // Sports selector and deactivation states
   const [orgTeams, setOrgTeams] = useState<any[]>([]);
   const [isEditingSports, setIsEditingSports] = useState(false);
-  const [tempSupportedSportIds, setTempSupportedSportIds] = useState<string[]>([]);
+   const [tempSupportedSportIds, setTempSupportedSportIds] = useState<string[]>([]);
   const [sportSearchQuery, setSportSearchQuery] = useState('');
   const [sportToDeactivate, setSportToDeactivate] = useState<{ id: string; name: string } | null>(null);
   const [deactivationPending, setDeactivationPending] = useState<{ sportIds: string[]; details: { id: string; name: string; activeTeams: any[] }[] } | null>(null);
 
+  const [isNominationModalVisible, setIsNominationModalVisible] = useState(false);
+
   const { data: sportsList } = useSocketQuery('sports');
   const { data: teamsList } = useSocketQuery('teams', { orgId });
   const { data: orgData, isLoading: isOrgLoading, refetch: refetchOrg, setData: setOrgData } = useSocketQuery('organization', { id: orgId });
+  const { data: nominations, refetch: refetchNominations } = useSocketQuery('org_referrals', { orgId });
 
   useEffect(() => {
     if (Array.isArray(sportsList)) {
@@ -876,6 +880,76 @@ export default function OrgSettings() {
             )}
           </GlassCard>
         </View>
+
+        {/* Nominations Section */}
+        <View className="mb-6 mt-6">
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+              Administrator Nominations
+            </Text>
+            <TouchableOpacity
+              onPress={() => setIsNominationModalVisible(true)}
+              className="flex-row items-center gap-1 active:opacity-60"
+            >
+              <Ionicons name="add-circle" size={16} color="#F97316" />
+              <Text className="font-inter-bold text-xs text-brand-orange">Nominate Manager</Text>
+            </TouchableOpacity>
+          </View>
+          <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Invite people to manage this organization. Once claimed, they will gain full administrator rights.
+            </Text>
+            
+            {Array.isArray(nominations) && nominations.length > 0 ? (
+              <View className="divide-y divide-slate-100 dark:divide-slate-800">
+                {nominations.map((ref: any) => (
+                  <View key={ref.id} className="py-3 flex-row justify-between items-center">
+                    <View className="flex-1 mr-4">
+                      <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white truncate">
+                        {ref.referredEmail}
+                      </Text>
+                      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                        Nominated: {new Date(ref.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    
+                    {/* Status Badge */}
+                    <View className="flex-row items-center gap-2">
+                      <View className={`px-2.5 py-0.5 rounded-full border ${
+                        ref.status === 'claimed' 
+                          ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' 
+                          : ref.status === 'declined' 
+                          ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/30'
+                          : ref.status === 'voided'
+                          ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                          : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30'
+                      }`}>
+                        <Text className={`font-inter-bold text-[10px] uppercase ${
+                          ref.status === 'claimed' 
+                            ? 'text-emerald-600 dark:text-emerald-400' 
+                            : ref.status === 'declined' 
+                            ? 'text-red-600 dark:text-red-400'
+                            : ref.status === 'voided'
+                            ? 'text-slate-500 dark:text-slate-400'
+                            : 'text-amber-600 dark:text-amber-400'
+                        }`}>
+                          {ref.status}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View className="py-6 items-center justify-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/50">
+                <Ionicons name="people-outline" size={24} color={isDark ? '#475569' : '#94A3B8'} className="mb-2" />
+                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center">
+                  No nominations found for this organization.
+                </Text>
+              </View>
+            )}
+          </GlassCard>
+        </View>
       </ScrollView>
 
       {/* OVERLAY MODAL: EDIT PRIMARY COLOR */}
@@ -1317,6 +1391,14 @@ export default function OrgSettings() {
         allowRemove
         onApply={handleApplyLogoConfig}
         onCancel={() => setIsEditingLogo(false)}
+      />
+
+      <NominationModal
+        visible={isNominationModalVisible}
+        onClose={() => setIsNominationModalVisible(false)}
+        orgId={orgId}
+        orgName={orgName}
+        onSuccess={() => refetchNominations()}
       />
 
       {/* FLOATING SAVE CHANGES BAR */}

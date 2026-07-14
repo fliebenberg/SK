@@ -12,6 +12,8 @@ import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Event, Sport, Site, Team, Organization, Facility } from '@sk/types';
 import { useAuthStore } from '../../../../store/authStore';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
+import { NominationModal } from '@/components/NominationModal';
+import CustomSelect from '../../../../components/CustomSelect';
 
 export default function CreateEvent() {
   const router = useRouter();
@@ -56,6 +58,8 @@ export default function CreateEvent() {
 
   // Single Game Fields
   const [selectedSportId, setSelectedSportId] = useState('');
+  const [selectedHomeOrg, setSelectedHomeOrg] = useState<Organization | null>(null);
+  const [homeOrgSearchText, setHomeOrgSearchText] = useState('');
   const [selectedHomeTeamId, setSelectedHomeTeamId] = useState('');
   const [awayOrgSearchText, setAwayOrgSearchText] = useState('');
   const [selectedAwayOrg, setSelectedAwayOrg] = useState<Organization | null>(null);
@@ -63,11 +67,13 @@ export default function CreateEvent() {
   const [selectedAwayTeamId, setSelectedAwayTeamId] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [isTbd, setIsTbd] = useState(false);
+  const [isCreatingHomeOrg, setIsCreatingHomeOrg] = useState(false);
 
   // Quick Create Modals
   const [isCreatingOrg, setIsCreatingOrg] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgShortName, setNewOrgShortName] = useState('');
+  const [isNominationModalVisible, setIsNominationModalVisible] = useState(false);
 
   const [isCreatingSite, setIsCreatingSite] = useState(false);
   const [newSiteName, setNewSiteName] = useState('');
@@ -77,7 +83,10 @@ export default function CreateEvent() {
     if (!isConnected || !orgId) return;
 
     wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (res) setOrg(res);
+      if (res) {
+        setOrg(res);
+        setSelectedHomeOrg(res);
+      }
     });
 
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
@@ -91,10 +100,6 @@ export default function CreateEvent() {
         setSites(res);
         if (res.length > 0) setSelectedSiteId(res[0].id);
       }
-    });
-
-    wsService.emit('get_data', { type: 'teams', orgId }, (res: any) => {
-      if (Array.isArray(res)) setHomeTeams(res);
     });
   }, [isConnected, orgId]);
 
@@ -155,9 +160,11 @@ export default function CreateEvent() {
     return 'Venue';
   };
 
-  // Debounced search for organizations (Sports Day / Tournament / Away Org)
+  // Debounced search for organizations (Sports Day / Tournament / Away Org / Home Org)
   useEffect(() => {
-    const query = type === 'game' ? awayOrgSearchText.trim() : orgSearchText.trim();
+    const query = type === 'game' 
+      ? (homeOrgSearchText.trim() || awayOrgSearchText.trim()) 
+      : orgSearchText.trim();
     if (!query) {
       setSearchedOrgs([]);
       setIsSearchingOrgs(false);
@@ -169,14 +176,28 @@ export default function CreateEvent() {
       wsService.emit('get_data', { type: 'search_similar_orgs', name: query }, (res: any) => {
         setIsSearchingOrgs(false);
         if (Array.isArray(res)) {
-          // Filter out the host organization
-          setSearchedOrgs(res.filter(o => o.id !== orgId));
+          setSearchedOrgs(res);
         }
       });
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [orgSearchText, awayOrgSearchText, type, orgId]);
+  }, [orgSearchText, awayOrgSearchText, homeOrgSearchText, type, orgId]);
+
+  // Fetch Home Org Teams once selected
+  useEffect(() => {
+    if (!selectedHomeOrg) {
+      setHomeTeams([]);
+      setSelectedHomeTeamId('');
+      return;
+    }
+
+    wsService.emit('get_data', { type: 'teams', orgId: selectedHomeOrg.id }, (res: any) => {
+      if (Array.isArray(res)) {
+        setHomeTeams(res.filter(t => !selectedSportId || t.sportId === selectedSportId));
+      }
+    });
+  }, [selectedHomeOrg, selectedSportId]);
 
   // Fetch Away Org Teams once selected
   useEffect(() => {
@@ -211,7 +232,8 @@ export default function CreateEvent() {
     };
 
     wsService.emit('action', { type: SocketAction.ADD_ORG, payload }, (res: any) => {
-      if (res && res.id) {
+      const org = res?.data || res;
+      if (org && org.id) {
         // If a contact email was specified, also refer the org contact
         const email = newOrgContactEmail.trim();
         const currentUserId = useAuthStore.getState().user?.id;
@@ -219,7 +241,7 @@ export default function CreateEvent() {
           wsService.emit('action', {
             type: SocketAction.REFER_ORG_CONTACT,
             payload: {
-              orgId: res.id,
+              orgId: org.id,
               contactEmails: [email],
               referredByUserId: currentUserId
             }
@@ -227,10 +249,16 @@ export default function CreateEvent() {
         }
 
         if (type === 'game') {
-          setSelectedAwayOrg(res);
-          setAwayOrgSearchText('');
+          if (isCreatingHomeOrg) {
+            setSelectedHomeOrg(org);
+            setHomeOrgSearchText('');
+            setIsCreatingHomeOrg(false);
+          } else {
+            setSelectedAwayOrg(org);
+            setAwayOrgSearchText('');
+          }
         } else {
-          setParticipatingOrgs(prev => [...prev, res]);
+          setParticipatingOrgs(prev => [...prev, org]);
           setOrgSearchText('');
         }
         setIsCreatingOrg(false);
@@ -257,9 +285,10 @@ export default function CreateEvent() {
 
     wsService.emit('action', { type: SocketAction.ADD_SITE, payload }, (res: any) => {
       setIsProcessing(false);
-      if (res && res.id) {
-        setSites(prev => [...prev, res]);
-        setSelectedSiteId(res.id);
+      const site = res?.data || res;
+      if (site && site.id) {
+        setSites(prev => [...prev, site]);
+        setSelectedSiteId(site.id);
         setIsCreatingSite(false);
         setNewSiteName('');
       }
@@ -306,13 +335,14 @@ export default function CreateEvent() {
 
     wsService.emit('action', { type: SocketAction.ADD_TEAM, payload }, (res: any) => {
       setIsProcessing(false);
-      if (res && res.id) {
+      const team = res?.data || res;
+      if (team && team.id) {
         if (targetOrgIdForTeam === orgId) {
-          setHomeTeams(prev => [...prev, res]);
-          setSelectedHomeTeamId(res.id);
+          setHomeTeams(prev => [...prev, team]);
+          setSelectedHomeTeamId(team.id);
         } else {
-          setAwayTeams(prev => [...prev, res]);
-          setSelectedAwayTeamId(res.id);
+          setAwayTeams(prev => [...prev, team]);
+          setSelectedAwayTeamId(team.id);
         }
         setIsCreatingTeam(false);
         setNewTeamName('');
@@ -356,16 +386,24 @@ export default function CreateEvent() {
       ? (selectedSportId ? [selectedSportId] : []) 
       : selectedSportIds;
 
-    const participatingOrgIds = type === 'game'
-      ? (selectedAwayOrg ? [selectedAwayOrg.id] : [])
-      : participatingOrgs.map(o => o.id);
+    const participatingOrgIds: string[] = [];
+    if (type === 'game') {
+      if (selectedHomeOrg && selectedHomeOrg.id !== orgId) {
+        participatingOrgIds.push(selectedHomeOrg.id);
+      }
+      if (selectedAwayOrg && selectedAwayOrg.id !== orgId) {
+        participatingOrgIds.push(selectedAwayOrg.id);
+      }
+    } else {
+      participatingOrgs.forEach(o => participatingOrgIds.push(o.id));
+    }
 
     // Default Name for Single Match if empty
     let eventTitle = eventName;
     if (type === 'game' && !eventTitle.trim()) {
       const homeTeamName = homeTeams.find(t => t.id === selectedHomeTeamId)?.name || 'Home';
       const awayTeamName = awayTeams.find(t => t.id === selectedAwayTeamId)?.name || 'Away';
-      eventTitle = `${org?.shortName || org?.name || 'Home'} ${homeTeamName} vs ${selectedAwayOrg?.shortName || selectedAwayOrg?.name || 'Away'} ${awayTeamName}`;
+      eventTitle = `${selectedHomeOrg?.shortName || selectedHomeOrg?.name || 'Home'} ${homeTeamName} vs ${selectedAwayOrg?.shortName || selectedAwayOrg?.name || 'Away'} ${awayTeamName}`;
     }
 
     const eventPayload = {
@@ -381,20 +419,31 @@ export default function CreateEvent() {
       status: 'Scheduled'
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_EVENT, payload: eventPayload }, (newEvent: any) => {
+    wsService.emit('action', { type: SocketAction.ADD_EVENT, payload: eventPayload }, (newEventResponse: any) => {
+      const newEvent = newEventResponse?.data || newEventResponse;
       if (newEvent && newEvent.id) {
         if (type === 'game') {
-          // Now create the game record associated with the SingleMatch event
-          const dateObj = new Date(`${startDate}T${startTime}:00`);
+          let scheduledTime: string | undefined = undefined;
+          if (isTbd) {
+            const dateObj = new Date(`${startDate}T12:00:00`);
+            scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${startDate}T12:00:00`;
+          } else {
+            const dateObj = new Date(`${startDate}T${startTime}:00`);
+            scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${startDate}T${startTime}:00`;
+          }
+
           const gamePayload = {
             eventId: newEvent.id,
             sportId: selectedSportId || 'rugby',
             participants: [{ teamId: selectedHomeTeamId }, { teamId: selectedAwayTeamId }],
-            scheduledStartTime: isTbd ? undefined : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${startDate}T${startTime}:00`),
-            startTime: isTbd ? undefined : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${startDate}T${startTime}:00`),
+            scheduledStartTime: scheduledTime,
+            startTime: scheduledTime,
             siteId: selectedSiteId || undefined,
             facilityId: selectedFacilityId || undefined,
-            status: 'Scheduled'
+            status: 'Scheduled',
+            customSettings: {
+              timeTbd: isTbd
+            }
           };
 
           wsService.emit('action', { type: SocketAction.ADD_GAME, payload: gamePayload }, (newGame: any) => {
@@ -525,7 +574,7 @@ export default function CreateEvent() {
               {type === 'game' ? 'Event Name (Optional)' : 'Event Name'}
             </Text>
             <TextInput
-              placeholder={type === 'game' ? 'e.g. Friendly Derby' : 'e.g. Winter Squash Tournament 2026'}
+              placeholder={type === 'game' ? 'e.g. Local Derby' : 'e.g. Winter Squash Tournament 2026'}
               placeholderTextColor={getThemeColor(isDark, 'placeholder')}
               value={eventName}
               onChangeText={setEventName}
@@ -636,67 +685,218 @@ export default function CreateEvent() {
           {/* SINGLE GAME SPECIFIC FIELDS */}
           {type === 'game' && (
             <View className="space-y-5 pt-4 border-t border-slate-100 dark:border-white/5">
-              {/* Home Team Selection */}
-              <View className="space-y-1.5">
+              {/* Team 1 Section Header */}
+              <View className="pt-2">
+                <Text className="font-orbitron-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-widest font-bold">
+                  Team 1
+                </Text>
+              </View>
+
+              {/* Home Organization Selection */}
+              <View className="space-y-1.5" style={{ zIndex: 30 }}>
                 <View className="flex-row justify-between items-center">
                   <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Home Team
+                    Organization
                   </Text>
-                  <TouchableOpacity onPress={() => handleCreateTeamTrigger(orgId)}>
-                    <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
-                      + Add Team
-                    </Text>
-                  </TouchableOpacity>
                 </View>
-                <View className="flex-row flex-wrap gap-2">
-                  {filteredHomeTeams.map(team => {
-                    const isSelected = selectedHomeTeamId === team.id;
-                    return (
-                      <TouchableOpacity
-                        key={team.id}
-                        onPress={() => setSelectedHomeTeamId(team.id)}
-                        className={`px-3 py-2 rounded-lg border ${
-                          isSelected 
-                            ? 'bg-brand-orange/10 border-brand-orange' 
-                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                        }`}
-                      >
-                        <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {team.name}
-                        </Text>
+
+                {selectedHomeOrg ? (
+                  <View className="space-y-2">
+                    <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
+                      <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                        {selectedHomeOrg.name} ({selectedHomeOrg.shortName || 'N/A'})
+                      </Text>
+                      <TouchableOpacity onPress={() => {
+                        setSelectedHomeOrg(null);
+                        setSelectedHomeTeamId('');
+                      }}>
+                        <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
                       </TouchableOpacity>
-                    );
-                  })}
-                  {filteredHomeTeams.length === 0 && (
-                    <Text className="font-inter text-xs text-slate-400 italic">No teams matching selected sport.</Text>
-                  )}
+                    </View>
+
+                    {/* Unmanaged Org Nomination Prompt */}
+                    {!selectedHomeOrg.isClaimed && (
+                      <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/20 p-4 rounded-xl flex-row items-center justify-between">
+                        <View className="flex-1 mr-4">
+                          <Text className="font-orbitron-bold text-[10px] text-brand-orange mb-1 uppercase tracking-wider">
+                            Invite Administrator
+                          </Text>
+                          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-4">
+                            {selectedHomeOrg.name} doesn't have an administrator on Scorekeeper yet. Help bring this organization to life by nominating a contact email—we'll invite them to claim it, manage their teams, and keep schedules up to date.
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setTargetOrgIdForTeam(selectedHomeOrg.id);
+                            setIsNominationModalVisible(true);
+                          }}
+                          className="bg-brand-orange px-3 py-1.5 rounded-lg active:opacity-80 align-self-center"
+                        >
+                          <Text className="font-inter-bold text-xs text-white">Nominate</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View className="relative z-35">
+                    <TextInput
+                      placeholder="Search For Team 1 Organisation"
+                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                      value={homeOrgSearchText}
+                      onChangeText={setHomeOrgSearchText}
+                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                    />
+                    {isSearchingOrgs && (
+                      <ActivityIndicator size="small" color={COLORS.brand.orange} className="absolute right-4 top-3.5" />
+                    )}
+
+                    {(searchedOrgs.length > 0 || homeOrgSearchText.trim().length >= 3) && (
+                      <View 
+                        className="absolute left-0 right-0 border border-slate-200 dark:border-white/5 rounded-xl shadow-lg"
+                        style={{
+                          top: 50,
+                          maxHeight: 220,
+                          zIndex: 50,
+                          backgroundColor: getThemeColor(isDark, 'background'),
+                        }}
+                      >
+                        {searchedOrgs.length > 0 ? (
+                          <ScrollView 
+                            style={{ flex: 1, maxHeight: 150 }}
+                            nestedScrollEnabled={true}
+                            keyboardShouldPersistTaps="handled"
+                          >
+                            <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
+                              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                Existing Organizations
+                              </Text>
+                            </View>
+                            {searchedOrgs.map(orgItem => (
+                              <TouchableOpacity
+                                key={orgItem.id}
+                                onPress={() => {
+                                  setSelectedHomeOrg(orgItem);
+                                  setHomeOrgSearchText('');
+                                  setSearchedOrgs([]);
+                                }}
+                                className="p-3 border-b border-slate-100 dark:border-white/5 hover:bg-slate-50"
+                              >
+                                <Text className="font-inter text-xs text-slate-800 dark:text-white">
+                                  {orgItem.name}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        ) : null}
+
+                        {homeOrgSearchText.trim().length >= 3 && (
+                          <View className="border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900" style={{ backgroundColor: getThemeColor(isDark, 'background') }}>
+                            <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
+                              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                Register New Organization
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => {
+                                setNewOrgName(homeOrgSearchText);
+                                setIsCreatingHomeOrg(true);
+                                setIsCreatingOrg(true);
+                                setHomeOrgSearchText('');
+                                setSearchedOrgs([]);
+                              }}
+                              className="flex-row items-center px-4 py-2.5 active:bg-slate-100 dark:active:bg-slate-800"
+                            >
+                              <Ionicons name="add-circle" size={16} color={COLORS.brand.orange} className="mr-2" />
+                              <Text className="font-inter text-xs text-brand-orange font-bold">
+                                Register "{homeOrgSearchText}"
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+              </View>
+
+              {/* Home Team Selection */}
+              {selectedHomeOrg && (
+                <View className="space-y-1.5">
+                  <View className="flex-row justify-between items-center mb-1">
+                    <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Team
+                    </Text>
+                    <TouchableOpacity onPress={() => handleCreateTeamTrigger(selectedHomeOrg.id)}>
+                      <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                        + Add Team
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <CustomSelect
+                    value={selectedHomeTeamId}
+                    onChange={setSelectedHomeTeamId}
+                    options={filteredHomeTeams.map(team => ({ value: team.id, label: `${team.name} (${team.ageGroup})` }))}
+                    placeholder="Select Team"
+                    showSearch={true}
+                    searchPlaceholder="Search Team..."
+                  />
                 </View>
+              )}
+
+              {/* Team 2 Section Header */}
+              <View className="pt-4 border-t border-slate-100 dark:border-white/5">
+                <Text className="font-orbitron-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-widest font-bold">
+                  Team 2
+                </Text>
               </View>
 
               {/* Away Organization Selection */}
               <View className="space-y-1.5" style={{ zIndex: 20 }}>
                 <View className="flex-row justify-between items-center">
                   <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Opponent Organization
+                    Organization
                   </Text>
                 </View>
 
                 {selectedAwayOrg ? (
-                  <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
-                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
-                      {selectedAwayOrg.name} ({selectedAwayOrg.shortName || 'N/A'})
-                    </Text>
-                    <TouchableOpacity onPress={() => {
-                      setSelectedAwayOrg(null);
-                      setSelectedAwayTeamId('');
-                    }}>
-                      <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
-                    </TouchableOpacity>
+                  <View className="space-y-2">
+                    <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
+                      <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                        {selectedAwayOrg.name} ({selectedAwayOrg.shortName || 'N/A'})
+                      </Text>
+                      <TouchableOpacity onPress={() => {
+                        setSelectedAwayOrg(null);
+                        setSelectedAwayTeamId('');
+                      }}>
+                        <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Unmanaged Org Nomination Prompt */}
+                    {!selectedAwayOrg.isClaimed && (
+                      <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/20 p-4 rounded-xl flex-row items-center justify-between">
+                        <View className="flex-1 mr-4">
+                          <Text className="font-orbitron-bold text-[10px] text-brand-orange mb-1 uppercase tracking-wider">
+                            Invite Administrator
+                          </Text>
+                          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-4">
+                            {selectedAwayOrg.name} doesn't have an administrator on Scorekeeper yet. Help bring this organization to life by nominating a contact email—we'll invite them to claim it, manage their teams, and keep schedules up to date.
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => setIsNominationModalVisible(true)}
+                          className="bg-brand-orange px-3 py-1.5 rounded-lg active:opacity-80 align-self-center"
+                        >
+                          <Text className="font-inter-bold text-xs text-white">Nominate</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 ) : (
                   <View className="relative z-20">
                     <TextInput
-                      placeholder="Search opponent school or club..."
+                      placeholder="Search for Team 2 Organisation"
                       placeholderTextColor={getThemeColor(isDark, 'placeholder')}
                       value={awayOrgSearchText}
                       onChangeText={setAwayOrgSearchText}
@@ -773,34 +973,14 @@ export default function CreateEvent() {
                   </View>
                 )}
 
-                {/* Unclaimed Org Contact Referral section */}
-                {selectedAwayOrg && selectedAwayOrg.isClaimed === false && (
-                  <View className="bg-brand-orange/5 border border-brand-orange/20 rounded-xl p-4 mt-2 space-y-2">
-                    <Text className="font-orbitron-bold text-[9px] text-brand-orange uppercase tracking-wider">
-                      Invite Administrator
-                    </Text>
-                    <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                      {selectedAwayOrg.name} doesn't have an administrator on Scorekeeper yet. Help bring this organization to life by nominating a contact email—we'll invite them to claim it, manage their teams, and keep schedules up to date.
-                    </Text>
-                    <TextInput
-                      placeholder="contact@school.edu"
-                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                      value={pendingReferrals[selectedAwayOrg.id] || ''}
-                      onChangeText={(email) => setPendingReferrals(prev => ({ ...prev, [selectedAwayOrg.id]: email }))}
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2 font-inter text-sm text-slate-850 dark:text-white"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                  </View>
-                )}
               </View>
 
               {/* Away Team Selection */}
               {selectedAwayOrg && (
                 <View className="space-y-1.5">
-                  <View className="flex-row justify-between items-center">
+                  <View className="flex-row justify-between items-center mb-1">
                     <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Opponent Team
+                      Team
                     </Text>
                     <TouchableOpacity onPress={() => handleCreateTeamTrigger(selectedAwayOrg.id)}>
                       <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
@@ -808,29 +988,14 @@ export default function CreateEvent() {
                       </Text>
                     </TouchableOpacity>
                   </View>
-                  <View className="flex-row flex-wrap gap-2">
-                    {awayTeams.map(team => {
-                      const isSelected = selectedAwayTeamId === team.id;
-                      return (
-                        <TouchableOpacity
-                          key={team.id}
-                          onPress={() => setSelectedAwayTeamId(team.id)}
-                          className={`px-3 py-2 rounded-lg border ${
-                            isSelected 
-                              ? 'bg-brand-orange/10 border-brand-orange' 
-                              : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                          }`}
-                        >
-                          <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                            {team.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {awayTeams.length === 0 && (
-                      <Text className="font-inter text-xs text-slate-400 italic">No opponent teams registered for this sport.</Text>
-                    )}
-                  </View>
+                  <CustomSelect
+                    value={selectedAwayTeamId}
+                    onChange={setSelectedAwayTeamId}
+                    options={awayTeams.map(team => ({ value: team.id, label: `${team.name} (${team.ageGroup})` }))}
+                    placeholder="Select Team"
+                    showSearch={true}
+                    searchPlaceholder="Search Team..."
+                  />
                 </View>
               )}
 
@@ -1067,6 +1232,9 @@ export default function CreateEvent() {
             </View>
             <View className="space-y-1.5">
               <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Contact Person Email (Optional)</Text>
+              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mb-1 leading-4">
+                Help us get this organization claimed! If you know who manages this school or club (e.g. head of sports or club secretary), add their email below so we can invite them to take control of their teams and schedules.
+              </Text>
               <TextInput
                 placeholder="contact@school.edu"
                 placeholderTextColor={getThemeColor(isDark, 'placeholder')}
@@ -1153,6 +1321,13 @@ export default function CreateEvent() {
           </View>
         </View>
       </Modal>
+
+      <NominationModal
+        visible={isNominationModalVisible}
+        onClose={() => setIsNominationModalVisible(false)}
+        orgId={selectedAwayOrg?.id || ''}
+        orgName={selectedAwayOrg?.name || ''}
+      />
     </SafeAreaView>
   );
 }

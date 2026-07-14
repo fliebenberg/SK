@@ -7,7 +7,7 @@ tags:
   - routing
   - pages
   - navigation-guards
-timestamp: 2026-07-02T15:05:00Z
+timestamp: 2026-07-11T13:20:00Z
 ---
 
 # Client Pages & Routing Maps
@@ -29,6 +29,9 @@ Public view routes are accessible to all unauthenticated users:
 *   `/live`: Central feed showing real-time active games. Serves as the primary landing page for authenticated logged-in users.
 *   `/games/[id]`: Detailed game viewport displaying score, play-by-play timelines, lineups, and team stats.
 *   `/organizations/[id]`: Public details of sports organizations.
+*   `/claim/index`: Organization administrator claim verification landing.
+*   `/claim/refer`: Delegated referral page to nominate another contact.
+*   `/claim/decline`: Invitation decline workflow.
 *   `/teams`: Roster directories of public teams.
 *   `/teams/[id]`: Team profiles, matches, and member rosters.
 *   `/sites`: Venue directory list.

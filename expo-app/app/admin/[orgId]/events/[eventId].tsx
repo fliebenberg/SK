@@ -409,7 +409,7 @@ export default function EventDetails() {
           <View className="space-y-6">
             <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
               <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
-                Friendly Match Details
+                Single Match Details
               </Text>
               
               {games.length > 0 ? (
@@ -558,7 +558,7 @@ export default function EventDetails() {
                       games.reduce((acc, game) => {
                         let key = 'Other';
                         if (groupingMode === 'time') {
-                          key = game.scheduledStartTime ? game.scheduledStartTime.split('T')[1]?.substring(0, 5) : 'TBD';
+                          key = (game.scheduledStartTime && !game.customSettings?.timeTbd) ? game.scheduledStartTime.split('T')[1]?.substring(0, 5) : 'TBD';
                         } else if (groupingMode === 'sport') {
                           key = sports.find(s => s.id === game.sportId)?.name || 'Unknown Sport';
                         } else if (groupingMode === 'site') {

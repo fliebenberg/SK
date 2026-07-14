@@ -12,6 +12,7 @@ import { useWsStore } from '../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { SocketAction, Event, Game, Sport, Site, Team, Organization } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+import DatePicker from '../../../../../../components/DatePicker';
 
 export default function ScheduleGame() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function ScheduleGame() {
   const [selectedAwayOrgId, setSelectedAwayOrgId] = useState('');
   const [selectedAwayTeamId, setSelectedAwayTeamId] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('');
+  const [gameDate, setGameDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [isTbd, setIsTbd] = useState(false);
 
@@ -85,9 +87,21 @@ export default function ScheduleGame() {
     });
 
     wsService.emit('get_data', { type: 'organizations' }, (res: any) => {
-      if (Array.isArray(res)) setOrgsList(res);
+      if (res && Array.isArray(res.items)) {
+        setOrgsList(res.items);
+      } else if (Array.isArray(res)) {
+        setOrgsList(res);
+      }
     });
   }, [isConnected, orgId, eventId]);
+
+  // Fallback gameDate to event.startDate if not set
+  useEffect(() => {
+    if (event && !gameDate) {
+      const d = event.startDate?.split('T')[0] || '';
+      setGameDate(d);
+    }
+  }, [event, gameDate]);
 
   // Load teams for host and participating orgs when event/organizations are loaded
   useEffect(() => {
@@ -136,7 +150,8 @@ export default function ScheduleGame() {
     };
 
     wsService.emit('action', { type: SocketAction.ADD_ORG, payload }, (res: any) => {
-      if (res && res.id) {
+      const org = res?.data || res;
+      if (org && org.id) {
         // Invite contact person if specified
         const email = newOrgContactEmail.trim();
         const currentUserId = useAuthStore.getState().user?.id;
@@ -144,7 +159,7 @@ export default function ScheduleGame() {
           wsService.emit('action', {
             type: SocketAction.REFER_ORG_CONTACT,
             payload: {
-              orgId: res.id,
+              orgId: org.id,
               contactEmails: [email],
               referredByUserId: currentUserId
             }
@@ -152,8 +167,8 @@ export default function ScheduleGame() {
         }
 
         // Update list
-        setOrgsList(prev => [...prev, res]);
-        setSelectedAwayOrgId(res.id);
+        setOrgsList(prev => [...prev, org]);
+        setSelectedAwayOrgId(org.id);
         setIsCreatingOrg(false);
         setNewOrgName('');
         setNewOrgShortName('');
@@ -203,16 +218,17 @@ export default function ScheduleGame() {
 
     wsService.emit('action', { type: SocketAction.ADD_TEAM, payload }, (res: any) => {
       setIsProcessing(false);
-      if (res && res.id) {
+      const team = res?.data || res;
+      if (team && team.id) {
         setOrgTeams(prev => ({
           ...prev,
-          [targetOrgIdForTeam]: [...(prev[targetOrgIdForTeam] || []), res]
+          [targetOrgIdForTeam]: [...(prev[targetOrgIdForTeam] || []), team]
         }));
         
         if (targetOrgIdForTeam === selectedHomeOrgId) {
-          setSelectedHomeTeamId(res.id);
+          setSelectedHomeTeamId(team.id);
         } else {
-          setSelectedAwayTeamId(res.id);
+          setSelectedAwayTeamId(team.id);
         }
         setIsCreatingTeam(false);
         setNewTeamName('');
@@ -244,9 +260,16 @@ export default function ScheduleGame() {
       });
     }
 
-    const dateBase = event.startDate.split('T')[0];
-    const dateObj = new Date(`${dateBase}T${startTime}:00`);
-    const scheduledTime = isTbd ? undefined : (!isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${startTime}:00`);
+    const dateBase = gameDate || event.startDate.split('T')[0];
+    let scheduledTime: string | undefined = undefined;
+
+    if (isTbd) {
+      const dateObj = new Date(`${dateBase}T12:00:00`);
+      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T12:00:00`;
+    } else {
+      const dateObj = new Date(`${dateBase}T${startTime}:00`);
+      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${startTime}:00`;
+    }
 
     // Conflict Check
     if (!isTbd && scheduledTime && !ignoreConflict) {
@@ -255,7 +278,7 @@ export default function ScheduleGame() {
         
         // Compare same site and same time
         const gTime = new Date(g.startTime).getTime();
-        const propTime = new Date(scheduledTime).getTime();
+        const propTime = new Date(scheduledTime!).getTime();
         return g.siteId === selectedSiteId && gTime === propTime;
       });
 
@@ -278,13 +301,17 @@ export default function ScheduleGame() {
       scheduledStartTime: scheduledTime,
       startTime: scheduledTime,
       siteId: selectedSiteId || undefined,
-      status: 'Scheduled'
+      status: 'Scheduled',
+      customSettings: {
+        timeTbd: isTbd
+      }
     };
 
     wsService.emit('action', { type: SocketAction.ADD_GAME, payload: gamePayload }, (res: any) => {
       setIsProcessing(false);
       setConflictWarning(null);
-      if (res) router.back();
+      const game = res?.data || res;
+      if (game) router.back();
     });
   };
 
@@ -489,12 +516,12 @@ export default function ScheduleGame() {
               const selectedAwayOrg = orgsList.find(o => o.id === selectedAwayOrgId);
               if (selectedAwayOrg && selectedAwayOrg.isClaimed === false) {
                 return (
-                  <View className="bg-brand-orange/5 border border-brand-orange/20 rounded-xl p-4 mt-2 space-y-2">
-                    <Text className="font-orbitron-bold text-[9px] text-brand-orange uppercase tracking-wider">
-                      Invite Administrator
+                  <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/20 rounded-xl p-4 mt-2 space-y-2">
+                    <Text className="font-orbitron-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                      Help us get this organization claimed!
                     </Text>
-                    <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                      Help us get this organization claimed! Enter a contact person's email to invite them.
+                    <Text className="font-inter text-xs text-slate-650 dark:text-slate-400 leading-4">
+                      If you know who manages {selectedAwayOrg.name} (e.g. head of sports, club secretary), add their email below so we can invite them to claim administrative access and manage their own teams, rosters, and schedules.
                     </Text>
                     <TextInput
                       placeholder="contact@school.edu"
@@ -578,31 +605,44 @@ export default function ScheduleGame() {
             </View>
           </View>
 
-          {/* Match Time */}
-          <View className="space-y-3 pt-2">
-            <View className="flex-row justify-between items-center">
+          {/* Match Date & Time */}
+          <View className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">
+            <View className="space-y-1.5">
               <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Start Time
+                Match Date
               </Text>
-              <View className="flex-row items-center gap-2">
-                <Text className="font-inter text-xs text-slate-500">TBD</Text>
-                <Switch
-                  value={isTbd}
-                  onValueChange={setIsTbd}
-                  trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
-                />
-              </View>
+              <DatePicker
+                value={gameDate}
+                onChange={setGameDate}
+                placeholder="Select Date"
+              />
             </View>
 
-            {!isTbd && (
-              <TextInput
-                placeholder="e.g. 09:00"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={startTime}
-                onChangeText={setStartTime}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            )}
+            <View className="space-y-3 pt-2">
+              <View className="flex-row justify-between items-center">
+                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Start Time
+                </Text>
+                <View className="flex-row items-center gap-2">
+                  <Text className="font-inter text-xs text-slate-500">TBD</Text>
+                  <Switch
+                    value={isTbd}
+                    onValueChange={setIsTbd}
+                    trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
+                  />
+                </View>
+              </View>
+
+              {!isTbd && (
+                <TextInput
+                  placeholder="e.g. 09:00"
+                  placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                  value={startTime}
+                  onChangeText={setStartTime}
+                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                />
+              )}
+            </View>
           </View>
         </GlassCard>
       </ScrollView>
@@ -653,6 +693,9 @@ export default function ScheduleGame() {
             </View>
             <View className="space-y-1.5">
               <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Contact Person Email (Optional)</Text>
+              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mb-1 leading-4">
+                Help us get this organization claimed! If you know who manages this school or club (e.g. head of sports or club secretary), add their email below so we can invite them to take control of their teams and schedules.
+              </Text>
               <TextInput
                 placeholder="contact@school.edu"
                 placeholderTextColor={getThemeColor(isDark, 'placeholder')}
