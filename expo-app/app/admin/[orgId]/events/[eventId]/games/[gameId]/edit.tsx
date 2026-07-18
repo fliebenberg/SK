@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../../../../components/GlassCard';
-import { Button } from '../../../../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game, Sport, Site, Team, Organization } from '@sk/types';
-import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
-import DatePicker from '../../../../../../../components/DatePicker';
+import { COLORS } from '../../../../../../../constants/Colors';
+import MatchForm, { MatchFormData } from '../../../../../../../components/MatchForm';
+import { useUnsavedChanges } from '../../../../../../../hooks/useUnsavedChanges';
 
 export default function EditGame() {
   const router = useRouter();
@@ -24,28 +24,41 @@ export default function EditGame() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [event, setEvent] = useState<Event | null>(null);
   const [game, setGame] = useState<Game | null>(null);
-  const [sports, setSports] = useState<Sport[]>([]);
-  const [sites, setSites] = useState<Site[]>([]);
   const [orgsList, setOrgsList] = useState<Organization[]>([]);
 
-  // Team cache by organization
-  const [orgTeams, setOrgTeams] = useState<Record<string, Team[]>>({});
-
-  // Form Fields
-  const [selectedSportId, setSelectedSportId] = useState('');
-  const [selectedHomeOrgId, setSelectedHomeOrgId] = useState(orgId);
-  const [selectedHomeTeamId, setSelectedHomeTeamId] = useState('');
-  const [selectedAwayOrgId, setSelectedAwayOrgId] = useState('');
-  const [selectedAwayTeamId, setSelectedAwayTeamId] = useState('');
-  const [selectedSiteId, setSelectedSiteId] = useState('');
-  const [gameDate, setGameDate] = useState('');
-  const [startTime, setStartTime] = useState('09:00');
-  const [isTbd, setIsTbd] = useState(false);
-  const [gameStatus, setGameStatus] = useState<'Scheduled' | 'Live' | 'Finished' | 'Cancelled'>('Scheduled');
+  // Static once resolved initial state
+  const [initialData, setInitialData] = useState<any>(null);
+  const [formData, setFormData] = useState<MatchFormData | null>(null);
 
   // Deletion & Cancellation modals
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Form Reset and Dirty state
+  const [formKey, setFormKey] = useState(0);
+
+  const hasChanges = useMemo(() => {
+    if (!initialData || !formData) return false;
+    return (
+      formData.sportId !== initialData.sportId ||
+      formData.homeOrgId !== initialData.homeOrgId ||
+      formData.homeTeamId !== initialData.homeTeamId ||
+      formData.awayOrgId !== initialData.awayOrgId ||
+      formData.awayTeamId !== initialData.awayTeamId ||
+      formData.siteId !== initialData.siteId ||
+      formData.gameDate !== initialData.gameDate ||
+      formData.startTime !== initialData.startTime ||
+      formData.isTbd !== initialData.isTbd ||
+      formData.status !== initialData.status
+    );
+  }, [formData, initialData]);
+
+  const handleCancel = useCallback(() => {
+    setFormData(null);
+    setFormKey(prev => prev + 1);
+  }, []);
+
+  useUnsavedChanges(hasChanges, handleCancel);
 
   // Load initial game and metadata
   useEffect(() => {
@@ -60,27 +73,7 @@ export default function EditGame() {
 
     // Get game
     wsService.emit('get_data', { type: 'game', id: gameId }, (res: any) => {
-      if (res) {
-        setGame(res);
-        setSelectedSportId(res.sportId || '');
-        setSelectedSiteId(res.siteId || '');
-        setGameStatus(res.status || 'Scheduled');
-        setIsTbd(!res.startTime || res.customSettings?.timeTbd);
-        if (res.startTime) {
-          const d = res.startTime.split('T')[0];
-          setGameDate(d);
-          const t = res.startTime.split('T')[1]?.substring(0, 5) || '09:00';
-          setStartTime(t);
-        }
-      }
-    });
-
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (Array.isArray(res)) setSports(res);
-    });
-
-    wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-      if (Array.isArray(res)) setSites(res);
+      if (res) setGame(res);
     });
 
     wsService.emit('get_data', { type: 'organizations' }, (res: any) => {
@@ -92,97 +85,108 @@ export default function EditGame() {
     });
   }, [isConnected, orgId, eventId, gameId]);
 
-  // Fallback gameDate to event.startDate if not set
-  useEffect(() => {
-    if (event && !gameDate) {
-      const d = event.startDate?.split('T')[0] || '';
-      setGameDate(d);
-    }
-  }, [event, gameDate]);
-
-  // Load teams for host and participating orgs
+  // Load team details to resolve participant organization IDs
   useEffect(() => {
     if (!event || orgsList.length === 0 || !game) return;
 
-    const allInvolvedOrgIds = [orgId, ...(event.participatingOrgIds || [])];
-    
-    let loadedCount = 0;
-    allInvolvedOrgIds.forEach(id => {
-      wsService.emit('get_data', { type: 'teams', orgId: id }, (res: any) => {
-        if (Array.isArray(res)) {
-          setOrgTeams(prev => ({
-            ...prev,
-            [id]: res
-          }));
+    const homeTeamId = game.participants?.[0]?.teamId;
+    const awayTeamId = game.participants?.[1]?.teamId;
 
-          // Resolve home and away organizations from initial game participants
-          const homeParticipantId = game.participants?.[0]?.teamId;
-          const awayParticipantId = game.participants?.[1]?.teamId;
+    let homeOrgId = orgId;
+    let awayOrgId = '';
+    let loadedHome = !homeTeamId;
+    let loadedAway = !awayTeamId;
 
-          if (homeParticipantId && res.some(t => t.id === homeParticipantId)) {
-            setSelectedHomeOrgId(id);
-            setSelectedHomeTeamId(homeParticipantId);
-          }
-          if (awayParticipantId && res.some(t => t.id === awayParticipantId)) {
-            setSelectedAwayOrgId(id);
-            setSelectedAwayTeamId(awayParticipantId);
-          }
+    const checkComplete = () => {
+      if (loadedHome && loadedAway) {
+        const dateBase = game.startTime ? game.startTime.split('T')[0] : (event.startDate?.split('T')[0] || '');
+        const timeBase = game.startTime ? game.startTime.split('T')[1]?.substring(0, 5) : '09:00';
+        
+        setInitialData({
+          sportId: game.sportId || '',
+          homeOrgId,
+          homeTeamId: homeTeamId || '',
+          awayOrgId,
+          awayTeamId: awayTeamId || '',
+          siteId: game.siteId || '',
+          gameDate: dateBase,
+          startTime: timeBase || '09:00',
+          isTbd: !game.startTime || game.customSettings?.timeTbd,
+          status: game.status || 'Scheduled',
+        });
+        setIsLoading(false);
+      }
+    };
+
+    if (homeTeamId) {
+      wsService.emit('get_data', { type: 'team', id: homeTeamId }, (team: any) => {
+        if (team && team.orgId) {
+          homeOrgId = team.orgId;
         }
-        loadedCount++;
-        if (loadedCount === allInvolvedOrgIds.length) {
-          setIsLoading(false);
-        }
+        loadedHome = true;
+        checkComplete();
       });
-    });
-  }, [event, orgsList, orgId, game]);
+    } else {
+      loadedHome = true;
+    }
 
-  // Filters
-  const eventSports = sports.filter(s => event?.sportIds?.includes(s.id));
-  const involvedOrgs = orgsList.filter(o => o.id === orgId || event?.participatingOrgIds?.includes(o.id));
-  const homeTeamsList = (orgTeams[selectedHomeOrgId] || []).filter(t => t.sportId === selectedSportId);
-  const awayTeamsList = (orgTeams[selectedAwayOrgId] || []).filter(t => t.sportId === selectedSportId);
+    if (awayTeamId) {
+      wsService.emit('get_data', { type: 'team', id: awayTeamId }, (team: any) => {
+        if (team && team.orgId) {
+          awayOrgId = team.orgId;
+        }
+        loadedAway = true;
+        checkComplete();
+      });
+    } else {
+      loadedAway = true;
+    }
+
+    if (!homeTeamId && !awayTeamId) {
+      checkComplete();
+    }
+  }, [event, orgsList, orgId, game]);
 
   // Submit Handler
   const handleSubmit = () => {
-    if (!event || !game || !selectedHomeTeamId || !selectedAwayTeamId) return;
+    if (!event || !game || !formData || !formData.homeTeamId || !formData.awayTeamId) return;
     setIsProcessing(true);
 
-    const dateBase = gameDate || event.startDate.split('T')[0];
+    const dateBase = formData.gameDate || event.startDate.split('T')[0];
     let scheduledTime: string | null = null;
 
-    if (isTbd) {
+    if (formData.isTbd) {
       const dateObj = new Date(`${dateBase}T12:00:00`);
       scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T12:00:00`;
     } else {
-      const dateObj = new Date(`${dateBase}T${startTime}:00`);
-      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${startTime}:00`;
+      const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
+      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`;
     }
 
     const payload = {
       id: gameId,
       data: {
-        sportId: selectedSportId,
-        participants: [{ teamId: selectedHomeTeamId }, { teamId: selectedAwayTeamId }],
+        sportId: formData.sportId,
+        participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
         scheduledStartTime: scheduledTime,
         startTime: scheduledTime,
-        siteId: selectedSiteId || undefined,
-        status: gameStatus,
+        siteId: formData.siteId || undefined,
+        status: formData.status,
         customSettings: {
           ...(game.customSettings || {}),
-          timeTbd: isTbd
+          timeTbd: formData.isTbd
         }
       }
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_GAME, payload }, (res: any) => {
       if (res && event.type === 'SingleMatch') {
-        const homeTeam = (orgTeams[selectedHomeOrgId] || []).find(t => t.id === selectedHomeTeamId);
-        const awayTeam = (orgTeams[selectedAwayOrgId] || []).find(t => t.id === selectedAwayTeamId);
-        const homeOrg = orgsList.find(o => o.id === selectedHomeOrgId);
-        const awayOrg = orgsList.find(o => o.id === selectedAwayOrgId);
+        // Resolve event name based on updated orgs and teams
+        const homeOrg = orgsList.find(o => o.id === formData.homeOrgId);
+        const awayOrg = orgsList.find(o => o.id === formData.awayOrgId);
         
-        const homeNameStr = homeOrg ? `${homeOrg.shortName || homeOrg.name} ${homeTeam?.name || ''}`.trim() : 'Home';
-        const awayNameStr = awayOrg ? `${awayOrg.shortName || awayOrg.name} ${awayTeam?.name || ''}`.trim() : 'Away';
+        const homeNameStr = homeOrg ? (homeOrg.shortName || homeOrg.name) : 'Home';
+        const awayNameStr = awayOrg ? (awayOrg.shortName || awayOrg.name) : 'Away';
         const eventNameStr = `${homeNameStr} vs ${awayNameStr}`;
 
         const eventPayload = {
@@ -190,10 +194,10 @@ export default function EditGame() {
           data: {
             name: eventNameStr,
             startDate: `${dateBase}T12:00:00.000Z`,
-            siteId: selectedSiteId || null,
-            sportIds: selectedSportId ? [selectedSportId] : [],
-            participatingOrgIds: selectedAwayOrgId && selectedAwayOrgId !== orgId ? [selectedAwayOrgId] : [],
-            status: gameStatus === 'Cancelled' ? 'Cancelled' : event.status
+            siteId: formData.siteId || null,
+            sportIds: formData.sportId ? [formData.sportId] : [],
+            participatingOrgIds: formData.awayOrgId && formData.awayOrgId !== orgId ? [formData.awayOrgId] : [],
+            status: formData.status === 'Cancelled' ? 'Cancelled' : event.status
           }
         };
 
@@ -225,12 +229,22 @@ export default function EditGame() {
         wsService.emit('action', { type: SocketAction.UPDATE_EVENT, payload: eventPayload }, (eventRes: any) => {
           setIsProcessing(false);
           setIsCancelling(false);
-          setGameStatus('Cancelled');
+          if (formData) {
+            setFormData({
+              ...formData,
+              status: 'Cancelled'
+            });
+          }
         });
       } else {
         setIsProcessing(false);
         setIsCancelling(false);
-        setGameStatus('Cancelled');
+        if (formData) {
+          setFormData({
+            ...formData,
+            status: 'Cancelled'
+          });
+        }
       }
     });
   };
@@ -239,14 +253,12 @@ export default function EditGame() {
   const handleDeleteGame = () => {
     setIsProcessing(true);
     if (event?.type === 'SingleMatch') {
-      // For Standalone match, delete the parent Event which removes the game in cascade
       wsService.emit('delete_entity', { type: 'event', id: eventId }, (res: any) => {
         setIsProcessing(false);
         setIsDeleting(false);
         router.push(`/admin/${orgId}/events`);
       });
     } else {
-      // Just delete the game inside Sports Day/Tournament
       wsService.emit('delete_entity', { type: 'game', id: gameId }, (res: any) => {
         setIsProcessing(false);
         setIsDeleting(false);
@@ -255,7 +267,7 @@ export default function EditGame() {
     }
   };
 
-  if (isLoading || !event || !game) {
+  if (isLoading || !event || !game || !initialData) {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
         <ActivityIndicator size="large" color={COLORS.brand.orange} />
@@ -265,6 +277,8 @@ export default function EditGame() {
       </SafeAreaView>
     );
   }
+
+  const hasFormSelection = formData?.homeTeamId && formData?.awayTeamId;
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
@@ -282,276 +296,21 @@ export default function EditGame() {
         <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
           Edit Match Info
         </Text>
-        <TouchableOpacity 
-          className={`active:opacity-85 ${(!selectedHomeTeamId || !selectedAwayTeamId) ? 'opacity-40' : ''}`}
-          disabled={!selectedHomeTeamId || !selectedAwayTeamId || isProcessing}
-          onPress={handleSubmit}
-        >
-          {isProcessing ? (
-            <ActivityIndicator size="small" color={COLORS.brand.orange} />
-          ) : (
-            <Text className="font-inter-bold text-xs text-brand-orange uppercase tracking-wider">
-              Save
-            </Text>
-          )}
-        </TouchableOpacity>
+        <View className="w-12" />
       </View>
 
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5">
-          <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
-            Edit details for game {gameId}
-          </Text>
+      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>
+        <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+          Edit details for game {gameId}
+        </Text>
 
-          {/* Select Status */}
-          <View className="space-y-1.5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Match Status
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {(['Scheduled', 'Live', 'Finished'] as const).map(status => {
-                const isSelected = gameStatus === status;
-                return (
-                  <TouchableOpacity
-                    key={status}
-                    onPress={() => setGameStatus(status)}
-                    className={`px-3 py-2 rounded-lg border ${
-                      isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {status}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Select Sport */}
-          <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Sport
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {eventSports.map(sport => {
-                const isSelected = selectedSportId === sport.id;
-                return (
-                  <TouchableOpacity
-                    key={sport.id}
-                    onPress={() => {
-                      setSelectedSportId(sport.id);
-                      setSelectedHomeTeamId('');
-                      setSelectedAwayTeamId('');
-                    }}
-                    className={`px-3 py-2 rounded-lg border ${
-                      isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {sport.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Home Org Selection */}
-          <View className="space-y-1.5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Home Organization
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {involvedOrgs.map(o => {
-                const isSelected = selectedHomeOrgId === o.id;
-                return (
-                  <TouchableOpacity
-                    key={o.id}
-                    onPress={() => {
-                      setSelectedHomeOrgId(o.id);
-                      setSelectedHomeTeamId('');
-                    }}
-                    className={`px-3 py-2 rounded-lg border ${
-                      isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {o.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Home Team Selection */}
-          {selectedHomeOrgId && (
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Home Team
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {homeTeamsList.map(team => {
-                  const isSelected = selectedHomeTeamId === team.id;
-                  return (
-                    <TouchableOpacity
-                      key={team.id}
-                      onPress={() => setSelectedHomeTeamId(team.id)}
-                      className={`px-3 py-2 rounded-lg border ${
-                        isSelected 
-                          ? 'bg-brand-orange/10 border-brand-orange' 
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                      }`}
-                    >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {team.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {homeTeamsList.length === 0 && (
-                  <Text className="font-inter text-xs text-slate-400 italic">No teams matching selected sport.</Text>
-                )}
-              </View>
-            </View>
-          )}
-
-          {/* Away Org Selection */}
-          <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Away Organization
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {involvedOrgs.map(o => {
-                const isSelected = selectedAwayOrgId === o.id;
-                return (
-                  <TouchableOpacity
-                    key={o.id}
-                    onPress={() => {
-                      setSelectedAwayOrgId(o.id);
-                      setSelectedAwayTeamId('');
-                    }}
-                    className={`px-3 py-2 rounded-lg border ${
-                      isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {o.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Away Team Selection */}
-          {selectedAwayOrgId && (
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Away Team
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {awayTeamsList.map(team => {
-                  const isSelected = selectedAwayTeamId === team.id;
-                  return (
-                    <TouchableOpacity
-                      key={team.id}
-                      onPress={() => setSelectedAwayTeamId(team.id)}
-                      className={`px-3 py-2 rounded-lg border ${
-                        isSelected 
-                          ? 'bg-brand-orange/10 border-brand-orange' 
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                      }`}
-                    >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {team.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {awayTeamsList.length === 0 && (
-                  <Text className="font-inter text-xs text-slate-400 italic">No opponent teams matching selected sport.</Text>
-                )}
-              </View>
-            </View>
-          )}
-
-          {/* Site selection */}
-          <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Site Field/Court
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {sites.map(site => {
-                const isSelected = selectedSiteId === site.id;
-                return (
-                  <TouchableOpacity
-                    key={site.id}
-                    onPress={() => setSelectedSiteId(site.id)}
-                    className={`px-3 py-2 rounded-lg border ${
-                      isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {site.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Match Date & Time */}
-          <View className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Match Date
-              </Text>
-              <DatePicker
-                value={gameDate}
-                onChange={setGameDate}
-                placeholder="Select Date"
-              />
-            </View>
-
-            <View className="space-y-3 pt-2">
-              <View className="flex-row justify-between items-center">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Start Time
-                </Text>
-                <View className="flex-row items-center gap-2">
-                  <Text className="font-inter text-xs text-slate-500">TBD</Text>
-                  <Switch
-                    value={isTbd}
-                    onValueChange={setIsTbd}
-                    trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
-                  />
-                </View>
-              </View>
-
-              {!isTbd && (
-                <TextInput
-                  placeholder="e.g. 09:00"
-                  placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                  value={startTime}
-                  onChangeText={setStartTime}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-                />
-              )}
-            </View>
-          </View>
-        </GlassCard>
+        <MatchForm
+          key={formKey}
+          orgId={orgId}
+          isEdit={true}
+          initialData={initialData}
+          onChange={setFormData}
+        />
 
         {/* DANGER ZONE */}
         <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 space-y-4 mt-6">
@@ -563,9 +322,9 @@ export default function EditGame() {
             </View>
             <TouchableOpacity
               onPress={() => setIsCancelling(true)}
-              disabled={gameStatus === 'Cancelled'}
+              disabled={formData?.status === 'Cancelled'}
               className={`px-4 py-2 border border-brand-orange rounded-lg ${
-                gameStatus === 'Cancelled' ? 'opacity-40' : ''
+                formData?.status === 'Cancelled' ? 'opacity-40' : ''
               }`}
             >
               <Text className="font-inter-bold text-xs text-brand-orange uppercase">Cancel Match</Text>
@@ -586,6 +345,43 @@ export default function EditGame() {
           </View>
         </GlassCard>
       </ScrollView>
+
+      {/* FLOATING SAVE CHANGES BAR */}
+      {hasChanges && (
+        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+          <View className="flex-1 mr-4">
+            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">Unsaved Changes</Text>
+            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">You have modified this match's details.</Text>
+          </View>
+          <View className="flex-row items-center gap-2.5">
+            <TouchableOpacity
+              onPress={handleCancel}
+              disabled={isProcessing}
+              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+            >
+              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={isProcessing || !hasFormSelection}
+              className={`px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md ${
+                !hasFormSelection
+                  ? 'bg-brand-orange/40 shadow-none'
+                  : 'bg-brand-orange shadow-brand-orange/30'
+              }`}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={14} color="white" />
+                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">Save</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* CANCELLATION CONFIRMATION */}
       <ConfirmationModal

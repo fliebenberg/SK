@@ -252,10 +252,13 @@ export default function OrganizationsPage() {
                 <GlassCard className="border border-slate-200 dark:border-white/5 p-6 items-center">
                   <Ionicons name="business-outline" size={32} color="#94A3B8" className="mb-3" />
                   <Text className="font-orbitron-bold text-sm text-slate-700 dark:text-slate-300 text-center mb-1 uppercase tracking-wide">
-                    No Managed Organizations
+                    {searchQuery.trim() ? "No Matching Organizations" : "No Managed Organizations"}
                   </Text>
                   <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mb-5 leading-4">
-                    You don't manage any organizations yet. Create one to get started.
+                    {searchQuery.trim()
+                      ? `No managed organizations found matching "${searchQuery}".`
+                      : "You don't manage any organizations yet. Create one to get started."
+                    }
                   </Text>
                 </GlassCard>
               ) : (
@@ -278,7 +281,6 @@ export default function OrganizationsPage() {
                     >
                       <TouchableOpacity 
                         onPress={() => router.push(`/organizations/${org.id}` as any)}
-                        className="flex-1"
                         activeOpacity={0.7}
                       >
                         <View className="flex-row justify-between items-center gap-3 mb-3">
@@ -359,7 +361,21 @@ export default function OrganizationsPage() {
           </View>
         ) : (
           <View className="space-y-4">
-            {orgs.map((org) => {
+            {orgs.length === 0 ? (
+              <GlassCard className="border border-slate-200 dark:border-white/5 p-6 items-center">
+                <Ionicons name="business-outline" size={32} color="#94A3B8" className="mb-3" />
+                <Text className="font-orbitron-bold text-sm text-slate-700 dark:text-slate-300 text-center mb-1 uppercase tracking-wide">
+                  {searchQuery.trim() ? "No Matching Organizations" : "No Organizations"}
+                </Text>
+                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mb-2 leading-4">
+                  {searchQuery.trim()
+                    ? `No organizations found matching "${searchQuery}".`
+                    : "There are no active organizations on ScoreKeeper yet."
+                  }
+                </Text>
+              </GlassCard>
+            ) : (
+              orgs.map((org) => {
               const primaryColor = org.primaryColor || '#FF3E00';
               const secondaryColor = org.secondaryColor || '#00E5FF';
               const contrastColor = getContrastColor(primaryColor);
@@ -465,13 +481,13 @@ export default function OrganizationsPage() {
                     {showManage && (
                       <TouchableOpacity
                         style={{
-                          backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.15)' : '#FFFFFF',
-                          borderColor: isLightBg ? 'rgba(0, 0, 0, 0.2)' : 'transparent',
+                          backgroundColor: isLightBg ? '#0F172A' : '#FFFFFF',
+                          borderColor: 'transparent',
                         }}
                         className="flex-1 border py-2 rounded-lg items-center justify-center active:opacity-85"
                         onPress={() => router.push(`/admin/${org.id}` as any)}
                       >
-                        <Text style={{ color: isLightBg ? textColor : '#0F172A' }} className="font-inter-bold text-sm">
+                        <Text style={{ color: isLightBg ? '#FFFFFF' : '#0F172A' }} className="font-inter-bold text-sm">
                           Manage
                         </Text>
                       </TouchableOpacity>
@@ -479,7 +495,8 @@ export default function OrganizationsPage() {
                   </View>
                 </OrgBrandedCard>
               );
-            })}
+            })
+            )}
           </View>
         )}
       </ScrollView>

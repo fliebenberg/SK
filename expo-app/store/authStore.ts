@@ -71,7 +71,19 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       orgMemberships: [],
       teamMemberships: [],
-      setMemberships: (orgs, teams) => set({ orgMemberships: orgs || [], teamMemberships: teams || [] }),
+      setMemberships: (orgs, teams) => set((state) => {
+        const hasAdminOrCoachRole = state.user?.globalRole === 'admin' ||
+          (orgs || []).some(m => m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff') ||
+          (teams || []).some(m => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach');
+        
+        const updatedUser = state.user ? { ...state.user, isAdminOrCoach: hasAdminOrCoachRole } : null;
+
+        return {
+          orgMemberships: orgs || [],
+          teamMemberships: teams || [],
+          user: updatedUser
+        };
+      }),
       login: (token, user) => {
         // Sanitize theme string
         if (user.theme === 'null' || user.theme === 'undefined') {

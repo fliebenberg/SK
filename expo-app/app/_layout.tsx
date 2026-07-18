@@ -14,6 +14,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/authStore';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
+import { OfflineBanner } from '../components/OfflineBanner';
+import { View } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -103,6 +105,9 @@ export default function RootLayout() {
       }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="landing" options={{ headerShown: false }} />
+        <Stack.Screen name="claim/index" options={{ headerShown: false }} />
+        <Stack.Screen name="claim/decline" options={{ headerShown: false }} />
+        <Stack.Screen name="claim/refer" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="admin/[orgId]" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
@@ -124,8 +129,11 @@ function ThemeManager({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      {children}
+      <View className="flex-1">
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        <OfflineBanner />
+        {children}
+      </View>
       <ConfirmationModal
         isOpen={showDialog}
         onClose={cancelDiscard}

@@ -12,7 +12,14 @@ export class EventManager extends BaseManager {
     let queryText = `SELECT ${this.EVENT_COLUMNS} FROM events`;
     const params: any[] = [];
     if (orgId) {
-        queryText += ' WHERE org_id = $1 OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1)';
+        queryText += ` WHERE org_id = $1 
+                       OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = events.id AND eo.org_id = $1)
+                       OR EXISTS (
+                           SELECT 1 FROM games g 
+                           JOIN game_participants gp ON gp.game_id = g.id 
+                           JOIN teams t ON gp.team_id = t.id 
+                           WHERE g.event_id = events.id AND t.org_id = $1
+                       )`;
         params.push(orgId);
     }
     const res = await this.query(queryText, params);
@@ -28,7 +35,7 @@ export class EventManager extends BaseManager {
   async addEvent(event: Omit<Event, "id"> & { id?: string }): Promise<Event> {
     const id = event.id || `event-${Date.now()}`;
     const sportIds = event.sportIds || [];
-    const participatingOrgIds = event.participatingOrgIds || [];
+    const participatingOrgIds = [...new Set(event.participatingOrgIds || [])];
 
     await this.query('BEGIN');
     try {
@@ -99,12 +106,13 @@ export class EventManager extends BaseManager {
              }
          }
 
-         if (participatingOrgIds !== undefined) {
-             await this.query('DELETE FROM event_organizations WHERE event_id = $1', [id]);
-             for (const orgId of participatingOrgIds) {
-                 await this.query('INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2)', [id, orgId]);
-             }
-         }
+          if (participatingOrgIds !== undefined) {
+              const uniqueParticipatingOrgIds = [...new Set(participatingOrgIds)];
+              await this.query('DELETE FROM event_organizations WHERE event_id = $1', [id]);
+              for (const orgId of uniqueParticipatingOrgIds) {
+                  await this.query('INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2)', [id, orgId]);
+              }
+          }
 
          await this.query('COMMIT');
      } catch (error) {
@@ -145,7 +153,13 @@ export class EventManager extends BaseManager {
         SELECT ${selectClause}
         FROM games g
         JOIN events e ON g.event_id = e.id
-        WHERE e.org_id = $1 OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1)
+        WHERE e.org_id = $1 
+           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1)
+           OR EXISTS (
+               SELECT 1 FROM game_participants gp 
+               JOIN teams t ON gp.team_id = t.id 
+               WHERE gp.game_id = g.id AND t.org_id = $1
+           )
     `, [orgId]);
     return res.rows;
   }
@@ -188,6 +202,7 @@ export class EventManager extends BaseManager {
                   );
               }
           }
+          await this.syncEventOrganizationsFromGames(game.eventId);
           await this.query('COMMIT');
           return await this.getGame(id) as Game;
       } catch (e) {
@@ -431,6 +446,11 @@ export class EventManager extends BaseManager {
               }
           }
 
+          const gameObj = await this.getGame(id);
+          if (gameObj) {
+              await this.syncEventOrganizationsFromGames(gameObj.eventId);
+          }
+
           await this.query('COMMIT');
           await this.triggerLeagueRecalculations(id);
           console.log(`EventManager: updateGame successful for ${id}`);
@@ -500,6 +520,29 @@ export class EventManager extends BaseManager {
     } catch (err) {
       console.error(`EventManager: Error in triggerLeagueRecalculations for game ${gameId}:`, err);
     }
+  }
+
+  async syncEventOrganizationsFromGames(eventId: string): Promise<void> {
+      const eventRes = await this.query('SELECT org_id FROM events WHERE id = $1', [eventId]);
+      const hostOrgId = eventRes.rows[0]?.org_id;
+      if (!hostOrgId) return;
+
+      const orgsRes = await this.query(`
+          SELECT DISTINCT t.org_id 
+          FROM game_participants gp
+          JOIN games g ON gp.game_id = g.id
+          JOIN teams t ON gp.team_id = t.id
+          WHERE g.event_id = $1 AND t.org_id IS NOT NULL AND t.org_id != $2
+      `, [eventId, hostOrgId]);
+
+      const playingOrgIds = orgsRes.rows.map(r => r.org_id);
+
+      for (const orgId of playingOrgIds) {
+          await this.query(
+              'INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+              [eventId, orgId]
+          );
+      }
   }
 }
 

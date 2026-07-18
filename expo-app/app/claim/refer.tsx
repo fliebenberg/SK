@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, ScrollView, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
@@ -7,11 +7,9 @@ import { GlassCard } from '../../components/GlassCard';
 import { OrgLogo } from '../../components/OrgLogo';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
-import { ResponsiveHeader } from '../../components/ResponsiveHeader';
-import { LeftNavigationRail } from '../../components/LeftNavigationRail';
-import { getThemeColor } from '../../constants';
 import { useActiveTheme } from '../../store/settingsStore';
 import { Ionicons } from '@expo/vector-icons';
+import { ResponsivePageLayout } from '../../components/ResponsivePageLayout';
 
 export default function ReferScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -199,21 +197,17 @@ export default function ReferScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: getThemeColor(isDark, 'background') }}>
-      <ResponsiveHeader />
-      <View className="flex-1 flex-row">
-        <LeftNavigationRail />
-        <ScrollView 
-          className="flex-1"
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingHorizontal: 16 }}
-        >
-          <View className="w-full max-w-md mx-auto">
-            <GlassCard className="p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-xl bg-white/80 dark:bg-slate-900/80">
-              {renderContent()}
-            </GlassCard>
-          </View>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+    <ResponsivePageLayout>
+      <ScrollView 
+        className="flex-1"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingHorizontal: 16 }}
+      >
+        <View className="w-full max-w-md mx-auto">
+          <GlassCard className="p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-xl bg-white/80 dark:bg-slate-900/80">
+            {renderContent()}
+          </GlassCard>
+        </View>
+      </ScrollView>
+    </ResponsivePageLayout>
   );
 }

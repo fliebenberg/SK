@@ -14,6 +14,7 @@ import { useAuthStore } from '../../../../store/authStore';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { NominationModal } from '@/components/NominationModal';
 import CustomSelect from '../../../../components/CustomSelect';
+import MatchForm from '../../../../components/MatchForm';
 
 export default function CreateEvent() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export default function CreateEvent() {
   const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('Open');
   const [targetOrgIdForTeam, setTargetOrgIdForTeam] = useState('');
 
-  const [pendingReferrals, setPendingReferrals] = useState<Record<string, string>>({});
+  const [pendingReferrals, setPendingReferrals] = useState<Record<string, string | string[]>>({});
 
   // Sports Day / Tournament Fields
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
@@ -362,18 +363,21 @@ export default function CreateEvent() {
     // Emit pending referrals if any exist and the user is authenticated
     const currentUserId = useAuthStore.getState().user?.id;
     if (currentUserId) {
-      Object.entries(pendingReferrals).forEach(([rOrgId, email]) => {
-        const trimmedEmail = email.trim();
-        if (trimmedEmail && trimmedEmail.includes('@')) {
-          wsService.emit('action', {
-            type: SocketAction.REFER_ORG_CONTACT,
-            payload: {
-              orgId: rOrgId,
-              contactEmails: [trimmedEmail],
-              referredByUserId: currentUserId
-            }
-          });
-        }
+      Object.entries(pendingReferrals).forEach(([rOrgId, val]) => {
+        const emails = Array.isArray(val) ? val : [val];
+        emails.forEach(email => {
+          const trimmedEmail = email.trim();
+          if (trimmedEmail && trimmedEmail.includes('@')) {
+            wsService.emit('action', {
+              type: SocketAction.REFER_ORG_CONTACT,
+              payload: {
+                orgId: rOrgId,
+                contactEmails: [trimmedEmail],
+                referredByUserId: currentUserId
+              }
+            });
+          }
+        });
       });
     }
 
@@ -386,17 +390,18 @@ export default function CreateEvent() {
       ? (selectedSportId ? [selectedSportId] : []) 
       : selectedSportIds;
 
-    const participatingOrgIds: string[] = [];
+    const rawParticipatingOrgIds: string[] = [];
     if (type === 'game') {
       if (selectedHomeOrg && selectedHomeOrg.id !== orgId) {
-        participatingOrgIds.push(selectedHomeOrg.id);
+        rawParticipatingOrgIds.push(selectedHomeOrg.id);
       }
       if (selectedAwayOrg && selectedAwayOrg.id !== orgId) {
-        participatingOrgIds.push(selectedAwayOrg.id);
+        rawParticipatingOrgIds.push(selectedAwayOrg.id);
       }
     } else {
-      participatingOrgs.forEach(o => participatingOrgIds.push(o.id));
+      participatingOrgs.forEach(o => rawParticipatingOrgIds.push(o.id));
     }
+    const participatingOrgIds = [...new Set(rawParticipatingOrgIds)];
 
     // Default Name for Single Match if empty
     let eventTitle = eventName;
@@ -502,39 +507,25 @@ export default function CreateEvent() {
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-                <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5">
-          {/* SPORT SELECTOR (FIRST FIELD) */}
-          {type === 'game' ? (
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Select Sport
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {filteredSports.map(sport => {
-                  const isSelected = selectedSportId === sport.id;
-                  return (
-                    <TouchableOpacity
-                      key={sport.id}
-                      onPress={() => {
-                        setSelectedSportId(sport.id);
-                        setSelectedHomeTeamId('');
-                        setSelectedAwayTeamId('');
-                      }}
-                      className={`px-3 py-2 rounded-lg border ${
-                        isSelected 
-                          ? 'bg-brand-orange/10 border-brand-orange' 
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                      }`}
-                    >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {sport.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          ) : (
+        {type === 'game' ? (
+          <MatchForm
+            orgId={orgId}
+            onChange={(data) => {
+              setSelectedSportId(data.sportId);
+              setSelectedHomeOrg(data.homeOrgId ? { id: data.homeOrgId, name: '' } as any : null);
+              setSelectedHomeTeamId(data.homeTeamId);
+              setSelectedAwayOrg(data.awayOrgId ? { id: data.awayOrgId, name: '' } as any : null);
+              setSelectedAwayTeamId(data.awayTeamId);
+              setSelectedSiteId(data.siteId);
+              setStartDate(data.gameDate);
+              setStartTime(data.startTime);
+              setIsTbd(data.isTbd);
+              setPendingReferrals(data.referrals || {});
+            }}
+          />
+        ) : (
+          <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5">
+            {/* SPORT SELECTOR (FIRST FIELD) */}
             <View className="space-y-1.5">
               <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Featured Sports
@@ -566,101 +557,67 @@ export default function CreateEvent() {
                 })}
               </View>
             </View>
-          )}
 
-          {/* EVENT NAME (Not strictly required for Single Match, will autogenerate if empty) */}
-          <View className="space-y-1.5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              {type === 'game' ? 'Event Name (Optional)' : 'Event Name'}
-            </Text>
-            <TextInput
-              placeholder={type === 'game' ? 'e.g. Local Derby' : 'e.g. Winter Squash Tournament 2026'}
-              placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-              value={eventName}
-              onChangeText={setEventName}
-              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-            />
-          </View>
-
-          {/* DATE SELECTORS */}
-          <View className="space-y-3">
-            <View className="flex-row justify-between items-center">
+            {/* EVENT NAME (OPTIONAL) */}
+            <View className="space-y-1.5">
               <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                {isMultiDay ? 'Start Date' : 'Date'}
+                Event Name (Optional)
               </Text>
-              {type !== 'game' && (
+              <TextInput
+                placeholder="e.g. Local Derby"
+                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                value={eventName}
+                onChangeText={setEventName}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+              />
+            </View>
+
+            {/* DATE */}
+            <View className="space-y-3">
+              <View className="flex-row justify-between items-center">
+                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Date
+                </Text>
                 <View className="flex-row items-center gap-2">
-                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Multi-day</Text>
+                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Multi-day event</Text>
                   <Switch
                     value={isMultiDay}
                     onValueChange={setIsMultiDay}
                     trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
                   />
                 </View>
-              )}
-            </View>
-            <DatePicker value={startDate} onChange={setStartDate} placeholder="Select Date" />
-
-            {isMultiDay && type !== 'game' && (
-              <View className="space-y-1.5">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  End Date
-                </Text>
-                <DatePicker value={endDate} onChange={setEndDate} placeholder="Select End Date" />
               </View>
-            )}
-          </View>
+              <DatePicker value={startDate} onChange={setStartDate} placeholder="Select Date" />
 
-          {/* SITE VENUE SELECTOR */}
-          <View className="space-y-1.5">
-            <View className="flex-row justify-between items-center">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Site
-              </Text>
-              <TouchableOpacity onPress={() => setIsCreatingSite(true)}>
-                <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
-                  + Create Site
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View className="flex-row flex-wrap gap-2">
-              {sites.map(site => {
-                const isSelected = selectedSiteId === site.id;
-                return (
-                  <TouchableOpacity
-                    key={site.id}
-                    onPress={() => setSelectedSiteId(site.id)}
-                    className={`px-3 py-2 rounded-lg border ${
-                      isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                    }`}
-                  >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {site.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-              {sites.length === 0 && (
-                <Text className="font-inter text-xs text-slate-400 italic">No sites registered. Click Create Site.</Text>
+              {isMultiDay && (
+                <View className="space-y-1.5">
+                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    End Date
+                  </Text>
+                  <DatePicker value={endDate} onChange={setEndDate} placeholder="Select End Date" />
+                </View>
               )}
             </View>
-          </View>
 
-          {/* FACILITY/VENUE SELECTOR */}
-          {!!selectedSiteId && (
-            <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Select {getFacilityLabel()}
-              </Text>
+            {/* SITE VENUE SELECTOR */}
+            <View className="space-y-1.5">
+              <View className="flex-row justify-between items-center">
+                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Site
+                </Text>
+                <TouchableOpacity onPress={() => setIsCreatingSite(true)}>
+                  <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                    + Create Site
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <View className="flex-row flex-wrap gap-2">
-                {filteredFacilities.map(fac => {
-                  const isSelected = selectedFacilityId === fac.id;
+                {sites.map(site => {
+                  const isSelected = selectedSiteId === site.id;
                   return (
                     <TouchableOpacity
-                      key={fac.id}
-                      onPress={() => setSelectedFacilityId(fac.id)}
+                      key={site.id}
+                      onPress={() => setSelectedSiteId(site.id)}
                       className={`px-3 py-2 rounded-lg border ${
                         isSelected 
                           ? 'bg-brand-orange/10 border-brand-orange' 
@@ -668,368 +625,52 @@ export default function CreateEvent() {
                       }`}
                     >
                       <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {fac.name}
+                        {site.name}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
-                {filteredFacilities.length === 0 && (
-                  <Text className="font-inter text-xs text-slate-400 italic">
-                    No {getFacilityLabel().toLowerCase()}s available for this sport at the selected site.
-                  </Text>
+                {sites.length === 0 && (
+                  <Text className="font-inter text-xs text-slate-400 italic">No sites registered. Click Create Site.</Text>
                 )}
               </View>
             </View>
-          )}
 
-          {/* SINGLE GAME SPECIFIC FIELDS */}
-          {type === 'game' && (
-            <View className="space-y-5 pt-4 border-t border-slate-100 dark:border-white/5">
-              {/* Team 1 Section Header */}
-              <View className="pt-2">
-                <Text className="font-orbitron-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-widest font-bold">
-                  Team 1
+            {/* FACILITY/VENUE SELECTOR */}
+            {!!selectedSiteId && (
+              <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
+                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Select {getFacilityLabel()}
                 </Text>
-              </View>
-
-              {/* Home Organization Selection */}
-              <View className="space-y-1.5" style={{ zIndex: 30 }}>
-                <View className="flex-row justify-between items-center">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Organization
-                  </Text>
-                </View>
-
-                {selectedHomeOrg ? (
-                  <View className="space-y-2">
-                    <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
-                      <Text className="font-inter text-sm text-slate-800 dark:text-white">
-                        {selectedHomeOrg.name} ({selectedHomeOrg.shortName || 'N/A'})
-                      </Text>
-                      <TouchableOpacity onPress={() => {
-                        setSelectedHomeOrg(null);
-                        setSelectedHomeTeamId('');
-                      }}>
-                        <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Unmanaged Org Nomination Prompt */}
-                    {!selectedHomeOrg.isClaimed && (
-                      <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/20 p-4 rounded-xl flex-row items-center justify-between">
-                        <View className="flex-1 mr-4">
-                          <Text className="font-orbitron-bold text-[10px] text-brand-orange mb-1 uppercase tracking-wider">
-                            Invite Administrator
-                          </Text>
-                          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-4">
-                            {selectedHomeOrg.name} doesn't have an administrator on Scorekeeper yet. Help bring this organization to life by nominating a contact email—we'll invite them to claim it, manage their teams, and keep schedules up to date.
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          onPress={() => {
-                            setTargetOrgIdForTeam(selectedHomeOrg.id);
-                            setIsNominationModalVisible(true);
-                          }}
-                          className="bg-brand-orange px-3 py-1.5 rounded-lg active:opacity-80 align-self-center"
-                        >
-                          <Text className="font-inter-bold text-xs text-white">Nominate</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <View className="relative z-35">
-                    <TextInput
-                      placeholder="Search For Team 1 Organisation"
-                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                      value={homeOrgSearchText}
-                      onChangeText={setHomeOrgSearchText}
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-                    />
-                    {isSearchingOrgs && (
-                      <ActivityIndicator size="small" color={COLORS.brand.orange} className="absolute right-4 top-3.5" />
-                    )}
-
-                    {(searchedOrgs.length > 0 || homeOrgSearchText.trim().length >= 3) && (
-                      <View 
-                        className="absolute left-0 right-0 border border-slate-200 dark:border-white/5 rounded-xl shadow-lg"
-                        style={{
-                          top: 50,
-                          maxHeight: 220,
-                          zIndex: 50,
-                          backgroundColor: getThemeColor(isDark, 'background'),
-                        }}
+                <View className="flex-row flex-wrap gap-2">
+                  {filteredFacilities.map(fac => {
+                    const isSelected = selectedFacilityId === fac.id;
+                    return (
+                      <TouchableOpacity
+                        key={fac.id}
+                        onPress={() => setSelectedFacilityId(fac.id)}
+                        className={`px-3 py-2 rounded-lg border ${
+                          isSelected 
+                            ? 'bg-brand-orange/10 border-brand-orange' 
+                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                        }`}
                       >
-                        {searchedOrgs.length > 0 ? (
-                          <ScrollView 
-                            style={{ flex: 1, maxHeight: 150 }}
-                            nestedScrollEnabled={true}
-                            keyboardShouldPersistTaps="handled"
-                          >
-                            <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                Existing Organizations
-                              </Text>
-                            </View>
-                            {searchedOrgs.map(orgItem => (
-                              <TouchableOpacity
-                                key={orgItem.id}
-                                onPress={() => {
-                                  setSelectedHomeOrg(orgItem);
-                                  setHomeOrgSearchText('');
-                                  setSearchedOrgs([]);
-                                }}
-                                className="p-3 border-b border-slate-100 dark:border-white/5 hover:bg-slate-50"
-                              >
-                                <Text className="font-inter text-xs text-slate-800 dark:text-white">
-                                  {orgItem.name}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
-                        ) : null}
-
-                        {homeOrgSearchText.trim().length >= 3 && (
-                          <View className="border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900" style={{ backgroundColor: getThemeColor(isDark, 'background') }}>
-                            <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                Register New Organization
-                              </Text>
-                            </View>
-                            <TouchableOpacity
-                              onPress={() => {
-                                setNewOrgName(homeOrgSearchText);
-                                setIsCreatingHomeOrg(true);
-                                setIsCreatingOrg(true);
-                                setHomeOrgSearchText('');
-                                setSearchedOrgs([]);
-                              }}
-                              className="flex-row items-center px-4 py-2.5 active:bg-slate-100 dark:active:bg-slate-800"
-                            >
-                              <Ionicons name="add-circle" size={16} color={COLORS.brand.orange} className="mr-2" />
-                              <Text className="font-inter text-xs text-brand-orange font-bold">
-                                Register "{homeOrgSearchText}"
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                )}
-
-              </View>
-
-              {/* Home Team Selection */}
-              {selectedHomeOrg && (
-                <View className="space-y-1.5">
-                  <View className="flex-row justify-between items-center mb-1">
-                    <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Team
-                    </Text>
-                    <TouchableOpacity onPress={() => handleCreateTeamTrigger(selectedHomeOrg.id)}>
-                      <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
-                        + Add Team
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  <CustomSelect
-                    value={selectedHomeTeamId}
-                    onChange={setSelectedHomeTeamId}
-                    options={filteredHomeTeams.map(team => ({ value: team.id, label: `${team.name} (${team.ageGroup})` }))}
-                    placeholder="Select Team"
-                    showSearch={true}
-                    searchPlaceholder="Search Team..."
-                  />
-                </View>
-              )}
-
-              {/* Team 2 Section Header */}
-              <View className="pt-4 border-t border-slate-100 dark:border-white/5">
-                <Text className="font-orbitron-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-widest font-bold">
-                  Team 2
-                </Text>
-              </View>
-
-              {/* Away Organization Selection */}
-              <View className="space-y-1.5" style={{ zIndex: 20 }}>
-                <View className="flex-row justify-between items-center">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Organization
-                  </Text>
-                </View>
-
-                {selectedAwayOrg ? (
-                  <View className="space-y-2">
-                    <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
-                      <Text className="font-inter text-sm text-slate-800 dark:text-white">
-                        {selectedAwayOrg.name} ({selectedAwayOrg.shortName || 'N/A'})
-                      </Text>
-                      <TouchableOpacity onPress={() => {
-                        setSelectedAwayOrg(null);
-                        setSelectedAwayTeamId('');
-                      }}>
-                        <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
+                        <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                          {fac.name}
+                        </Text>
                       </TouchableOpacity>
-                    </View>
-
-                    {/* Unmanaged Org Nomination Prompt */}
-                    {!selectedAwayOrg.isClaimed && (
-                      <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/20 p-4 rounded-xl flex-row items-center justify-between">
-                        <View className="flex-1 mr-4">
-                          <Text className="font-orbitron-bold text-[10px] text-brand-orange mb-1 uppercase tracking-wider">
-                            Invite Administrator
-                          </Text>
-                          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-4">
-                            {selectedAwayOrg.name} doesn't have an administrator on Scorekeeper yet. Help bring this organization to life by nominating a contact email—we'll invite them to claim it, manage their teams, and keep schedules up to date.
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          onPress={() => setIsNominationModalVisible(true)}
-                          className="bg-brand-orange px-3 py-1.5 rounded-lg active:opacity-80 align-self-center"
-                        >
-                          <Text className="font-inter-bold text-xs text-white">Nominate</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <View className="relative z-20">
-                    <TextInput
-                      placeholder="Search for Team 2 Organisation"
-                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                      value={awayOrgSearchText}
-                      onChangeText={setAwayOrgSearchText}
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-                    />
-                    {isSearchingOrgs && (
-                      <ActivityIndicator size="small" color={COLORS.brand.orange} className="absolute right-4 top-3.5" />
-                    )}
-
-                    {(searchedOrgs.length > 0 || awayOrgSearchText.trim().length >= 3) && (
-                      <View 
-                        className="absolute left-0 right-0 border border-slate-200 dark:border-white/5 rounded-xl shadow-lg"
-                        style={{
-                          top: 50,
-                          maxHeight: 220,
-                          zIndex: 50,
-                          backgroundColor: getThemeColor(isDark, 'background'),
-                        }}
-                      >
-                        {searchedOrgs.length > 0 ? (
-                          <ScrollView 
-                            style={{ flex: 1, maxHeight: 150 }}
-                            nestedScrollEnabled={true}
-                            keyboardShouldPersistTaps="handled"
-                          >
-                            <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                Existing Organizations
-                              </Text>
-                            </View>
-                            {searchedOrgs.map(orgItem => (
-                              <TouchableOpacity
-                                key={orgItem.id}
-                                onPress={() => {
-                                  setSelectedAwayOrg(orgItem);
-                                  setAwayOrgSearchText('');
-                                  setSearchedOrgs([]);
-                                }}
-                                className="p-3 border-b border-slate-100 dark:border-white/5 hover:bg-slate-50"
-                              >
-                                <Text className="font-inter text-xs text-slate-800 dark:text-white">
-                                  {orgItem.name}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
-                        ) : null}
-
-                        {awayOrgSearchText.trim().length >= 3 && (
-                          <View className="border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900" style={{ backgroundColor: getThemeColor(isDark, 'background') }}>
-                            <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                              <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                Register New Organization
-                              </Text>
-                            </View>
-                            <TouchableOpacity
-                              onPress={() => {
-                                setNewOrgName(awayOrgSearchText);
-                                setIsCreatingOrg(true);
-                                setAwayOrgSearchText('');
-                                setSearchedOrgs([]);
-                              }}
-                              className="flex-row items-center px-4 py-2.5 active:bg-slate-100 dark:active:bg-slate-800"
-                            >
-                              <Ionicons name="add-circle" size={16} color={COLORS.brand.orange} className="mr-2" />
-                              <Text className="font-inter text-xs text-brand-orange font-bold">
-                                Register "{awayOrgSearchText}"
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                )}
-
-              </View>
-
-              {/* Away Team Selection */}
-              {selectedAwayOrg && (
-                <View className="space-y-1.5">
-                  <View className="flex-row justify-between items-center mb-1">
-                    <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Team
+                    );
+                  })}
+                  {filteredFacilities.length === 0 && (
+                    <Text className="font-inter text-xs text-slate-400 italic">
+                      No {getFacilityLabel().toLowerCase()}s available for this sport at the selected site.
                     </Text>
-                    <TouchableOpacity onPress={() => handleCreateTeamTrigger(selectedAwayOrg.id)}>
-                      <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
-                        + Add Team
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  <CustomSelect
-                    value={selectedAwayTeamId}
-                    onChange={setSelectedAwayTeamId}
-                    options={awayTeams.map(team => ({ value: team.id, label: `${team.name} (${team.ageGroup})` }))}
-                    placeholder="Select Team"
-                    showSearch={true}
-                    searchPlaceholder="Search Team..."
-                  />
+                  )}
                 </View>
-              )}
-
-              {/* Match Time Selectors */}
-              <View className="space-y-3 pt-2">
-                <View className="flex-row justify-between items-center">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Match Start Time
-                  </Text>
-                  <View className="flex-row items-center gap-2">
-                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">TBD</Text>
-                    <Switch
-                      value={isTbd}
-                      onValueChange={setIsTbd}
-                      trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
-                    />
-                  </View>
-                </View>
-                
-                {!isTbd && (
-                  <TextInput
-                    placeholder="e.g. 09:00"
-                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    value={startTime}
-                    onChangeText={setStartTime}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-                  />
-                )}
               </View>
-            </View>
-          )}
+            )}
 
-          {/* SPORTS DAY / TOURNAMENT MULTI-SELECT SPORT FIELDS */}
-          {type !== 'game' && (
+            {/* SPORTS DAY / TOURNAMENT MULTI-SELECT SPORT FIELDS */}
             <View className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/5">
               {/* Render Selected Orgs Claim Prompts */}
               {participatingOrgs.filter(o => o.isClaimed === false).map(orgItem => (
@@ -1043,7 +684,10 @@ export default function CreateEvent() {
                   <TextInput
                     placeholder="contact@school.edu"
                     placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    value={pendingReferrals[orgItem.id] || ''}
+                    value={(() => {
+                      const val = pendingReferrals[orgItem.id];
+                      return Array.isArray(val) ? val.join(', ') : (val || '');
+                    })()}
                     onChangeText={(email) => setPendingReferrals(prev => ({ ...prev, [orgItem.id]: email }))}
                     className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2 font-inter text-sm text-slate-850 dark:text-white"
                     keyboardType="email-address"
@@ -1157,8 +801,8 @@ export default function CreateEvent() {
                 </View>
               </View>
             </View>
-          )}
-        </GlassCard>
+          </GlassCard>
+        )}
       </ScrollView>
 
       {/* QUICK CREATE SITE MODAL */}

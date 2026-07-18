@@ -7,8 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import { useSettingsStore, useActiveTheme } from '../store/settingsStore';
 import { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { ResponsiveHeader } from '../components/ResponsiveHeader';
-import { LeftNavigationRail } from '../components/LeftNavigationRail';
+import { ResponsivePageLayout } from '../components/ResponsivePageLayout';
 
 export default function LandingPage() {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
@@ -17,15 +16,6 @@ export default function LandingPage() {
   const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
   const isDark = activeTheme === 'dark';
   
-  const { width } = useWindowDimensions();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const isLargeScreen = mounted && width >= 768;
-
   // State-based pulse animation for the live red dot
   const [pulse, setPulse] = useState(true);
   useEffect(() => {
@@ -280,22 +270,9 @@ export default function LandingPage() {
     </ScrollView>
   );
 
-  if (isLargeScreen) {
-    return (
-      <View className="flex-1 flex-row bg-slate-50 dark:bg-slate-950">
-        <LeftNavigationRail />
-        <View className="flex-1 h-full bg-slate-50 dark:bg-slate-950">
-          {content}
-        </View>
-      </View>
-    );
-  }
-
   return (
-    <SafeAreaView style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column' }} className="bg-slate-50 dark:bg-slate-950">
-      {/* Responsive Top Header Navigation */}
-      <ResponsiveHeader showNav={true} />
+    <ResponsivePageLayout>
       {content}
-    </SafeAreaView>
+    </ResponsivePageLayout>
   );
 }

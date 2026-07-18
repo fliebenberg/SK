@@ -47,7 +47,7 @@ export default function LoginScreen() {
       }
 
       if (pendingToken) {
-        router.replace({ pathname: '/claim/index', params: { token: pendingToken } });
+        router.replace({ pathname: '/claim', params: { token: pendingToken } });
       } else {
         router.replace('/(tabs)');
       }

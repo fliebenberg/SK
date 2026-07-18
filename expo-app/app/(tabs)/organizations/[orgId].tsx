@@ -334,6 +334,23 @@ export default function PublicOrgDetail() {
               </Text>
             </View>
           </View>
+
+          {(org.membershipStatus === 'Owner' || org.membershipStatus === 'Admin' || org.membershipStatus === 'Staff') && (
+            <View style={{ borderTopColor: borderColor }} className="mt-4 border-t pt-4">
+              <TouchableOpacity
+                style={{
+                  backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.2)',
+                  borderColor: borderColor,
+                }}
+                className="w-full border py-2.5 rounded-lg items-center justify-center active:opacity-85"
+                onPress={() => router.push(`/admin/${orgId}` as any)}
+              >
+                <Text style={{ color: textColor }} className="font-inter-bold text-sm">
+                  Manage Workspace
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </OrgBrandedCard>
 
         {/* INTERACTIVE NAVIGATION TABS */}

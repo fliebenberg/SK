@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Platform, Alert, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
@@ -9,11 +9,9 @@ import { useAuthStore } from '../../store/authStore';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
 import { Ionicons } from '@expo/vector-icons';
-import { ResponsiveHeader } from '../../components/ResponsiveHeader';
-import { LeftNavigationRail } from '../../components/LeftNavigationRail';
-import { getThemeColor } from '../../constants';
 import { useActiveTheme } from '../../store/settingsStore';
 import * as SecureStore from 'expo-secure-store';
+import { ResponsivePageLayout } from '../../components/ResponsivePageLayout';
 
 export default function ClaimIndexScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -172,23 +170,26 @@ export default function ClaimIndexScreen() {
 
     return (
       <View className="items-center py-6 px-4">
-        {/* Org Logo */}
-        <View className="mb-6 items-center justify-center">
-          <OrgLogo 
-            logo={claimInfo?.organizationLogo}
-            primaryColor="#F97316"
-            size="xl"
-            className="ring-4 ring-brand-orange/20 shadow-2xl"
-          />
-        </View>
-
         <Text className="font-orbitron-bold text-slate-900 dark:text-white text-2xl text-center mb-2 tracking-wider">
           CLAIM OWNERSHIP
         </Text>
         
-        <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center mb-8 max-w-sm leading-6">
-          You have been invited to claim administrative access for <Text className="font-inter-bold text-slate-900 dark:text-white">{claimInfo.organizationName}</Text>.
+        <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center mb-4 max-w-sm leading-6">
+          You have been invited to claim administrative access for:
         </Text>
+
+        {/* Centered Org Logo and Name */}
+        <View className="items-center mb-6">
+          <OrgLogo 
+            logo={claimInfo?.organizationLogo}
+            primaryColor="#F97316"
+            size="xl"
+            className="ring-4 ring-brand-orange/20 shadow-2xl mb-3"
+          />
+          <Text className="font-inter-bold text-slate-900 dark:text-white text-xl text-center">
+            {claimInfo?.organizationName}
+          </Text>
+        </View>
 
         {!isAuthenticated ? (
           <GlassCard className="w-full max-w-sm p-6 items-center border border-slate-200/50 dark:border-slate-800/50 bg-slate-50/50 dark:bg-slate-900/50">
@@ -209,7 +210,7 @@ export default function ClaimIndexScreen() {
                 Administrator Privileges
               </Text>
               <Text className="font-inter-medium text-xs text-slate-600 dark:text-slate-400 text-center leading-4">
-                Full control over teams, rosters, scheduling, scoring, and members.
+                As administrator you will be able to add and manage organisation members, teams, facilities and much more.
               </Text>
             </View>
 
@@ -224,16 +225,16 @@ export default function ClaimIndexScreen() {
             <View className="flex-row justify-between w-full mt-4">
               <Button 
                 title="Nominate Someone Else" 
-                variant="ghost" 
+                variant="secondary" 
                 onPress={() => router.push({ pathname: '/claim/refer', params: { token } })} 
                 className="flex-1 mr-2"
                 style={{ minHeight: 40, paddingVertical: 8 }}
               />
               <Button 
                 title="Decline" 
-                variant="ghost" 
+                variant="danger" 
                 onPress={() => router.push({ pathname: '/claim/decline', params: { token } })} 
-                className="flex-1 ml-2 border-red-200 dark:border-red-950"
+                className="flex-1 ml-2"
                 style={{ minHeight: 40, paddingVertical: 8 }}
               />
             </View>
@@ -244,21 +245,17 @@ export default function ClaimIndexScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: getThemeColor(isDark, 'background') }}>
-      <ResponsiveHeader />
-      <View className="flex-1 flex-row">
-        <LeftNavigationRail />
-        <ScrollView 
-          className="flex-1"
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingHorizontal: 16 }}
-        >
-          <View className="w-full max-w-md mx-auto">
-            <GlassCard className="p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-xl bg-white/80 dark:bg-slate-900/80">
-              {renderContent()}
-            </GlassCard>
-          </View>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+    <ResponsivePageLayout>
+      <ScrollView 
+        className="flex-1"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingHorizontal: 16 }}
+      >
+        <View className="w-full max-w-md mx-auto">
+          <GlassCard className="p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-xl bg-white/80 dark:bg-slate-900/80">
+            {renderContent()}
+          </GlassCard>
+        </View>
+      </ScrollView>
+    </ResponsivePageLayout>
   );
 }

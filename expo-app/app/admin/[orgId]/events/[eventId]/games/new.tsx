@@ -437,7 +437,7 @@ export default function ScheduleGame() {
           </View>
 
           {/* Home Team Selection */}
-          {selectedHomeOrgId && (
+          {!!selectedHomeOrgId && (
             <View className="space-y-1.5">
               <View className="flex-row justify-between items-center">
                 <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -540,7 +540,7 @@ export default function ScheduleGame() {
           </View>
 
           {/* Away Team Selection */}
-          {selectedAwayOrgId && (
+          {!!selectedAwayOrgId && (
             <View className="space-y-1.5">
               <View className="flex-row justify-between items-center">
                 <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">

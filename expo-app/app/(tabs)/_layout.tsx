@@ -76,7 +76,7 @@ export default function TabLayout() {
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
   
-  const shouldHideTabBar = (segments as string[]).includes('settings') || (segments as string[]).includes('[siteId]');
+  const shouldHideTabBar = (segments as string[]).includes('[siteId]');
 
   const content = (
     <Tabs 
