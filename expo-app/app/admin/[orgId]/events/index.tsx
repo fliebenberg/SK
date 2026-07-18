@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -9,11 +10,13 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
-import { Event, Game, Sport, Site } from '@sk/types';
+import { useAuthStore } from '../../../../store/authStore';
+import { SocketAction, Event, Game, Sport, Site } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 
 export default function OrgEventsList() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -103,7 +106,11 @@ export default function OrgEventsList() {
     if (!eventToDelete) return;
     setIsProcessing(true);
     try {
-      wsService.emit('delete_entity', { type: 'event', id: eventToDelete.id }, (res: any) => {
+      const userId = useAuthStore.getState().user?.id;
+      wsService.emit('action', { 
+        type: SocketAction.DELETE_EVENT, 
+        payload: { id: eventToDelete.id, userId, orgId } 
+      }, (res: any) => {
         setIsProcessing(false);
         setEventToDelete(null);
       });
@@ -157,7 +164,7 @@ export default function OrgEventsList() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack(`/admin/${orgId}`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
@@ -252,29 +259,32 @@ export default function OrgEventsList() {
               const isSportsDay = event.type === 'SportsDay';
               const isTournament = event.type === 'Tournament';
               const isContainer = isSportsDay || isTournament;
+              const isEventOwner = event.orgId === orgId;
 
               return (
                 <GlassCard key={event.id} className="border border-slate-200 dark:border-white/5 p-5 relative">
-                  {/* Right-Aligned Compact Actions (Pencil / Trash) */}
+                  {/* Right-Aligned Compact Actions (Pencil / Trash / Eye) */}
                   <View className="absolute right-4 top-4 flex-row items-center gap-2 z-10">
                     <TouchableOpacity
                       onPress={() => {
                         if (event.type === 'SingleMatch' && eventGames.length > 0) {
-                          router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/edit`);
+                          router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/${isEventOwner ? 'edit' : 'view'}`);
                         } else {
                           router.push(`/admin/${orgId}/events/${event.id}`);
                         }
                       }}
                       className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
                     >
-                      <Ionicons name="pencil" size={12} color={getThemeColor(isDark, 'textSecondary')} />
+                      <Ionicons name={isEventOwner ? "pencil" : "eye"} size={12} color={getThemeColor(isDark, 'textSecondary')} />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setEventToDelete(event)}
-                      className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
-                    >
-                      <Ionicons name="trash-outline" size={12} color={COLORS.brand.red} />
-                    </TouchableOpacity>
+                    {isEventOwner && (
+                      <TouchableOpacity
+                        onPress={() => setEventToDelete(event)}
+                        className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                      >
+                        <Ionicons name="trash-outline" size={12} color={COLORS.brand.red} />
+                      </TouchableOpacity>
+                    )}
                   </View>
 
                   <View className="flex-row items-center gap-2 mb-2 pr-20">
@@ -295,7 +305,7 @@ export default function OrgEventsList() {
                   <TouchableOpacity
                     onPress={() => {
                       if (event.type === 'SingleMatch' && eventGames.length > 0) {
-                        router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/edit`);
+                        router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/${isEventOwner ? 'edit' : 'view'}`);
                       } else {
                         router.push(`/admin/${orgId}/events/${event.id}`);
                       }

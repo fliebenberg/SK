@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
@@ -13,6 +14,7 @@ import { SocketAction, Team, Sport, Organization } from '@sk/types';
 
 export default function OrgTeams() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -247,7 +249,7 @@ export default function OrgTeams() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack(`/admin/${orgId}`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />

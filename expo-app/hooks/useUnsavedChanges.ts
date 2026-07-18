@@ -32,7 +32,7 @@ export function useUnsavedChanges(
   // Intercept back navigation (hardware back / swipe-back / header back button)
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
-      if (!isDirty) return; // allow navigation if clean
+      if (!useUnsavedChangesStore.getState().isDirty) return; // allow navigation if clean
 
       e.preventDefault(); // block the default removal
 
@@ -43,7 +43,7 @@ export function useUnsavedChanges(
     });
 
     return unsubscribe;
-  }, [navigation, isDirty, setShowDialog, setPendingAction]);
+  }, [navigation, setShowDialog, setPendingAction]);
 
   /**
    * Use this to wrap any programmatic navigation inside the page that should

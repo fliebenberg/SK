@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Switch } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -18,6 +19,7 @@ import MatchForm from '../../../../components/MatchForm';
 
 export default function CreateEvent() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId, type } = useLocalSearchParams<{ orgId: string, type: 'game' | 'sportsday' | 'tournament' }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -453,11 +455,11 @@ export default function CreateEvent() {
 
           wsService.emit('action', { type: SocketAction.ADD_GAME, payload: gamePayload }, (newGame: any) => {
             setIsProcessing(false);
-            router.back();
+            safeBack(`/admin/${orgId}/events`);
           });
         } else {
           setIsProcessing(false);
-          router.back();
+          safeBack(`/admin/${orgId}/events`);
         }
       } else {
         setIsProcessing(false);
@@ -480,7 +482,7 @@ export default function CreateEvent() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack(`/admin/${orgId}/events`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />

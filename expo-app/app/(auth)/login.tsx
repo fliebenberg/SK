@@ -7,9 +7,11 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { apiService } from '../../services/api';
 import { useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { useSafeBack } from '../../hooks/useSafeBack';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const login = useAuthStore(state => state.login);
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
@@ -145,7 +147,7 @@ export default function LoginScreen() {
               <Button 
                 title="Back to Home" 
                 variant="ghost" 
-                onPress={() => router.back()}
+                onPress={() => safeBack('/landing')}
               />
             </>
           )}

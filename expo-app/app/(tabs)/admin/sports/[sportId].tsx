@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../store/authStore';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { GlassCard } from '../../../../components/GlassCard';
@@ -9,6 +10,7 @@ import { apiService, Sport, SportPosition } from '../../../../services/api';
 
 export default function EditSport() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { sportId } = useLocalSearchParams<{ sportId: string }>();
   const token = useAuthStore(state => state.token);
   const isDark = useActiveTheme() === 'dark';
@@ -104,7 +106,7 @@ export default function EditSport() {
 
   const handleCancel = () => {
     if (isNew) {
-      router.back();
+      safeBack('/(tabs)/admin/sports');
       return;
     }
     if (!originalSport) return;
@@ -150,7 +152,7 @@ export default function EditSport() {
       if (isNew) {
         await apiService.createAdminSport(token, payload);
         Alert.alert('Success', 'Sport created successfully.', [
-          { text: 'OK', onPress: () => router.back() }
+          { text: 'OK', onPress: () => safeBack('/(tabs)/admin/sports') }
         ]);
       } else if (sportId) {
         const updated = await apiService.updateAdminSport(token, sportId, payload);

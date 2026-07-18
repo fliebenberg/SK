@@ -1530,6 +1530,27 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.UPDATE_GAME:
+                if (action.payload.userId && action.payload.orgId) {
+                    const isScoreUpdate = action.payload.data && (
+                        action.payload.data.finalScoreData !== undefined ||
+                        action.payload.data.liveState !== undefined ||
+                        action.payload.data.status === 'Finished'
+                    );
+                    const hasPermission = isScoreUpdate
+                        ? await dataManager.canScoreGame(action.payload.userId, action.payload.id)
+                        : await dataManager.canEditEventOrGame(
+                            action.payload.userId,
+                            action.payload.orgId,
+                            undefined,
+                            action.payload.id
+                        );
+                    if (!hasPermission) {
+                        throw new Error(isScoreUpdate 
+                            ? 'Unauthorized: You do not have permission to score this match.' 
+                            : 'Unauthorized: You do not have permission to edit this match details.'
+                        );
+                    }
+                }
                 result = await dataManager.updateGame(action.payload.id, action.payload.data);
                 if (result) {
                     const parentEvent = await dataManager.getEvent(result.eventId);
@@ -1592,6 +1613,17 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.DELETE_GAME:
+                if (action.payload.userId && action.payload.orgId) {
+                    const hasPermission = await dataManager.canEditEventOrGame(
+                        action.payload.userId,
+                        action.payload.orgId,
+                        undefined,
+                        action.payload.id
+                    );
+                    if (!hasPermission) {
+                        throw new Error('Unauthorized: You do not have permission to delete this match.');
+                    }
+                }
                 result = await dataManager.deleteGame(action.payload.id);
                 if (result) {
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_DELETED', data: { id: result.id } });
@@ -1628,6 +1660,17 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.UPDATE_EVENT:
+                if (action.payload.userId && action.payload.orgId) {
+                    const hasPermission = await dataManager.canEditEventOrGame(
+                        action.payload.userId,
+                        action.payload.orgId,
+                        action.payload.id,
+                        undefined
+                    );
+                    if (!hasPermission) {
+                        throw new Error('Unauthorized: You do not have permission to edit this event.');
+                    }
+                }
                 // Fetch current event to know who might be removed
                 const oldEvent = await dataManager.getEvent(action.payload.id);
                 result = await dataManager.updateEvent(action.payload.id, action.payload.data);
@@ -1650,6 +1693,17 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.DELETE_EVENT:
+                if (action.payload.userId && action.payload.orgId) {
+                    const hasPermission = await dataManager.canEditEventOrGame(
+                        action.payload.userId,
+                        action.payload.orgId,
+                        action.payload.id,
+                        undefined
+                    );
+                    if (!hasPermission) {
+                        throw new Error('Unauthorized: You do not have permission to delete this event.');
+                    }
+                }
                 const eventToDelete = await dataManager.getEvent(action.payload.id); 
                 result = await dataManager.deleteEvent(action.payload.id);
                 if (result) {

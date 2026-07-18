@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -36,8 +37,9 @@ interface TeamRole {
   name: string;
 }
 
-export default function TeamWorkspace() {
+export default function TeamDetailsScreen() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId, teamId } = useLocalSearchParams<{ orgId: string; teamId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -264,12 +266,8 @@ export default function TeamWorkspace() {
   }, [detailsForm, originalDetails]);
 
   const safeGoBack = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(`/admin/${orgId}/teams` as any);
-    }
-  }, [router, orgId]);
+    safeBack(`/admin/${orgId}/teams`);
+  }, [safeBack, orgId]);
 
   const handleDiscardDetails = useCallback(() => {
     if (!originalDetails) return;

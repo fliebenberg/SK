@@ -5,9 +5,11 @@ import { GlassCard } from '../../components/GlassCard';
 import { useActiveTheme } from '../../store/settingsStore';
 import { apiService } from '../../services/api';
 import { useState } from 'react';
+import { useSafeBack } from '../../hooks/useSafeBack';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const placeholderColor = isDark ? '#94A3B8' : '#64748B';
@@ -64,13 +66,7 @@ export default function ForgotPasswordScreen() {
               <Button 
                 title="Back to Login" 
                 variant="ghost" 
-                onPress={() => {
-                  if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.replace('/(auth)/login');
-                  }
-                }}
+                onPress={() => safeBack('/(auth)/login')}
               />
             </View>
           ) : (
@@ -116,7 +112,7 @@ export default function ForgotPasswordScreen() {
                   <Button 
                     title="Back to Login" 
                     variant="ghost" 
-                    onPress={() => router.back()}
+                    onPress={() => safeBack('/(auth)/login')}
                   />
                 </>
               )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Switch } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -10,11 +11,13 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
+import { useAuthStore } from '../../../../store/authStore';
 import { SocketAction, Event, Game, Sport, Site, Team, Organization, calculateStandings, LeagueStandingRow } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 
 export default function EventDetails() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId, eventId } = useLocalSearchParams<{ orgId: string, eventId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -57,6 +60,32 @@ export default function EventDetails() {
   const [orgSearchText, setOrgSearchText] = useState('');
   const [searchedOrgs, setSearchedOrgs] = useState<Organization[]>([]);
   const [isSearchingOrgs, setIsSearchingOrgs] = useState(false);
+
+  const user = useAuthStore((state: any) => state.user);
+  const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
+  const teamMemberships = useAuthStore((state: any) => state.teamMemberships);
+  const canEdit = event ? event.orgId === orgId : false;
+
+  const canUserScoreGame = (game: Game) => {
+    if (user?.globalRole === 'admin') return true;
+    if (event && event.orgId === orgId) return true;
+
+    const homeTeamId = game.participants?.[0]?.teamId;
+    const awayTeamId = game.participants?.[1]?.teamId;
+
+    const isCoachOfHome = homeTeamId && teamMemberships.some((m: any) => m.teamId === homeTeamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach'));
+    const isCoachOfAway = awayTeamId && teamMemberships.some((m: any) => m.teamId === awayTeamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach'));
+    if (isCoachOfHome || isCoachOfAway) return true;
+
+    const homeOrgId = homeTeamId ? getTeamOrgId(homeTeamId) : '';
+    const awayOrgId = awayTeamId ? getTeamOrgId(awayTeamId) : '';
+
+    const isAdminOfHomeOrg = homeOrgId && orgMemberships.some((m: any) => m.orgId === homeOrgId && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff'));
+    const isAdminOfAwayOrg = awayOrgId && orgMemberships.some((m: any) => m.orgId === awayOrgId && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff'));
+    if (isAdminOfHomeOrg || isAdminOfAwayOrg) return true;
+
+    return false;
+  };
 
   // Subscription and state loading
   useEffect(() => {
@@ -261,6 +290,8 @@ export default function EventDetails() {
 
     const payload = {
       id: selectedGameToScore.id,
+      userId: user?.id,
+      orgId,
       data: {
         status: 'Finished',
         finalScoreData: {
@@ -286,6 +317,8 @@ export default function EventDetails() {
 
     const payload = {
       id: eventId,
+      userId: user?.id,
+      orgId,
       data: {
         name: editName.trim(),
         startDate: `${editStartDate}T12:00:00.000Z`,
@@ -310,6 +343,8 @@ export default function EventDetails() {
     setIsProcessing(true);
     const payload = {
       id: eventId,
+      userId: user?.id,
+      orgId,
       data: { status: 'Cancelled' }
     };
 
@@ -322,7 +357,10 @@ export default function EventDetails() {
   // Delete Event Handler
   const handleDeleteEvent = () => {
     setIsProcessing(true);
-    wsService.emit('delete_entity', { type: 'event', id: eventId }, (res: any) => {
+    wsService.emit('action', { 
+      type: SocketAction.DELETE_EVENT, 
+      payload: { id: eventId, userId: user?.id, orgId } 
+    }, (res: any) => {
       setIsProcessing(false);
       setIsDeleting(false);
       router.push(`/admin/${orgId}/events`);
@@ -348,7 +386,7 @@ export default function EventDetails() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack(`/admin/${orgId}/events`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
@@ -380,7 +418,7 @@ export default function EventDetails() {
       {/* TABS (For Container Events) */}
       {!isSingleMatch && (
         <View className="flex-row bg-white dark:bg-slate-900 border-b border-slate-200/50 dark:border-white/5">
-          {(['schedule', 'standings', 'settings'] as const).map(tab => {
+          {((canEdit ? ['schedule', 'standings', 'settings'] : ['schedule', 'standings']) as ('schedule' | 'standings' | 'settings')[]).map(tab => {
             const isActive = activeTab === tab;
             return (
               <TouchableOpacity
@@ -454,13 +492,22 @@ export default function EventDetails() {
                   </View>
 
                   <View className="flex-row gap-3 w-full">
-                    <Button
-                      title="Edit Match Info"
-                      variant="secondary"
-                      onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/edit`)}
-                      className="flex-1 py-2.5 rounded-lg shadow-sm"
-                    />
-                    {games[0].status !== 'Finished' && (
+                    {canEdit ? (
+                      <Button
+                        title="Edit Match Info"
+                        variant="secondary"
+                        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/edit`)}
+                        className="flex-1 py-2.5 rounded-lg shadow-sm"
+                      />
+                    ) : (
+                      <Button
+                        title="View Match Info"
+                        variant="secondary"
+                        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/view`)}
+                        className="flex-1 py-2.5 rounded-lg shadow-sm"
+                      />
+                    )}
+                    {games[0].status !== 'Finished' && canUserScoreGame(games[0]) && (
                       <Button
                         title="Score Match"
                         onPress={() => {
@@ -479,38 +526,50 @@ export default function EventDetails() {
               )}
             </GlassCard>
 
-            {/* DANGER ZONE (For Single Match) */}
-            <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 space-y-4">
-              <Text className="font-orbitron-bold text-xs text-brand-red uppercase tracking-wider">Danger Zone</Text>
-              <View className="flex-row justify-between items-center">
-                <View>
-                  <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Cancel Event</Text>
-                  <Text className="font-inter text-xs text-slate-500 mt-0.5">Marks the match as cancelled.</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setIsCancelling(true)}
-                  disabled={event.status === 'Cancelled'}
-                  className={`px-4 py-2 border border-brand-orange rounded-lg ${
-                    event.status === 'Cancelled' ? 'opacity-40' : ''
-                  }`}
-                >
-                  <Text className="font-inter-bold text-xs text-brand-orange uppercase">Cancel Match</Text>
-                </TouchableOpacity>
-              </View>
+            {/* READ ONLY WARNING BANNER */}
+            {!canEdit && (
+              <GlassCard className="border border-brand-orange/20 bg-brand-orange/5 p-4 flex-row items-center gap-3">
+                <Ionicons name="information-circle-outline" size={20} color={COLORS.brand.orange} />
+                <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 flex-1 leading-relaxed">
+                  You are viewing this event in read-only mode because it belongs to another organization.
+                </Text>
+              </GlassCard>
+            )}
 
-              <View className="flex-row justify-between items-center pt-4 border-t border-slate-100 dark:border-white/5">
-                <View>
-                  <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Delete Event</Text>
-                  <Text className="font-inter text-xs text-slate-500 mt-0.5">Permanently deletes match records.</Text>
+            {/* DANGER ZONE (For Single Match) */}
+            {canEdit && (
+              <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 space-y-4">
+                <Text className="font-orbitron-bold text-xs text-brand-red uppercase tracking-wider">Danger Zone</Text>
+                <View className="flex-row justify-between items-center">
+                  <View>
+                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Cancel Event</Text>
+                    <Text className="font-inter text-xs text-slate-500 mt-0.5">Marks the match as cancelled.</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setIsCancelling(true)}
+                    disabled={event.status === 'Cancelled'}
+                    className={`px-4 py-2 border border-brand-orange rounded-lg ${
+                      event.status === 'Cancelled' ? 'opacity-40' : ''
+                    }`}
+                  >
+                    <Text className="font-inter-bold text-xs text-brand-orange uppercase">Cancel Match</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  onPress={() => setIsDeleting(true)}
-                  className="px-4 py-2 border border-brand-red rounded-lg"
-                >
-                  <Text className="font-inter-bold text-xs text-brand-red uppercase">Delete Match</Text>
-                </TouchableOpacity>
-              </View>
-            </GlassCard>
+
+                <View className="flex-row justify-between items-center pt-4 border-t border-slate-100 dark:border-white/5">
+                  <View>
+                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Delete Event</Text>
+                    <Text className="font-inter text-xs text-slate-500 mt-0.5">Permanently deletes match records.</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setIsDeleting(true)}
+                    className="px-4 py-2 border border-brand-red rounded-lg"
+                  >
+                    <Text className="font-inter-bold text-xs text-brand-red uppercase">Delete Match</Text>
+                  </TouchableOpacity>
+                </View>
+              </GlassCard>
+            )}
           </View>
         ) : (
           /* MULTI-GAME TABS */
@@ -531,13 +590,15 @@ export default function EventDetails() {
                       </Text>
                     </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/new`)}
-                    className="bg-brand-orange px-4 rounded-xl flex-row items-center justify-center gap-1 shadow-md shadow-brand-orange/10"
-                  >
-                    <Ionicons name="add" size={16} color="white" />
-                    <Text className="font-inter-bold text-xs text-white uppercase">Add Game</Text>
-                  </TouchableOpacity>
+                  {canEdit && (
+                    <TouchableOpacity
+                      onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/new`)}
+                      className="bg-brand-orange px-4 rounded-xl flex-row items-center justify-center gap-1 shadow-md shadow-brand-orange/10"
+                    >
+                      <Ionicons name="add" size={16} color="white" />
+                      <Text className="font-inter-bold text-xs text-white uppercase">Add Game</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 {/* Games Group Lists */}
@@ -545,11 +606,13 @@ export default function EventDetails() {
                   <View className="items-center justify-center py-16 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
                     <Ionicons name="calendar-outline" size={40} color={COLORS.dark.textSecondary} className="opacity-30 mb-2" />
                     <Text className="font-orbitron text-xs text-slate-500 uppercase tracking-widest">No games scheduled</Text>
-                    <Button 
-                      title="Add your first game" 
-                      onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/new`)}
-                      className="mt-4 px-6 py-2 rounded-lg"
-                    />
+                    {canEdit && (
+                      <Button 
+                        title="Add your first game" 
+                        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/new`)}
+                        className="mt-4 px-6 py-2 rounded-lg"
+                      />
+                    )}
                   </View>
                 ) : (
                   <View className="space-y-4">
@@ -576,7 +639,7 @@ export default function EventDetails() {
                         {groupGames.map(game => (
                           <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4 flex-row justify-between items-center">
                             <TouchableOpacity
-                              onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/edit`)}
+                              onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/${canEdit ? 'edit' : 'view'}`)}
                               className="flex-1 active:opacity-80"
                             >
                               <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
@@ -593,21 +656,23 @@ export default function EventDetails() {
                                   {game.finalScoreData?.home ?? 0} - {game.finalScoreData?.away ?? 0}
                                 </Text>
                               ) : (
-                                <TouchableOpacity
-                                  onPress={() => {
-                                    setSelectedGameToScore(game);
-                                    setIsScoringVisible(true);
-                                  }}
-                                  className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-85"
-                                >
-                                  <Ionicons name="trophy" size={12} color={COLORS.brand.orange} />
-                                </TouchableOpacity>
+                                canUserScoreGame(game) && (
+                                  <TouchableOpacity
+                                    onPress={() => {
+                                      setSelectedGameToScore(game);
+                                      setIsScoringVisible(true);
+                                    }}
+                                    className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-85"
+                                  >
+                                    <Ionicons name="trophy" size={12} color={COLORS.brand.orange} />
+                                  </TouchableOpacity>
+                                )
                               )}
                               <TouchableOpacity
-                                onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/edit`)}
+                                onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/${canEdit ? 'edit' : 'view'}`)}
                                 className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
                               >
-                                <Ionicons name="pencil" size={12} color={getThemeColor(isDark, 'textSecondary')} />
+                                <Ionicons name={canEdit ? "pencil" : "eye"} size={12} color={getThemeColor(isDark, 'textSecondary')} />
                               </TouchableOpacity>
                             </View>
                           </GlassCard>

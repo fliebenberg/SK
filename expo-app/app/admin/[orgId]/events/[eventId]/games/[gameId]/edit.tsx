@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,10 +12,13 @@ import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game, Sport, Site, Team, Organization } from '@sk/types';
 import { COLORS } from '../../../../../../../constants/Colors';
 import MatchForm, { MatchFormData } from '../../../../../../../components/MatchForm';
+import { useAuthStore } from '../../../../../../../store/authStore';
 import { useUnsavedChanges } from '../../../../../../../hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChangesStore';
 
 export default function EditGame() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string, eventId: string, gameId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -40,16 +44,17 @@ export default function EditGame() {
   const hasChanges = useMemo(() => {
     if (!initialData || !formData) return false;
     return (
-      formData.sportId !== initialData.sportId ||
-      formData.homeOrgId !== initialData.homeOrgId ||
-      formData.homeTeamId !== initialData.homeTeamId ||
-      formData.awayOrgId !== initialData.awayOrgId ||
-      formData.awayTeamId !== initialData.awayTeamId ||
-      formData.siteId !== initialData.siteId ||
-      formData.gameDate !== initialData.gameDate ||
-      formData.startTime !== initialData.startTime ||
-      formData.isTbd !== initialData.isTbd ||
-      formData.status !== initialData.status
+      (formData.sportId || '') !== (initialData.sportId || '') ||
+      (formData.homeOrgId || '') !== (initialData.homeOrgId || '') ||
+      (formData.homeTeamId || '') !== (initialData.homeTeamId || '') ||
+      (formData.awayOrgId || '') !== (initialData.awayOrgId || '') ||
+      (formData.awayTeamId || '') !== (initialData.awayTeamId || '') ||
+      (formData.siteId || '') !== (initialData.siteId || '') ||
+      (formData.facilityId || '') !== (initialData.facilityId || '') ||
+      (formData.gameDate || '') !== (initialData.gameDate || '') ||
+      (formData.startTime || '') !== (initialData.startTime || '') ||
+      !!formData.isTbd !== !!initialData.isTbd ||
+      (formData.status || 'Scheduled') !== (initialData.status || 'Scheduled')
     );
   }, [formData, initialData]);
 
@@ -58,7 +63,15 @@ export default function EditGame() {
     setFormKey(prev => prev + 1);
   }, []);
 
-  useUnsavedChanges(hasChanges, handleCancel);
+  const safeGoBack = useCallback(() => {
+    safeBack(`/admin/${orgId}/events/${eventId}`);
+  }, [safeBack, orgId, eventId]);
+
+  const { confirmThenNavigate } = useUnsavedChanges(hasChanges, handleCancel);
+
+  const handleBackPress = useCallback(() => {
+    confirmThenNavigate(safeGoBack);
+  }, [confirmThenNavigate, safeGoBack]);
 
   // Load initial game and metadata
   useEffect(() => {
@@ -68,7 +81,13 @@ export default function EditGame() {
 
     // Get event
     wsService.emit('get_data', { type: 'event', id: eventId }, (res: any) => {
-      if (res) setEvent(res);
+      if (res) {
+        setEvent(res);
+        if (res.orgId && res.orgId !== orgId) {
+          router.replace(`/admin/${orgId}/events/${eventId}/games/${gameId}/view`);
+          return;
+        }
+      }
     });
 
     // Get game
@@ -109,6 +128,7 @@ export default function EditGame() {
           awayOrgId,
           awayTeamId: awayTeamId || '',
           siteId: game.siteId || '',
+          facilityId: game.facilityId || '',
           gameDate: dateBase,
           startTime: timeBase || '09:00',
           isTbd: !game.startTime || game.customSettings?.timeTbd,
@@ -163,14 +183,19 @@ export default function EditGame() {
       scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`;
     }
 
+    const userId = useAuthStore.getState().user?.id;
+
     const payload = {
       id: gameId,
+      userId,
+      orgId,
       data: {
         sportId: formData.sportId,
         participants: [{ teamId: formData.homeTeamId }, { teamId: formData.awayTeamId }],
         scheduledStartTime: scheduledTime,
         startTime: scheduledTime,
-        siteId: formData.siteId || undefined,
+        siteId: formData.siteId || null,
+        facilityId: formData.facilityId || null,
         status: formData.status,
         customSettings: {
           ...(game.customSettings || {}),
@@ -191,10 +216,13 @@ export default function EditGame() {
 
         const eventPayload = {
           id: eventId,
+          userId,
+          orgId,
           data: {
             name: eventNameStr,
             startDate: `${dateBase}T12:00:00.000Z`,
             siteId: formData.siteId || null,
+            facilityId: formData.facilityId || null,
             sportIds: formData.sportId ? [formData.sportId] : [],
             participatingOrgIds: formData.awayOrgId && formData.awayOrgId !== orgId ? [formData.awayOrgId] : [],
             status: formData.status === 'Cancelled' ? 'Cancelled' : event.status
@@ -203,11 +231,15 @@ export default function EditGame() {
 
         wsService.emit('action', { type: SocketAction.UPDATE_EVENT, payload: eventPayload }, (eventRes: any) => {
           setIsProcessing(false);
-          router.back();
+          useUnsavedChangesStore.getState().clear();
+          safeGoBack();
         });
       } else {
         setIsProcessing(false);
-        if (res) router.back();
+        if (res) {
+          useUnsavedChangesStore.getState().clear();
+          safeGoBack();
+        }
       }
     });
   };
@@ -229,6 +261,7 @@ export default function EditGame() {
         wsService.emit('action', { type: SocketAction.UPDATE_EVENT, payload: eventPayload }, (eventRes: any) => {
           setIsProcessing(false);
           setIsCancelling(false);
+          setInitialData((prev: any) => prev ? { ...prev, status: 'Cancelled' } : null);
           if (formData) {
             setFormData({
               ...formData,
@@ -239,6 +272,7 @@ export default function EditGame() {
       } else {
         setIsProcessing(false);
         setIsCancelling(false);
+        setInitialData((prev: any) => prev ? { ...prev, status: 'Cancelled' } : null);
         if (formData) {
           setFormData({
             ...formData,
@@ -252,16 +286,25 @@ export default function EditGame() {
   // Delete Game Handler
   const handleDeleteGame = () => {
     setIsProcessing(true);
+    const userId = useAuthStore.getState().user?.id;
     if (event?.type === 'SingleMatch') {
-      wsService.emit('delete_entity', { type: 'event', id: eventId }, (res: any) => {
+      wsService.emit('action', { 
+        type: SocketAction.DELETE_EVENT, 
+        payload: { id: eventId, userId, orgId } 
+      }, (res: any) => {
         setIsProcessing(false);
         setIsDeleting(false);
+        useUnsavedChangesStore.getState().clear();
         router.push(`/admin/${orgId}/events`);
       });
     } else {
-      wsService.emit('delete_entity', { type: 'game', id: gameId }, (res: any) => {
+      wsService.emit('action', { 
+        type: SocketAction.DELETE_GAME, 
+        payload: { id: gameId, userId, orgId } 
+      }, (res: any) => {
         setIsProcessing(false);
         setIsDeleting(false);
+        useUnsavedChangesStore.getState().clear();
         router.push(`/admin/${orgId}/events/${eventId}`);
       });
     }
@@ -285,7 +328,7 @@ export default function EditGame() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={handleBackPress}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />

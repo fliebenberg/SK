@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -13,6 +14,7 @@ import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 
 export default function NewTeam() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -31,12 +33,8 @@ export default function NewTeam() {
   const isFormDirty = name.trim().length > 0 || ageGroup.trim().length > 0 || selectedSportId.length > 0;
 
   const safeGoBack = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(`/admin/${orgId}/teams` as any);
-    }
-  }, [router, orgId]);
+    safeBack(`/admin/${orgId}/teams`);
+  }, [safeBack, orgId]);
 
   const handleCancel = useCallback(() => {
     safeGoBack();

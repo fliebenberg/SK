@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +13,7 @@ import CustomSelect from '../../components/CustomSelect';
 
 export default function PublicLeagueStandings() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { leagueId } = useLocalSearchParams<{ leagueId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -136,7 +138,7 @@ export default function PublicLeagueStandings() {
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity onPress={() => router.back()} className="flex-row items-center gap-1 active:opacity-85">
+        <TouchableOpacity onPress={() => safeBack('/(tabs)/organizations')} className="flex-row items-center gap-1 active:opacity-85">
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />
           <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">Back</Text>
         </TouchableOpacity>

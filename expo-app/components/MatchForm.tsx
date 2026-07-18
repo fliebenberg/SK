@@ -8,10 +8,11 @@ import { COLORS, getThemeColor } from '../constants/Colors';
 import { useActiveTheme } from '../store/settingsStore';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
-import { SocketAction, Sport, Site, Team, Organization } from '@sk/types';
+import { SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/types';
 import { useAuthStore } from '../store/authStore';
 import { NominationModal } from './NominationModal';
 import { GlassCard } from './GlassCard';
+import { getContrastColor } from '../utils/colorUtils';
 
 export interface MatchFormData {
   sportId: string;
@@ -20,6 +21,7 @@ export interface MatchFormData {
   awayOrgId: string;
   awayTeamId: string;
   siteId: string;
+  facilityId: string;
   gameDate: string;
   startTime: string;
   isTbd: boolean;
@@ -57,6 +59,8 @@ export default function MatchForm({
   const [selectedAwayOrg, setSelectedAwayOrg] = useState<Organization | null>(null);
   const [selectedAwayTeamId, setSelectedAwayTeamId] = useState(initialData?.awayTeamId || '');
   const [selectedSiteId, setSelectedSiteId] = useState(initialData?.siteId || '');
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [selectedFacilityId, setSelectedFacilityId] = useState(initialData?.facilityId || '');
   const [gameDate, setGameDate] = useState(initialData?.gameDate || '');
   const [startTime, setStartTime] = useState(initialData?.startTime || '09:00');
   const [isTbd, setIsTbd] = useState(initialData?.isTbd ?? false);
@@ -110,6 +114,59 @@ export default function MatchForm({
       }
     });
   }, [isConnected, orgId]);
+
+  // Load facilities for the selected site
+  useEffect(() => {
+    if (!selectedSiteId) {
+      setFacilities([]);
+      setSelectedFacilityId('');
+      return;
+    }
+    wsService.emit('get_data', { type: 'facilities', siteId: selectedSiteId }, (res: any) => {
+      if (Array.isArray(res)) {
+        setFacilities(res);
+        if (initialData?.facilityId && selectedSiteId === initialData.siteId) {
+          setSelectedFacilityId(initialData.facilityId);
+        } else if (initialData?.facilityId && res.some((f: any) => f.id === initialData.facilityId)) {
+          setSelectedFacilityId(initialData.facilityId);
+        } else if (!res.some((f: any) => f.id === selectedFacilityId)) {
+          setSelectedFacilityId('');
+        }
+      } else {
+        setFacilities([]);
+        if (initialData?.facilityId && selectedSiteId === initialData.siteId) {
+          setSelectedFacilityId(initialData.facilityId);
+        } else {
+          setSelectedFacilityId('');
+        }
+      }
+    });
+  }, [selectedSiteId, initialData?.facilityId, initialData?.siteId]);
+
+  // Reset selectedFacilityId immediately if the site changes from the initial site
+  useEffect(() => {
+    if (selectedSiteId !== initialData?.siteId) {
+      setSelectedFacilityId('');
+    }
+  }, [selectedSiteId, initialData?.siteId]);
+
+  // Filter facilities by the selected sport
+  const filteredFacilities = useMemo(() => {
+    return facilities.filter(f => {
+      if (!selectedSportId) return true;
+      if (!f.supportedSportIds || f.supportedSportIds.length === 0) return true;
+      return f.supportedSportIds.includes(selectedSportId) || f.primarySportId === selectedSportId;
+    });
+  }, [facilities, selectedSportId]);
+
+  // Resolve Sport-Specific Facility Term
+  const getFacilityLabel = () => {
+    if (selectedSportId) {
+      const sport = sports.find(s => s.id === selectedSportId);
+      return sport?.facilityTerm || 'Venue';
+    }
+    return 'Venue';
+  };
 
   // Load home organization teams when selectedHomeOrg?.id changes
   useEffect(() => {
@@ -222,6 +279,12 @@ export default function MatchForm({
     }
   }, [initialData?.isTbd]);
 
+   useEffect(() => {
+    if (initialData?.facilityId) {
+      setSelectedFacilityId(initialData.facilityId);
+    }
+  }, [initialData?.facilityId]);
+
   useEffect(() => {
     if (initialData?.status) {
       setGameStatus(initialData.status);
@@ -230,6 +293,8 @@ export default function MatchForm({
 
   // Notify parent on change
   useEffect(() => {
+    if (isInitializing) return;
+
     onChange({
       sportId: selectedSportId,
       homeOrgId: selectedHomeOrg?.id || '',
@@ -237,6 +302,7 @@ export default function MatchForm({
       awayOrgId: selectedAwayOrg?.id || '',
       awayTeamId: selectedAwayTeamId,
       siteId: selectedSiteId,
+      facilityId: selectedFacilityId,
       gameDate,
       startTime,
       isTbd,
@@ -244,12 +310,14 @@ export default function MatchForm({
       referrals: pendingReferrals,
     });
   }, [
+    isInitializing,
     selectedSportId,
     selectedHomeOrg,
     selectedHomeTeamId,
     selectedAwayOrg,
     selectedAwayTeamId,
     selectedSiteId,
+    selectedFacilityId,
     gameDate,
     startTime,
     isTbd,
@@ -782,19 +850,27 @@ export default function MatchForm({
 
               {/* Select Status (Edit Mode only) */}
               {isEdit && (
-                <View className="space-y-1.5 pt-2">
+                <View className="flex-row justify-between items-center pt-2">
                   <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Match Status
                   </Text>
-                  <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
-                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
-                      {gameStatus === 'Cancelled' ? 'Cancelled' : 'Scheduled'}
+                  <View
+                    style={{
+                      backgroundColor: gameStatus === 'Cancelled' ? COLORS.brand.red : (gameStatus === 'Live' ? COLORS.brand.orange : (gameStatus === 'Finished' ? getThemeColor(isDark, 'textSecondary') : COLORS.brand.green)),
+                      borderColor: gameStatus === 'Cancelled' ? COLORS.brand.red : (gameStatus === 'Live' ? COLORS.brand.orange : (gameStatus === 'Finished' ? getThemeColor(isDark, 'textSecondary') : COLORS.brand.green))
+                    }}
+                    className="px-3 py-1 rounded-full border"
+                  >
+                    <Text
+                      style={{
+                        color: getContrastColor(
+                          gameStatus === 'Cancelled' ? COLORS.brand.red : (gameStatus === 'Live' ? COLORS.brand.orange : (gameStatus === 'Finished' ? getThemeColor(isDark, 'textSecondary') : COLORS.brand.green))
+                        )
+                      }}
+                      className="font-inter-bold text-xs"
+                    >
+                      {gameStatus}
                     </Text>
-                    <Switch
-                      value={gameStatus === 'Cancelled'}
-                      onValueChange={(val) => setGameStatus(val ? 'Cancelled' : 'Scheduled')}
-                      trackColor={{ false: '#CBD5E1', true: COLORS.brand.red }}
-                    />
                   </View>
                 </View>
               )}
@@ -816,8 +892,48 @@ export default function MatchForm({
                   onChange={setSelectedSiteId}
                   options={sites.map(s => ({ value: s.id, label: s.name }))}
                   placeholder="Select Site"
+                  clearable={true}
                 />
               </View>
+
+              {/* Facility Selection */}
+              {selectedSiteId ? (
+                <View className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Select {getFacilityLabel()}
+                  </Text>
+                  {filteredFacilities.length > 0 ? (
+                    <View className="flex-row flex-wrap gap-2">
+                      {filteredFacilities.map((fac) => {
+                        const isSelected = selectedFacilityId === fac.id;
+                        return (
+                          <TouchableOpacity
+                            key={fac.id}
+                            onPress={() => setSelectedFacilityId(isSelected ? '' : fac.id)}
+                            style={{
+                              backgroundColor: isSelected ? COLORS.brand.orange : 'transparent',
+                              borderColor: isSelected ? COLORS.brand.orange : (isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0'),
+                            }}
+                            className={`px-3 py-1.5 rounded-lg border`}
+                          >
+                            <Text
+                              className={`font-inter-bold text-[11px] ${
+                                isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-300'
+                              }`}
+                            >
+                              {fac.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">
+                      No {getFacilityLabel().toLowerCase()}s available for this sport at the selected site.
+                    </Text>
+                  )}
+                </View>
+              ) : null}
 
               {/* Match Date & Time */}
               <View className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">

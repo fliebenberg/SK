@@ -18,6 +18,7 @@ interface CustomSelectProps {
   style?: any;
   showSearch?: boolean;
   searchPlaceholder?: string;
+  clearable?: boolean;
 }
 
 export default function CustomSelect({
@@ -29,6 +30,7 @@ export default function CustomSelect({
   style,
   showSearch = false,
   searchPlaceholder = 'Search...',
+  clearable = false,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -59,10 +61,23 @@ export default function CustomSelect({
         className={`flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 ${className}`}
         style={style}
       >
-        <Text className={`font-inter text-sm ${selectedOption ? 'text-slate-850 dark:text-white' : 'text-slate-450'}`}>
+        <Text className={`font-inter text-sm flex-1 ${selectedOption ? 'text-slate-850 dark:text-white' : 'text-slate-455'}`}>
           {selectedOption ? selectedOption.label : placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={16} color={isDark ? '#94A3B8' : '#64748B'} />
+        <View className="flex-row items-center gap-1.5">
+          {clearable && !!selectedOption && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close-circle" size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+            </TouchableOpacity>
+          )}
+          <Ionicons name="chevron-down" size={16} color={isDark ? '#94A3B8' : '#64748B'} />
+        </View>
       </TouchableOpacity>
 
       <Modal

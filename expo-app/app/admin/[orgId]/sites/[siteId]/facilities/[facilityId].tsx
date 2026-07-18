@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
@@ -219,12 +220,14 @@ const CATEGORIES = [
   { key: 'shop', label: 'Shop / Tuck Shop', icon: 'cart-outline' },
   { key: 'parking', label: 'Parking Area', icon: 'car-outline' },
   { key: 'restroom', label: 'Restrooms', icon: 'water-outline' },
+  { key: 'restrooms', label: 'Restrooms', icon: 'water-outline' },
   { key: 'other', label: 'Other', icon: 'location-outline' }
 ];
 
 export default function FacilityDetails() {
   const router = useRouter();
-  const { orgId, siteId, facilityId } = useLocalSearchParams<{ orgId: string; siteId: string; facilityId: string }>();
+  const safeBack = useSafeBack();
+  const { orgId, siteId, facilityId } = useLocalSearchParams<{ orgId: string, siteId: string, facilityId: string }>();
   const isNew = facilityId === 'new';
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -288,9 +291,13 @@ export default function FacilityDetails() {
     ) : false;
   }, [facilityForm, originalData]);
 
+  const safeGoBack = useCallback(() => {
+    safeBack(`/admin/${orgId}/sites/${siteId}`);
+  }, [safeBack, orgId, siteId]);
+
   const handleCancel = useCallback(() => {
     if (isNew) {
-      router.back();
+      safeGoBack();
     } else if (originalData) {
       setFacilityForm({
         name: originalData.name,
@@ -302,7 +309,7 @@ export default function FacilityDetails() {
         primarySportId: originalData.primarySportId
       });
     }
-  }, [isNew, originalData, router]);
+  }, [isNew, originalData, safeGoBack]);
 
   useUnsavedChanges(hasChanges && !isProcessing, handleCancel);
 
@@ -441,7 +448,7 @@ export default function FacilityDetails() {
         payload: { id: facilityId, data: payload }
       }, (res: any) => {
         if (res.status === 'ok') {
-          router.back();
+          safeGoBack();
         } else {
           setIsProcessing(false);
           Alert.alert('Save Failed', res.message || 'Could not update facility');
@@ -453,7 +460,7 @@ export default function FacilityDetails() {
         payload: payload
       }, (res: any) => {
         if (res.status === 'ok') {
-          router.back();
+          safeGoBack();
         } else {
           setIsProcessing(false);
           Alert.alert('Save Failed', res.message || 'Could not create facility');
@@ -472,7 +479,7 @@ export default function FacilityDetails() {
       setIsProcessing(false);
       setIsDeleteModalOpen(false);
       if (res.status === 'ok') {
-        router.back();
+        safeGoBack();
       } else {
         Alert.alert('Delete Failed', res.message || 'Facility is used in games and cannot be deleted.');
       }
@@ -501,7 +508,7 @@ export default function FacilityDetails() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeGoBack()}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />

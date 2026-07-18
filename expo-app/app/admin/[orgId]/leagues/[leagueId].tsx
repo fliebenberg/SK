@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Platform, Image } from 'react-native';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -54,6 +55,7 @@ const calculateSeasonStatus = (startDateStr: string, endDateStr: string): 'UPCOM
 
 export default function LeagueDetails() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId, leagueId } = useLocalSearchParams<{ orgId: string, leagueId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -237,12 +239,8 @@ export default function LeagueDetails() {
   ) : false;
 
   const safeGoBack = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(`/admin/${orgId}/leagues` as any);
-    }
-  }, [router, orgId]);
+    safeBack(`/admin/${orgId}/leagues`);
+  }, [safeBack, orgId]);
 
   const handleCancelLeague = useCallback(() => {
     if (league) {

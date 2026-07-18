@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Platform, Image } from 'react-native';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { Button } from '../../../../../../components/Button';
@@ -53,6 +54,7 @@ const calculateSeasonStatus = (startDateStr: string, endDateStr: string): 'UPCOM
 
 export default function SeasonDetails() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const { orgId, leagueId, seasonId } = useLocalSearchParams<{ orgId: string, leagueId: string, seasonId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -217,12 +219,8 @@ export default function SeasonDetails() {
   ) : false;
 
   const safeGoBack = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(`/admin/${orgId}/leagues/${leagueId}` as any);
-    }
-  }, [router, orgId, leagueId]);
+    safeBack(`/admin/${orgId}/leagues/${leagueId}`);
+  }, [safeBack, orgId, leagueId]);
 
   const handleCancelSettings = useCallback(() => {
     if (season) {

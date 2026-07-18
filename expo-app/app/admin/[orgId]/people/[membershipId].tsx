@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -33,7 +34,8 @@ const parseImageConfig = (config: any): ImageConfig => {
 
 export default function EditMember() {
   const router = useRouter();
-  const { orgId, membershipId } = useLocalSearchParams<{ orgId: string; membershipId: string }>();
+  const safeBack = useSafeBack();
+  const { orgId, membershipId } = useLocalSearchParams<{ orgId: string, membershipId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
 
@@ -188,7 +190,7 @@ export default function EditMember() {
         });
       });
 
-      router.back();
+      safeBack(`/admin/${orgId}/people`);
     } catch (err: any) {
       console.error(err);
       Alert.alert('Save Failed', err.message || 'Failed to save changes');
@@ -213,7 +215,7 @@ export default function EditMember() {
         });
       });
       setIsDeleteModalOpen(false);
-      router.back();
+      safeBack(`/admin/${orgId}/people`);
     } catch (err: any) {
       console.error(err);
       setDeleteError(err.message || 'Failed to remove member');
@@ -249,7 +251,7 @@ export default function EditMember() {
       {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack(`/admin/${orgId}/people`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />

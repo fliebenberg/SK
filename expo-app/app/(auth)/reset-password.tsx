@@ -5,9 +5,11 @@ import { GlassCard } from '../../components/GlassCard';
 import { useActiveTheme } from '../../store/settingsStore';
 import { apiService } from '../../services/api';
 import { useState } from 'react';
+import { useSafeBack } from '../../hooks/useSafeBack';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
+  const safeBack = useSafeBack();
   const params = useLocalSearchParams();
   
   // Detect if this is an admin-enforced reset (no passcode required, authenticated via temp token)
@@ -86,13 +88,7 @@ export default function ResetPasswordScreen() {
               <Button 
                 title="Go to Login" 
                 variant="primary" 
-                onPress={() => {
-                  if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.replace('/(auth)/login');
-                  }
-                }}
+                onPress={() => safeBack('/(auth)/login')}
                 className="mt-2"
               />
             </View>
@@ -181,13 +177,7 @@ export default function ResetPasswordScreen() {
                   <Button 
                     title="Cancel" 
                     variant="ghost" 
-                    onPress={() => {
-                      if (router.canGoBack()) {
-                        router.back();
-                      } else {
-                        router.replace('/(auth)/login');
-                      }
-                    }}
+                    onPress={() => safeBack('/(auth)/login')}
                   />
                 </>
               )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
@@ -230,9 +231,10 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, facilities = 
   });
 };
 
-export default function SiteDetails() {
+export default function SiteDetailScreen() {
   const router = useRouter();
-  const { orgId, siteId } = useLocalSearchParams<{ orgId: string; siteId: string }>();
+  const safeBack = useSafeBack();
+  const { orgId, siteId } = useLocalSearchParams<{ orgId: string, siteId: string }>();
   const isNew = siteId === 'new';
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -315,12 +317,8 @@ export default function SiteDetails() {
   }, [siteForm, originalData]);
 
   const safeGoBack = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(`/admin/${orgId}/sites` as any);
-    }
-  }, [router, orgId]);
+    safeBack(`/admin/${orgId}/sites`);
+  }, [safeBack, orgId]);
 
   const handleCancel = useCallback(() => {
     if (isNew) {

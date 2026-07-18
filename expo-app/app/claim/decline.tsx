@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeBack } from '../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import { GlassCard } from '../../components/GlassCard';
@@ -14,6 +15,7 @@ import { ResponsivePageLayout } from '../../components/ResponsivePageLayout';
 export default function DeclineScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
+  const safeBack = useSafeBack();
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
@@ -162,7 +164,7 @@ export default function DeclineScreen() {
           <Button 
             title="Cancel" 
             variant="ghost" 
-            onPress={() => router.back()} 
+            onPress={() => safeBack('/landing')} 
             className="w-full mt-2"
           />
         </View>
