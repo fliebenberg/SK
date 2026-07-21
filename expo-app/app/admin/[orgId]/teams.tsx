@@ -10,6 +10,7 @@ import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
+import { useAuthStore } from '../../../store/authStore';
 import { SocketAction, Team, Sport, Organization } from '@sk/types';
 
 export default function OrgTeams() {
@@ -19,11 +20,23 @@ export default function OrgTeams() {
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
 
+  // User & Permissions
+  const user = useAuthStore(state => state.user);
+  const orgMemberships = useAuthStore(state => state.orgMemberships || []);
+  const userMembership = orgMemberships.find(m => m.orgId === orgId);
+
   // Loading and Data States
   const [isLoading, setIsLoading] = useState(true);
   const [teams, setTeams] = useState<Team[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
   const [org, setOrg] = useState<Organization | null>(null);
+
+  const isOwner = org?.creatorId === user?.id;
+  const canEdit = Boolean(
+    user?.globalRole === 'admin' ||
+    isOwner ||
+    (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
+  );
 
   // Filters & Layout States
   const [searchQuery, setSearchQuery] = useState('');
@@ -162,58 +175,72 @@ export default function OrgTeams() {
 
   // Grouping Logic
   const renderTeamCard = (team: Team) => (
-    <GlassCard 
+    <TouchableOpacity
       key={team.id}
-      className={`border border-slate-200 dark:border-white/5 p-5 mb-4 ${team.isActive === false ? 'opacity-60' : ''}`}
+      onPress={() => {
+        if (canEdit) {
+          router.push({
+            pathname: '/admin/[orgId]/teams/[teamId]',
+            params: { orgId: orgId!, teamId: team.id }
+          });
+        } else {
+          router.push({
+            pathname: '/admin/[orgId]/teams/[teamId]/view',
+            params: { orgId: orgId!, teamId: team.id }
+          });
+        }
+      }}
+      activeOpacity={0.85}
     >
-      <View className="flex-row justify-between items-start">
-        <View className="flex-1 mr-4">
-          <View className="flex-row items-center gap-2 mb-1.5 flex-wrap">
-            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
-              {team.name}
-            </Text>
-            {team.isActive === false && (
-              <View className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
-                <Text className="text-[8px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Inactive</Text>
+      <GlassCard 
+        className={`border border-slate-200 dark:border-white/5 p-5 mb-4 ${team.isActive === false ? 'opacity-60' : ''}`}
+      >
+        <View className="flex-row justify-between items-start">
+          <View className="flex-1 mr-4">
+            <View className="flex-row items-center gap-2 mb-1.5 flex-wrap">
+              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+                {team.name}
+              </Text>
+              {team.isActive === false && (
+                <View className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
+                  <Text className="text-[8px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Inactive</Text>
+                </View>
+              )}
+            </View>
+            
+            <View className="flex-row flex-wrap items-center gap-2">
+              <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full flex-row items-center gap-1">
+                <Ionicons name={getSportIcon(team.sportId) as any} size={10} color={isDark ? '#94A3B8' : '#64748B'} />
+                <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  {team.ageGroup} • {getSportName(team.sportId)}
+                </Text>
               </View>
-            )}
-          </View>
-          
-          <View className="flex-row flex-wrap items-center gap-2">
-            <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full flex-row items-center gap-1">
-              <Ionicons name={getSportIcon(team.sportId) as any} size={10} color={isDark ? '#94A3B8' : '#64748B'} />
-              <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                {team.ageGroup} • {getSportName(team.sportId)}
-              </Text>
-            </View>
-            <View className="flex-row items-center gap-1 bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full">
-              <Ionicons name="people" size={10} color="#FF3E00" />
-              <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                {team.playerCount || 0} Athletes
-              </Text>
+              <View className="flex-row items-center gap-1 bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full">
+                <Ionicons name="people" size={10} color="#FF3E00" />
+                <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  {team.playerCount || 0} Athletes
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View className="flex-row items-center gap-2">
-          <TouchableOpacity 
-            onPress={() => router.push({
-              pathname: '/admin/[orgId]/teams/[teamId]',
-              params: { orgId: orgId!, teamId: team.id }
-            })}
-            className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
-          >
-            <Ionicons name="pencil" size={12} color={isDark ? "#E2E8F0" : "#475569"} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => handleDeleteTeam(team)}
-            className="w-7 h-7 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-80"
-          >
-            <Ionicons name="trash-outline" size={12} color="#EF4444" />
-          </TouchableOpacity>
+          <View className="flex-row items-center gap-2">
+            <TouchableOpacity 
+              onPress={(e: any) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                router.push({
+                  pathname: '/admin/[orgId]/teams/[teamId]/view',
+                  params: { orgId: orgId!, teamId: team.id }
+                });
+              }}
+              className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
+            >
+              <Ionicons name="eye-outline" size={13} color={isDark ? "#E2E8F0" : "#475569"} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </GlassCard>
+      </GlassCard>
+    </TouchableOpacity>
   );
 
   const renderGroupedTeams = (teamList: Team[]) => {

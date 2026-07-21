@@ -14,6 +14,7 @@ import { useWsStore } from '../../../../store/wsStore';
 import { useAuthStore } from '../../../../store/authStore';
 import { SocketAction, Event, Game, Sport, Site, Team, Organization, calculateStandings, LeagueStandingRow } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
+import CustomSelect from '../../../../components/CustomSelect';
 
 export default function EventDetails() {
   const router = useRouter();
@@ -604,7 +605,7 @@ export default function EventDetails() {
                 {/* Games Group Lists */}
                 {games.length === 0 ? (
                   <View className="items-center justify-center py-16 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
-                    <Ionicons name="calendar-outline" size={40} color={COLORS.dark.textSecondary} className="opacity-30 mb-2" />
+                    <Ionicons name="calendar-outline" size={40} color={COLORS.dark.textSecondary} style={{ opacity: 0.3, marginBottom: 8 }} />
                     <Text className="font-orbitron text-xs text-slate-500 uppercase tracking-widest">No games scheduled</Text>
                     {canEdit && (
                       <Button 
@@ -761,26 +762,13 @@ export default function EventDetails() {
                   {/* Site venue */}
                   <View className="space-y-1.5">
                     <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">Site Venue</Text>
-                    <View className="flex-row flex-wrap gap-2">
-                      {sites.map(site => {
-                        const isSelected = editSiteId === site.id;
-                        return (
-                          <TouchableOpacity
-                            key={site.id}
-                            onPress={() => setEditSiteId(site.id)}
-                            className={`px-3 py-2 rounded-lg border ${
-                              isSelected 
-                                ? 'bg-brand-orange/10 border-brand-orange' 
-                                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                            }`}
-                          >
-                            <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                              {site.name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                    <CustomSelect
+                      value={editSiteId || ''}
+                      onChange={(val: string) => setEditSiteId(val)}
+                      options={sites.map(s => ({ label: s.name, value: s.id }))}
+                      placeholder="Select site..."
+                      clearable={true}
+                    />
                   </View>
 
                   {/* Multi-select sports */}

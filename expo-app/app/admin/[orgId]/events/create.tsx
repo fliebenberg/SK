@@ -613,29 +613,13 @@ export default function CreateEvent() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              <View className="flex-row flex-wrap gap-2">
-                {sites.map(site => {
-                  const isSelected = selectedSiteId === site.id;
-                  return (
-                    <TouchableOpacity
-                      key={site.id}
-                      onPress={() => setSelectedSiteId(site.id)}
-                      className={`px-3 py-2 rounded-lg border ${
-                        isSelected 
-                          ? 'bg-brand-orange/10 border-brand-orange' 
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                      }`}
-                    >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {site.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {sites.length === 0 && (
-                  <Text className="font-inter text-xs text-slate-400 italic">No sites registered. Click Create Site.</Text>
-                )}
-              </View>
+              <CustomSelect
+                value={selectedSiteId}
+                onChange={(val: string) => setSelectedSiteId(val)}
+                options={sites.map(s => ({ label: s.name, value: s.id }))}
+                placeholder="Select site..."
+                clearable={true}
+              />
             </View>
 
             {/* FACILITY/VENUE SELECTOR */}
@@ -644,31 +628,13 @@ export default function CreateEvent() {
                 <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Select {getFacilityLabel()}
                 </Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {filteredFacilities.map(fac => {
-                    const isSelected = selectedFacilityId === fac.id;
-                    return (
-                      <TouchableOpacity
-                        key={fac.id}
-                        onPress={() => setSelectedFacilityId(fac.id)}
-                        className={`px-3 py-2 rounded-lg border ${
-                          isSelected 
-                            ? 'bg-brand-orange/10 border-brand-orange' 
-                            : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                        }`}
-                      >
-                        <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {fac.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                  {filteredFacilities.length === 0 && (
-                    <Text className="font-inter text-xs text-slate-400 italic">
-                      No {getFacilityLabel().toLowerCase()}s available for this sport at the selected site.
-                    </Text>
-                  )}
-                </View>
+                <CustomSelect
+                  value={selectedFacilityId}
+                  onChange={(val: string) => setSelectedFacilityId(val)}
+                  options={filteredFacilities.map(f => ({ label: f.name, value: f.id }))}
+                  placeholder={`Select ${getFacilityLabel().toLowerCase()}...`}
+                  clearable={true}
+                />
               </View>
             )}
 

@@ -14,6 +14,42 @@ import { useAuthStore } from '../../../../store/authStore';
 import { SocketAction, Event, Game, Sport, Site } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 
+class EventsErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('[EventsErrorBoundary] Render error caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View className="p-6 bg-red-500/10 border border-red-500/20 rounded-xl my-4">
+          <Text className="font-orbitron-bold text-red-500 text-sm mb-2">Render Error in Events List</Text>
+          <Text className="font-inter text-xs text-slate-300 mb-4">{this.state.error?.toString()}</Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false, error: null })}
+            className="bg-brand-orange px-4 py-2 rounded-lg self-start"
+          >
+            <Text className="font-inter-bold text-xs text-white uppercase">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function OrgEventsList() {
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -45,11 +81,13 @@ export default function OrgEventsList() {
     const loadData = () => {
       wsService.emit('get_data', { type: 'events', orgId }, (res: any) => {
         if (!active) return;
+        console.log('[OrgEventsList] Fetched events count:', Array.isArray(res) ? res.length : 0);
         if (Array.isArray(res)) setEvents(res);
       });
 
       wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
         if (!active) return;
+        console.log('[OrgEventsList] Fetched games count:', Array.isArray(res) ? res.length : 0);
         if (Array.isArray(res)) setGames(res);
         setIsLoading(false);
       });
@@ -122,13 +160,14 @@ export default function OrgEventsList() {
 
   // Helper to determine display name for event
   const getEventName = (event: Event) => {
+    if (!event) return 'Unnamed Event';
     if (event.name) return event.name;
 
-    const eventGames = games.filter(g => g.eventId === event.id);
+    const eventGames = (games || []).filter(g => g && g.eventId === event.id);
     if (event.type === 'SingleMatch' && eventGames.length === 1) {
       const game = eventGames[0];
-      const p1 = game.participants?.[0]?.teamId;
-      const p2 = game.participants?.[1]?.teamId;
+      const p1 = game?.participants?.[0]?.teamId;
+      const p2 = game?.participants?.[1]?.teamId;
       if (p1 && p2) {
         return `Game: ${p1} vs ${p2}`;
       }
@@ -137,13 +176,24 @@ export default function OrgEventsList() {
   };
 
   // Filter & Sort Events
-  const filteredEvents = events
+  const filteredEvents = (events || [])
     .filter(e => {
+      if (!e) return false;
       const name = getEventName(e).toLowerCase();
-      const matchesSearch = name.includes(searchQuery.toLowerCase());
+      const matchesSearch = searchQuery ? name.includes(searchQuery.toLowerCase()) : true;
       if (!matchesSearch) return false;
 
+      if (!e.startDate) {
+        console.warn('[OrgEventsList] Event missing startDate:', e);
+        return false;
+      }
+
       const eventDate = new Date(e.startDate);
+      if (isNaN(eventDate.getTime())) {
+        console.warn('[OrgEventsList] Invalid startDate for event:', e.id, e.startDate);
+        return false;
+      }
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -154,10 +204,12 @@ export default function OrgEventsList() {
       }
     })
     .sort((a, b) => {
-      const dateA = new Date(a.startDate).getTime();
-      const dateB = new Date(b.startDate).getTime();
+      const dateA = a?.startDate ? new Date(a.startDate).getTime() : 0;
+      const dateB = b?.startDate ? new Date(b.startDate).getTime() : 0;
       return viewMode === 'upcoming' ? dateA - dateB : dateB - dateA;
     });
+
+  console.log('[OrgEventsList] viewMode:', viewMode, 'Total events:', events.length, 'Filtered count:', filteredEvents.length);
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
@@ -205,40 +257,44 @@ export default function OrgEventsList() {
         <View className="flex-row bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 mb-6">
           <TouchableOpacity
             onPress={() => setViewMode('upcoming')}
-            className={`flex-1 flex-row items-center justify-center py-2.5 rounded-lg ${
-              viewMode === 'upcoming' ? 'bg-white dark:bg-slate-800 shadow-sm' : ''
-            }`}
+            className="flex-1 flex-row items-center justify-center py-2.5 rounded-lg"
+            style={{
+              backgroundColor: viewMode === 'upcoming' ? getThemeColor(isDark, 'surface') : 'transparent',
+            }}
           >
             <Ionicons
               name="calendar"
               size={14}
-              color={viewMode === 'upcoming' ? COLORS.brand.orange : COLORS.dark.textSecondary}
+              color={viewMode === 'upcoming' ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
               style={{ marginRight: 6 }}
             />
             <Text
-              className={`font-orbitron-bold text-xs uppercase tracking-widest ${
-                viewMode === 'upcoming' ? 'text-brand-orange' : 'text-slate-500'
-              }`}
+              className="font-orbitron-bold text-xs uppercase tracking-widest"
+              style={{
+                color: viewMode === 'upcoming' ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+              }}
             >
               Upcoming
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setViewMode('past')}
-            className={`flex-1 flex-row items-center justify-center py-2.5 rounded-lg ${
-              viewMode === 'past' ? 'bg-white dark:bg-slate-800 shadow-sm' : ''
-            }`}
+            className="flex-1 flex-row items-center justify-center py-2.5 rounded-lg"
+            style={{
+              backgroundColor: viewMode === 'past' ? getThemeColor(isDark, 'surface') : 'transparent',
+            }}
           >
             <Ionicons
               name="time"
               size={14}
-              color={viewMode === 'past' ? COLORS.brand.orange : COLORS.dark.textSecondary}
+              color={viewMode === 'past' ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
               style={{ marginRight: 6 }}
             />
             <Text
-              className={`font-orbitron-bold text-xs uppercase tracking-widest ${
-                viewMode === 'past' ? 'text-brand-orange' : 'text-slate-500'
-              }`}
+              className="font-orbitron-bold text-xs uppercase tracking-widest"
+              style={{
+                color: viewMode === 'past' ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+              }}
             >
               Past
             </Text>
@@ -253,126 +309,124 @@ export default function OrgEventsList() {
             </Text>
           </View>
         ) : (
-          <View className="space-y-4">
-            {filteredEvents.map(event => {
-              const eventGames = games.filter(g => g.eventId === event.id);
-              const isSportsDay = event.type === 'SportsDay';
-              const isTournament = event.type === 'Tournament';
-              const isContainer = isSportsDay || isTournament;
-              const isEventOwner = event.orgId === orgId;
+          <EventsErrorBoundary>
+            <View className="space-y-4">
+              {filteredEvents.map(event => {
+                const eventGames = (games || []).filter(g => g && g.eventId === event.id);
+                const isSportsDay = event.type === 'SportsDay';
+                const isTournament = event.type === 'Tournament';
+                const isContainer = isSportsDay || isTournament;
+                const isEventOwner = event.orgId === orgId;
 
-              return (
-                <GlassCard key={event.id} className="border border-slate-200 dark:border-white/5 p-5 relative">
-                  {/* Right-Aligned Compact Actions (Pencil / Trash / Eye) */}
-                  <View className="absolute right-4 top-4 flex-row items-center gap-2 z-10">
-                    <TouchableOpacity
-                      onPress={() => {
-                        if (event.type === 'SingleMatch' && eventGames.length > 0) {
-                          router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/${isEventOwner ? 'edit' : 'view'}`);
-                        } else {
-                          router.push(`/admin/${orgId}/events/${event.id}`);
-                        }
-                      }}
-                      className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
-                    >
-                      <Ionicons name={isEventOwner ? "pencil" : "eye"} size={12} color={getThemeColor(isDark, 'textSecondary')} />
-                    </TouchableOpacity>
-                    {isEventOwner && (
+                return (
+                <TouchableOpacity
+                  key={event.id}
+                  onPress={() => {
+                    if (event.type === 'SingleMatch' && eventGames.length > 0) {
+                      router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/${isEventOwner ? 'edit' : 'view'}`);
+                    } else {
+                      router.push(`/admin/${orgId}/events/${event.id}`);
+                    }
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <GlassCard className="border border-slate-200 dark:border-white/5 p-5 relative">
+                    {/* Right-Aligned Compact Action (Eye View Button) */}
+                    <View className="absolute right-4 top-4 flex-row items-center gap-2 z-10">
                       <TouchableOpacity
-                        onPress={() => setEventToDelete(event)}
+                        onPress={(e: any) => {
+                          if (e && e.stopPropagation) e.stopPropagation();
+                          if (event.type === 'SingleMatch' && eventGames.length > 0) {
+                            router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/view`);
+                          } else {
+                            router.push(`/admin/${orgId}/events/${event.id}`);
+                          }
+                        }}
                         className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
                       >
-                        <Ionicons name="trash-outline" size={12} color={COLORS.brand.red} />
+                        <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
                       </TouchableOpacity>
-                    )}
-                  </View>
-
-                  <View className="flex-row items-center gap-2 mb-2 pr-20">
-                    <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-md">
-                      <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                        {event.type === 'SingleMatch' ? 'Single Match' : event.type === 'SportsDay' ? 'Sports Day' : 'Tournament'}
-                      </Text>
                     </View>
-                    {event.status === 'Cancelled' && (
-                      <View className="bg-red-500/10 px-2 py-0.5 rounded-md">
-                        <Text className="font-inter-bold text-[9px] text-brand-red uppercase tracking-widest">
-                          Cancelled
+
+                    <View className="flex-row items-center gap-2 mb-2 pr-12">
+                      <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-md">
+                        <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">
+                          {event.type === 'SingleMatch' ? 'Single Match' : event.type === 'SportsDay' ? 'Sports Day' : 'Tournament'}
                         </Text>
                       </View>
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (event.type === 'SingleMatch' && eventGames.length > 0) {
-                        router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/${isEventOwner ? 'edit' : 'view'}`);
-                      } else {
-                        router.push(`/admin/${orgId}/events/${event.id}`);
-                      }
-                    }}
-                    className="active:opacity-85 pr-20"
-                  >
-                    <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white mb-2 leading-tight">
-                      {getEventName(event)}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View className="flex-row items-center gap-6 mt-2">
-                    <View className="flex-row items-center gap-1.5">
-                      <Ionicons name="calendar-outline" size={13} color={COLORS.dark.textSecondary} />
-                      <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                        {event.startDate}
-                      </Text>
-                    </View>
-                    {event.siteId && (
-                      <View className="flex-row items-center gap-1.5">
-                        <Ionicons name="location-outline" size={13} color={COLORS.dark.textSecondary} />
-                        <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                          {sites.find(s => s.id === event.siteId)?.name || 'Multi-site'}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Render Nested Game Summaries */}
-                  {eventGames.length > 0 && (
-                    <View className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 space-y-2">
-                      <Text className="font-orbitron text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
-                        {isContainer ? `${eventGames.length} Scheduled Games` : 'Game Details'}
-                      </Text>
-                      {eventGames.slice(0, 3).map(game => (
-                        <View key={game.id} className="flex-row justify-between items-center bg-slate-50 dark:bg-white/5 p-2 rounded-lg">
-                          <Text className="font-inter text-[11px] text-slate-800 dark:text-white flex-1" numberOfLines={1}>
-                            {game.participants?.[0]?.teamId || 'TBD'} vs {game.participants?.[1]?.teamId || 'TBD'}
-                          </Text>
-                          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 pl-2">
-                            {game.status}
+                      {event.status === 'Cancelled' && (
+                        <View className="bg-red-500/10 px-2 py-0.5 rounded-md">
+                          <Text className="font-inter-bold text-[9px] text-brand-red uppercase tracking-widest">
+                            Cancelled
                           </Text>
                         </View>
-                      ))}
-                      {eventGames.length > 3 && (
-                        <Text className="font-inter text-[10px] text-brand-orange text-center mt-1">
-                          + {eventGames.length - 3} more games
-                        </Text>
                       )}
                     </View>
-                  )}
-                </GlassCard>
-              );
-            })}
 
-            {filteredEvents.length === 0 && (
-              <View className="items-center justify-center py-16">
-                <Ionicons name="calendar-outline" size={48} color={COLORS.dark.textSecondary} className="opacity-30 mb-3" />
-                <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
-                  No {viewMode} Events
-                </Text>
-                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
-                  Click the plus icon in the header to schedule a single match, sports day, or tournament.
-                </Text>
-              </View>
-            )}
-          </View>
+                    <View className="pr-12">
+                      <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white mb-2 leading-tight">
+                        {getEventName(event)}
+                      </Text>
+                    </View>
+
+                    <View className="flex-row items-center gap-6 mt-2">
+                      <View className="flex-row items-center gap-1.5">
+                        <Ionicons name="calendar-outline" size={13} color={COLORS.dark.textSecondary} />
+                        <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                          {event.startDate}
+                        </Text>
+                      </View>
+                      {event.siteId && (
+                        <View className="flex-row items-center gap-1.5">
+                          <Ionicons name="location-outline" size={13} color={COLORS.dark.textSecondary} />
+                          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                            {sites.find(s => s.id === event.siteId)?.name || 'Multi-site'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Render Nested Game Summaries */}
+                    {eventGames.length > 0 && (
+                      <View className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 space-y-2">
+                        <Text className="font-orbitron text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
+                          {isContainer ? `${eventGames.length} Scheduled Games` : 'Game Details'}
+                        </Text>
+                        {eventGames.slice(0, 3).map(game => (
+                          <View key={game.id} className="flex-row justify-between items-center bg-slate-50 dark:bg-white/5 p-2 rounded-lg">
+                            <Text className="font-inter text-[11px] text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+                              {game.participants?.[0]?.teamId || 'TBD'} vs {game.participants?.[1]?.teamId || 'TBD'}
+                            </Text>
+                            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 pl-2">
+                              {game.status}
+                            </Text>
+                          </View>
+                        ))}
+                        {eventGames.length > 3 && (
+                          <Text className="font-inter text-[10px] text-brand-orange text-center mt-1">
+                            + {eventGames.length - 3} more games
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </GlassCard>
+                </TouchableOpacity>
+              );
+              })}
+
+              {filteredEvents.length === 0 && (
+                <View className="items-center justify-center py-16">
+                  <Ionicons name="calendar-outline" size={48} color={COLORS.dark.textSecondary} style={{ opacity: 0.3, marginBottom: 12 }} />
+                  <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
+                    No {viewMode} Events
+                  </Text>
+                  <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+                    Click the plus icon in the header to schedule a single match, sports day, or tournament.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </EventsErrorBoundary>
         )}
       </ScrollView>
 

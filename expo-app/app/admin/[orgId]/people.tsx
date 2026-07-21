@@ -15,6 +15,7 @@ import { PersonnelAutocomplete } from '../../../components/PersonnelAutocomplete
 import { ImageEditor, ImageConfig } from '../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../services/api';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
+import { useAuthStore } from '../../../store/authStore';
 
 interface OrgRole {
   id: string;
@@ -43,6 +44,19 @@ export default function OrgPeople() {
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
+
+  // User & Permissions
+  const user = useAuthStore(state => state.user);
+  const orgMemberships = useAuthStore(state => state.orgMemberships || []);
+  const { data: org } = useSocketQuery<any>('organization', { orgId });
+
+  const userMembership = orgMemberships.find(m => m.orgId === orgId);
+  const isOwner = org?.creatorId === user?.id;
+  const canEdit = Boolean(
+    user?.globalRole === 'admin' ||
+    isOwner ||
+    (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
+  );
 
   const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers, setData: setMembersData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
@@ -462,101 +476,115 @@ export default function OrgPeople() {
             const logoConf = parseImageConfig(member.imageConfig || (member as any).settings?.logoConfig);
 
             return (
-              <GlassCard
+              <TouchableOpacity
                 key={member.membershipId}
-                className="border border-slate-200 dark:border-white/5 p-2.5 flex-row items-center justify-between"
+                onPress={() => {
+                  if (canEdit) {
+                    router.push({
+                      pathname: '/admin/[orgId]/people/[membershipId]',
+                      params: { orgId: orgId!, membershipId: member.membershipId }
+                    });
+                  } else {
+                    router.push({
+                      pathname: '/admin/[orgId]/people/[membershipId]/view',
+                      params: { orgId: orgId!, membershipId: member.membershipId }
+                    });
+                  }
+                }}
+                activeOpacity={0.85}
               >
-                <View className="flex-row items-center gap-3 flex-1 mr-4">
-                  <View className="w-8 h-8 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
-                    {avatarSrc ? (
-                      <View style={{ width: 32, height: 32, overflow: 'hidden' }}>
-                        <View
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            transform: [
-                              { scale: logoConf.scale },
-                              { translateX: logoConf.x * 32 },
-                              { translateY: logoConf.y * 32 },
-                            ],
-                          }}
-                        >
-                          <Image
-                            source={avatarSrc}
+                <GlassCard className="border border-slate-200 dark:border-white/5 p-2.5 flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-3 flex-1 mr-4">
+                    <View className="w-8 h-8 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
+                      {avatarSrc ? (
+                        <View style={{ width: 32, height: 32, overflow: 'hidden' }}>
+                          <View
                             style={{
                               width: '100%',
                               height: '100%',
+                              transform: [
+                                { scale: logoConf.scale },
+                                { translateX: logoConf.x * 32 },
+                                { translateY: logoConf.y * 32 },
+                              ],
                             }}
-                            resizeMode="cover"
-                          />
+                          >
+                            <Image
+                              source={avatarSrc}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                              }}
+                              resizeMode="cover"
+                            />
+                          </View>
+                        </View>
+                      ) : (
+                        <Text className="font-orbitron-bold text-xs text-brand-orange">
+                          {member.name.charAt(0).toUpperCase()}
+                        </Text>
+                      )}
+                    </View>
+
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-1.5 mb-0.5 flex-wrap">
+                        <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
+                          {member.name}
+                        </Text>
+                        <View className="px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
+                          <Text className="font-inter-bold text-[7px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                            {member.roleName || 'Member'}
+                          </Text>
                         </View>
                       </View>
-                    ) : (
-                      <Text className="font-orbitron-bold text-xs text-brand-orange">
-                        {member.name.charAt(0).toUpperCase()}
+                      <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
+                        {[member.email, member.cellphone].filter(Boolean).join('  |  ') || 'No Contact Info'}
                       </Text>
-                    )}
-                  </View>
-
-                  <View className="flex-1">
-                    <View className="flex-row items-center gap-1.5 mb-0.5 flex-wrap">
-                      <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
-                        {member.name}
-                      </Text>
-                      <View className="px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
-                        <Text className="font-inter-bold text-[7px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                          {member.roleName || 'Member'}
+                      {member.personOrgId ? (
+                        <Text className="font-mono text-[8px] text-slate-400 dark:text-slate-600 mt-0.5">
+                          ID: {member.personOrgId}
                         </Text>
-                      </View>
+                      ) : null}
                     </View>
-                    <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
-                      {[member.email, member.cellphone].filter(Boolean).join('  |  ') || 'No Contact Info'}
-                    </Text>
-                    {member.personOrgId ? (
-                      <Text className="font-mono text-[8px] text-slate-400 dark:text-slate-600 mt-0.5">
-                        ID: {member.personOrgId}
-                      </Text>
-                    ) : null}
                   </View>
-                </View>
 
-                <View className="flex-row items-center gap-1.5">
-                  {inviteStatus && (
+                  <View className="flex-row items-center gap-1.5">
+                    {inviteStatus && (
+                      <TouchableOpacity
+                        disabled={inviteStatus.disabled}
+                        onPress={(e: any) => {
+                          if (e && e.stopPropagation) e.stopPropagation();
+                          handleSendInvite(member);
+                        }}
+                        className={`px-2 py-1 rounded-lg active:scale-95 ${
+                          inviteStatus.disabled
+                            ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
+                            : 'bg-brand-orange'
+                        }`}
+                      >
+                        <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
+                          inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
+                        }`}>
+                          {inviteStatus.text}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
                     <TouchableOpacity
-                      disabled={inviteStatus.disabled}
-                      onPress={() => handleSendInvite(member)}
-                      className={`px-2 py-1 rounded-lg active:scale-95 ${
-                        inviteStatus.disabled
-                          ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
-                          : 'bg-brand-orange'
-                      }`}
+                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
+                      onPress={(e: any) => {
+                        if (e && e.stopPropagation) e.stopPropagation();
+                        router.push({
+                          pathname: '/admin/[orgId]/people/[membershipId]/view',
+                          params: { orgId: orgId!, membershipId: member.membershipId }
+                        });
+                      }}
                     >
-                      <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
-                        inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
-                      }`}>
-                        {inviteStatus.text}
-                      </Text>
+                      <Ionicons name="eye-outline" size={13} color={isDark ? "#E2E8F0" : "#475569"} />
                     </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg"
-                    onPress={() => router.push({
-                      pathname: '/admin/[orgId]/people/[membershipId]',
-                      params: { orgId: orgId!, membershipId: member.membershipId }
-                    })}
-                  >
-                    <Ionicons name="pencil-outline" size={15} color="#94A3B8" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg"
-                    onPress={() => setConfirmDelete({ membershipId: member.membershipId, name: member.name, isOpen: true })}
-                  >
-                    <Ionicons name="trash-outline" size={15} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              </GlassCard>
+                  </View>
+                </GlassCard>
+              </TouchableOpacity>
             );
           })}
 

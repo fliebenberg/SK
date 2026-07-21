@@ -897,43 +897,20 @@ export default function MatchForm({
               </View>
 
               {/* Facility Selection */}
-              {selectedSiteId ? (
+              {selectedSiteId && (
                 <View className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
                   <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Select {getFacilityLabel()}
                   </Text>
-                  {filteredFacilities.length > 0 ? (
-                    <View className="flex-row flex-wrap gap-2">
-                      {filteredFacilities.map((fac) => {
-                        const isSelected = selectedFacilityId === fac.id;
-                        return (
-                          <TouchableOpacity
-                            key={fac.id}
-                            onPress={() => setSelectedFacilityId(isSelected ? '' : fac.id)}
-                            style={{
-                              backgroundColor: isSelected ? COLORS.brand.orange : 'transparent',
-                              borderColor: isSelected ? COLORS.brand.orange : (isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0'),
-                            }}
-                            className={`px-3 py-1.5 rounded-lg border`}
-                          >
-                            <Text
-                              className={`font-inter-bold text-[11px] ${
-                                isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-300'
-                              }`}
-                            >
-                              {fac.name}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ) : (
-                    <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">
-                      No {getFacilityLabel().toLowerCase()}s available for this sport at the selected site.
-                    </Text>
-                  )}
+                  <CustomSelect
+                    value={selectedFacilityId}
+                    onChange={(val: string) => setSelectedFacilityId(val)}
+                    options={filteredFacilities.map(f => ({ label: f.name, value: f.id }))}
+                    placeholder={`Select ${getFacilityLabel().toLowerCase()}...`}
+                    clearable={true}
+                  />
                 </View>
-              ) : null}
+              )}
 
               {/* Match Date & Time */}
               <View className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">

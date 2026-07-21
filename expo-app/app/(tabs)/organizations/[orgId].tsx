@@ -12,6 +12,7 @@ import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { OrgLogo } from '@/components/OrgLogo';
 import { getContrastColor } from '@/utils/colorUtils';
 import { useAuthStore } from '@/store/authStore';
+import { COLORS, getThemeColor } from '../../../constants/Colors';
 
 interface Team {
   id: string;
@@ -361,18 +362,16 @@ export default function PublicOrgDetail() {
               <TouchableOpacity
                 key={tab}
                 onPress={() => setActiveTab(tab)}
-                className={`flex-1 py-2.5 rounded-lg items-center active:opacity-85 ${
-                  isTabActive
-                    ? 'bg-slate-100 dark:bg-white/10'
-                    : 'bg-transparent'
-                }`}
+                className="flex-1 py-2.5 rounded-lg items-center active:opacity-85"
+                style={{
+                  backgroundColor: isTabActive ? (isDark ? 'rgba(255, 255, 255, 0.1)' : '#F1F5F9') : 'transparent',
+                }}
               >
                 <Text
-                  className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${
-                    isTabActive
-                      ? 'text-brand-orange'
-                      : 'text-slate-500 dark:text-slate-400'
-                  }`}
+                  className="font-orbitron-bold text-[10px] uppercase tracking-wider"
+                  style={{
+                    color: isTabActive ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+                  }}
                 >
                   {tab}
                 </Text>

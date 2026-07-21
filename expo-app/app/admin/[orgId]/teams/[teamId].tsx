@@ -15,6 +15,7 @@ import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocompl
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../../services/api';
+import { COLORS, getThemeColor } from '../../../../constants/Colors';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -609,13 +610,17 @@ export default function TeamDetailsScreen() {
               <TouchableOpacity
                 key={tab}
                 onPress={() => setActiveTab(tab)}
-                className={`px-4 py-3 mr-2 border-b-2 ${
-                  isSelected ? 'border-brand-orange' : 'border-transparent'
-                }`}
+                className="px-4 py-3 mr-2 border-b-2"
+                style={{
+                  borderBottomColor: isSelected ? COLORS.brand.orange : 'transparent',
+                }}
               >
-                <Text className={`font-orbitron-bold text-[10px] uppercase tracking-widest ${
-                  isSelected ? 'text-brand-orange' : 'text-slate-500 dark:text-slate-400'
-                }`}>
+                <Text
+                  className="font-orbitron-bold text-[10px] uppercase tracking-widest"
+                  style={{
+                    color: isSelected ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+                  }}
+                >
                   {tab}
                 </Text>
               </TouchableOpacity>

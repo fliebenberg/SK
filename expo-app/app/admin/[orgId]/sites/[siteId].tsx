@@ -1047,8 +1047,10 @@ export default function SiteDetailScreen() {
                       const term = getFacilityTerm(fac.supportedSportIds);
                       const activeSports = fac.supportedSportIds?.map(id => sports.find(s => s.id === id)?.name).filter(Boolean).join(', ') || 'None';
                       return (
-                        <View 
+                        <TouchableOpacity 
                           key={fac.id}
+                          onPress={() => handleOpenFacilityModal(fac)}
+                          activeOpacity={0.85}
                           className="flex-row justify-between items-center px-4 py-3 border-b border-slate-200/30 dark:border-white/5"
                         >
                           <View className="flex-1 mr-4">
@@ -1092,19 +1094,19 @@ export default function SiteDetailScreen() {
 
                           <View className="flex-row gap-2">
                             <TouchableOpacity 
-                              onPress={() => handleOpenFacilityModal(fac)}
-                              className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 items-center justify-center active:opacity-85"
+                              onPress={(e: any) => {
+                                if (e && e.stopPropagation) e.stopPropagation();
+                                router.push({
+                                  pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]/view',
+                                  params: { orgId: orgId!, siteId: siteId!, facilityId: fac.id }
+                                });
+                              }}
+                              className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 items-center justify-center active:opacity-85"
                             >
-                              <Ionicons name="pencil" size={12} color={isDark ? "#E2E8F0" : "#475569"} />
-                            </TouchableOpacity>
-                            <TouchableOpacity 
-                              onPress={() => handleDeleteFacility(fac)}
-                              className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 items-center justify-center active:opacity-85"
-                            >
-                              <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                              <Ionicons name="eye-outline" size={13} color={isDark ? "#E2E8F0" : "#475569"} />
                             </TouchableOpacity>
                           </View>
-                        </View>
+                        </TouchableOpacity>
                       );
                     })
                   )}

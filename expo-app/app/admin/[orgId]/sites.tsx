@@ -10,8 +10,9 @@ import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, Site, Facility, Address } from '@sk/types';
+import { SocketAction, Site, Facility, Address, Organization } from '@sk/types';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
+import { useAuthStore } from '../../../store/authStore';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -30,6 +31,19 @@ export default function OrgSitesList() {
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
+
+  // User & Permissions
+  const user = useAuthStore(state => state.user);
+  const orgMemberships = useAuthStore(state => state.orgMemberships || []);
+  const { data: org } = useSocketQuery<Organization>('organization', { orgId });
+
+  const userMembership = orgMemberships.find(m => m.orgId === orgId);
+  const isOwner = org?.creatorId === user?.id;
+  const canEdit = Boolean(
+    user?.globalRole === 'admin' ||
+    isOwner ||
+    (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
+  );
 
   // Data State
   const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites, setData: setSitesData } = useSocketQuery<Site[]>('sites', { orgId });
@@ -226,100 +240,122 @@ export default function OrgSitesList() {
             {filteredSites.map((site) => {
               const siteFacilities = facilities.filter(f => f.siteId === site.id);
               return (
-                <GlassCard 
+                <TouchableOpacity
                   key={site.id}
-                  className={`border border-slate-200 dark:border-white/5 p-5 ${site.isActive === false ? 'opacity-60' : ''}`}
+                  onPress={() => {
+                    if (canEdit) {
+                      router.push({ pathname: '/admin/[orgId]/sites/[siteId]', params: { orgId: orgId!, siteId: site.id } });
+                    } else {
+                      router.push({ pathname: '/admin/[orgId]/sites/[siteId]/view', params: { orgId: orgId!, siteId: site.id } });
+                    }
+                  }}
+                  activeOpacity={0.85}
                 >
-                  <View className="flex-row justify-between items-start mb-2">
-                    <View className="flex-1">
+                  <GlassCard 
+                    className={`border border-slate-200 dark:border-white/5 p-5 ${site.isActive === false ? 'opacity-60' : ''}`}
+                  >
+                    <View className="flex-row justify-between items-start mb-2">
+                      <View className="flex-1">
+                        <View className="flex-row items-center gap-2">
+                          <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+                            {site.name}
+                          </Text>
+                          {site.isActive === false && (
+                            <View className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
+                              <Text className="text-[8px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Inactive</Text>
+                            </View>
+                          )}
+                        </View>
+
+                        <View className="flex-row items-center gap-1.5 mt-1">
+                          <Ionicons name="map-outline" size={12} color="#94A3B8" />
+                          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                            {site.address?.fullAddress || 'No address registered'}
+                          </Text>
+                        </View>
+                      </View>
+
                       <View className="flex-row items-center gap-2">
-                        <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
-                          {site.name}
-                        </Text>
-                        {site.isActive === false && (
-                          <View className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
-                            <Text className="text-[8px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Inactive</Text>
-                          </View>
+                        <TouchableOpacity 
+                          onPress={(e: any) => {
+                            if (e && e.stopPropagation) e.stopPropagation();
+                            router.push({ pathname: '/admin/[orgId]/sites/[siteId]/view', params: { orgId: orgId!, siteId: site.id } });
+                          }}
+                          className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
+                        >
+                          <Ionicons name="eye-outline" size={13} color={isDark ? "#E2E8F0" : "#475569"} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* FACILITIES LIST UNDER SITE */}
+                    <View className="mt-4 pt-3 border-t border-slate-200/50 dark:border-white/5">
+                      <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                        Facilities ({siteFacilities.length})
+                      </Text>
+                      <View className="flex-row flex-wrap gap-2">
+                        {siteFacilities.map((fac) => {
+                          const term = getFacilityTerm(fac.supportedSportIds);
+                          
+                          // Map category / sport to an icon name
+                          let iconName: any = "location-outline";
+                          if (fac.primarySportId) {
+                            const sport = sports.find(s => s.id === fac.primarySportId);
+                            const sportNameLower = (sport?.name || '').toLowerCase();
+                            if (sportNameLower.includes('rugby')) iconName = 'american-football';
+                            else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
+                            else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
+                            else if (sportNameLower.includes('cricket')) iconName = 'baseball';
+                            else if (sportNameLower.includes('golf')) iconName = 'golf';
+                            else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
+                          } else {
+                            switch(fac.category) {
+                              case 'sport_field': iconName = 'tennisball-outline'; break;
+                              case 'venue_hall': iconName = 'business-outline'; break;
+                              case 'clubhouse': iconName = 'home-outline'; break;
+                              case 'shop': iconName = 'cart-outline'; break;
+                              case 'parking': iconName = 'car-outline'; break;
+                              case 'restroom': iconName = 'water-outline'; break;
+                              default: iconName = 'location-outline';
+                            }
+                          }
+
+                          return (
+                            <TouchableOpacity 
+                              key={fac.id}
+                              onPress={(e: any) => {
+                                if (e && e.stopPropagation) e.stopPropagation();
+                                if (canEdit) {
+                                  router.push({
+                                    pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]',
+                                    params: { orgId: orgId!, siteId: site.id, facilityId: fac.id }
+                                  });
+                                } else {
+                                  router.push({
+                                    pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]/view',
+                                    params: { orgId: orgId!, siteId: site.id, facilityId: fac.id }
+                                  });
+                                }
+                              }}
+                              className={`flex-row items-center gap-1.5 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg border border-slate-200/50 dark:border-white/5 active:opacity-85 ${fac.isActive === false ? 'opacity-50' : ''}`}
+                            >
+                              <Ionicons name={iconName} size={12} color="#FF3E00" />
+                              <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
+                                {fac.name}
+                              </Text>
+                              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 lowercase italic">
+                                ({term})
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                        {siteFacilities.length === 0 && (
+                          <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">No facilities registered. Edit site to configure.</Text>
                         )}
                       </View>
-
-                      <View className="flex-row items-center gap-1.5 mt-1">
-                        <Ionicons name="map-outline" size={12} color="#94A3B8" />
-                        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-                          {site.address?.fullAddress || 'No address registered'}
-                        </Text>
-                      </View>
                     </View>
-
-                    <View className="flex-row items-center gap-2">
-                      <TouchableOpacity 
-                        onPress={() => handleOpenSiteModal(site)}
-                        className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
-                      >
-                        <Ionicons name="pencil" size={12} color={isDark ? "#E2E8F0" : "#475569"} />
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        onPress={() => handleDeleteSite(site)}
-                        className="w-7 h-7 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-80"
-                      >
-                        <Ionicons name="trash-outline" size={12} color="#EF4444" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* FACILITIES LIST UNDER SITE */}
-                  <View className="mt-4 pt-3 border-t border-slate-200/50 dark:border-white/5">
-                    <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-                      Facilities ({siteFacilities.length})
-                    </Text>
-                    <View className="flex-row flex-wrap gap-2">
-                      {siteFacilities.map((fac) => {
-                        const term = getFacilityTerm(fac.supportedSportIds);
-                        
-                        // Map category / sport to an icon name
-                        let iconName: any = "location-outline";
-                        if (fac.primarySportId) {
-                          const sport = sports.find(s => s.id === fac.primarySportId);
-                          const sportNameLower = (sport?.name || '').toLowerCase();
-                          if (sportNameLower.includes('rugby')) iconName = 'american-football';
-                          else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
-                          else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
-                          else if (sportNameLower.includes('cricket')) iconName = 'baseball';
-                          else if (sportNameLower.includes('golf')) iconName = 'golf';
-                          else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
-                        } else {
-                          switch(fac.category) {
-                            case 'sport_field': iconName = 'tennisball-outline'; break;
-                            case 'venue_hall': iconName = 'business-outline'; break;
-                            case 'clubhouse': iconName = 'home-outline'; break;
-                            case 'shop': iconName = 'cart-outline'; break;
-                            case 'parking': iconName = 'car-outline'; break;
-                            case 'restroom': iconName = 'water-outline'; break;
-                            default: iconName = 'location-outline';
-                          }
-                        }
-
-                        return (
-                          <View 
-                            key={fac.id} 
-                            className={`flex-row items-center gap-1.5 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg border border-slate-200/50 dark:border-white/5 ${fac.isActive === false ? 'opacity-50' : ''}`}
-                          >
-                            <Ionicons name={iconName} size={12} color="#FF3E00" />
-                            <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
-                              {fac.name}
-                            </Text>
-                            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 lowercase italic">
-                              ({term})
-                            </Text>
-                          </View>
-                        );
-                      })}
-                      {siteFacilities.length === 0 && (
-                        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">No facilities registered. Edit site to configure.</Text>
-                      )}
-                    </View>
-                  </View>
-                </GlassCard>
+                  </GlassCard>
+                </TouchableOpacity>
               );
             })}
 

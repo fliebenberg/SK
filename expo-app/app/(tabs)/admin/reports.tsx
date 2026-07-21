@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { GlassCard } from '../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
+import { COLORS, getThemeColor } from '../../../constants/Colors';
 
 export default function SystemReports() {
   const isDark = useActiveTheme() === 'dark';
@@ -80,22 +81,22 @@ export default function SystemReports() {
           </GlassCard>
         </View>
 
-        {/* FILTER TABS */}
-        <View className="flex-row bg-slate-200/50 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-1 mb-6">
+        {/* FILTER BAR */}
+        <View className="flex-row bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 mb-6">
           {(['all', 'pending', 'resolved'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               onPress={() => setFilter(tab)}
-              className={`flex-1 items-center py-2.5 rounded-lg active:opacity-90 ${
-                filter === tab ? 'bg-white dark:bg-slate-800 shadow-sm' : ''
-              }`}
+              className="flex-1 items-center py-2.5 rounded-lg active:opacity-90"
+              style={{
+                backgroundColor: filter === tab ? getThemeColor(isDark, 'surface') : 'transparent',
+              }}
             >
               <Text 
-                className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${
-                  filter === tab 
-                    ? 'text-brand-orange' 
-                    : 'text-slate-500 dark:text-slate-400'
-                }`}
+                className="font-orbitron-bold text-[10px] uppercase tracking-wider"
+                style={{
+                  color: filter === tab ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+                }}
               >
                 {tab}
               </Text>
@@ -175,7 +176,7 @@ export default function SystemReports() {
 
           {filteredReports.length === 0 && (
             <View className="items-center justify-center py-12">
-              <Ionicons name="checkmark-circle-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
+              <Ionicons name="checkmark-circle-outline" size={48} color="#94A3B8" style={{ opacity: 0.4, marginBottom: 12 }} />
               <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
                 All Clear!
               </Text>

@@ -180,7 +180,10 @@ export default function PublicLeagueStandings() {
               style={{ borderBottomColor: activeTab === 'standings' ? '#FF3E00' : 'transparent' }}
             >
               <Ionicons name="trophy-outline" size={14} color={activeTab === 'standings' ? '#FF3E00' : '#94A3B8'} />
-              <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${activeTab === 'standings' ? 'text-brand-orange' : 'text-slate-500'}`}>
+              <Text
+                className="font-orbitron-bold text-[10px] uppercase tracking-wider"
+                style={{ color: activeTab === 'standings' ? '#FF3E00' : '#94A3B8' }}
+              >
                 Standings
               </Text>
             </TouchableOpacity>
@@ -191,7 +194,10 @@ export default function PublicLeagueStandings() {
               style={{ borderBottomColor: activeTab === 'fixtures' ? '#FF3E00' : 'transparent' }}
             >
               <Ionicons name="calendar-outline" size={14} color={activeTab === 'fixtures' ? '#FF3E00' : '#94A3B8'} />
-              <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${activeTab === 'fixtures' ? 'text-brand-orange' : 'text-slate-500'}`}>
+              <Text
+                className="font-orbitron-bold text-[10px] uppercase tracking-wider"
+                style={{ color: activeTab === 'fixtures' ? '#FF3E00' : '#94A3B8' }}
+              >
                 Matches & Results
               </Text>
             </TouchableOpacity>

@@ -95,12 +95,16 @@ export default function OrgAdminLayout() {
       <Stack.Screen name="settings" />
       <Stack.Screen name="people" />
       <Stack.Screen name="people/[membershipId]" />
+      <Stack.Screen name="people/[membershipId]/view" />
       <Stack.Screen name="teams" />
       <Stack.Screen name="teams/new" />
       <Stack.Screen name="teams/[teamId]" />
+      <Stack.Screen name="teams/[teamId]/view" />
       <Stack.Screen name="sites" />
       <Stack.Screen name="sites/[siteId]" />
+      <Stack.Screen name="sites/[siteId]/view" />
       <Stack.Screen name="sites/[siteId]/facilities/[facilityId]" />
+      <Stack.Screen name="sites/[siteId]/facilities/[facilityId]/view" />
       <Stack.Screen name="events/index" />
       <Stack.Screen name="events/create" />
       <Stack.Screen name="events/[eventId]" />
