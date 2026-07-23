@@ -156,15 +156,27 @@ export default function EventDetails() {
         if (eventPayload.type === 'EVENT_UPDATED' && eventPayload.data.id === eventId) {
           setEvent(eventPayload.data);
         }
-        if (
-          eventPayload.type === 'GAME_ADDED' ||
-          eventPayload.type === 'GAME_UPDATED' ||
-          eventPayload.type === 'GAME_DELETED'
-        ) {
-          wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
-            if (!active) return;
-            if (Array.isArray(res)) setGames(res.filter(g => g.eventId === eventId));
-          });
+        if (eventPayload.type === 'GAME_ADDED') {
+          if (eventPayload.data?.eventId === eventId) {
+            setGames(prev => {
+              if (prev.some(g => g.id === eventPayload.data.id)) {
+                return prev.map(g => g.id === eventPayload.data.id ? { ...g, ...eventPayload.data } : g);
+              }
+              return [...prev, eventPayload.data];
+            });
+          }
+        } else if (eventPayload.type === 'GAME_UPDATED') {
+          setGames(prev =>
+            prev.map(g => {
+              if (g.id !== eventPayload.data?.id) return g;
+              const updatedLiveState = eventPayload.data.liveState
+                ? { ...g.liveState, ...eventPayload.data.liveState }
+                : g.liveState;
+              return { ...g, ...eventPayload.data, liveState: updatedLiveState };
+            })
+          );
+        } else if (eventPayload.type === 'GAME_DELETED') {
+          setGames(prev => prev.filter(g => g.id !== eventPayload.data?.id));
         }
       }
     };
@@ -512,8 +524,7 @@ export default function EventDetails() {
                       <Button
                         title="Score Match"
                         onPress={() => {
-                          setSelectedGameToScore(games[0]);
-                          setIsScoringVisible(true);
+                          router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/score`);
                         }}
                         className="flex-1 py-2.5 rounded-lg"
                       />
@@ -660,8 +671,7 @@ export default function EventDetails() {
                                 canUserScoreGame(game) && (
                                   <TouchableOpacity
                                     onPress={() => {
-                                      setSelectedGameToScore(game);
-                                      setIsScoringVisible(true);
+                                      router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/score`);
                                     }}
                                     className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-85"
                                   >

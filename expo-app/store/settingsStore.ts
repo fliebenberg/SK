@@ -32,6 +32,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       globalPreferences: {
         theme: 'system',
+        hapticFeedbackEnabled: true,
       },
       localOverrides: {},
 

@@ -567,6 +567,23 @@ export default function SettingsScreen() {
                     </Text>
                   </TouchableOpacity>
                 </View>
+
+                <View className="flex-row items-center justify-between pt-4 mt-4 border-t border-slate-100 dark:border-white/5">
+                  <View className="flex-1 pr-2">
+                    <Text className="font-inter-bold text-xs text-slate-900 dark:text-white">
+                      Haptic Vibration
+                    </Text>
+                    <Text className="font-inter text-[10px] text-slate-400">
+                      Tactile feedback when tapping scoring action buttons
+                    </Text>
+                  </View>
+                  <Switch
+                    value={useSettingsStore.getState().getEffectivePreference('hapticFeedbackEnabled') !== false}
+                    onValueChange={(val) => setLocalOverride('hapticFeedbackEnabled', val)}
+                    trackColor={{ false: '#64748B', true: '#FF3E00' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
               </GlassCard>
             </View>
 

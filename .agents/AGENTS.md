@@ -1,8 +1,10 @@
 # Real-Time State Synchronization Rules
 
-## Client-Side Real-Time Updates
+## Client-Side Real-Time Updates & Server Broadcast Efficiency
 - **Avoid Unnecessary Server Fetches**: Once a client component or page has subscribed to a real-time room/channel (e.g., via WebSockets/Socket.io), any data updates broadcasted by the server must be handled by **directly merging or setting the event payload data** into the local state.
-- **Do Not Refetch**: Do not perform a backend query/refetch upon receiving a change notification, unless a specific reconnection event or connection recovery occurs. This keeps network traffic minimal and utilizes the real-time push mechanism as intended.
+- **Do Not Refetch**: Do not perform a backend query/refetch (`emit('get_data')` or HTTP GET) upon receiving a change notification event, unless a specific reconnection event or connection recovery occurs. This prevents massive server traffic floods when thousands of connected clients receive a broadcast event and attempt to refetch simultaneously.
+- **Minimal Delta Payloads**: Initial room/page connections get full entity state (via initial `get_data`), but all subsequent real-time update broadcast events MUST send ONLY the minimal delta required to keep the client state up to date (e.g., sending `{ id, liveState: { clock } }` or `{ id, status }` rather than entire entity graphs).
+- **Client-Side Delta Merging**: All client event listeners must support merging deltas into existing local state (e.g. shallow/deep merging updated fields into existing state objects or list items).
 
 # UI Notification & Dialog Rules
 

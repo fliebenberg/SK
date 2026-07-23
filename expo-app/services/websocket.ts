@@ -5,9 +5,32 @@ import { useWsStore } from '../store/wsStore';
 class WebSocketService {
   private socket: Socket | null = null;
   private url: string;
+  private serverOffset: number = 0;
 
   constructor(url: string) {
     this.url = url;
+  }
+
+  getServerTime(): number {
+    return Date.now() + this.serverOffset;
+  }
+
+  getServerOffset(): number {
+    return this.serverOffset;
+  }
+
+  syncTime() {
+    if (this.socket && this.socket.connected) {
+      const sendTime = Date.now();
+      this.socket.emit('time_sync', {}, (res: { serverTime: number }) => {
+        if (res?.serverTime) {
+          const receiveTime = Date.now();
+          const rtt = receiveTime - sendTime;
+          this.serverOffset = (res.serverTime + Math.floor(rtt / 2)) - receiveTime;
+          console.log(`[WS] Time synced via ping-pong. Offset: ${this.serverOffset}ms (RTT: ${rtt}ms)`);
+        }
+      });
+    }
   }
 
   connect() {
@@ -24,6 +47,14 @@ class WebSocketService {
       this.socket.on('connect', () => {
         console.log(`[WS] Connected to Socket.io server at ${this.url}`);
         useWsStore.getState().setConnected(true);
+        this.syncTime();
+      });
+
+      this.socket.on('server_time', (data: { serverTime: number }) => {
+        if (data?.serverTime) {
+          this.serverOffset = data.serverTime - Date.now();
+          console.log(`[WS] Server time received. Offset: ${this.serverOffset}ms`);
+        }
       });
 
       this.socket.on('disconnect', () => {

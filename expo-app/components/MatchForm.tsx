@@ -98,8 +98,24 @@ export default function MatchForm({
   useEffect(() => {
     if (!isConnected) return;
 
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (Array.isArray(res)) setSports(res);
+    wsService.emit('get_data', { type: 'sports' }, (resSports: any) => {
+      const allSports = Array.isArray(resSports) ? resSports : [];
+      if (allSports.length > 0) {
+        setSports(allSports);
+
+        if (!selectedSportId && !initialData?.sportId) {
+          wsService.emit('get_data', { type: 'organization', id: orgId }, (hostOrg: any) => {
+            if (hostOrg && Array.isArray(hostOrg.supportedSportIds) && hostOrg.supportedSportIds.length > 0) {
+              const matchedSport = allSports.find((s: any) => hostOrg.supportedSportIds.includes(s.id));
+              if (matchedSport) {
+                setSelectedSportId(matchedSport.id);
+                return;
+              }
+            }
+            setSelectedSportId(allSports[0].id);
+          });
+        }
+      }
     });
 
     wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {

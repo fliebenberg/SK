@@ -43,7 +43,14 @@ export default function ViewGame() {
     setIsLoading(true);
 
     wsService.emit('get_data', { type: 'event', id: eventId }, (resEvent: any) => {
-      if (resEvent) setEvent(resEvent);
+      if (resEvent) {
+        setEvent(resEvent);
+        if (resEvent.sportIds?.[0] && !sport) {
+          wsService.emit('get_data', { type: 'sport', id: resEvent.sportIds[0] }, (resSport: any) => {
+            if (resSport) setSport(resSport);
+          });
+        }
+      }
     });
 
     wsService.emit('get_data', { type: 'game', id: gameId }, (resGame: any) => {
@@ -51,8 +58,9 @@ export default function ViewGame() {
         setGame(resGame);
         
         // Load Sport
-        if (resGame.sportId) {
-          wsService.emit('get_data', { type: 'sport', id: resGame.sportId }, (resSport: any) => {
+        const resolvedSportId = resGame.sportId || resGame.customSettings?.sportId;
+        if (resolvedSportId) {
+          wsService.emit('get_data', { type: 'sport', id: resolvedSportId }, (resSport: any) => {
             if (resSport) setSport(resSport);
           });
         }
@@ -77,6 +85,11 @@ export default function ViewGame() {
           wsService.emit('get_data', { type: 'team', id: homeTeamId }, (t: any) => {
             if (t) {
               setHomeTeam(t);
+              if (t.sportId && !sport) {
+                wsService.emit('get_data', { type: 'sport', id: t.sportId }, (resSport: any) => {
+                  if (resSport) setSport(resSport);
+                });
+              }
               if (t.orgId) {
                 wsService.emit('get_data', { type: 'organization', id: t.orgId }, (o: any) => {
                   if (o) setHomeOrg(o);
@@ -135,7 +148,15 @@ export default function ViewGame() {
         <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
           Match Details
         </Text>
-        <View className="w-12" />
+        <TouchableOpacity
+          onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/score`)}
+          className="bg-brand-orange px-3 py-1.5 rounded-lg flex-row items-center gap-1 active:opacity-85"
+        >
+          <Ionicons name="trophy" size={14} color="white" />
+          <Text className="font-orbitron-bold text-[10px] text-white uppercase tracking-wider">
+            Score Match
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>

@@ -339,7 +339,15 @@ export default function EditGame() {
         <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
           Edit Match Info
         </Text>
-        <View className="w-12" />
+        <TouchableOpacity
+          onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/score`)}
+          className="bg-brand-orange px-3 py-1.5 rounded-lg flex-row items-center gap-1 active:opacity-85"
+        >
+          <Ionicons name="trophy" size={14} color="white" />
+          <Text className="font-orbitron-bold text-[10px] text-white uppercase tracking-wider">
+            Score Match
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>

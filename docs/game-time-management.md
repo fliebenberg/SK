@@ -31,11 +31,13 @@ The game is active. The time is the accumulated milliseconds plus the duration s
 
 ## 3. Client-Side Synchronization
 
-### Real-time Updates
+### Real-time Updates & Push Efficiency
 When an official starts or pauses the clock:
 1. The client emits an `UPDATE_GAME_CLOCK` action.
-2. The server calculates the new `elapsedMS` and `lastStartedAt`, updates the database, and broadcasts the updated `Game` object to all clients in the game's room.
-3. Every connected client receives the update and their local `useGameTimer` hook immediately reflects the change.
+2. The server calculates the new `elapsedMS` and `lastStartedAt`, updates the database, and broadcasts a **minimal delta payload** (containing `{ id, liveState: { clock } }`) to all clients in the game's room.
+3. **No Per-Second Broadcasts**: The server does NOT broadcast WebSocket messages every second. Broadcasts only occur on discrete actions (Start, Pause, Reset, Period Change). Between actions, clients calculate the continuous ticking locally via `requestAnimationFrame`.
+4. **Direct Delta Merging**: Every connected client receives the delta payload and directly merges it into its local state without executing a follow-up `get_data` refetch query.
+5. The local `useGameTimer` hook immediately reflects the change.
 
 ### Clock Drift & Skew
 To ensure that "CurrentTime" is consistent across clients:

@@ -879,11 +879,14 @@ const PORT = process.env.PORT || 3001;
 io.on('connection', (socket) => {
   console.log('Client connected [v2]:', socket.id);
 
-  // Send initial data state?
-  // Or client requests it?
-  // For now, let's treat it as "pull on subscribe" or "push updates".
-  // Client will likely fetch initial data via HTTP or a specific "get" event.
-  // Let's support a "get" event.
+  // Send server timestamp on connection for client time offset calculation
+  socket.emit('server_time', { serverTime: Date.now() });
+
+  socket.on('time_sync', (_, callback) => {
+    if (typeof callback === 'function') {
+      callback({ serverTime: Date.now() });
+    }
+  });
   
     socket.on('get_live_games', async (data, callback) => {
         try {
@@ -1459,13 +1462,20 @@ io.on('connection', (socket) => {
             case SocketAction.UPDATE_GAME_CLOCK:
                 result = await dataManager.updateGameClock(action.payload.id, action.payload.action);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
+                    const clockDelta = { 
+                        id: result.id, 
+                        eventId: result.eventId, 
+                        status: result.status, 
+                        startTime: result.startTime, 
+                        liveState: { clock: result.liveState?.clock, periodLabel: result.liveState?.periodLabel } 
+                    };
+                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: clockDelta });
                     
                     const parentEvent = await dataManager.getEvent(result.eventId);
                     if (parentEvent) {
                         const orgIds = [parentEvent.orgId, ...(parentEvent.participatingOrgIds || [])];
                         orgIds.forEach(orgId => {
-                            additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAME_UPDATED', data: result });
+                            additionalBroadcasts.push({ topic: `org:${orgId}:events`, type: 'GAME_UPDATED', data: clockDelta });
                         });
                     }
                 }
@@ -1568,9 +1578,9 @@ io.on('connection', (socket) => {
                     const updatedLiveState = { ...(gameToUpdate.liveState || {}), scores: action.payload.scores };
                     result = await dataManager.updateGame(action.payload.id, { liveState: updatedLiveState });
                     if (result) {
-                        // Broadcast update to game rooms
-                        io.to(`game:${result.id}`).emit('update', { type: 'GAME_UPDATED', data: result });
-                        io.to(`game:${result.id}:detail`).emit('update', { type: 'GAME_UPDATED', data: result });
+                        const scoreDelta = { id: result.id, eventId: result.eventId, liveState: { scores: action.payload.scores } };
+                        io.to(`game:${result.id}`).emit('update', { type: 'GAME_UPDATED', data: scoreDelta });
+                        io.to(`game:${result.id}:detail`).emit('update', { type: 'GAME_UPDATED', data: scoreDelta });
                     }
                 }
                 break;
