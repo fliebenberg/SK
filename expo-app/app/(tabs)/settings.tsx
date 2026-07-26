@@ -14,6 +14,8 @@ import {
 import { useSettingsStore, ThemePreference, useActiveTheme } from "../../store/settingsStore";
 import { GlassCard } from "../../components/GlassCard";
 import { Button } from "../../components/Button";
+import { SegmentedControl } from "../../components/SegmentedControl";
+import { Tabs } from "../../components/Tabs";
 import { useAuthStore } from "../../store/authStore";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -541,32 +543,15 @@ export default function SettingsScreen() {
                 <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-4">
                   Appearance
                 </Text>
-                <View className="flex-row gap-1">
-                  <TouchableOpacity
-                    onPress={() => setTheme("system")}
-                    className={`flex-1 items-center justify-center p-2 border rounded-md ${currentTheme === "system" ? "border-brand-orange bg-brand-orange/5" : "border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-950"}`}
-                  >
-                    <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
-                      Auto
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setTheme("dark")}
-                    className={`flex-1 items-center justify-center p-2 border rounded-md ${currentTheme === "dark" ? "border-brand-orange bg-brand-orange/5" : "border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-950"}`}
-                  >
-                    <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
-                      Dark
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setTheme("light")}
-                    className={`flex-1 items-center justify-center p-2 border rounded-md ${currentTheme === "light" ? "border-brand-orange bg-brand-orange/5" : "border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-950"}`}
-                  >
-                    <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
-                      Light
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <SegmentedControl<ThemePreference>
+                  options={[
+                    { key: "system", label: "Auto" },
+                    { key: "dark", label: "Dark" },
+                    { key: "light", label: "Light" },
+                  ]}
+                  value={currentTheme}
+                  onChange={setTheme}
+                />
 
                 <View className="flex-row items-center justify-between pt-4 mt-4 border-t border-slate-100 dark:border-white/5">
                   <View className="flex-1 pr-2">
@@ -590,40 +575,17 @@ export default function SettingsScreen() {
             {/* RIGHT COLUMN (Edit Panels - Tablet split view, stacked on mobile) */}
             <View className="flex-1 w-full gap-6">
               {/* MOBILE TABS SELECTOR (Only shown on small screens) */}
-              <View className="flex-row md:hidden bg-slate-200 dark:bg-slate-800 rounded-lg p-1 mb-2">
-                <TouchableOpacity
-                  onPress={() => setActiveTab("profile")}
-                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "profile" ? "bg-white dark:bg-slate-950" : ""}`}
-                  style={activeTab === "profile" ? activeTabStyle : undefined}
-                >
-                  <Text
-                    className={`font-inter-bold text-xs ${activeTab === "profile" ? "text-brand-orange" : "text-slate-600 dark:text-slate-400"}`}
-                  >
-                    Edit Profile
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setActiveTab("security")}
-                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "security" ? "bg-white dark:bg-slate-950" : ""}`}
-                  style={activeTab === "security" ? activeTabStyle : undefined}
-                >
-                  <Text
-                    className={`font-inter-bold text-xs ${activeTab === "security" ? "text-brand-orange" : "text-slate-600 dark:text-slate-400"}`}
-                  >
-                    Security
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setActiveTab("emails")}
-                  className={`flex-1 items-center py-2.5 rounded-md ${activeTab === "emails" ? "bg-white dark:bg-slate-950" : ""}`}
-                  style={activeTab === "emails" ? activeTabStyle : undefined}
-                >
-                  <Text
-                    className={`font-inter-bold text-xs ${activeTab === "emails" ? "text-brand-orange" : "text-slate-600 dark:text-slate-400"}`}
-                  >
-                    Accounts
-                  </Text>
-                </TouchableOpacity>
+              <View className="md:hidden mb-2">
+                <Tabs<"profile" | "security" | "emails">
+                  items={[
+                    { key: "profile", label: "Edit Profile", icon: "person-outline" },
+                    { key: "security", label: "Security", icon: "lock-closed-outline" },
+                    { key: "emails", label: "Accounts", icon: "mail-outline" },
+                  ]}
+                  activeKey={activeTab}
+                  onChange={setActiveTab}
+                  variant="underline"
+                />
               </View>
 
               {/* 1. EDIT PROFILE TAB */}
@@ -656,46 +618,19 @@ export default function SettingsScreen() {
                         <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
                           Profile Image Source
                         </Text>
-                        <View className="flex-row gap-2">
-                          <TouchableOpacity
-                            onPress={() => setAvatarSource("custom")}
-                            className={`flex-1 flex-row items-center gap-2 p-3 border rounded-lg ${avatarSource === "custom" ? "border-brand-orange bg-brand-orange/5" : "border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-950"}`}
-                          >
-                            <Ionicons
-                              name="image"
-                              size={16}
-                              color={
-                                avatarSource === "custom"
-                                  ? "#FF3E00"
-                                  : "#64748B"
-                              }
-                            />
-                            <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
-                              Custom Upload
-                            </Text>
-                          </TouchableOpacity>
-
-                          {socialAccounts.map((acc) => (
-                            <TouchableOpacity
-                              key={acc.provider}
-                              onPress={() => setAvatarSource(acc.provider)}
-                              className={`flex-1 flex-row items-center gap-2 p-3 border rounded-lg capitalize ${avatarSource === acc.provider ? "border-brand-orange bg-brand-orange/5" : "border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-950"}`}
-                            >
-                              <Ionicons
-                                name="logo-google"
-                                size={16}
-                                color={
-                                  avatarSource === acc.provider
-                                    ? "#FF3E00"
-                                    : "#64748B"
-                                }
-                              />
-                              <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
-                                {acc.provider}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
+                        <SegmentedControl
+                          options={[
+                            { key: "custom", label: "Custom Upload", icon: "image" },
+                            ...socialAccounts.map((acc) => ({
+                              key: acc.provider,
+                              label: acc.provider,
+                              icon: "logo-google" as const,
+                            })),
+                          ]}
+                          value={avatarSource}
+                          onChange={setAvatarSource}
+                          isCompact={false}
+                        />
                       </View>
                     )}
 
@@ -1020,32 +955,16 @@ export default function SettingsScreen() {
                   <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-4">
                     Appearance
                   </Text>
-                  <View className="flex-row gap-2">
-                    <Button
-                      title="Auto"
-                      variant={
-                        currentTheme === "system" ? "primary" : "secondary"
-                      }
-                      onPress={() => setTheme("system")}
-                      className="flex-1"
-                    />
-                    <Button
-                      title="Dark"
-                      variant={
-                        currentTheme === "dark" ? "primary" : "secondary"
-                      }
-                      onPress={() => setTheme("dark")}
-                      className="flex-1"
-                    />
-                    <Button
-                      title="Light"
-                      variant={
-                        currentTheme === "light" ? "primary" : "secondary"
-                      }
-                      onPress={() => setTheme("light")}
-                      className="flex-1"
-                    />
-                  </View>
+                  <SegmentedControl<ThemePreference>
+                    options={[
+                      { key: "system", label: "Auto" },
+                      { key: "dark", label: "Dark" },
+                      { key: "light", label: "Light" },
+                    ]}
+                    value={currentTheme}
+                    onChange={setTheme}
+                    isCompact={false}
+                  />
                 </GlassCard>
               </View>
             </View>

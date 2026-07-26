@@ -5,8 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
-import { Game } from '@sk/types';
+import { SocketAction, Event, Game } from '@sk/types';
 import { COLORS } from '../../../../../../../constants/Colors';
+import { useAuthStore } from '../../../../../../../store/authStore';
+import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
+import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
 import { DynamicScoringDialog } from '../../../../../../../components/sports/shared/DynamicScoringDialog';
 import { SportComponentRegistry } from '../../../../../../../components/sports/SportComponentRegistry';
@@ -23,7 +26,12 @@ export default function ScoreGameScreen() {
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string }>();
   const isConnected = useWsStore((state: any) => state.isConnected);
 
+  const user = useAuthStore((state: any) => state.user);
+  const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
+  const teamMemberships = useAuthStore((state: any) => state.teamMemberships);
+
   const [game, setGame] = useState<Game | null>(null);
+  const [event, setEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'feed' | 'team1' | 'team2' | 'stats'>('feed');
 
@@ -34,6 +42,12 @@ export default function ScoreGameScreen() {
 
     wsService.emit('join_room', `game:${gameId}`);
     wsService.emit('join_room', `game:${gameId}:events`);
+
+    if (eventId) {
+      wsService.emit('get_data', { type: 'event', id: eventId }, (resEvent: Event) => {
+        if (resEvent) setEvent(resEvent);
+      });
+    }
 
     wsService.emit('get_data', { type: 'game', id: gameId }, (resGame: Game) => {
       if (resGame) {
@@ -78,6 +92,15 @@ export default function ScoreGameScreen() {
     );
   }
 
+  const permissions = getMatchPermissions({
+    game,
+    event,
+    currentOrgId: orgId,
+    user,
+    orgMemberships,
+    teamMemberships,
+  });
+
   const sportCategory = game.sportId ? 'Rugby' : 'Rugby';
   const ScoreboardComponent = SportComponentRegistry.getScoreboard(sportCategory);
   const ScoringPanelComponent = SportComponentRegistry.getScoringPanel(sportCategory);
@@ -99,7 +122,13 @@ export default function ScoreGameScreen() {
           <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4">
             Game Control Room
           </Text>
-          <View className="w-12" />
+          <MatchViewSwitcher
+            orgId={orgId!}
+            eventId={eventId!}
+            gameId={gameId!}
+            currentView="score"
+            permissions={permissions}
+          />
         </View>
 
         <ScrollView className="flex-1 px-4 py-4" contentContainerStyle={{ paddingBottom: 60 }}>

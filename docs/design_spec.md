@@ -35,9 +35,9 @@ The color system relies on a deep, dark foundation punctuated by highly saturate
 - **The 8-Point Grid**: All padding, margins, and component heights must align to an 8-point grid (8, 16, 24, 32, 40, etc.) to ensure a rhythmic, mathematically consistent layout.
 - **Card Padding**: Standard cards should use a generous `16px` or `24px` internal padding to give the data room to breathe.
 
-### 1.4 Brand Identity & Logo
-- **The Logo**: A prominent "SK" inside a square container, utilizing the Orbitron font.
-- **Styling**: The logo must be adaptable to the active theme. In the primary Dark Mode, the "SK" letters will feature the primary glowing accent color (**Electric Orange**) and should be styled to look physically extruded (3D relief) from the dark background square.
+### 1.5 Generic & Reusable UI Components
+- **Encourage Component Reuse**: Developers and AI agents must actively prefer creating and consuming generic, domain-agnostic UI components (e.g. `SegmentedControl`, `Button`, `GlassCard`, `ConfirmationModal`) whenever implementing UI patterns across the application.
+- **Prevent Duplicate Implementations**: Avoid re-implementing ad-hoc component layouts or styling blocks in individual screens. Specialized components (such as `MatchViewSwitcher`) should wrap generic base components (like `SegmentedControl`) to preserve single-source-of-truth styling while encapsulating domain logic.
 
 ---
 
@@ -67,6 +67,12 @@ To guarantee a clean, professional, and uncluttered layout on mobile viewports:
 1. **Single Native Header Bar**: The application must utilize a single native navigation header bar (configured in Expo Router's `<Stack>` layout, styled with the custom Orbitron font and primary Burnt Orange accent). Double headers (such as displaying both the root stack header and a nested router header) are strictly prohibited.
 2. **Prevent Heading Duplication**: Do not repeat the active screen title (e.g., "Control Center" or "My Organizations") as a large heading inside the scrollable screen body if it is already displayed in the native header above. This saves precious screen real estate on mobile devices.
 3. **Standardized Back Routing**: All back navigation is handled natively by the stack header's back arrow (`<-`) or iOS edge swipe-back gestures, popping the active screen from the stack. Custom "Back" buttons must not be added to the screen body unless part of a high-friction multi-step wizard (like live scoring exit guards).
+
+### 2.4 Navigation Tabs vs Segmented Selectors vs Action Buttons
+To maintain a clear visual hierarchy across screens, the application distinguishes three distinct control types:
+1. **Navigation Tabs (`<Tabs>`)**: Used exclusively for switching active screen panels or section views (e.g. `Edit Profile / Security / Accounts` in settings, or `Overview / Play-by-Play / Lineups / Stats` in live matches). Uses a clean horizontal bar with active text color (`text-brand-orange`) and a crisp bottom indicator bar (`h-0.5 bg-brand-orange`).
+2. **Segmented Option Selectors (`<SegmentedControl>`)**: Used for toggling option settings or state modes within a form card (e.g. `Auto / Dark / Light` theme selection or `Readonly / Edit Info / Score Match`). Enclosed inside a single rounded track (`bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl`) with elevated card selection indicators (`bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-xs`).
+3. **Action Buttons (`<Button>`)**: Used exclusively for explicit user triggers (e.g. "Save Profile", "Verify", "Change password", "Log Out"). Features solid filled accent colors (`bg-brand-orange`, `bg-brand-red`).
 
 ---
 

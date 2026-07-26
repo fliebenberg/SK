@@ -15,6 +15,7 @@ import { useAuthStore } from '../../../../store/authStore';
 import { SocketAction, Event, Game, Sport, Site, Team, Organization, calculateStandings, LeagueStandingRow } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import CustomSelect from '../../../../components/CustomSelect';
+import { getMatchPermissions } from '../../../../utils/matchPermissions';
 
 export default function EventDetails() {
   const router = useRouter();
@@ -504,23 +505,22 @@ export default function EventDetails() {
                     </View>
                   </View>
 
-                  <View className="flex-row gap-3 w-full">
-                    {canEdit ? (
+                  <View className="flex-row gap-2 w-full">
+                    <Button
+                      title="View Match"
+                      variant="secondary"
+                      onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/view`)}
+                      className="flex-1 py-2.5 rounded-lg shadow-sm"
+                    />
+                    {canEdit && (
                       <Button
-                        title="Edit Match Info"
+                        title="Edit Match"
                         variant="secondary"
                         onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/edit`)}
                         className="flex-1 py-2.5 rounded-lg shadow-sm"
                       />
-                    ) : (
-                      <Button
-                        title="View Match Info"
-                        variant="secondary"
-                        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/view`)}
-                        className="flex-1 py-2.5 rounded-lg shadow-sm"
-                      />
                     )}
-                    {games[0].status !== 'Finished' && canUserScoreGame(games[0]) && (
+                    {canUserScoreGame(games[0]) && (
                       <Button
                         title="Score Match"
                         onPress={() => {
@@ -661,31 +661,37 @@ export default function EventDetails() {
                                 {sports.find(s => s.id === game.sportId)?.name} • {game.status}
                               </Text>
                             </TouchableOpacity>
-
-                            <View className="flex-row items-center gap-2">
-                              {game.status === 'Finished' ? (
-                                <Text className="font-orbitron-bold text-sm text-brand-orange">
+                             <View className="flex-row items-center gap-1.5">
+                              {game.status === 'Finished' && game.finalScoreData && (
+                                <Text className="font-orbitron-bold text-xs text-brand-orange mr-1">
                                   {game.finalScoreData?.home ?? 0} - {game.finalScoreData?.away ?? 0}
                                 </Text>
-                              ) : (
-                                canUserScoreGame(game) && (
-                                  <TouchableOpacity
-                                    onPress={() => {
-                                      router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/score`);
-                                    }}
-                                    className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-85"
-                                  >
-                                    <Ionicons name="trophy" size={12} color={COLORS.brand.orange} />
-                                  </TouchableOpacity>
-                                )
                               )}
                               <TouchableOpacity
-                                onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/${canEdit ? 'edit' : 'view'}`)}
+                                onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/view`)}
                                 className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
                               >
-                                <Ionicons name={canEdit ? "pencil" : "eye"} size={12} color={getThemeColor(isDark, 'textSecondary')} />
+                                <Ionicons name="eye-outline" size={12} color={getThemeColor(isDark, 'textSecondary')} />
                               </TouchableOpacity>
-                            </View>
+                              {canEdit && (
+                                <TouchableOpacity
+                                  onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/edit`)}
+                                  className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                                >
+                                  <Ionicons name="pencil-outline" size={12} color={getThemeColor(isDark, 'textSecondary')} />
+                                </TouchableOpacity>
+                              )}
+                              {canUserScoreGame(game) && (
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/score`);
+                                  }}
+                                  className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-85"
+                                >
+                                  <Ionicons name="trophy-outline" size={12} color={COLORS.brand.orange} />
+                                </TouchableOpacity>
+                              )}
+                             </View>
                           </GlassCard>
                         ))}
                       </View>

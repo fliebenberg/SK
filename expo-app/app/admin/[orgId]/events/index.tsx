@@ -13,6 +13,7 @@ import { useWsStore } from '../../../../store/wsStore';
 import { useAuthStore } from '../../../../store/authStore';
 import { SocketAction, Event, Game, Sport, Site } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
+import { getMatchPermissions } from '../../../../utils/matchPermissions';
 
 class EventsErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -56,6 +57,10 @@ export default function OrgEventsList() {
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
+
+  const user = useAuthStore((state: any) => state.user);
+  const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
+  const teamMemberships = useAuthStore((state: any) => state.teamMemberships);
 
   // Data States
   const [isLoading, setIsLoading] = useState(true);
@@ -331,21 +336,64 @@ export default function OrgEventsList() {
                   activeOpacity={0.85}
                 >
                   <GlassCard className="border border-slate-200 dark:border-white/5 p-5 relative">
-                    {/* Right-Aligned Compact Action (Eye View Button) */}
-                    <View className="absolute right-4 top-4 flex-row items-center gap-2 z-10">
-                      <TouchableOpacity
-                        onPress={(e: any) => {
-                          if (e && e.stopPropagation) e.stopPropagation();
-                          if (event.type === 'SingleMatch' && eventGames.length > 0) {
-                            router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/view`);
-                          } else {
+                    {/* Right-Aligned Compact Actions */}
+                    <View className="absolute right-4 top-4 flex-row items-center gap-1.5 z-10">
+                      {event.type === 'SingleMatch' && eventGames.length > 0 ? (() => {
+                        const singleGame = eventGames[0];
+                        const perms = getMatchPermissions({
+                          game: singleGame,
+                          event,
+                          currentOrgId: orgId,
+                          user,
+                          orgMemberships,
+                          teamMemberships
+                        });
+                        return (
+                          <>
+                            <TouchableOpacity
+                              onPress={(e: any) => {
+                                if (e && e.stopPropagation) e.stopPropagation();
+                                router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/view`);
+                              }}
+                              className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                            >
+                              <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
+                            </TouchableOpacity>
+                            {perms.canEdit && (
+                              <TouchableOpacity
+                                onPress={(e: any) => {
+                                  if (e && e.stopPropagation) e.stopPropagation();
+                                  router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/edit`);
+                                }}
+                                className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                              >
+                                <Ionicons name="pencil-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
+                              </TouchableOpacity>
+                            )}
+                            {perms.canScore && (
+                              <TouchableOpacity
+                                onPress={(e: any) => {
+                                  if (e && e.stopPropagation) e.stopPropagation();
+                                  router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/score`);
+                                }}
+                                className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-80"
+                              >
+                                <Ionicons name="trophy-outline" size={13} color={COLORS.brand.orange} />
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        );
+                      })() : (
+                        <TouchableOpacity
+                          onPress={(e: any) => {
+                            if (e && e.stopPropagation) e.stopPropagation();
                             router.push(`/admin/${orgId}/events/${event.id}`);
-                          }
-                        }}
-                        className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
-                      >
-                        <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
-                      </TouchableOpacity>
+                          }}
+                          className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                        >
+                          <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
+                        </TouchableOpacity>
+                      )}
                     </View>
 
                     <View className="flex-row items-center gap-2 mb-2 pr-12">

@@ -11,12 +11,20 @@ import { useWsStore } from '../../../../../../../store/wsStore';
 import { Event, Game, Sport, Site, Team, Organization } from '@sk/types';
 import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
 
+import { useAuthStore } from '../../../../../../../store/authStore';
+import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
+import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
+
 export default function ViewGame() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string, eventId: string, gameId: string }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
+
+  const user = useAuthStore((state: any) => state.user);
+  const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
+  const teamMemberships = useAuthStore((state: any) => state.teamMemberships);
 
   // Loading States
   const [isLoading, setIsLoading] = useState(true);
@@ -132,6 +140,15 @@ export default function ViewGame() {
   const dateBase = game.startTime ? game.startTime.split('T')[0] : '';
   const timeBase = game.startTime ? game.startTime.split('T')[1]?.substring(0, 5) : '';
 
+  const permissions = getMatchPermissions({
+    game,
+    event,
+    currentOrgId: orgId,
+    user,
+    orgMemberships,
+    teamMemberships,
+  });
+
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
@@ -148,15 +165,13 @@ export default function ViewGame() {
         <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
           Match Details
         </Text>
-        <TouchableOpacity
-          onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/score`)}
-          className="bg-brand-orange px-3 py-1.5 rounded-lg flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="trophy" size={14} color="white" />
-          <Text className="font-orbitron-bold text-[10px] text-white uppercase tracking-wider">
-            Score Match
-          </Text>
-        </TouchableOpacity>
+        <MatchViewSwitcher
+          orgId={orgId!}
+          eventId={eventId!}
+          gameId={gameId!}
+          currentView="view"
+          permissions={permissions}
+        />
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>
