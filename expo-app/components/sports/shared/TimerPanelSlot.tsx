@@ -32,9 +32,33 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
             <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
               {formattedTime}
             </Text>
-            <Text className="font-inter text-[10px] text-slate-400 uppercase tracking-wider">
-              Period {periodIndex + 1} • {isRunning ? 'RUNNING' : 'PAUSED'}
-            </Text>
+            <View className="flex-row items-center gap-2 mt-0.5">
+              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">
+                Period {periodIndex + 1}
+              </Text>
+              <View
+                className={`px-2 py-0.5 rounded-full border flex-row items-center gap-1 ${
+                  isRunning
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : 'bg-amber-500/10 border-amber-500/30'
+                }`}
+              >
+                <View
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isRunning ? 'bg-emerald-500' : 'bg-amber-500'
+                  }`}
+                />
+                <Text
+                  className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${
+                    isRunning
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}
+                >
+                  {isRunning ? 'RUNNING' : 'PAUSED'}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
