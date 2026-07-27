@@ -1,10 +1,19 @@
-import { ReactNode } from 'react';
+import React from 'react';
 import { Game } from '@sk/types';
+import { DynamicScoringPanel } from './shared/DynamicScoringPanel';
 
 export interface SlotProps {
   game: Game;
   role?: string;
 }
+
+const DynamicGameEventsPanel = ({ role }: SlotProps) => (
+  <DynamicScoringPanel section="Game Events" role={role} />
+);
+
+const DynamicGeneralPlayPanel = ({ role }: SlotProps) => (
+  <DynamicScoringPanel section="General Play" role={role} />
+);
 
 export const SportComponentRegistry = {
   getScoreboard: (categoryStr: string) => {
@@ -26,11 +35,21 @@ export const SportComponentRegistry = {
   },
 
   getGameEventsPanel: (categoryStr: string) => {
-    return null;
+    switch (categoryStr.toLowerCase()) {
+      case 'rugby':
+        return DynamicGameEventsPanel;
+      default:
+        return null;
+    }
   },
 
   getGeneralPlayPanel: (categoryStr: string) => {
-    return null;
+    switch (categoryStr.toLowerCase()) {
+      case 'rugby':
+        return DynamicGeneralPlayPanel;
+      default:
+        return null;
+    }
   },
 
   getParticipantList: (categoryStr: string) => {

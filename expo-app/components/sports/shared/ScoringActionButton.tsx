@@ -48,7 +48,7 @@ export function ScoringActionButton({
       onPress={handlePress}
       disabled={disabled}
       activeOpacity={0.7}
-      className={`flex-col items-center justify-center rounded-xl p-2.5 border active:scale-95 ${
+      className={`h-14 w-full flex-col items-center justify-center rounded-xl px-1.5 py-1 border active:scale-95 ${
         disabled ? 'opacity-30' : ''
       } ${
         variant === 'danger'
@@ -65,7 +65,10 @@ export function ScoringActionButton({
       } ${className}`}
     >
       <Text
-        className={`font-orbitron-bold text-xs uppercase tracking-wider text-center ${
+        adjustsFontSizeToFit={true}
+        minimumFontScale={0.7}
+        numberOfLines={2}
+        className={`font-orbitron-bold text-[11px] leading-tight uppercase tracking-wider text-center ${
           variant === 'danger'
             ? 'text-red-500'
             : variant === 'warning'
@@ -78,7 +81,6 @@ export function ScoringActionButton({
             ? 'text-rose-600 dark:text-rose-400'
             : 'text-brand-orange'
         }`}
-        numberOfLines={2}
       >
         {textLabel}
       </Text>

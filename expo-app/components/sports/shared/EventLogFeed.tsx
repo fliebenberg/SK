@@ -111,6 +111,14 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
   const [game, setGame] = useState<Game | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [undoEventTarget, setUndoEventTarget] = useState<GameEvent | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  const UNDO_WINDOW_MS = 60000;
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Active category filters (All 4 ON by default)
   const [activeFilters, setActiveFilters] = useState<Set<EventFilterCategory>>(
@@ -324,6 +332,12 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
               const category = getEventCategory(evt);
               const barClass = getCategoryAccentBarClass(category, evt, homeParticipantId, awayParticipantId);
 
+              // Undo window countdown calculation
+              const evtTime = evt.timestamp ? new Date(evt.timestamp).getTime() : now;
+              const age = now - evtTime;
+              const inUndoWindow = age >= 0 && age < UNDO_WINDOW_MS;
+              const remainingSecs = Math.max(0, Math.ceil((UNDO_WINDOW_MS - age) / 1000));
+
               return (
                 <View
                   key={evt.id}
@@ -359,9 +373,22 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
                   {canManage && !isTimingEvent && (
                     <TouchableOpacity
                       onPress={() => setUndoEventTarget(evt)}
-                      className="w-7 h-7 bg-red-500/10 rounded-lg border border-red-500/20 items-center justify-center"
+                      className={`flex-row items-center gap-1 px-2 py-1 rounded-lg border ${
+                        inUndoWindow
+                          ? 'bg-amber-500/10 border-amber-500/40'
+                          : 'bg-red-500/10 border-red-500/20'
+                      }`}
                     >
-                      <Ionicons name="arrow-undo-outline" size={14} color="#EF4444" />
+                      <Ionicons
+                        name="arrow-undo-outline"
+                        size={14}
+                        color={inUndoWindow ? '#F59E0B' : '#EF4444'}
+                      />
+                      {inUndoWindow && (
+                        <Text className="font-mono font-bold text-[10px] text-amber-500 animate-pulse">
+                          {remainingSecs}s
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   )}
                 </View>
