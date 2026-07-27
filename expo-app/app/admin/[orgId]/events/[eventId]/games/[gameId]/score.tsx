@@ -134,13 +134,13 @@ export default function ScoreGameScreen() {
 
         <ScrollView className="flex-1 px-4 py-4" contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="flex-col lg:flex-row gap-6 items-start justify-center max-w-7xl mx-auto w-full">
-            {/* MAIN SCORING COLUMN (SCOREBOARD, TIMER, DISPUTES & SCORER PANEL) */}
+            {/* MAIN SCORING COLUMN (TIMER, SCOREBOARD, DISPUTES & SCORER PANEL) */}
             <View className="w-full flex-1 max-w-3xl">
-              {/* SCOREBOARD SLOT */}
-              {ScoreboardComponent && <ScoreboardComponent game={game} role="SCORER" />}
-
               {/* TIMER SLOT */}
               <TimerPanelSlot game={game} canEdit={true} />
+
+              {/* SCOREBOARD SLOT */}
+              {ScoreboardComponent && <ScoreboardComponent game={game} role="SCORER" />}
 
               {/* DISPUTES PANEL */}
               <ActiveDisputesPanel gameId={game.id} />

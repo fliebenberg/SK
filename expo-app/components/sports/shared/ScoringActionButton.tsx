@@ -9,7 +9,7 @@ interface ScoringActionButtonProps {
   disabled?: boolean;
   className?: string;
   title?: string;
-  variant?: 'primary' | 'success' | 'danger' | 'warning' | 'muted' | 'ghost' | 'scrim' | 'purple' | 'none';
+  variant?: 'primary' | 'success' | 'danger' | 'warning' | 'muted' | 'ghost' | 'scrim' | 'purple' | 'blue' | 'red' | 'none';
   selected?: boolean;
   description?: string;
   mobileLabel?: string;
@@ -57,6 +57,10 @@ export function ScoringActionButton({
           ? 'bg-amber-500/10 border-amber-500/30'
           : variant === 'success'
           ? 'bg-emerald-500/10 border-emerald-500/30'
+          : variant === 'blue'
+          ? 'bg-blue-500/15 border-blue-500/40 dark:bg-blue-500/20 dark:border-blue-500/40'
+          : variant === 'red'
+          ? 'bg-rose-500/15 border-rose-500/40 dark:bg-rose-500/20 dark:border-rose-500/40'
           : 'bg-brand-orange/10 border-brand-orange/30'
       } ${className}`}
     >
@@ -68,6 +72,10 @@ export function ScoringActionButton({
             ? 'text-amber-500'
             : variant === 'success'
             ? 'text-emerald-500'
+            : variant === 'blue'
+            ? 'text-blue-600 dark:text-blue-400'
+            : variant === 'red'
+            ? 'text-rose-600 dark:text-rose-400'
             : 'text-brand-orange'
         }`}
         numberOfLines={2}
