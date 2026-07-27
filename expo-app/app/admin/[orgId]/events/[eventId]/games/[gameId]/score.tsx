@@ -19,6 +19,7 @@ import { EventLogFeed } from '../../../../../../../components/sports/shared/Even
 import { TeamRosterPanel } from '../../../../../../../components/sports/shared/TeamRosterPanel';
 import RugbyGameStats from '../../../../../../../components/sports/rugby/RugbyGameStats';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
+import { Tabs } from '../../../../../../../components/Tabs';
 
 export default function ScoreGameScreen() {
   const router = useRouter();
@@ -132,63 +133,45 @@ export default function ScoreGameScreen() {
         </View>
 
         <ScrollView className="flex-1 px-4 py-4" contentContainerStyle={{ paddingBottom: 60 }}>
-          {/* SCOREBOARD SLOT */}
-          {ScoreboardComponent && <ScoreboardComponent game={game} role="SCORER" />}
+          <View className="flex-col lg:flex-row gap-6 items-start justify-center max-w-7xl mx-auto w-full">
+            {/* MAIN SCORING COLUMN (SCOREBOARD, TIMER, DISPUTES & SCORER PANEL) */}
+            <View className="w-full flex-1 max-w-3xl">
+              {/* SCOREBOARD SLOT */}
+              {ScoreboardComponent && <ScoreboardComponent game={game} role="SCORER" />}
 
-          {/* TIMER SLOT */}
-          <TimerPanelSlot game={game} canEdit={true} />
+              {/* TIMER SLOT */}
+              <TimerPanelSlot game={game} canEdit={true} />
 
-          {/* DISPUTES PANEL */}
-          <ActiveDisputesPanel gameId={game.id} />
+              {/* DISPUTES PANEL */}
+              <ActiveDisputesPanel gameId={game.id} />
 
-          {/* SCORING PANEL SLOT */}
-          {ScoringPanelComponent && <ScoringPanelComponent game={game} role="SCORER" />}
-
-          {/* DRAWER TABS (FEED / ROSTERS / STATS) */}
-          <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-3 shadow-sm mt-2">
-            <View className="flex-row border-b border-slate-200 dark:border-white/10 pb-3 mb-3">
-              <TouchableOpacity
-                onPress={() => setActiveTab('feed')}
-                className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'feed' ? 'bg-brand-orange' : 'bg-transparent'}`}
-              >
-                <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${activeTab === 'feed' ? 'text-white' : 'text-slate-500'}`}>
-                  Log Feed
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setActiveTab('team1')}
-                className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'team1' ? 'bg-brand-orange' : 'bg-transparent'}`}
-              >
-                <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${activeTab === 'team1' ? 'text-white' : 'text-slate-500'}`}>
-                  Home Roster
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setActiveTab('team2')}
-                className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'team2' ? 'bg-brand-orange' : 'bg-transparent'}`}
-              >
-                <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${activeTab === 'team2' ? 'text-white' : 'text-slate-500'}`}>
-                  Away Roster
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setActiveTab('stats')}
-                className={`flex-1 py-2 rounded-xl items-center ${activeTab === 'stats' ? 'bg-brand-orange' : 'bg-transparent'}`}
-              >
-                <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${activeTab === 'stats' ? 'text-white' : 'text-slate-500'}`}>
-                  Stats
-                </Text>
-              </TouchableOpacity>
+              {/* SCORING PANEL SLOT */}
+              {ScoringPanelComponent && <ScoringPanelComponent game={game} role="SCORER" />}
             </View>
 
-            <View className="min-h-[280px]">
-              {activeTab === 'feed' && <EventLogFeed gameId={game.id} canManage={true} />}
-              {activeTab === 'team1' && p1 && <TeamRosterPanel gameId={game.id} participantId={p1.id} />}
-              {activeTab === 'team2' && p2 && <TeamRosterPanel gameId={game.id} participantId={p2.id} />}
-              {activeTab === 'stats' && <RugbyGameStats game={game} />}
+            {/* EVENTS & DRAWER TABS PANEL (LOG FEED / ROSTERS / STATS - SHOWN ON RIGHT ON LARGE SCREENS) */}
+            <View className="w-full lg:w-96 xl:w-[440px]">
+              <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-3 shadow-sm mt-2 lg:mt-0">
+                <Tabs<'feed' | 'team1' | 'team2' | 'stats'>
+                  items={[
+                    { key: 'feed', label: 'Events', icon: 'list-outline' },
+                    { key: 'team1', label: 'Home', icon: 'people-outline' },
+                    { key: 'team2', label: 'Away', icon: 'people-outline' },
+                    { key: 'stats', label: 'Stats', icon: 'stats-chart-outline' },
+                  ]}
+                  activeKey={activeTab}
+                  onChange={setActiveTab}
+                  variant="underline"
+                  className="mb-3"
+                />
+
+                <View className="min-h-[280px]">
+                  {activeTab === 'feed' && <EventLogFeed gameId={game.id} canManage={true} />}
+                  {activeTab === 'team1' && p1 && <TeamRosterPanel gameId={game.id} participantId={p1.id} />}
+                  {activeTab === 'team2' && p2 && <TeamRosterPanel gameId={game.id} participantId={p2.id} />}
+                  {activeTab === 'stats' && <RugbyGameStats game={game} />}
+                </View>
+              </View>
             </View>
           </View>
 

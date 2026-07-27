@@ -85,6 +85,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
     });
 
     if (eventType) {
+      const eventPeriodLabel = action === 'START_PERIOD'
+        ? getPeriodLabel(periodIndex + 1, periodTerm)
+        : currentPeriodLabel;
+
       wsService.emit('action', {
         type: 'ADD_GAME_EVENT',
         payload: {
@@ -93,7 +97,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
           subType: eventType,
           eventData: {
             action,
-            period: currentPeriodLabel,
+            period: eventPeriodLabel,
             elapsedMS: currentMS,
           },
         },
@@ -135,7 +139,6 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
       <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm mb-3">
         <View className="flex-row items-center justify-between gap-2">
           <View className="flex-row items-center gap-2 shrink-0">
-            <Ionicons name="time-outline" size={20} color={COLORS.brand.orange} />
             <View>
               <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
                 {formattedTime}

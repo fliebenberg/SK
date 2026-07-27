@@ -211,9 +211,6 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
     <View className="flex-1">
       {/* Top Filter Buttons Bar */}
       <View className="px-3 py-2 flex-row items-center justify-between border-b border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/50">
-        <Text className="font-orbitron-bold text-[10px] text-slate-400 uppercase tracking-widest hidden sm:flex">
-          Event Log
-        </Text>
         <View className="flex-row items-center gap-1.5 flex-wrap">
           {/* TIME FILTER */}
           <TouchableOpacity
