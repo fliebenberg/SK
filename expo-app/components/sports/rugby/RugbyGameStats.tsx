@@ -18,7 +18,9 @@ export default function RugbyGameStats({ game }: RugbyGameStatsProps) {
     });
 
     const handleEventUpdate = (evt: { type: string; data: any }) => {
-      if (['GAME_EVENT_ADDED', 'GAME_EVENT_UPDATED', 'GAME_EVENTS_SYNC'].includes(evt.type)) {
+      if (evt.type === 'GAME_RESET') {
+        setEvents([]);
+      } else if (['GAME_EVENT_ADDED', 'GAME_EVENT_UPDATED', 'GAME_EVENTS_SYNC'].includes(evt.type)) {
         wsService.emit('get_data', { type: 'game_events', id: game.id }, (data: GameEvent[]) => {
           if (data) setEvents(data);
         });

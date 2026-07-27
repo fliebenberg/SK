@@ -32,6 +32,8 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
         setDisputes(prev => prev.filter(d => d.id !== evt.data.disputeId));
       } else if (evt.type === 'ACTIVE_DISPUTES_SYNC' && Array.isArray(evt.data)) {
         setDisputes(evt.data);
+      } else if (evt.type === 'GAME_RESET') {
+        setDisputes([]);
       }
     };
 

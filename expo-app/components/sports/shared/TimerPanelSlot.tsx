@@ -1,10 +1,11 @@
-import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Game } from '@sk/types';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
+import { Game, getPeriodLabel } from '@sk/types';
 import { useGameTimer } from '../../../hooks/useGameTimer';
 import { wsService } from '../../../services/websocket';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
+import { GameStatusIndicator } from './GameStatusIndicator';
 
 interface TimerPanelSlotProps {
   game: Game;
@@ -13,85 +14,357 @@ interface TimerPanelSlotProps {
 
 export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   const clock = game.liveState?.clock;
-  const { formattedTime, isRunning } = useGameTimer(clock, game.startTime, game.finishTime);
-  const periodIndex = clock?.periodIndex ?? 0;
+  const { formattedTime, isRunning, currentMS } = useGameTimer(clock, game.startTime, game.finishTime);
+  const [isDebouncing, setIsDebouncing] = useState(false);
 
-  const handleClockAction = (action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'START_PERIOD' | 'END_PERIOD') => {
+  // Cancellation & Reset Modal State
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+
+  const periodIndex = clock?.periodIndex ?? 0;
+  const scheduledPeriods = clock?.scheduledPeriods ?? 2;
+  const isPeriodActive = clock?.isPeriodActive ?? false;
+  const periodTerm = game.customSettings?.periodTerm || 'Period';
+  const currentPeriodLabel = game.liveState?.periodLabel || getPeriodLabel(periodIndex, periodTerm);
+
+  const isLastPeriod = periodIndex + 1 >= scheduledPeriods;
+  const scoreValues = Object.values(game.liveState?.scores || {});
+  const isDraw = scoreValues.length >= 2 ? scoreValues[0] === scoreValues[1] : true;
+
+  const handleUpdateStatus = (status: Game['status'], reason?: string) => {
+    wsService.emit('action', {
+      type: 'UPDATE_GAME_STATUS',
+      payload: { id: game.id, status },
+    });
+
+    let subType = 'GAME_UPDATED';
+    if (status === 'Live') subType = 'GAME_STARTED';
+    else if (status === 'Finished') subType = 'GAME_ENDED';
+    else if (status === 'Cancelled') subType = 'GAME_CANCELLED';
+
+    wsService.emit('action', {
+      type: 'ADD_GAME_EVENT',
+      payload: {
+        gameId: game.id,
+        type: 'STATUS',
+        subType,
+        eventData: {
+          status,
+          reason,
+          timestamp: new Date().toISOString(),
+          elapsedMS: currentMS,
+          period: currentPeriodLabel,
+        },
+      },
+    });
+
+    if (status === 'Cancelled') {
+      setShowCancelModal(false);
+      setCancelReason('');
+    }
+  };
+
+  const handleResetGame = () => {
+    wsService.emit('action', {
+      type: 'RESET_GAME',
+      payload: { id: game.id },
+    });
+    setShowResetModal(false);
+  };
+
+  const handleClockAction = (
+    action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'START_PERIOD' | 'END_PERIOD',
+    eventType?: string
+  ) => {
+    if (isDebouncing) return;
+
     wsService.emit('action', {
       type: 'UPDATE_GAME_CLOCK',
       payload: { id: game.id, action },
     });
+
+    if (eventType) {
+      wsService.emit('action', {
+        type: 'ADD_GAME_EVENT',
+        payload: {
+          gameId: game.id,
+          type: 'TIME',
+          subType: eventType,
+          eventData: {
+            action,
+            period: currentPeriodLabel,
+            elapsedMS: currentMS,
+          },
+        },
+      });
+    }
+
+    setIsDebouncing(true);
+    setTimeout(() => setIsDebouncing(false), 1000);
+  };
+
+  const handlePrimaryStartTap = () => {
+    if (game.status === 'Scheduled') {
+      handleUpdateStatus('Live');
+      handleClockAction('START');
+    } else if (game.status === 'Live') {
+      if (isPeriodActive) {
+        if (isRunning) {
+          handleClockAction('PAUSE', 'CLOCK_PAUSED');
+        } else {
+          handleClockAction('RESUME', 'CLOCK_RESUMED');
+        }
+      } else {
+        handleClockAction('START_PERIOD', 'PERIOD_STARTED');
+      }
+    }
+  };
+
+  const handleEndPeriodTap = () => {
+    if (isLastPeriod && !isDraw) {
+      handleClockAction('END_PERIOD');
+      handleUpdateStatus('Finished');
+    } else {
+      handleClockAction('END_PERIOD', 'PERIOD_ENDED');
+    }
   };
 
   return (
-    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm mb-3">
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-2">
-          <Ionicons name="time-outline" size={20} color={COLORS.brand.orange} />
-          <View>
-            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
-              {formattedTime}
-            </Text>
-            <View className="flex-row items-center gap-2 mt-0.5">
-              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">
-                Period {periodIndex + 1}
+    <>
+      <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm mb-3">
+        <View className="flex-row items-center justify-between gap-2">
+          <View className="flex-row items-center gap-2 shrink-0">
+            <Ionicons name="time-outline" size={20} color={COLORS.brand.orange} />
+            <View>
+              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+                {formattedTime}
               </Text>
-              <View
-                className={`px-2 py-0.5 rounded-full border flex-row items-center gap-1 ${
-                  isRunning
-                    ? 'bg-emerald-500/10 border-emerald-500/30'
-                    : 'bg-amber-500/10 border-amber-500/30'
-                }`}
-              >
-                <View
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    isRunning ? 'bg-emerald-500' : 'bg-amber-500'
-                  }`}
+              <View className="mt-0.5">
+                <GameStatusIndicator
+                  isRunning={isRunning}
+                  periodText={currentPeriodLabel}
+                  compact={true}
                 />
-                <Text
-                  className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${
-                    isRunning
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-amber-600 dark:text-amber-400'
-                  }`}
-                >
-                  {isRunning ? 'RUNNING' : 'PAUSED'}
-                </Text>
               </View>
             </View>
           </View>
+
+          {canEdit && (
+            <View className="flex-row gap-1.5 items-center">
+              {/* PRIMARY START / PAUSE / RESUME / START PERIOD BUTTON */}
+              {game.status === 'Scheduled' && (
+                <TouchableOpacity
+                  disabled={isDebouncing}
+                  onPress={handlePrimaryStartTap}
+                  accessibilityLabel="Start Game"
+                  {...({ title: 'Start Game & Match Clock' } as any)}
+                  className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 opacity-100 disabled:opacity-50"
+                >
+                  <Ionicons name="play" size={14} color="white" />
+                  <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Start Game</Text>
+                </TouchableOpacity>
+              )}
+
+              {game.status === 'Live' && (
+                isPeriodActive ? (
+                  isRunning ? (
+                    <TouchableOpacity
+                      disabled={isDebouncing}
+                      onPress={handlePrimaryStartTap}
+                      accessibilityLabel="Pause Clock"
+                      {...({ title: 'Pause Match Clock' } as any)}
+                      className="bg-amber-500 hover:bg-amber-400 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      <Ionicons name="pause" size={14} color="white" />
+                      <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Pause</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      disabled={isDebouncing}
+                      onPress={handlePrimaryStartTap}
+                      accessibilityLabel="Resume Clock"
+                      {...({ title: 'Resume Match Clock' } as any)}
+                      className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      <Ionicons name="play" size={14} color="white" />
+                      <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Resume</Text>
+                    </TouchableOpacity>
+                  )
+                ) : (
+                  <TouchableOpacity
+                    disabled={isDebouncing}
+                    onPress={handlePrimaryStartTap}
+                    accessibilityLabel="Start Next Period"
+                    {...({ title: 'Start Next Period' } as any)}
+                    className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    <Ionicons name="play" size={14} color="white" />
+                    <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Start Period</Text>
+                  </TouchableOpacity>
+                )
+              )}
+
+              {/* SECONDARY END PERIOD / END GAME BUTTON */}
+              {game.status === 'Live' && isPeriodActive && (
+                <TouchableOpacity
+                  disabled={isDebouncing}
+                  onPress={handleEndPeriodTap}
+                  accessibilityLabel={isLastPeriod && !isDraw ? 'End Game' : 'End Period'}
+                  {...({ title: isLastPeriod && !isDraw ? 'Finalize Match & End Game' : 'End Current Period' } as any)}
+                  className={
+                    isLastPeriod && !isDraw
+                      ? 'bg-rose-600 hover:bg-rose-500 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50'
+                      : 'bg-amber-600/20 hover:bg-amber-600/30 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 border border-amber-500/40 disabled:opacity-50'
+                  }
+                >
+                  <Ionicons
+                    name={isLastPeriod && !isDraw ? 'square' : 'square-outline'}
+                    size={14}
+                    color={isLastPeriod && !isDraw ? 'white' : COLORS.brand.orange}
+                  />
+                  <Text
+                    className={
+                      isLastPeriod && !isDraw
+                        ? 'hidden sm:flex font-orbitron-bold text-xs text-white uppercase'
+                        : 'hidden sm:flex font-orbitron-bold text-xs text-brand-orange uppercase'
+                    }
+                  >
+                    {isLastPeriod && !isDraw ? 'End Game' : 'End Period'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* RESET GAME BUTTON */}
+              {game.status !== 'Scheduled' && (
+                <TouchableOpacity
+                  onPress={() => setShowResetModal(true)}
+                  accessibilityLabel="Reset Game Data"
+                  {...({ title: 'Reset Game Data' } as any)}
+                  className="bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border border-amber-500/30 active:scale-95 transition-all w-8 h-8 rounded-lg items-center justify-center"
+                >
+                  <Ionicons name="refresh-outline" size={14} color={COLORS.brand.orange} />
+                </TouchableOpacity>
+              )}
+
+              {/* CANCEL GAME BUTTON */}
+              {(game.status === 'Scheduled' ||
+                (game.status === 'Live' && !isPeriodActive && !isLastPeriod) ||
+                game.status === 'Finished') && (
+                <TouchableOpacity
+                  onPress={() => setShowCancelModal(true)}
+                  accessibilityLabel="Cancel Game"
+                  {...({ title: 'Cancel Game' } as any)}
+                  className="bg-rose-500/10 hover:bg-rose-500/20 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-rose-500/30 active:scale-95 transition-all w-8 h-8 rounded-lg items-center justify-center"
+                >
+                  <Ionicons name="close-circle-outline" size={14} color={COLORS.brand.red} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
-
-        {canEdit && (
-          <View className="flex-row gap-2">
-            {!isRunning ? (
-              <TouchableOpacity
-                onPress={() => handleClockAction(clock?.elapsedMS ? 'RESUME' : 'START')}
-                className="bg-emerald-500 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
-              >
-                <Ionicons name="play" size={14} color="white" />
-                <Text className="font-orbitron-bold text-xs text-white uppercase">Start</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={() => handleClockAction('PAUSE')}
-                className="bg-amber-500 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
-              >
-                <Ionicons name="pause" size={14} color="white" />
-                <Text className="font-orbitron-bold text-xs text-white uppercase">Pause</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              onPress={() => handleClockAction('END_PERIOD')}
-              className="bg-slate-200 dark:bg-white/10 px-3 py-1.5 rounded-lg flex-row items-center gap-1"
-            >
-              <Ionicons name="play-skip-forward" size={14} color={COLORS.brand.orange} />
-              <Text className="font-orbitron-bold text-xs text-brand-orange uppercase">Next Period</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
-    </View>
+
+      {/* CUSTOM CANCEL GAME OVERLAY MODAL */}
+      <Modal
+        visible={showCancelModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCancelModal(false)}
+      >
+        <View className="flex-1 bg-black/60 items-center justify-center p-4">
+          <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-5 w-full max-w-md shadow-xl">
+            <View className="flex-row items-center gap-2 mb-3">
+              <Ionicons name="alert-circle" size={24} color={COLORS.brand.red} />
+              <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+                Cancel Game
+              </Text>
+            </View>
+
+            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+              Are you sure you want to cancel this game? This will update the match status to Cancelled. Please enter a cancellation reason.
+            </Text>
+
+            <TextInput
+              multiline
+              numberOfLines={3}
+              placeholder="Reason for cancellation (e.g. Inclement Weather, Forfeit...)"
+              placeholderTextColor="#94A3B8"
+              value={cancelReason}
+              onChangeText={setCancelReason}
+              className="bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-900 dark:text-white mb-5 min-h-[80px] align-top font-inter"
+            />
+
+            <View className="flex-row justify-end gap-3">
+              <TouchableOpacity
+                onPress={() => setShowCancelModal(false)}
+                className="bg-slate-100 dark:bg-white/10 px-4 py-2.5 rounded-xl"
+              >
+                <Text className="font-inter-semibold text-xs text-slate-700 dark:text-slate-300">
+                  Keep Game
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                disabled={!cancelReason.trim()}
+                onPress={() => handleUpdateStatus('Cancelled', cancelReason)}
+                className={
+                  cancelReason.trim()
+                    ? 'bg-rose-600 px-4 py-2.5 rounded-xl'
+                    : 'bg-slate-300 dark:bg-slate-700 px-4 py-2.5 rounded-xl opacity-50'
+                }
+              >
+                <Text className="font-inter-bold text-xs text-white">
+                  Confirm Cancellation
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* CUSTOM RESET GAME OVERLAY MODAL */}
+      <Modal
+        visible={showResetModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowResetModal(false)}
+      >
+        <View className="flex-1 bg-black/60 items-center justify-center p-4">
+          <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-5 w-full max-w-md shadow-xl">
+            <View className="flex-row items-center gap-2 mb-3">
+              <Ionicons name="refresh-circle" size={24} color={COLORS.brand.orange} />
+              <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+                Reset Game Data?
+              </Text>
+            </View>
+
+            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 mb-5 leading-relaxed">
+              ARE YOU ABSOLUTELY SURE? This will PERMANENTLY DELETE all scores, events, and timings for this game and reset it to scheduled status.
+            </Text>
+
+            <View className="flex-row justify-end gap-3">
+              <TouchableOpacity
+                onPress={() => setShowResetModal(false)}
+                className="bg-slate-100 dark:bg-white/10 px-4 py-2.5 rounded-xl"
+              >
+                <Text className="font-inter-semibold text-xs text-slate-700 dark:text-slate-300">
+                  Keep Data
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleResetGame}
+                className="bg-rose-600 px-4 py-2.5 rounded-xl"
+              >
+                <Text className="font-inter-bold text-xs text-white font-inter-bold">
+                  Reset Everything
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }

@@ -1600,7 +1600,9 @@ io.on('connection', (socket) => {
                 await pool.query('DELETE FROM game_events WHERE game_id = $1', [action.payload.id]);
                 result = await dataManager.getGame(action.payload.id);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_RESET', data: { gameId: result.id } });
+                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_RESET', data: result });
+                    additionalBroadcasts.push({ topic: `game:${result.id}:events`, type: 'GAME_RESET', data: { gameId: result.id } });
+                    additionalBroadcasts.push({ topic: `game:${result.id}:events`, type: 'GAME_EVENTS_SYNC', data: [] });
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
                     additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_UPDATED', data: result });
                     
