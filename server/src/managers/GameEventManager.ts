@@ -1085,7 +1085,7 @@ export class GameEventManager extends BaseManager {
     let sql = `
       SELECT ${this.GAME_EVENT_COLUMNS}
       FROM game_events
-      WHERE game_id = $1
+      WHERE game_id = $1 AND (event_data->>'status' IS NULL OR event_data->>'status' != 'REMOVED')
     `;
     const params: any[] = [gameId];
 

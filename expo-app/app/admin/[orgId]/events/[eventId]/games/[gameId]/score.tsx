@@ -148,34 +148,13 @@ export default function ScoreGameScreen() {
               <ActiveDisputesPanel gameId={game.id} />
 
               {/* SCORING PANEL SLOT */}
-              {ScoringPanelComponent && (
-                <View className="mb-1">
-                  <Text className="font-orbitron-bold text-xs text-slate-500 uppercase tracking-wider mb-1.5 px-1">
-                    Scoring Actions
-                  </Text>
-                  <ScoringPanelComponent game={game} role="SCORER" />
-                </View>
-              )}
+              {ScoringPanelComponent && <ScoringPanelComponent game={game} role="SCORER" />}
 
               {/* GAME EVENTS PANEL SLOT */}
-              {GameEventsPanelComponent && (
-                <View className="mb-1">
-                  <Text className="font-orbitron-bold text-xs text-slate-500 uppercase tracking-wider mb-1.5 px-1">
-                    Game Events & Cards
-                  </Text>
-                  <GameEventsPanelComponent game={game} role="SCORER" />
-                </View>
-              )}
+              {GameEventsPanelComponent && <GameEventsPanelComponent game={game} role="SCORER" />}
 
               {/* GENERAL PLAY PANEL SLOT */}
-              {GeneralPlayPanelComponent && (
-                <View className="mb-1">
-                  <Text className="font-orbitron-bold text-xs text-slate-500 uppercase tracking-wider mb-1.5 px-1">
-                    General Play & Set Pieces
-                  </Text>
-                  <GeneralPlayPanelComponent game={game} role="SCORER" />
-                </View>
-              )}
+              {GeneralPlayPanelComponent && <GeneralPlayPanelComponent game={game} role="SCORER" />}
             </View>
 
             {/* EVENTS & DRAWER TABS PANEL (LOG FEED / ROSTERS / STATS - SHOWN ON RIGHT ON LARGE SCREENS) */}

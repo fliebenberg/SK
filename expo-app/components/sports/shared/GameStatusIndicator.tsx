@@ -13,9 +13,6 @@ export function GameStatusIndicator({
   compact = false,
 }: GameStatusIndicatorProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const [showPausedBadge, setShowPausedBadge] = useState(false);
-
   const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => {
@@ -40,32 +37,6 @@ export function GameStatusIndicator({
       pulseAnim.setValue(1);
     }
   }, [isRunning, pulseAnim, useNativeDriver]);
-
-  useEffect(() => {
-    if (!isRunning) {
-      const interval = setInterval(() => {
-        Animated.sequence([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 250,
-            useNativeDriver,
-          }),
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 250,
-            useNativeDriver,
-          }),
-        ]).start();
-
-        setShowPausedBadge(prev => !prev);
-      }, 1600);
-
-      return () => clearInterval(interval);
-    } else {
-      setShowPausedBadge(false);
-      fadeAnim.setValue(0);
-    }
-  }, [isRunning, fadeAnim, useNativeDriver]);
 
   return (
     <View className="flex-row items-center gap-1.5 min-h-[18px]">
@@ -96,21 +67,11 @@ export function GameStatusIndicator({
           </View>
         </View>
       ) : (
-        <Animated.View style={{ opacity: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.6] }) }}>
-          {showPausedBadge ? (
-            <View className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 flex-row items-center justify-center">
-              <Text className="font-orbitron-bold text-[9px] text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                PAUSED
-              </Text>
-            </View>
-          ) : (
-            periodText ? (
-              <Text className="font-inter text-[10px] text-amber-600 dark:text-amber-400 uppercase tracking-wider font-semibold">
-                {periodText}
-              </Text>
-            ) : null
-          )}
-        </Animated.View>
+        <View className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 flex-row items-center justify-center">
+          <Text className="font-orbitron-bold text-[9px] text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+            PAUSED
+          </Text>
+        </View>
       )}
     </View>
   );

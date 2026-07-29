@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { Game, getPeriodLabel } from '@sk/types';
 import { useGameTimer } from '../../../hooks/useGameTimer';
@@ -7,14 +7,47 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
 import { GameStatusIndicator } from './GameStatusIndicator';
 
+import { LiveClockText } from './LiveClockText';
+
 interface TimerPanelSlotProps {
   game: Game;
   canEdit?: boolean;
 }
 
+const ClockDisplay = memo(function ClockDisplay({
+  clock,
+  startTime,
+  finishTime,
+  periodLabel,
+}: {
+  clock: any;
+  startTime: any;
+  finishTime: any;
+  periodLabel: string;
+}) {
+  const { isRunning } = useGameTimer(clock, startTime, finishTime);
+  return (
+    <View>
+      <LiveClockText
+        clock={clock}
+        startTime={startTime}
+        finishTime={finishTime}
+        className="font-orbitron-bold text-base text-slate-800 dark:text-white"
+      />
+      <View className="mt-0.5">
+        <GameStatusIndicator
+          isRunning={isRunning}
+          periodText={periodLabel}
+          compact={true}
+        />
+      </View>
+    </View>
+  );
+});
+
 export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   const clock = game.liveState?.clock;
-  const { formattedTime, isRunning, currentMS } = useGameTimer(clock, game.startTime, game.finishTime);
+  const { isRunning, currentMS } = useGameTimer(clock, game.startTime, game.finishTime);
   const [isDebouncing, setIsDebouncing] = useState(false);
 
   // Cancellation & Reset Modal State
@@ -136,21 +169,15 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
 
   return (
     <>
-      <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm mb-3">
+      <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-3 shadow-sm mb-2">
         <View className="flex-row items-center justify-between gap-2">
           <View className="flex-row items-center gap-2 shrink-0">
-            <View>
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
-                {formattedTime}
-              </Text>
-              <View className="mt-0.5">
-                <GameStatusIndicator
-                  isRunning={isRunning}
-                  periodText={currentPeriodLabel}
-                  compact={true}
-                />
-              </View>
-            </View>
+            <ClockDisplay
+              clock={clock}
+              startTime={game.startTime}
+              finishTime={game.finishTime}
+              periodLabel={currentPeriodLabel}
+            />
           </View>
 
           {canEdit && (
@@ -162,7 +189,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   onPress={handlePrimaryStartTap}
                   accessibilityLabel="Start Game"
                   {...({ title: 'Start Game & Match Clock' } as any)}
-                  className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 opacity-100 disabled:opacity-50"
+                  className="bg-emerald-600 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 opacity-100 disabled:opacity-50"
                 >
                   <Ionicons name="play" size={14} color="white" />
                   <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Start Game</Text>
@@ -177,7 +204,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       onPress={handlePrimaryStartTap}
                       accessibilityLabel="Pause Clock"
                       {...({ title: 'Pause Match Clock' } as any)}
-                      className="bg-amber-500 hover:bg-amber-400 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                      className="bg-amber-500 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
                     >
                       <Ionicons name="pause" size={14} color="white" />
                       <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Pause</Text>
@@ -188,7 +215,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       onPress={handlePrimaryStartTap}
                       accessibilityLabel="Resume Clock"
                       {...({ title: 'Resume Match Clock' } as any)}
-                      className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                      className="bg-emerald-600 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
                     >
                       <Ionicons name="play" size={14} color="white" />
                       <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Resume</Text>
@@ -200,7 +227,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                     onPress={handlePrimaryStartTap}
                     accessibilityLabel="Start Next Period"
                     {...({ title: 'Start Next Period' } as any)}
-                    className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                    className="bg-emerald-600 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
                   >
                     <Ionicons name="play" size={14} color="white" />
                     <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Start Period</Text>
@@ -217,8 +244,8 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   {...({ title: isLastPeriod && !isDraw ? 'Finalize Match & End Game' : 'End Current Period' } as any)}
                   className={
                     isLastPeriod && !isDraw
-                      ? 'bg-rose-600 hover:bg-rose-500 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50'
-                      : 'bg-amber-600/20 hover:bg-amber-600/30 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 active:scale-95 transition-all w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 border border-amber-500/40 disabled:opacity-50'
+                      ? 'bg-rose-600 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50'
+                      : 'bg-amber-600/20 dark:bg-amber-500/20 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 border border-amber-500/40 disabled:opacity-50'
                   }
                 >
                   <Ionicons
@@ -244,7 +271,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   onPress={() => setShowResetModal(true)}
                   accessibilityLabel="Reset Game Data"
                   {...({ title: 'Reset Game Data' } as any)}
-                  className="bg-amber-500/10 hover:bg-amber-500/20 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 border border-amber-500/30 active:scale-95 transition-all w-8 h-8 rounded-lg items-center justify-center"
+                  className="bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 active:scale-95 w-8 h-8 rounded-lg items-center justify-center"
                 >
                   <Ionicons name="refresh-outline" size={14} color={COLORS.brand.orange} />
                 </TouchableOpacity>
@@ -258,7 +285,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   onPress={() => setShowCancelModal(true)}
                   accessibilityLabel="Cancel Game"
                   {...({ title: 'Cancel Game' } as any)}
-                  className="bg-rose-500/10 hover:bg-rose-500/20 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-rose-500/30 active:scale-95 transition-all w-8 h-8 rounded-lg items-center justify-center"
+                  className="bg-rose-500/10 dark:bg-rose-500/20 border border-rose-500/30 active:scale-95 w-8 h-8 rounded-lg items-center justify-center"
                 >
                   <Ionicons name="close-circle-outline" size={14} color={COLORS.brand.red} />
                 </TouchableOpacity>

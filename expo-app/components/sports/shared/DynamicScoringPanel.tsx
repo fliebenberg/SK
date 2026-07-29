@@ -74,35 +74,21 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
   const renderSideButtons = (side: 'home' | 'away') => {
     const isHome = side === 'home';
     const sideVariant = isHome ? 'blue' : 'red';
-    const teamName = isHome ? homeTeam?.name || 'Home' : awayTeam?.name || 'Away';
     const isInactiveSide = scoringState.status !== 'IDLE' && scoringState.side !== side;
     const disabled = isScoringDisabled || isInactiveSide;
 
     return (
       <View
-        className={`flex-1 p-2 rounded-xl border transition-all ${
+        className={`flex-1 p-1.5 rounded-xl border transition-all ${
           isHome
             ? 'bg-blue-500/5 dark:bg-blue-500/10 border-blue-500/20'
             : 'bg-rose-500/5 dark:bg-rose-500/10 border-rose-500/20'
         } ${isInactiveSide ? 'opacity-40' : ''}`}
       >
-        {/* TEAM HEADER BADGE */}
-        <View className="flex-row items-center justify-center gap-1.5 mb-2 pb-1.5 border-b border-slate-200/50 dark:border-white/10">
-          <View className={`w-2 h-2 rounded-full ${isHome ? 'bg-blue-500' : 'bg-rose-500'}`} />
-          <Text
-            className={`font-orbitron-bold text-[11px] uppercase tracking-wider text-center ${
-              isHome ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
-            }`}
-            numberOfLines={1}
-          >
-            {teamName}
-          </Text>
-        </View>
-
         {/* 2-COLUMN COMPACT GRID */}
-        <View className="flex-row flex-wrap gap-1.5 justify-between">
+        <View className="flex-row flex-wrap gap-1 justify-between">
           {relevantTemplates.map((template) => (
-            <View key={template.id} className="w-[48%] mb-1">
+            <View key={template.id} className="w-[48.5%] mb-1">
               <ScoringActionButton
                 label={template.name}
                 mobileLabel={template.mobileLabel}
@@ -117,17 +103,31 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
     );
   };
 
+  const sectionTitle =
+    section === 'Scoring'
+      ? 'Scoring Actions'
+      : section === 'Game Events'
+      ? 'Game Events & Cards'
+      : 'General Play & Set Pieces';
+
   return (
-    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-3 shadow-sm mb-3">
-      {/* SECTION TITLE & FINAL SCORE OVERRIDE BANNER */}
+    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-2 pt-3 shadow-sm mb-2 relative">
+      {/* COMPACT SECTION OVERLAY BADGE */}
+      <View className="absolute -top-2.5 left-4 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-300 dark:border-white/10 z-10">
+        <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest">
+          {sectionTitle}
+        </Text>
+      </View>
+
+      {/* FINAL SCORE OVERRIDE BANNER */}
       {section === 'Scoring' && isFinished && (
-        <View className="mb-3">
+        <View className="mb-2 mt-1">
           <TouchableOpacity
             onPress={handleOpenFinalScore}
             activeOpacity={0.8}
-            className="w-full py-2.5 px-4 bg-brand-orange/10 border border-brand-orange/30 rounded-xl items-center justify-center"
+            className="w-full py-2 px-3 bg-brand-orange/10 border border-brand-orange/30 rounded-xl items-center justify-center"
           >
-            <Text className="font-orbitron-bold text-xs text-brand-orange uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-[11px] text-brand-orange uppercase tracking-wider">
               ENTER FINAL SCORE OVERRIDE
             </Text>
           </TouchableOpacity>
@@ -135,7 +135,7 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
       )}
 
       {/* SIDE-BY-SIDE SIDE PANELS */}
-      <View className="flex-row gap-2">
+      <View className="flex-row gap-1.5 mt-0.5">
         {renderSideButtons('home')}
         {renderSideButtons('away')}
       </View>

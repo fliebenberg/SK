@@ -142,13 +142,26 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
 
     const handleUpdate = (evt: { type: string; data: any }) => {
       if (evt.type === 'GAME_EVENT_ADDED' && evt.data) {
+        if (evt.data.eventData?.status === 'REMOVED') return;
         setEvents(prev => [evt.data, ...prev.filter(e => e.id !== evt.data.id)]);
       } else if (evt.type === 'GAME_EVENT_UPDATED' && evt.data) {
-        setEvents(prev => prev.map(e => e.id === evt.data.id ? { ...e, ...evt.data } : e));
-      } else if (evt.type === 'GAME_EVENT_REMOVED' && evt.data) {
-        setEvents(prev => prev.filter(e => e.id !== (evt.data.id || evt.data.eventId)));
+        if (evt.data.eventData?.status === 'REMOVED') {
+          setEvents(prev => prev.filter(e => e.id !== evt.data.id));
+        } else {
+          setEvents(prev => prev.map(e => e.id === evt.data.id ? { ...e, ...evt.data } : e));
+        }
+      } else if ((evt.type === 'GAME_EVENT_REMOVED' || evt.type === 'UNDO_GAME_EVENT') && evt.data) {
+        const targetId = evt.data.id || evt.data.eventId;
+        setEvents(prev => prev.filter(e => e.id !== targetId));
+      } else if (evt.type === 'GAME_EVENTS_BATCH_UPDATED' && Array.isArray(evt.data)) {
+        setEvents(prev => {
+          const batchMap = new Map<string, GameEvent>(evt.data.map((item: GameEvent) => [item.id, item]));
+          return prev
+            .map((e: GameEvent) => batchMap.has(e.id) ? batchMap.get(e.id)! : e)
+            .filter((e: GameEvent) => e.eventData?.status !== 'REMOVED' && (e as any).status !== 'REMOVED');
+        });
       } else if (evt.type === 'GAME_EVENTS_SYNC' && Array.isArray(evt.data)) {
-        setEvents(evt.data);
+        setEvents(evt.data.filter(e => e.eventData?.status !== 'REMOVED' && (e as any).status !== 'REMOVED'));
       } else if (evt.type === 'GAME_RESET') {
         setEvents([]);
       }
@@ -176,14 +189,18 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
 
   const handleConfirmUndo = () => {
     if (!undoEventTarget) return;
+    const targetId = undoEventTarget.id;
+    // Optimistically remove from state
+    setEvents(prev => prev.filter(e => e.id !== targetId));
+    setUndoEventTarget(null);
+
     wsService.emit(
       'action',
       {
         type: 'UNDO_GAME_EVENT',
-        payload: { gameId, eventId: undoEventTarget.id, initiatorId: null },
+        payload: { gameId, eventId: targetId, initiatorId: null },
       },
       () => {
-        setUndoEventTarget(null);
         fetchEvents();
       }
     );
@@ -199,6 +216,9 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
 
   const filteredEvents = useMemo(() => {
     return events.filter(evt => {
+      if (evt.eventData?.status === 'REMOVED' || (evt as any).status === 'REMOVED') {
+        return false;
+      }
       const cat = getEventCategory(evt);
       return activeFilters.has(cat);
     });
