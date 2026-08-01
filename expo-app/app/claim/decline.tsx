@@ -178,8 +178,8 @@ export default function DeclineScreen() {
         className="flex-1"
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingHorizontal: 16 }}
       >
-        <View className="w-full max-w-md mx-auto">
-          <GlassCard className="p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-xl bg-white/80 dark:bg-slate-900/80">
+        <View className="w-full max-w-md self-center">
+          <GlassCard className="p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-lg bg-white/80 dark:bg-slate-900/80">
             {renderContent()}
           </GlassCard>
         </View>

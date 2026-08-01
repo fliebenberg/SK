@@ -91,7 +91,7 @@ export default function CustomSelect({
           onPress={() => setIsOpen(false)}
         >
           <Pressable 
-            className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 w-full max-w-sm shadow-2xl space-y-3"
+            className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 w-full max-w-sm shadow-lg space-y-3"
             onPress={(e) => e.stopPropagation()}
           >
             <View className="flex-row justify-between items-center pb-3 border-b border-slate-100 dark:border-white/5 mb-1">

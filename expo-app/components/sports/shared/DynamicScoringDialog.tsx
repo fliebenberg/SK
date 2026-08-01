@@ -293,7 +293,7 @@ export function DynamicScoringDialog() {
     <>
       <Modal visible={isVisible} transparent={true} animationType="fade" onRequestClose={cancelDynamicFlow}>
         <View className="flex-1 bg-black/60 justify-center items-center px-5">
-          <View className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 shadow-2xl space-y-4 max-h-[85vh]">
+          <View className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 shadow-lg space-y-4" style={{ maxHeight: '85%' }}>
             {/* DIALOG HEADER & STEP NAVIGATION */}
             <View className="space-y-2">
               <View className={`flex-row items-center justify-between ${totalSteps > 1 ? '' : 'pb-3 border-b border-slate-200 dark:border-white/10'}`}>

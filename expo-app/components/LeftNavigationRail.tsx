@@ -214,7 +214,8 @@ export function LeftNavigationRail() {
                     </View>
                     <View className="flex-1 min-w-0 z-10 justify-center">
                       <Text 
-                        className="font-orbitron-bold text-sm uppercase leading-tight truncate"
+                        numberOfLines={1}
+                        className="font-orbitron-bold text-sm uppercase leading-tight"
                         style={{ color: textColor }}
                       >
                         {orgData?.shortName || orgData?.name?.substring(0, 3) || 'ORG'}
@@ -326,7 +327,7 @@ export function LeftNavigationRail() {
               )}
             </View>
             <View className="flex-1 min-w-0">
-              <Text className="font-inter-bold text-sm text-slate-800 dark:text-white truncate">
+              <Text className="font-inter-bold text-sm text-slate-800 dark:text-white" numberOfLines={1}>
                 {user.name}
               </Text>
               <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
@@ -473,7 +474,7 @@ export function LeftNavigationRail() {
         {/* Hover Floating Overlay Modal with CSS transition */}
         <View 
           pointerEvents={isHovered ? 'auto' : 'none'}
-          className="absolute top-0 left-0 bottom-0 w-64 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-white/10 shadow-2xl z-50 py-6 px-4 flex flex-col justify-between"
+          className="absolute top-0 left-0 bottom-0 w-64 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-white/10 shadow-lg z-50 py-6 px-4 flex flex-col justify-between"
           style={Platform.OS === 'web' ? ({
             transition: 'opacity 200ms cubic-bezier(0.16, 1, 0.3, 1), transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
             opacity: isHovered ? 1 : 0,

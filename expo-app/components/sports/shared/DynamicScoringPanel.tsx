@@ -134,7 +134,7 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
           onRequestClose={() => setIsFinalScoreOpen(false)}
         >
           <View className="flex-1 bg-black/60 justify-center items-center px-6">
-            <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/10 w-full max-w-md shadow-2xl space-y-4">
+            <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/10 w-full max-w-md shadow-lg space-y-4">
               <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider text-center">
                 Final Score Override
               </Text>

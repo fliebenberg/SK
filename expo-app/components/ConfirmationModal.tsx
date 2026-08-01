@@ -40,7 +40,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     >
       <View className="flex-1 bg-slate-950/75 items-center justify-center p-6">
         <GlassCard 
-          className="w-full max-w-sm border border-slate-200 dark:border-white/10 p-6 space-y-4 shadow-2xl"
+          className="w-full max-w-sm border border-slate-200 dark:border-white/10 p-6 space-y-4 shadow-lg"
           style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
         >
           <View className="items-center justify-center mb-2">

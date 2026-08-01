@@ -75,7 +75,7 @@ export function NominationModal({ visible, onClose, orgId, orgName, onSuccess }:
         onPress={handleClose}
       >
         <Pressable 
-          className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-200/50 dark:border-slate-800/50"
+          className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-200/50 dark:border-slate-800/50"
           onPress={(e) => e.stopPropagation()}
         >
           <ScrollView bounces={false} contentContainerStyle={{ padding: 24 }}>
@@ -87,7 +87,7 @@ export function NominationModal({ visible, onClose, orgId, orgName, onSuccess }:
                   NOMINATE MANAGER
                 </Text>
               </View>
-              <TouchableOpacity onPress={handleClose} className="p-1 active:opacity-60">
+              <TouchableOpacity onPress={handleClose} activeOpacity={0.6} className="p-1">
                 <Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>

@@ -68,7 +68,7 @@ export default function ResetPasswordScreen() {
 
   return (
     <View className="flex-1 bg-slate-50 dark:bg-slate-900 justify-center p-6">
-      <View className="w-full max-w-md mx-auto">
+      <View className="w-full max-w-md self-center">
         <Text className="font-orbitron-bold text-3xl text-brand-orange mb-6 text-center tracking-widest">
           {isForceReset ? 'UPDATE' : 'RESET'}
         </Text>

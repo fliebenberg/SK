@@ -219,7 +219,8 @@ export default function TabLayout() {
                   setMenuVisible(false);
                   router.push('/admin' as any);
                 }}
-                className="bg-brand-orange border border-brand-orange/30 rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg shadow-brand-orange/35 active:scale-95"
+                activeOpacity={0.8}
+                className="bg-brand-orange border border-brand-orange/30 rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg shadow-brand-orange/35"
               >
                 <View className="w-7 h-7 rounded-lg bg-white/20 items-center justify-center">
                   <Ionicons name="shield-checkmark" size={14} color="white" />
@@ -236,7 +237,8 @@ export default function TabLayout() {
                 setMenuVisible(false);
                 router.push('/settings' as any);
               }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg active:scale-95"
+              activeOpacity={0.8}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg"
             >
               <View className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 items-center justify-center">
                 <Ionicons name="person-outline" size={14} color={isDark ? "#FF3E00" : "#64748B"} />
@@ -253,7 +255,8 @@ export default function TabLayout() {
       {!isLargeScreen && isOrgAdmin && orgId && (
         <TouchableOpacity
           onPress={() => setWorkspaceMenuVisible(!workspaceMenuVisible)}
-          className="absolute bottom-[75px] right-4 w-12 h-12 rounded-full items-center justify-center shadow-lg z-50 border overflow-hidden active:scale-95"
+          activeOpacity={0.8}
+          className="absolute bottom-[75px] right-4 w-12 h-12 rounded-full items-center justify-center shadow-lg z-50 border overflow-hidden"
           style={{ 
             backgroundColor: orgData?.primaryColor || '#FF3E00',
             borderColor: orgData?.secondaryColor || '#00E5FF',
@@ -283,7 +286,7 @@ export default function TabLayout() {
           />
 
           {/* Workspace Action Menu Sheet floating above FAB */}
-          <View className="absolute bottom-[140px] right-4 z-50 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl shadow-xl overflow-hidden p-2.5">
+          <View className="absolute bottom-[140px] right-4 z-50 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl shadow-lg overflow-hidden p-2.5">
             {/* Header section inside the menu */}
             {orgData && (
               <View className="mb-2.5">
@@ -317,7 +320,8 @@ export default function TabLayout() {
 
                   <View className="flex-1 min-w-0 z-10 justify-center">
                     <Text 
-                      className="font-orbitron-bold text-xs uppercase leading-tight truncate"
+                      numberOfLines={1}
+                      className="font-orbitron-bold text-xs uppercase leading-tight"
                       style={{ color: fabTextColor }}
                     >
                       {orgData.shortName || orgData.name?.substring(0, 3) || 'ORG'}
@@ -327,7 +331,7 @@ export default function TabLayout() {
               </View>
             )}
 
-            {/* List of administration modules */}
+              {/* List of administration modules */}
             <View className="space-y-0.5">
               {[
                 { label: 'Control Panel', icon: 'grid', route: `/admin/${orgId}` },
@@ -344,7 +348,8 @@ export default function TabLayout() {
                     setWorkspaceMenuVisible(false);
                     router.push(item.route as any);
                   }}
-                  className="flex-row items-center gap-3 px-3 py-2 rounded-lg active:bg-slate-100 dark:active:bg-white/5"
+                  activeOpacity={0.7}
+                  className="flex-row items-center gap-3 px-3 py-2 rounded-lg"
                 >
                   <Ionicons name={`${item.icon}-outline` as any} size={16} color={isDark ? '#94A3B8' : '#64748B'} />
                   <Text className="font-inter-bold text-sm text-slate-700 dark:text-slate-200">
@@ -365,7 +370,8 @@ export default function TabLayout() {
                   });
                   router.replace('/(tabs)/organizations' as any);
                 }}
-                className="flex-row items-center gap-3 px-3 py-2 rounded-lg active:bg-red-50 dark:active:bg-red-950/25"
+                activeOpacity={0.7}
+                className="flex-row items-center gap-3 px-3 py-2 rounded-lg"
               >
                 <Ionicons name="arrow-back-outline" size={16} color="#EF4444" />
                 <Text className="font-inter-bold text-sm text-red-500">
