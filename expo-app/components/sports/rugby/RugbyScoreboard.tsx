@@ -98,7 +98,7 @@ export default function RugbyScoreboard({ game, role }: { game: Game; role?: str
   };
 
   return (
-    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-3 shadow-sm mb-2">
+    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-2 shadow-sm mb-1.5">
       {/* SCORES & CENTER INFO ROW */}
       <View className="flex-row items-center justify-between">
         {/* HOME TEAM */}

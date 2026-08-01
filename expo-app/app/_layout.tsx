@@ -1,5 +1,11 @@
 import '../global.css';
+import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false,
+});
 import { useColorScheme } from 'nativewind';
 import { useActiveTheme } from '../store/settingsStore';
 import { useFonts } from 'expo-font';

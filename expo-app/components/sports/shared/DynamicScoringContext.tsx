@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Game } from '@sk/types';
+import { Game, getPeriodLabel } from '@sk/types';
 import { wsService } from '../../../services/websocket';
+import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 
 export interface EventTemplateItem {
   id: string;
@@ -21,10 +22,14 @@ export const RUGBY_TEMPLATES: EventTemplateItem[] = [
 
   // GAME EVENTS
   { id: 'kickoff', name: 'Kick-off', mobileLabel: 'Kick-off', section: 'Game Events' },
-  { id: 'penalty_awarded', name: 'Penalty Awarded', mobileLabel: 'Penalty', section: 'Game Events' },
-  { id: 'free_kick', name: 'Free Kick Awarded', mobileLabel: 'Free Kick', section: 'Game Events' },
+  { id: 'dropout_22m', name: '22m Dropout', mobileLabel: '22m Dropout', section: 'Game Events' },
+  { id: 'dropout_goalline', name: 'Goalline Dropout', mobileLabel: 'Goalline Dropout', section: 'Game Events' },
+  { id: 'penalty_awarded', name: 'Penalty Against', mobileLabel: 'Penalty Against', section: 'Game Events' },
+  { id: 'free_kick', name: 'Free Kick Against', mobileLabel: 'Free Kick Against', section: 'Game Events' },
   { id: 'yellow_card', name: 'Yellow Card', mobileLabel: 'Yellow Card', section: 'Game Events' },
   { id: 'red_card', name: 'Red Card', mobileLabel: 'Red Card', section: 'Game Events' },
+  { id: 'timed_red_card', name: 'Timed Red Card', mobileLabel: 'Timed Red Card', section: 'Game Events' },
+  { id: 'line_kick', name: 'Line Kick', mobileLabel: 'Line Kick', section: 'Game Events' },
 
   // GENERAL PLAY & SET PIECES
   { id: 'scrum', name: 'Scrum', mobileLabel: 'Scrum', section: 'General Play' },
@@ -37,17 +42,20 @@ export const RUGBY_TEMPLATES: EventTemplateItem[] = [
 
 interface DynamicScoringContextType {
   game: Game;
+  homeTeam?: any;
+  awayTeam?: any;
   templates: EventTemplateItem[];
   scoringState: {
     status: 'IDLE' | 'ACTIVE';
     templateId?: string;
     side?: 'home' | 'away';
-    step?: number;
-    data?: any;
+    editingId?: string;
+    initialData?: any;
   };
-  startDynamicFlow: (templateId: string, side: 'home' | 'away') => void;
+  startDynamicFlow: (templateId: string, side: 'home' | 'away', initialData?: any) => void;
   cancelDynamicFlow: () => void;
   submitEvent: (eventPayload: any) => void;
+  removeGameEvent: (eventId: string) => void;
   updateFinalScore: (scores: { [participantId: string]: number }) => Promise<void>;
 }
 
@@ -57,16 +65,34 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   const [scoringState, setScoringState] = useState<DynamicScoringContextType['scoringState']>({
     status: 'IDLE',
   });
+  const [homeTeam, setHomeTeam] = useState<any>(null);
+  const [awayTeam, setAwayTeam] = useState<any>(null);
+
+  const homeTeamId = game.participants?.[0]?.teamId;
+  const awayTeamId = game.participants?.[1]?.teamId;
+
+  useEffect(() => {
+    if (homeTeamId) {
+      wsService.emit('get_data', { type: 'team', id: homeTeamId }, (t: any) => {
+        if (t) setHomeTeam(t);
+      });
+    }
+    if (awayTeamId) {
+      wsService.emit('get_data', { type: 'team', id: awayTeamId }, (t: any) => {
+        if (t) setAwayTeam(t);
+      });
+    }
+  }, [homeTeamId, awayTeamId]);
 
   const templates = RUGBY_TEMPLATES;
 
-  const startDynamicFlow = (templateId: string, side: 'home' | 'away') => {
+  const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
     setScoringState({
       status: 'ACTIVE',
       templateId,
       side,
-      step: 0,
-      data: {},
+      editingId: initialData?.eventId,
+      initialData,
     });
   };
 
@@ -75,40 +101,92 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   };
 
   const submitEvent = (eventPayload: any) => {
-    const participant = scoringState.side === 'home' ? game.participants?.[0] : game.participants?.[1];
-    const template = templates.find(t => t.id === scoringState.templateId);
-    const points = template?.points || 0;
+    const side = scoringState.side || 'home';
+    const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
+    const template = templates.find((t) => t.id === scoringState.templateId);
+    
+    // Determine points: if kick outcome is missed or skipped, pointsDelta is 0
+    let points = template?.points || 0;
+    if (template?.id === 'conversion' || template?.id === 'penalty_kick' || template?.id === 'drop_goal') {
+      if (eventPayload?.outcome === 'missed' || !eventPayload?.outcome) {
+        points = 0;
+      }
+    }
 
-    const payload = {
-      gameId: game.id,
-      gameParticipantId: participant?.id,
-      type: points > 0 ? 'SCORE' : 'GAME_EVENT',
-      subType: scoringState.templateId,
-      eventData: {
-        ...eventPayload,
-        templateId: scoringState.templateId,
-        points,
-        elapsedMS: game.liveState?.clock?.elapsedMS || 0,
-      },
+    const currentPeriodLabel =
+      game.liveState?.periodLabel ||
+      getPeriodLabel(game.liveState?.clock?.periodIndex ?? 0, game.customSettings?.periodTerm || 'Period');
+
+    const initialData = scoringState.initialData || {};
+
+    const eventData = {
+      elapsedMS: getLiveElapsedMS(game.liveState?.clock),
+      period: currentPeriodLabel,
+      ...initialData,
+      ...eventPayload,
+      templateId: scoringState.templateId,
+      points,
+      pending: template?.id === 'conversion' && !eventPayload?.outcome,
     };
 
-    wsService.emit('action', { type: 'ADD_GAME_EVENT', payload }, () => {
+    if (scoringState.editingId) {
+      // EDIT EXISTING EVENT
+      const payload = {
+        gameId: game.id,
+        eventId: scoringState.editingId,
+        gameParticipantId: participant?.id,
+        eventData,
+      };
+
+      wsService.emit('action', { type: 'UPDATE_GAME_EVENT', payload }, () => {
+        setScoringState({ status: 'IDLE' });
+      });
+    } else {
+      // ADD NEW EVENT
+      const payload = {
+        gameId: game.id,
+        gameParticipantId: participant?.id,
+        type: points > 0 ? 'SCORE' : 'GAME_EVENT',
+        subType: scoringState.templateId,
+        eventData,
+      };
+
+      wsService.emit('action', { type: 'ADD_GAME_EVENT', payload }, (res: any) => {
+        const addedEventId = res?.id || res?.data?.id || res?.eventId;
+        // AUTOMATED CHAINED FLOW: Scoring a Try automatically triggers Conversion dialog!
+        if (scoringState.templateId === 'try') {
+          startDynamicFlow('conversion', side, { linkedEventId: addedEventId });
+        } else if (eventPayload?.triggerEventId) {
+          startDynamicFlow(eventPayload.triggerEventId, side, { linkedEventId: addedEventId });
+        } else {
+          setScoringState({ status: 'IDLE' });
+        }
+      });
+    }
+  };
+
+  const removeGameEvent = (eventId: string) => {
+    wsService.emit('action', { type: 'UNDO_GAME_EVENT', payload: { gameId: game.id, eventId } }, () => {
       setScoringState({ status: 'IDLE' });
     });
   };
 
   const updateFinalScore = async (scores: { [participantId: string]: number }) => {
     return new Promise<void>((resolve) => {
-      wsService.emit('action', {
-        type: 'UPDATE_GAME_SCORE',
-        payload: {
-          gameId: game.id,
-          scores,
-          reason: 'Manual Final Score',
+      wsService.emit(
+        'action',
+        {
+          type: 'UPDATE_GAME_SCORE',
+          payload: {
+            gameId: game.id,
+            scores,
+            reason: 'Manual Final Score',
+          },
+        },
+        () => {
+          resolve();
         }
-      }, () => {
-        resolve();
-      });
+      );
     });
   };
 
@@ -116,11 +194,14 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     <DynamicScoringContext.Provider
       value={{
         game,
+        homeTeam,
+        awayTeam,
         templates,
         scoringState,
         startDynamicFlow,
         cancelDynamicFlow,
         submitEvent,
+        removeGameEvent,
         updateFinalScore,
       }}
     >

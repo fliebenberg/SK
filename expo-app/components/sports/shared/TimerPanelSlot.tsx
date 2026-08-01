@@ -169,7 +169,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
 
   return (
     <>
-      <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-3 shadow-sm mb-2">
+      <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-2 shadow-sm mb-1.5">
         <View className="flex-row items-center justify-between gap-2">
           <View className="flex-row items-center gap-2 shrink-0">
             <ClockDisplay

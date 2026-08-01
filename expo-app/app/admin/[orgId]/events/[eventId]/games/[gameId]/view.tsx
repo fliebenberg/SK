@@ -14,6 +14,7 @@ import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
+import { EventLogFeed } from '../../../../../../../components/sports/shared/EventLogFeed';
 
 export default function ViewGame() {
   const router = useRouter();
@@ -257,6 +258,11 @@ export default function ViewGame() {
             </Text>
           </View>
         </GlassCard>
+
+        {/* LIVE EVENT FEED */}
+        <View className="h-[360px] mb-6">
+          <EventLogFeed gameId={game.id} game={game} canManage={false} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

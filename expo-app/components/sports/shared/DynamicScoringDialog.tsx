@@ -1,40 +1,209 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { useSharedDynamicScoring } from './DynamicScoringContext';
 import { wsService } from '../../../services/websocket';
 import { RosterGrid } from './ScoringActionButton';
 import { Button } from '../../Button';
+import { Tabs } from '../../Tabs';
+import { CounterStep } from './CounterStep';
 import { Ionicons } from '@expo/vector-icons';
+import { ActionStepType } from '@sk/types';
+import { ConfirmationModal } from '../../ConfirmationModal';
 
-const REASON_OPTIONS: { [key: string]: string[] } = {
-  yellow_card: ['High Tackle', 'Dangerous Play', 'Repeated Infringement', 'Professional Foul', 'Unsportsmanlike Conduct'],
-  red_card: ['Dangerous Tackle / Tip Tackle', 'Striking / Punching', 'Second Yellow Card', 'Abuse of Official', 'Serious Foul Play'],
-  penalty_awarded: ['Offside', 'High Tackle', 'Not Releasing', 'Collapsing Scrum', 'Illegal Binding', 'In From the Side'],
-  free_kick: ['Early Push in Scrum', 'Lineout Delay', 'Not Straight', 'Foot Up'],
-  scrum: ['Knock-on', 'Forward Pass', 'Unplayable Maul', 'Accidental Offside'],
-  lineout: ['Ball Out of Bounds', 'Touchjudge Signal', 'Direct Touch Kick'],
+interface ReasonGroup {
+  name: string;
+  options: string[];
+}
+
+interface OutcomeOption {
+  id: string;
+  name: string;
+  variant?: 'primary' | 'success' | 'danger' | 'warning';
+  triggerEventId?: string;
+}
+
+const GROUPED_REASON_OPTIONS: { [key: string]: ReasonGroup[] } = {
+  penalty_awarded: [
+    {
+      name: 'Tackle',
+      options: ['Dangerous Tackle', 'High Tackle', 'Late Tackle'],
+    },
+    {
+      name: 'Ruck',
+      options: ['Not Releasing', 'Not Rolling', 'Hands in Ruck', 'Side Entry', 'Off Feet'],
+    },
+    {
+      name: 'Set Piece',
+      options: ['Collapsing Scrum', 'Illegal Binding', 'Scrum Other', 'Lineout Foul'],
+    },
+    {
+      name: 'General',
+      options: ['Offside', 'Obstruction', 'Professional Foul', 'Other'],
+    },
+  ],
+  free_kick: [
+    {
+      name: 'Scrum',
+      options: ['Early Push', 'Delaying the Feed', 'Pre-engagement', 'Illegal Feed', 'Foot Up'],
+    },
+    {
+      name: 'Lineout',
+      options: ['Closing the Gap', 'Delaying the Lineout', 'Early Lift', 'Too Many Players', 'Faking a Throw', 'Not Straight'],
+    },
+    {
+      name: 'General',
+      options: ['Mark', 'Wasting Time', 'Kicking Ball Away', 'Other'],
+    },
+  ],
+  yellow_card: [
+    {
+      name: 'Foul Play',
+      options: ['High Tackle', 'Dangerous Play', 'Professional Foul', 'Cynical Foul', 'Unsportsmanlike Conduct'],
+    },
+    {
+      name: 'Technical',
+      options: ['Repeated Infringements', 'Offside', 'Other'],
+    },
+  ],
+  red_card: [
+    {
+      name: 'Serious Foul Play',
+      options: ['Dangerous High Tackle', 'Tip Tackle', 'Punching / Striking', 'Stamp / Kick', 'Abuse of Official', 'Second Yellow Card'],
+    },
+  ],
+  timed_red_card: [
+    {
+      name: 'Serious Foul Play (Timed)',
+      options: ['Dangerous High Tackle', 'Tip Tackle', 'Other'],
+    },
+  ],
+  scrum: [
+    {
+      name: 'Infringement',
+      options: ['Knock-on', 'Forward Pass', 'Held Up', 'Unplayable Maul', 'Accidental Offside', 'Penalty'],
+    },
+  ],
+  lineout: [
+    {
+      name: 'Cause',
+      options: ['Ball Out of Bounds', 'Touchjudge Signal', 'Direct Touch Kick', 'Not Straight'],
+    },
+  ],
+};
+
+const OUTCOME_OPTIONS: { [key: string]: OutcomeOption[] } = {
+  kickoff: [
+    { id: 'successful', name: 'Successful', variant: 'success' },
+    { id: 'directly_out', name: 'Directly Out', variant: 'danger' },
+    { id: 'too_short', name: 'Too Short', variant: 'danger' },
+    { id: 'long', name: 'Long', variant: 'danger' },
+  ],
+  dropout_22m: [
+    { id: 'successful', name: 'Successful', variant: 'success' },
+    { id: 'directly_out', name: 'Directly Out', variant: 'danger' },
+    { id: 'too_short', name: 'Too Short', variant: 'danger' },
+  ],
+  dropout_goalline: [
+    { id: 'successful', name: 'Successful', variant: 'success' },
+    { id: 'directly_out', name: 'Directly Out', variant: 'danger' },
+    { id: 'too_short', name: 'Too Short', variant: 'danger' },
+  ],
+  line_kick: [
+    { id: 'out', name: 'Out', variant: 'success' },
+    { id: 'stayed_in', name: 'Stayed In', variant: 'danger' },
+  ],
+  penalty_kick: [
+    { id: 'successful', name: 'Successful', variant: 'success' },
+    { id: 'missed', name: 'Missed', variant: 'danger' },
+  ],
+  conversion: [
+    { id: 'successful', name: 'Successful', variant: 'success' },
+    { id: 'missed', name: 'Missed', variant: 'danger' },
+  ],
+  drop_goal: [
+    { id: 'successful', name: 'Successful', variant: 'success' },
+    { id: 'missed', name: 'Missed', variant: 'danger' },
+  ],
+  penalty_awarded: [
+    { id: 'penalty_kick', name: 'Penalty Kick', variant: 'primary', triggerEventId: 'penalty_kick' },
+    { id: 'line_kick', name: 'Line Kick', variant: 'primary', triggerEventId: 'line_kick' },
+    { id: 'scrum', name: 'Scrum', variant: 'warning', triggerEventId: 'scrum' },
+    { id: 'tap_go', name: 'Tap & Go', variant: 'success' },
+  ],
+  free_kick: [
+    { id: 'line_kick', name: 'Line Kick', variant: 'primary', triggerEventId: 'line_kick' },
+    { id: 'scrum', name: 'Scrum', variant: 'warning', triggerEventId: 'scrum' },
+    { id: 'tap_go', name: 'Tap & Go', variant: 'success' },
+  ],
+  scrum: [
+    { id: 'won', name: 'Won', variant: 'success' },
+    { id: 'lost', name: 'Lost', variant: 'danger' },
+  ],
+  lineout: [
+    { id: 'won', name: 'Won', variant: 'success' },
+    { id: 'lost', name: 'Lost', variant: 'danger' },
+    { id: 'not_straight', name: 'Not Straight', variant: 'warning' },
+  ],
 };
 
 export function DynamicScoringDialog() {
-  const { game, templates, scoringState, cancelDynamicFlow, submitEvent } = useSharedDynamicScoring();
+  const { game, homeTeam, awayTeam, templates, scoringState, cancelDynamicFlow, submitEvent, removeGameEvent } = useSharedDynamicScoring();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>(undefined);
   const [selectedReason, setSelectedReason] = useState<string | undefined>(undefined);
-  const [customNotes, setCustomNotes] = useState<string>('');
+  const [selectedOutcome, setSelectedOutcome] = useState<string | undefined>(undefined);
+  const [scrumResets, setScrumResets] = useState<number>(0);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [roster, setRoster] = useState<any[]>([]);
+  const [isConfirmingUndo, setIsConfirmingUndo] = useState<boolean>(false);
 
   const isVisible = scoringState.status === 'ACTIVE';
+  const isEditing = !!scoringState.editingId;
   const side = scoringState.side;
   const templateId = scoringState.templateId || '';
   const template = templates.find((t) => t.id === templateId);
-  const participantId = side === 'home' ? game.participants?.[0]?.id : game.participants?.[1]?.id;
 
-  const reasons = REASON_OPTIONS[templateId] || [];
-  const hasReasons = reasons.length > 0;
+  const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
+  const participantId = participant?.id;
 
-  // Step 0: Player Selection
-  // Step 1: Reason Selection (if applicable)
-  const totalSteps = hasReasons ? 2 : 1;
+  const reasonGroups = GROUPED_REASON_OPTIONS[templateId] || [];
+  const outcomes = OUTCOME_OPTIONS[templateId] || [];
+  const hasReasons = reasonGroups.length > 0;
+  const hasOutcomes = outcomes.length > 0;
+  const hasWidget = templateId === 'scrum';
+
+  const isNextActionStep = templateId === 'penalty_awarded' || templateId === 'free_kick';
+  const outcomeStepLabel = isNextActionStep ? 'Next Action' : 'Outcome';
+
+  const stepItems: { key: string; label: string; type: 'player' | 'reason' | 'widget' | 'outcome' }[] = [
+    { key: '0', label: '1. Player', type: 'player' },
+  ];
+
+  if (hasReasons) {
+    stepItems.push({
+      key: stepItems.length.toString(),
+      label: `${stepItems.length + 1}. Infringement`,
+      type: 'reason',
+    });
+  }
+
+  if (hasWidget) {
+    stepItems.push({
+      key: stepItems.length.toString(),
+      label: `${stepItems.length + 1}. Resets`,
+      type: 'widget',
+    });
+  }
+
+  if (hasOutcomes) {
+    stepItems.push({
+      key: stepItems.length.toString(),
+      label: `${stepItems.length + 1}. ${outcomeStepLabel}`,
+      type: 'outcome',
+    });
+  }
+
+  const totalSteps = stepItems.length;
+  const activeStepType = stepItems[currentStep]?.type || 'player';
 
   useEffect(() => {
     if (participantId && isVisible) {
@@ -46,25 +215,64 @@ export function DynamicScoringDialog() {
 
   useEffect(() => {
     if (isVisible) {
+      setIsConfirmingUndo(false);
+      const init = scoringState.initialData || {};
+      setSelectedPlayerId(init.playerId || init.actorOrgProfileId);
+      setSelectedReason(init.reason);
+      setSelectedOutcome(init.outcome);
+      setScrumResets(init.scrumResets || 0);
+
+      if (init.initialStepType) {
+        let targetIndex = -1;
+        if (init.initialStepType === ActionStepType.PLAYER_SELECTION) {
+          targetIndex = stepItems.findIndex((s) => s.type === 'player');
+        } else if (init.initialStepType === ActionStepType.REASON_SELECTION) {
+          targetIndex = stepItems.findIndex((s) => s.type === 'reason');
+        } else if (init.initialStepType === ActionStepType.OUTCOME_SELECTION) {
+          targetIndex = stepItems.findIndex((s) => s.type === 'outcome');
+        }
+        if (targetIndex >= 0) {
+          setCurrentStep(targetIndex);
+          return;
+        }
+      }
       setCurrentStep(0);
-      setSelectedPlayerId(undefined);
-      setSelectedReason(undefined);
-      setCustomNotes('');
     }
-  }, [isVisible, templateId]);
+  }, [isVisible, templateId, side, scoringState.initialData]);
 
   if (!isVisible || !template) return null;
 
+  const homeTeamName = homeTeam?.name || 'Home Team';
+  const awayTeamName = awayTeam?.name || 'Away Team';
+  const teamName = side === 'home' ? homeTeamName : awayTeamName;
+
   const handleConfirm = () => {
+    const selectedOutcomeObj = outcomes.find((o) => o.id === selectedOutcome);
+    const triggerEventId = selectedOutcomeObj?.triggerEventId;
+
     submitEvent({
       playerId: selectedPlayerId,
       reason: selectedReason,
-      notes: customNotes,
+      outcome: selectedOutcome,
+      triggerEventId,
+      scrumResets: hasWidget ? scrumResets : undefined,
       side,
     });
     setSelectedPlayerId(undefined);
     setSelectedReason(undefined);
-    setCustomNotes('');
+    setSelectedOutcome(undefined);
+    setScrumResets(0);
+  };
+
+  const handleUndo = () => {
+    setIsConfirmingUndo(true);
+  };
+
+  const handleConfirmUndo = () => {
+    setIsConfirmingUndo(false);
+    if (scoringState.editingId) {
+      removeGameEvent(scoringState.editingId);
+    }
   };
 
   const handleNextStep = () => {
@@ -82,140 +290,200 @@ export function DynamicScoringDialog() {
   };
 
   return (
-    <Modal visible={isVisible} transparent={true} animationType="fade" onRequestClose={cancelDynamicFlow}>
-      <View className="flex-1 bg-black/60 justify-center px-5">
-        <View className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 shadow-2xl space-y-4 max-h-[85%]">
-          {/* DIALOG HEADER */}
-          <View className="flex-row items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
-            <View>
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase">
-                {template.name}
-              </Text>
-
-              <Text className="font-inter text-xs text-brand-orange uppercase font-bold tracking-wider">
-                {side?.toUpperCase()} TEAM
-              </Text>
-            </View>
-            <TouchableOpacity onPress={cancelDynamicFlow} className="p-1">
-              <Ionicons name="close" size={24} color="#94A3B8" />
-            </TouchableOpacity>
-          </View>
-
-          {/* STEPPER PROGRESS BADGES */}
-          {totalSteps > 1 && (
-            <View className="flex-row items-center justify-center gap-2 py-1">
-              <TouchableOpacity
-                onPress={() => setCurrentStep(0)}
-                className={`px-3 py-1 rounded-full border ${
-                  currentStep === 0
-                    ? 'bg-brand-orange border-brand-orange'
-                    : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-white/10'
-                }`}
-              >
-                <Text
-                  className={`font-orbitron-bold text-[10px] uppercase ${
-                    currentStep === 0 ? 'text-white' : 'text-slate-500'
-                  }`}
-                >
-                  1. Player
-                </Text>
-              </TouchableOpacity>
-
-              <Ionicons name="chevron-forward" size={14} color="#94A3B8" />
-
-              <TouchableOpacity
-                onPress={() => setCurrentStep(1)}
-                className={`px-3 py-1 rounded-full border ${
-                  currentStep === 1
-                    ? 'bg-brand-orange border-brand-orange'
-                    : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-white/10'
-                }`}
-              >
-                <Text
-                  className={`font-orbitron-bold text-[10px] uppercase ${
-                    currentStep === 1 ? 'text-white' : 'text-slate-500'
-                  }`}
-                >
-                  2. Details & Reason
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* STEP 0: PLAYER SELECTION */}
-          {currentStep === 0 && (
+    <>
+      <Modal visible={isVisible} transparent={true} animationType="fade" onRequestClose={cancelDynamicFlow}>
+        <View className="flex-1 bg-black/60 justify-center items-center px-5">
+          <View className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 shadow-2xl space-y-4 max-h-[85vh]">
+            {/* DIALOG HEADER & STEP NAVIGATION */}
             <View className="space-y-2">
-              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Select Involved Player (Optional):
-              </Text>
-              <ScrollView className="max-h-56 my-1">
-                <RosterGrid roster={roster} onSelect={setSelectedPlayerId} selectedPlayerId={selectedPlayerId} />
-              </ScrollView>
-            </View>
-          )}
+              <View className={`flex-row items-center justify-between ${totalSteps > 1 ? '' : 'pb-3 border-b border-slate-200 dark:border-white/10'}`}>
+                <View>
+                  <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase">
+                    {isEditing ? `Edit: ${template.name}` : template.name}
+                  </Text>
 
-          {/* STEP 1: REASON / INFRINGEMENT / DETAILS SELECTION */}
-          {currentStep === 1 && (
-            <View className="space-y-3">
-              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Select Infringement / Detail:
-              </Text>
-              <ScrollView className="max-h-48 my-1">
-                <View className="flex-row flex-wrap gap-2">
-                  {reasons.map((r) => {
-                    const isSelected = selectedReason === r;
-                    return (
-                      <TouchableOpacity
-                        key={r}
-                        onPress={() => setSelectedReason(r)}
-                        className={`px-3 py-2 rounded-xl border ${
-                          isSelected
-                            ? 'bg-brand-orange border-brand-orange'
-                            : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
-                        }`}
-                      >
-                        <Text
-                          className={`font-inter-bold text-xs ${
-                            isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+                  <Text className="font-inter text-xs text-brand-orange uppercase font-bold tracking-wider mt-0.5">
+                    {teamName}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={cancelDynamicFlow} className="p-1">
+                  <Ionicons name="close" size={24} color="#94A3B8" />
+                </TouchableOpacity>
+              </View>
+
+              {/* STEPPER PROGRESS TABS */}
+              {totalSteps > 1 && (
+                <View className="pb-3 pt-1">
+                  <Tabs<string>
+                    items={stepItems.map((item) => ({ key: item.key, label: item.label }))}
+                    activeKey={currentStep.toString()}
+                    onChange={(key) => setCurrentStep(parseInt(key, 10))}
+                    variant="underline"
+                  />
+                </View>
+              )}
+            </View>
+
+            {/* STEP TYPE: PLAYER SELECTION */}
+            {activeStepType === 'player' && (
+              <View className="space-y-2">
+                <View className="flex-row items-center justify-between">
+                  <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Select Player (Optional):
+                  </Text>
+
+                  {/* SINGLE READ-ONLY TEAM BADGE */}
+                  <View className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
+                    <Text className="font-inter-bold text-[10px] text-brand-orange uppercase">
+                      {teamName}
+                    </Text>
+                  </View>
+                </View>
+
+                <ScrollView className="max-h-[60vh] my-1">
+                  <RosterGrid roster={roster} onSelect={setSelectedPlayerId} selectedPlayerId={selectedPlayerId} />
+                </ScrollView>
+              </View>
+            )}
+
+            {/* STEP TYPE: REASON / INFRINGEMENT / DETAILS SELECTION */}
+            {activeStepType === 'reason' && (
+              <View className="space-y-3">
+                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Select Infringement / Detail:
+                </Text>
+
+                <ScrollView className="max-h-[60vh] my-1" showsVerticalScrollIndicator={true}>
+                  <View className="space-y-3">
+                    {reasonGroups.map((group) => (
+                      <View key={group.name} className="space-y-1.5">
+                        <View className="pb-1 border-b border-slate-200 dark:border-white/10">
+                          <Text className="font-orbitron-bold text-[10px] uppercase text-brand-orange tracking-widest">
+                            {group.name}
+                          </Text>
+                        </View>
+                        <View className="flex-row flex-wrap gap-2 pt-0.5">
+                          {group.options.map((r) => {
+                            const isSelected = selectedReason === r;
+                            return (
+                              <TouchableOpacity
+                                key={r}
+                                onPress={() => setSelectedReason(r)}
+                                className={`px-3 py-2 rounded-xl border ${
+                                  isSelected
+                                    ? 'bg-brand-orange border-brand-orange'
+                                    : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                                }`}
+                              >
+                                <Text
+                                  className={`font-inter-bold text-xs ${
+                                    isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+                                  }`}
+                                >
+                                  {r}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
+            {/* STEP TYPE: COUNTER WIDGET (e.g. Scrum Resets) */}
+            {activeStepType === 'widget' && (
+              <CounterStep label="Scrum Resets" value={scrumResets} onChange={setScrumResets} />
+            )}
+
+            {/* STEP TYPE: OUTCOME / NEXT ACTION SELECTION */}
+            {activeStepType === 'outcome' && (
+              <View className="space-y-3">
+                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  {isNextActionStep ? 'Select Next Action (Optional):' : 'Select Outcome (Optional):'}
+                </Text>
+
+                <ScrollView className="max-h-[60vh] my-1">
+                  <View className="flex-row flex-wrap gap-2.5 py-2">
+                    {outcomes.map((opt) => {
+                      const isSelected = selectedOutcome === opt.id;
+                      const isSuccess = opt.variant === 'success';
+                      const isWarning = opt.variant === 'warning';
+                      const isDanger = opt.variant === 'danger';
+
+                      return (
+                        <TouchableOpacity
+                          key={opt.id}
+                          onPress={() => setSelectedOutcome(opt.id)}
+                          className={`px-4 py-3 rounded-xl border flex-row items-center gap-2 ${
+                            isSelected
+                              ? 'bg-brand-orange border-brand-orange'
+                              : isSuccess
+                              ? 'bg-emerald-500/10 border-emerald-500/30'
+                              : isWarning
+                              ? 'bg-amber-500/10 border-amber-500/30'
+                              : isDanger
+                              ? 'bg-red-500/10 border-red-500/30'
+                              : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
                           }`}
                         >
-                          {r}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
+                          <Text
+                            className={`font-inter-bold text-xs ${
+                              isSelected
+                                ? 'text-white'
+                                : isSuccess
+                                ? 'text-emerald-500'
+                                : isWarning
+                                ? 'text-amber-500'
+                                : isDanger
+                                ? 'text-red-500'
+                                : 'text-slate-800 dark:text-white'
+                            }`}
+                          >
+                            {opt.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
 
-              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider mt-2">
-                Additional Notes (Optional):
-              </Text>
-              <TextInput
-                value={customNotes}
-                onChangeText={setCustomNotes}
-                placeholder="e.g. 22m line, ref warning..."
-                placeholderTextColor="#94A3B8"
-                className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-white/10 rounded-xl px-3 py-2 text-xs font-inter text-slate-900 dark:text-white"
-              />
+            {/* DIALOG ACTION FOOTER */}
+            <View className="flex-row gap-2 pt-3 border-t border-slate-200 dark:border-white/10">
+              <Button title="Cancel" variant="ghost" onPress={cancelDynamicFlow} className="flex-1 py-2.5 rounded-xl" />
+
+              {isEditing ? (
+                <>
+                  <Button title="Undo Event" variant="danger" onPress={handleUndo} className="px-3 py-2.5 rounded-xl" />
+                  <Button title="Save Changes" variant="primary" onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
+                </>
+              ) : (
+                <>
+                  {currentStep < totalSteps - 1 && (
+                    <Button title="Next Step" variant="secondary" onPress={handleNextStep} className="flex-1 py-2.5 rounded-xl" />
+                  )}
+                  <Button title="Confirm Event" variant="primary" onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
+                </>
+              )}
             </View>
-          )}
-
-          {/* DIALOG ACTION FOOTER */}
-          <View className="flex-row gap-3 pt-3 border-t border-slate-200 dark:border-white/10">
-            {currentStep > 0 ? (
-              <Button title="Back" variant="secondary" onPress={handlePrevStep} className="flex-1 py-2.5 rounded-xl" />
-            ) : (
-              <Button title="Cancel" variant="secondary" onPress={cancelDynamicFlow} className="flex-1 py-2.5 rounded-xl" />
-            )}
-
-            {currentStep < totalSteps - 1 ? (
-              <Button title="Next Step" onPress={handleNextStep} className="flex-1 py-2.5 rounded-xl" />
-            ) : (
-              <Button title="Confirm Event" onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
-            )}
           </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      <ConfirmationModal
+        isOpen={isConfirmingUndo}
+        onClose={() => setIsConfirmingUndo(false)}
+        title="Undo Event"
+        description="Are you sure you want to undo this event? This action will remove the event from match stats and log history."
+        onConfirm={handleConfirmUndo}
+        confirmText="Undo Event"
+        cancelText="Cancel"
+        variant="danger"
+      />
+    </>
   );
 }

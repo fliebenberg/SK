@@ -19,7 +19,7 @@ export const Button = forwardRef<View, ButtonProps>(({
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
 
-  const baseClasses = "min-h-[44px] flex-row items-center justify-center rounded-lg px-6 py-3 active:opacity-80";
+  const baseClasses = "min-h-[40px] flex-row items-center justify-center rounded-xl px-4 py-2 active:opacity-80";
   
   const variantClasses = {
     primary: "bg-brand-orange",
@@ -32,7 +32,7 @@ export const Button = forwardRef<View, ButtonProps>(({
     primary: "text-white",
     secondary: "text-slate-950",
     danger: "text-white",
-    ghost: "text-slate-700 dark:text-brand-blue",
+    ghost: "text-slate-700 dark:text-slate-300",
   };
 
   const disabledClasses = disabled || isLoading ? "opacity-50" : "";
@@ -53,7 +53,7 @@ export const Button = forwardRef<View, ButtonProps>(({
       {isLoading ? (
         <ActivityIndicator color={variant === 'secondary' ? '#0F172A' : '#FFFFFF'} />
       ) : (
-        <Text className={`font-inter-bold text-base text-center w-full ${textClasses[variant]}`}>
+        <Text className={`font-inter-bold text-sm text-center leading-tight ${textClasses[variant]}`}>
           {title}
         </Text>
       )}

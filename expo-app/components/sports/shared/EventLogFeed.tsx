@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Game, GameEvent } from '@sk/types';
+import { Game, GameEvent, Sport, GameDispute, ActionStepType } from '@sk/types';
 import { wsService } from '../../../services/websocket';
+import { useSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
 import { ConfirmationModal } from '../../ConfirmationModal';
+import { resolveEventTemplate, getEventLabel, getMissingDetails, getTeamColor } from '../../../utils/gameUtils';
 
 interface EventLogFeedProps {
   gameId: string;
+  game?: Game;
   canManage?: boolean;
 }
 
@@ -22,64 +25,6 @@ const GENERAL_PLAY_SUBTYPES = [
   'Pass',
 ];
 
-function getDisplayEventTitle(evt: GameEvent): string {
-  const subType = evt.subType || evt.type || 'Event';
-  const period = evt.eventData?.period;
-
-  switch (subType) {
-    case 'GAME_STARTED':
-      return 'Match Started';
-    case 'GAME_ENDED':
-      return 'Match Finished';
-    case 'GAME_CANCELLED':
-      return 'Match Cancelled';
-    case 'GAME_UPDATED':
-      return 'Match Updated';
-    case 'PERIOD_STARTED':
-      return period ? `${period} Started` : 'Period Started';
-    case 'PERIOD_ENDED':
-      return period ? `${period} Ended` : 'Period Ended';
-    case 'CLOCK_STARTED':
-      return 'Clock Started';
-    case 'CLOCK_PAUSED':
-      return 'Clock Paused';
-    case 'CLOCK_RESUMED':
-      return 'Clock Resumed';
-    case 'SCORE':
-      return evt.eventData?.templateId || 'Score';
-    default:
-      return subType
-        .replace(/_/g, ' ')
-        .toLowerCase()
-        .replace(/\b\w/g, char => char.toUpperCase());
-  }
-}
-
-function getEventDetailText(evt: GameEvent): string | null {
-  const subType = evt.subType || evt.type || 'Event';
-  const period = evt.eventData?.period;
-  const reason = evt.eventData?.reason;
-
-  if (reason) return `Reason: ${reason}`;
-
-  switch (subType) {
-    case 'GAME_STARTED':
-      return period ? `${period} Kickoff` : 'Kickoff';
-    case 'PERIOD_STARTED':
-      return period ? `${period} Kickoff` : 'Period Kickoff';
-    case 'PERIOD_ENDED':
-      return period ? `End of ${period} • Intermission` : 'Intermission';
-    case 'CLOCK_PAUSED':
-      return 'Clock Temporarily Stopped';
-    case 'CLOCK_RESUMED':
-      return 'Match Action Resumed';
-    case 'GAME_ENDED':
-      return 'Full Time • Match Concluded';
-    default:
-      return null;
-  }
-}
-
 function getEventCategory(evt: GameEvent): EventFilterCategory {
   if (evt.type === 'TIME' || evt.type === 'STATUS') return 'TIME';
   if (evt.type === 'SCORE') return 'SCORE';
@@ -91,27 +36,23 @@ function getEventCategory(evt: GameEvent): EventFilterCategory {
   return 'DETAIL';
 }
 
-function getCategoryAccentBarClass(cat: EventFilterCategory, evt: GameEvent, homeId?: string, awayId?: string): string {
-  switch (cat) {
-    case 'TIME':
-      return 'bg-slate-400 dark:bg-slate-600';
-    case 'SCORE':
-      if (evt.gameParticipantId && evt.gameParticipantId === homeId) return 'bg-blue-500';
-      if (evt.gameParticipantId && evt.gameParticipantId === awayId) return 'bg-red-500';
-      return 'bg-amber-500';
-    case 'DETAIL':
-      return 'bg-blue-500';
-    case 'GENERAL':
-      return 'bg-emerald-500';
-  }
-}
-
-export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
+export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedProps) {
   const [events, setEvents] = useState<GameEvent[]>([]);
-  const [game, setGame] = useState<Game | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [activeFilters, setActiveFilters] = useState<Set<EventFilterCategory>>(
+    new Set(['TIME', 'SCORE', 'DETAIL', 'GENERAL'])
+  );
   const [undoEventTarget, setUndoEventTarget] = useState<GameEvent | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [sport, setSport] = useState<Sport | undefined>(undefined);
+  const [rosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
+  const [profileMap, setProfileMap] = useState<{ [profileId: string]: string }>({});
+  const [disputes, setDisputes] = useState<GameDispute[]>([]);
+
+  const { startDynamicFlow } = useSharedDynamicScoring();
+
+  const homeParticipantId = game?.participants?.[0]?.id;
+  const awayParticipantId = game?.participants?.[1]?.id;
 
   const UNDO_WINDOW_MS = 60000;
 
@@ -120,61 +61,121 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
     return () => clearInterval(timer);
   }, []);
 
-  // Active category filters (All 4 ON by default)
-  const [activeFilters, setActiveFilters] = useState<Set<EventFilterCategory>>(
-    new Set(['TIME', 'SCORE', 'DETAIL', 'GENERAL'])
-  );
-
-  const fetchEvents = () => {
-    wsService.emit('get_data', { type: 'game_events', id: gameId }, (data: GameEvent[]) => {
-      if (data) setEvents([...data].reverse());
-      setIsLoading(false);
-    });
-  };
-
+  // Fetch sport, rosters, and active disputes
   useEffect(() => {
-    setIsLoading(true);
-    fetchEvents();
+    if (!gameId) return;
 
-    wsService.emit('get_data', { type: 'game', id: gameId }, (resGame: Game) => {
-      if (resGame) setGame(resGame);
+    // Fetch Sport definition if available
+    const resolvedSportId = game?.sportId || game?.customSettings?.sportId;
+    if (resolvedSportId) {
+      wsService.emit('get_data', { type: 'sport', id: resolvedSportId }, (resSport: Sport) => {
+        if (resSport) setSport(resSport);
+      });
+    }
+
+    // Fetch Rosters
+    game?.participants?.forEach((p) => {
+      wsService.emit('get_data', { type: 'roster', id: p.id }, (rosterData: any[]) => {
+        if (Array.isArray(rosterData)) {
+          setRosters((prev) => ({ ...prev, [p.id]: rosterData }));
+          // Populate profile map
+          setProfileMap((prev) => {
+            const next = { ...prev };
+            rosterData.forEach((item) => {
+              const pid = item.orgProfileId || item.profileId || item.id;
+              const name = item.name || item.profile?.name || item.displayName;
+              if (pid && name) next[pid] = name;
+            });
+            return next;
+          });
+        }
+      });
+    });
+
+    // Fetch Active Disputes
+    wsService.emit('get_data', { type: 'active_disputes', id: gameId }, (disputeData: GameDispute[]) => {
+      if (Array.isArray(disputeData)) setDisputes(disputeData);
+    });
+
+    const handleDisputeUpdate = (evt: { type: string; data: any }) => {
+      if (evt.type === 'DISPUTE_STARTED' && evt.data?.dispute) {
+        setDisputes((prev) => [evt.data.dispute, ...prev.filter((d) => d.id !== evt.data.dispute.id)]);
+      } else if (evt.type === 'DISPUTE_VOTE_UPDATED' && evt.data?.dispute) {
+        setDisputes((prev) => prev.map((d) => (d.id === evt.data.dispute.id ? { ...d, ...evt.data.dispute } : d)));
+      } else if (evt.type === 'DISPUTE_RESOLVED' && evt.data?.disputeId) {
+        setDisputes((prev) => prev.filter((d) => d.id !== evt.data.disputeId));
+      } else if (evt.type === 'ACTIVE_DISPUTES_SYNC' && Array.isArray(evt.data)) {
+        setDisputes(evt.data);
+      }
+    };
+
+    wsService.on('update', handleDisputeUpdate);
+    return () => {
+      wsService.off('update', handleDisputeUpdate);
+    };
+  }, [gameId, game]);
+
+  // Main Events fetch & live updates
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+
+    wsService.emit('get_data', { type: 'game_events', id: gameId }, (data: GameEvent[]) => {
+      if (isMounted) {
+        if (data && Array.isArray(data)) {
+          const sorted = [...data].sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setEvents(sorted);
+        }
+        setLoading(false);
+      }
     });
 
     const handleUpdate = (evt: { type: string; data: any }) => {
-      if (evt.type === 'GAME_EVENT_ADDED' && evt.data) {
-        if (evt.data.eventData?.status === 'REMOVED') return;
-        setEvents(prev => [evt.data, ...prev.filter(e => e.id !== evt.data.id)]);
-      } else if (evt.type === 'GAME_EVENT_UPDATED' && evt.data) {
-        if (evt.data.eventData?.status === 'REMOVED') {
-          setEvents(prev => prev.filter(e => e.id !== evt.data.id));
-        } else {
-          setEvents(prev => prev.map(e => e.id === evt.data.id ? { ...e, ...evt.data } : e));
+      const targetGameId = evt.data?.gameId || evt.data?.id;
+
+      if ((evt.type === 'GAME_RESET' || evt.type === 'RESET_GAME') && (!targetGameId || targetGameId === gameId)) {
+        setEvents([]);
+      } else if (evt.type === 'GAME_EVENTS_SYNC' && (!targetGameId || targetGameId === gameId)) {
+        const syncEvents = Array.isArray(evt.data) ? evt.data : evt.data?.events;
+        if (Array.isArray(syncEvents)) {
+          const sorted = [...syncEvents].sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setEvents(sorted);
         }
+      } else if (evt.type === 'GAME_EVENT_ADDED' && evt.data?.gameId === gameId) {
+        setEvents((prev) => {
+          if (!evt.data?.id) return prev;
+          const exists = prev.some((e) => e.id === evt.data.id);
+          if (exists) {
+            return prev.map((e) => (e.id === evt.data.id ? evt.data : e));
+          }
+          return [evt.data, ...prev];
+        });
+      } else if (evt.type === 'GAME_EVENT_UPDATED' && evt.data?.gameId === gameId) {
+        setEvents((prev) => prev.map((e) => (e.id === evt.data.id ? evt.data : e)));
       } else if ((evt.type === 'GAME_EVENT_REMOVED' || evt.type === 'UNDO_GAME_EVENT') && evt.data) {
         const targetId = evt.data.id || evt.data.eventId;
-        setEvents(prev => prev.filter(e => e.id !== targetId));
-      } else if (evt.type === 'GAME_EVENTS_BATCH_UPDATED' && Array.isArray(evt.data)) {
-        setEvents(prev => {
-          const batchMap = new Map<string, GameEvent>(evt.data.map((item: GameEvent) => [item.id, item]));
-          return prev
-            .map((e: GameEvent) => batchMap.has(e.id) ? batchMap.get(e.id)! : e)
-            .filter((e: GameEvent) => e.eventData?.status !== 'REMOVED' && (e as any).status !== 'REMOVED');
-        });
-      } else if (evt.type === 'GAME_EVENTS_SYNC' && Array.isArray(evt.data)) {
-        setEvents(evt.data.filter(e => e.eventData?.status !== 'REMOVED' && (e as any).status !== 'REMOVED'));
-      } else if (evt.type === 'GAME_RESET') {
-        setEvents([]);
+        setEvents((prev) => prev.filter((e) => e.id !== targetId));
       }
     };
 
     wsService.on('update', handleUpdate);
+
     return () => {
+      isMounted = false;
       wsService.off('update', handleUpdate);
     };
   }, [gameId]);
 
+  const disputedEventIds = useMemo(() => {
+    return new Set(disputes.map((d) => d.gameEventId));
+  }, [disputes]);
+
   const toggleFilter = (cat: EventFilterCategory) => {
-    setActiveFilters(prev => {
+    setActiveFilters((prev) => {
       const next = new Set(prev);
       if (next.has(cat)) {
         if (next.size > 1) {
@@ -187,23 +188,40 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
     });
   };
 
-  const handleConfirmUndo = () => {
-    if (!undoEventTarget) return;
-    const targetId = undoEventTarget.id;
-    // Optimistically remove from state
-    setEvents(prev => prev.filter(e => e.id !== targetId));
-    setUndoEventTarget(null);
+  const filteredEvents = useMemo(() => {
+    const seen = new Set<string>();
+    return events.filter((evt) => {
+      if (!evt.id || seen.has(evt.id)) return false;
+      seen.add(evt.id);
+      const cat = getEventCategory(evt);
+      return activeFilters.has(cat);
+    });
+  }, [events, activeFilters]);
 
-    wsService.emit(
-      'action',
-      {
+  const handleEventPress = (evt: GameEvent) => {
+    if (!canManage || disputedEventIds.has(evt.id)) return;
+    const isTimingEvent = evt.type === 'TIME' || evt.type === 'STATUS';
+    if (isTimingEvent) return;
+
+    const templateId = evt.eventData?.templateId || evt.subType;
+    const side = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
+
+    if (templateId) {
+      startDynamicFlow(templateId, side, {
+        eventId: evt.id,
+        ...evt.eventData,
+      });
+    }
+  };
+
+  const handleConfirmUndo = () => {
+    if (undoEventTarget) {
+      wsService.emit('action', {
         type: 'UNDO_GAME_EVENT',
-        payload: { gameId, eventId: targetId, initiatorId: null },
-      },
-      () => {
-        fetchEvents();
-      }
-    );
+        payload: { gameId, eventId: undoEventTarget.id },
+      });
+      setUndoEventTarget(null);
+    }
   };
 
   const formatMatchTime = (ms?: number) => {
@@ -214,33 +232,22 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const filteredEvents = useMemo(() => {
-    return events.filter(evt => {
-      if (evt.eventData?.status === 'REMOVED' || (evt as any).status === 'REMOVED') {
-        return false;
-      }
-      const cat = getEventCategory(evt);
-      return activeFilters.has(cat);
-    });
-  }, [events, activeFilters]);
-
-  if (isLoading) {
+  if (loading && events.length === 0) {
     return (
-      <View className="flex-1 items-center justify-center py-10">
+      <View className="flex-1 items-center justify-center py-8">
         <ActivityIndicator size="small" color={COLORS.brand.orange} />
+        <Text className="font-inter text-xs text-slate-400 mt-2">Loading event feed...</Text>
       </View>
     );
   }
 
-  const homeParticipantId = game?.participants?.[0]?.id;
-  const awayParticipantId = game?.participants?.[1]?.id;
-
   return (
-    <View className="flex-1">
-      {/* Top Filter Buttons Bar */}
-      <View className="px-3 py-2 flex-row items-center justify-between border-b border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/50">
+    <View className="flex-1 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-white/5 overflow-hidden">
+      {/* HEADER & FILTER BAR */}
+      <View className="flex-row items-center justify-between px-3 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-white/5">
+        <Text className="font-orbitron-bold text-xs uppercase text-slate-700 dark:text-slate-300">Live Feed</Text>
+
         <View className="flex-row items-center gap-1.5 flex-wrap">
-          {/* TIME FILTER */}
           <TouchableOpacity
             onPress={() => toggleFilter('TIME')}
             className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border transition-all ${
@@ -249,11 +256,7 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
                 : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
             }`}
           >
-            <Ionicons
-              name="time-outline"
-              size={12}
-              color={activeFilters.has('TIME') ? '#94A3B8' : '#64748B'}
-            />
+            <Ionicons name="time-outline" size={12} color={activeFilters.has('TIME') ? '#94A3B8' : '#64748B'} />
             <Text
               className={`font-inter-bold text-[10px] uppercase ${
                 activeFilters.has('TIME') ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'
@@ -263,7 +266,6 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
             </Text>
           </TouchableOpacity>
 
-          {/* SCORE FILTER */}
           <TouchableOpacity
             onPress={() => toggleFilter('SCORE')}
             className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border transition-all ${
@@ -272,21 +274,12 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
                 : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
             }`}
           >
-            <Ionicons
-              name="trophy-outline"
-              size={12}
-              color={activeFilters.has('SCORE') ? COLORS.brand.orange : '#94A3B8'}
-            />
-            <Text
-              className={`font-inter-bold text-[10px] uppercase ${
-                activeFilters.has('SCORE') ? 'text-brand-orange' : 'text-slate-400'
-              }`}
-            >
+            <Ionicons name="trophy-outline" size={12} color={activeFilters.has('SCORE') ? COLORS.brand.orange : '#94A3B8'} />
+            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('SCORE') ? 'text-brand-orange' : 'text-slate-400'}`}>
               Score
             </Text>
           </TouchableOpacity>
 
-          {/* DETAIL FILTER */}
           <TouchableOpacity
             onPress={() => toggleFilter('DETAIL')}
             className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border transition-all ${
@@ -295,21 +288,12 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
                 : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
             }`}
           >
-            <Ionicons
-              name="pulse-outline"
-              size={12}
-              color={activeFilters.has('DETAIL') ? '#3B82F6' : '#94A3B8'}
-            />
-            <Text
-              className={`font-inter-bold text-[10px] uppercase ${
-                activeFilters.has('DETAIL') ? 'text-blue-500' : 'text-slate-400'
-              }`}
-            >
+            <Ionicons name="pulse-outline" size={12} color={activeFilters.has('DETAIL') ? '#3B82F6' : '#94A3B8'} />
+            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('DETAIL') ? 'text-blue-500' : 'text-slate-400'}`}>
               Detail
             </Text>
           </TouchableOpacity>
 
-          {/* GENERAL FILTER */}
           <TouchableOpacity
             onPress={() => toggleFilter('GENERAL')}
             className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border transition-all ${
@@ -318,112 +302,266 @@ export function EventLogFeed({ gameId, canManage = false }: EventLogFeedProps) {
                 : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
             }`}
           >
-            <Ionicons
-              name="football-outline"
-              size={12}
-              color={activeFilters.has('GENERAL') ? '#10B981' : '#94A3B8'}
-            />
-            <Text
-              className={`font-inter-bold text-[10px] uppercase ${
-                activeFilters.has('GENERAL') ? 'text-emerald-500' : 'text-slate-400'
-              }`}
-            >
+            <Ionicons name="football-outline" size={12} color={activeFilters.has('GENERAL') ? '#10B981' : '#94A3B8'} />
+            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('GENERAL') ? 'text-emerald-500' : 'text-slate-400'}`}>
               General
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Events Feed List */}
+      {/* EVENT LIST */}
       {filteredEvents.length === 0 ? (
         <View className="flex-1 items-center justify-center py-10">
-          <Text className="font-inter text-xs text-slate-400 italic">No events recorded for active filters.</Text>
+          <Text className="font-inter text-xs text-slate-400 italic">
+            {events.length === 0 ? 'Waiting for kickoff...' : 'No events match filters.'}
+          </Text>
         </View>
       ) : (
         <ScrollView className="flex-1 px-3 py-2">
           <View className="space-y-2">
             {filteredEvents.map((evt) => {
-              const timeLabel = formatMatchTime(evt.eventData?.elapsedMS);
-              const title = getDisplayEventTitle(evt);
-              const detailText = getEventDetailText(evt);
-              const points = evt.eventData?.points;
-              const period = evt.eventData?.period;
-              const isTimingEvent = evt.type === 'TIME' || evt.type === 'STATUS';
-              const category = getEventCategory(evt);
-              const barClass = getCategoryAccentBarClass(category, evt, homeParticipantId, awayParticipantId);
+              const eventData = evt.eventData || (evt as any).event_data || {};
+              const snapshot = eventData.scoreSnapshot;
+              const timeLabel = formatMatchTime(eventData.elapsedMS);
 
-              // Undo window countdown calculation
+              // Dynamic Template Label
+              const { label: dynamicTitle, template } = getEventLabel(evt, sport);
+              const title = dynamicTitle || evt.subType || evt.type;
+
+              const points = eventData.points;
+              const period = eventData.period;
+              const isPending = eventData.pending || (evt.subType === 'conversion' && !eventData.outcome);
+              const isTimingEvent = evt.type === 'TIME' || evt.type === 'STATUS';
+              const isDisputed = disputedEventIds.has(evt.id);
+
+              const barClass = getTeamColor(evt, game?.participants);
+
               const evtTime = evt.timestamp ? new Date(evt.timestamp).getTime() : now;
               const age = now - evtTime;
               const inUndoWindow = age >= 0 && age < UNDO_WINDOW_MS;
               const remainingSecs = Math.max(0, Math.ceil((UNDO_WINDOW_MS - age) / 1000));
 
+              // Actor / Player details & Substitutions
+              const actorName = evt.actorOrgProfileId ? profileMap[evt.actorOrgProfileId] || null : null;
+              const isSubstitution = evt.subType === 'Replacement' || evt.subType === 'substitution';
+              const playerOffName = eventData.playerOffName || (eventData.playerOffProfileId ? profileMap[eventData.playerOffProfileId] : null);
+              const playerOnName = eventData.playerOnName || (eventData.playerOnProfileId ? profileMap[eventData.playerOnProfileId] : null);
+
+              // Missing Details & Conversion action checks
+              const participantRoster = evt.gameParticipantId ? rosters[evt.gameParticipantId] : undefined;
+              const missingDetails = canManage && !isDisputed ? getMissingDetails(evt, template, participantRoster) : [];
+              
+              const isTry = template?.id === 'try' || evt.subType === 'try';
+              const hasLinkedConversion = events.some((e) => {
+                const isConversion = e.subType === 'conversion' || e.eventData?.templateId === 'conversion';
+                if (!isConversion) return false;
+                const eData = e.eventData || (e as any).event_data || {};
+
+                // 1. Explicit link
+                if (eData.linkedEventId === evt.id) return true;
+
+                // 2. Implicit link (same participant, conversion recorded within 5 min window after try)
+                if (e.gameParticipantId === evt.gameParticipantId) {
+                  const conversionTime = e.timestamp ? new Date(e.timestamp).getTime() : 0;
+                  const tryTime = evt.timestamp ? new Date(evt.timestamp).getTime() : 0;
+                  if (conversionTime >= tryTime && conversionTime - tryTime < 300000) {
+                    return true;
+                  }
+                }
+                return false;
+              });
+              const canAddConversion = canManage && !isDisputed && isTry && !hasLinkedConversion;
+              const side = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
+
               return (
-                <View
+                <TouchableOpacity
                   key={evt.id}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-2.5 flex-row items-center justify-between shadow-sm gap-2.5"
+                  disabled={!canManage || isTimingEvent || isDisputed}
+                  onPress={() => handleEventPress(evt)}
+                  className={`bg-white dark:bg-slate-900 border ${
+                    isDisputed
+                      ? 'border-red-500 bg-red-500/10 dark:bg-red-500/20'
+                      : isPending
+                      ? 'border-amber-500 bg-amber-500/5 dark:bg-amber-500/10'
+                      : 'border-slate-200 dark:border-white/5'
+                  } rounded-xl p-2.5 flex-row items-center justify-between shadow-sm gap-2.5 active:opacity-80 relative`}
                 >
-                  {/* Category Indicator Accent Bar */}
                   <View className={`w-1 self-stretch rounded-full ${barClass}`} />
 
                   <View className="flex-row items-center gap-2.5 flex-1 pr-1">
-                    {/* Timestamp & Period Badge */}
+                    {/* TIME & PERIOD */}
                     <View className="bg-brand-orange/10 px-2 py-1 rounded-md border border-brand-orange/20 items-center min-w-[52px]">
                       <Text className="font-orbitron-bold text-[10px] text-brand-orange">{timeLabel}</Text>
                       {period && (
-                        <Text className="font-inter text-[8px] text-slate-400 uppercase tracking-tighter mt-0.5">
-                          {period}
-                        </Text>
+                        <Text className="font-inter text-[8px] text-slate-400 uppercase tracking-tighter mt-0.5">{period}</Text>
                       )}
                     </View>
 
-                    {/* Title & Details / Reasons */}
+                    {/* TITLE, ACTOR, & REASON DETAILS */}
                     <View className="flex-1 min-w-0">
-                      <Text className="font-inter-bold text-xs text-slate-800 dark:text-white truncate">
-                        {title} {points ? `(+${points})` : ''}
-                      </Text>
-                      {detailText ? (
-                        <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5" numberOfLines={1}>
-                          {detailText}
+                      <View className="flex-row items-center gap-2 flex-wrap">
+                        <Text className="font-inter-bold text-xs text-slate-800 dark:text-white truncate uppercase">
+                          {title} {points ? `(+${points})` : ''}
                         </Text>
-                      ) : null}
+                        {isPending && (
+                          <View className="bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                            <Text className="font-inter-bold text-[9px] text-amber-500 uppercase tracking-wider">Pending Outcome</Text>
+                          </View>
+                        )}
+                        {isDisputed && (
+                          <View className="bg-red-500 px-1.5 py-0.5 rounded">
+                            <Text className="font-orbitron-bold text-[8px] text-white uppercase tracking-wider">Disputed</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* SUB-DETAILS / ACTOR / SUBSTITUTION */}
+                      <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">
+                        {isSubstitution ? (
+                          <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400">
+                            {playerOffName || 'Unknown'} <Text className="text-amber-500">↔</Text> {playerOnName || 'Unknown'}
+                          </Text>
+                        ) : (
+                          <>
+                            {eventData.reason && evt.type !== 'SCORE' && (
+                              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+                                Reason: {eventData.reason.replace(/^(General|Set Piece) - /i, '')}
+                              </Text>
+                            )}
+                            {actorName && (
+                              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-300">
+                                {eventData.reason && evt.type !== 'SCORE' ? '• ' : ''}
+                                {actorName}
+                              </Text>
+                            )}
+                          </>
+                        )}
+                      </View>
+
+                      {/* QUICK FIX ACTION PILLS & CONVERSION PROMPT INSIDE CARD */}
+                      {(missingDetails.length > 0 || canAddConversion) && (
+                        <View className="flex-row flex-wrap gap-1.5 mt-1.5">
+                          {missingDetails.includes('player') && (
+                            <TouchableOpacity
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                startDynamicFlow(evt.subType || evt.type, side, {
+                                  ...eventData,
+                                  eventId: evt.id,
+                                  initialStepType: ActionStepType.PLAYER_SELECTION,
+                                });
+                              }}
+                              className="flex-row items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded-full"
+                            >
+                              <Ionicons name="person-outline" size={10} color="#3B82F6" />
+                              <Text className="font-inter-bold text-[9px] uppercase text-blue-500">+ Player</Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {missingDetails.includes('reason') && (
+                            <TouchableOpacity
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                startDynamicFlow(evt.subType || evt.type, side, {
+                                  ...eventData,
+                                  eventId: evt.id,
+                                  initialStepType: ActionStepType.REASON_SELECTION,
+                                });
+                              }}
+                              className="flex-row items-center gap-1 px-2 py-0.5 bg-purple-500/10 border border-purple-500/30 rounded-full"
+                            >
+                              <Ionicons name="help-circle-outline" size={10} color="#A855F7" />
+                              <Text className="font-inter-bold text-[9px] uppercase text-purple-500">+ Reason</Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {missingDetails.includes('outcome') && (
+                            <TouchableOpacity
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                startDynamicFlow(evt.subType || evt.type, side, {
+                                  ...eventData,
+                                  eventId: evt.id,
+                                  initialStepType: ActionStepType.OUTCOME_SELECTION,
+                                });
+                              }}
+                              className="flex-row items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full"
+                            >
+                              <Ionicons name="disc-outline" size={10} color="#10B981" />
+                              <Text className="font-inter-bold text-[9px] uppercase text-emerald-500">
+                                {evt.subType === 'penalty_awarded' || evt.subType === 'free_kick' ? '+ Next Action' : '+ Outcome'}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {canAddConversion && (
+                            <TouchableOpacity
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                startDynamicFlow('conversion', side, { linkedEventId: evt.id });
+                              }}
+                              className="flex-row items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/40 rounded-full"
+                            >
+                              <Ionicons name="add-circle-outline" size={10} color="#F59E0B" />
+                              <Text className="font-inter-bold text-[9px] uppercase text-amber-500">+ Add Conversion</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
                     </View>
+
+                    {/* RUNNING SCORE SNAPSHOT BADGE */}
+                    {snapshot && (
+                      <View className="flex-row items-center gap-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-md border border-slate-200 dark:border-white/10 shrink-0">
+                        {(() => {
+                          const p1 = game?.participants?.[0];
+                          const p2 = game?.participants?.[1];
+                          const s1 = snapshot[p1?.id || ''] ?? 0;
+                          const s2 = snapshot[p2?.id || ''] ?? 0;
+                          return (
+                            <>
+                              <Text className="font-orbitron-bold text-[10px] text-blue-500">{s1}</Text>
+                              <Text className="font-inter text-[9px] opacity-40 text-slate-400">—</Text>
+                              <Text className="font-orbitron-bold text-[10px] text-red-500">{s2}</Text>
+                            </>
+                          );
+                        })()}
+                      </View>
+                    )}
                   </View>
 
-                  {canManage && !isTimingEvent && (
+                  {/* UNDO BUTTON */}
+                  {canManage && !isTimingEvent && !isDisputed && (
                     <TouchableOpacity
-                      onPress={() => setUndoEventTarget(evt)}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setUndoEventTarget(evt);
+                      }}
                       className={`flex-row items-center gap-1 px-2 py-1 rounded-lg border ${
-                        inUndoWindow
-                          ? 'bg-amber-500/10 border-amber-500/40'
-                          : 'bg-red-500/10 border-red-500/20'
+                        inUndoWindow ? 'bg-amber-500/10 border-amber-500/40' : 'bg-red-500/10 border-red-500/20'
                       }`}
                     >
-                      <Ionicons
-                        name="arrow-undo-outline"
-                        size={14}
-                        color={inUndoWindow ? '#F59E0B' : '#EF4444'}
-                      />
+                      <Ionicons name="arrow-undo-outline" size={14} color={inUndoWindow ? '#F59E0B' : '#EF4444'} />
                       {inUndoWindow && (
-                        <Text className="font-mono font-bold text-[10px] text-amber-500 animate-pulse">
-                          {remainingSecs}s
-                        </Text>
+                        <Text className="font-mono font-bold text-[10px] text-amber-500 animate-pulse">{remainingSecs}s</Text>
                       )}
                     </TouchableOpacity>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
         </ScrollView>
       )}
 
+      {/* CONFIRMATION MODAL FOR UNDO */}
       {undoEventTarget && (
         <ConfirmationModal
           isOpen={!!undoEventTarget}
           onClose={() => setUndoEventTarget(null)}
           title="Undo Event?"
-          description={`Are you sure you want to undo "${getDisplayEventTitle(undoEventTarget)}"? This will reverse any score changes.`}
+          description={`Are you sure you want to undo "${getEventLabel(undoEventTarget, sport).label || undoEventTarget.subType}"?`}
           confirmText="Undo Event"
           cancelText="Cancel"
           onConfirm={handleConfirmUndo}

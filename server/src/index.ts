@@ -952,6 +952,7 @@ io.on('connection', (socket) => {
                 callback(activeDisputes);
                 break;
             case 'game_roster':
+            case 'roster':
                 callback(await dataManager.getGameRoster(id));
                 break;
             case 'events':
@@ -984,6 +985,9 @@ io.on('connection', (socket) => {
                 break;
             case 'sports':
                 callback(await dataManager.getSports());
+                break;
+            case 'sport':
+                callback(await dataManager.getSport(id));
                 break;
             case 'roles':
                 callback({

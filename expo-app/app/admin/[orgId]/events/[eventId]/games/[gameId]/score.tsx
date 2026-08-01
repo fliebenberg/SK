@@ -115,7 +115,7 @@ export default function ScoreGameScreen() {
     <DynamicScoringProvider game={game}>
       <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
         {/* HEADER BAR */}
-        <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+        <View className="flex-row items-center justify-between px-4 py-2.5 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
           <TouchableOpacity onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)} className="flex-row items-center gap-1">
             <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
             <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
@@ -134,8 +134,8 @@ export default function ScoreGameScreen() {
           />
         </View>
 
-        <ScrollView className="flex-1 px-4 py-4" contentContainerStyle={{ paddingBottom: 60 }}>
-          <View className="flex-col lg:flex-row gap-6 items-start justify-center max-w-7xl mx-auto w-full">
+        <ScrollView className="flex-1 px-4 py-2" contentContainerStyle={{ paddingBottom: 30 }}>
+          <View className="flex-col lg:flex-row gap-3 items-start justify-center max-w-7xl mx-auto w-full">
             {/* MAIN SCORING COLUMN (TIMER, SCOREBOARD, DISPUTES & SCORER PANELS) */}
             <View className="w-full flex-1 max-w-3xl">
               {/* TIMER SLOT */}
@@ -174,7 +174,7 @@ export default function ScoreGameScreen() {
                 />
 
                 <View className="min-h-[280px]">
-                  {activeTab === 'feed' && <EventLogFeed gameId={game.id} canManage={true} />}
+                  {activeTab === 'feed' && <EventLogFeed gameId={game.id} game={game} canManage={true} />}
                   {activeTab === 'team1' && p1 && <TeamRosterPanel gameId={game.id} participantId={p1.id} />}
                   {activeTab === 'team2' && p2 && <TeamRosterPanel gameId={game.id} participantId={p2.id} />}
                   {activeTab === 'stats' && <RugbyGameStats game={game} />}

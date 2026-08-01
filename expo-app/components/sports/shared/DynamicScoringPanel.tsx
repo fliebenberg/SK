@@ -12,28 +12,13 @@ interface DynamicScoringPanelProps {
 }
 
 export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps) {
-  const { game, templates, scoringState, startDynamicFlow, updateFinalScore } = useSharedDynamicScoring();
-  const [homeTeam, setHomeTeam] = useState<any>(null);
-  const [awayTeam, setAwayTeam] = useState<any>(null);
+  const { game, homeTeam, awayTeam, templates, scoringState, startDynamicFlow, updateFinalScore } = useSharedDynamicScoring();
   const [isFinalScoreOpen, setIsFinalScoreOpen] = useState(false);
   const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
   const [isSaving, setIsSaving] = useState(false);
 
   const homeParticipant = game.participants?.[0];
   const awayParticipant = game.participants?.[1];
-
-  useEffect(() => {
-    if (homeParticipant?.teamId) {
-      wsService.emit('get_data', { type: 'team', id: homeParticipant.teamId }, (t: any) => {
-        if (t) setHomeTeam(t);
-      });
-    }
-    if (awayParticipant?.teamId) {
-      wsService.emit('get_data', { type: 'team', id: awayParticipant.teamId }, (t: any) => {
-        if (t) setAwayTeam(t);
-      });
-    }
-  }, [homeParticipant?.teamId, awayParticipant?.teamId]);
 
   const isFinished = game.status === 'Finished';
   const isScheduled = game.status === 'Scheduled';
@@ -79,7 +64,7 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
 
     return (
       <View
-        className={`flex-1 p-1.5 rounded-xl border transition-all ${
+        className={`flex-1 p-1 rounded-xl border transition-all ${
           isHome
             ? 'bg-blue-500/5 dark:bg-blue-500/10 border-blue-500/20'
             : 'bg-rose-500/5 dark:bg-rose-500/10 border-rose-500/20'
@@ -88,7 +73,7 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
         {/* 2-COLUMN COMPACT GRID */}
         <View className="flex-row flex-wrap gap-1 justify-between">
           {relevantTemplates.map((template) => (
-            <View key={template.id} className="w-[48.5%] mb-1">
+            <View key={template.id} className="w-[48.5%] mb-0.5">
               <ScoringActionButton
                 label={template.name}
                 mobileLabel={template.mobileLabel}
@@ -111,7 +96,7 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
       : 'General Play & Set Pieces';
 
   return (
-    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-2 pt-3 shadow-sm mb-2 relative">
+    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-1.5 pt-2.5 shadow-sm mb-1.5 relative">
       {/* COMPACT SECTION OVERLAY BADGE */}
       <View className="absolute -top-2.5 left-4 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-300 dark:border-white/10 z-10">
         <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest">

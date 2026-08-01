@@ -21,13 +21,20 @@ const formatTime = (ms: number, showHours: boolean = true): string => {
   return parts.join(':');
 };
 
+export function getLiveElapsedMS(clock?: GameClockState): number {
+  if (!clock) return 0;
+  let totalMS = clock.elapsedMS || 0;
+  if (clock.isRunning && clock.lastStartedAt) {
+    const startedAtMS = new Date(clock.lastStartedAt).getTime();
+    const now = wsService.getServerTime();
+    totalMS += Math.max(0, now - startedAtMS);
+  }
+  return totalMS;
+}
+
 const getInitialTime = (clock?: GameClockState, showHours: boolean = true): string => {
   if (!clock) return "00:00";
-  let totalMS = clock.elapsedMS;
-  if (clock.isRunning && clock.lastStartedAt) {
-    const startTime = new Date(clock.lastStartedAt).getTime();
-    totalMS += (wsService.getServerTime() - startTime);
-  }
+  const totalMS = getLiveElapsedMS(clock);
   return formatTime(totalMS, showHours);
 };
 
