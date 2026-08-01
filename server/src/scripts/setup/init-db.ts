@@ -372,8 +372,10 @@ const createTables = async () => {
                 game_participant_id TEXT REFERENCES game_participants(id) ON DELETE CASCADE,
                 org_profile_id TEXT REFERENCES org_profiles(id),
                 position TEXT,
+                jersey_number TEXT,
                 is_reserve BOOLEAN DEFAULT false
             );
+            ALTER TABLE game_rosters ADD COLUMN IF NOT EXISTS jersey_number TEXT;
         `);
 
         // Game Officials

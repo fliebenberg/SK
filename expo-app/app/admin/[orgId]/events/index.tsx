@@ -370,6 +370,17 @@ export default function OrgEventsList() {
                                 <Ionicons name="pencil-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
                               </TouchableOpacity>
                             )}
+                            {perms.canSelectLineup && (
+                              <TouchableOpacity
+                                onPress={(e: any) => {
+                                  if (e && e.stopPropagation) e.stopPropagation();
+                                  router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/selection`);
+                                }}
+                                className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-80"
+                              >
+                                <Ionicons name="people-outline" size={13} color={COLORS.brand.orange} />
+                              </TouchableOpacity>
+                            )}
                             {perms.canScore && (
                               <TouchableOpacity
                                 onPress={(e: any) => {

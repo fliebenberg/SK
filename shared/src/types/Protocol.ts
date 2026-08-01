@@ -305,7 +305,7 @@ export interface ResetGamePayload {
 export interface SaveGameRosterPayload {
     gameId: string;
     participantId: string;
-    items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }>;
+    items: Array<{ orgProfileId: string, position?: string, jerseyNumber?: string, isReserve: boolean }>;
 }
 
 export interface UndoGameEventPayload {
@@ -453,3 +453,17 @@ export interface ProtocolMap {
     [SocketAction.UNDO_GAME_EVENT]: { payload: UndoGameEventPayload; response: { success: boolean, error?: string } };
     [SocketAction.GET_SYSTEM_SETTINGS]: { payload: GetSystemSettingsPayload; response: Record<string, any> };
 }
+
+/**
+ * Strict discriminated union for get_data WebSocket requests.
+ */
+export type GetDataRequest =
+  | { type: 'organization' | 'team' | 'site' | 'facility' | 'event' | 'game' | 'league' | 'season' | 'sport' | 'game_roster' | 'roster' | 'season_standings' | 'user_memberships'; id: string }
+  | { type: 'organizations' | 'teams' | 'games' | 'events' | 'sites' | 'leagues'; orgId: string }
+  | { type: 'org_members'; orgId: string }
+  | { type: 'team_members'; teamId: string }
+  | { type: 'seasons'; leagueId: string }
+  | { type: 'facilities'; siteId?: string; id?: string }
+  | { type: 'season_teams' | 'season_games'; seasonId: string }
+  | { type: 'sports' | 'roles' | 'org_profiles' | 'team_memberships' | 'org_memberships' };
+

@@ -184,7 +184,7 @@ export default function ClaimIndexScreen() {
             logo={claimInfo?.organizationLogo}
             primaryColor="#F97316"
             size="xl"
-            className="ring-4 ring-brand-orange/20 shadow-2xl mb-3"
+            className="border-4 border-brand-orange/20 shadow-2xl mb-3"
           />
           <Text className="font-inter-bold text-slate-900 dark:text-white text-xl text-center">
             {claimInfo?.organizationName}

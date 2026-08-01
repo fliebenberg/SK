@@ -210,6 +210,10 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   );
 }
 
+export function useOptionalSharedDynamicScoring(): DynamicScoringContextType | null {
+  return useContext(DynamicScoringContext);
+}
+
 export function useSharedDynamicScoring(): DynamicScoringContextType {
   const ctx = useContext(DynamicScoringContext);
   if (!ctx) throw new Error('useSharedDynamicScoring must be used within DynamicScoringProvider');

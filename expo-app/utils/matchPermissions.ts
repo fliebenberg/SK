@@ -5,6 +5,9 @@ export interface MatchPermissions {
   canView: boolean;
   canEdit: boolean;
   canScore: boolean;
+  canSelectLineup: boolean;
+  canEditTeam1Lineup: boolean;
+  canEditTeam2Lineup: boolean;
 }
 
 export function getMatchPermissions(params: {
@@ -14,51 +17,114 @@ export function getMatchPermissions(params: {
   user: User | null;
   orgMemberships: OrgMembership[];
   teamMemberships: TeamMembership[];
+  teamsMap?: Record<string, any>;
 }): MatchPermissions {
-  const { game, event, currentOrgId, user, orgMemberships, teamMemberships } = params;
+  const { game, event, currentOrgId, user, orgMemberships, teamMemberships, teamsMap } = params;
 
   // View is accessible to everyone
   const canView = true;
 
   if (user?.globalRole === 'admin') {
-    return { canView, canEdit: true, canScore: true };
+    return {
+      canView,
+      canEdit: true,
+      canScore: true,
+      canSelectLineup: true,
+      canEditTeam1Lineup: true,
+      canEditTeam2Lineup: true,
+    };
   }
 
-  // Check if event owner / org admin
-  const isEventOwner = !!(
-    (event && currentOrgId && event.orgId === currentOrgId) ||
-    (event && orgMemberships?.some(m => m.orgId === event.orgId && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')))
+  // Check if user is an Org Admin / Staff of the current active org or event host org
+  const isAdminOfCurrentOrg = !!(
+    currentOrgId &&
+    orgMemberships?.some(
+      (m) =>
+        m.orgId === currentOrgId &&
+        (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')
+    )
   );
 
-  const canEdit = isEventOwner;
+  const isAdminOfEventOrg = !!(
+    event?.orgId &&
+    orgMemberships?.some(
+      (m) =>
+        m.orgId === event.orgId &&
+        (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')
+    )
+  );
 
+  const isEventOwner = isAdminOfCurrentOrg || isAdminOfEventOrg;
+
+  const canEdit = isEventOwner;
   let canScore = isEventOwner;
 
-  if (!canScore && game) {
+  let canEditTeam1Lineup = isEventOwner;
+  let canEditTeam2Lineup = isEventOwner;
+
+  if (game) {
     const homeTeamId = game.participants?.[0]?.teamId;
     const awayTeamId = game.participants?.[1]?.teamId;
 
-    const isCoachOfHome = !!(homeTeamId && teamMemberships?.some(m => m.teamId === homeTeamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach')));
-    const isCoachOfAway = !!(awayTeamId && teamMemberships?.some(m => m.teamId === awayTeamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach')));
+    const isCoachOfHome = !!(
+      homeTeamId &&
+      teamMemberships?.some(
+        (m) =>
+          m.teamId === homeTeamId &&
+          (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach')
+      )
+    );
+    const isCoachOfAway = !!(
+      awayTeamId &&
+      teamMemberships?.some(
+        (m) =>
+          m.teamId === awayTeamId &&
+          (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach')
+      )
+    );
 
-    if (isCoachOfHome || isCoachOfAway) {
+    const homeOrgId =
+      (game.participants?.[0] as any)?.orgId ||
+      (homeTeamId ? teamsMap?.[homeTeamId]?.orgId : undefined);
+    const awayOrgId =
+      (game.participants?.[1] as any)?.orgId ||
+      (awayTeamId ? teamsMap?.[awayTeamId]?.orgId : undefined);
+
+    const isAdminOfHomeOrg = !!(
+      homeOrgId &&
+      orgMemberships?.some(
+        (m) =>
+          m.orgId === homeOrgId &&
+          (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')
+      )
+    );
+    const isAdminOfAwayOrg = !!(
+      awayOrgId &&
+      orgMemberships?.some(
+        (m) =>
+          m.orgId === awayOrgId &&
+          (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')
+      )
+    );
+
+    if (isCoachOfHome || isAdminOfHomeOrg) {
+      canEditTeam1Lineup = true;
       canScore = true;
-    } else {
-      const homeOrgId = (game.participants?.[0] as any)?.orgId || game.participants?.[0]?.orgProfileId;
-      const awayOrgId = (game.participants?.[1] as any)?.orgId || game.participants?.[1]?.orgProfileId;
-
-      const isAdminOfHomeOrg = !!(homeOrgId && orgMemberships?.some(m => m.orgId === homeOrgId && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')));
-      const isAdminOfAwayOrg = !!(awayOrgId && orgMemberships?.some(m => m.orgId === awayOrgId && (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff')));
-
-      if (isAdminOfHomeOrg || isAdminOfAwayOrg) {
-        canScore = true;
-      }
+    }
+    if (isCoachOfAway || isAdminOfAwayOrg) {
+      canEditTeam2Lineup = true;
+      canScore = true;
     }
   }
+
+  const canSelectLineup = canEditTeam1Lineup || canEditTeam2Lineup;
 
   return {
     canView,
     canEdit,
-    canScore
+    canScore,
+    canSelectLineup,
+    canEditTeam1Lineup,
+    canEditTeam2Lineup,
   };
 }

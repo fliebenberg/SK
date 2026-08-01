@@ -512,6 +512,14 @@ export default function EventDetails() {
                       onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/view`)}
                       className="flex-1 py-2.5 rounded-lg shadow-sm"
                     />
+                    {canUserScoreGame(games[0]) && (
+                      <Button
+                        title="Lineup"
+                        variant="secondary"
+                        onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${games[0].id}/selection`)}
+                        className="flex-1 py-2.5 rounded-lg shadow-sm"
+                      />
+                    )}
                     {canEdit && (
                       <Button
                         title="Edit Match"
@@ -679,6 +687,14 @@ export default function EventDetails() {
                                   className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
                                 >
                                   <Ionicons name="pencil-outline" size={12} color={getThemeColor(isDark, 'textSecondary')} />
+                                </TouchableOpacity>
+                              )}
+                              {canUserScoreGame(game) && (
+                                <TouchableOpacity
+                                  onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/selection`)}
+                                  className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-85"
+                                >
+                                  <Ionicons name="people-outline" size={12} color={COLORS.brand.orange} />
                                 </TouchableOpacity>
                               )}
                               {canUserScoreGame(game) && (

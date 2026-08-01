@@ -923,7 +923,7 @@ io.on('connection', (socket) => {
                 callback(await dataManager.getTeams(orgId));
                 break;
             case 'team':
-                callback(await dataManager.getTeam(id) || await dataManager.getTeam(teamId));
+                callback(await dataManager.getTeam(id));
                 break;
             case 'sites':
                 callback(await dataManager.getSites(orgId));
@@ -1010,10 +1010,11 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'team_members':
-                // Fetch members for a specific team
+                // Fetch members for a specific team strictly via teamId
                 if (teamId) {
                     callback(await dataManager.getTeamMembers(teamId));
                 } else {
+                    console.warn("Server: team_members requested without teamId");
                     callback([]);
                 }
                 break;

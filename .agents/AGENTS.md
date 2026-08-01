@@ -21,6 +21,21 @@
   - For public cards: A compact secondary button (e.g. `Roster` or `View` with `px-4 py-1.5` padding and shadow-sm) aligned on the right.
 - **Universal Application**: This design pattern applies universally to all existing lists (e.g., teams, sites, facilities, leagues, seasons, divisions) as well as any new lists created in the future.
 
+# React Native & NativeWind Styling Rules
+
+## Avoid Tailwind Pseudo-Classes & CSS Transitions on Native Components
+- **No Tailwind Pseudo-Classes on Interactive Components**: Never use pseudo-classes like `active:`, `hover:`, or `focus:` inside `className` strings on `TouchableOpacity`, `Pressable`, or `View` components (e.g. `active:opacity-80`, `active:scale-95`, `hover:border-...`). In NativeWind v4 (`react-native-css-interop`), these pseudo-classes trigger dynamic component upgrades at runtime that can cause dev warnings and navigation context serialization crashes during re-renders.
+- **Use Native React Native Props**: Always use native React Native component props for press feedback (e.g., `activeOpacity={0.8}` on `<TouchableOpacity>`) or state-driven styling (`isActive ? 'bg-white' : ''`) instead of Tailwind pseudo-classes.
+- **Avoid `transition-all` in Tailwind Classes**: Do not use `transition-all` or CSS transition utility classes on native views, as they mark components for runtime animated upgrade in NativeWind v4.
+
+## Web-Only Tailwind Classes & Unsupported Utility Rules
+- **No `truncate` on `<Text>`**: Never use `truncate` inside `className` strings on `<Text>` components. Truncation must always be handled using native React Native props (`numberOfLines={1}`).
+- **No CSS Ring Utilities (`ring-*`, `ring-offset-*`)**: Do not use `ring-2`, `ring-4`, or ring color utilities. Use standard `border-2 border-brand-orange` or `border-4` instead.
+- **No Web Alignment & Layout Classes (`mx-auto`, `my-auto`, `sticky`)**: Do not use `mx-auto` or `my-auto` on native views; use `self-center` (`alignSelf: 'center'`). Do not use `sticky` positioning on native views.
+- **No Unsupported Shadow Utilities (`shadow-2xl`, `shadow-xs`)**: Only use standard supported React Native shadow tiers (`shadow-none`, `shadow-sm`, `shadow-md`, `shadow-lg`).
+- **No Web Percentage Bounds in Arbitrary Classes (`max-h-[80%]`, `w-[50%]`)**: Percentage bounds in arbitrary Tailwind classes can cause NativeWind upgrade warnings on native. Use inline style objects (e.g. `style={{ maxHeight: '80%' }}`) for percentage constraints.
+- **Guard Web-Only DOM Props**: Never pass HTML5 web DOM props (`onDragOver`, `onDrop`, `onDragStart`, `draggable`) directly into native `<View>` or `<TouchableOpacity>` components without checking `Platform.OS === 'web'`. Passing unknown props to NativeWind components triggers interop upgrade warnings.
+
 # Centralized Styling & Color Rules
 
 ## Theme and Color Policy
@@ -28,4 +43,15 @@
 - **Centralizing Inline Style Colors**: For inline styling objects (e.g., where React Native's `style` prop is necessary), import and use the central constants from [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts) via the `COLORS` object or the `getThemeColor` utility function.
 - **Centralizing Utility Class Colors (Tailwind)**: For utility-class based styles (Tailwind/NativeWind `className` strings), always extend the theme variables inside [tailwind.config.js](file:///c:/Fred/Coding/SK/expo-app/tailwind.config.js) under the `extend.colors` block. Use these semantic variables (e.g., `text-brand-orange`, `text-textSecondary`, `bg-surface`) instead of arbitrary colors.
 - **Theme-Awareness**: Ensure all labels and texts adapt correctly to light/dark themes by referencing the centralized light/dark palettes rather than styling for a single mode.
+
+# Database Schema & Migration Rules
+
+## Schema Isolation & Migration Discipline
+- **No Inline DDL in Application Code**: Data access objects, managers, and API route/socket handlers must NEVER execute inline DDL or schema alterations (e.g., `ALTER TABLE`, `CREATE TABLE`, `DROP COLUMN`) or auto-migration try-catches. Application code must strictly query and mutate data based on expected schemas.
+- **Explicit Migration Process Only**: All database schema changes (adding/modifying tables, columns, indexes, constraints) MUST be implemented exclusively through dedicated, versioned migration scripts inside `server/src/scripts/migrations/` (or `init-db.ts` for fresh database initialization).
+
+## Strict Data Preservation Policy
+- **Zero Data Loss Rule**: Migration scripts and database operations must NEVER drop tables, drop columns, truncate data, or delete existing records unless explicitly requested and approved by the user.
+- **Backwards-Compatible Schema Changes**: Always use safe, non-destructive migration statements (e.g., `ADD COLUMN IF NOT EXISTS ... DEFAULT NULL`) to preserve all existing data intact across deployments.
+
 

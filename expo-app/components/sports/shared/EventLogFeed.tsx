@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Game, GameEvent, Sport, GameDispute, ActionStepType } from '@sk/types';
 import { wsService } from '../../../services/websocket';
-import { useSharedDynamicScoring } from './DynamicScoringContext';
+import { useOptionalSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
 import { ConfirmationModal } from '../../ConfirmationModal';
@@ -49,7 +49,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   const [profileMap, setProfileMap] = useState<{ [profileId: string]: string }>({});
   const [disputes, setDisputes] = useState<GameDispute[]>([]);
 
-  const { startDynamicFlow } = useSharedDynamicScoring();
+  const dynamicScoring = useOptionalSharedDynamicScoring();
+  const startDynamicFlow = dynamicScoring?.startDynamicFlow;
 
   const homeParticipantId = game?.participants?.[0]?.id;
   const awayParticipantId = game?.participants?.[1]?.id;
@@ -207,7 +208,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     const side = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
 
     if (templateId) {
-      startDynamicFlow(templateId, side, {
+      startDynamicFlow?.(templateId, side, {
         eventId: evt.id,
         ...evt.eventData,
       });
@@ -446,7 +447,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                             <TouchableOpacity
                               onPress={(e) => {
                                 e.stopPropagation();
-                                startDynamicFlow(evt.subType || evt.type, side, {
+                                startDynamicFlow?.(evt.subType || evt.type, side, {
                                   ...eventData,
                                   eventId: evt.id,
                                   initialStepType: ActionStepType.PLAYER_SELECTION,
@@ -463,7 +464,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                             <TouchableOpacity
                               onPress={(e) => {
                                 e.stopPropagation();
-                                startDynamicFlow(evt.subType || evt.type, side, {
+                                startDynamicFlow?.(evt.subType || evt.type, side, {
                                   ...eventData,
                                   eventId: evt.id,
                                   initialStepType: ActionStepType.REASON_SELECTION,
@@ -480,7 +481,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                             <TouchableOpacity
                               onPress={(e) => {
                                 e.stopPropagation();
-                                startDynamicFlow(evt.subType || evt.type, side, {
+                                startDynamicFlow?.(evt.subType || evt.type, side, {
                                   ...eventData,
                                   eventId: evt.id,
                                   initialStepType: ActionStepType.OUTCOME_SELECTION,
@@ -499,7 +500,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                             <TouchableOpacity
                               onPress={(e) => {
                                 e.stopPropagation();
-                                startDynamicFlow('conversion', side, { linkedEventId: evt.id });
+                                startDynamicFlow?.('conversion', side, { linkedEventId: evt.id });
                               }}
                               className="flex-row items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/40 rounded-full"
                             >

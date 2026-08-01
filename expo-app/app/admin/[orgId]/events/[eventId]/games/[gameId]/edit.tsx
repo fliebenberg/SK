@@ -89,7 +89,7 @@ export default function EditGame() {
     wsService.emit('get_data', { type: 'event', id: eventId }, (res: any) => {
       if (res) {
         setEvent(res);
-        if (res.orgId && res.orgId !== orgId) {
+        if (res.orgId && res.orgId !== orgId && user?.globalRole !== 'admin') {
           router.replace(`/admin/${orgId}/events/${eventId}/games/${gameId}/view`);
           return;
         }
@@ -342,7 +342,7 @@ export default function EditGame() {
     teamMemberships,
   });
 
-  const handleSwitchView = (targetView: 'view' | 'edit' | 'score') => {
+  const handleSwitchView = (targetView: 'view' | 'selection' | 'edit' | 'score') => {
     confirmThenNavigate(() => {
       router.push(`/admin/${orgId}/events/${eventId}/games/${gameId}/${targetView}`);
     });
@@ -354,7 +354,8 @@ export default function EditGame() {
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
           onPress={handleBackPress}
-          className="flex-row items-center gap-1 active:opacity-85"
+          activeOpacity={0.85}
+          className="flex-row items-center gap-1"
         >
           <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
           <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">

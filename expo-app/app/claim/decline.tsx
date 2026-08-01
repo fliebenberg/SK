@@ -133,7 +133,7 @@ export default function DeclineScreen() {
             logo={claimInfo?.organizationLogo}
             primaryColor="#F97316"
             size="xl"
-            className="ring-4 ring-brand-orange/20 shadow-2xl"
+            className="border-4 border-brand-orange/20 shadow-2xl"
           />
         </View>
 

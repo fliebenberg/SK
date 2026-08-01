@@ -156,7 +156,8 @@ export default function ViewGame() {
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
           onPress={safeGoBack}
-          className="flex-row items-center gap-1 active:opacity-85"
+          activeOpacity={0.85}
+          className="flex-row items-center gap-1"
         >
           <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
           <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
@@ -177,12 +178,14 @@ export default function ViewGame() {
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>
         {/* READ ONLY BANNER */}
-        <GlassCard className="border border-brand-orange/20 bg-brand-orange/5 p-4 mb-6 flex-row items-center gap-3">
-          <Ionicons name="information-circle-outline" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 flex-1 leading-relaxed">
-            You are viewing this match in read-only mode because it belongs to another organization.
-          </Text>
-        </GlassCard>
+        {!permissions.canEdit && !permissions.canScore && (
+          <GlassCard className="border border-brand-orange/20 bg-brand-orange/5 p-4 mb-6 flex-row items-center gap-3">
+            <Ionicons name="information-circle-outline" size={20} color={COLORS.brand.orange} />
+            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 flex-1 leading-relaxed">
+              You are viewing this match in read-only mode because it belongs to another organization.
+            </Text>
+          </GlassCard>
+        )}
 
         {/* MATCHUP CARD */}
         <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6">

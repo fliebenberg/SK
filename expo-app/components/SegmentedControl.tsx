@@ -43,9 +43,10 @@ export function SegmentedControl<T extends string = string>({
               key={item.key}
               onPress={() => onChange(item.key)}
               disabled={isActive || item.disabled}
-              className={`w-8 h-8 rounded-lg items-center justify-center active:opacity-80 transition-all ${
+              activeOpacity={0.8}
+              className={`w-8 h-8 rounded-lg items-center justify-center ${
                 isActive
-                  ? 'bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-xs'
+                  ? 'bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-sm'
                   : 'bg-transparent border border-transparent'
               } ${item.disabled ? 'opacity-40' : ''}`}
             >
@@ -63,9 +64,10 @@ export function SegmentedControl<T extends string = string>({
             key={item.key}
             onPress={() => onChange(item.key)}
             disabled={isActive || item.disabled}
-            className={`flex-1 px-3 py-2 rounded-lg flex-row items-center justify-center gap-1.5 active:opacity-85 transition-all ${
+            activeOpacity={0.85}
+            className={`flex-1 px-3 py-2 rounded-lg flex-row items-center justify-center gap-1.5 ${
               isActive
-                ? 'bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-xs'
+                ? 'bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-sm'
                 : 'bg-transparent border border-transparent'
             } ${item.disabled ? 'opacity-40' : ''}`}
           >

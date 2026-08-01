@@ -6,7 +6,7 @@ import { sportManager } from "./SportManager";
 
 export class EventManager extends BaseManager {
   private EVENT_COLUMNS = 'id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id) as "participatingOrgIds", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
-  private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
+  private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'name\', t.name, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p LEFT JOIN teams t ON t.id = p.team_id WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
   async getEvents(orgId?: string): Promise<Event[]> {
     console.log(`EventManager: getEvents called for org ${orgId}`);
     let queryText = `SELECT ${this.EVENT_COLUMNS} FROM events`;
@@ -472,7 +472,7 @@ export class EventManager extends BaseManager {
 
   async getGameRoster(participantId: string): Promise<any[]> {
     const res = await this.query(
-        `SELECT id, game_participant_id as "participantId", org_profile_id as "orgProfileId", position, is_reserve as "isReserve" 
+        `SELECT id, game_participant_id as "participantId", org_profile_id as "orgProfileId", position, jersey_number as "jerseyNumber", is_reserve as "isReserve" 
          FROM game_rosters 
          WHERE game_participant_id = $1`, 
         [participantId]
@@ -480,7 +480,7 @@ export class EventManager extends BaseManager {
     return res.rows;
   }
 
-  async saveGameRoster(gameId: string, participantId: string, items: { orgProfileId: string, position?: string, isReserve: boolean }[]): Promise<boolean> {
+  async saveGameRoster(gameId: string, participantId: string, items: { orgProfileId: string, position?: string, jerseyNumber?: string, isReserve: boolean }[]): Promise<boolean> {
     await this.query('BEGIN');
     try {
         // Clear existing roster for this participant
@@ -490,9 +490,9 @@ export class EventManager extends BaseManager {
         for (const item of items) {
             const id = `gr-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
             await this.query(
-                `INSERT INTO game_rosters (id, game_participant_id, org_profile_id, position, is_reserve)
-                 VALUES ($1, $2, $3, $4, $5)`,
-                [id, participantId, item.orgProfileId, item.position || null, item.isReserve]
+                `INSERT INTO game_rosters (id, game_participant_id, org_profile_id, position, jersey_number, is_reserve)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [id, participantId, item.orgProfileId, item.position || null, item.jerseyNumber || null, item.isReserve]
             );
         }
 

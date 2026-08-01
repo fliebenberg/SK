@@ -4,13 +4,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { MatchPermissions } from '../utils/matchPermissions';
 import { SegmentedControl, SegmentedControlOption } from './SegmentedControl';
 
+export type MatchViewType = 'view' | 'selection' | 'edit' | 'score';
+
 interface MatchViewSwitcherProps {
   orgId: string;
   eventId: string;
   gameId: string;
-  currentView: 'view' | 'edit' | 'score';
+  currentView: MatchViewType;
   permissions: MatchPermissions;
-  onNavigate?: (targetView: 'view' | 'edit' | 'score') => void;
+  onNavigate?: (targetView: MatchViewType) => void;
 }
 
 export const MatchViewSwitcher: React.FC<MatchViewSwitcherProps> = ({
@@ -23,7 +25,7 @@ export const MatchViewSwitcher: React.FC<MatchViewSwitcherProps> = ({
 }) => {
   const router = useRouter();
 
-  const handlePress = (targetView: 'view' | 'edit' | 'score') => {
+  const handlePress = (targetView: MatchViewType) => {
     if (targetView === currentView) return;
     if (onNavigate) {
       onNavigate(targetView);
@@ -33,7 +35,7 @@ export const MatchViewSwitcher: React.FC<MatchViewSwitcherProps> = ({
   };
 
   const actions: Array<{
-    key: 'view' | 'edit' | 'score';
+    key: MatchViewType;
     label: string;
     icon: keyof typeof Ionicons.glyphMap;
     iconActive: keyof typeof Ionicons.glyphMap;
@@ -45,6 +47,13 @@ export const MatchViewSwitcher: React.FC<MatchViewSwitcherProps> = ({
       icon: 'eye-outline',
       iconActive: 'eye',
       allowed: permissions.canView,
+    },
+    {
+      key: 'selection',
+      label: 'Lineup',
+      icon: 'people-outline',
+      iconActive: 'people',
+      allowed: permissions.canSelectLineup,
     },
     {
       key: 'edit',
@@ -62,7 +71,7 @@ export const MatchViewSwitcher: React.FC<MatchViewSwitcherProps> = ({
     },
   ];
 
-  const options: Array<SegmentedControlOption<'view' | 'edit' | 'score'>> = actions
+  const options: Array<SegmentedControlOption<MatchViewType>> = actions
     .filter((a) => a.allowed)
     .map((a) => ({
       key: a.key,
@@ -72,7 +81,7 @@ export const MatchViewSwitcher: React.FC<MatchViewSwitcherProps> = ({
     }));
 
   return (
-    <SegmentedControl<'view' | 'edit' | 'score'>
+    <SegmentedControl<MatchViewType>
       options={options}
       value={currentView}
       onChange={handlePress}
