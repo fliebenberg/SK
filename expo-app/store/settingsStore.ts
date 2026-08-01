@@ -33,6 +33,7 @@ export const useSettingsStore = create<SettingsState>()(
       globalPreferences: {
         theme: 'system',
         hapticFeedbackEnabled: true,
+        sidebarMinimized: false,
       },
       localOverrides: {},
 
