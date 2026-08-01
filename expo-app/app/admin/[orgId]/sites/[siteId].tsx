@@ -13,6 +13,7 @@ import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Site, Facility, Address } from '@sk/types';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -704,10 +705,15 @@ export default function SiteDetailScreen() {
         type: SocketAction.UPDATE_SITE,
         payload: { id: editingSite.id, data: payload }
       }, (res: any) => {
+        setIsProcessing(false);
         if (res.status === 'ok') {
-          safeGoBack();
+          setOriginalData({
+            name: siteForm.name.trim(),
+            isActive: siteForm.isActive,
+            address: { ...siteForm.address }
+          });
+          useUnsavedChangesStore.getState().clear();
         } else {
-          setIsProcessing(false);
           Alert.alert('Save Failed', res.message || 'Could not update site');
         }
       });
@@ -717,6 +723,7 @@ export default function SiteDetailScreen() {
         payload: { ...payload, orgId }
       }, (res: any) => {
         if (res.status === 'ok') {
+          useUnsavedChangesStore.getState().clear();
           router.replace({
             pathname: '/admin/[orgId]/sites/[siteId]',
             params: { orgId: orgId!, siteId: res.data.id }

@@ -29,6 +29,7 @@ import { getContrastColor, hexToRgba } from '@/utils/colorUtils';
 import { ImageEditor } from '../../../components/ImageEditor';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { NominationModal } from '@/components/NominationModal';
 
 function hslToHex(h: number, s: number, l: number): string {
@@ -598,6 +599,7 @@ export default function OrgSettings() {
           type: type,
           customType: type === 'OTHER' ? customType.trim() : '',
         });
+        useUnsavedChangesStore.getState().clear();
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         console.error('Failed to update organization');

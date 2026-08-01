@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Platform, Image } from 'react-native';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -273,15 +274,15 @@ export default function LeagueDetails() {
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_LEAGUE as any, payload }, (res: any) => {
+      setIsSavingLeague(false);
       if (res && res.status === 'error') {
-        setIsSavingLeague(false);
         setEditError(res.message || "Failed to update league settings.");
       } else {
         // Direct merge to local state
         if (res && res.data) {
           setLeague(res.data);
         }
-        safeGoBack();
+        useUnsavedChangesStore.getState().clear();
       }
     });
   };

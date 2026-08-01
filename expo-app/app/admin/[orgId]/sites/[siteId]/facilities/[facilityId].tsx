@@ -11,6 +11,7 @@ import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Facility, Site } from '@sk/types';
 import { useSocketQuery } from '../../../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '../../../../../../store/unsavedChangesStore';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -447,10 +448,19 @@ export default function FacilityDetails() {
         type: SocketAction.UPDATE_FACILITY,
         payload: { id: facilityId, data: payload }
       }, (res: any) => {
+        setIsProcessing(false);
         if (res.status === 'ok') {
-          safeGoBack();
+          setOriginalData({
+            name: facilityForm.name.trim(),
+            surfaceType: facilityForm.surfaceType.trim(),
+            supportedSportIds: [...facilityForm.supportedSportIds],
+            latitude: facilityForm.latitude,
+            longitude: facilityForm.longitude,
+            category: facilityForm.category,
+            primarySportId: facilityForm.primarySportId
+          });
+          useUnsavedChangesStore.getState().clear();
         } else {
-          setIsProcessing(false);
           Alert.alert('Save Failed', res.message || 'Could not update facility');
         }
       });
@@ -460,6 +470,7 @@ export default function FacilityDetails() {
         payload: payload
       }, (res: any) => {
         if (res.status === 'ok') {
+          useUnsavedChangesStore.getState().clear();
           safeGoBack();
         } else {
           setIsProcessing(false);

@@ -107,7 +107,7 @@ export function PersonnelAutocomplete({
             >
               <View className="bg-slate-100/50 dark:bg-slate-800/30 px-3 py-1 border-b border-slate-200 dark:border-white/5">
                 <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  Existing Roster Matches
+                  Existing Persons
                 </Text>
               </View>
               {suggestions.map((item) => (

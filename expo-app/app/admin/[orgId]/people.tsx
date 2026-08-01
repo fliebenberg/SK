@@ -469,11 +469,12 @@ export default function OrgPeople() {
         </View>
 
         {/* MEMBER LIST */}
-        <View className="space-y-2">
+        <View className="space-y-1">
           {sortedMembers.map((member) => {
             const inviteStatus = getInviteButtonStatus(member);
             const avatarSrc = getAvatarSource(member);
             const logoConf = parseImageConfig(member.imageConfig || (member as any).settings?.logoConfig);
+            const contactInfo = [member.email, member.cellphone].filter(Boolean).join('  |  ');
 
             return (
               <TouchableOpacity
@@ -493,19 +494,19 @@ export default function OrgPeople() {
                 }}
                 activeOpacity={0.85}
               >
-                <GlassCard className="border border-slate-200 dark:border-white/5 p-2.5 flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-3 flex-1 mr-4">
-                    <View className="w-8 h-8 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
+                <GlassCard className="border border-slate-200 dark:border-white/5 py-1.5 px-3 flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-2.5 flex-1 mr-3 overflow-hidden">
+                    <View className="w-7 h-7 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center flex-shrink-0">
                       {avatarSrc ? (
-                        <View style={{ width: 32, height: 32, overflow: 'hidden' }}>
+                        <View style={{ width: 28, height: 28, overflow: 'hidden' }}>
                           <View
                             style={{
                               width: '100%',
                               height: '100%',
                               transform: [
                                 { scale: logoConf.scale },
-                                { translateX: logoConf.x * 32 },
-                                { translateY: logoConf.y * 32 },
+                                { translateX: logoConf.x * 28 },
+                                { translateY: logoConf.y * 28 },
                               ],
                             }}
                           >
@@ -520,35 +521,35 @@ export default function OrgPeople() {
                           </View>
                         </View>
                       ) : (
-                        <Text className="font-orbitron-bold text-xs text-brand-orange">
+                        <Text className="font-orbitron-bold text-[11px] text-brand-orange">
                           {member.name.charAt(0).toUpperCase()}
                         </Text>
                       )}
                     </View>
 
-                    <View className="flex-1">
-                      <View className="flex-row items-center gap-1.5 mb-0.5 flex-wrap">
-                        <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
-                          {member.name}
-                        </Text>
-                        <View className="px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
-                          <Text className="font-inter-bold text-[7px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                            {member.roleName || 'Member'}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
-                        {[member.email, member.cellphone].filter(Boolean).join('  |  ') || 'No Contact Info'}
+                    <View className="flex-1 flex-row items-center gap-2 flex-wrap min-w-0">
+                      <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white" numberOfLines={1}>
+                        {member.name}
                       </Text>
+                      <View className="px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
+                        <Text className="font-inter-bold text-[7px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                          {member.roleName || 'Member'}
+                        </Text>
+                      </View>
+                      {contactInfo ? (
+                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500" numberOfLines={1}>
+                          · {contactInfo}
+                        </Text>
+                      ) : null}
                       {member.personOrgId ? (
-                        <Text className="font-mono text-[8px] text-slate-400 dark:text-slate-600 mt-0.5">
-                          ID: {member.personOrgId}
+                        <Text className="font-mono text-[8px] text-slate-400 dark:text-slate-600" numberOfLines={1}>
+                          (ID: {member.personOrgId})
                         </Text>
                       ) : null}
                     </View>
                   </View>
 
-                  <View className="flex-row items-center gap-1.5">
+                  <View className="flex-row items-center gap-1.5 flex-shrink-0">
                     {inviteStatus && (
                       <TouchableOpacity
                         disabled={inviteStatus.disabled}

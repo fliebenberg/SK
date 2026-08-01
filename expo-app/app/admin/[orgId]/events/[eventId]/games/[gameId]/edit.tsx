@@ -237,14 +237,18 @@ export default function EditGame() {
 
         wsService.emit('action', { type: SocketAction.UPDATE_EVENT, payload: eventPayload }, (eventRes: any) => {
           setIsProcessing(false);
+          if (formData) {
+            setInitialData({ ...formData });
+          }
           useUnsavedChangesStore.getState().clear();
-          safeGoBack();
         });
       } else {
         setIsProcessing(false);
         if (res) {
+          if (formData) {
+            setInitialData({ ...formData });
+          }
           useUnsavedChangesStore.getState().clear();
-          safeGoBack();
         }
       }
     });

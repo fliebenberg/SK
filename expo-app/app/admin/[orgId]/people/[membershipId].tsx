@@ -15,6 +15,7 @@ import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../../services/api';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -190,7 +191,8 @@ export default function EditMember() {
         });
       });
 
-      safeBack(`/admin/${orgId}/people`);
+      setOriginalData(JSON.stringify(form));
+      useUnsavedChangesStore.getState().clear();
     } catch (err: any) {
       console.error(err);
       Alert.alert('Save Failed', err.message || 'Failed to save changes');
@@ -215,6 +217,7 @@ export default function EditMember() {
         });
       });
       setIsDeleteModalOpen(false);
+      useUnsavedChangesStore.getState().clear();
       safeBack(`/admin/${orgId}/people`);
     } catch (err: any) {
       console.error(err);

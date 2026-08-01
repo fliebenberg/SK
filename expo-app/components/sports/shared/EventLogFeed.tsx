@@ -402,7 +402,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                     <View className="flex-1 min-w-0">
                       <View className="flex-row items-center gap-2 flex-wrap">
                         <Text className="font-inter-bold text-xs text-slate-800 dark:text-white truncate uppercase">
-                          {title} {points ? `(+${points})` : ''}
+                          {title}
                         </Text>
                         {isPending && (
                           <View className="bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded">
@@ -513,7 +513,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
                     {/* RUNNING SCORE SNAPSHOT BADGE */}
                     {snapshot && (
-                      <View className="flex-row items-center gap-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-md border border-slate-200 dark:border-white/10 shrink-0">
+                      <View className="flex-col items-center justify-center px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-md border border-slate-200 dark:border-white/10 shrink-0 min-w-[24px]">
                         {(() => {
                           const p1 = game?.participants?.[0];
                           const p2 = game?.participants?.[1];
@@ -521,9 +521,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                           const s2 = snapshot[p2?.id || ''] ?? 0;
                           return (
                             <>
-                              <Text className="font-orbitron-bold text-[10px] text-blue-500">{s1}</Text>
-                              <Text className="font-inter text-[9px] opacity-40 text-slate-400">—</Text>
-                              <Text className="font-orbitron-bold text-[10px] text-red-500">{s2}</Text>
+                              <Text className="font-orbitron-bold text-xs text-blue-500 leading-none py-0.5">{s1}</Text>
+                              <Text className="font-orbitron-bold text-xs text-red-500 leading-none py-0.5">{s2}</Text>
                             </>
                           );
                         })()}

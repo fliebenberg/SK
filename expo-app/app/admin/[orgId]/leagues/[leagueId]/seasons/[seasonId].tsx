@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput, Platform, Image } from 'react-native';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '../../../../../../store/unsavedChangesStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -364,11 +365,14 @@ export default function SeasonDetails() {
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_SEASON as any, payload }, (res: any) => {
+      setIsProcessing(false);
       if (res && res.status === 'error') {
-        setIsProcessing(false);
         setActionError(res.message || "Failed to update settings.");
       } else {
-        safeGoBack();
+        if (res && res.data) {
+          setSeason(res.data);
+        }
+        useUnsavedChangesStore.getState().clear();
       }
     });
   };

@@ -13,6 +13,7 @@ import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Team, Sport, Organization, TeamMember, Game } from '@sk/types';
 import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
+import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
 import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../../services/api';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
@@ -336,10 +337,17 @@ export default function TeamDetailsScreen() {
         }
       }
     }, (res: any) => {
+      setIsProcessing(false);
       if (res.status === 'ok') {
-        safeGoBack();
+        setOriginalDetails({
+          name: detailsForm.name.trim(),
+          shortName: detailsForm.shortName.trim(),
+          sportId: detailsForm.sportId,
+          ageGroup: detailsForm.ageGroup.trim().toUpperCase(),
+          isActive: detailsForm.isActive
+        });
+        useUnsavedChangesStore.getState().clear();
       } else {
-        setIsProcessing(false);
         Alert.alert('Save Failed', res.message || 'Could not update details');
       }
     });
