@@ -16,6 +16,7 @@ import { ImageEditor, ImageConfig } from '../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../services/api';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useAuthStore } from '../../../store/authStore';
+import { PaginatedList } from '../../../components/PaginatedList';
 
 interface OrgRole {
   id: string;
@@ -469,8 +470,19 @@ export default function OrgPeople() {
         </View>
 
         {/* MEMBER LIST */}
-        <View className="space-y-1">
-          {sortedMembers.map((member) => {
+        <PaginatedList
+          data={sortedMembers}
+          pageSize={50}
+          keyExtractor={(member) => member.membershipId}
+          emptyState={
+            <View className="items-center justify-center py-12">
+              <Ionicons name="people-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
+              <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
+                No Members Found
+              </Text>
+            </View>
+          }
+          renderItem={(member) => {
             const inviteStatus = getInviteButtonStatus(member);
             const avatarSrc = getAvatarSource(member);
             const logoConf = parseImageConfig(member.imageConfig || (member as any).settings?.logoConfig);
@@ -587,17 +599,8 @@ export default function OrgPeople() {
                 </GlassCard>
               </TouchableOpacity>
             );
-          })}
-
-          {sortedMembers.length === 0 && (
-            <View className="items-center justify-center py-12">
-              <Ionicons name="people-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
-              <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
-                No Members Found
-              </Text>
-            </View>
-          )}
-        </View>
+          }}
+        />
       </ScrollView>
 
       {/* ADD MEMBER MODAL */}

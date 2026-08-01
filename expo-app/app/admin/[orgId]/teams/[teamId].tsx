@@ -17,6 +17,7 @@ import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
 import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../../services/api';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
+import { PaginatedList } from '../../../../components/PaginatedList';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -770,26 +771,40 @@ export default function TeamDetailsScreen() {
               </TouchableOpacity>
             </View>
 
-            <View className="space-y-1.5">
-              {players.map(item => {
+            <PaginatedList
+              data={players}
+              pageSize={50}
+              maxColumns={2}
+              keyExtractor={(item) => item.membershipId}
+              emptyState={
+                <View className="items-center justify-center py-12 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
+                  <Ionicons name="people-outline" size={40} color="#94A3B8" className="opacity-40 mb-2" />
+                  <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-400">Roster is Empty</Text>
+                  <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 text-center mt-0.5">
+                    Click "Add Player" to add athletes to the team.
+                  </Text>
+                </View>
+              }
+              renderItem={(item) => {
                 const inviteStatus = getInviteButtonStatus(item);
                 const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
                 const logoConf = parseImageConfig(item.imageConfig);
+                const contactInfo = [item.email, item.cellphone].filter(Boolean).join('  |  ');
 
                 return (
                   <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 py-1.5 px-3 flex-row items-center justify-between">
-                    <View className="flex-row items-center gap-2.5 flex-1 mr-4">
-                      <View className="w-8 h-8 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
+                    <View className="flex-row items-center gap-2.5 flex-1 mr-3 overflow-hidden">
+                      <View className="w-7 h-7 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center flex-shrink-0">
                         {avatarSource ? (
-                          <View style={{ width: 32, height: 32, overflow: 'hidden' }}>
+                          <View style={{ width: 28, height: 28, overflow: 'hidden' }}>
                             <View
                               style={{
                                 width: '100%',
                                 height: '100%',
                                 transform: [
                                   { scale: logoConf.scale },
-                                  { translateX: logoConf.x * 32 },
-                                  { translateY: logoConf.y * 32 },
+                                  { translateX: logoConf.x * 28 },
+                                  { translateY: logoConf.y * 28 },
                                 ],
                               }}
                             >
@@ -801,19 +816,30 @@ export default function TeamDetailsScreen() {
                             </View>
                           </View>
                         ) : (
-                          <Text className="font-orbitron-bold text-xs text-brand-orange">
+                          <Text className="font-orbitron-bold text-[11px] text-brand-orange">
                             {item.name.charAt(0).toUpperCase()}
                           </Text>
                         )}
                       </View>
-                      <View className="flex-1">
-                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white leading-tight">{item.name}</Text>
-                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-                          {[item.email, item.cellphone].filter(Boolean).join('  |  ') || 'Athlete'}
+
+                      <View className="flex-1 flex-row items-center gap-2 flex-wrap min-w-0">
+                        <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white" numberOfLines={1}>
+                          {item.name}
                         </Text>
+                        <View className="px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
+                          <Text className="font-inter-bold text-[7px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                            Athlete
+                          </Text>
+                        </View>
+                        {contactInfo ? (
+                          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500" numberOfLines={1}>
+                            · {contactInfo}
+                          </Text>
+                        ) : null}
                       </View>
                     </View>
-                    <View className="flex-row items-center gap-1.5">
+
+                    <View className="flex-row items-center gap-1.5 flex-shrink-0">
                       {inviteStatus && (
                         <TouchableOpacity
                           disabled={inviteStatus.disabled}
@@ -850,18 +876,8 @@ export default function TeamDetailsScreen() {
                     </View>
                   </GlassCard>
                 );
-              })}
-
-              {players.length === 0 && (
-                <View className="items-center justify-center py-12 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
-                  <Ionicons name="people-outline" size={40} color="#94A3B8" className="opacity-40 mb-2" />
-                  <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-400">Roster is Empty</Text>
-                  <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 text-center mt-0.5">
-                    Click "Add Player" to add athletes to the team.
-                  </Text>
-                </View>
-              )}
-            </View>
+              }}
+            />
           </View>
         )}
 
@@ -887,27 +903,41 @@ export default function TeamDetailsScreen() {
               </TouchableOpacity>
             </View>
 
-            <View className="space-y-1.5">
-              {staff.map(item => {
+            <PaginatedList
+              data={staff}
+              pageSize={50}
+              maxColumns={2}
+              keyExtractor={(item) => item.membershipId}
+              emptyState={
+                <View className="items-center justify-center py-12 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
+                  <Ionicons name="briefcase-outline" size={40} color="#94A3B8" className="opacity-40 mb-2" />
+                  <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-400">No Staff Assigned</Text>
+                  <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 text-center mt-0.5">
+                    Click "Add Staff" to configure managers or coaches.
+                  </Text>
+                </View>
+              }
+              renderItem={(item) => {
                 const inviteStatus = getInviteButtonStatus(item);
                 const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
                 const logoConf = parseImageConfig(item.imageConfig);
                 const roleName = availableRoles.find(r => r.id === item.roleId)?.name || 'Staff';
+                const contactInfo = [item.email, item.cellphone].filter(Boolean).join('  |  ');
 
                 return (
                   <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 py-1.5 px-3 flex-row items-center justify-between">
-                    <View className="flex-row items-center gap-2.5 flex-1 mr-4">
-                      <View className="w-8 h-8 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden items-center justify-center">
+                    <View className="flex-row items-center gap-2.5 flex-1 mr-3 overflow-hidden">
+                      <View className="w-7 h-7 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden items-center justify-center flex-shrink-0">
                         {avatarSource ? (
-                          <View style={{ width: 32, height: 32, overflow: 'hidden' }}>
+                          <View style={{ width: 28, height: 28, overflow: 'hidden' }}>
                             <View
                               style={{
                                 width: '100%',
                                 height: '100%',
                                 transform: [
                                   { scale: logoConf.scale },
-                                  { translateX: logoConf.x * 32 },
-                                  { translateY: logoConf.y * 32 },
+                                  { translateX: logoConf.x * 28 },
+                                  { translateY: logoConf.y * 28 },
                                 ],
                               }}
                             >
@@ -919,19 +949,30 @@ export default function TeamDetailsScreen() {
                             </View>
                           </View>
                         ) : (
-                          <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400">
+                          <Text className="font-orbitron-bold text-[11px] text-slate-500 dark:text-slate-400">
                             {item.name.charAt(0).toUpperCase()}
                           </Text>
                         )}
                       </View>
-                      <View className="flex-1">
-                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white leading-tight">{item.name}</Text>
-                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-                          {[item.email, item.cellphone].filter(Boolean).join('  |  ') || roleName}
+
+                      <View className="flex-1 flex-row items-center gap-2 flex-wrap min-w-0">
+                        <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white" numberOfLines={1}>
+                          {item.name}
                         </Text>
+                        <View className="px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
+                          <Text className="font-inter-bold text-[7px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                            {roleName}
+                          </Text>
+                        </View>
+                        {contactInfo ? (
+                          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500" numberOfLines={1}>
+                            · {contactInfo}
+                          </Text>
+                        ) : null}
                       </View>
                     </View>
-                    <View className="flex-row items-center gap-1.5">
+
+                    <View className="flex-row items-center gap-1.5 flex-shrink-0">
                       {inviteStatus && (
                         <TouchableOpacity
                           disabled={inviteStatus.disabled}
@@ -969,18 +1010,8 @@ export default function TeamDetailsScreen() {
                     </View>
                   </GlassCard>
                 );
-              })}
-
-              {staff.length === 0 && (
-                <View className="items-center justify-center py-12 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl">
-                  <Ionicons name="briefcase-outline" size={40} color="#94A3B8" className="opacity-40 mb-2" />
-                  <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-400">No Staff Assigned</Text>
-                  <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 text-center mt-0.5">
-                    Click "Add Staff" to configure managers or coaches.
-                  </Text>
-                </View>
-              )}
-            </View>
+              }}
+            />
           </View>
         )}
 
