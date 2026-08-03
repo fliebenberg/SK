@@ -389,7 +389,7 @@ export default function EditGame() {
         />
 
         {/* DANGER ZONE */}
-        <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 space-y-4 mt-6">
+        <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 gap-4 mt-6">
           <Text className="font-orbitron-bold text-xs text-brand-red uppercase tracking-wider">Danger Zone</Text>
           <View className="flex-row justify-between items-center">
             <View>
@@ -433,14 +433,16 @@ export default function EditGame() {
             <TouchableOpacity
               onPress={handleCancel}
               disabled={isProcessing}
-              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+              activeOpacity={0.8}
+              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/5"
             >
               <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSubmit}
               disabled={isProcessing || !hasFormSelection}
-              className={`px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md ${
+              activeOpacity={0.8}
+              className={`px-5 py-2.5 rounded-xl flex-row items-center gap-2 shadow-md ${
                 !hasFormSelection
                   ? 'bg-brand-orange/40 shadow-none'
                   : 'bg-brand-orange shadow-brand-orange/30'

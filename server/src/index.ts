@@ -900,7 +900,7 @@ io.on('connection', (socket) => {
 
     socket.on('get_data', async (request, callback) => {
       const { type, orgId, id, teamId } = request;
-      console.log(`Server: get_data requested. Type: ${type}, OrgId: ${orgId}, Id: ${id}`);
+      console.log(`Server: get_data requested: ${JSON.stringify(request)}`);
       
       try {
         switch(type) {
@@ -1625,8 +1625,9 @@ io.on('connection', (socket) => {
                 const { gameId, participantId, items } = action.payload;
                 result = await dataManager.saveGameRoster(gameId, participantId, items);
                 if (result) {
-                    // Broadcast update to the game rooms
-                    io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: await dataManager.getGame(gameId) });
+                    // Broadcast roster update to the game room
+                    io.to(`game:${gameId}`).emit('update', { type: 'GAME_ROSTER_UPDATED', data: { gameId, participantId, items } });
+                    additionalBroadcasts.push({ topic: `game:${gameId}`, type: 'GAME_UPDATED', data: await dataManager.getGame(gameId) });
                 }
                 break;
             case SocketAction.DELETE_GAME:

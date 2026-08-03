@@ -60,7 +60,8 @@ To avoid dynamic runtime component upgrade warnings and navigation context seria
 *   **No Tailwind Pseudo-Classes**: Do not use `active:`, `hover:`, `focus:`, `group-hover:`, or `transition-all` on native components (`TouchableOpacity`, `Pressable`, `View`). Use native component props (`activeOpacity={0.8}`) or state-driven classes.
 *   **No `truncate` on `<Text>`**: Use the native `numberOfLines={1}` prop on `<Text>` components instead.
 *   **No CSS Ring Utilities**: Avoid `ring-2`, `ring-4`, or ring color classes; use standard `border-2 border-brand-orange` or `border-4`.
-*   **No Web Layout/Alignment Utility Classes**: Avoid `mx-auto`, `my-auto`, `sticky`, or unsupported shadow tiers (`shadow-2xl`, `shadow-xs`). Use `self-center` and standard shadows (`shadow-sm`, `shadow-md`, `shadow-lg`).
+*   **No CSS Sibling Spacing Utilities**: Avoid `space-x-*` or `space-y-*` on native views as sibling selectors (`> * + *`) force runtime component upgrades in NativeWind v4. Use native Flexbox gap properties (`gap-2`, `gap-4`, `gap-6`) instead.
+*   **No Web Layout/Alignment Utility Classes**: Avoid `mx-auto`, `my-auto`, `sticky`, or unsupported shadow tiers (`shadow-2xl`, `shadow-xs`). Never inject `shadow-*` inside dynamic template strings (`${isActive ? 'shadow-sm' : ''}`), as dynamic shadow toggles force NativeWind to invoke `createAnimatedComponent` at runtime, crashing navigation context. Use static shadows or border/background state indicators instead.
 *   **Guard Web DOM Props**: Do not pass HTML5 web props (`onDragOver`, `onDrop`, `onDragStart`, `draggable`) to native components unless guarded by `Platform.OS === 'web'`.
 
 

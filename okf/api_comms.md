@@ -8,7 +8,7 @@ tags:
   - WebSockets
   - real-time
   - sport-registry
-timestamp: 2026-07-11T13:20:00Z
+timestamp: 2026-08-03T07:00:00Z
 ---
 
 # API & Real-time WebSockets
@@ -22,10 +22,14 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
 1. **WebSocket-First Exchange**:
    - WebSockets are the preferred communication method for active games, scoring, and real-time feeds.
    - **REST API Fallback**: REST endpoints are reserved for heavy operations, user authentication (login/signup), or file uploads (avatars, logos).
-2. **Client-Side Smart Subscription**:
+2. **WebSocket Action Emission Standard**:
+   - Mutations MUST be emitted using `'action'` event name with payload `{ type: SocketAction.ENUM_NAME, payload: { ... } }`.
+   - Never emit `SocketAction.ENUM` directly as event name.
+   - `wsService.emit` is callback-based, do not `await` it.
+3. **Client-Side Smart Subscription**:
    - Client components register to data streams using reference counting.
    - The WebSocket Service connects when subscriptions > 0 and automatically disconnects/unsubscribes when count hits 0 to preserve bandwidth.
-3. **Offline Resilience**:
+4. **Offline Resilience**:
    - Connection statuses are actively monitored on the client to show offline banners when connections drop.
 
 ## Local Scoring & Clock Engines

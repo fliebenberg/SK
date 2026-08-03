@@ -6,6 +6,14 @@
 - **Minimal Delta Payloads**: Initial room/page connections get full entity state (via initial `get_data`), but all subsequent real-time update broadcast events MUST send ONLY the minimal delta required to keep the client state up to date (e.g., sending `{ id, liveState: { clock } }` or `{ id, status }` rather than entire entity graphs).
 - **Client-Side Delta Merging**: All client event listeners must support merging deltas into existing local state (e.g. shallow/deep merging updated fields into existing state objects or list items).
 
+## WebSocket Socket Action Emission Standard
+- **Action Emission Contract**: All state mutation operations sent to the backend over Socket.io MUST be emitted using the event name `'action'`, with an object payload containing `type` (`SocketAction.ENUM_NAME`) and `payload`:
+  ```typescript
+  wsService.emit('action', { type: SocketAction.SAVE_GAME_ROSTER, payload: { gameId, participantId, items } }, (res: any) => { ... });
+  ```
+- **Never Pass Raw Action Enum as Event Name**: Do NOT emit socket events using `SocketAction.ENUM` directly as the event name (e.g., `wsService.emit(SocketAction.SAVE_GAME_ROSTER, ...)` is INVALID because the server only listens for `'action'`).
+- **No `await` on `wsService.emit`**: `wsService.emit` accepts non-promise callbacks `(res: any) => void`. Do not `await wsService.emit(...)`.
+
 # UI Notification & Dialog Rules
 
 ## Custom Modals and UI Alerts
@@ -32,8 +40,9 @@
 - **No `truncate` on `<Text>`**: Never use `truncate` inside `className` strings on `<Text>` components. Truncation must always be handled using native React Native props (`numberOfLines={1}`).
 - **No CSS Ring Utilities (`ring-*`, `ring-offset-*`)**: Do not use `ring-2`, `ring-4`, or ring color utilities. Use standard `border-2 border-brand-orange` or `border-4` instead.
 - **No Web Alignment & Layout Classes (`mx-auto`, `my-auto`, `sticky`)**: Do not use `mx-auto` or `my-auto` on native views; use `self-center` (`alignSelf: 'center'`). Do not use `sticky` positioning on native views.
-- **No Unsupported Shadow Utilities (`shadow-2xl`, `shadow-xs`)**: Only use standard supported React Native shadow tiers (`shadow-none`, `shadow-sm`, `shadow-md`, `shadow-lg`).
+- **No Unsupported & Dynamic Shadow Utilities (`shadow-2xl`, `shadow-xs`, dynamic `shadow-*`)**: Only use standard supported React Native shadow tiers (`shadow-none`, `shadow-sm`, `shadow-md`, `shadow-lg`). Never put `shadow-*` classes inside dynamic ternary template literals (e.g. `${isActive ? 'shadow-sm' : ''}`) on native components (`TouchableOpacity`, `View`), as dynamic shadow class toggles force NativeWind to invoke `createAnimatedComponent` at runtime, causing navigation context crashes. Use static container styles or border/background state indicators instead.
 - **No Web Percentage Bounds in Arbitrary Classes (`max-h-[80%]`, `w-[50%]`)**: Percentage bounds in arbitrary Tailwind classes can cause NativeWind upgrade warnings on native. Use inline style objects (e.g. `style={{ maxHeight: '80%' }}`) for percentage constraints.
+- **No CSS Sibling Spacing Utilities (`space-x-*`, `space-y-*`)**: Do not use `space-x-*` or `space-y-*` in `className` strings on native views. Tailwind relies on CSS sibling selectors (`> * + *`) for space utilities, which causes NativeWind v4 to trigger dynamic component upgrades at runtime and throw navigation context errors during re-renders. Use native Flexbox gap properties (`gap-2`, `gap-4`, `gap-6`, `gap-y-4`) instead.
 - **Guard Web-Only DOM Props**: Never pass HTML5 web DOM props (`onDragOver`, `onDrop`, `onDragStart`, `draggable`) directly into native `<View>` or `<TouchableOpacity>` components without checking `Platform.OS === 'web'`. Passing unknown props to NativeWind components triggers interop upgrade warnings.
 
 # Centralized Styling & Color Rules

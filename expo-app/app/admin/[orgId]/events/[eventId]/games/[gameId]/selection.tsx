@@ -18,6 +18,7 @@ import { getMatchPermissions } from '../../../../../../../utils/matchPermissions
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useUnsavedChanges } from '../../../../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChangesStore';
+import { useWsStore } from '../../../../../../../store/wsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { COLORS } from '../../../../../../../constants/Colors';
 import { SocketAction } from '@sk/types';
@@ -42,6 +43,7 @@ export default function GameSelectionScreen() {
   const user = useAuthStore((s) => s.user);
   const orgMemberships = useAuthStore((s) => s.orgMemberships);
   const teamMemberships = useAuthStore((s) => s.teamMemberships);
+  const isConnected = useWsStore((s) => s.isConnected);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -75,7 +77,7 @@ export default function GameSelectionScreen() {
 
   // Fetch Game, Event, Sport via WebSockets
   const loadData = useCallback(() => {
-    if (!gameId) return;
+    if (!isConnected || !gameId) return;
     setIsLoading(true);
 
     let loadedGame: any = null;
@@ -121,7 +123,7 @@ export default function GameSelectionScreen() {
         checkFinished();
       });
     }
-  }, [gameId, eventId]);
+  }, [isConnected, gameId, eventId]);
 
   useEffect(() => {
     loadData();
@@ -134,7 +136,7 @@ export default function GameSelectionScreen() {
 
   // Fetch details for all teams in participants
   useEffect(() => {
-    if (!game?.participants) return;
+    if (!isConnected || !game?.participants) return;
     let isMounted = true;
     game.participants.forEach((p: any) => {
       if (p.teamId && !teamsMap[p.teamId]) {
@@ -148,7 +150,7 @@ export default function GameSelectionScreen() {
     return () => {
       isMounted = false;
     };
-  }, [game?.participants, teamsMap]);
+  }, [isConnected, game?.participants, teamsMap]);
 
   const getParticipantName = useCallback(
     (p: any, idx: number) => {
@@ -181,7 +183,7 @@ export default function GameSelectionScreen() {
 
   // Fetch Team Members & Saved Roster whenever selected participant changes
   useEffect(() => {
-    if (!currentParticipant?.id || !currentTeamId) return;
+    if (!isConnected || !currentParticipant?.id || !currentTeamId) return;
 
     let isMounted = true;
 
@@ -217,7 +219,58 @@ export default function GameSelectionScreen() {
     return () => {
       isMounted = false;
     };
-  }, [currentParticipant?.id, currentTeamId]);
+  }, [isConnected, currentParticipant?.id, currentTeamId]);
+
+  // Real-Time Room Subscription & Delta Update Listener
+  useEffect(() => {
+    if (!isConnected || !gameId) return;
+    const room = `game:${gameId}`;
+    const unsubscribeRoom = wsService.subscribeToRoom(room);
+
+    const handleUpdate = (evt: { type: string; data: any }) => {
+      if (!evt) return;
+
+      if (evt.type === 'GAME_ROSTER_UPDATED') {
+        const { participantId, items } = evt.data || {};
+        if (participantId && participantId === currentParticipant?.id && Array.isArray(items)) {
+          const mapped: RosterItem[] = items.map((r: any) => ({
+            orgProfileId: r.orgProfileId,
+            position: r.position || undefined,
+            jerseyNumber: r.jerseyNumber || undefined,
+            isReserve: !!r.isReserve,
+          }));
+          setRoster(mapped);
+          setOriginalRoster(mapped);
+          useUnsavedChangesStore.getState().clear();
+        }
+      } else if (evt.type === 'GAME_UPDATED' && currentParticipant?.id) {
+        wsService.emit(
+          'get_data',
+          { type: 'game_roster', id: currentParticipant.id },
+          (data: any[]) => {
+            if (data) {
+              const mapped: RosterItem[] = data.map((r) => ({
+                orgProfileId: r.orgProfileId,
+                position: r.position || undefined,
+                jerseyNumber: r.jerseyNumber || undefined,
+                isReserve: !!r.isReserve,
+              }));
+              setRoster(mapped);
+              setOriginalRoster(mapped);
+              useUnsavedChangesStore.getState().clear();
+            }
+          }
+        );
+      }
+    };
+
+    wsService.on('update', handleUpdate);
+
+    return () => {
+      unsubscribeRoom();
+      wsService.off('update', handleUpdate);
+    };
+  }, [isConnected, gameId, currentParticipant?.id]);
 
   // Check dirty state
   const isDirty = useMemo(() => {
@@ -242,22 +295,29 @@ export default function GameSelectionScreen() {
   useUnsavedChanges(isDirty, handleCancel);
 
   // Save Roster Handler
-  const handleSave = async () => {
-    if (!currentParticipant?.id || !canEditCurrentTeam) return;
-    try {
-      setIsSaving(true);
-      await wsService.emit(SocketAction.SAVE_GAME_ROSTER, {
-        gameId: game.id,
-        participantId: currentParticipant.id,
-        items: roster,
-      });
-      setOriginalRoster(roster);
-      useUnsavedChangesStore.getState().clear();
-    } catch (err) {
-      console.error('Failed to save game roster:', err);
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSave = () => {
+    if (!currentParticipant?.id || !canEditCurrentTeam || !game?.id) return;
+    setIsSaving(true);
+    wsService.emit(
+      'action',
+      {
+        type: SocketAction.SAVE_GAME_ROSTER,
+        payload: {
+          gameId: game.id,
+          participantId: currentParticipant.id,
+          items: roster,
+        },
+      },
+      (res: any) => {
+        setIsSaving(false);
+        if (res && res.status === 'ok') {
+          setOriginalRoster(roster);
+          useUnsavedChangesStore.getState().clear();
+        } else {
+          console.error('Failed to save game roster:', res?.message || 'Unknown error');
+        }
+      }
+    );
   };
 
   // Reserve Limit
@@ -519,7 +579,7 @@ export default function GameSelectionScreen() {
                     setActiveIsReserve(false);
                   }}
                   className={`flex-1 py-2 rounded-lg items-center flex-row justify-center gap-1.5 ${
-                    isActive ? 'bg-white dark:bg-slate-700 shadow-sm' : ''
+                    isActive ? 'bg-white dark:bg-slate-700' : ''
                   }`}
                 >
                   <Text
@@ -621,7 +681,7 @@ export default function GameSelectionScreen() {
         <View className={`flex-1 ${isDesktop ? 'flex-row gap-6 items-start' : 'flex-col'}`}>
           
           {/* LEFT COLUMN: STARTING LINEUP & RESERVES */}
-          <View className={`space-y-6 ${isDesktop ? 'flex-1 min-w-0' : 'w-full'}`}>
+          <View className={`gap-6 ${isDesktop ? 'flex-1 min-w-0' : 'w-full'}`}>
             
             {/* STARTING LINEUP SECTION */}
             <View>
@@ -649,7 +709,7 @@ export default function GameSelectionScreen() {
                             onDrop: (e: any) => handleDropOnPosition(e, pos.id),
                           } as any)
                         : {})}
-                      className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 flex-row items-center gap-3 shadow-sm ${
+                      className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 flex-row items-center gap-3 ${
                         isActivePos
                           ? 'border-2 border-brand-orange bg-brand-orange/10'
                           : player
@@ -763,7 +823,7 @@ export default function GameSelectionScreen() {
                         canEditCurrentTeam && (
                           <TouchableOpacity
                             onPress={() => handlePositionSlotClick(pos.id)}
-                            className="bg-brand-orange px-3 py-1.5 rounded-xl shadow-sm"
+                            className="bg-brand-orange px-3 py-1.5 rounded-xl"
                           >
                             <Text className="font-orbitron-bold text-xs text-white">
                               {isActivePos ? 'Active' : 'Assign'}
@@ -819,7 +879,7 @@ export default function GameSelectionScreen() {
                       onDrop: handleDropOnReserves,
                     } as any)
                   : {})}
-                className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 shadow-sm ${
+                className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 ${
                   activeIsReserve
                     ? 'border-2 border-amber-500 bg-amber-500/10'
                     : 'border-slate-200 dark:border-white/5'
@@ -1060,7 +1120,7 @@ export default function GameSelectionScreen() {
           <TouchableOpacity
             disabled={isSaving}
             onPress={handleSave}
-            className="flex-1 py-3 rounded-xl bg-brand-orange items-center flex-row justify-center gap-2 shadow-md"
+            className="flex-1 py-3 rounded-xl bg-brand-orange items-center flex-row justify-center gap-2"
           >
             {isSaving ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
@@ -1088,7 +1148,7 @@ export default function GameSelectionScreen() {
         }}
       >
         <View className="flex-1 bg-black/60 justify-end">
-          <View className="bg-white dark:bg-slate-900 rounded-t-3xl p-4 shadow-lg" style={{ maxHeight: '80%' }}>
+          <View className="bg-white dark:bg-slate-900 rounded-t-3xl p-4 shadow-lg" style={{ height: '75%', maxHeight: '85%' }}>
             {/* Modal Header */}
             <View className="flex-row items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
               <View>
@@ -1105,6 +1165,7 @@ export default function GameSelectionScreen() {
                 </Text>
               </View>
               <TouchableOpacity
+                activeOpacity={0.8}
                 onPress={() => {
                   setIsMobilePickerOpen(false);
                   setActivePositionId(null);
@@ -1131,13 +1192,27 @@ export default function GameSelectionScreen() {
 
             {/* Player List */}
             <ScrollView className="flex-1">
-              {availablePlayers
-                .filter((p) =>
+              {(() => {
+                const filtered = availablePlayers.filter((p) =>
                   (p.name || p.orgProfileName || '')
                     .toLowerCase()
                     .includes(pickerSearch.toLowerCase())
-                )
-                .map((player) => {
+                );
+
+                if (filtered.length === 0) {
+                  return (
+                    <View className="py-12 items-center justify-center">
+                      <Ionicons name="people-outline" size={40} color="#94A3B8" />
+                      <Text className="font-inter-medium text-sm text-slate-500 dark:text-slate-400 mt-3 text-center">
+                        {pickerSearch
+                          ? 'No matching players found'
+                          : 'No available players found in roster'}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return filtered.map((player) => {
                   const pId = player.id || player.orgProfileId;
                   const rosterItem = roster.find(
                     (r) => r.orgProfileId === pId
@@ -1147,6 +1222,7 @@ export default function GameSelectionScreen() {
                   return (
                     <TouchableOpacity
                       key={pId}
+                      activeOpacity={0.8}
                       onPress={() =>
                         handleAssignPlayerToSlot(
                           pId,
@@ -1185,7 +1261,8 @@ export default function GameSelectionScreen() {
                       )}
                     </TouchableOpacity>
                   );
-                })}
+                });
+              })()}
             </ScrollView>
           </View>
         </View>

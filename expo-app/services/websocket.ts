@@ -48,6 +48,14 @@ class WebSocketService {
         console.log(`[WS] Connected to Socket.io server at ${this.url}`);
         useWsStore.getState().setConnected(true);
         this.syncTime();
+
+        // Re-subscribe to all active rooms upon connect/reconnect
+        this.roomSubscriptions.forEach((subscribers, room) => {
+          if (subscribers.size > 0 && this.socket && this.socket.connected) {
+            console.log(`[WS] Re-joining room on connect: ${room}`);
+            this.socket.emit('join_room', room);
+          }
+        });
       });
 
       this.socket.on('server_time', (data: { serverTime: number }) => {

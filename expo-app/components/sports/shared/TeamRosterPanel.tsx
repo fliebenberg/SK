@@ -28,13 +28,16 @@ const PITCH_POSITIONS: Record<string, { top: string; left: string }> = {
   '15': { top: '85%', left: '50%' }, // Full-back
 };
 
-export function TeamRosterPanel({ participantId }: TeamRosterPanelProps) {
+export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps) {
   const [roster, setRoster] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'pitch'>('list');
 
   useEffect(() => {
     let isMounted = true;
+    const room = gameId ? `game:${gameId}` : null;
+    const unsubscribeRoom = room ? wsService.subscribeToRoom(room) : () => {};
+
     wsService.emit('get_data', { type: 'game_roster', id: participantId }, (data: any[]) => {
       if (isMounted) {
         const sorted = [...(data || [])].sort((a, b) => {
@@ -46,10 +49,29 @@ export function TeamRosterPanel({ participantId }: TeamRosterPanelProps) {
         setIsLoading(false);
       }
     });
+
+    const handleUpdate = (evt: { type: string; data: any }) => {
+      if (!evt) return;
+      if (evt.type === 'GAME_ROSTER_UPDATED' && evt.data?.participantId === participantId) {
+        if (isMounted && Array.isArray(evt.data.items)) {
+          const sorted = [...evt.data.items].sort((a, b) => {
+            const posA = parseInt(a.position) || 999;
+            const posB = parseInt(b.position) || 999;
+            return posA - posB;
+          });
+          setRoster(sorted);
+        }
+      }
+    };
+
+    wsService.on('update', handleUpdate);
+
     return () => {
       isMounted = false;
+      unsubscribeRoom();
+      wsService.off('update', handleUpdate);
     };
-  }, [participantId]);
+  }, [gameId, participantId]);
 
   if (isLoading) {
     return (

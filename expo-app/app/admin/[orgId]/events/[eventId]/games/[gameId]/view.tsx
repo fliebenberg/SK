@@ -229,7 +229,7 @@ export default function ViewGame() {
         </GlassCard>
 
         {/* METADATA LIST */}
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-4">
+        <GlassCard className="border border-slate-200 dark:border-white/5 p-5 gap-4">
           <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider mb-2">Match Information</Text>
           
           <View className="flex-row justify-between py-2.5 border-b border-slate-100 dark:border-white/5">
