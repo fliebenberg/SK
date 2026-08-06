@@ -10,3 +10,9 @@
 *.njsproj
 *.sln
 *.sw?
+
+# Log files
+logs/
+server/logs/
+*.log
+
