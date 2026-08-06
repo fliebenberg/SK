@@ -20,6 +20,11 @@
 - **Always Prefer Custom Overlay Modals**: Never use platform-native alert components like React Native's `Alert.alert` or default browser popups (`alert`, `confirm`) for confirmation prompts or actions. Always design and render custom, premium overlay modals (using `Modal` or inline styled layouts) for a consistent user experience.
 - **Web Runtime Cross-Compatibility**: Because system default popups and native alert shims can fail silently or get blocked on web browsers, custom overlay modals must be used to ensure interactive delete/save workflows are fully functional across both mobile and web runtimes.
 
+# Navigation & Routing Rules
+
+## Safe Back Navigation
+- **Always Use `useSafeBack`**: Never call `router.back()` directly for back buttons or back navigation handlers in Expo Router pages. Always import and use the `useSafeBack()` hook (e.g. `const safeBack = useSafeBack(); safeBack('/fallback/path')`) to provide a fallback URL. Calling `router.back()` directly causes unhandled navigation errors (`GO_BACK not handled`) when pages are opened via direct URL, deep link, page refresh, or view switchers without prior stack history.
+
 # Card List UI/UX Layout Rules
 
 ## Consistent Card Layouts in Lists

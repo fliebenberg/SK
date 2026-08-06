@@ -124,9 +124,28 @@ class WebSocketService {
     };
   }
 
-  emit(event: string, data: any, callback?: (...args: any[]) => void) {
+  emit(event: string, data: any, callback?: (...args: any[]) => void, timeoutMs: number = 7000) {
     if (this.socket && this.socket.connected) {
-      this.socket.emit(event, data, callback);
+      if (!callback) {
+        this.socket.emit(event, data);
+        return;
+      }
+      let called = false;
+      const timer = setTimeout(() => {
+        if (!called) {
+          called = true;
+          console.warn(`[WS] Ack timeout (${timeoutMs}ms) for event: ${event}`, data);
+          callback(null);
+        }
+      }, timeoutMs);
+
+      this.socket.emit(event, data, (...args: any[]) => {
+        if (!called) {
+          called = true;
+          clearTimeout(timer);
+          callback(...args);
+        }
+      });
     } else {
       console.warn('[WS] Cannot emit event. Socket is not connected.');
       if (callback) {

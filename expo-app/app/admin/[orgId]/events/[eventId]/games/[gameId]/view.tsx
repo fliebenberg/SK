@@ -51,6 +51,11 @@ export default function ViewGame() {
 
     setIsLoading(true);
 
+    // Safety timeout in case socket callback gets dropped/handshake delays
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 5000);
+
     wsService.emit('get_data', { type: 'event', id: eventId }, (resEvent: any) => {
       if (resEvent) {
         setEvent(resEvent);
@@ -63,6 +68,7 @@ export default function ViewGame() {
     });
 
     wsService.emit('get_data', { type: 'game', id: gameId }, (resGame: any) => {
+      clearTimeout(timer);
       if (resGame) {
         setGame(resGame);
         
@@ -121,6 +127,8 @@ export default function ViewGame() {
           });
         }
 
+        setIsLoading(false);
+      } else {
         setIsLoading(false);
       }
     });

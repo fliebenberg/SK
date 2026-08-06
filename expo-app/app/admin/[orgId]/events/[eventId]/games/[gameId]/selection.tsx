@@ -17,6 +17,7 @@ import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwit
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useUnsavedChanges } from '../../../../../../../hooks/useUnsavedChanges';
+import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChangesStore';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { wsService } from '../../../../../../../services/websocket';
@@ -37,7 +38,8 @@ export default function GameSelectionScreen() {
     gameId: string;
   }>();
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const safeBack = useSafeBack();
+  const { width, height } = useWindowDimensions();
   const isDesktop = width >= 768;
 
   const user = useAuthStore((s) => s.user);
@@ -85,18 +87,25 @@ export default function GameSelectionScreen() {
     let loadedSport: any = null;
 
     const checkFinished = () => {
-      if (loadedGame) {
+      const targetGame = loadedGame;
+      if (targetGame) {
         const rawPositions =
-          loadedGame?.customSettings?.positions ||
+          targetGame?.customSettings?.positions ||
           loadedEvent?.settings?.positions ||
           loadedSport?.defaultSettings?.positions ||
           [];
         setPositions(rawPositions);
-        setIsLoading(false);
       }
+      setIsLoading(false);
     };
 
+    // Safety timeout in case socket callback gets dropped/handshake delays
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 5000);
+
     wsService.emit('get_data', { type: 'game', id: gameId as string }, (resGame: any) => {
+      clearTimeout(timer);
       if (resGame) {
         loadedGame = resGame;
         setGame(resGame);
@@ -111,6 +120,8 @@ export default function GameSelectionScreen() {
         } else {
           checkFinished();
         }
+      } else {
+        checkFinished();
       }
     });
 
@@ -119,8 +130,8 @@ export default function GameSelectionScreen() {
         if (resEvent) {
           loadedEvent = resEvent;
           setEvent(resEvent);
+          checkFinished();
         }
-        checkFinished();
       });
     }
   }, [isConnected, gameId, eventId]);
@@ -243,24 +254,33 @@ export default function GameSelectionScreen() {
           setOriginalRoster(mapped);
           useUnsavedChangesStore.getState().clear();
         }
-      } else if (evt.type === 'GAME_UPDATED' && currentParticipant?.id) {
-        wsService.emit(
-          'get_data',
-          { type: 'game_roster', id: currentParticipant.id },
-          (data: any[]) => {
-            if (data) {
-              const mapped: RosterItem[] = data.map((r) => ({
-                orgProfileId: r.orgProfileId,
-                position: r.position || undefined,
-                jerseyNumber: r.jerseyNumber || undefined,
-                isReserve: !!r.isReserve,
-              }));
-              setRoster(mapped);
-              setOriginalRoster(mapped);
-              useUnsavedChangesStore.getState().clear();
-            }
+      } else if (evt.type === 'GAME_UPDATED') {
+        if (evt.data && (evt.data.id === gameId || evt.data.gameId === gameId)) {
+          setGame((prev: any) => ({ ...prev, ...evt.data }));
+          if (evt.data.customSettings?.positions) {
+            setPositions(evt.data.customSettings.positions);
           }
-        );
+          setIsLoading(false);
+        }
+        if (currentParticipant?.id) {
+          wsService.emit(
+            'get_data',
+            { type: 'game_roster', id: currentParticipant.id },
+            (data: any[]) => {
+              if (data) {
+                const mapped: RosterItem[] = data.map((r) => ({
+                  orgProfileId: r.orgProfileId,
+                  position: r.position || undefined,
+                  jerseyNumber: r.jerseyNumber || undefined,
+                  isReserve: !!r.isReserve,
+                }));
+                setRoster(mapped);
+                setOriginalRoster(mapped);
+                useUnsavedChangesStore.getState().clear();
+              }
+            }
+          );
+        }
       }
     };
 
@@ -534,7 +554,7 @@ export default function GameSelectionScreen() {
       {/* STANDARD MATCH HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)}
           activeOpacity={0.7}
           className="flex-row items-center gap-1.5"
         >
@@ -678,7 +698,7 @@ export default function GameSelectionScreen() {
         )}
 
         {/* 2-COLUMN SIDE-BY-SIDE ON DESKTOP/TABLET (`flex-row`) */}
-        <View className={`flex-1 ${isDesktop ? 'flex-row gap-6 items-start' : 'flex-col'}`}>
+        <View className={`flex-1 ${isDesktop ? 'flex-row gap-6 items-stretch' : 'flex-col'}`}>
           
           {/* LEFT COLUMN: STARTING LINEUP & RESERVES */}
           <View className={`gap-6 ${isDesktop ? 'flex-1 min-w-0' : 'w-full'}`}>
@@ -689,7 +709,7 @@ export default function GameSelectionScreen() {
                 Starting Lineup
               </Text>
 
-              <View className="gap-2">
+              <View className="gap-1.5">
                 {positions.map((pos) => {
                   const assignedItem = roster.find((r) => r.position === pos.id);
                   const player = assignedItem
@@ -709,7 +729,7 @@ export default function GameSelectionScreen() {
                             onDrop: (e: any) => handleDropOnPosition(e, pos.id),
                           } as any)
                         : {})}
-                      className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 flex-row items-center gap-3 ${
+                      className={`bg-white dark:bg-slate-900 border rounded-xl py-1.5 px-3 flex-row items-center gap-2.5 ${
                         isActivePos
                           ? 'border-2 border-brand-orange bg-brand-orange/10'
                           : player
@@ -721,14 +741,14 @@ export default function GameSelectionScreen() {
                       <TouchableOpacity
                         disabled={!canEditCurrentTeam}
                         onPress={() => handlePositionSlotClick(pos.id)}
-                        className={`w-10 h-10 rounded-xl items-center justify-center border ${
+                        className={`w-7 h-7 rounded-lg items-center justify-center border ${
                           isActivePos
                             ? 'bg-brand-orange border-brand-orange'
                             : 'bg-brand-orange/10 border-brand-orange/20'
                         }`}
                       >
                         <Text
-                          className={`font-orbitron-bold text-sm ${
+                          className={`font-orbitron-bold text-xs ${
                             isActivePos ? 'text-white' : 'text-brand-orange'
                           }`}
                         >
@@ -742,18 +762,18 @@ export default function GameSelectionScreen() {
                         onPress={() => handlePositionSlotClick(pos.id)}
                         className="flex-1 min-w-0"
                       >
-                        <Text className="font-orbitron-bold text-xs text-slate-400 uppercase">
+                        <Text className="font-orbitron-bold text-[9px] text-slate-400 uppercase tracking-tight">
                           {pos.name}
                         </Text>
                         {player ? (
                           <Text
-                            className="font-inter-bold text-sm text-slate-900 dark:text-white"
+                            className="font-inter-bold text-xs text-slate-900 dark:text-white"
                             numberOfLines={1}
                           >
                             {player.name || player.orgProfileName}
                           </Text>
                         ) : (
-                          <Text className="font-inter text-xs text-slate-400 italic">
+                          <Text className="font-inter text-xs text-slate-400 italic" numberOfLines={1}>
                             {isActivePos ? 'Select player on right...' : 'Empty Slot (Tap to assign)'}
                           </Text>
                         )}
@@ -761,26 +781,26 @@ export default function GameSelectionScreen() {
 
                       {/* Jersey Number & Slot Actions */}
                       {player ? (
-                        <View className="flex-row items-center gap-2">
+                        <View className="flex-row items-center gap-1.5">
                           {/* Jersey Badge / Edit Input */}
                           {editingJerseyForId === player.id ? (
-                            <View className="flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-white/20 px-1">
+                            <View className="flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-300 dark:border-white/20 px-1">
                               <TextInput
                                 autoFocus
                                 keyboardType="numeric"
                                 value={tempJerseyValue}
                                 onChangeText={setTempJerseyValue}
-                                className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-10 text-center py-1"
+                                className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-8 text-center py-0.5"
                               />
                               <TouchableOpacity
                                 onPress={() =>
                                   handleSaveJerseyNumber(player.id, tempJerseyValue)
                                 }
-                                className="p-1"
+                                className="p-0.5"
                               >
                                 <Ionicons
                                   name="checkmark-circle"
-                                  size={18}
+                                  size={16}
                                   color="#10B981"
                                 />
                               </TouchableOpacity>
@@ -794,15 +814,15 @@ export default function GameSelectionScreen() {
                                   assignedItem?.jerseyNumber || pos.id
                                 );
                               }}
-                              className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 px-2 py-1 rounded-lg flex-row items-center gap-1"
+                              className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
                             >
-                              <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-300">
+                              <Text className="font-orbitron-bold text-[11px] text-slate-700 dark:text-slate-300">
                                 #{assignedItem?.jerseyNumber || pos.id}
                               </Text>
                               {canEditCurrentTeam && (
                                 <Ionicons
                                   name="pencil"
-                                  size={10}
+                                  size={9}
                                   color="#94A3B8"
                                 />
                               )}
@@ -813,9 +833,9 @@ export default function GameSelectionScreen() {
                           {canEditCurrentTeam && (
                             <TouchableOpacity
                               onPress={() => handleRemoveFromRoster(player.id)}
-                              className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 items-center justify-center"
+                              className="w-6 h-6 rounded-md bg-red-500/10 border border-red-500/20 items-center justify-center"
                             >
-                              <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                              <Ionicons name="trash-outline" size={12} color="#EF4444" />
                             </TouchableOpacity>
                           )}
                         </View>
@@ -823,9 +843,9 @@ export default function GameSelectionScreen() {
                         canEditCurrentTeam && (
                           <TouchableOpacity
                             onPress={() => handlePositionSlotClick(pos.id)}
-                            className="bg-brand-orange px-3 py-1.5 rounded-xl"
+                            className="bg-brand-orange px-2.5 py-1 rounded-lg"
                           >
-                            <Text className="font-orbitron-bold text-xs text-white">
+                            <Text className="font-orbitron-bold text-[10px] text-white">
                               {isActivePos ? 'Active' : 'Assign'}
                             </Text>
                           </TouchableOpacity>
@@ -898,7 +918,7 @@ export default function GameSelectionScreen() {
                     </Text>
                   </TouchableOpacity>
                 ) : (
-                  <View className="gap-2">
+                  <View className="gap-1.5">
                     {assignedReserves.map((res) => {
                       const player = availablePlayers.find(
                         (p) => p.id === res.orgProfileId || p.orgProfileId === res.orgProfileId
@@ -908,10 +928,10 @@ export default function GameSelectionScreen() {
                       return (
                         <View
                           key={player.id || res.orgProfileId}
-                          className="bg-slate-50 dark:bg-slate-800/50 border border-amber-500/20 rounded-xl p-2.5 flex-row items-center gap-3"
+                          className="bg-slate-50 dark:bg-slate-800/50 border border-amber-500/20 rounded-xl py-1.5 px-2.5 flex-row items-center gap-2.5"
                         >
-                          <View className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 items-center justify-center">
-                            <Text className="font-orbitron-bold text-[10px] text-amber-500">
+                          <View className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 items-center justify-center">
+                            <Text className="font-orbitron-bold text-[9px] text-amber-500">
                               RES
                             </Text>
                           </View>
@@ -923,21 +943,21 @@ export default function GameSelectionScreen() {
                           </View>
 
                           {/* Reserve Jersey Number & Actions */}
-                          <View className="flex-row items-center gap-2">
+                          <View className="flex-row items-center gap-1.5">
                             {editingJerseyForId === player.id ? (
-                              <View className="flex-row items-center bg-white dark:bg-slate-900 rounded-lg border border-slate-300 dark:border-white/20 px-1">
+                              <View className="flex-row items-center bg-white dark:bg-slate-900 rounded-md border border-slate-300 dark:border-white/20 px-1">
                                 <TextInput
                                   autoFocus
                                   keyboardType="numeric"
                                   value={tempJerseyValue}
                                   onChangeText={setTempJerseyValue}
-                                  className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-10 text-center py-1"
+                                  className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-8 text-center py-0.5"
                                 />
                                 <TouchableOpacity
                                   onPress={() =>
                                     handleSaveJerseyNumber(player.id, tempJerseyValue)
                                   }
-                                  className="p-1"
+                                  className="p-0.5"
                                 >
                                   <Ionicons
                                     name="checkmark-circle"
@@ -953,15 +973,15 @@ export default function GameSelectionScreen() {
                                   setEditingJerseyForId(player.id);
                                   setTempJerseyValue(res.jerseyNumber || '');
                                 }}
-                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-2 py-0.5 rounded-lg flex-row items-center gap-1"
+                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
                               >
-                                <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-300">
+                                <Text className="font-orbitron-bold text-[11px] text-slate-700 dark:text-slate-300">
                                   #{res.jerseyNumber || '—'}
                                 </Text>
                                 {canEditCurrentTeam && (
                                   <Ionicons
                                     name="pencil"
-                                    size={10}
+                                    size={9}
                                     color="#94A3B8"
                                   />
                                 )}
@@ -971,7 +991,7 @@ export default function GameSelectionScreen() {
                             {canEditCurrentTeam && (
                               <TouchableOpacity
                                 onPress={() => handleRemoveFromRoster(player.id)}
-                                className="w-6 h-6 rounded-lg bg-red-500/10 border border-red-500/20 items-center justify-center"
+                                className="w-6 h-6 rounded-md bg-red-500/10 border border-red-500/20 items-center justify-center"
                               >
                                 <Ionicons name="trash-outline" size={12} color="#EF4444" />
                               </TouchableOpacity>
@@ -988,7 +1008,10 @@ export default function GameSelectionScreen() {
 
           {/* RIGHT COLUMN: AVAILABLE TEAM ROSTER (DESKTOP/TABLET ONLY) */}
           {isDesktop && (
-            <View className="w-80 lg:w-96 shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm">
+            <View
+              className="w-80 lg:w-96 shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm self-stretch"
+              style={{ minHeight: Math.max(450, height - 240) }}
+            >
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                   Available Roster ({availablePlayers.length})
@@ -1013,91 +1036,89 @@ export default function GameSelectionScreen() {
               </View>
 
               {/* Available Player Cards List */}
-              <ScrollView className="max-h-[580px]">
-                <View className="gap-2">
-                  {availablePlayers
-                    .filter((p) =>
-                      (p.name || p.orgProfileName || '')
-                        .toLowerCase()
-                        .includes(rosterSearch.toLowerCase())
-                    )
-                    .map((player) => {
-                      const pId = player.id || player.orgProfileId;
-                      const rosterItem = roster.find(
-                        (r) => r.orgProfileId === pId
-                      );
-                      const isAssigned = !!rosterItem;
-                      const isActiveCard = activePlayerId === pId;
+              <View className="gap-1.5">
+                {availablePlayers
+                  .filter((p) =>
+                    (p.name || p.orgProfileName || '')
+                      .toLowerCase()
+                      .includes(rosterSearch.toLowerCase())
+                  )
+                  .map((player) => {
+                    const pId = player.id || player.orgProfileId;
+                    const rosterItem = roster.find(
+                      (r) => r.orgProfileId === pId
+                    );
+                    const isAssigned = !!rosterItem;
+                    const isActiveCard = activePlayerId === pId;
 
-                      return (
-                        <TouchableOpacity
-                          key={pId}
-                          disabled={!canEditCurrentTeam}
-                          {...(Platform.OS === 'web'
-                            ? ({
-                                draggable: !isAssigned && canEditCurrentTeam,
-                                onDragStart: (e: any) => handleDragStartPlayer(e, pId),
-                              } as any)
-                            : {})}
-                          onPress={() => handleAvailablePlayerClick(pId, isAssigned)}
-                          className={`flex-row items-center p-3 rounded-xl border ${
-                            isActiveCard
-                              ? 'bg-brand-orange/10 border-2 border-brand-orange'
-                              : isAssigned
-                              ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-white/5 opacity-60'
-                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10'
-                          }`}
-                        >
-                          <View className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10 mr-2.5">
-                            <Ionicons name="person" size={14} color="#94A3B8" />
-                          </View>
+                    return (
+                      <TouchableOpacity
+                        key={pId}
+                        disabled={!canEditCurrentTeam}
+                        {...(Platform.OS === 'web'
+                          ? ({
+                              draggable: !isAssigned && canEditCurrentTeam,
+                              onDragStart: (e: any) => handleDragStartPlayer(e, pId),
+                            } as any)
+                          : {})}
+                        onPress={() => handleAvailablePlayerClick(pId, isAssigned)}
+                        className={`flex-row items-center py-1.5 px-2.5 rounded-xl border ${
+                          isActiveCard
+                            ? 'bg-brand-orange/10 border-2 border-brand-orange'
+                            : isAssigned
+                            ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-white/5 opacity-60'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10'
+                        }`}
+                      >
+                        <View className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10 mr-2">
+                          <Ionicons name="person" size={12} color="#94A3B8" />
+                        </View>
 
-                          <View className="flex-1 min-w-0">
+                        <View className="flex-1 min-w-0">
+                          <Text
+                            className={`font-inter-bold text-xs ${
+                              isAssigned
+                                ? 'text-slate-400 dark:text-slate-500'
+                                : 'text-slate-900 dark:text-white'
+                            }`}
+                            numberOfLines={1}
+                          >
+                            {player.name || player.orgProfileName}
+                          </Text>
+                        </View>
+
+                        {/* Allocation Status Badge */}
+                        {isAssigned ? (
+                          <View
+                            className={`px-1.5 py-0.5 rounded ${
+                              rosterItem?.isReserve
+                                ? 'bg-amber-500/10 border border-amber-500/20'
+                                : 'bg-brand-orange/10 border border-brand-orange/20'
+                            }`}
+                          >
                             <Text
-                              className={`font-inter-bold text-xs ${
-                                isAssigned
-                                  ? 'text-slate-400 dark:text-slate-500'
-                                  : 'text-slate-900 dark:text-white'
+                              className={`font-orbitron-bold text-[9px] ${
+                                rosterItem?.isReserve
+                                  ? 'text-amber-500'
+                                  : 'text-brand-orange'
                               }`}
-                              numberOfLines={1}
                             >
-                              {player.name || player.orgProfileName}
+                              {rosterItem?.isReserve
+                                ? 'RES'
+                                : `POS ${rosterItem?.position}`}
                             </Text>
                           </View>
-
-                          {/* Allocation Status Badge */}
-                          {isAssigned ? (
-                            <View
-                              className={`px-2 py-0.5 rounded ${
-                                rosterItem?.isReserve
-                                  ? 'bg-amber-500/10 border border-amber-500/20'
-                                  : 'bg-brand-orange/10 border border-brand-orange/20'
-                              }`}
-                            >
-                              <Text
-                                className={`font-orbitron-bold text-[9px] ${
-                                  rosterItem?.isReserve
-                                    ? 'text-amber-500'
-                                    : 'text-brand-orange'
-                                }`}
-                              >
-                                {rosterItem?.isReserve
-                                  ? 'RES'
-                                  : `POS ${rosterItem?.position}`}
-                              </Text>
-                            </View>
-                          ) : (
-                            <Ionicons
-                              name={isActiveCard ? 'checkmark-circle' : 'add-circle-outline'}
-                              size={18}
-                              color={isActiveCard ? COLORS.brand.orange : '#94A3B8'}
-                            />
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                </View>
-              </ScrollView>
+                        ) : (
+                          <Ionicons
+                            name={isActiveCard ? 'checkmark-circle' : 'add-circle-outline'}
+                            size={16}
+                            color={isActiveCard ? COLORS.brand.orange : '#94A3B8'}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+              </View>
             </View>
           )}
 
