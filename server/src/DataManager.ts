@@ -144,6 +144,7 @@ export class DataManager {
 
   // Games
   getGames = (orgId?: string) => eventManager.getGames(orgId);
+  getGamesByTeam = (teamId: string) => eventManager.getGamesByTeam(teamId);
   getGame = (id: string) => eventManager.getGame(id);
   addGame = (game: AddGamePayload) => eventManager.addGame(game);
   updateGameStatus = (id: string, status: Game['status']) => eventManager.updateGameStatus(id, status);

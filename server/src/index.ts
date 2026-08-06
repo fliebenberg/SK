@@ -941,6 +941,9 @@ io.on('connection', (socket) => {
             case 'games':
                 callback(await dataManager.getGames(orgId));
                 break;
+            case 'team_games':
+                callback(await dataManager.getGamesByTeam(request.teamId || id));
+                break;
             case 'game':
                 callback(await dataManager.getGame(id));
                 break;

@@ -32,10 +32,11 @@ interface RosterItem {
 }
 
 export default function GameSelectionScreen() {
-  const { orgId, eventId, gameId } = useLocalSearchParams<{
+  const { orgId, eventId, gameId, teamId } = useLocalSearchParams<{
     orgId: string;
     eventId: string;
     gameId: string;
+    teamId?: string;
   }>();
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -65,6 +66,11 @@ export default function GameSelectionScreen() {
   const [activePositionId, setActivePositionId] = useState<string | null>(null);
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
   const [activeIsReserve, setActiveIsReserve] = useState(false);
+
+  // Web Drag Over States
+  const [dragOverPosId, setDragOverPosId] = useState<string | null>(null);
+  const [isDragOverReserves, setIsDragOverReserves] = useState(false);
+  const [isDragOverAvailable, setIsDragOverAvailable] = useState(false);
   
   // Search Inputs
   const [rosterSearch, setRosterSearch] = useState('');
@@ -144,6 +150,28 @@ export default function GameSelectionScreen() {
   const participants = game?.participants || [];
   const currentParticipant = participants[selectedParticipantIdx] || null;
   const currentTeamId = currentParticipant?.teamId;
+
+  // Auto-select initial team participant index based on teamId param or user coaching membership
+  useEffect(() => {
+    if (!game?.participants || game.participants.length === 0) return;
+
+    if (teamId) {
+      const idx = game.participants.findIndex((p: any) => p.teamId === teamId);
+      if (idx !== -1) {
+        setSelectedParticipantIdx(idx);
+        return;
+      }
+    }
+
+    const homeTeamId = game.participants[0]?.teamId;
+    const awayTeamId = game.participants[1]?.teamId;
+    const isCoachOfHome = homeTeamId && teamMemberships?.some((m: any) => m.teamId === homeTeamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach'));
+    const isCoachOfAway = awayTeamId && teamMemberships?.some((m: any) => m.teamId === awayTeamId && (m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach'));
+
+    if (!isCoachOfHome && isCoachOfAway) {
+      setSelectedParticipantIdx(1);
+    }
+  }, [game?.participants, teamId, teamMemberships]);
 
   // Fetch details for all teams in participants
   useEffect(() => {
@@ -313,6 +341,27 @@ export default function GameSelectionScreen() {
   }, [originalRoster]);
 
   useUnsavedChanges(isDirty, handleCancel);
+
+  // Sorted Available Players: Unassigned players first, assigned players second; sorted alphabetically within each group
+  const sortedAvailablePlayers = useMemo(() => {
+    return [...availablePlayers].sort((a, b) => {
+      const aId = a.id || a.orgProfileId;
+      const bId = b.id || b.orgProfileId;
+
+      const aAssigned = roster.some((r) => r.orgProfileId === aId);
+      const bAssigned = roster.some((r) => r.orgProfileId === bId);
+
+      // Primary sort: Unassigned before assigned
+      if (aAssigned !== bAssigned) {
+        return aAssigned ? 1 : -1;
+      }
+
+      // Secondary sort: Alphabetical by name
+      const aName = (a.name || a.orgProfileName || '').toLowerCase();
+      const bName = (b.name || b.orgProfileName || '').toLowerCase();
+      return aName.localeCompare(bName);
+    });
+  }, [availablePlayers, roster]);
 
   // Save Roster Handler
   const handleSave = () => {
@@ -499,33 +548,129 @@ export default function GameSelectionScreen() {
   const handleDragStartPlayer = (e: any, profileId: string) => {
     if (Platform.OS === 'web' && e?.dataTransfer) {
       e.dataTransfer.setData('profileId', profileId);
+      e.dataTransfer.setData('text/plain', profileId);
       e.dataTransfer.effectAllowed = 'move';
     }
   };
 
-  const handleDragOver = (e: any) => {
+  const handleDragEnterPosition = (e: any, posId: string) => {
     if (Platform.OS === 'web' && e?.preventDefault) {
       e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      setDragOverPosId(posId);
+    }
+  };
+
+  const handleDragOverPosition = (e: any, posId: string) => {
+    if (Platform.OS === 'web' && e?.preventDefault) {
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if (dragOverPosId !== posId) setDragOverPosId(posId);
+    }
+  };
+
+  const handleDragLeavePosition = (e: any) => {
+    if (Platform.OS === 'web') {
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) {
+        return;
+      }
+      setDragOverPosId(null);
     }
   };
 
   const handleDropOnPosition = (e: any, posId: string) => {
     if (Platform.OS === 'web' && e?.preventDefault) {
       e.preventDefault();
-      const profileId = e.dataTransfer?.getData('profileId');
+      if (e.stopPropagation) e.stopPropagation();
+      setDragOverPosId(null);
+      const profileId =
+        e.dataTransfer?.getData('profileId') || e.dataTransfer?.getData('text/plain');
       if (profileId) {
         handleAssignPlayerToSlot(profileId, posId, false);
       }
     }
   };
 
+  const handleDragEnterReserves = (e: any) => {
+    if (Platform.OS === 'web' && e?.preventDefault) {
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      setIsDragOverReserves(true);
+    }
+  };
+
+  const handleDragOverReserves = (e: any) => {
+    if (Platform.OS === 'web' && e?.preventDefault) {
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if (!isDragOverReserves) setIsDragOverReserves(true);
+    }
+  };
+
+  const handleDragLeaveReserves = (e: any) => {
+    if (Platform.OS === 'web') {
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) {
+        return;
+      }
+      setIsDragOverReserves(false);
+    }
+  };
+
   const handleDropOnReserves = (e: any) => {
     if (Platform.OS === 'web' && e?.preventDefault) {
       e.preventDefault();
-      const profileId = e.dataTransfer?.getData('profileId');
+      if (e.stopPropagation) e.stopPropagation();
+      setIsDragOverReserves(false);
+      const profileId =
+        e.dataTransfer?.getData('profileId') || e.dataTransfer?.getData('text/plain');
       if (profileId) {
         handleAssignPlayerToSlot(profileId, undefined, true);
+      }
+    }
+  };
+
+  const handleDragEnterAvailable = (e: any) => {
+    if (Platform.OS === 'web' && e?.preventDefault) {
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      setIsDragOverAvailable(true);
+    }
+  };
+
+  const handleDragOverAvailable = (e: any) => {
+    if (Platform.OS === 'web' && e?.preventDefault) {
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if (!isDragOverAvailable) setIsDragOverAvailable(true);
+    }
+  };
+
+  const handleDragLeaveAvailable = (e: any) => {
+    if (Platform.OS === 'web') {
+      if (e.stopPropagation) e.stopPropagation();
+      if (e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) {
+        return;
+      }
+      setIsDragOverAvailable(false);
+    }
+  };
+
+  const handleDropOnAvailable = (e: any) => {
+    if (Platform.OS === 'web' && e?.preventDefault) {
+      e.preventDefault();
+      setIsDragOverAvailable(false);
+      const profileId =
+        e.dataTransfer?.getData('profileId') || e.dataTransfer?.getData('text/plain');
+      if (profileId) {
+        handleRemoveFromRoster(profileId);
       }
     }
   };
@@ -719,28 +864,15 @@ export default function GameSelectionScreen() {
                     : null;
 
                   const isActivePos = activePositionId === pos.id;
+                  const isDragOver = dragOverPosId === pos.id;
 
-                  return (
-                    <View
-                      key={pos.id}
-                      {...(Platform.OS === 'web'
-                        ? ({
-                            onDragOver: handleDragOver,
-                            onDrop: (e: any) => handleDropOnPosition(e, pos.id),
-                          } as any)
-                        : {})}
-                      className={`bg-white dark:bg-slate-900 border rounded-xl py-1.5 px-3 flex-row items-center gap-2.5 ${
-                        isActivePos
-                          ? 'border-2 border-brand-orange bg-brand-orange/10'
-                          : player
-                          ? 'border-brand-orange/30 bg-brand-orange/5 dark:bg-brand-orange/10'
-                          : 'border-slate-200 dark:border-white/10 border-dashed'
-                      }`}
-                    >
+                  const slotInner = (
+                    <>
                       {/* Position Badge */}
                       <TouchableOpacity
                         disabled={!canEditCurrentTeam}
                         onPress={() => handlePositionSlotClick(pos.id)}
+                        style={Platform.OS === 'web' ? ({ pointerEvents: 'none' } as any) : undefined}
                         className={`w-7 h-7 rounded-lg items-center justify-center border ${
                           isActivePos
                             ? 'bg-brand-orange border-brand-orange'
@@ -760,6 +892,7 @@ export default function GameSelectionScreen() {
                       <TouchableOpacity
                         disabled={!canEditCurrentTeam}
                         onPress={() => handlePositionSlotClick(pos.id)}
+                        style={Platform.OS === 'web' ? ({ pointerEvents: 'none' } as any) : undefined}
                         className="flex-1 min-w-0"
                       >
                         <Text className="font-orbitron-bold text-[9px] text-slate-400 uppercase tracking-tight">
@@ -851,6 +984,44 @@ export default function GameSelectionScreen() {
                           </TouchableOpacity>
                         )
                       )}
+                    </>
+                  );
+
+                  const slotClassName = `flex flex-row items-center gap-2.5 bg-white dark:bg-slate-900 border rounded-xl py-1.5 px-3 ${
+                    isDragOver
+                      ? 'border-2 border-brand-orange bg-brand-orange/20'
+                      : isActivePos
+                      ? 'border-2 border-brand-orange bg-brand-orange/10'
+                      : player
+                      ? 'border-brand-orange/30 bg-brand-orange/5 dark:bg-brand-orange/10'
+                      : 'border-slate-200 dark:border-white/10 border-dashed'
+                  }`;
+
+                  if (Platform.OS === 'web') {
+                    return (
+                      <div
+                        key={pos.id}
+                        onDragEnter={(e: any) => handleDragEnterPosition(e, pos.id)}
+                        onDragOver={(e: any) => handleDragOverPosition(e, pos.id)}
+                        onDragLeave={(e: any) => handleDragLeavePosition(e)}
+                        onDrop={(e: any) => handleDropOnPosition(e, pos.id)}
+                        onClick={() => handlePositionSlotClick(pos.id)}
+                        className={slotClassName}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          cursor: canEditCurrentTeam ? 'pointer' : 'default',
+                        }}
+                      >
+                        {slotInner}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <View key={pos.id} className={slotClassName}>
+                      {slotInner}
                     </View>
                   );
                 })}
@@ -892,234 +1063,477 @@ export default function GameSelectionScreen() {
                   )}
               </View>
 
-              <View
-                {...(Platform.OS === 'web'
-                  ? ({
-                      onDragOver: handleDragOver,
-                      onDrop: handleDropOnReserves,
-                    } as any)
-                  : {})}
-                className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 ${
-                  activeIsReserve
-                    ? 'border-2 border-amber-500 bg-amber-500/10'
-                    : 'border-slate-200 dark:border-white/5'
-                }`}
-              >
-                {assignedReserves.length === 0 ? (
-                  <TouchableOpacity
-                    disabled={!canEditCurrentTeam}
-                    onPress={handleReserveSectionClick}
-                    className="py-4 items-center justify-center border border-dashed border-slate-200 dark:border-white/10 rounded-xl"
-                  >
-                    <Text className="font-inter text-xs text-slate-400 italic">
-                      {activeIsReserve
-                        ? 'Click player on right to add as reserve...'
-                        : 'No reserves assigned. Drag player here or click to assign.'}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View className="gap-1.5">
-                    {assignedReserves.map((res) => {
-                      const player = availablePlayers.find(
-                        (p) => p.id === res.orgProfileId || p.orgProfileId === res.orgProfileId
-                      );
-                      if (!player) return null;
+              {Platform.OS === 'web' ? (
+                <div
+                  onDragEnter={handleDragEnterReserves}
+                  onDragOver={handleDragOverReserves}
+                  onDragLeave={handleDragLeaveReserves}
+                  onDrop={handleDropOnReserves}
+                  onClick={handleReserveSectionClick}
+                  className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 ${
+                    isDragOverReserves
+                      ? 'border-2 border-amber-500 bg-amber-500/20'
+                      : activeIsReserve
+                      ? 'border-2 border-amber-500 bg-amber-500/10'
+                      : 'border-slate-200 dark:border-white/5'
+                  }`}
+                  style={{ cursor: canEditCurrentTeam ? 'pointer' : 'default' }}
+                >
+                  {assignedReserves.length === 0 ? (
+                    <div className="py-4 items-center justify-center border border-dashed border-slate-200 dark:border-white/10 rounded-xl text-center">
+                      <Text className="font-inter text-xs text-slate-400 italic">
+                        {activeIsReserve
+                          ? 'Click player on right to add as reserve...'
+                          : 'No reserves assigned. Drag player here or click to assign.'}
+                      </Text>
+                    </div>
+                  ) : (
+                    <View className="gap-1.5">
+                      {assignedReserves.map((res) => {
+                        const player = availablePlayers.find(
+                          (p) => p.id === res.orgProfileId || p.orgProfileId === res.orgProfileId
+                        );
+                        if (!player) return null;
 
-                      return (
-                        <View
-                          key={player.id || res.orgProfileId}
-                          className="bg-slate-50 dark:bg-slate-800/50 border border-amber-500/20 rounded-xl py-1.5 px-2.5 flex-row items-center gap-2.5"
-                        >
-                          <View className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 items-center justify-center">
-                            <Text className="font-orbitron-bold text-[9px] text-amber-500">
-                              RES
-                            </Text>
-                          </View>
+                        return (
+                          <div
+                            key={player.id || res.orgProfileId}
+                            draggable={canEditCurrentTeam}
+                            onDragStart={(e: any) =>
+                              handleDragStartPlayer(e, player.id || res.orgProfileId)
+                            }
+                            className="bg-slate-50 dark:bg-slate-800/50 border border-amber-500/20 rounded-xl py-1.5 px-2.5 flex-row items-center gap-2.5"
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              cursor: canEditCurrentTeam ? 'grab' : 'default',
+                              WebkitUserDrag: canEditCurrentTeam ? 'element' : 'none',
+                              userSelect: 'none',
+                            } as any}
+                          >
+                            <View
+                              style={{ pointerEvents: 'none' }}
+                              className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 items-center justify-center mr-2.5"
+                            >
+                              <Text className="font-orbitron-bold text-[9px] text-amber-500">
+                                RES
+                              </Text>
+                            </View>
 
-                          <View className="flex-1 min-w-0">
-                            <Text className="font-inter-bold text-xs text-slate-900 dark:text-white" numberOfLines={1}>
-                              {player.name || player.orgProfileName}
-                            </Text>
-                          </View>
+                            <View style={{ pointerEvents: 'none' }} className="flex-1 min-w-0">
+                              <Text className="font-inter-bold text-xs text-slate-900 dark:text-white" numberOfLines={1}>
+                                {player.name || player.orgProfileName}
+                              </Text>
+                            </View>
 
-                          {/* Reserve Jersey Number & Actions */}
-                          <View className="flex-row items-center gap-1.5">
-                            {editingJerseyForId === player.id ? (
-                              <View className="flex-row items-center bg-white dark:bg-slate-900 rounded-md border border-slate-300 dark:border-white/20 px-1">
-                                <TextInput
-                                  autoFocus
-                                  keyboardType="numeric"
-                                  value={tempJerseyValue}
-                                  onChangeText={setTempJerseyValue}
-                                  className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-8 text-center py-0.5"
-                                />
+                            {/* Reserve Jersey Number & Actions */}
+                            <View className="flex-row items-center gap-1.5">
+                              {editingJerseyForId === player.id ? (
+                                <View className="flex-row items-center bg-white dark:bg-slate-900 rounded-md border border-slate-300 dark:border-white/20 px-1">
+                                  <TextInput
+                                    autoFocus
+                                    keyboardType="numeric"
+                                    value={tempJerseyValue}
+                                    onChangeText={setTempJerseyValue}
+                                    className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-8 text-center py-0.5"
+                                  />
+                                  <TouchableOpacity
+                                    onPress={() =>
+                                      handleSaveJerseyNumber(player.id, tempJerseyValue)
+                                    }
+                                    className="p-0.5"
+                                  >
+                                    <Ionicons
+                                      name="checkmark-circle"
+                                      size={16}
+                                      color="#10B981"
+                                    />
+                                  </TouchableOpacity>
+                                </View>
+                              ) : (
                                 <TouchableOpacity
-                                  onPress={() =>
-                                    handleSaveJerseyNumber(player.id, tempJerseyValue)
-                                  }
-                                  className="p-0.5"
+                                  disabled={!canEditCurrentTeam}
+                                  onPress={() => {
+                                    setEditingJerseyForId(player.id);
+                                    setTempJerseyValue(res.jerseyNumber || '');
+                                  }}
+                                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
                                 >
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={16}
-                                    color="#10B981"
-                                  />
+                                  <Text className="font-orbitron-bold text-[11px] text-slate-700 dark:text-slate-300">
+                                    #{res.jerseyNumber || '—'}
+                                  </Text>
+                                  {canEditCurrentTeam && (
+                                    <Ionicons
+                                      name="pencil"
+                                      size={9}
+                                      color="#94A3B8"
+                                    />
+                                  )}
                                 </TouchableOpacity>
-                              </View>
-                            ) : (
-                              <TouchableOpacity
-                                disabled={!canEditCurrentTeam}
-                                onPress={() => {
-                                  setEditingJerseyForId(player.id);
-                                  setTempJerseyValue(res.jerseyNumber || '');
-                                }}
-                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
-                              >
-                                <Text className="font-orbitron-bold text-[11px] text-slate-700 dark:text-slate-300">
-                                  #{res.jerseyNumber || '—'}
-                                </Text>
-                                {canEditCurrentTeam && (
-                                  <Ionicons
-                                    name="pencil"
-                                    size={9}
-                                    color="#94A3B8"
-                                  />
-                                )}
-                              </TouchableOpacity>
-                            )}
+                              )}
 
-                            {canEditCurrentTeam && (
-                              <TouchableOpacity
-                                onPress={() => handleRemoveFromRoster(player.id)}
-                                className="w-6 h-6 rounded-md bg-red-500/10 border border-red-500/20 items-center justify-center"
-                              >
-                                <Ionicons name="trash-outline" size={12} color="#EF4444" />
-                              </TouchableOpacity>
-                            )}
+                              {canEditCurrentTeam && (
+                                <TouchableOpacity
+                                  onPress={() => handleRemoveFromRoster(player.id)}
+                                  className="w-6 h-6 rounded-md bg-red-500/10 border border-red-500/20 items-center justify-center"
+                                >
+                                  <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          </div>
+                        );
+                      })}
+                    </View>
+                  )}
+                </div>
+              ) : (
+                <View
+                  className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 border-slate-200 dark:border-white/5`}
+                >
+                  {assignedReserves.length === 0 ? (
+                    <TouchableOpacity
+                      disabled={!canEditCurrentTeam}
+                      onPress={handleReserveSectionClick}
+                      className="py-4 items-center justify-center border border-dashed border-slate-200 dark:border-white/10 rounded-xl"
+                    >
+                      <Text className="font-inter text-xs text-slate-400 italic">
+                        {activeIsReserve
+                          ? 'Click player on right to add as reserve...'
+                          : 'No reserves assigned. Drag player here or click to assign.'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View className="gap-1.5">
+                      {assignedReserves.map((res) => {
+                        const player = availablePlayers.find(
+                          (p) => p.id === res.orgProfileId || p.orgProfileId === res.orgProfileId
+                        );
+                        if (!player) return null;
+
+                        return (
+                          <View
+                            key={player.id || res.orgProfileId}
+                            className="bg-slate-50 dark:bg-slate-800/50 border border-amber-500/20 rounded-xl py-1.5 px-2.5 flex-row items-center gap-2.5"
+                          >
+                            <View className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 items-center justify-center">
+                              <Text className="font-orbitron-bold text-[9px] text-amber-500">
+                                RES
+                              </Text>
+                            </View>
+
+                            <View className="flex-1 min-w-0">
+                              <Text className="font-inter-bold text-xs text-slate-900 dark:text-white" numberOfLines={1}>
+                                {player.name || player.orgProfileName}
+                              </Text>
+                            </View>
+
+                            <View className="flex-row items-center gap-1.5">
+                              {editingJerseyForId === player.id ? (
+                                <View className="flex-row items-center bg-white dark:bg-slate-900 rounded-md border border-slate-300 dark:border-white/20 px-1">
+                                  <TextInput
+                                    autoFocus
+                                    keyboardType="numeric"
+                                    value={tempJerseyValue}
+                                    onChangeText={setTempJerseyValue}
+                                    className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-8 text-center py-0.5"
+                                  />
+                                  <TouchableOpacity
+                                    onPress={() =>
+                                      handleSaveJerseyNumber(player.id, tempJerseyValue)
+                                    }
+                                    className="p-0.5"
+                                  >
+                                    <Ionicons
+                                      name="checkmark-circle"
+                                      size={16}
+                                      color="#10B981"
+                                    />
+                                  </TouchableOpacity>
+                                </View>
+                              ) : (
+                                <TouchableOpacity
+                                  disabled={!canEditCurrentTeam}
+                                  onPress={() => {
+                                    setEditingJerseyForId(player.id);
+                                    setTempJerseyValue(res.jerseyNumber || '');
+                                  }}
+                                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
+                                >
+                                  <Text className="font-orbitron-bold text-[11px] text-slate-700 dark:text-slate-300">
+                                    #{res.jerseyNumber || '—'}
+                                  </Text>
+                                  {canEditCurrentTeam && (
+                                    <Ionicons
+                                      name="pencil"
+                                      size={9}
+                                      color="#94A3B8"
+                                    />
+                                  )}
+                                </TouchableOpacity>
+                              )}
+
+                              {canEditCurrentTeam && (
+                                <TouchableOpacity
+                                  onPress={() => handleRemoveFromRoster(player.id)}
+                                  className="w-6 h-6 rounded-md bg-red-500/10 border border-red-500/20 items-center justify-center"
+                                >
+                                  <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                                </TouchableOpacity>
+                              )}
+                            </View>
                           </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           </View>
 
           {/* RIGHT COLUMN: AVAILABLE TEAM ROSTER (DESKTOP/TABLET ONLY) */}
           {isDesktop && (
-            <View
-              className="w-80 lg:w-96 shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm self-stretch"
-              style={{ minHeight: Math.max(450, height - 240) }}
-            >
-              <View className="flex-row items-center justify-between mb-3">
-                <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                  Available Roster ({availablePlayers.length})
-                </Text>
-                {activePlayerId && (
-                  <View className="bg-brand-orange/10 px-2 py-0.5 rounded border border-brand-orange/20">
-                    <Text className="font-orbitron-bold text-[10px] text-brand-orange">1 Selected</Text>
-                  </View>
-                )}
-              </View>
+            Platform.OS === 'web' ? (
+              <div
+                onDragEnter={handleDragEnterAvailable}
+                onDragOver={handleDragOverAvailable}
+                onDragLeave={handleDragLeaveAvailable}
+                onDrop={handleDropOnAvailable}
+                className={`w-80 lg:w-96 shrink-0 bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-sm self-stretch ${
+                  isDragOverAvailable
+                    ? 'border-2 border-red-400 bg-red-500/5'
+                    : 'border-slate-200 dark:border-white/5'
+                }`}
+                style={{ minHeight: Math.max(450, height - 240) }}
+              >
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                    Available Roster ({availablePlayers.length})
+                  </Text>
+                  {activePlayerId && (
+                    <View className="bg-brand-orange/10 px-2 py-0.5 rounded border border-brand-orange/20">
+                      <Text className="font-orbitron-bold text-[10px] text-brand-orange">1 Selected</Text>
+                    </View>
+                  )}
+                </View>
 
-              {/* Roster Search Input */}
-              <View className="flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-white/10 mb-3">
-                <Ionicons name="search" size={14} color="#94A3B8" />
-                <TextInput
-                  placeholder="Search team members..."
-                  placeholderTextColor="#94A3B8"
-                  value={rosterSearch}
-                  onChangeText={setRosterSearch}
-                  className="flex-1 font-inter text-xs text-slate-900 dark:text-white ml-2"
-                />
-              </View>
+                {/* Roster Search Input */}
+                <View className="flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-white/10 mb-3">
+                  <Ionicons name="search" size={14} color="#94A3B8" />
+                  <TextInput
+                    placeholder="Search team members..."
+                    placeholderTextColor="#94A3B8"
+                    value={rosterSearch}
+                    onChangeText={setRosterSearch}
+                    className="flex-1 font-inter text-xs text-slate-900 dark:text-white ml-2"
+                  />
+                </View>
 
-              {/* Available Player Cards List */}
-              <View className="gap-1.5">
-                {availablePlayers
-                  .filter((p) =>
-                    (p.name || p.orgProfileName || '')
-                      .toLowerCase()
-                      .includes(rosterSearch.toLowerCase())
-                  )
-                  .map((player) => {
-                    const pId = player.id || player.orgProfileId;
-                    const rosterItem = roster.find(
-                      (r) => r.orgProfileId === pId
-                    );
-                    const isAssigned = !!rosterItem;
-                    const isActiveCard = activePlayerId === pId;
+                {/* Available Player Cards List */}
+                <View className="gap-1.5">
+                  {sortedAvailablePlayers
+                    .filter((p) =>
+                      (p.name || p.orgProfileName || '')
+                        .toLowerCase()
+                        .includes(rosterSearch.toLowerCase())
+                    )
+                    .map((player) => {
+                      const pId = player.id || player.orgProfileId;
+                      const rosterItem = roster.find(
+                        (r) => r.orgProfileId === pId
+                      );
+                      const isAssigned = !!rosterItem;
+                      const isActiveCard = activePlayerId === pId;
 
-                    return (
-                      <TouchableOpacity
-                        key={pId}
-                        disabled={!canEditCurrentTeam}
-                        {...(Platform.OS === 'web'
-                          ? ({
-                              draggable: !isAssigned && canEditCurrentTeam,
-                              onDragStart: (e: any) => handleDragStartPlayer(e, pId),
-                            } as any)
-                          : {})}
-                        onPress={() => handleAvailablePlayerClick(pId, isAssigned)}
-                        className={`flex-row items-center py-1.5 px-2.5 rounded-xl border ${
-                          isActiveCard
-                            ? 'bg-brand-orange/10 border-2 border-brand-orange'
-                            : isAssigned
-                            ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-white/5 opacity-60'
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10'
-                        }`}
-                      >
-                        <View className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10 mr-2">
-                          <Ionicons name="person" size={12} color="#94A3B8" />
-                        </View>
+                      const cardClassName = `flex-row items-center py-1.5 px-2.5 rounded-xl border ${
+                        isActiveCard
+                          ? 'bg-brand-orange/10 border-2 border-brand-orange'
+                          : isAssigned
+                          ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-white/5 opacity-60'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10'
+                      }`;
 
-                        <View className="flex-1 min-w-0">
-                          <Text
-                            className={`font-inter-bold text-xs ${
-                              isAssigned
-                                ? 'text-slate-400 dark:text-slate-500'
-                                : 'text-slate-900 dark:text-white'
-                            }`}
-                            numberOfLines={1}
-                          >
-                            {player.name || player.orgProfileName}
-                          </Text>
-                        </View>
-
-                        {/* Allocation Status Badge */}
-                        {isAssigned ? (
+                      return (
+                        <div
+                          key={pId}
+                          draggable={!isAssigned && canEditCurrentTeam}
+                          onDragStart={(e: any) => handleDragStartPlayer(e, pId)}
+                          onClick={() => handleAvailablePlayerClick(pId, isAssigned)}
+                          className={cardClassName}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            cursor: !isAssigned && canEditCurrentTeam ? 'grab' : 'default',
+                            WebkitUserDrag: !isAssigned && canEditCurrentTeam ? 'element' : 'none',
+                            userSelect: 'none',
+                          } as any}
+                        >
                           <View
-                            className={`px-1.5 py-0.5 rounded ${
-                              rosterItem?.isReserve
-                                ? 'bg-amber-500/10 border border-amber-500/20'
-                                : 'bg-brand-orange/10 border border-brand-orange/20'
-                            }`}
+                            style={{ pointerEvents: 'none' }}
+                            className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10 mr-2"
+                          >
+                            <Ionicons name="person" size={12} color="#94A3B8" />
+                          </View>
+
+                          <View
+                            style={{ pointerEvents: 'none' }}
+                            className="flex-1 min-w-0"
                           >
                             <Text
-                              className={`font-orbitron-bold text-[9px] ${
-                                rosterItem?.isReserve
-                                  ? 'text-amber-500'
-                                  : 'text-brand-orange'
+                              className={`font-inter-bold text-xs ${
+                                isAssigned
+                                  ? 'text-slate-400 dark:text-slate-500'
+                                  : 'text-slate-900 dark:text-white'
                               }`}
+                              numberOfLines={1}
                             >
-                              {rosterItem?.isReserve
-                                ? 'RES'
-                                : `POS ${rosterItem?.position}`}
+                              {player.name || player.orgProfileName}
                             </Text>
                           </View>
-                        ) : (
-                          <Ionicons
-                            name={isActiveCard ? 'checkmark-circle' : 'add-circle-outline'}
-                            size={16}
-                            color={isActiveCard ? COLORS.brand.orange : '#94A3B8'}
-                          />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
+
+                          {/* Allocation Status Badge */}
+                          {isAssigned ? (
+                            <View
+                              className={`px-1.5 py-0.5 rounded ${
+                                rosterItem?.isReserve
+                                  ? 'bg-amber-500/10 border border-amber-500/20'
+                                  : 'bg-brand-orange/10 border border-brand-orange/20'
+                              }`}
+                            >
+                              <Text
+                                className={`font-orbitron-bold text-[9px] ${
+                                  rosterItem?.isReserve
+                                    ? 'text-amber-500'
+                                    : 'text-brand-orange'
+                                }`}
+                              >
+                                {rosterItem?.isReserve
+                                  ? 'RES'
+                                  : `POS ${rosterItem?.position}`}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Ionicons
+                              name={isActiveCard ? 'checkmark-circle' : 'add-circle-outline'}
+                              size={16}
+                              color={isActiveCard ? COLORS.brand.orange : '#94A3B8'}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                </View>
+              </div>
+            ) : (
+              <View
+                className="w-80 lg:w-96 shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm self-stretch"
+                style={{ minHeight: Math.max(450, height - 240) }}
+              >
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                    Available Roster ({availablePlayers.length})
+                  </Text>
+                  {activePlayerId && (
+                    <View className="bg-brand-orange/10 px-2 py-0.5 rounded border border-brand-orange/20">
+                      <Text className="font-orbitron-bold text-[10px] text-brand-orange">1 Selected</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Roster Search Input */}
+                <View className="flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-white/10 mb-3">
+                  <Ionicons name="search" size={14} color="#94A3B8" />
+                  <TextInput
+                    placeholder="Search team members..."
+                    placeholderTextColor="#94A3B8"
+                    value={rosterSearch}
+                    onChangeText={setRosterSearch}
+                    className="flex-1 font-inter text-xs text-slate-900 dark:text-white ml-2"
+                  />
+                </View>
+
+                {/* Available Player Cards List */}
+                <View className="gap-1.5">
+                  {sortedAvailablePlayers
+                    .filter((p) =>
+                      (p.name || p.orgProfileName || '')
+                        .toLowerCase()
+                        .includes(rosterSearch.toLowerCase())
+                    )
+                    .map((player) => {
+                      const pId = player.id || player.orgProfileId;
+                      const rosterItem = roster.find(
+                        (r) => r.orgProfileId === pId
+                      );
+                      const isAssigned = !!rosterItem;
+                      const isActiveCard = activePlayerId === pId;
+
+                      return (
+                        <TouchableOpacity
+                          key={pId}
+                          disabled={!canEditCurrentTeam}
+                          onPress={() => handleAvailablePlayerClick(pId, isAssigned)}
+                          className={`flex-row items-center py-1.5 px-2.5 rounded-xl border ${
+                            isActiveCard
+                              ? 'bg-brand-orange/10 border-2 border-brand-orange'
+                              : isAssigned
+                              ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-white/5 opacity-60'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10'
+                          }`}
+                        >
+                          <View className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10 mr-2">
+                            <Ionicons name="person" size={12} color="#94A3B8" />
+                          </View>
+
+                          <View className="flex-1 min-w-0">
+                            <Text
+                              className={`font-inter-bold text-xs ${
+                                isAssigned
+                                  ? 'text-slate-400 dark:text-slate-500'
+                                  : 'text-slate-900 dark:text-white'
+                              }`}
+                              numberOfLines={1}
+                            >
+                              {player.name || player.orgProfileName}
+                            </Text>
+                          </View>
+
+                          {isAssigned ? (
+                            <View
+                              className={`px-1.5 py-0.5 rounded ${
+                                rosterItem?.isReserve
+                                  ? 'bg-amber-500/10 border border-amber-500/20'
+                                  : 'bg-brand-orange/10 border border-brand-orange/20'
+                              }`}
+                            >
+                              <Text
+                                className={`font-orbitron-bold text-[9px] ${
+                                  rosterItem?.isReserve
+                                    ? 'text-amber-500'
+                                    : 'text-brand-orange'
+                                }`}
+                              >
+                                {rosterItem?.isReserve
+                                  ? 'RES'
+                                  : `POS ${rosterItem?.position}`}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Ionicons
+                              name={isActiveCard ? 'checkmark-circle' : 'add-circle-outline'}
+                              size={16}
+                              color={isActiveCard ? COLORS.brand.orange : '#94A3B8'}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                </View>
               </View>
-            </View>
+            )
           )}
 
         </View>
@@ -1214,7 +1628,7 @@ export default function GameSelectionScreen() {
             {/* Player List */}
             <ScrollView className="flex-1">
               {(() => {
-                const filtered = availablePlayers.filter((p) =>
+                const filtered = sortedAvailablePlayers.filter((p) =>
                   (p.name || p.orgProfileName || '')
                     .toLowerCase()
                     .includes(pickerSearch.toLowerCase())

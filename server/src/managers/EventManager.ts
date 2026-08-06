@@ -164,6 +164,21 @@ export class EventManager extends BaseManager {
     return res.rows;
   }
 
+  async getGamesByTeam(teamId: string): Promise<Game[]> {
+    const selectClause = this.GAME_COLUMNS;
+    const res = await this.query(`
+        SELECT ${selectClause}
+        FROM games g
+        WHERE EXISTS (
+            SELECT 1 FROM game_participants gp 
+            WHERE gp.game_id = g.id AND gp.team_id = $1
+        )
+        ORDER BY g.start_time DESC
+    `, [teamId]);
+    return res.rows;
+  }
+
+
   async getLiveGames(): Promise<Game[]> {
     const selectClause = this.GAME_COLUMNS;
     const res = await this.query(`

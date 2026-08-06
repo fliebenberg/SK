@@ -12,6 +12,7 @@ import { useAuthStore } from '../../../../../store/authStore';
 import { Team, TeamMember, Game, Sport, Organization } from '@sk/types';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { getAvatarUrl } from '../../../../../services/api';
+import { COLORS } from '../../../../../constants/Colors';
 
 const parseImageConfig = (config: any) => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -292,17 +293,40 @@ export default function TeamViewScreen() {
 
         {activeTab === 'fixtures' && (
           <View className="space-y-2">
-            {games.map(game => (
-              <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4">
-                <View className="flex-row justify-between items-center mb-2">
-                  <Text className="font-orbitron-bold text-[9px] text-slate-400 uppercase tracking-widest">{game.status}</Text>
-                  <Text className="font-inter text-[10px] text-slate-400">{game.scheduledStartTime ? new Date(game.scheduledStartTime).toLocaleDateString() : ''}</Text>
-                </View>
-                <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">
-                  {game.participants?.[0]?.teamId || 'TBD'} vs {game.participants?.[1]?.teamId || 'TBD'}
-                </Text>
-              </GlassCard>
-            ))}
+            {games.map(game => {
+              const targetEventId = game.eventId;
+              return (
+                <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between">
+                  <View className="flex-1 mr-3">
+                    <View className="flex-row justify-between items-center mb-1">
+                      <Text className="font-orbitron-bold text-[9px] text-slate-400 uppercase tracking-widest">{game.status}</Text>
+                      <Text className="font-inter text-[10px] text-slate-400">{game.scheduledStartTime ? new Date(game.scheduledStartTime).toLocaleDateString() : ''}</Text>
+                    </View>
+                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">
+                      {game.participants?.[0]?.teamId || 'TBD'} vs {game.participants?.[1]?.teamId || 'TBD'}
+                    </Text>
+                  </View>
+                  {targetEventId && (
+                    <View className="flex-row items-center gap-1.5">
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => router.push(`/admin/${orgId}/events/${targetEventId}/games/${game.id}/selection?teamId=${teamId}`)}
+                        className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center"
+                      >
+                        <Ionicons name="people-outline" size={13} color={COLORS.brand.orange} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => router.push(`/admin/${orgId}/events/${targetEventId}/games/${game.id}/score`)}
+                        className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center"
+                      >
+                        <Ionicons name="trophy-outline" size={13} color={COLORS.brand.orange} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </GlassCard>
+              );
+            })}
             {games.length === 0 && (
               <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic text-center py-6">No games scheduled</Text>
             )}

@@ -1034,6 +1034,7 @@ export default function TeamDetailsScreen() {
                   else if (myScore < oppScore) gameOutcome = 'L';
                   else gameOutcome = 'D';
                 }
+                const targetEventId = game.eventId;
 
                 return (
                   <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4">
@@ -1053,13 +1054,13 @@ export default function TeamDetailsScreen() {
                     </View>
 
                     <View className="flex-row justify-between items-center">
-                      <View>
+                      <View className="flex-1 mr-3">
                         <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">vs. {getOpponentName(game)}</Text>
                         <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500">
                           {(game as any).stageName || 'Standard Stage'}
                         </Text>
                       </View>
-                      <View className="flex-row items-center gap-3">
+                      <View className="flex-row items-center gap-2">
                         {isFinished && (
                           <View className={`w-6 h-6 rounded-full items-center justify-center ${
                             gameOutcome === 'W' ? 'bg-green-500/20' : gameOutcome === 'L' ? 'bg-red-500/20' : 'bg-yellow-500/20'
@@ -1071,9 +1072,27 @@ export default function TeamDetailsScreen() {
                             </Text>
                           </View>
                         )}
-                        <Text className="font-mono-bold text-lg text-slate-800 dark:text-white">
+                        <Text className="font-mono-bold text-lg text-slate-800 dark:text-white mr-1">
                           {game.liveState?.home ?? 0} - {game.liveState?.away ?? 0}
                         </Text>
+                        {targetEventId && (
+                          <View className="flex-row items-center gap-1.5 ml-1">
+                            <TouchableOpacity
+                              activeOpacity={0.8}
+                              onPress={() => router.push(`/admin/${orgId}/events/${targetEventId}/games/${game.id}/selection?teamId=${teamId}`)}
+                              className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center"
+                            >
+                              <Ionicons name="people-outline" size={13} color={COLORS.brand.orange} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              activeOpacity={0.8}
+                              onPress={() => router.push(`/admin/${orgId}/events/${targetEventId}/games/${game.id}/score`)}
+                              className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center"
+                            >
+                              <Ionicons name="trophy-outline" size={13} color={COLORS.brand.orange} />
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </View>
                     </View>
                   </GlassCard>
