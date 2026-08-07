@@ -119,6 +119,11 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
 
     const initialData = scoringState.initialData || {};
 
+    const actorOrgProfileId =
+      eventPayload?.playerId !== undefined
+        ? eventPayload.playerId
+        : (initialData.actorOrgProfileId || initialData.playerId);
+
     const eventData = {
       elapsedMS: getLiveElapsedMS(game.liveState?.clock),
       period: currentPeriodLabel,
@@ -135,6 +140,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         gameId: game.id,
         eventId: scoringState.editingId,
         gameParticipantId: participant?.id,
+        actorOrgProfileId,
         eventData,
       };
 
@@ -148,6 +154,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         gameParticipantId: participant?.id,
         type: points > 0 ? 'SCORE' : 'GAME_EVENT',
         subType: scoringState.templateId,
+        actorOrgProfileId,
         eventData,
       };
 

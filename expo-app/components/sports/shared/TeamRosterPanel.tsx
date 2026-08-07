@@ -7,6 +7,7 @@ import { COLORS } from '../../../constants/Colors';
 interface TeamRosterPanelProps {
   gameId: string;
   participantId: string;
+  teamId?: string;
 }
 
 // Standard rugby position field coordinates (percentage x, y on field)
@@ -28,7 +29,7 @@ const PITCH_POSITIONS: Record<string, { top: string; left: string }> = {
   '15': { top: '85%', left: '50%' }, // Full-back
 };
 
-export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps) {
+export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPanelProps) {
   const [roster, setRoster] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'pitch'>('list');
@@ -39,13 +40,34 @@ export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps)
     const unsubscribeRoom = room ? wsService.subscribeToRoom(room) : () => {};
 
     wsService.emit('get_data', { type: 'game_roster', id: participantId }, (data: any[]) => {
-      if (isMounted) {
-        const sorted = [...(data || [])].sort((a, b) => {
+      if (!isMounted) return;
+      if (data && Array.isArray(data) && data.length > 0) {
+        const sorted = [...data].sort((a, b) => {
           const posA = parseInt(a.position) || 999;
           const posB = parseInt(b.position) || 999;
           return posA - posB;
         });
         setRoster(sorted);
+        setIsLoading(false);
+      } else if (teamId) {
+        wsService.emit('get_data', { type: 'team_members', teamId }, (members: any[]) => {
+          if (!isMounted) return;
+          if (members && Array.isArray(members)) {
+            const fallback = members.map((m: any) => ({
+              id: m.orgProfileId || m.id,
+              orgProfileId: m.orgProfileId || m.id,
+              name: m.name || m.orgProfileName,
+              position: m.position,
+              isReserve: false,
+            }));
+            setRoster(fallback);
+          } else {
+            setRoster([]);
+          }
+          setIsLoading(false);
+        });
+      } else {
+        setRoster([]);
         setIsLoading(false);
       }
     });
@@ -71,7 +93,7 @@ export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps)
       unsubscribeRoom();
       wsService.off('update', handleUpdate);
     };
-  }, [gameId, participantId]);
+  }, [gameId, participantId, teamId]);
 
   if (isLoading) {
     return (
@@ -162,7 +184,8 @@ export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps)
               return (
                 <View
                   key={item.orgProfileId || item.id}
-                  className="w-[48%] bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-3 flex-row items-center gap-3 shadow-sm"
+                  style={{ width: '48%' }}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-3 flex-row items-center gap-3 shadow-sm"
                 >
                   <View className="w-10 h-10 rounded-full bg-brand-orange/10 border border-brand-orange/20 items-center justify-center">
                     <Text className="font-orbitron-bold text-xs text-brand-orange">
@@ -170,10 +193,10 @@ export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps)
                     </Text>
                   </View>
                   <View className="flex-1 min-w-0">
-                    <Text className="font-inter-bold text-xs text-slate-800 dark:text-white truncate" numberOfLines={1}>
+                    <Text className="font-inter-bold text-xs text-slate-800 dark:text-white" numberOfLines={1}>
                       {firstName}
                     </Text>
-                    <Text className="font-inter text-[10px] text-slate-400 truncate" numberOfLines={1}>
+                    <Text className="font-inter text-[10px] text-slate-400" numberOfLines={1}>
                       {lastName || 'Player'}
                     </Text>
                   </View>
@@ -188,7 +211,7 @@ export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps)
           </View>
         ) : (
           /* PITCH DIAGRAM VIEW */
-          <View className="space-y-4 pb-6">
+          <View className="gap-4 pb-6">
             {/* Visual Field Layout */}
             <View className="relative w-full h-[460px] bg-emerald-800/90 dark:bg-emerald-950 rounded-2xl border-2 border-emerald-600/40 overflow-hidden shadow-inner p-2">
               {/* Field Markings */}
@@ -214,8 +237,8 @@ export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps)
                         {player.jerseyNumber || player.position}
                       </Text>
                     </View>
-                    <View className="bg-black/70 px-1.5 py-0.5 rounded mt-0.5 max-w-[70px]">
-                      <Text className="font-inter-bold text-[9px] text-white text-center truncate" numberOfLines={1}>
+                    <View style={{ maxWidth: 70 }} className="bg-black/70 px-1.5 py-0.5 rounded mt-0.5">
+                      <Text className="font-inter-bold text-[9px] text-white text-center" numberOfLines={1}>
                         {nameParts[nameParts.length - 1]}
                       </Text>
                     </View>
@@ -226,7 +249,7 @@ export function TeamRosterPanel({ gameId, participantId }: TeamRosterPanelProps)
 
             {/* Reserves Section Below Pitch */}
             {reserves.length > 0 && (
-              <View className="space-y-2 mt-4">
+              <View className="gap-2 mt-4">
                 <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider px-1">
                   Reserves ({reserves.length})
                 </Text>

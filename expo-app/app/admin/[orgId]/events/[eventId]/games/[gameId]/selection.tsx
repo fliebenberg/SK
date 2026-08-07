@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -151,9 +151,19 @@ export default function GameSelectionScreen() {
   const currentParticipant = participants[selectedParticipantIdx] || null;
   const currentTeamId = currentParticipant?.teamId;
 
+  // Track if initial auto-selection has occurred to prevent re-select jumps on state re-renders
+  const hasAutoSelectedRef = useRef(false);
+
+  useEffect(() => {
+    hasAutoSelectedRef.current = false;
+  }, [gameId]);
+
   // Auto-select initial team participant index based on teamId param or user coaching membership
   useEffect(() => {
+    if (hasAutoSelectedRef.current) return;
     if (!game?.participants || game.participants.length === 0) return;
+
+    hasAutoSelectedRef.current = true;
 
     if (teamId) {
       const idx = game.participants.findIndex((p: any) => p.teamId === teamId);
@@ -738,6 +748,7 @@ export default function GameSelectionScreen() {
                   key={p.id || idx}
                   activeOpacity={0.8}
                   onPress={() => {
+                    hasAutoSelectedRef.current = true;
                     setSelectedParticipantIdx(idx);
                     setActivePositionId(null);
                     setActivePlayerId(null);

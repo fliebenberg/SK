@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { useSharedDynamicScoring } from './DynamicScoringContext';
 import { wsService } from '../../../services/websocket';
 import { RosterGrid } from './ScoringActionButton';
@@ -9,6 +9,7 @@ import { CounterStep } from './CounterStep';
 import { Ionicons } from '@expo/vector-icons';
 import { ActionStepType } from '@sk/types';
 import { ConfirmationModal } from '../../ConfirmationModal';
+import { COLORS } from '../../../constants/Colors';
 
 interface ReasonGroup {
   name: string;
@@ -147,6 +148,9 @@ const OUTCOME_OPTIONS: { [key: string]: OutcomeOption[] } = {
 };
 
 export function DynamicScoringDialog() {
+  const { height: screenHeight } = useWindowDimensions();
+  const maxScrollHeight = Math.max(screenHeight - 220, 160);
+
   const { game, homeTeam, awayTeam, templates, scoringState, cancelDynamicFlow, submitEvent, removeGameEvent } = useSharedDynamicScoring();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>(undefined);
   const [selectedReason, setSelectedReason] = useState<string | undefined>(undefined);
@@ -154,7 +158,24 @@ export function DynamicScoringDialog() {
   const [scrumResets, setScrumResets] = useState<number>(0);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [roster, setRoster] = useState<any[]>([]);
+  const [isLoadingRoster, setIsLoadingRoster] = useState<boolean>(true);
+  const [showSpinner, setShowSpinner] = useState<boolean>(false);
   const [isConfirmingUndo, setIsConfirmingUndo] = useState<boolean>(false);
+
+  useEffect(() => {
+    let timer: any;
+    if (isLoadingRoster) {
+      setShowSpinner(false);
+      timer = setTimeout(() => {
+        setShowSpinner(true);
+      }, 1000);
+    } else {
+      setShowSpinner(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isLoadingRoster]);
 
   const isVisible = scoringState.status === 'ACTIVE';
   const isEditing = !!scoringState.editingId;
@@ -207,11 +228,51 @@ export function DynamicScoringDialog() {
 
   useEffect(() => {
     if (participantId && isVisible) {
+      setIsLoadingRoster(true);
+      const teamId = participant?.teamId;
       wsService.emit('get_data', { type: 'game_roster', id: participantId }, (data: any[]) => {
-        if (data) setRoster(data);
+        const hasGameRoster = Array.isArray(data) && data.length > 0;
+
+        if (hasGameRoster) {
+          setRoster(data);
+          setIsLoadingRoster(false);
+          if (teamId) {
+            wsService.emit('get_data', { type: 'team_members', teamId }, (members: any[]) => {
+              if (Array.isArray(members) && members.length > 0) {
+                const memberMap = new Map(
+                  members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
+                );
+                const enriched = data.map((item: any) => ({
+                  ...item,
+                  name: item.name || item.orgProfileName || memberMap.get(item.orgProfileId) || item.name,
+                }));
+                setRoster(enriched);
+              }
+            });
+          }
+        } else if (teamId) {
+          wsService.emit('get_data', { type: 'team_members', teamId }, (members: any[]) => {
+            if (Array.isArray(members) && members.length > 0) {
+              const fallback = members.map((m: any) => ({
+                id: m.orgProfileId || m.id,
+                orgProfileId: m.orgProfileId || m.id,
+                name: m.name || m.orgProfileName,
+                position: m.position,
+                isReserve: false,
+              }));
+              setRoster(fallback);
+            } else {
+              setRoster([]);
+            }
+            setIsLoadingRoster(false);
+          });
+        } else {
+          setRoster([]);
+          setIsLoadingRoster(false);
+        }
       });
     }
-  }, [participantId, isVisible]);
+  }, [participantId, isVisible, participant?.teamId]);
 
   useEffect(() => {
     if (isVisible) {
@@ -292,10 +353,13 @@ export function DynamicScoringDialog() {
   return (
     <>
       <Modal visible={isVisible} transparent={true} animationType="fade" onRequestClose={cancelDynamicFlow}>
-        <View className="flex-1 bg-black/60 justify-center items-center px-5">
-          <View className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 shadow-lg space-y-4" style={{ maxHeight: '85%' }}>
+        <View className="flex-1 bg-black/60 justify-center items-center px-3 py-4">
+          <View
+            className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-white/10 shadow-lg flex-col justify-between"
+            style={{ maxHeight: Math.max(screenHeight - 32, 320) }}
+          >
             {/* DIALOG HEADER & STEP NAVIGATION */}
-            <View className="space-y-2">
+            <View className="gap-2 flex-shrink-0">
               <View className={`flex-row items-center justify-between ${totalSteps > 1 ? '' : 'pb-3 border-b border-slate-200 dark:border-white/10'}`}>
                 <View>
                   <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase">
@@ -326,8 +390,8 @@ export function DynamicScoringDialog() {
 
             {/* STEP TYPE: PLAYER SELECTION */}
             {activeStepType === 'player' && (
-              <View className="space-y-2">
-                <View className="flex-row items-center justify-between">
+              <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
+                <View className="flex-row items-center justify-between flex-shrink-0">
                   <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                     Select Player (Optional):
                   </Text>
@@ -340,23 +404,32 @@ export function DynamicScoringDialog() {
                   </View>
                 </View>
 
-                <ScrollView className="max-h-[60vh] my-1">
-                  <RosterGrid roster={roster} onSelect={setSelectedPlayerId} selectedPlayerId={selectedPlayerId} />
-                </ScrollView>
+                {showSpinner ? (
+                  <View className="py-8 items-center justify-center">
+                    <ActivityIndicator size="small" color={COLORS.brand.orange} />
+                    <Text className="font-orbitron-bold text-xs text-slate-400 mt-2 uppercase tracking-wider">
+                      Loading Roster...
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
+                    <RosterGrid roster={roster} onSelect={setSelectedPlayerId} selectedPlayerId={selectedPlayerId} />
+                  </ScrollView>
+                )}
               </View>
             )}
 
             {/* STEP TYPE: REASON / INFRINGEMENT / DETAILS SELECTION */}
             {activeStepType === 'reason' && (
-              <View className="space-y-3">
-                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
+                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
                   Select Infringement / Detail:
                 </Text>
 
-                <ScrollView className="max-h-[60vh] my-1" showsVerticalScrollIndicator={true}>
-                  <View className="space-y-3">
+                <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
+                  <View className="gap-3">
                     {reasonGroups.map((group) => (
-                      <View key={group.name} className="space-y-1.5">
+                      <View key={group.name} className="gap-1.5">
                         <View className="pb-1 border-b border-slate-200 dark:border-white/10">
                           <Text className="font-orbitron-bold text-[10px] uppercase text-brand-orange tracking-widest">
                             {group.name}
@@ -395,17 +468,19 @@ export function DynamicScoringDialog() {
 
             {/* STEP TYPE: COUNTER WIDGET (e.g. Scrum Resets) */}
             {activeStepType === 'widget' && (
-              <CounterStep label="Scrum Resets" value={scrumResets} onChange={setScrumResets} />
+              <View className="my-3 flex-shrink-0">
+                <CounterStep label="Scrum Resets" value={scrumResets} onChange={setScrumResets} />
+              </View>
             )}
 
             {/* STEP TYPE: OUTCOME / NEXT ACTION SELECTION */}
             {activeStepType === 'outcome' && (
-              <View className="space-y-3">
-                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
+                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
                   {isNextActionStep ? 'Select Next Action (Optional):' : 'Select Outcome (Optional):'}
                 </Text>
 
-                <ScrollView className="max-h-[60vh] my-1">
+                <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
                   <View className="flex-row flex-wrap gap-2.5 py-2">
                     {outcomes.map((opt) => {
                       const isSelected = selectedOutcome === opt.id;
@@ -453,7 +528,7 @@ export function DynamicScoringDialog() {
             )}
 
             {/* DIALOG ACTION FOOTER */}
-            <View className="flex-row gap-2 pt-3 border-t border-slate-200 dark:border-white/10">
+            <View className="flex-row gap-2 pt-3 border-t border-slate-200 dark:border-white/10 flex-shrink-0 mt-auto">
               <Button title="Cancel" variant="ghost" onPress={cancelDynamicFlow} className="flex-1 py-2.5 rounded-xl" />
 
               {isEditing ? (

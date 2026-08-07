@@ -264,6 +264,8 @@ export interface UpdateGameEventPayload {
     gameId: string;
     eventId: string;
     eventData: any;
+    actorOrgProfileId?: string;
+    gameParticipantId?: string;
 }
 
 export interface InitiateUndoVotePayload {

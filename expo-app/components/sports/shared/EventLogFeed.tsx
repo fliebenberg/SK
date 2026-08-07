@@ -210,6 +210,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     if (templateId) {
       startDynamicFlow?.(templateId, side, {
         eventId: evt.id,
+        actorOrgProfileId: evt.actorOrgProfileId,
+        playerId: evt.actorOrgProfileId,
         ...evt.eventData,
       });
     }
@@ -450,6 +452,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                                 startDynamicFlow?.(evt.subType || evt.type, side, {
                                   ...eventData,
                                   eventId: evt.id,
+                                  actorOrgProfileId: evt.actorOrgProfileId,
+                                  playerId: evt.actorOrgProfileId,
                                   initialStepType: ActionStepType.PLAYER_SELECTION,
                                 });
                               }}
@@ -467,6 +471,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                                 startDynamicFlow?.(evt.subType || evt.type, side, {
                                   ...eventData,
                                   eventId: evt.id,
+                                  actorOrgProfileId: evt.actorOrgProfileId,
+                                  playerId: evt.actorOrgProfileId,
                                   initialStepType: ActionStepType.REASON_SELECTION,
                                 });
                               }}
@@ -484,6 +490,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                                 startDynamicFlow?.(evt.subType || evt.type, side, {
                                   ...eventData,
                                   eventId: evt.id,
+                                  actorOrgProfileId: evt.actorOrgProfileId,
+                                  playerId: evt.actorOrgProfileId,
                                   initialStepType: ActionStepType.OUTCOME_SELECTION,
                                 });
                               }}

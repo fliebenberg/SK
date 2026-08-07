@@ -109,31 +109,85 @@ export function RosterGrid({
     );
   }
 
+  // Sort roster in position order (numeric 1..N first, then non-numeric/reserves, then by name)
+  const sortedRoster = [...roster].sort((a, b) => {
+    const posAStr = a.position !== undefined && a.position !== null ? String(a.position).trim() : '';
+    const posBStr = b.position !== undefined && b.position !== null ? String(b.position).trim() : '';
+
+    const numA = parseInt(posAStr, 10);
+    const numB = parseInt(posBStr, 10);
+
+    const isNumA = !isNaN(numA) && String(numA) === posAStr;
+    const isNumB = !isNaN(numB) && String(numB) === posBStr;
+
+    if (isNumA && isNumB) return numA - numB;
+    if (isNumA && !isNumB) return -1;
+    if (!isNumA && isNumB) return 1;
+
+    if (posAStr && posBStr) return posAStr.localeCompare(posBStr);
+    if (posAStr && !posBStr) return -1;
+    if (!posAStr && posBStr) return 1;
+
+    const nameA = a.name || a.orgProfileName || '';
+    const nameB = b.name || b.orgProfileName || '';
+    return nameA.localeCompare(nameB);
+  });
+
   return (
-    <View className={`flex-row flex-wrap gap-2 ${className}`}>
-      {roster.map((item) => {
-        const isSelected = selectedPlayerId === item.orgProfileId;
-        const playerName = item.name || item.orgProfileName || item.position || 'Player';
+    <View className={`flex-row flex-wrap gap-2.5 ${className}`}>
+      {sortedRoster.map((item) => {
+        const playerId = item.orgProfileId || item.id;
+        const isSelected = selectedPlayerId === playerId;
+        const rawName = item.name || item.orgProfileName;
+        const positionDisplay = item.position ? `#${item.position}` : '#?';
+        const playerName = rawName || (item.position ? `Player ${item.position}` : 'Player');
+
         return (
           <TouchableOpacity
-            key={item.orgProfileId || item.id}
-            onPress={() => onSelect(item.orgProfileId)}
-            className={`px-3 py-2 rounded-xl border flex-row items-center gap-2 ${
+            key={playerId}
+            onPress={() => onSelect(playerId)}
+            activeOpacity={0.7}
+            style={{ flexGrow: 1, minWidth: 120, maxWidth: '48%' }}
+            className={`p-2.5 rounded-xl border flex-row items-center gap-2.5 ${
               isSelected
                 ? 'bg-brand-orange border-brand-orange'
                 : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
             }`}
           >
-            <Text className={`font-orbitron-bold text-xs ${isSelected ? 'text-white' : 'text-brand-orange'}`}>
-              #{item.position || '?'}
-            </Text>
-            <Text
-              className={`font-inter-bold text-xs ${
-                isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+            <View
+              className={`w-7 h-7 rounded-lg items-center justify-center ${
+                isSelected
+                  ? 'bg-white/20'
+                  : 'bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/30'
               }`}
             >
-              {playerName}
-            </Text>
+              <Text
+                className={`font-orbitron-bold text-xs ${
+                  isSelected ? 'text-white' : 'text-brand-orange'
+                }`}
+              >
+                {positionDisplay}
+              </Text>
+            </View>
+            <View className="flex-1 min-w-0">
+              <Text
+                numberOfLines={1}
+                className={`font-inter-bold text-xs ${
+                  isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+                }`}
+              >
+                {playerName}
+              </Text>
+              {item.isReserve && (
+                <Text
+                  className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${
+                    isSelected ? 'text-white/80' : 'text-slate-400'
+                  }`}
+                >
+                  Reserve
+                </Text>
+              )}
+            </View>
           </TouchableOpacity>
         );
       })}

@@ -487,9 +487,10 @@ export class EventManager extends BaseManager {
 
   async getGameRoster(participantId: string): Promise<any[]> {
     const res = await this.query(
-        `SELECT id, game_participant_id as "participantId", org_profile_id as "orgProfileId", position, jersey_number as "jerseyNumber", is_reserve as "isReserve" 
-         FROM game_rosters 
-         WHERE game_participant_id = $1`, 
+        `SELECT gr.id, gr.game_participant_id as "participantId", gr.org_profile_id as "orgProfileId", gr.position, gr.jersey_number as "jerseyNumber", gr.is_reserve as "isReserve", op.name as "name", op.name as "orgProfileName"
+         FROM game_rosters gr
+         LEFT JOIN org_profiles op ON gr.org_profile_id = op.id
+         WHERE gr.game_participant_id = $1`, 
         [participantId]
     );
     return res.rows;

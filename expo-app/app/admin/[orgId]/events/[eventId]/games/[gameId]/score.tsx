@@ -175,8 +175,8 @@ export default function ScoreGameScreen() {
 
                 <View className="min-h-[280px]">
                   {activeTab === 'feed' && <EventLogFeed gameId={game.id} game={game} canManage={true} />}
-                  {activeTab === 'team1' && p1 && <TeamRosterPanel gameId={game.id} participantId={p1.id} />}
-                  {activeTab === 'team2' && p2 && <TeamRosterPanel gameId={game.id} participantId={p2.id} />}
+                  {activeTab === 'team1' && p1 && <TeamRosterPanel gameId={game.id} participantId={p1.id} teamId={p1.teamId} />}
+                  {activeTab === 'team2' && p2 && <TeamRosterPanel gameId={game.id} participantId={p2.id} teamId={p2.teamId} />}
                   {activeTab === 'stats' && <RugbyGameStats game={game} />}
                 </View>
               </View>
