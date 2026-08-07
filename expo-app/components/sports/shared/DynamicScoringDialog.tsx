@@ -151,31 +151,25 @@ export function DynamicScoringDialog() {
   const { height: screenHeight } = useWindowDimensions();
   const maxScrollHeight = Math.max(screenHeight - 220, 160);
 
-  const { game, homeTeam, awayTeam, templates, scoringState, cancelDynamicFlow, submitEvent, removeGameEvent } = useSharedDynamicScoring();
+  const {
+    game,
+    homeTeam,
+    awayTeam,
+    homeRoster,
+    awayRoster,
+    isLoadingRosters,
+    templates,
+    scoringState,
+    cancelDynamicFlow,
+    submitEvent,
+    removeGameEvent,
+  } = useSharedDynamicScoring();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>(undefined);
   const [selectedReason, setSelectedReason] = useState<string | undefined>(undefined);
   const [selectedOutcome, setSelectedOutcome] = useState<string | undefined>(undefined);
   const [scrumResets, setScrumResets] = useState<number>(0);
   const [currentStep, setCurrentStep] = useState<number>(0);
-  const [roster, setRoster] = useState<any[]>([]);
-  const [isLoadingRoster, setIsLoadingRoster] = useState<boolean>(true);
-  const [showSpinner, setShowSpinner] = useState<boolean>(false);
   const [isConfirmingUndo, setIsConfirmingUndo] = useState<boolean>(false);
-
-  useEffect(() => {
-    let timer: any;
-    if (isLoadingRoster) {
-      setShowSpinner(false);
-      timer = setTimeout(() => {
-        setShowSpinner(true);
-      }, 1000);
-    } else {
-      setShowSpinner(false);
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isLoadingRoster]);
 
   const isVisible = scoringState.status === 'ACTIVE';
   const isEditing = !!scoringState.editingId;
@@ -185,6 +179,9 @@ export function DynamicScoringDialog() {
 
   const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
   const participantId = participant?.id;
+
+  const roster = side === 'home' ? homeRoster : awayRoster;
+  const isLoadingRoster = isLoadingRosters;
 
   const reasonGroups = GROUPED_REASON_OPTIONS[templateId] || [];
   const outcomes = OUTCOME_OPTIONS[templateId] || [];
@@ -225,54 +222,6 @@ export function DynamicScoringDialog() {
 
   const totalSteps = stepItems.length;
   const activeStepType = stepItems[currentStep]?.type || 'player';
-
-  useEffect(() => {
-    if (participantId && isVisible) {
-      setIsLoadingRoster(true);
-      const teamId = participant?.teamId;
-      wsService.emit('get_data', { type: 'game_roster', id: participantId }, (data: any[]) => {
-        const hasGameRoster = Array.isArray(data) && data.length > 0;
-
-        if (hasGameRoster) {
-          setRoster(data);
-          setIsLoadingRoster(false);
-          if (teamId) {
-            wsService.emit('get_data', { type: 'team_members', teamId }, (members: any[]) => {
-              if (Array.isArray(members) && members.length > 0) {
-                const memberMap = new Map(
-                  members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
-                );
-                const enriched = data.map((item: any) => ({
-                  ...item,
-                  name: item.name || item.orgProfileName || memberMap.get(item.orgProfileId) || item.name,
-                }));
-                setRoster(enriched);
-              }
-            });
-          }
-        } else if (teamId) {
-          wsService.emit('get_data', { type: 'team_members', teamId }, (members: any[]) => {
-            if (Array.isArray(members) && members.length > 0) {
-              const fallback = members.map((m: any) => ({
-                id: m.orgProfileId || m.id,
-                orgProfileId: m.orgProfileId || m.id,
-                name: m.name || m.orgProfileName,
-                position: m.position,
-                isReserve: false,
-              }));
-              setRoster(fallback);
-            } else {
-              setRoster([]);
-            }
-            setIsLoadingRoster(false);
-          });
-        } else {
-          setRoster([]);
-          setIsLoadingRoster(false);
-        }
-      });
-    }
-  }, [participantId, isVisible, participant?.teamId]);
 
   useEffect(() => {
     if (isVisible) {
@@ -404,7 +353,7 @@ export function DynamicScoringDialog() {
                   </View>
                 </View>
 
-                {showSpinner ? (
+                {isLoadingRoster ? (
                   <View className="py-8 items-center justify-center">
                     <ActivityIndicator size="small" color={COLORS.brand.orange} />
                     <Text className="font-orbitron-bold text-xs text-slate-400 mt-2 uppercase tracking-wider">

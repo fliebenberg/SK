@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Game, getPeriodLabel } from '@sk/types';
+import { Game, GameEvent, GameDispute, Sport, getPeriodLabel } from '@sk/types';
 import { wsService } from '../../../services/websocket';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 
@@ -44,6 +44,14 @@ interface DynamicScoringContextType {
   game: Game;
   homeTeam?: any;
   awayTeam?: any;
+  homeRoster: any[];
+  awayRoster: any[];
+  isLoadingRosters: boolean;
+  events: GameEvent[];
+  isLoadingEvents: boolean;
+  disputes: GameDispute[];
+  sport?: Sport;
+  profileMap: { [profileId: string]: string };
   templates: EventTemplateItem[];
   scoringState: {
     status: 'IDLE' | 'ACTIVE';
@@ -67,10 +75,33 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   });
   const [homeTeam, setHomeTeam] = useState<any>(null);
   const [awayTeam, setAwayTeam] = useState<any>(null);
+  const [homeRoster, setHomeRoster] = useState<any[]>([]);
+  const [awayRoster, setAwayRoster] = useState<any[]>([]);
+  const [isLoadingRosters, setIsLoadingRosters] = useState<boolean>(true);
+  const [events, setEvents] = useState<GameEvent[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState<boolean>(true);
+  const [disputes, setDisputes] = useState<GameDispute[]>([]);
+  const [sport, setSport] = useState<Sport | undefined>(undefined);
+  const [profileMap, setProfileMap] = useState<{ [profileId: string]: string }>({});
 
+  const homeParticipantId = game.participants?.[0]?.id;
+  const awayParticipantId = game.participants?.[1]?.id;
   const homeTeamId = game.participants?.[0]?.teamId;
   const awayTeamId = game.participants?.[1]?.teamId;
 
+  // 1. WebSocket room subscriptions
+  useEffect(() => {
+    if (!game.id) return;
+    const unsubscribeRoom = wsService.subscribeToRoom(`game:${game.id}`);
+    const unsubscribeEventsRoom = wsService.subscribeToRoom(`game:${game.id}:events`);
+
+    return () => {
+      unsubscribeRoom();
+      unsubscribeEventsRoom();
+    };
+  }, [game.id]);
+
+  // 2. Fetch general team objects
   useEffect(() => {
     if (homeTeamId) {
       wsService.emit('get_data', { type: 'team', id: homeTeamId }, (t: any) => {
@@ -83,6 +114,247 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       });
     }
   }, [homeTeamId, awayTeamId]);
+
+  // 3. Fetch sport definition
+  useEffect(() => {
+    const resolvedSportId = game.sportId || game.customSettings?.sportId;
+    if (resolvedSportId) {
+      wsService.emit('get_data', { type: 'sport', id: resolvedSportId }, (resSport: Sport) => {
+        if (resSport) setSport(resSport);
+      });
+    }
+  }, [game.sportId, game.customSettings?.sportId]);
+
+  // 4. Fetch active disputes
+  useEffect(() => {
+    wsService.emit('get_data', { type: 'active_disputes', id: game.id }, (disputeData: GameDispute[]) => {
+      if (Array.isArray(disputeData)) setDisputes(disputeData);
+    });
+  }, [game.id]);
+
+  // 5. Fetch game events
+  useEffect(() => {
+    setIsLoadingEvents(true);
+    wsService.emit('get_data', { type: 'game_events', id: game.id }, (data: GameEvent[]) => {
+      if (data && Array.isArray(data)) {
+        const sorted = [...data].sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        setEvents(sorted);
+      }
+      setIsLoadingEvents(false);
+    });
+  }, [game.id]);
+
+  // 6. Fetch Roster and Member data
+  useEffect(() => {
+    let activeFetches = 0;
+    
+    if (homeParticipantId) {
+      activeFetches++;
+      setIsLoadingRosters(true);
+      wsService.emit('get_data', { type: 'game_roster', id: homeParticipantId }, (data: any[]) => {
+        const hasGameRoster = Array.isArray(data) && data.length > 0;
+        if (hasGameRoster) {
+          const sorted = [...data].sort((a, b) => (parseInt(a.position) || 999) - (parseInt(b.position) || 999));
+          setHomeRoster(sorted);
+          activeFetches--;
+          if (activeFetches === 0) setIsLoadingRosters(false);
+          
+          if (homeTeamId) {
+            wsService.emit('get_data', { type: 'team_members', teamId: homeTeamId }, (members: any[]) => {
+              if (Array.isArray(members) && members.length > 0) {
+                const memberMap = new Map(
+                  members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
+                );
+                const enriched = sorted.map((item: any) => ({
+                  ...item,
+                  name: item.name || item.orgProfileName || memberMap.get(item.orgProfileId) || item.name,
+                }));
+                setHomeRoster(enriched);
+              }
+            });
+          }
+        } else if (homeTeamId) {
+          wsService.emit('get_data', { type: 'team_members', teamId: homeTeamId }, (members: any[]) => {
+            if (Array.isArray(members) && members.length > 0) {
+              const fallback = members.map((m: any) => ({
+                id: m.orgProfileId || m.id,
+                orgProfileId: m.orgProfileId || m.id,
+                name: m.name || m.orgProfileName,
+                position: m.position,
+                isReserve: false,
+              }));
+              setHomeRoster(fallback);
+            } else {
+              setHomeRoster([]);
+            }
+            activeFetches--;
+            if (activeFetches === 0) setIsLoadingRosters(false);
+          });
+        } else {
+          setHomeRoster([]);
+          activeFetches--;
+          if (activeFetches === 0) setIsLoadingRosters(false);
+        }
+      });
+    }
+
+    if (awayParticipantId) {
+      activeFetches++;
+      setIsLoadingRosters(true);
+      wsService.emit('get_data', { type: 'game_roster', id: awayParticipantId }, (data: any[]) => {
+        const hasGameRoster = Array.isArray(data) && data.length > 0;
+        if (hasGameRoster) {
+          const sorted = [...data].sort((a, b) => (parseInt(a.position) || 999) - (parseInt(b.position) || 999));
+          setAwayRoster(sorted);
+          activeFetches--;
+          if (activeFetches === 0) setIsLoadingRosters(false);
+
+          if (awayTeamId) {
+            wsService.emit('get_data', { type: 'team_members', teamId: awayTeamId }, (members: any[]) => {
+              if (Array.isArray(members) && members.length > 0) {
+                const memberMap = new Map(
+                  members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
+                );
+                const enriched = sorted.map((item: any) => ({
+                  ...item,
+                  name: item.name || item.orgProfileName || memberMap.get(item.orgProfileId) || item.name,
+                }));
+                setAwayRoster(enriched);
+              }
+            });
+          }
+        } else if (awayTeamId) {
+          wsService.emit('get_data', { type: 'team_members', teamId: awayTeamId }, (members: any[]) => {
+            if (Array.isArray(members) && members.length > 0) {
+              const fallback = members.map((m: any) => ({
+                id: m.orgProfileId || m.id,
+                orgProfileId: m.orgProfileId || m.id,
+                name: m.name || m.orgProfileName,
+                position: m.position,
+                isReserve: false,
+              }));
+              setAwayRoster(fallback);
+            } else {
+              setAwayRoster([]);
+            }
+            activeFetches--;
+            if (activeFetches === 0) setIsLoadingRosters(false);
+          });
+        } else {
+          setAwayRoster([]);
+          activeFetches--;
+          if (activeFetches === 0) setIsLoadingRosters(false);
+        }
+      });
+    }
+  }, [homeParticipantId, awayParticipantId, homeTeamId, awayTeamId]);
+
+  // 7. Derive profileMap from rosters
+  useEffect(() => {
+    const nextMap: { [profileId: string]: string } = {};
+    const processRoster = (r: any[]) => {
+      r.forEach((item) => {
+        const pid = item.orgProfileId || item.profileId || item.id;
+        const name = item.name || item.profile?.name || item.displayName || item.orgProfileName;
+        if (pid && name) {
+          nextMap[pid] = name;
+        }
+      });
+    };
+    processRoster(homeRoster);
+    processRoster(awayRoster);
+    setProfileMap(nextMap);
+  }, [homeRoster, awayRoster]);
+
+  // 8. WebSocket updates handler
+  useEffect(() => {
+    const handleSocketUpdate = (evt: { type: string; data: any }) => {
+      if (!evt) return;
+
+      const targetGameId = evt.data?.gameId || evt.data?.id;
+
+      // GAME_ROSTER_UPDATED
+      if (evt.type === 'GAME_ROSTER_UPDATED' && evt.data?.participantId) {
+        if (Array.isArray(evt.data.items)) {
+          const sorted = [...evt.data.items].sort(
+            (a, b) => (parseInt(a.position) || 999) - (parseInt(b.position) || 999)
+          );
+          if (evt.data.participantId === homeParticipantId) {
+            setHomeRoster((prev) => {
+              const memberMap = new Map(prev.map((item) => [item.orgProfileId || item.id, item.name]));
+              return sorted.map((item) => ({
+                ...item,
+                name: item.name || memberMap.get(item.orgProfileId || item.id) || item.name,
+              }));
+            });
+          } else if (evt.data.participantId === awayParticipantId) {
+            setAwayRoster((prev) => {
+              const memberMap = new Map(prev.map((item) => [item.orgProfileId || item.id, item.name]));
+              return sorted.map((item) => ({
+                ...item,
+                name: item.name || memberMap.get(item.orgProfileId || item.id) || item.name,
+              }));
+            });
+          }
+        }
+      }
+
+      // GAME_EVENT_* updates
+      if (evt.type === 'GAME_RESET' || evt.type === 'RESET_GAME') {
+        if (!targetGameId || targetGameId === game.id) {
+          setEvents([]);
+        }
+      } else if (evt.type === 'GAME_EVENTS_SYNC') {
+        if (!targetGameId || targetGameId === game.id) {
+          const syncEvents = Array.isArray(evt.data) ? evt.data : evt.data?.events;
+          if (Array.isArray(syncEvents)) {
+            const sorted = [...syncEvents].sort(
+              (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+            setEvents(sorted);
+          }
+        }
+      } else if (evt.type === 'GAME_EVENT_ADDED' && evt.data?.gameId === game.id) {
+        setEvents((prev) => {
+          if (!evt.data?.id) return prev;
+          const exists = prev.some((e) => e.id === evt.data.id);
+          if (exists) {
+            return prev.map((e) => (e.id === evt.data.id ? evt.data : e));
+          }
+          return [evt.data, ...prev].sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+        });
+      } else if (evt.type === 'GAME_EVENT_UPDATED' && evt.data?.gameId === game.id) {
+        setEvents((prev) =>
+          prev.map((e) => (e.id === evt.data.id ? evt.data : e)).sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          )
+        );
+      } else if ((evt.type === 'GAME_EVENT_REMOVED' || evt.type === 'UNDO_GAME_EVENT') && evt.data) {
+        const targetId = evt.data.id || evt.data.eventId;
+        setEvents((prev) => prev.filter((e) => e.id !== targetId));
+      }
+
+      // DISPUTE_* updates
+      if (evt.type === 'DISPUTE_STARTED' && evt.data?.dispute) {
+        setDisputes((prev) => [evt.data.dispute, ...prev.filter((d) => d.id !== evt.data.dispute.id)]);
+      } else if (evt.type === 'DISPUTE_VOTE_UPDATED' && evt.data?.dispute) {
+        setDisputes((prev) => prev.map((d) => (d.id === evt.data.dispute.id ? { ...d, ...evt.data.dispute } : d)));
+      } else if (evt.type === 'DISPUTE_RESOLVED' && evt.data?.disputeId) {
+        setDisputes((prev) => prev.filter((d) => d.id !== evt.data.disputeId));
+      } else if (evt.type === 'ACTIVE_DISPUTES_SYNC' && Array.isArray(evt.data)) {
+        setDisputes(evt.data);
+      }
+    };
+
+    wsService.on('update', handleSocketUpdate);
+    return () => {
+      wsService.off('update', handleSocketUpdate);
+    };
+  }, [game.id, homeParticipantId, awayParticipantId]);
 
   const templates = RUGBY_TEMPLATES;
 
@@ -203,6 +475,14 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         game,
         homeTeam,
         awayTeam,
+        homeRoster,
+        awayRoster,
+        isLoadingRosters,
+        events,
+        isLoadingEvents,
+        disputes,
+        sport,
+        profileMap,
         templates,
         scoringState,
         startDynamicFlow,

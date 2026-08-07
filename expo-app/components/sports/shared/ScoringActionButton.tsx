@@ -139,7 +139,7 @@ export function RosterGrid({
         const playerId = item.orgProfileId || item.id;
         const isSelected = selectedPlayerId === playerId;
         const rawName = item.name || item.orgProfileName;
-        const positionDisplay = item.position ? `#${item.position}` : '#?';
+        const positionDisplay = item.position ? `${item.position}` : '?';
         const playerName = rawName || (item.position ? `Player ${item.position}` : 'Player');
 
         return (
@@ -155,14 +155,14 @@ export function RosterGrid({
             }`}
           >
             <View
-              className={`w-7 h-7 rounded-lg items-center justify-center ${
+              className={`w-8 h-8 rounded-lg items-center justify-center ${
                 isSelected
                   ? 'bg-white/20'
                   : 'bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/30'
               }`}
             >
               <Text
-                className={`font-orbitron-bold text-xs ${
+                className={`font-orbitron-bold text-sm ${
                   isSelected ? 'text-white' : 'text-brand-orange'
                 }`}
               >

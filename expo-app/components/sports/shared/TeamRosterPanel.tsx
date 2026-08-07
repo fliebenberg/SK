@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { wsService } from '../../../services/websocket';
+import { useSharedDynamicScoring } from './DynamicScoringContext';
 import { COLORS } from '../../../constants/Colors';
 
 interface TeamRosterPanelProps {
@@ -30,70 +30,12 @@ const PITCH_POSITIONS: Record<string, { top: string; left: string }> = {
 };
 
 export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPanelProps) {
-  const [roster, setRoster] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { game, homeRoster, awayRoster, isLoadingRosters } = useSharedDynamicScoring();
   const [viewMode, setViewMode] = useState<'list' | 'pitch'>('list');
 
-  useEffect(() => {
-    let isMounted = true;
-    const room = gameId ? `game:${gameId}` : null;
-    const unsubscribeRoom = room ? wsService.subscribeToRoom(room) : () => {};
-
-    wsService.emit('get_data', { type: 'game_roster', id: participantId }, (data: any[]) => {
-      if (!isMounted) return;
-      if (data && Array.isArray(data) && data.length > 0) {
-        const sorted = [...data].sort((a, b) => {
-          const posA = parseInt(a.position) || 999;
-          const posB = parseInt(b.position) || 999;
-          return posA - posB;
-        });
-        setRoster(sorted);
-        setIsLoading(false);
-      } else if (teamId) {
-        wsService.emit('get_data', { type: 'team_members', teamId }, (members: any[]) => {
-          if (!isMounted) return;
-          if (members && Array.isArray(members)) {
-            const fallback = members.map((m: any) => ({
-              id: m.orgProfileId || m.id,
-              orgProfileId: m.orgProfileId || m.id,
-              name: m.name || m.orgProfileName,
-              position: m.position,
-              isReserve: false,
-            }));
-            setRoster(fallback);
-          } else {
-            setRoster([]);
-          }
-          setIsLoading(false);
-        });
-      } else {
-        setRoster([]);
-        setIsLoading(false);
-      }
-    });
-
-    const handleUpdate = (evt: { type: string; data: any }) => {
-      if (!evt) return;
-      if (evt.type === 'GAME_ROSTER_UPDATED' && evt.data?.participantId === participantId) {
-        if (isMounted && Array.isArray(evt.data.items)) {
-          const sorted = [...evt.data.items].sort((a, b) => {
-            const posA = parseInt(a.position) || 999;
-            const posB = parseInt(b.position) || 999;
-            return posA - posB;
-          });
-          setRoster(sorted);
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      isMounted = false;
-      unsubscribeRoom();
-      wsService.off('update', handleUpdate);
-    };
-  }, [gameId, participantId, teamId]);
+  const homeParticipantId = game.participants?.[0]?.id;
+  const roster = participantId === homeParticipantId ? homeRoster : awayRoster;
+  const isLoading = isLoadingRosters;
 
   if (isLoading) {
     return (

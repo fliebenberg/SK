@@ -1,10 +1,11 @@
-import React, { useEffect, useState, memo } from 'react';
+import React, { memo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Game, SinBin } from '@sk/types';
 import { wsService } from '../../../services/websocket';
 import { useGameTimer } from '../../../hooks/useGameTimer';
 import { LiveClockText } from '../shared/LiveClockText';
 import { Ionicons } from '@expo/vector-icons';
+import { useSharedDynamicScoring } from '../shared/DynamicScoringContext';
 
 const SinBinBadge = memo(function SinBinBadge({
   sb,
@@ -43,8 +44,7 @@ const SinBinBadge = memo(function SinBinBadge({
 });
 
 export default function RugbyScoreboard({ game, role }: { game: Game; role?: string }) {
-  const [homeTeam, setHomeTeam] = useState<any>(null);
-  const [awayTeam, setAwayTeam] = useState<any>(null);
+  const { homeTeam, awayTeam } = useSharedDynamicScoring();
 
   const homeParticipant = game.participants?.[0];
   const awayParticipant = game.participants?.[1];
@@ -53,19 +53,6 @@ export default function RugbyScoreboard({ game, role }: { game: Game; role?: str
 
   const homeScore = homeParticipant ? game.liveState?.scores?.[homeParticipant.id] ?? 0 : 0;
   const awayScore = awayParticipant ? game.liveState?.scores?.[awayParticipant.id] ?? 0 : 0;
-
-  useEffect(() => {
-    if (homeTeamId) {
-      wsService.emit('get_data', { type: 'team', id: homeTeamId }, (t: any) => {
-        if (t) setHomeTeam(t);
-      });
-    }
-    if (awayTeamId) {
-      wsService.emit('get_data', { type: 'team', id: awayTeamId }, (t: any) => {
-        if (t) setAwayTeam(t);
-      });
-    }
-  }, [homeTeamId, awayTeamId]);
 
   const homeSinBins = game.liveState?.sinBins?.filter(sb => sb.teamId === homeTeamId) || [];
   const awaySinBins = game.liveState?.sinBins?.filter(sb => sb.teamId === awayTeamId) || [];

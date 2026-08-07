@@ -1,8 +1,8 @@
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView } from 'react-native';
-import { Game, GameEvent } from '@sk/types';
+import { Game } from '@sk/types';
 import { calculateRugbyStats } from './rugbyUtils';
-import { wsService } from '../../../services/websocket';
+import { useSharedDynamicScoring } from '../shared/DynamicScoringContext';
 import { COLORS } from '../../../constants/Colors';
 
 interface RugbyGameStatsProps {
@@ -10,28 +10,7 @@ interface RugbyGameStatsProps {
 }
 
 export default function RugbyGameStats({ game }: RugbyGameStatsProps) {
-  const [events, setEvents] = useState<GameEvent[]>([]);
-
-  useEffect(() => {
-    wsService.emit('get_data', { type: 'game_events', id: game.id }, (data: GameEvent[]) => {
-      if (data) setEvents(data);
-    });
-
-    const handleEventUpdate = (evt: { type: string; data: any }) => {
-      if (evt.type === 'GAME_RESET') {
-        setEvents([]);
-      } else if (['GAME_EVENT_ADDED', 'GAME_EVENT_UPDATED', 'GAME_EVENTS_SYNC'].includes(evt.type)) {
-        wsService.emit('get_data', { type: 'game_events', id: game.id }, (data: GameEvent[]) => {
-          if (data) setEvents(data);
-        });
-      }
-    };
-
-    wsService.on('update', handleEventUpdate);
-    return () => {
-      wsService.off('update', handleEventUpdate);
-    };
-  }, [game.id]);
+  const { events } = useSharedDynamicScoring();
 
   const homeParticipantId = game.participants?.[0]?.id;
   const awayParticipantId = game.participants?.[1]?.id;

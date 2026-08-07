@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Game, GameEvent, Sport, GameDispute, ActionStepType } from '@sk/types';
 import { wsService } from '../../../services/websocket';
-import { useOptionalSharedDynamicScoring } from './DynamicScoringContext';
+import { useOptionalSharedDynamicScoring, useSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
 import { ConfirmationModal } from '../../ConfirmationModal';
@@ -37,139 +37,41 @@ function getEventCategory(evt: GameEvent): EventFilterCategory {
 }
 
 export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedProps) {
-  const [events, setEvents] = useState<GameEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const dynamicScoring = useOptionalSharedDynamicScoring();
+  const startDynamicFlow = dynamicScoring?.startDynamicFlow;
+
+  const {
+    events,
+    isLoadingEvents: loading,
+    disputes,
+    sport,
+    profileMap,
+    homeRoster,
+    awayRoster,
+  } = useSharedDynamicScoring();
+
   const [activeFilters, setActiveFilters] = useState<Set<EventFilterCategory>>(
     new Set(['TIME', 'SCORE', 'DETAIL', 'GENERAL'])
   );
   const [undoEventTarget, setUndoEventTarget] = useState<GameEvent | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [sport, setSport] = useState<Sport | undefined>(undefined);
-  const [rosters, setRosters] = useState<{ [participantId: string]: any[] }>({});
-  const [profileMap, setProfileMap] = useState<{ [profileId: string]: string }>({});
-  const [disputes, setDisputes] = useState<GameDispute[]>([]);
-
-  const dynamicScoring = useOptionalSharedDynamicScoring();
-  const startDynamicFlow = dynamicScoring?.startDynamicFlow;
 
   const homeParticipantId = game?.participants?.[0]?.id;
   const awayParticipantId = game?.participants?.[1]?.id;
 
   const UNDO_WINDOW_MS = 60000;
 
+  const rosters = useMemo(() => {
+    const map: { [participantId: string]: any[] } = {};
+    if (homeParticipantId) map[homeParticipantId] = homeRoster;
+    if (awayParticipantId) map[awayParticipantId] = awayRoster;
+    return map;
+  }, [homeParticipantId, awayParticipantId, homeRoster, awayRoster]);
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Fetch sport, rosters, and active disputes
-  useEffect(() => {
-    if (!gameId) return;
-
-    // Fetch Sport definition if available
-    const resolvedSportId = game?.sportId || game?.customSettings?.sportId;
-    if (resolvedSportId) {
-      wsService.emit('get_data', { type: 'sport', id: resolvedSportId }, (resSport: Sport) => {
-        if (resSport) setSport(resSport);
-      });
-    }
-
-    // Fetch Rosters
-    game?.participants?.forEach((p) => {
-      wsService.emit('get_data', { type: 'roster', id: p.id }, (rosterData: any[]) => {
-        if (Array.isArray(rosterData)) {
-          setRosters((prev) => ({ ...prev, [p.id]: rosterData }));
-          // Populate profile map
-          setProfileMap((prev) => {
-            const next = { ...prev };
-            rosterData.forEach((item) => {
-              const pid = item.orgProfileId || item.profileId || item.id;
-              const name = item.name || item.profile?.name || item.displayName;
-              if (pid && name) next[pid] = name;
-            });
-            return next;
-          });
-        }
-      });
-    });
-
-    // Fetch Active Disputes
-    wsService.emit('get_data', { type: 'active_disputes', id: gameId }, (disputeData: GameDispute[]) => {
-      if (Array.isArray(disputeData)) setDisputes(disputeData);
-    });
-
-    const handleDisputeUpdate = (evt: { type: string; data: any }) => {
-      if (evt.type === 'DISPUTE_STARTED' && evt.data?.dispute) {
-        setDisputes((prev) => [evt.data.dispute, ...prev.filter((d) => d.id !== evt.data.dispute.id)]);
-      } else if (evt.type === 'DISPUTE_VOTE_UPDATED' && evt.data?.dispute) {
-        setDisputes((prev) => prev.map((d) => (d.id === evt.data.dispute.id ? { ...d, ...evt.data.dispute } : d)));
-      } else if (evt.type === 'DISPUTE_RESOLVED' && evt.data?.disputeId) {
-        setDisputes((prev) => prev.filter((d) => d.id !== evt.data.disputeId));
-      } else if (evt.type === 'ACTIVE_DISPUTES_SYNC' && Array.isArray(evt.data)) {
-        setDisputes(evt.data);
-      }
-    };
-
-    wsService.on('update', handleDisputeUpdate);
-    return () => {
-      wsService.off('update', handleDisputeUpdate);
-    };
-  }, [gameId, game]);
-
-  // Main Events fetch & live updates
-  useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-
-    wsService.emit('get_data', { type: 'game_events', id: gameId }, (data: GameEvent[]) => {
-      if (isMounted) {
-        if (data && Array.isArray(data)) {
-          const sorted = [...data].sort(
-            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          );
-          setEvents(sorted);
-        }
-        setLoading(false);
-      }
-    });
-
-    const handleUpdate = (evt: { type: string; data: any }) => {
-      const targetGameId = evt.data?.gameId || evt.data?.id;
-
-      if ((evt.type === 'GAME_RESET' || evt.type === 'RESET_GAME') && (!targetGameId || targetGameId === gameId)) {
-        setEvents([]);
-      } else if (evt.type === 'GAME_EVENTS_SYNC' && (!targetGameId || targetGameId === gameId)) {
-        const syncEvents = Array.isArray(evt.data) ? evt.data : evt.data?.events;
-        if (Array.isArray(syncEvents)) {
-          const sorted = [...syncEvents].sort(
-            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-          );
-          setEvents(sorted);
-        }
-      } else if (evt.type === 'GAME_EVENT_ADDED' && evt.data?.gameId === gameId) {
-        setEvents((prev) => {
-          if (!evt.data?.id) return prev;
-          const exists = prev.some((e) => e.id === evt.data.id);
-          if (exists) {
-            return prev.map((e) => (e.id === evt.data.id ? evt.data : e));
-          }
-          return [evt.data, ...prev];
-        });
-      } else if (evt.type === 'GAME_EVENT_UPDATED' && evt.data?.gameId === gameId) {
-        setEvents((prev) => prev.map((e) => (e.id === evt.data.id ? evt.data : e)));
-      } else if ((evt.type === 'GAME_EVENT_REMOVED' || evt.type === 'UNDO_GAME_EVENT') && evt.data) {
-        const targetId = evt.data.id || evt.data.eventId;
-        setEvents((prev) => prev.filter((e) => e.id !== targetId));
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      isMounted = false;
-      wsService.off('update', handleUpdate);
-    };
-  }, [gameId]);
 
   const disputedEventIds = useMemo(() => {
     return new Set(disputes.map((d) => d.gameEventId));

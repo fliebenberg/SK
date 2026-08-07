@@ -1,49 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { GameDispute } from '@sk/types';
 import { wsService } from '../../../services/websocket';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../ConfirmationModal';
+import { useSharedDynamicScoring } from './DynamicScoringContext';
 
 interface ActiveDisputesPanelProps {
   gameId: string;
 }
 
 export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
-  const [disputes, setDisputes] = useState<GameDispute[]>([]);
+  const { disputes } = useSharedDynamicScoring();
   const [activeDisputeTarget, setActiveDisputeTarget] = useState<GameDispute | null>(null);
   const [voteAction, setVoteAction] = useState<'APPROVE' | 'REJECT' | null>(null);
-
-  const fetchDisputes = () => {
-    wsService.emit('get_data', { type: 'active_disputes', id: gameId }, (data: GameDispute[]) => {
-      if (data) setDisputes(data);
-    });
-  };
-
-  useEffect(() => {
-    fetchDisputes();
-
-    const handleUpdate = (evt: { type: string; data: any }) => {
-      if (evt.type === 'DISPUTE_STARTED' && evt.data?.dispute) {
-        setDisputes(prev => [evt.data.dispute, ...prev.filter(d => d.id !== evt.data.dispute.id)]);
-      } else if (evt.type === 'DISPUTE_VOTE_UPDATED' && evt.data?.dispute) {
-        setDisputes(prev => prev.map(d => d.id === evt.data.dispute.id ? { ...d, ...evt.data.dispute } : d));
-      } else if (evt.type === 'DISPUTE_RESOLVED' && evt.data?.disputeId) {
-        setDisputes(prev => prev.filter(d => d.id !== evt.data.disputeId));
-      } else if (evt.type === 'ACTIVE_DISPUTES_SYNC' && Array.isArray(evt.data)) {
-        setDisputes(evt.data);
-      } else if (evt.type === 'GAME_RESET') {
-        setDisputes([]);
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-    return () => {
-      wsService.off('update', handleUpdate);
-    };
-  }, [gameId]);
-
-  if (disputes.length === 0) return null;
 
   const handleCastVote = () => {
     if (!activeDisputeTarget || !voteAction) return;
@@ -61,10 +31,11 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
       () => {
         setActiveDisputeTarget(null);
         setVoteAction(null);
-        fetchDisputes();
       }
     );
   };
+
+  if (disputes.length === 0) return null;
 
   return (
     <View className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
