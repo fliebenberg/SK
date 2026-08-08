@@ -1177,6 +1177,14 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+            case 'system_settings':
+                const sysSettingsRes = await pool.query('SELECT key, value FROM system_settings');
+                const settingsObj: Record<string, any> = {};
+                sysSettingsRes.rows.forEach(row => {
+                    settingsObj[row.key] = row.value;
+                });
+                callback(settingsObj);
+                break;
             default:
                 console.error(`[get_data] ⚠️  UNHANDLED type: "${type}" — no case exists for this request. Full request:`, JSON.stringify(request));
                 callback(null);
@@ -1735,6 +1743,10 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.UNDO_GAME_EVENT:
+                if (!action.payload.initiatorId) {
+                    result = { success: false, error: 'initiatorId is required for UNDO_GAME_EVENT action.' };
+                    break;
+                }
                 const undoRes = await gameEventManager.undoEvent(action.payload.gameId, action.payload.eventId, action.payload.initiatorId);
                 if (undoRes.success) {
                     result = { success: true };

@@ -31,6 +31,9 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
    - The WebSocket Service connects when subscriptions > 0 and automatically disconnects/unsubscribes when count hits 0 to preserve bandwidth.
 4. **Offline Resilience**:
    - Connection statuses are actively monitored on the client to show offline banners when connections drop.
+5. **Centralized Error Toast Interception**:
+   - REST API calls (`apiService`), WebSocket emissions (`wsService.emit`), and data queries (`useSocketQuery`) automatically intercept non-ok status, error responses, and timeouts, broadcasting user-friendly toast notifications via `useToastStore`.
+   - To suppress automatic toast notifications on specific requests, callers pass `{ suppressToast: true }` in request options.
 
 ## Local Scoring & Clock Engines
 

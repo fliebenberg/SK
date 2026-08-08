@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameEvent, GameDispute, Sport, getPeriodLabel } from '@sk/types';
 import { wsService } from '../../../services/websocket';
+import { getSystemSettingsOnce, getCachedSystemSettings } from '../../../services/systemSettings';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
+import { useAuthStore } from '../../../store/authStore';
+import { ConfirmationModal } from '../../ConfirmationModal';
 
 export interface EventTemplateItem {
   id: string;
@@ -53,6 +56,7 @@ interface DynamicScoringContextType {
   sport?: Sport;
   profileMap: { [profileId: string]: string };
   templates: EventTemplateItem[];
+  undoDelayMs: number;
   scoringState: {
     status: 'IDLE' | 'ACTIVE';
     templateId?: string;
@@ -64,6 +68,7 @@ interface DynamicScoringContextType {
   cancelDynamicFlow: () => void;
   submitEvent: (eventPayload: any) => void;
   removeGameEvent: (eventId: string) => void;
+  initiateUndoVote: (eventId: string) => void;
   updateFinalScore: (scores: { [participantId: string]: number }) => Promise<void>;
 }
 
@@ -83,11 +88,42 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   const [disputes, setDisputes] = useState<GameDispute[]>([]);
   const [sport, setSport] = useState<Sport | undefined>(undefined);
   const [profileMap, setProfileMap] = useState<{ [profileId: string]: string }>({});
+  const [undoDelayMs, setUndoDelayMs] = useState<number>(() => {
+    const cached = getCachedSystemSettings();
+    if (cached && cached.undo_delay_ms) {
+      const val = Number(cached.undo_delay_ms);
+      if (!isNaN(val) && val > 0) return val;
+    }
+    return 60000;
+  });
+  const [updateDisputeTarget, setUpdateDisputeTarget] = useState<{
+    gameId: string;
+    eventId: string;
+    initiatorId: string;
+    updateData: any;
+    eventName: string;
+  } | null>(null);
+  const [undoDisputeTarget, setUndoDisputeTarget] = useState<{
+    eventId: string;
+    eventName: string;
+  } | null>(null);
 
   const homeParticipantId = game.participants?.[0]?.id;
   const awayParticipantId = game.participants?.[1]?.id;
   const homeTeamId = game.participants?.[0]?.teamId;
   const awayTeamId = game.participants?.[1]?.teamId;
+
+  // 1. Fetch system settings once per session (in-memory cached)
+  useEffect(() => {
+    getSystemSettingsOnce().then((res) => {
+      if (res && res.undo_delay_ms) {
+        const val = Number(res.undo_delay_ms);
+        if (!isNaN(val) && val > 0) {
+          setUndoDelayMs(val);
+        }
+      }
+    });
+  }, []);
 
   // 1. WebSocket room subscriptions
   useEffect(() => {
@@ -128,7 +164,9 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   // 4. Fetch active disputes
   useEffect(() => {
     wsService.emit('get_data', { type: 'active_disputes', id: game.id }, (disputeData: GameDispute[]) => {
-      if (Array.isArray(disputeData)) setDisputes(disputeData);
+      if (Array.isArray(disputeData)) {
+        setDisputes(disputeData.filter((d: any) => !d.status || d.status === 'OPEN'));
+      }
     });
   }, [game.id]);
 
@@ -342,11 +380,19 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       if (evt.type === 'DISPUTE_STARTED' && evt.data?.dispute) {
         setDisputes((prev) => [evt.data.dispute, ...prev.filter((d) => d.id !== evt.data.dispute.id)]);
       } else if (evt.type === 'DISPUTE_VOTE_UPDATED' && evt.data?.dispute) {
-        setDisputes((prev) => prev.map((d) => (d.id === evt.data.dispute.id ? { ...d, ...evt.data.dispute } : d)));
-      } else if (evt.type === 'DISPUTE_RESOLVED' && evt.data?.disputeId) {
-        setDisputes((prev) => prev.filter((d) => d.id !== evt.data.disputeId));
+        const dispute = evt.data.dispute;
+        if (dispute.status && dispute.status !== 'OPEN') {
+          setDisputes((prev) => prev.filter((d) => d.id !== dispute.id));
+        } else {
+          setDisputes((prev) => prev.map((d) => (d.id === dispute.id ? { ...d, ...dispute } : d)));
+        }
+      } else if (evt.type === 'DISPUTE_RESOLVED') {
+        const resolvedId = evt.data?.disputeId || evt.data?.dispute?.id || evt.data?.id;
+        if (resolvedId) {
+          setDisputes((prev) => prev.filter((d) => d.id !== resolvedId));
+        }
       } else if (evt.type === 'ACTIVE_DISPUTES_SYNC' && Array.isArray(evt.data)) {
-        setDisputes(evt.data);
+        setDisputes(evt.data.filter((d: any) => !d.status || d.status === 'OPEN'));
       }
     };
 
@@ -356,6 +402,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     };
   }, [game.id, homeParticipantId, awayParticipantId]);
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const templates = RUGBY_TEMPLATES;
 
   const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
@@ -373,10 +420,17 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   };
 
   const submitEvent = (eventPayload: any) => {
+    const user = useAuthStore.getState().user;
+    const initiatorId = user?.id;
+    if (!initiatorId) {
+      setErrorMessage('User session required: Initiator ID is missing.');
+      return;
+    }
+
     const side = scoringState.side || 'home';
     const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
     const template = templates.find((t) => t.id === scoringState.templateId);
-    
+
     // Determine points: if kick outcome is missed or skipped, pointsDelta is 0
     let points = template?.points || 0;
     if (template?.id === 'conversion' || template?.id === 'penalty_kick' || template?.id === 'drop_goal') {
@@ -403,21 +457,57 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       ...eventPayload,
       templateId: scoringState.templateId,
       points,
+      pointsDelta: points,
       pending: template?.id === 'conversion' && !eventPayload?.outcome,
     };
 
     if (scoringState.editingId) {
       // EDIT EXISTING EVENT
+      const originalEvt = events.find((e) => e.id === scoringState.editingId);
+      const originalData = originalEvt?.eventData || (originalEvt as any)?.event_data || {};
+      const evtTime = originalEvt?.timestamp ? new Date(originalEvt.timestamp).getTime() : Date.now();
+      const age = Date.now() - evtTime;
+      const inUndoWindow = age >= 0 && age < undoDelayMs;
+      const isScoring = template?.section === 'Scoring';
+      const isOutcomeAlreadySet = originalData.outcome !== undefined && originalData.outcome !== null && originalData.outcome !== '';
+
+      const outcomeChanged = eventPayload?.outcome !== undefined && eventPayload.outcome !== originalData.outcome;
+      const pointsChanged = eventData.pointsDelta !== originalData.pointsDelta;
+
+      if (isScoring && !inUndoWindow && isOutcomeAlreadySet && (outcomeChanged || pointsChanged)) {
+        // Prompt user confirmation before initiating update dispute
+        const eventName = template?.name || 'Conversion';
+        setScoringState({ status: 'IDLE' });
+        setUpdateDisputeTarget({
+          gameId: game.id,
+          eventId: scoringState.editingId,
+          initiatorId,
+          updateData: {
+            actorOrgProfileId,
+            gameParticipantId: participant?.id,
+            eventData,
+          },
+          eventName,
+        });
+        return;
+      }
+
       const payload = {
         gameId: game.id,
         eventId: scoringState.editingId,
         gameParticipantId: participant?.id,
         actorOrgProfileId,
+        initiatorOrgProfileId: initiatorId,
         eventData,
       };
 
-      wsService.emit('action', { type: 'UPDATE_GAME_EVENT', payload }, () => {
-        setScoringState({ status: 'IDLE' });
+      wsService.emit('action', { type: 'UPDATE_GAME_EVENT', payload }, (res: any) => {
+        if (res && res.error) {
+          console.error('Failed to update game event:', res.error);
+          setErrorMessage(res.error);
+        } else {
+          setScoringState({ status: 'IDLE' });
+        }
       });
     } else {
       // ADD NEW EVENT
@@ -427,10 +517,16 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         type: points > 0 ? 'SCORE' : 'GAME_EVENT',
         subType: scoringState.templateId,
         actorOrgProfileId,
+        initiatorOrgProfileId: initiatorId,
         eventData,
       };
 
       wsService.emit('action', { type: 'ADD_GAME_EVENT', payload }, (res: any) => {
+        if (res && res.error) {
+          console.error('Failed to add game event:', res.error);
+          setErrorMessage(res.error);
+          return;
+        }
         const addedEventId = res?.id || res?.data?.id || res?.eventId;
         // AUTOMATED CHAINED FLOW: Scoring a Try automatically triggers Conversion dialog!
         if (scoringState.templateId === 'try') {
@@ -444,9 +540,79 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     }
   };
 
+  const handleConfirmUpdateDispute = () => {
+    if (!updateDisputeTarget) return;
+    const target = updateDisputeTarget;
+    setUpdateDisputeTarget(null);
+    wsService.emit(
+      'action',
+      {
+        type: 'INITIATE_UPDATE_VOTE',
+        payload: {
+          gameId: target.gameId,
+          eventId: target.eventId,
+          initiatorId: target.initiatorId,
+          updateData: target.updateData,
+        },
+      },
+      (res: any) => {
+        if (res && res.error) {
+          console.error('Failed to initiate dispute for event update:', res.error);
+          setErrorMessage(res.error);
+        }
+      }
+    );
+  };
+
+  const handleConfirmUndoDispute = () => {
+    if (!undoDisputeTarget) return;
+    const targetId = undoDisputeTarget.eventId;
+    setUndoDisputeTarget(null);
+    initiateUndoVote(targetId);
+  };
+
+  const initiateUndoVote = (eventId: string) => {
+    const user = useAuthStore.getState().user;
+    const initiatorId = user?.id;
+    if (!initiatorId) {
+      setErrorMessage('User session required: Initiator ID is missing to initiate dispute.');
+      return;
+    }
+    wsService.emit(
+      'action',
+      { type: 'INITIATE_UNDO_VOTE', payload: { gameId: game.id, eventIdToUndo: eventId, initiatorId } },
+      (res: any) => {
+        if (res && res.error) {
+          console.error('Failed to initiate dispute:', res.error);
+          setErrorMessage(res.error);
+        } else {
+          setScoringState({ status: 'IDLE' });
+        }
+      }
+    );
+  };
+
   const removeGameEvent = (eventId: string) => {
-    wsService.emit('action', { type: 'UNDO_GAME_EVENT', payload: { gameId: game.id, eventId } }, () => {
-      setScoringState({ status: 'IDLE' });
+    const user = useAuthStore.getState().user;
+    const initiatorId = user?.id;
+    if (!initiatorId) {
+      setErrorMessage('User session required: Initiator ID is missing to undo event.');
+      return;
+    }
+    wsService.emit('action', { type: 'UNDO_GAME_EVENT', payload: { gameId: game.id, eventId, initiatorId } }, (res: any) => {
+      if (res && res.error) {
+        console.error('Failed to undo event:', res.error);
+        if (typeof res.error === 'string' && res.error.toLowerCase().includes('expired')) {
+          const targetEvt = events.find((e) => e.id === eventId);
+          const evtName = targetEvt?.subType ? targetEvt.subType.toUpperCase() : 'Event';
+          setScoringState({ status: 'IDLE' });
+          setUndoDisputeTarget({ eventId, eventName: evtName });
+        } else {
+          setErrorMessage(res.error);
+        }
+      } else {
+        setScoringState({ status: 'IDLE' });
+      }
     });
   };
 
@@ -462,7 +628,11 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
             reason: 'Manual Final Score',
           },
         },
-        () => {
+        (res: any) => {
+          if (res && res.error) {
+            console.error('Failed to update final score:', res.error);
+            setErrorMessage(res.error);
+          }
           resolve();
         }
       );
@@ -484,15 +654,52 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         sport,
         profileMap,
         templates,
+        undoDelayMs,
         scoringState,
         startDynamicFlow,
         cancelDynamicFlow,
         submitEvent,
         removeGameEvent,
+        initiateUndoVote,
         updateFinalScore,
       }}
     >
       {children}
+      {updateDisputeTarget && (
+        <ConfirmationModal
+          isOpen={!!updateDisputeTarget}
+          onClose={() => setUpdateDisputeTarget(null)}
+          title="Initiate Event Dispute?"
+          description={`The undo window for "${updateDisputeTarget.eventName}" has expired. Changing this scoring outcome will initiate a consensus dispute. Would you like to proceed?`}
+          confirmText="Initiate Dispute"
+          cancelText="Cancel"
+          onConfirm={handleConfirmUpdateDispute}
+          variant="primary"
+        />
+      )}
+      {undoDisputeTarget && (
+        <ConfirmationModal
+          isOpen={!!undoDisputeTarget}
+          onClose={() => setUndoDisputeTarget(null)}
+          title="Initiate Undo Dispute?"
+          description={`The undo window for "${undoDisputeTarget.eventName}" has expired. Would you like to initiate a consensus dispute to undo this event?`}
+          confirmText="Initiate Dispute"
+          cancelText="Cancel"
+          onConfirm={handleConfirmUndoDispute}
+          variant="primary"
+        />
+      )}
+      {errorMessage && (
+        <ConfirmationModal
+          isOpen={!!errorMessage}
+          onClose={() => setErrorMessage(null)}
+          title="Operation Failed"
+          description={errorMessage}
+          confirmText="OK"
+          onConfirm={() => setErrorMessage(null)}
+          variant="danger"
+        />
+      )}
     </DynamicScoringContext.Provider>
   );
 }

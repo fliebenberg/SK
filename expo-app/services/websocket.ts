@@ -1,6 +1,12 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import { useWsStore } from '../store/wsStore';
+import { useToastStore } from '../store/toastStore';
+import { useAuthStore } from '../store/authStore';
+
+export interface EmitOptions {
+  suppressToast?: boolean;
+}
 
 class WebSocketService {
   private socket: Socket | null = null;
@@ -42,6 +48,10 @@ class WebSocketService {
       this.socket = io(this.url, {
         autoConnect: false,
         reconnectionDelay: 3000,
+        auth: (cb) => {
+          const token = useAuthStore.getState().token;
+          cb({ token: token || null });
+        },
       });
 
       this.socket.on('connect', () => {
@@ -85,6 +95,13 @@ class WebSocketService {
     }
   }
 
+  reconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket.connect();
+    }
+  }
+
   send(event: string, data: any) {
     if (this.socket && this.socket.connected) {
       this.socket.emit(event, data);
@@ -124,7 +141,13 @@ class WebSocketService {
     };
   }
 
-  emit(event: string, data: any, callback?: (...args: any[]) => void, timeoutMs: number = 7000) {
+  emit(
+    event: string,
+    data: any,
+    callback?: (...args: any[]) => void,
+    timeoutMs: number = 7000,
+    options?: EmitOptions
+  ) {
     if (this.socket && this.socket.connected) {
       if (!callback) {
         this.socket.emit(event, data);
@@ -135,6 +158,9 @@ class WebSocketService {
         if (!called) {
           called = true;
           console.warn(`[WS] Ack timeout (${timeoutMs}ms) for event: ${event}`, data);
+          if (!options?.suppressToast) {
+            useToastStore.getState().showError('Server request timed out. Please try again.', 'Connection Timeout');
+          }
           callback(null);
         }
       }, timeoutMs);
@@ -143,11 +169,23 @@ class WebSocketService {
         if (!called) {
           called = true;
           clearTimeout(timer);
+          const res = args[0];
+          if (res && typeof res === 'object') {
+            if (res.status === 'error' || res.error) {
+              const errorMsg = res.message || res.error || 'Operation failed on server';
+              if (!options?.suppressToast) {
+                useToastStore.getState().showError(errorMsg, 'Server Action Error');
+              }
+            }
+          }
           callback(...args);
         }
       });
     } else {
       console.warn('[WS] Cannot emit event. Socket is not connected.');
+      if (!options?.suppressToast) {
+        useToastStore.getState().showError('Cannot complete request. Network connection offline.', 'Offline');
+      }
       if (callback) {
         callback(null);
       }

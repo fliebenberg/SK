@@ -482,7 +482,9 @@ export function DynamicScoringDialog() {
 
               {isEditing ? (
                 <>
-                  <Button title="Undo Event" variant="danger" onPress={handleUndo} className="px-3 py-2.5 rounded-xl" />
+                  {!scoringState.initialData?.linkedEventId && (
+                    <Button title="Undo Event" variant="danger" onPress={handleUndo} className="px-3 py-2.5 rounded-xl" />
+                  )}
                   <Button title="Save Changes" variant="primary" onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
                 </>
               ) : (

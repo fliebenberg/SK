@@ -17,11 +17,11 @@ export class GameEventManager extends BaseManager {
       try {
           const res = await this.query(`
               SELECT COALESCE(
+                 g.sport_id,
                  g.custom_settings->>'sportId', 
-                 (e.sport_ids)[1]
+                 (SELECT sport_id FROM event_sports WHERE event_id = g.event_id LIMIT 1)
               ) as "sportId"
               FROM games g
-              JOIN events e ON g.event_id = e.id
               WHERE g.id = $1
           `, [gameId]);
           return res.rows[0]?.sportId || null;
@@ -804,6 +804,14 @@ export class GameEventManager extends BaseManager {
          await this.query(`UPDATE game_disputes SET status = $1, resolved_at = NOW() WHERE id = $2`, [outcome, disputeId]);
          dispute.status = outcome;
 
+         if (this.io) {
+             this.io.to(`game:${dispute.gameId}:events`).emit('update', { 
+                 type: 'DISPUTE_RESOLVED', 
+                 data: { disputeId, dispute } 
+             });
+             console.log(`[Dispute Engine] Broadcasted DISPUTE_RESOLVED for ${disputeId}`);
+         }
+
          if (outcome === 'RESOLVED_APPROVED') {
              try {
                   console.log(`[Dispute Engine] Applying approved mutation to event ${dispute.gameEventId}`);
@@ -944,8 +952,9 @@ export class GameEventManager extends BaseManager {
         // Merge strategy: Start with template-derived values if outcome changed
         let finalEventData = { ...evt.eventData, ...updateData.eventData };
         
+        const previousOutcome = evt.eventData?.outcome;
         const newOutcomeName = updateData.newOutcome || updateData.eventData?.outcome;
-        if (template && newOutcomeName && newOutcomeName !== evt.eventData?.outcome) {
+        if (template && newOutcomeName && newOutcomeName !== previousOutcome) {
             const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
             const newOutcome = outcomeStep?.outcomes?.find((o: Outcome) => o.id === newOutcomeName);
             if (newOutcome) {
@@ -956,6 +965,13 @@ export class GameEventManager extends BaseManager {
                     pointsDelta: newOutcome.points || 0
                 };
             }
+        }
+
+        const isOutcomeNowSet = finalEventData.outcome !== undefined && finalEventData.outcome !== null && finalEventData.outcome !== '';
+        const wasOutcomeUnset = previousOutcome === undefined || previousOutcome === null || previousOutcome === '';
+        if (isOutcomeNowSet && wasOutcomeUnset) {
+            console.log(`[Mutation Engine] Outcome set for event ${eventId} (was undefined). Initiating undo window.`);
+            finalEventData.undoWindowStart = new Date().toISOString();
         }
 
         // INTELLIGENCE: Does the reason require a player?
@@ -1010,6 +1026,7 @@ export class GameEventManager extends BaseManager {
     for (const childRow of childRes.rows) {
         let childMutationData = updateData ? {
             ...updateData,
+            actorOrgProfileId: undefined, // Do not propagate parent-specific player/actor changes to linked child events
             eventData: {} // Do not propagate parent-specific eventData changes to children
         } : null;
 
@@ -1029,7 +1046,7 @@ export class GameEventManager extends BaseManager {
              }
         }
 
-        const childModified = await this.applyMutation(gameId, childRow.id, childMutationData, actorId);
+        const childModified = await this.applyMutation(gameId, childRow.id, childMutationData, undefined);
         modifiedEvents.push(...childModified);
     }
 
@@ -1140,21 +1157,23 @@ export class GameEventManager extends BaseManager {
     }
 
     // 3. Verify Permission (Initiator or Match Official / Admin)
+    if (!initiatorId) {
+      return { success: false, error: 'Initiator ID is required to remove an event.' };
+    }
+
     let isAuthorized = event.initiatorId === initiatorId;
     let isOfficial = false;
     
-    if (initiatorId) {
-        const officialRes = await this.query(`SELECT 1 FROM game_officials WHERE game_id = $1 AND org_profile_id = $2`, [gameId, initiatorId]);
-        if (officialRes.rows.length > 0) {
+    const officialRes = await this.query(`SELECT 1 FROM game_officials WHERE game_id = $1 AND org_profile_id = $2`, [gameId, initiatorId]);
+    if (officialRes.rows.length > 0) {
+        isAuthorized = true;
+        isOfficial = true;
+    }
+    if (!isAuthorized) {
+        const isAdmin = await dataManager.isAppAdmin(initiatorId);
+        if (isAdmin) {
             isAuthorized = true;
-            isOfficial = true;
-        }
-        if (!isAuthorized) {
-            const isAdmin = await dataManager.isAppAdmin(initiatorId);
-            if (isAdmin) {
-                isAuthorized = true;
-                isOfficial = true; 
-            }
+            isOfficial = true; 
         }
     }
 

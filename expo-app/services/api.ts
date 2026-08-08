@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { useToastStore } from '../store/toastStore';
 
 const getApiUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_WS_URL;
@@ -60,87 +61,113 @@ export interface MeResponse {
   user: UserPayload;
 }
 
+export interface ApiRequestOptions {
+  suppressToast?: boolean;
+}
+
+async function apiFetch<T>(
+  url: string,
+  options?: RequestInit,
+  requestOptions?: ApiRequestOptions
+): Promise<T> {
+  try {
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const message = errorData.message || `Request failed with status ${response.status}`;
+      const err = new Error(message) as any;
+      err.tempToken = errorData.tempToken;
+      err.status = response.status;
+
+      if (!requestOptions?.suppressToast) {
+        useToastStore.getState().showError(message, 'API Request Error');
+      }
+
+      throw err;
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    // If it's a network/fetch level exception (no HTTP status yet)
+    if (error.status === undefined && !requestOptions?.suppressToast) {
+      const networkMsg = error.message || 'Unable to connect to backend server';
+      useToastStore.getState().showError(networkMsg, 'Network Error');
+    }
+    throw error;
+  }
+}
+
 export const apiService = {
   /**
    * Log in with email and password
    */
-  async login(email: string, password: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+  async login(email: string, password: string, options?: ApiRequestOptions): Promise<AuthResponse> {
+    return apiFetch<AuthResponse>(
+      `${API_BASE_URL}/auth/login`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       },
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const err = new Error(errorData.message || 'Failed to sign in') as any;
-      err.tempToken = errorData.tempToken;
-      throw err;
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
    * Sign up with name, email, and password
    */
-  async signup(name: string, email: string, password: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+  async signup(name: string, email: string, password: string, options?: ApiRequestOptions): Promise<AuthResponse> {
+    return apiFetch<AuthResponse>(
+      `${API_BASE_URL}/auth/signup`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password }),
       },
-      body: JSON.stringify({ name, email, password }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to sign up');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
    * Retrieve currently authenticated user profile
    */
-  async getMe(token: string): Promise<MeResponse> {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+  async getMe(token: string, options?: ApiRequestOptions): Promise<MeResponse> {
+    return apiFetch<MeResponse>(
+      `${API_BASE_URL}/auth/me`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
       },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to verify session');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
    * Fetch full user profile details including linked emails and social accounts
    */
-  async getProfile(token: string): Promise<{ user: UserPayload; socialAccounts: any[]; emails: any[] }> {
-    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+  async getProfile(
+    token: string,
+    options?: ApiRequestOptions
+  ): Promise<{ user: UserPayload; socialAccounts: any[]; emails: any[] }> {
+    return apiFetch(
+      `${API_BASE_URL}/auth/profile`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
       },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to retrieve profile');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
@@ -148,85 +175,78 @@ export const apiService = {
    */
   async updateProfile(
     token: string,
-    data: { name?: string; customImage?: string; avatarSource?: string; theme?: string }
+    data: { name?: string; customImage?: string; avatarSource?: string; theme?: string },
+    options?: ApiRequestOptions
   ): Promise<{ success: boolean; user: UserPayload }> {
-    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+    return apiFetch(
+      `${API_BASE_URL}/auth/profile`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
       },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to update profile');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
    * Verify if the user's current password is correct (pre-verification check)
    */
-  async verifyPassword(token: string, password: string): Promise<{ success: boolean }> {
-    const response = await fetch(`${API_BASE_URL}/auth/profile/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+  async verifyPassword(token: string, password: string, options?: ApiRequestOptions): Promise<{ success: boolean }> {
+    return apiFetch(
+      `${API_BASE_URL}/auth/profile/verify`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password }),
       },
-      body: JSON.stringify({ password }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to verify password');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
    * Update password securely (verifying old password first if existing)
    */
-  async updatePassword(token: string, data: { password: string; oldPassword?: string }): Promise<{ success: boolean }> {
-    const response = await fetch(`${API_BASE_URL}/auth/profile/password`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+  async updatePassword(
+    token: string,
+    data: { password: string; oldPassword?: string },
+    options?: ApiRequestOptions
+  ): Promise<{ success: boolean }> {
+    return apiFetch(
+      `${API_BASE_URL}/auth/profile/password`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
       },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to update password');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
    * Request password recovery email (Privacy-first)
    */
-  async requestForgotPassword(email: string): Promise<{ success: boolean }> {
-    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+  async requestForgotPassword(email: string, options?: ApiRequestOptions): Promise<{ success: boolean }> {
+    return apiFetch(
+      `${API_BASE_URL}/auth/forgot-password`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
       },
-      body: JSON.stringify({ email }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to request recovery code');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
@@ -234,7 +254,8 @@ export const apiService = {
    */
   async resetPassword(
     data: { passcode?: string; token?: string; password?: string },
-    tempToken?: string
+    tempToken?: string,
+    options?: ApiRequestOptions
   ): Promise<{ success: boolean }> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -243,18 +264,15 @@ export const apiService = {
       headers['Authorization'] = `Bearer ${tempToken}`;
     }
 
-    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to reset password');
-    }
-
-    return response.json();
+    return apiFetch(
+      `${API_BASE_URL}/auth/reset-password`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+      },
+      options
+    );
   },
 
   /**
@@ -266,7 +284,8 @@ export const apiService = {
     email?: string,
     id?: string,
     page?: number,
-    limit?: number
+    limit?: number,
+    options?: ApiRequestOptions
   ): Promise<PaginatedAdminSearchUserResult> {
     const params = new URLSearchParams();
     if (name) params.append('name', name);
@@ -275,60 +294,51 @@ export const apiService = {
     if (page) params.append('page', page.toString());
     if (limit) params.append('limit', limit.toString());
 
-    const response = await fetch(`${API_BASE_URL}/api/admin/users/search?${params.toString()}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+    return apiFetch<PaginatedAdminSearchUserResult>(
+      `${API_BASE_URL}/api/admin/users/search?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
       },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to search users');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
    * Fetch all sports configurations (Admin only)
    */
-  async getAdminSports(token: string): Promise<Sport[]> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/sports`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+  async getAdminSports(token: string, options?: ApiRequestOptions): Promise<Sport[]> {
+    return apiFetch<Sport[]>(
+      `${API_BASE_URL}/api/admin/sports`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
       },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to fetch sports');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
    * Fetch a single sport's details (Admin only)
    */
-  async getAdminSport(token: string, id: string): Promise<Sport> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/sports/${id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+  async getAdminSport(token: string, id: string, options?: ApiRequestOptions): Promise<Sport> {
+    return apiFetch<Sport>(
+      `${API_BASE_URL}/api/admin/sports/${id}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
       },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to fetch sport details');
-    }
-
-    return response.json();
+      options
+    );
   },
 
   /**
@@ -337,18 +347,21 @@ export const apiService = {
   async updateAdminSport(
     token: string,
     id: string,
-    data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any }
+    data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any },
+    options?: ApiRequestOptions
   ): Promise<Sport> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/sports/${id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+    return apiFetch<Sport>(
+      `${API_BASE_URL}/api/admin/sports/${id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
       },
-      body: JSON.stringify(data),
-    });
-
-    return response.json();
+      options
+    );
   },
 
   /**
@@ -356,23 +369,21 @@ export const apiService = {
    */
   async createAdminSport(
     token: string,
-    data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any }
+    data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any },
+    options?: ApiRequestOptions
   ): Promise<Sport> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/sports`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+    return apiFetch<Sport>(
+      `${API_BASE_URL}/api/admin/sports`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
       },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to create sport');
-    }
-
-    return response.json();
+      options
+    );
   },
 };
 

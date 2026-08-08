@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { OrgMembership, TeamMembership } from '@sk/types';
 import { apiService } from '../services/api';
 import { useSettingsStore } from './settingsStore';
+import { wsService } from '../services/websocket';
 
 const secureStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
@@ -126,8 +127,14 @@ export const useAuthStore = create<AuthState>()(
         } catch (err) {
           console.error('[AuthStore] Theme sync logic failed during login:', err);
         }
+        // Reconnect socket so handshake picks up the new token
+        wsService.reconnect();
       },
-      logout: () => set({ token: null, user: null, isAuthenticated: false, orgMemberships: [], teamMemberships: [] }),
+      logout: () => {
+        set({ token: null, user: null, isAuthenticated: false, orgMemberships: [], teamMemberships: [] });
+        // Reconnect socket so handshake reverts to anonymous mode
+        wsService.reconnect();
+      },
       updateUser: (updatedFields) => set(state => {
         if (updatedFields.theme === 'null' || updatedFields.theme === 'undefined') {
           updatedFields = { ...updatedFields, theme: null };

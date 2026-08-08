@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
 import { ConfirmationModal } from '../../ConfirmationModal';
 import { resolveEventTemplate, getEventLabel, getMissingDetails, getTeamColor } from '../../../utils/gameUtils';
+import { useAuthStore } from '../../../store/authStore';
 
 interface EventLogFeedProps {
   gameId: string;
@@ -48,18 +49,20 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     profileMap,
     homeRoster,
     awayRoster,
+    undoDelayMs,
   } = useSharedDynamicScoring();
 
   const [activeFilters, setActiveFilters] = useState<Set<EventFilterCategory>>(
     new Set(['TIME', 'SCORE', 'DETAIL', 'GENERAL'])
   );
   const [undoEventTarget, setUndoEventTarget] = useState<GameEvent | null>(null);
+  const [disputeEventTarget, setDisputeEventTarget] = useState<GameEvent | null>(null);
   const [now, setNow] = useState(Date.now());
 
   const homeParticipantId = game?.participants?.[0]?.id;
   const awayParticipantId = game?.participants?.[1]?.id;
 
-  const UNDO_WINDOW_MS = 60000;
+  const UNDO_WINDOW_MS = undoDelayMs || 60000;
 
   const rosters = useMemo(() => {
     const map: { [participantId: string]: any[] } = {};
@@ -119,13 +122,52 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     }
   };
 
+  const user = useAuthStore((state) => state.user);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const handleConfirmUndo = () => {
     if (undoEventTarget) {
+      const target = undoEventTarget;
+      setUndoEventTarget(null);
+      const initiatorId = user?.id;
+      if (!initiatorId) {
+        setErrorMessage('User session required: Initiator ID is missing to undo event.');
+        return;
+      }
       wsService.emit('action', {
         type: 'UNDO_GAME_EVENT',
-        payload: { gameId, eventId: undoEventTarget.id },
+        payload: { gameId, eventId: target.id, initiatorId },
+      }, (res: any) => {
+        if (res && res.error) {
+          console.error('Failed to undo event:', res.error);
+          if (typeof res.error === 'string' && res.error.toLowerCase().includes('expired')) {
+            setDisputeEventTarget(target);
+          } else {
+            setErrorMessage(res.error);
+          }
+        }
       });
-      setUndoEventTarget(null);
+    }
+  };
+
+  const handleConfirmDispute = () => {
+    if (disputeEventTarget) {
+      const target = disputeEventTarget;
+      setDisputeEventTarget(null);
+      const initiatorId = user?.id;
+      if (!initiatorId) {
+        setErrorMessage('User session required: Initiator ID is missing to initiate dispute.');
+        return;
+      }
+      wsService.emit('action', {
+        type: 'INITIATE_UNDO_VOTE',
+        payload: { gameId, eventIdToUndo: target.id, initiatorId },
+      }, (res: any) => {
+        if (res && res.error) {
+          console.error('Failed to initiate dispute:', res.error);
+          setErrorMessage(res.error);
+        }
+      });
     }
   };
 
@@ -262,6 +304,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                 const isConversion = e.subType === 'conversion' || e.eventData?.templateId === 'conversion';
                 if (!isConversion) return false;
                 const eData = e.eventData || (e as any).event_data || {};
+                if (eData.status === 'REMOVED') return false;
 
                 // 1. Explicit link
                 if (eData.linkedEventId === evt.id) return true;
@@ -438,11 +481,15 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                   </View>
 
                   {/* UNDO BUTTON */}
-                  {canManage && !isTimingEvent && !isDisputed && (
+                  {canManage && !isTimingEvent && !isDisputed && !eventData.linkedEventId && (
                     <TouchableOpacity
                       onPress={(e) => {
                         e.stopPropagation();
-                        setUndoEventTarget(evt);
+                        if (inUndoWindow) {
+                          setUndoEventTarget(evt);
+                        } else {
+                          setDisputeEventTarget(evt);
+                        }
                       }}
                       className={`flex-row items-center gap-1 px-2 py-1 rounded-lg border ${
                         inUndoWindow ? 'bg-amber-500/10 border-amber-500/40' : 'bg-red-500/10 border-red-500/20'
@@ -471,6 +518,33 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
           confirmText="Undo Event"
           cancelText="Cancel"
           onConfirm={handleConfirmUndo}
+          variant="danger"
+        />
+      )}
+
+      {/* CONFIRMATION MODAL FOR DISPUTE */}
+      {disputeEventTarget && (
+        <ConfirmationModal
+          isOpen={!!disputeEventTarget}
+          onClose={() => setDisputeEventTarget(null)}
+          title="Initiate Event Dispute?"
+          description={`The undo window for "${getEventLabel(disputeEventTarget, sport).label || disputeEventTarget.subType}" has expired. Would you like to initiate a consensus dispute to remove this event?`}
+          confirmText="Initiate Dispute"
+          cancelText="Cancel"
+          onConfirm={handleConfirmDispute}
+          variant="primary"
+        />
+      )}
+
+      {/* ERROR MODAL */}
+      {errorMessage && (
+        <ConfirmationModal
+          isOpen={!!errorMessage}
+          onClose={() => setErrorMessage(null)}
+          title="Operation Failed"
+          description={errorMessage}
+          confirmText="OK"
+          onConfirm={() => setErrorMessage(null)}
           variant="danger"
         />
       )}

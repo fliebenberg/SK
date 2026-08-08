@@ -238,7 +238,10 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                             const { template, error, warning } = resolveEventTemplate(evt, sport);
                             const isScoringEvent = isScore || template?.section === 'Scoring';
 
-                            const age = now - new Date(evt.timestamp).getTime();
+                            const windowStartTime = eventData.undoWindowStart 
+                                ? new Date(eventData.undoWindowStart).getTime() 
+                                : new Date(evt.timestamp).getTime();
+                            const age = now - windowStartTime;
                             const undoDelay = store.undoDelay;
                             const inUndoWindow = age < undoDelay;
                             
@@ -270,8 +273,9 @@ export function EventLogFeed({ gameId }: { gameId: string }) {
                                                 return;
                                             }
 
-                                            // Prevent disputing/editing another scorer's event during their undo window
-                                            if (inUndoWindow && !isInitiator && isScoringEvent) {
+                                            // Prevent disputing/editing another scorer's event during their undo window if outcome is already set
+                                            const isOutcomeSet = evt.eventData?.outcome !== undefined && evt.eventData?.outcome !== null && evt.eventData?.outcome !== '';
+                                            if (inUndoWindow && !isInitiator && isScoringEvent && isOutcomeSet) {
                                                 toast({ 
                                                     title: "Event Locked", 
                                                     description: "Scorer is still in the undo window. Please wait.", 

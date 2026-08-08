@@ -21,6 +21,7 @@ import { useAuthStore } from '../store/authStore';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { ToastContainer } from '../components/ToastContainer';
 import { View } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -139,6 +140,7 @@ function ThemeManager({ children }: { children: React.ReactNode }) {
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <OfflineBanner />
         {children}
+        <ToastContainer />
       </View>
       <ConfirmationModal
         isOpen={showDialog}

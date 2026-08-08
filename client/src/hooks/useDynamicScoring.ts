@@ -230,7 +230,8 @@ export function useDynamicScoring(game: Game) {
             const type = isScoring ? 'SCORE' : (original.type || 'GAME_EVENT');
             const subType = original.subType || template.name;
 
-            if (isScoring && !isEventInUndoWindow(scoringState.editingId) && originalData.outcome) {
+            const isOutcomeAlreadySet = originalData.outcome !== undefined && originalData.outcome !== null && originalData.outcome !== '';
+            if (isScoring && !isEventInUndoWindow(scoringState.editingId) && isOutcomeAlreadySet) {
                 // Only trigger dispute if scoring outcome or points actually changed
                 const pointsChanged = eventDataChanges.pointsDelta !== undefined;
                 const outcomeChanged = eventDataChanges.outcome !== undefined;
