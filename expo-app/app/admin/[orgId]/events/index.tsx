@@ -432,7 +432,7 @@ export default function OrgEventsList() {
                       <View className="flex-row items-center gap-1.5">
                         <Ionicons name="calendar-outline" size={13} color={COLORS.dark.textSecondary} />
                         <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                          {event.startDate}
+                          {event.startDate ? event.startDate.split('T')[0] : 'TBD'}
                         </Text>
                       </View>
                       {event.siteId && (

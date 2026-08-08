@@ -1040,7 +1040,7 @@ export default function TeamDetailsScreen() {
                   <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4">
                     <View className="flex-row justify-between items-center mb-2">
                       <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
-                        {game.startTime ? new Date(game.startTime).toLocaleDateString() : 'Date TBD'}
+                        {(game.scheduledStartTime || game.startTime) ? new Date(game.scheduledStartTime || game.startTime || '').toLocaleDateString() : 'Date TBD'}
                       </Text>
                       <View className={`px-2 py-0.5 rounded ${
                         game.status === 'Live' ? 'bg-red-500' : 'bg-slate-200 dark:bg-white/10'

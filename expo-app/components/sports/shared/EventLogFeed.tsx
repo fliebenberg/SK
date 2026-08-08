@@ -155,7 +155,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
         <View className="flex-row items-center gap-1.5 flex-wrap">
           <TouchableOpacity
             onPress={() => toggleFilter('TIME')}
-            className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border transition-all ${
+            className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
               activeFilters.has('TIME')
                 ? 'bg-slate-500/20 border-slate-500/40'
                 : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
@@ -173,7 +173,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
           <TouchableOpacity
             onPress={() => toggleFilter('SCORE')}
-            className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border transition-all ${
+            className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
               activeFilters.has('SCORE')
                 ? 'bg-amber-500/20 border-amber-500/40'
                 : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
@@ -187,7 +187,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
           <TouchableOpacity
             onPress={() => toggleFilter('DETAIL')}
-            className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border transition-all ${
+            className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
               activeFilters.has('DETAIL')
                 ? 'bg-blue-500/20 border-blue-500/40'
                 : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
@@ -201,7 +201,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
           <TouchableOpacity
             onPress={() => toggleFilter('GENERAL')}
-            className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border transition-all ${
+            className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
               activeFilters.has('GENERAL')
                 ? 'bg-emerald-500/20 border-emerald-500/40'
                 : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
@@ -284,13 +284,14 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                   key={evt.id}
                   disabled={!canManage || isTimingEvent || isDisputed}
                   onPress={() => handleEventPress(evt)}
+                  activeOpacity={0.8}
                   className={`bg-white dark:bg-slate-900 border ${
                     isDisputed
                       ? 'border-red-500 bg-red-500/10 dark:bg-red-500/20'
                       : isPending
                       ? 'border-amber-500 bg-amber-500/5 dark:bg-amber-500/10'
                       : 'border-slate-200 dark:border-white/5'
-                  } rounded-xl p-2.5 flex-row items-center justify-between shadow-sm gap-2.5 active:opacity-80 relative`}
+                  } rounded-xl p-2.5 flex-row items-center justify-between shadow-sm gap-2.5 relative`}
                 >
                   <View className={`w-1 self-stretch rounded-full ${barClass}`} />
 
@@ -309,11 +310,6 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                         <Text className="font-inter-bold text-xs text-slate-800 dark:text-white truncate uppercase">
                           {title}
                         </Text>
-                        {isPending && (
-                          <View className="bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded">
-                            <Text className="font-inter-bold text-[9px] text-amber-500 uppercase tracking-wider">Pending Outcome</Text>
-                          </View>
-                        )}
                         {isDisputed && (
                           <View className="bg-red-500 px-1.5 py-0.5 rounded">
                             <Text className="font-orbitron-bold text-[8px] text-white uppercase tracking-wider">Disputed</Text>

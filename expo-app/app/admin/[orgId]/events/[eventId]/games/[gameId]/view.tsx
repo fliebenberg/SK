@@ -146,8 +146,8 @@ export default function ViewGame() {
   }
 
   // Format Date and Time
-  const dateBase = game.startTime ? game.startTime.split('T')[0] : '';
-  const timeBase = game.startTime ? game.startTime.split('T')[1]?.substring(0, 5) : '';
+  const dateBase = game.scheduledStartTime ? game.scheduledStartTime.split('T')[0] : (game.startTime ? game.startTime.split('T')[0] : '');
+  const timeBase = game.scheduledStartTime ? game.scheduledStartTime.split('T')[1]?.substring(0, 5) : (game.startTime ? game.startTime.split('T')[1]?.substring(0, 5) : '');
 
   const permissions = getMatchPermissions({
     game,

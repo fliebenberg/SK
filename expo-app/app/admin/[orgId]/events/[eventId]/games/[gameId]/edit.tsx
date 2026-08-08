@@ -124,8 +124,8 @@ export default function EditGame() {
 
     const checkComplete = () => {
       if (loadedHome && loadedAway) {
-        const dateBase = game.startTime ? game.startTime.split('T')[0] : (event.startDate?.split('T')[0] || '');
-        const timeBase = game.startTime ? game.startTime.split('T')[1]?.substring(0, 5) : '09:00';
+        const dateBase = game.scheduledStartTime ? game.scheduledStartTime.split('T')[0] : (game.startTime ? game.startTime.split('T')[0] : (event.startDate?.split('T')[0] || ''));
+        const timeBase = game.scheduledStartTime ? game.scheduledStartTime.split('T')[1]?.substring(0, 5) : (game.startTime ? game.startTime.split('T')[1]?.substring(0, 5) : '09:00');
         
         setInitialData({
           sportId: game.sportId || '',
@@ -137,7 +137,7 @@ export default function EditGame() {
           facilityId: game.facilityId || '',
           gameDate: dateBase,
           startTime: timeBase || '09:00',
-          isTbd: !game.startTime || game.customSettings?.timeTbd,
+          isTbd: !(game.scheduledStartTime || game.startTime) || game.customSettings?.timeTbd,
           status: game.status || 'Scheduled',
         });
         setIsLoading(false);

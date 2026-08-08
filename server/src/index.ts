@@ -27,6 +27,35 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
 
+// HTTP Request Logging Middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const userAgent = req.headers['user-agent'] || 'unknown';
+  
+  // Try to extract user ID from JWT if present
+  let userId = 'anonymous';
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-development-only') as any;
+      if (decoded && decoded.id) {
+        userId = decoded.id;
+      }
+    } catch {
+      userId = 'invalid-token';
+    }
+  }
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[HTTP] ${req.method} ${req.originalUrl} - Status: ${res.statusCode} - IP: ${ip} - User: ${userId} - Agent: ${userAgent} - Duration: ${duration}ms`);
+  });
+
+  next();
+});
+
 // Authentication Routes
 app.post('/auth/signup', async (req, res) => {
   try {
@@ -875,9 +904,62 @@ const io = new Server(httpServer, {
   }
 });
 
+// Socket.io Connection Middleware (logs connections and tries to resolve user identity)
+io.use((socket, next) => {
+  const clientIp = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'unknown';
+  const userAgent = socket.handshake.headers['user-agent'] || 'unknown';
+  
+  // Handshake authentication token check
+  let userId = 'anonymous';
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token as string, process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-development-only') as any;
+      if (decoded && decoded.id) {
+        userId = decoded.id;
+      }
+    } catch {
+      userId = 'invalid-token';
+    }
+  }
+
+  (socket as any).clientIp = clientIp;
+  (socket as any).userAgent = userAgent;
+  (socket as any).userId = userId;
+
+  console.log(`[Socket] Connection established: ID=${socket.id} IP=${clientIp} User=${userId} Agent=${userAgent}`);
+  next();
+});
+
 const PORT = process.env.PORT || 3001;
 
 io.on('connection', (socket) => {
+  // Intercept socket events/calls
+  socket.use(([event, ...args], next) => {
+    const clientIp = (socket as any).clientIp || socket.handshake.address || 'unknown';
+    const userId = (socket as any).userId || 'anonymous';
+    
+    let details = '';
+    if (event === 'action') {
+      const action = args[0];
+      details = `action.type=${action?.type || 'unknown'}`;
+    } else if (event === 'get_data') {
+      const request = args[0];
+      details = `get_data.type=${request?.type || 'unknown'}`;
+    } else if (event === 'join_room' || event === 'leave_room') {
+      details = `room=${args[0] || 'unknown'}`;
+    } else {
+      try {
+        details = args.length > 0 ? JSON.stringify(args[0]) : '';
+      } catch {
+        details = String(args[0]);
+      }
+    }
+
+    console.log(`[Socket] EVENT received: "${event}" - Details: [${details}] - Socket: ${socket.id} - IP: ${clientIp} - User: ${userId}`);
+    next();
+  });
+
   console.log('Client connected [v2]:', socket.id);
 
   // Send server timestamp on connection for client time offset calculation
@@ -2099,8 +2181,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+  socket.on('disconnect', (reason) => {
+    const clientIp = (socket as any).clientIp || socket.handshake.address || 'unknown';
+    const userId = (socket as any).userId || 'anonymous';
+    console.log(`[Socket] Connection closed: ID=${socket.id} IP=${clientIp} User=${userId} Reason=${reason}`);
   });
 });
 
