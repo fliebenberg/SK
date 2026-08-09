@@ -11,7 +11,7 @@ const formatTime = (ms: number, showHours: boolean = true): string => {
 
   const parts = [];
   if (showHours && hours > 0) {
-    parts.push(hours.toString().padStart(2, '0'));
+    parts.push(hours.toString());
     parts.push(minutes.toString().padStart(2, '0'));
   } else {
     parts.push(totalMinutes.toString().padStart(2, '0'));

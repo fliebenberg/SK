@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { Game, getPeriodLabel, SocketAction } from '@sk/types';
 import { useGameTimer } from '../../../hooks/useGameTimer';
@@ -50,6 +50,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   const clock = game.liveState?.clock;
   const { isRunning, currentMS } = useGameTimer(clock, game.startTime, game.finishTime);
   const [isDebouncing, setIsDebouncing] = useState(false);
+  const [isBlinking, setIsBlinking] = useState(false);
 
   // Cancellation & Reset Modal State
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -65,7 +66,22 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   const isLastPeriod = periodIndex + 1 >= scheduledPeriods;
   const scoreValues = Object.values(game.liveState?.scores || {});
   const isDraw = scoreValues.length >= 2 ? scoreValues[0] === scoreValues[1] : true;
-  const hasPeriodElapsed = clock?.periodLengthMS ? currentMS >= clock.periodLengthMS : false;
+  const periodLengthMS = clock?.periodLengthMS || game.customSettings?.periodLengthMS || 40 * 60 * 1000;
+  const currentPeriodElapsedMS = Math.max(0, currentMS - (periodIndex * periodLengthMS));
+  const hasPeriodElapsed = isPeriodActive && periodLengthMS > 0 ? currentPeriodElapsedMS >= periodLengthMS : false;
+
+  useEffect(() => {
+    if (!hasPeriodElapsed) {
+      setIsBlinking(false);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setIsBlinking(prev => !prev);
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [hasPeriodElapsed]);
 
   const resolveInitiatorId = (): string => {
     const user = useAuthStore.getState().user;
@@ -243,21 +259,31 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   accessibilityLabel={isLastPeriod && !isDraw ? 'End Game' : 'End Period'}
                   {...({ title: isLastPeriod && !isDraw ? 'Finalize Match & End Game' : 'End Current Period' } as any)}
                   className={
-                    isLastPeriod && !isDraw
-                      ? `bg-rose-600 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`
-                      : `bg-amber-600/20 dark:bg-amber-500/20 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 border border-amber-500/40 disabled:opacity-50 ${hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`
+                    hasPeriodElapsed
+                      ? 'bg-rose-500/20 dark:bg-rose-500/30 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 border border-rose-500/50 disabled:opacity-50 px-3 py-1.5'
+                      : isLastPeriod && !isDraw
+                      ? 'bg-rose-600 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 w-8 h-8'
+                      : 'bg-amber-600/20 dark:bg-amber-500/20 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 border border-amber-500/40 disabled:opacity-50 w-8 h-8'
                   }
                 >
                   <Ionicons
                     name={isLastPeriod && !isDraw ? 'square' : 'square-outline'}
                     size={14}
-                    color={isLastPeriod && !isDraw ? 'white' : COLORS.brand.orange}
+                    color={hasPeriodElapsed ? COLORS.brand.red : isLastPeriod && !isDraw ? 'white' : COLORS.brand.orange}
+                    style={hasPeriodElapsed ? { opacity: isBlinking ? 1 : 0.25 } : undefined}
                   />
                   <Text
                     className={
-                      isLastPeriod && !isDraw
-                        ? `font-orbitron-bold text-xs text-white uppercase ${hasPeriodElapsed ? 'flex' : 'hidden'}`
-                        : `font-orbitron-bold text-xs text-brand-orange uppercase ${hasPeriodElapsed ? 'flex' : 'hidden'}`
+                      hasPeriodElapsed
+                        ? 'font-orbitron-bold text-xs uppercase flex'
+                        : isLastPeriod && !isDraw
+                        ? 'font-orbitron-bold text-xs text-white uppercase hidden'
+                        : 'font-orbitron-bold text-xs text-brand-orange uppercase hidden'
+                    }
+                    style={
+                      hasPeriodElapsed
+                        ? { color: COLORS.brand.red, opacity: isBlinking ? 1 : 0.25 }
+                        : undefined
                     }
                   >
                     {isLastPeriod && !isDraw ? 'End Game' : 'End Period'}

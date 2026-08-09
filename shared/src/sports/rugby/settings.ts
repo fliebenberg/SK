@@ -10,6 +10,8 @@ const settings: SportTemplate = {
   periodTerm: "Half",
   timerShowHours: false,
   defaultSettings: {
+    periodLengthMS: 40 * 60 * 1000, // 40 minutes per half
+    periods: 2,                     // 2 halves
     maxReserves: 8,
     positions: [
       { id: "1", name: "Loosehead Prop" },

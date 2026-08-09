@@ -478,7 +478,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                   {/* RIGHT SIDE ACTIONS & SCORE */}
                   <View className="flex-row items-center gap-2 shrink-0">
                     {/* UNDO BUTTON */}
-                    {canManage && !isTimingEvent && !isDisputed && !eventData.linkedEventId && (
+                    {canManage && !isTimingEvent && !isDisputed && (
                       <TouchableOpacity
                         {...(Platform.OS === 'web' ? { title: inUndoWindow ? `Undo (${remainingSecs}s)` : 'Remove' } : {})}
                         onPress={(e) => {

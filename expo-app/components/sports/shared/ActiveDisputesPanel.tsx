@@ -94,7 +94,7 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
   const user = useAuthStore((state) => state.user);
 
   const [activeDisputeTarget, setActiveDisputeTarget] = useState<GameDispute | null>(null);
-  const [voteAction, setVoteAction] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -119,7 +119,15 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
   if (gameDisputes.length === 0) return null;
 
   const handleCastVote = (dispute: GameDispute, vote: 'APPROVE' | 'REJECT') => {
-    const officialId = user?.id || 'official';
+    const orgMemberships = useAuthStore.getState().orgMemberships || [];
+    const officialId = orgMemberships[0]?.orgProfileId;
+
+    if (!officialId) {
+      setErrorMessage('Registered Profile Required: You must be logged in with a valid organization profile to vote.');
+      return;
+    }
+
+    setErrorMessage(null);
     const actionType =
       dispute.type === 'UNDO' || (dispute.type as string) === 'REMOVE_EVENT'
         ? 'CAST_UNDO_VOTE'
@@ -142,6 +150,17 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
 
   return (
     <View className="mb-3 px-1 flex-col gap-2">
+      {errorMessage && (
+        <View className="bg-rose-500/15 border border-rose-500/40 rounded-xl p-2.5 flex-row items-center justify-between">
+          <Text className="text-xs font-inter-semibold text-rose-600 dark:text-rose-400 flex-1">
+            {errorMessage}
+          </Text>
+          <TouchableOpacity onPress={() => setErrorMessage(null)} activeOpacity={0.8} className="ml-2">
+            <Ionicons name="close-circle" size={18} color="#F43F5E" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {gameDisputes.map((dispute) => {
         const targetEvent = events.find((e) => e.id === dispute.gameEventId);
         const rawLabel = targetEvent?.subType || targetEvent?.type;
@@ -188,9 +207,11 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
           winningText = 'CURRENTLY TIED';
         }
 
-        const myProfileId = user?.id;
+        const orgMemberships = useAuthStore.getState().orgMemberships || [];
+        const myProfileIds = orgMemberships.map((m: any) => m.orgProfileId).filter(Boolean);
+
         const mySlotVote = dispute.votes?.find(
-          (v: any) => v.voterId === myProfileId || (v.voterId && v.voterId === user?.id)
+          (v: any) => myProfileIds.includes(v.voterId)
         );
         const myVote = mySlotVote?.vote;
 

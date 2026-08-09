@@ -127,6 +127,7 @@ const OUTCOME_OPTIONS: { [key: string]: OutcomeOption[] } = {
   ],
   penalty_awarded: [
     { id: 'penalty_kick', name: 'Penalty Kick', variant: 'primary', triggerEventId: 'penalty_kick' },
+    { id: 'penalty_try', name: 'Penalty Try', variant: 'danger', triggerEventId: 'penalty_try' },
     { id: 'line_kick', name: 'Line Kick', variant: 'primary', triggerEventId: 'line_kick' },
     { id: 'scrum', name: 'Scrum', variant: 'warning', triggerEventId: 'scrum' },
     { id: 'tap_go', name: 'Tap & Go', variant: 'success' },
@@ -192,9 +193,12 @@ export function DynamicScoringDialog() {
   const isNextActionStep = templateId === 'penalty_awarded' || templateId === 'free_kick';
   const outcomeStepLabel = isNextActionStep ? 'Next Action' : 'Outcome';
 
-  const stepItems: { key: string; label: string; type: 'player' | 'reason' | 'widget' | 'outcome' }[] = [
-    { key: '0', label: '1. Player', type: 'player' },
-  ];
+  const hasPlayerSelection = templateId !== 'penalty_try';
+  const stepItems: { key: string; label: string; type: 'player' | 'reason' | 'widget' | 'outcome' }[] = [];
+
+  if (hasPlayerSelection) {
+    stepItems.push({ key: '0', label: '1. Player', type: 'player' });
+  }
 
   if (hasReasons) {
     stepItems.push({
@@ -221,7 +225,7 @@ export function DynamicScoringDialog() {
   }
 
   const totalSteps = stepItems.length;
-  const activeStepType = stepItems[currentStep]?.type || 'player';
+  const activeStepType = stepItems[currentStep]?.type;
 
   useEffect(() => {
     if (isVisible) {
@@ -336,6 +340,19 @@ export function DynamicScoringDialog() {
                 </View>
               )}
             </View>
+
+            {/* NO STEPS REQUIRED (e.g. Penalty Try) */}
+            {stepItems.length === 0 && (
+              <View className="py-6 px-4 items-center justify-center bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-white/10 my-3 gap-1">
+                <Ionicons name="flash-outline" size={32} color={COLORS.brand.orange} />
+                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider mt-1">
+                  {template.name}
+                </Text>
+                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center">
+                  Awarded to {teamName} (7 Points). Penalty tries do not require individual player selection.
+                </Text>
+              </View>
+            )}
 
             {/* STEP TYPE: PLAYER SELECTION */}
             {activeStepType === 'player' && (
@@ -482,9 +499,7 @@ export function DynamicScoringDialog() {
 
               {isEditing ? (
                 <>
-                  {!scoringState.initialData?.linkedEventId && (
-                    <Button title="Undo Event" variant="danger" onPress={handleUndo} className="px-3 py-2.5 rounded-xl" />
-                  )}
+                  <Button title="Undo Event" variant="danger" onPress={handleUndo} className="px-3 py-2.5 rounded-xl" />
                   <Button title="Save Changes" variant="primary" onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
                 </>
               ) : (

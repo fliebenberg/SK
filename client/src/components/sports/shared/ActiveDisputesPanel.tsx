@@ -88,7 +88,7 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
     const myProfileIds = Array.from(store.myOrgProfileIds);
 
     const handleVote = async (disputeId: string, vote: 'APPROVE' | 'REJECT') => {
-        const officialId = myProfileIds[0] || (store.globalRole === 'admin' ? store.currentUserId || 'admin' : null);
+        const officialId = myProfileIds[0];
         if (!officialId) return;
         
         const dispute = disputes.find(d => d.id === disputeId);
@@ -138,7 +138,6 @@ export function ActiveDisputesPanel({ gameId }: { gameId: string }) {
 
                 const mySlotVote = dispute.votes?.find((v: any) => {
                     if (myProfileIds.includes(v.voterId)) return true;
-                    if (store.currentUserId === v.voterId) return true;
                     const matchesSlot = mySlots.some(s => s.teamId === v.voterTeamId && s.role === v.voterRole);
                     return matchesSlot;
                 });

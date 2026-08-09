@@ -27,10 +27,10 @@ const resolveOrgProfileId = (game: Game): string | null => {
 
   // 3. Look for membership in user's orgs
   if (orgMemberships.length > 0) {
-    return orgMemberships[0].orgProfileId || user.id;
+    return orgMemberships[0].orgProfileId || null;
   }
 
-  return user.id;
+  return null;
 };
 
 export interface EventTemplateItem {
@@ -433,6 +433,50 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   const templates = RUGBY_TEMPLATES;
 
   const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
+    if (templateId === 'penalty_try' && !initialData?.eventId) {
+      const initiatorId = resolveOrgProfileId(game);
+      if (!initiatorId) {
+        setErrorMessage('User session required: Initiator ID is missing.');
+        return;
+      }
+
+      const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
+      const template = templates.find((t) => t.id === 'penalty_try');
+      const points = template?.points || 7;
+      const currentPeriodLabel =
+        game.liveState?.periodLabel ||
+        getPeriodLabel(game.liveState?.clock?.periodIndex ?? 0, game.customSettings?.periodTerm || 'Period');
+
+      const eventData = {
+        elapsedMS: getLiveElapsedMS(game.liveState?.clock),
+        period: currentPeriodLabel,
+        ...initialData,
+        templateId: 'penalty_try',
+        points,
+        pointsDelta: points,
+      };
+
+      const payload = {
+        gameId: game.id,
+        gameParticipantId: participant?.id,
+        type: 'SCORE',
+        subType: 'penalty_try',
+        actorOrgProfileId: undefined,
+        initiatorOrgProfileId: initiatorId,
+        eventData,
+      };
+
+      wsService.emitAction(SocketAction.ADD_GAME_EVENT, payload, (res: any) => {
+        if (res && res.error) {
+          console.error('Failed to add penalty try event:', res.error);
+          setErrorMessage(res.error);
+        } else {
+          setScoringState({ status: 'IDLE' });
+        }
+      });
+      return;
+    }
+
     setScoringState({
       status: 'ACTIVE',
       templateId,
@@ -542,7 +586,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       const payload = {
         gameId: game.id,
         gameParticipantId: participant?.id,
-        type: points > 0 ? 'SCORE' : 'GAME_EVENT',
+        type: template?.section === 'Scoring' ? 'SCORE' : 'GAME_EVENT',
         subType: scoringState.templateId,
         actorOrgProfileId,
         initiatorOrgProfileId: initiatorId,
@@ -560,7 +604,10 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         if (scoringState.templateId === 'try') {
           startDynamicFlow('conversion', side, { linkedEventId: addedEventId });
         } else if (eventPayload?.triggerEventId) {
-          startDynamicFlow(eventPayload.triggerEventId, side, { linkedEventId: addedEventId });
+          const targetSide = (scoringState.templateId === 'penalty_awarded' || scoringState.templateId === 'free_kick')
+            ? (side === 'home' ? 'away' : 'home')
+            : side;
+          startDynamicFlow(eventPayload.triggerEventId, targetSide, { linkedEventId: addedEventId });
         } else {
           setScoringState({ status: 'IDLE' });
         }

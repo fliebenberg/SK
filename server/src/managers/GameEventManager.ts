@@ -281,13 +281,17 @@ export class GameEventManager extends BaseManager {
         console.warn(`[Dispute Guard] Could not find template for ID: "${templateId}" in sport: ${sportId}`);
     }
     
-    const isUndo = !updateData;
-    
-    if (isUndo) {
-        // Structural Guard: Cannot undo a child event directly
-        if (evt.eventData?.linkedEventId) {
-            return { success: false, error: 'Cannot remove a linked event directly. Please remove the parent event instead.' };
+    let targetEventId = eventId;
+    let targetEvt = evt;
+    if (evt.eventData?.linkedEventId) {
+        const parentRes = await this.query(`SELECT type, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1`, [evt.eventData.linkedEventId]);
+        if (parentRes.rows.length > 0 && parentRes.rows[0].eventData?.status !== 'REMOVED') {
+            targetEventId = evt.eventData.linkedEventId;
+            targetEvt = parentRes.rows[0];
         }
+    }
+
+    if (isUndo) {
         // Template Guard: check allowUndo
         if (template?.disputeConfig?.allowUndo === false) {
             return { success: false, error: 'This event type is marked as non-removable.' };
@@ -623,12 +627,11 @@ export class GameEventManager extends BaseManager {
           v.voter_org_profile_id as "voterId", 
           v.vote, 
           v.updated_at as "updatedAt",
-          COALESCE(op.name, u_direct.name, 'Admin') as "voterName",
-          COALESCE(u.global_role, u_direct.global_role) as "globalRole"
+          COALESCE(op.name, 'Admin') as "voterName",
+          u.global_role as "globalRole"
         FROM game_dispute_votes v
         LEFT JOIN org_profiles op ON v.voter_org_profile_id = op.id
         LEFT JOIN users u ON op.user_id = u.id
-        LEFT JOIN users u_direct ON v.voter_org_profile_id = u_direct.id
         WHERE v.dispute_id = $1
         ORDER BY v.updated_at ASC
      `, [disputeId]);
@@ -1139,9 +1142,16 @@ export class GameEventManager extends BaseManager {
 
     const event = eventRes.rows[0];
 
-    // 2. Structural & Config Guard (Same logic as initiateDispute)
+    // 2. Structural & Config Guard: If linked event, resolve to parent event if active
     if (event.eventData?.linkedEventId) {
-        return { success: false, error: 'Cannot remove a linked event directly. Please remove the parent event instead.' };
+        const parentRes = await this.query(`
+          SELECT id, type, sub_type as "subType", initiator_org_profile_id as "initiatorId", timestamp, event_data as "eventData", game_participant_id as "gameParticipantId", sequence
+          FROM game_events
+          WHERE id = $1 AND game_id = $2
+        `, [event.eventData.linkedEventId, gameId]);
+        if (parentRes.rows.length > 0 && parentRes.rows[0].eventData?.status !== 'REMOVED') {
+          return this.undoEvent(gameId, event.eventData.linkedEventId, initiatorId);
+        }
     }
     
     const sportId = await this.getGameSportId(gameId);
