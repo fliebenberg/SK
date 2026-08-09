@@ -34,6 +34,6 @@ export * from './types/Protocol';
 export * from './utils/stringUtils';
 export * from './utils/gameUtils';
 export * from './utils/standings';
+export * from './utils/socketActionUtils';
 export * from './constants/TestConstants';
 export * from './sports/registry';
-

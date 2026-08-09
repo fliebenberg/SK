@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { GameDispute } from '@sk/types';
+import { GameDispute, SocketAction } from '@sk/types';
 import { wsService } from '../../../services/websocket';
 import { Ionicons } from '@expo/vector-icons';
 import { useOptionalSharedDynamicScoring } from './DynamicScoringContext';

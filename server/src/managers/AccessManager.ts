@@ -2,8 +2,12 @@ import { BaseManager } from "./BaseManager";
 
 export class AccessManager extends BaseManager {
   async isAppAdmin(userId: string): Promise<boolean> {
-    const res = await this.query('SELECT global_role FROM users WHERE id = $1', [userId]);
-    return res.rows[0]?.global_role === 'admin';
+    const res = await this.query(`
+      SELECT 1 FROM org_memberships om
+      JOIN org_profiles op ON om.org_profile_id = op.id
+      WHERE op.user_id = $1 AND om.org_id = 'org-system-admins' AND (om.end_date IS NULL OR om.end_date > NOW())
+    `, [userId]);
+    return res.rows.length > 0;
   }
 
   async getOrganizationRole(userId: string, orgId: string): Promise<string | null> {

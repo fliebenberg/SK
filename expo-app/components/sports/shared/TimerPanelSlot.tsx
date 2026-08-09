@@ -1,8 +1,9 @@
 import React, { useState, memo } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
-import { Game, getPeriodLabel } from '@sk/types';
+import { Game, getPeriodLabel, SocketAction } from '@sk/types';
 import { useGameTimer } from '../../../hooks/useGameTimer';
 import { wsService } from '../../../services/websocket';
+import { useAuthStore } from '../../../store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
 import { GameStatusIndicator } from './GameStatusIndicator';
@@ -64,31 +65,38 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   const isLastPeriod = periodIndex + 1 >= scheduledPeriods;
   const scoreValues = Object.values(game.liveState?.scores || {});
   const isDraw = scoreValues.length >= 2 ? scoreValues[0] === scoreValues[1] : true;
+  const hasPeriodElapsed = clock?.periodLengthMS ? currentMS >= clock.periodLengthMS : false;
 
-  const handleUpdateStatus = (status: Game['status'], reason?: string) => {
-    wsService.emit('action', {
-      type: 'UPDATE_GAME_STATUS',
-      payload: { id: game.id, status },
-    });
+  const resolveInitiatorId = (): string => {
+    const user = useAuthStore.getState().user;
+    const orgMemberships = useAuthStore.getState().orgMemberships || [];
+    if (!user) return 'system';
+    if (user.globalRole === 'admin') {
+      const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
+      if (adminMem?.orgProfileId) return adminMem.orgProfileId;
+    }
+    return orgMemberships[0]?.orgProfileId || user.id || 'system';
+  };
+
+  const handleUpdateStatus = (status: string, reason?: string) => {
+    wsService.emitAction(SocketAction.UPDATE_GAME_STATUS, { id: game.id, status: status as any });
 
     let subType = 'GAME_UPDATED';
     if (status === 'Live') subType = 'GAME_STARTED';
     else if (status === 'Finished') subType = 'GAME_ENDED';
     else if (status === 'Cancelled') subType = 'GAME_CANCELLED';
 
-    wsService.emit('action', {
-      type: 'ADD_GAME_EVENT',
-      payload: {
-        gameId: game.id,
-        type: 'STATUS',
-        subType,
-        eventData: {
-          status,
-          reason,
-          timestamp: new Date().toISOString(),
-          elapsedMS: currentMS,
-          period: currentPeriodLabel,
-        },
+    wsService.emitAction(SocketAction.ADD_GAME_EVENT, {
+      gameId: game.id,
+      initiatorOrgProfileId: resolveInitiatorId(),
+      type: 'STATUS',
+      subType,
+      eventData: {
+        status,
+        reason,
+        timestamp: new Date().toISOString(),
+        elapsedMS: currentMS,
+        period: currentPeriodLabel,
       },
     });
 
@@ -99,10 +107,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   };
 
   const handleResetGame = () => {
-    wsService.emit('action', {
-      type: 'RESET_GAME',
-      payload: { id: game.id },
-    });
+    wsService.emitAction(SocketAction.RESET_GAME, { id: game.id });
     setShowResetModal(false);
   };
 
@@ -112,27 +117,22 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   ) => {
     if (isDebouncing) return;
 
-    wsService.emit('action', {
-      type: 'UPDATE_GAME_CLOCK',
-      payload: { id: game.id, action },
-    });
+    wsService.emitAction(SocketAction.UPDATE_GAME_CLOCK, { id: game.id, action });
 
     if (eventType) {
       const eventPeriodLabel = action === 'START_PERIOD'
         ? getPeriodLabel(periodIndex + 1, periodTerm)
         : currentPeriodLabel;
 
-      wsService.emit('action', {
-        type: 'ADD_GAME_EVENT',
-        payload: {
-          gameId: game.id,
-          type: 'TIME',
-          subType: eventType,
-          eventData: {
-            action,
-            period: eventPeriodLabel,
-            elapsedMS: currentMS,
-          },
+      wsService.emitAction(SocketAction.ADD_GAME_EVENT, {
+        gameId: game.id,
+        initiatorOrgProfileId: resolveInitiatorId(),
+        type: 'TIME',
+        subType: eventType,
+        eventData: {
+          action,
+          period: eventPeriodLabel,
+          elapsedMS: currentMS,
         },
       });
     }
@@ -189,10 +189,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   onPress={handlePrimaryStartTap}
                   accessibilityLabel="Start Game"
                   {...({ title: 'Start Game & Match Clock' } as any)}
-                  className="bg-emerald-600 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 opacity-100 disabled:opacity-50"
+                  className="bg-emerald-600 active:scale-95 px-3 py-1.5 rounded-lg flex-row items-center justify-center gap-1 opacity-100 disabled:opacity-50"
                 >
                   <Ionicons name="play" size={14} color="white" />
-                  <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Start Game</Text>
+                  <Text className="font-orbitron-bold text-xs text-white uppercase">Start Game</Text>
                 </TouchableOpacity>
               )}
 
@@ -204,10 +204,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       onPress={handlePrimaryStartTap}
                       accessibilityLabel="Pause Clock"
                       {...({ title: 'Pause Match Clock' } as any)}
-                      className="bg-amber-500 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                      className={`bg-amber-500 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${!hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`}
                     >
                       <Ionicons name="pause" size={14} color="white" />
-                      <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Pause</Text>
+                      <Text className={`font-orbitron-bold text-xs text-white uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Pause</Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
@@ -215,10 +215,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       onPress={handlePrimaryStartTap}
                       accessibilityLabel="Resume Clock"
                       {...({ title: 'Resume Match Clock' } as any)}
-                      className="bg-emerald-600 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                      className={`bg-emerald-600 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${!hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`}
                     >
                       <Ionicons name="play" size={14} color="white" />
-                      <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Resume</Text>
+                      <Text className={`font-orbitron-bold text-xs text-white uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Resume</Text>
                     </TouchableOpacity>
                   )
                 ) : (
@@ -227,10 +227,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                     onPress={handlePrimaryStartTap}
                     accessibilityLabel="Start Next Period"
                     {...({ title: 'Start Next Period' } as any)}
-                    className="bg-emerald-600 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                    className="bg-emerald-600 active:scale-95 px-3 py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
                   >
                     <Ionicons name="play" size={14} color="white" />
-                    <Text className="hidden sm:flex font-orbitron-bold text-xs text-white uppercase">Start Period</Text>
+                    <Text className="font-orbitron-bold text-xs text-white uppercase">Start Period</Text>
                   </TouchableOpacity>
                 )
               )}
@@ -244,8 +244,8 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   {...({ title: isLastPeriod && !isDraw ? 'Finalize Match & End Game' : 'End Current Period' } as any)}
                   className={
                     isLastPeriod && !isDraw
-                      ? 'bg-rose-600 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50'
-                      : 'bg-amber-600/20 dark:bg-amber-500/20 active:scale-95 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg flex-row items-center justify-center gap-1 border border-amber-500/40 disabled:opacity-50'
+                      ? `bg-rose-600 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`
+                      : `bg-amber-600/20 dark:bg-amber-500/20 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 border border-amber-500/40 disabled:opacity-50 ${hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`
                   }
                 >
                   <Ionicons
@@ -256,8 +256,8 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   <Text
                     className={
                       isLastPeriod && !isDraw
-                        ? 'hidden sm:flex font-orbitron-bold text-xs text-white uppercase'
-                        : 'hidden sm:flex font-orbitron-bold text-xs text-brand-orange uppercase'
+                        ? `font-orbitron-bold text-xs text-white uppercase ${hasPeriodElapsed ? 'flex' : 'hidden'}`
+                        : `font-orbitron-bold text-xs text-brand-orange uppercase ${hasPeriodElapsed ? 'flex' : 'hidden'}`
                     }
                   >
                     {isLastPeriod && !isDraw ? 'End Game' : 'End Period'}

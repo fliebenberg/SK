@@ -128,9 +128,9 @@ All state-changing operations are sent via the `action` event.
     *   **Event**: `GAME_UPDATED`
     *   **Data**: Result of update.
 
-#### `UPDATE_SCORE`
-*   **Payload**: `{ id, homeScore, awayScore }`
-*   **Logic**: Updates the score.
+#### `UPDATE_GAME_SCORE`
+*   **Payload**: `{ id, scores, homeScore, awayScore, reason }`
+*   **Logic**: Updates live/final game score map and score properties.
 *   **Broadcasts**:
     *   **Topic**: `game:{id}`
     *   **Event**: `GAME_UPDATED`

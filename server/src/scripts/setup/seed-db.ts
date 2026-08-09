@@ -78,6 +78,15 @@ const seedDb = async () => {
             `, [sport.id, sport.name, sport.facilityTerm, sport.periodTerm, JSON.stringify(sport.defaultSettings || {})]);
         }
 
+        const SYSTEM_ORG_ID = 'org-system-admins';
+
+        // Ensure System Administration Organization exists
+        await pool.query(`
+            INSERT INTO organizations (id, name, short_name, primary_color, secondary_color, is_active, is_claimed, type)
+            VALUES ($1, 'System Administration', 'SYS', '#000000', '#ffffff', true, true, 'ORGANIZATION')
+            ON CONFLICT (id) DO NOTHING;
+        `, [SYSTEM_ORG_ID]);
+
         // 2. Initial App Admin (Always create if env vars exist)
         const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
         const adminPassword = process.env.INITIAL_ADMIN_PASSWORD;
@@ -102,6 +111,20 @@ const seedDb = async () => {
                 VALUES ($1, (SELECT id FROM users WHERE email = $2), $2, true, NOW())
                 ON CONFLICT (email) DO NOTHING
             `, [`email-admin-${Date.now()}`, adminEmail]);
+
+            // Ensure Admin OrgProfile & OrgMembership exist in System Administration Org
+            const profileId = `profile-admin-${adminId}`;
+            await pool.query(`
+                INSERT INTO org_profiles (id, org_id, user_id, name, email, primary_role_id)
+                VALUES ($1, $2, $3, 'System Admin', $4, 'role-org-admin')
+                ON CONFLICT (id) DO NOTHING;
+            `, [profileId, SYSTEM_ORG_ID, adminId, adminEmail]);
+
+            await pool.query(`
+                INSERT INTO org_memberships (id, org_profile_id, org_id, role_id, start_date)
+                VALUES ($1, $2, $3, 'role-org-admin', NOW())
+                ON CONFLICT (id) DO NOTHING;
+            `, [`mem-admin-${adminId}`, profileId, SYSTEM_ORG_ID]);
         }
 
         // 3. Dummy Data (Only for development)

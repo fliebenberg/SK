@@ -136,18 +136,20 @@ export default function OrganizationsPage() {
     if (!newOrgName.trim() || !newOrgType) return;
     if (newOrgType === 'OTHER' && !newOrgCustomType.trim()) return;
 
-    const sportId = newOrgSport.trim().toLowerCase().replace(/\s+/g, '-');
+    const matchedSportId = Object.keys(sportsMap).find(
+      (id) => sportsMap[id].toLowerCase() === newOrgSport.trim().toLowerCase()
+    ) || (newOrgSport.trim() ? newOrgSport.trim() : undefined);
 
     const payload = {
       name: newOrgName.trim(),
-      supportedSportIds: [sportId],
+      supportedSportIds: matchedSportId ? [matchedSportId] : [],
       creatorId: user?.id,
       isActive: true,
       type: newOrgType,
       customType: newOrgType === 'OTHER' ? newOrgCustomType.trim() : undefined,
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_ORG, payload }, (res: any) => {
+    wsService.emitAction(SocketAction.ADD_ORG, payload, (res: any) => {
       if (res) {
         console.log('[OrganizationsPage] Created new organization:', res);
         loadOrgsAndSports();

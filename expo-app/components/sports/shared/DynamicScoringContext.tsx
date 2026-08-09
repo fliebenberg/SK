@@ -1,10 +1,37 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Game, GameEvent, GameDispute, Sport, getPeriodLabel } from '@sk/types';
+import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction } from '@sk/types';
 import { wsService } from '../../../services/websocket';
 import { getSystemSettingsOnce, getCachedSystemSettings } from '../../../services/systemSettings';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
 import { ConfirmationModal } from '../../ConfirmationModal';
+
+const resolveOrgProfileId = (game: Game): string | null => {
+  const user = useAuthStore.getState().user;
+  const orgMemberships = useAuthStore.getState().orgMemberships || [];
+  if (!user) return null;
+
+  // 1. If global admin, look for System Admin org profile
+  if (user.globalRole === 'admin') {
+    const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
+    if (adminMem?.orgProfileId) return adminMem.orgProfileId;
+  }
+
+  // 2. Look for official assignment in game_officials
+  if (game?.id) {
+    const matchedOfficial = (game as any).officials?.find((o: any) => 
+      orgMemberships.some((m: any) => m.orgProfileId === o.orgProfileId)
+    );
+    if (matchedOfficial?.orgProfileId) return matchedOfficial.orgProfileId;
+  }
+
+  // 3. Look for membership in user's orgs
+  if (orgMemberships.length > 0) {
+    return orgMemberships[0].orgProfileId || user.id;
+  }
+
+  return user.id;
+};
 
 export interface EventTemplateItem {
   id: string;
@@ -420,8 +447,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   };
 
   const submitEvent = (eventPayload: any) => {
-    const user = useAuthStore.getState().user;
-    const initiatorId = user?.id;
+    const initiatorId = resolveOrgProfileId(game);
     if (!initiatorId) {
       setErrorMessage('User session required: Initiator ID is missing.');
       return;
@@ -450,11 +476,13 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         ? eventPayload.playerId
         : (initialData.actorOrgProfileId || initialData.playerId);
 
+    const { playerId: _, ...cleanEventPayload } = eventPayload || {};
+
     const eventData = {
       elapsedMS: getLiveElapsedMS(game.liveState?.clock),
       period: currentPeriodLabel,
       ...initialData,
-      ...eventPayload,
+      ...cleanEventPayload,
       templateId: scoringState.templateId,
       points,
       pointsDelta: points,
@@ -501,7 +529,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         eventData,
       };
 
-      wsService.emit('action', { type: 'UPDATE_GAME_EVENT', payload }, (res: any) => {
+      wsService.emitAction(SocketAction.UPDATE_GAME_EVENT, payload, (res: any) => {
         if (res && res.error) {
           console.error('Failed to update game event:', res.error);
           setErrorMessage(res.error);
@@ -521,7 +549,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         eventData,
       };
 
-      wsService.emit('action', { type: 'ADD_GAME_EVENT', payload }, (res: any) => {
+      wsService.emitAction(SocketAction.ADD_GAME_EVENT, payload, (res: any) => {
         if (res && res.error) {
           console.error('Failed to add game event:', res.error);
           setErrorMessage(res.error);
@@ -544,16 +572,13 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     if (!updateDisputeTarget) return;
     const target = updateDisputeTarget;
     setUpdateDisputeTarget(null);
-    wsService.emit(
-      'action',
+    wsService.emitAction(
+      SocketAction.INITIATE_UPDATE_VOTE,
       {
-        type: 'INITIATE_UPDATE_VOTE',
-        payload: {
-          gameId: target.gameId,
-          eventId: target.eventId,
-          initiatorId: target.initiatorId,
-          updateData: target.updateData,
-        },
+        gameId: target.gameId,
+        eventId: target.eventId,
+        initiatorId: target.initiatorId,
+        updateData: target.updateData,
       },
       (res: any) => {
         if (res && res.error) {
@@ -572,15 +597,14 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   };
 
   const initiateUndoVote = (eventId: string) => {
-    const user = useAuthStore.getState().user;
-    const initiatorId = user?.id;
+    const initiatorId = resolveOrgProfileId(game);
     if (!initiatorId) {
       setErrorMessage('User session required: Initiator ID is missing to initiate dispute.');
       return;
     }
-    wsService.emit(
-      'action',
-      { type: 'INITIATE_UNDO_VOTE', payload: { gameId: game.id, eventIdToUndo: eventId, initiatorId } },
+    wsService.emitAction(
+      SocketAction.INITIATE_UNDO_VOTE,
+      { gameId: game.id, eventIdToUndo: eventId, initiatorId },
       (res: any) => {
         if (res && res.error) {
           console.error('Failed to initiate dispute:', res.error);
@@ -593,13 +617,12 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   };
 
   const removeGameEvent = (eventId: string) => {
-    const user = useAuthStore.getState().user;
-    const initiatorId = user?.id;
+    const initiatorId = resolveOrgProfileId(game);
     if (!initiatorId) {
       setErrorMessage('User session required: Initiator ID is missing to undo event.');
       return;
     }
-    wsService.emit('action', { type: 'UNDO_GAME_EVENT', payload: { gameId: game.id, eventId, initiatorId } }, (res: any) => {
+    wsService.emitAction(SocketAction.UNDO_GAME_EVENT, { gameId: game.id, eventId, initiatorId }, (res: any) => {
       if (res && res.error) {
         console.error('Failed to undo event:', res.error);
         if (typeof res.error === 'string' && res.error.toLowerCase().includes('expired')) {
@@ -618,15 +641,11 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
 
   const updateFinalScore = async (scores: { [participantId: string]: number }) => {
     return new Promise<void>((resolve) => {
-      wsService.emit(
-        'action',
+      wsService.emitAction(
+        SocketAction.UPDATE_GAME_SCORE,
         {
-          type: 'UPDATE_GAME_SCORE',
-          payload: {
-            gameId: game.id,
-            scores,
-            reason: 'Manual Final Score',
-          },
+          id: game.id,
+          scores,
         },
         (res: any) => {
           if (res && res.error) {
@@ -669,9 +688,9 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         <ConfirmationModal
           isOpen={!!updateDisputeTarget}
           onClose={() => setUpdateDisputeTarget(null)}
-          title="Initiate Event Dispute?"
-          description={`The undo window for "${updateDisputeTarget.eventName}" has expired. Changing this scoring outcome will initiate a consensus dispute. Would you like to proceed?`}
-          confirmText="Initiate Dispute"
+          title="Request Event Change?"
+          description={`To change "${updateDisputeTarget.eventName}", you need consensus from the other scorers. Proceed?`}
+          confirmText="Request Change"
           cancelText="Cancel"
           onConfirm={handleConfirmUpdateDispute}
           variant="primary"
@@ -681,9 +700,9 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         <ConfirmationModal
           isOpen={!!undoDisputeTarget}
           onClose={() => setUndoDisputeTarget(null)}
-          title="Initiate Undo Dispute?"
-          description={`The undo window for "${undoDisputeTarget.eventName}" has expired. Would you like to initiate a consensus dispute to undo this event?`}
-          confirmText="Initiate Dispute"
+          title="Request Event Undo?"
+          description={`To undo "${undoDisputeTarget.eventName}", you need consensus from the other scorers. Proceed?`}
+          confirmText="Request Undo"
           cancelText="Cancel"
           onConfirm={handleConfirmUndoDispute}
           variant="primary"

@@ -33,6 +33,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
 *   **Migrations**: [server/src/scripts/migrations/](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/) holds sequential database modification scripts.
     - `20260705_add_league_and_season_logos.ts`: Adds branding logo support to leagues/seasons.
     - `20260711_rename_invite_cooldown_hours.ts`: Sets up default invite cooldown periods (2 weeks) and configures referral settings.
+    - `20260808_create_system_admin_org.ts`: Creates the System Administration Organization (`org-system-admins`) and provisions admin org profiles and memberships.
 
 ## Integration Test Rule: Test Org Reuse
 

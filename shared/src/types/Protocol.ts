@@ -135,8 +135,10 @@ export interface UpdateGameStatusPayload {
 
 export interface UpdateGameScorePayload {
     id: string;
-    homeScore: number;
-    awayScore: number;
+    scores?: { [participantId: string]: number };
+    homeScore?: number;
+    awayScore?: number;
+    reason?: string;
 }
 
 export interface UpdateGamePayload {
@@ -379,6 +381,8 @@ export interface GetSystemSettingsPayload {}
 /**
  * Mapping of SocketActions to their Request Payload and Response Data types.
  */
+export type SocketActionPayloadMap = ProtocolMap;
+
 export interface ProtocolMap {
     [SocketAction.ADD_ORG]: { payload: AddOrgPayload; response: Organization };
     [SocketAction.UPDATE_ORG]: { payload: UpdateOrgPayload; response: Organization };

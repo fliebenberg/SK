@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Game, GameEvent, Sport, GameDispute, ActionStepType } from '@sk/types';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction } from '@sk/types';
 import { wsService } from '../../../services/websocket';
 import { useOptionalSharedDynamicScoring, useSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -154,20 +154,32 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     if (disputeEventTarget) {
       const target = disputeEventTarget;
       setDisputeEventTarget(null);
-      const initiatorId = user?.id;
+      
+      const resolveInitiatorId = () => {
+        if (!user) return undefined;
+        const orgMemberships = useAuthStore.getState().orgMemberships || [];
+        if (user.globalRole === 'admin') {
+          const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
+          if (adminMem?.orgProfileId) return adminMem.orgProfileId;
+        }
+        return orgMemberships[0]?.orgProfileId || user.id;
+      };
+
+      const initiatorId = resolveInitiatorId();
       if (!initiatorId) {
         setErrorMessage('User session required: Initiator ID is missing to initiate dispute.');
         return;
       }
-      wsService.emit('action', {
-        type: 'INITIATE_UNDO_VOTE',
-        payload: { gameId, eventIdToUndo: target.id, initiatorId },
-      }, (res: any) => {
-        if (res && res.error) {
-          console.error('Failed to initiate dispute:', res.error);
-          setErrorMessage(res.error);
+      wsService.emitAction(
+        SocketAction.INITIATE_UNDO_VOTE,
+        { gameId, eventIdToUndo: target.id, initiatorId },
+        (res: any) => {
+          if (res && res.error) {
+            console.error('Failed to initiate dispute:', res.error);
+            setErrorMessage(res.error);
+          }
         }
-      });
+      );
     }
   };
 
@@ -461,6 +473,33 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                       )}
                     </View>
 
+                  </View>
+
+                  {/* RIGHT SIDE ACTIONS & SCORE */}
+                  <View className="flex-row items-center gap-2 shrink-0">
+                    {/* UNDO BUTTON */}
+                    {canManage && !isTimingEvent && !isDisputed && !eventData.linkedEventId && (
+                      <TouchableOpacity
+                        {...(Platform.OS === 'web' ? { title: inUndoWindow ? `Undo (${remainingSecs}s)` : 'Remove' } : {})}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          if (inUndoWindow) {
+                            setUndoEventTarget(evt);
+                          } else {
+                            setDisputeEventTarget(evt);
+                          }
+                        }}
+                        className={`items-center justify-center px-1.5 py-1 rounded-lg border ${
+                          inUndoWindow ? 'bg-amber-500/10 border-amber-500/40 min-w-[32px]' : 'bg-red-500/10 border-red-500/20 min-w-[32px]'
+                        }`}
+                      >
+                        <Ionicons name={inUndoWindow ? "arrow-undo-outline" : "trash-outline"} size={14} color={inUndoWindow ? '#F59E0B' : '#EF4444'} />
+                        {inUndoWindow && (
+                          <Text className="font-mono font-bold text-[9px] text-amber-500 animate-pulse mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+
                     {/* RUNNING SCORE SNAPSHOT BADGE */}
                     {snapshot && (
                       <View className="flex-col items-center justify-center px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-md border border-slate-200 dark:border-white/10 shrink-0 min-w-[24px]">
@@ -479,28 +518,6 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                       </View>
                     )}
                   </View>
-
-                  {/* UNDO BUTTON */}
-                  {canManage && !isTimingEvent && !isDisputed && !eventData.linkedEventId && (
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        if (inUndoWindow) {
-                          setUndoEventTarget(evt);
-                        } else {
-                          setDisputeEventTarget(evt);
-                        }
-                      }}
-                      className={`flex-row items-center gap-1 px-2 py-1 rounded-lg border ${
-                        inUndoWindow ? 'bg-amber-500/10 border-amber-500/40' : 'bg-red-500/10 border-red-500/20'
-                      }`}
-                    >
-                      <Ionicons name="arrow-undo-outline" size={14} color={inUndoWindow ? '#F59E0B' : '#EF4444'} />
-                      {inUndoWindow && (
-                        <Text className="font-mono font-bold text-[10px] text-amber-500 animate-pulse">{remainingSecs}s</Text>
-                      )}
-                    </TouchableOpacity>
-                  )}
                 </TouchableOpacity>
               );
             })}
@@ -527,9 +544,9 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
         <ConfirmationModal
           isOpen={!!disputeEventTarget}
           onClose={() => setDisputeEventTarget(null)}
-          title="Initiate Event Dispute?"
-          description={`The undo window for "${getEventLabel(disputeEventTarget, sport).label || disputeEventTarget.subType}" has expired. Would you like to initiate a consensus dispute to remove this event?`}
-          confirmText="Initiate Dispute"
+          title="Request Event Removal?"
+          description={`To remove "${getEventLabel(disputeEventTarget, sport).label || disputeEventTarget.subType}", you need consensus from the other scorers. Proceed?`}
+          confirmText="Request Removal"
           cancelText="Cancel"
           onConfirm={handleConfirmDispute}
           variant="primary"

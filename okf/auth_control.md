@@ -8,7 +8,7 @@ tags:
   - roles
   - permissions
   - security
-timestamp: 2026-07-02T15:05:00Z
+timestamp: 2026-08-08T17:35:00Z
 ---
 
 # Authentication & Authorization Levels
@@ -34,4 +34,6 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
     - **Coach**: Manage team lineups and view restricted rosters.
     - **Player**: View personal schedules and access internal team details.
 4.  **Global Admin**:
-    - Explicitly set via `globalRole === 'admin'` on the User schema. Has complete, unrestricted read/write access to the entire platform.
+    - **Single Source of Truth**: Global Admin status (`globalRole === 'admin'`) is derived dynamically from active membership in the System Administration Organization (`org-system-admins`, `id: 'org-system-admins'`).
+    - **Privileged Account Isolation**: Global Admins use dedicated admin user accounts that belong exclusively to `org-system-admins` and cannot hold memberships in standard user organizations/teams, preventing profile collision.
+    - **Platform Access**: Has complete, unrestricted read/write administrative access across the platform.

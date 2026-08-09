@@ -1913,6 +1913,16 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.ADD_ORG_MEMBER:
+                if (action.payload.orgId !== 'org-system-admins') {
+                    const isAdminAccount = await pool.query(
+                        `SELECT 1 FROM org_profiles WHERE id = $1 AND (org_id = 'org-system-admins' OR user_id IN (SELECT op2.user_id FROM org_profiles op2 WHERE op2.org_id = 'org-system-admins'))`,
+                        [action.payload.orgProfileId]
+                    );
+                    if (isAdminAccount.rows.length > 0) {
+                        result = { status: 'error', message: 'System Admin accounts cannot be added to standard user organizations. Please use a standard user account.' };
+                        break;
+                    }
+                }
                 console.log(`DataManager: Adding org member ${action.payload.orgProfileId} to ${action.payload.orgId}`);
                 result = await dataManager.addOrganizationMember(action.payload.orgProfileId, action.payload.orgId, action.payload.roleId, action.payload.id);
                 if (result) {

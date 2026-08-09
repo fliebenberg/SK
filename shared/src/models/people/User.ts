@@ -17,6 +17,8 @@ export interface User {
   createdAt: string; // ISO UTC
   updatedAt: string; // ISO UTC
   preferences: UserPreferences;
+  orgMemberships?: any[];
+  orgProfiles?: any[];
 }
 
 export interface UserEmail {

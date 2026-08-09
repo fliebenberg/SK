@@ -260,11 +260,12 @@ export default function OrgPeople() {
           const membershipPayload = {
             orgProfileId: profileId,
             orgId,
-            roleId: newMemberData.roleId
+            roleId: newMemberData.roleId,
+            startDate: new Date().toISOString(),
           };
-          wsService.emit('action', { type: SocketAction.ADD_ORG_MEMBER, payload: membershipPayload }, (res: any) => {
-            if (res.status === 'ok') resolve(res.data);
-            else reject(new Error(res.message || 'Failed to add organization member'));
+          wsService.emitAction(SocketAction.ADD_ORG_MEMBER, membershipPayload, (res: any) => {
+            if (res && res.status === 'ok') resolve(res.data);
+            else reject(new Error(res?.message || 'Failed to add organization member'));
           });
         });
       }

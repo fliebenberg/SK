@@ -4,6 +4,8 @@ import { useWsStore } from '../store/wsStore';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 
+import { SocketAction, SocketActionPayload, SocketActionResponse, createSocketAction } from '@sk/types';
+
 export interface EmitOptions {
   suppressToast?: boolean;
 }
@@ -190,6 +192,17 @@ class WebSocketService {
         callback(null);
       }
     }
+  }
+
+  emitAction<K extends SocketAction>(
+    type: K,
+    payload: SocketActionPayload<K>,
+    callback?: (response: SocketActionResponse<K>) => void,
+    timeoutMs: number = 7000,
+    options?: EmitOptions
+  ) {
+    const actionObj = createSocketAction(type, payload);
+    return this.emit('action', actionObj, callback, timeoutMs, options);
   }
 
   on(event: string, callback: (...args: any[]) => void) {

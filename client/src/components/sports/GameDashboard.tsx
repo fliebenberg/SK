@@ -52,9 +52,9 @@ const DynamicScoringDialogRenderer = () => {
                 <ConfirmationModal 
                     isOpen={true}
                     onOpenChange={(open) => { if(!open) resolveDispute(false); }}
-                    title={pendingDispute.isRemoval ? "Dispute Event Removal" : "Dispute Event Correction"}
-                    description={`You are ${pendingDispute.isRemoval ? 'removing' : 'correcting'} a scoring event. This requires official consensus. Proceed?`}
-                    confirmText="Request Consensus"
+                    title={pendingDispute.isRemoval ? "Request Event Removal?" : "Request Event Change?"}
+                    description={`To ${pendingDispute.isRemoval ? 'remove' : 'change'} this event, you need consensus from the other scorers. Proceed?`}
+                    confirmText={pendingDispute.isRemoval ? "Request Removal" : "Request Change"}
                     cancelText="Cancel"
                     onConfirm={() => resolveDispute(true)}
                     variant={pendingDispute.isRemoval ? "destructive" : "default"}

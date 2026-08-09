@@ -23,9 +23,10 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
    - WebSockets are the preferred communication method for active games, scoring, and real-time feeds.
    - **REST API Fallback**: REST endpoints are reserved for heavy operations, user authentication (login/signup), or file uploads (avatars, logos).
 2. **WebSocket Action Emission Standard**:
-   - Mutations MUST be emitted using `'action'` event name with payload `{ type: SocketAction.ENUM_NAME, payload: { ... } }`.
-   - Never emit `SocketAction.ENUM` directly as event name.
-   - `wsService.emit` is callback-based, do not `await` it.
+   - All state mutation operations sent over Socket.io MUST be emitted using the `'action'` event name with payload `{ type: SocketAction.ENUM_NAME, payload: { ... } }`.
+   - Never emit `SocketAction.ENUM` directly as the socket event name.
+   - Use `createSocketAction(type, payload)` from `@sk/types` and `wsService.emitAction(type, payload, callback)` on the client for compile-time type validation.
+   - `wsService.emit` / `wsService.emitAction` are callback-based; do not `await` them.
 3. **Client-Side Smart Subscription**:
    - Client components register to data streams using reference counting.
    - The WebSocket Service connects when subscriptions > 0 and automatically disconnects/unsubscribes when count hits 0 to preserve bandwidth.

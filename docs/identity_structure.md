@@ -5,8 +5,10 @@ The SportKeeper application utilizes a dual-layered identity architecture to man
 ## 1. Global Users (`users` table)
 At the highest level is the **User**. This represents the real-world human being who authenticates with the application.
 
-*   **Authentication & Access:** The `users` table is responsible for login credentials (handled via NextAuth/Supabase), global application preferences, and overarching system roles (e.g., Super Admins).
-*   **One-to-Many:** A single User can represent multiple distinct entities across the platform (e.g., a teacher at one school, a parent at another, and a referee in an independent league).
+*   **Authentication & Access:** The `users` table is responsible for login credentials (handled via NextAuth/Supabase) and global application preferences.
+*   **Global Admin Status (Single Source of Truth):** Global App Admin privileges (`globalRole = 'admin'`) are derived dynamically from active membership in the dedicated **System Administration Organization** (`org-system-admins`, `id: 'org-system-admins'`).
+*   **Privileged Account Isolation:** System Admins use dedicated administrative accounts that belong exclusively to `org-system-admins` and cannot hold memberships in standard user organizations/teams. This prevents identity ambiguity and profile collisions across the platform.
+*   **One-to-Many:** A single standard User can represent multiple distinct entities across the platform (e.g., a teacher at one school, a parent at another, and a referee in an independent league).
 *   **Fields:** Includes global profile picture, primary email, display name, etc.
 
 ## 2. Organization Personas (`org_profiles` table)
