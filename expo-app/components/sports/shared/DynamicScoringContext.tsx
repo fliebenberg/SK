@@ -540,15 +540,17 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       const evtTime = originalEvt?.timestamp ? new Date(originalEvt.timestamp).getTime() : Date.now();
       const age = Date.now() - evtTime;
       const inUndoWindow = age >= 0 && age < undoDelayMs;
-      const isScoring = template?.section === 'Scoring';
+      const isCreator = originalEvt?.initiatorOrgProfileId ? originalEvt.initiatorOrgProfileId === initiatorId : true;
+      const isBypassed = inUndoWindow && isCreator;
+      const isScoring = template?.section === 'Scoring' || scoringState.templateId === 'penalty_kick' || scoringState.templateId === 'conversion' || scoringState.templateId === 'try' || scoringState.templateId === 'penalty_try' || scoringState.templateId === 'drop_goal';
       const isOutcomeAlreadySet = originalData.outcome !== undefined && originalData.outcome !== null && originalData.outcome !== '';
 
       const outcomeChanged = eventPayload?.outcome !== undefined && eventPayload.outcome !== originalData.outcome;
       const pointsChanged = eventData.pointsDelta !== originalData.pointsDelta;
 
-      if (isScoring && !inUndoWindow && isOutcomeAlreadySet && (outcomeChanged || pointsChanged)) {
-        // Prompt user confirmation before initiating update dispute
-        const eventName = template?.name || 'Conversion';
+      if (!isBypassed && isScoring && isOutcomeAlreadySet && (outcomeChanged || pointsChanged)) {
+        // Prompt user confirmation for consensus update when outside undo window or non-creator
+        const eventName = template?.name || 'Penalty Kick';
         setScoringState({ status: 'IDLE' });
         setUpdateDisputeTarget({
           gameId: game.id,
@@ -578,7 +580,18 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           console.error('Failed to update game event:', res.error);
           setErrorMessage(res.error);
         } else {
-          setScoringState({ status: 'IDLE' });
+          const updatedEventId = res?.id || res?.data?.id || scoringState.editingId;
+          if (eventPayload?.triggerEventId) {
+            const targetSide = (scoringState.templateId === 'penalty_awarded' || scoringState.templateId === 'free_kick')
+              ? (side === 'home' ? 'away' : 'home')
+              : side;
+            startDynamicFlow(eventPayload.triggerEventId, targetSide, {
+              linkedEventId: updatedEventId,
+              elapsedMS: originalData?.elapsedMS || eventData.elapsedMS,
+            });
+          } else {
+            setScoringState({ status: 'IDLE' });
+          }
         }
       });
     } else {

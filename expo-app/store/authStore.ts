@@ -204,3 +204,5 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+wsService.setTokenGetter(() => useAuthStore.getState().token);

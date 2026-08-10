@@ -2,7 +2,6 @@ import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import { useWsStore } from '../store/wsStore';
 import { useToastStore } from '../store/toastStore';
-import { useAuthStore } from '../store/authStore';
 
 import { SocketAction, SocketActionPayload, SocketActionResponse, createSocketAction } from '@sk/types';
 
@@ -14,9 +13,14 @@ class WebSocketService {
   private socket: Socket | null = null;
   private url: string;
   private serverOffset: number = 0;
+  private tokenGetter: (() => string | null) | null = null;
 
   constructor(url: string) {
     this.url = url;
+  }
+
+  setTokenGetter(getter: () => string | null) {
+    this.tokenGetter = getter;
   }
 
   getServerTime(): number {
@@ -51,7 +55,7 @@ class WebSocketService {
         autoConnect: false,
         reconnectionDelay: 3000,
         auth: (cb) => {
-          const token = useAuthStore.getState().token;
+          const token = this.tokenGetter ? this.tokenGetter() : null;
           cb({ token: token || null });
         },
       });

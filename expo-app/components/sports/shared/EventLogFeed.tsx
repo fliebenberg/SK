@@ -71,6 +71,40 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     return map;
   }, [homeParticipantId, awayParticipantId, homeRoster, awayRoster]);
 
+  const getLinkedEventsInfo = (targetEvt: GameEvent | null) => {
+    if (!targetEvt) return { childEvents: [], childLabels: [], isScoreChanging: false, totalPointsEffect: 0 };
+
+    const childEvents = events.filter((e) => {
+      const eData = e.eventData || (e as any).event_data || {};
+      return eData.linkedEventId === targetEvt.id && eData.status !== 'REMOVED';
+    });
+
+    const parentPoints = targetEvt.eventData?.pointsDelta ?? targetEvt.eventData?.points ?? 0;
+    const childPoints = childEvents.reduce((acc, c) => {
+      const cData = c.eventData || (c as any).event_data || {};
+      return acc + (cData.pointsDelta ?? cData.points ?? 0);
+    }, 0);
+
+    const totalPointsEffect = parentPoints + childPoints;
+    const parentSuccessful = targetEvt.eventData?.outcome === 'successful' || (parentPoints > 0);
+    const hasSuccessfulChild = childEvents.some((c) => {
+      const cData = c.eventData || (c as any).event_data || {};
+      const cPts = cData.pointsDelta ?? cData.points ?? 0;
+      return cPts > 0 || cData.outcome === 'successful';
+    });
+
+    const isScoreChanging = totalPointsEffect > 0 || parentSuccessful || hasSuccessfulChild;
+
+    const childLabels = childEvents.map((c) => {
+      const label = getEventLabel(c, sport).label || c.subType;
+      const cData = c.eventData || (c as any).event_data || {};
+      const pts = cData.pointsDelta ?? cData.points;
+      return pts ? `${label} (+${pts} pts)` : label;
+    });
+
+    return { childEvents, childLabels, isScoreChanging, totalPointsEffect };
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -125,28 +159,45 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   const user = useAuthStore((state) => state.user);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const resolveInitiatorId = () => {
+    if (!user) return undefined;
+    const orgMemberships = useAuthStore.getState().orgMemberships || [];
+    if (user.globalRole === 'admin') {
+      const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
+      if (adminMem?.orgProfileId) return adminMem.orgProfileId;
+    }
+    if (game?.id && (game as any).officials) {
+      const matchedOfficial = (game as any).officials?.find((o: any) =>
+        orgMemberships.some((m: any) => m.orgProfileId === o.orgProfileId)
+      );
+      if (matchedOfficial?.orgProfileId) return matchedOfficial.orgProfileId;
+    }
+    return orgMemberships[0]?.orgProfileId || user.id;
+  };
+
   const handleConfirmUndo = () => {
     if (undoEventTarget) {
       const target = undoEventTarget;
       setUndoEventTarget(null);
-      const initiatorId = user?.id;
+      const initiatorId = resolveInitiatorId();
       if (!initiatorId) {
         setErrorMessage('User session required: Initiator ID is missing to undo event.');
         return;
       }
-      wsService.emit('action', {
-        type: 'UNDO_GAME_EVENT',
-        payload: { gameId, eventId: target.id, initiatorId },
-      }, (res: any) => {
-        if (res && res.error) {
-          console.error('Failed to undo event:', res.error);
-          if (typeof res.error === 'string' && res.error.toLowerCase().includes('expired')) {
-            setDisputeEventTarget(target);
-          } else {
-            setErrorMessage(res.error);
+      wsService.emitAction(
+        SocketAction.UNDO_GAME_EVENT,
+        { gameId, eventId: target.id, initiatorId },
+        (res: any) => {
+          if (res && res.error) {
+            console.error('Failed to undo event:', res.error);
+            if (typeof res.error === 'string' && res.error.toLowerCase().includes('expired')) {
+              setDisputeEventTarget(target);
+            } else {
+              setErrorMessage(res.error);
+            }
           }
         }
-      });
+      );
     }
   };
 
@@ -154,17 +205,6 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     if (disputeEventTarget) {
       const target = disputeEventTarget;
       setDisputeEventTarget(null);
-      
-      const resolveInitiatorId = () => {
-        if (!user) return undefined;
-        const orgMemberships = useAuthStore.getState().orgMemberships || [];
-        if (user.globalRole === 'admin') {
-          const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
-          if (adminMem?.orgProfileId) return adminMem.orgProfileId;
-        }
-        return orgMemberships[0]?.orgProfileId || user.id;
-      };
-
       const initiatorId = resolveInitiatorId();
       if (!initiatorId) {
         setErrorMessage('User session required: Initiator ID is missing to initiate dispute.');
@@ -483,7 +523,10 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                         {...(Platform.OS === 'web' ? { title: inUndoWindow ? `Undo (${remainingSecs}s)` : 'Remove' } : {})}
                         onPress={(e) => {
                           e.stopPropagation();
-                          if (inUndoWindow) {
+                          const { isScoreChanging } = getLinkedEventsInfo(evt);
+                          const canDirectUndo = inUndoWindow || !isScoreChanging;
+
+                          if (canDirectUndo) {
                             setUndoEventTarget(evt);
                           } else {
                             setDisputeEventTarget(evt);
@@ -526,32 +569,46 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
       )}
 
       {/* CONFIRMATION MODAL FOR UNDO */}
-      {undoEventTarget && (
-        <ConfirmationModal
-          isOpen={!!undoEventTarget}
-          onClose={() => setUndoEventTarget(null)}
-          title="Undo Event?"
-          description={`Are you sure you want to undo "${getEventLabel(undoEventTarget, sport).label || undoEventTarget.subType}"?`}
-          confirmText="Undo Event"
-          cancelText="Cancel"
-          onConfirm={handleConfirmUndo}
-          variant="danger"
-        />
-      )}
+      {undoEventTarget && (() => {
+        const { childLabels } = getLinkedEventsInfo(undoEventTarget);
+        const targetLabel = getEventLabel(undoEventTarget, sport).label || undoEventTarget.subType;
+        const linkedText = childLabels.length > 0
+          ? `\n\nThis will also remove linked event(s):\n• ${childLabels.join('\n• ')}`
+          : '';
+        return (
+          <ConfirmationModal
+            isOpen={!!undoEventTarget}
+            onClose={() => setUndoEventTarget(null)}
+            title="Undo Event?"
+            description={`Are you sure you want to undo "${targetLabel}"?${linkedText}`}
+            confirmText="Undo Event"
+            cancelText="Cancel"
+            onConfirm={handleConfirmUndo}
+            variant="danger"
+          />
+        );
+      })()}
 
       {/* CONFIRMATION MODAL FOR DISPUTE */}
-      {disputeEventTarget && (
-        <ConfirmationModal
-          isOpen={!!disputeEventTarget}
-          onClose={() => setDisputeEventTarget(null)}
-          title="Request Event Removal?"
-          description={`To remove "${getEventLabel(disputeEventTarget, sport).label || disputeEventTarget.subType}", you need consensus from the other scorers. Proceed?`}
-          confirmText="Request Removal"
-          cancelText="Cancel"
-          onConfirm={handleConfirmDispute}
-          variant="primary"
-        />
-      )}
+      {disputeEventTarget && (() => {
+        const { childLabels } = getLinkedEventsInfo(disputeEventTarget);
+        const targetLabel = getEventLabel(disputeEventTarget, sport).label || disputeEventTarget.subType;
+        const linkedText = childLabels.length > 0
+          ? ` and its linked event(s) (${childLabels.join(', ')})`
+          : '';
+        return (
+          <ConfirmationModal
+            isOpen={!!disputeEventTarget}
+            onClose={() => setDisputeEventTarget(null)}
+            title="Request Event Removal?"
+            description={`To remove "${targetLabel}"${linkedText}, you need consensus from the other scorers. Proceed?`}
+            confirmText="Request Removal"
+            cancelText="Cancel"
+            onConfirm={handleConfirmDispute}
+            variant="primary"
+          />
+        );
+      })()}
 
       {/* ERROR MODAL */}
       {errorMessage && (

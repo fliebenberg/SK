@@ -68,15 +68,15 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
 
     // Fill the pattern
     label = label
-      .replace(/{name}/g, template.name.toUpperCase())
+      .replace(/{name}/g, (template.name || '').toUpperCase())
       .replace(/{outcome\|([^}]+)}/g, (_match, fallback) => {
-        return outcome !== undefined ? outcome.toUpperCase() : fallback.toUpperCase();
+        return (outcome != null ? String(outcome) : fallback || '').toUpperCase();
       })
-      .replace(/{outcome}/g, (outcome !== undefined ? outcome : '').toUpperCase())
+      .replace(/{outcome}/g, (outcome != null ? String(outcome) : '').toUpperCase())
       .replace(/{reason\|([^}]+)}/g, (_match, fallback) => {
-        return reason !== undefined ? reason.toUpperCase() : fallback.toUpperCase();
+        return (reason != null ? String(reason) : fallback || '').toUpperCase();
       })
-      .replace(/{reason}/g, (reason !== undefined ? reason : '').toUpperCase());
+      .replace(/{reason}/g, (reason != null ? String(reason) : '').toUpperCase());
 
     return {
       label: label.trim().replace(/\s*→\s*$/, ''),
@@ -87,7 +87,7 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
   }
 
   // Fallback for events without templates
-  const key = evt.subType || evt.type;
+  const key = evt.subType || evt.type || '';
   switch (key) {
     case 'GAME_STARTED':
       label = 'MATCH STARTED';
@@ -114,7 +114,7 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
       label = 'CLOCK RESUMED';
       break;
     default:
-      label = key.replace(/_/g, ' ').toUpperCase();
+      label = String(key).replace(/_/g, ' ').toUpperCase();
       break;
   }
 

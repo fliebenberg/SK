@@ -291,7 +291,35 @@ export class GameEventManager extends BaseManager {
         }
     }
 
+    const isUndo = !updateData;
+
     if (isUndo) {
+        // Non-scoring / 0-point event check: Include active linked child events
+        const childRes = await this.query(`
+            SELECT type, sub_type as "subType", event_data as "eventData" 
+            FROM game_events 
+            WHERE game_id = $1 AND event_data->>'linkedEventId' = $2 AND (event_data->>'status' IS NULL OR event_data->>'status' != 'REMOVED')
+        `, [gameId, eventId]);
+
+        let childPoints = 0;
+        let hasChildScore = false;
+        for (const childRow of childRes.rows) {
+            const cPts = childRow.eventData?.pointsDelta ?? childRow.eventData?.points ?? 0;
+            childPoints += cPts;
+            if (cPts > 0 || childRow.eventData?.outcome === 'successful') {
+                hasChildScore = true;
+            }
+        }
+
+        const parentPoints = evt.eventData?.pointsDelta ?? evt.eventData?.points ?? 0;
+        const totalPoints = parentPoints + childPoints;
+        const isScoreChanging = (totalPoints > 0) || (evt.eventData?.outcome === 'successful') || hasChildScore;
+        
+        if (!isScoreChanging) {
+            console.log(`[Dispute Bypass] Event ${eventId} and its linked children are non-scoring (0 points). Executing direct undo.`);
+            return this.undoEvent(gameId, eventId, initiatorId);
+        }
+
         // Template Guard: check allowUndo
         if (template?.disputeConfig?.allowUndo === false) {
             return { success: false, error: 'This event type is marked as non-removable.' };
@@ -1142,15 +1170,15 @@ export class GameEventManager extends BaseManager {
 
     const event = eventRes.rows[0];
 
-    // 2. Structural & Config Guard: If linked event, resolve to parent event if active
-    if (event.eventData?.linkedEventId) {
-        const parentRes = await this.query(`
-          SELECT id, type, sub_type as "subType", initiator_org_profile_id as "initiatorId", timestamp, event_data as "eventData", game_participant_id as "gameParticipantId", sequence
-          FROM game_events
-          WHERE id = $1 AND game_id = $2
-        `, [event.eventData.linkedEventId, gameId]);
+    // 2. Structural & Config Guard: If child event, remove child and reset parent outcome to null
+    let parentModifiedEvents: GameEvent[] = [];
+    const parentEventId = event.eventData?.linkedEventId;
+    if (parentEventId) {
+        const parentRes = await this.query(`SELECT id, event_data as "eventData" FROM game_events WHERE id = $1 AND game_id = $2`, [parentEventId, gameId]);
         if (parentRes.rows.length > 0 && parentRes.rows[0].eventData?.status !== 'REMOVED') {
-          return this.undoEvent(gameId, event.eventData.linkedEventId, initiatorId);
+            const parentEvt = parentRes.rows[0];
+            const updatedParentData = { ...(parentEvt.eventData || {}), outcome: null, nextAction: null };
+            parentModifiedEvents = await this.applyMutation(gameId, parentEvt.id, { eventData: updatedParentData }, initiatorId);
         }
     }
     
@@ -1191,13 +1219,35 @@ export class GameEventManager extends BaseManager {
       return { success: false, error: 'Only the initiator or a match official can remove this event.' };
     }
 
-    // 4. Verify age (Only for non-officials)
+    // 4. Verify age (Only for non-officials and score-changing events)
     if (!isOfficial) {
-        const settingsRes = await this.query(`SELECT value FROM system_settings WHERE key = 'undo_delay_ms'`);
-        const delayMs = settingsRes.rows[0]?.value || 15000;
-        const eventTime = new Date(event.timestamp).getTime();
-        if (Date.now() - eventTime > delayMs) {
-          return { success: false, error: 'Undo window has expired.' };
+        const childRes = await this.query(`
+            SELECT id, event_data as "eventData" 
+            FROM game_events 
+            WHERE game_id = $1 AND event_data->>'linkedEventId' = $2 AND (event_data->>'status' IS NULL OR event_data->>'status' != 'REMOVED')
+        `, [gameId, eventId]);
+
+        let childPoints = 0;
+        let hasChildScore = false;
+        for (const childRow of childRes.rows) {
+            const cPts = childRow.eventData?.pointsDelta ?? childRow.eventData?.points ?? 0;
+            childPoints += cPts;
+            if (cPts > 0 || childRow.eventData?.outcome === 'successful') {
+                hasChildScore = true;
+            }
+        }
+
+        const parentPoints = event.eventData?.pointsDelta ?? event.eventData?.points ?? 0;
+        const totalPoints = parentPoints + childPoints;
+        const isScoreChanging = (totalPoints > 0) || (event.eventData?.outcome === 'successful') || hasChildScore;
+
+        if (isScoreChanging) {
+            const settingsRes = await this.query(`SELECT value FROM system_settings WHERE key = 'undo_delay_ms'`);
+            const delayMs = settingsRes.rows[0]?.value || 15000;
+            const eventTime = new Date(event.timestamp).getTime();
+            if (Date.now() - eventTime > delayMs) {
+              return { success: false, error: 'Undo window has expired.' };
+            }
         }
     }
 
@@ -1225,8 +1275,8 @@ export class GameEventManager extends BaseManager {
             }
 
             if (this.io) {
-                // Merge recalculated events into modifiedEvents, preferring recalculated versions
-                const allModified = [...modifiedEvents];
+                // Merge parentModifiedEvents, modifiedEvents, and recalculatedEvents
+                const allModified = [...parentModifiedEvents, ...modifiedEvents];
                 for (const re of recalculatedEvents) {
                     const idx = allModified.findIndex(m => m.id === re.id);
                     if (idx > -1) {
@@ -1239,7 +1289,10 @@ export class GameEventManager extends BaseManager {
                 for (const me of allModified) {
                     if (me.eventData?.status === 'REMOVED') {
                         console.log(`[Undo Broadcast] Emitting GAME_EVENT_REMOVED for ${me.id}`);
-                        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: me.id } });
+                        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: me.id, gameId } });
+                    } else {
+                        console.log(`[Undo Broadcast] Emitting GAME_EVENT_UPDATED for ${me.id}`);
+                        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: me });
                     }
                 }
                 console.log(`[Undo Broadcast] Emitting GAME_EVENTS_BATCH_UPDATED for ${allModified.length} events`);
