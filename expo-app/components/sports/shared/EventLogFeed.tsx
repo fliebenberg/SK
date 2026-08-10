@@ -105,6 +105,24 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     return { childEvents, childLabels, isScoreChanging, totalPointsEffect };
   };
 
+  const isUndoableChildEvent = (targetEvt: GameEvent): boolean => {
+    const eData = targetEvt.eventData || (targetEvt as any).event_data || {};
+    if (!eData.linkedEventId) return true;
+
+    const parentEvt = events.find((e) => e.id === eData.linkedEventId);
+    if (!parentEvt) return true;
+
+    const parentTemplateId = parentEvt.eventData?.templateId || parentEvt.subType;
+    const parentTemplate = sport?.eventTemplates?.find((t) => t.id === parentTemplateId);
+    if (!parentTemplate) return true;
+
+    const flatSteps = parentTemplate.steps?.flatMap((s: any) => (s.type === 'GROUP' ? s.steps || [] : [s])) || [];
+    const outcomeStep = flatSteps.find((s: any) => s.type === 'OUTCOME_SELECTION' || s.type === ActionStepType.OUTCOME_SELECTION);
+    const hasMultipleOutcomes = outcomeStep?.outcomes && outcomeStep.outcomes.length > 1;
+
+    return !!hasMultipleOutcomes;
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -520,7 +538,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                   {/* RIGHT SIDE ACTIONS & SCORE */}
                   <View className="flex-row items-center gap-2 shrink-0">
                     {/* UNDO BUTTON */}
-                    {canManage && !isTimingEvent && !isDisputed && (
+                    {canManage && !isTimingEvent && !isDisputed && isUndoableChildEvent(evt) && (
                       <TouchableOpacity
                         {...(Platform.OS === 'web' ? { title: inUndoWindow ? `Undo (${remainingSecs}s)` : 'Remove' } : {})}
                         onPress={(e) => {

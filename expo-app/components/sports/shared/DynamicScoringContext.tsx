@@ -403,6 +403,27 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       } else if ((evt.type === 'GAME_EVENT_REMOVED' || evt.type === 'UNDO_GAME_EVENT') && evt.data) {
         const targetId = evt.data.id || evt.data.eventId;
         setEvents((prev) => prev.filter((e) => e.id !== targetId));
+      } else if (evt.type === 'GAME_EVENTS_BATCH_UPDATED' && Array.isArray(evt.data)) {
+        setEvents((prev) => {
+          let updated = [...prev];
+          for (const item of evt.data) {
+            if (!item || !item.id) continue;
+            const itemStatus = item.eventData?.status || item.event_data?.status;
+            if (itemStatus === 'REMOVED') {
+              updated = updated.filter((e) => e.id !== item.id);
+            } else {
+              const idx = updated.findIndex((e) => e.id === item.id);
+              if (idx > -1) {
+                updated[idx] = item;
+              } else {
+                updated.push(item);
+              }
+            }
+          }
+          return updated.sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+        });
       }
 
       // DISPUTE_* updates

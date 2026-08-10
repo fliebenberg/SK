@@ -977,6 +977,34 @@ export class GameEventManager extends BaseManager {
                 WHERE id = $2
               `, [eventId, gameId]);
             }
+
+            // If this is a linked child event, check if parent event has multiple outcomes and reset parent outcome
+            const parentEventId = evt.eventData?.linkedEventId;
+            if (parentEventId) {
+                const parentRes = await this.query(`SELECT id, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1 AND game_id = $2`, [parentEventId, gameId]);
+                if (parentRes.rows.length > 0 && parentRes.rows[0].eventData?.status !== 'REMOVED') {
+                    const parentEvt = parentRes.rows[0];
+                    const parentTemplateId = parentEvt.eventData?.templateId || parentEvt.subType;
+                    const parentTemplate = sport?.eventTemplates?.find((t: any) => t.id === parentTemplateId);
+
+                    const flatSteps = parentTemplate?.steps?.flatMap((s: any) => (s.type === 'GROUP' ? s.steps || [] : [s])) || [];
+                    const outcomeStep = flatSteps.find((s: any) => s.type === 'OUTCOME_SELECTION');
+                    const hasMultipleOutcomes = outcomeStep?.outcomes && outcomeStep.outcomes.length > 1;
+
+                    if (hasMultipleOutcomes) {
+                        console.log(`[Mutation Engine] Resetting parent event ${parentEvt.id} outcome to null (child ${eventId} undone)`);
+                        const updatedParentData = { 
+                            ...(parentEvt.eventData || {}), 
+                            outcome: null, 
+                            nextAction: null,
+                            pointsDelta: 0,
+                            points: 0
+                        };
+                        const parentModified = await this.applyMutation(gameId, parentEvt.id, { eventData: updatedParentData }, actorId);
+                        modifiedEvents.push(...parentModified);
+                    }
+                }
+            }
         }
     } else {
         console.log(`[Mutation Engine] Updating event: ${eventId}`);
@@ -1170,15 +1198,24 @@ export class GameEventManager extends BaseManager {
 
     const event = eventRes.rows[0];
 
-    // 2. Structural & Config Guard: If child event, remove child and reset parent outcome to null
-    let parentModifiedEvents: GameEvent[] = [];
+    // 2. Structural & Config Guard: If child event, verify parent outcome choices
     const parentEventId = event.eventData?.linkedEventId;
     if (parentEventId) {
-        const parentRes = await this.query(`SELECT id, event_data as "eventData" FROM game_events WHERE id = $1 AND game_id = $2`, [parentEventId, gameId]);
+        const parentRes = await this.query(`SELECT id, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1 AND game_id = $2`, [parentEventId, gameId]);
         if (parentRes.rows.length > 0 && parentRes.rows[0].eventData?.status !== 'REMOVED') {
             const parentEvt = parentRes.rows[0];
-            const updatedParentData = { ...(parentEvt.eventData || {}), outcome: null, nextAction: null };
-            parentModifiedEvents = await this.applyMutation(gameId, parentEvt.id, { eventData: updatedParentData }, initiatorId);
+            const sportId = await this.getGameSportId(gameId);
+            const sport = sportId ? await sportManager.getSport(sportId) : null;
+            const parentTemplateId = parentEvt.eventData?.templateId || parentEvt.subType;
+            const parentTemplate = sport?.eventTemplates?.find((t: any) => t.id === parentTemplateId);
+
+            const flatSteps = parentTemplate?.steps?.flatMap((s: any) => (s.type === 'GROUP' ? s.steps || [] : [s])) || [];
+            const outcomeStep = flatSteps.find((s: any) => s.type === 'OUTCOME_SELECTION');
+            const hasMultipleOutcomes = outcomeStep?.outcomes && outcomeStep.outcomes.length > 1;
+
+            if (!hasMultipleOutcomes) {
+                return { success: false, error: 'This event cannot be removed independently because it is the sole linked outcome for its parent event.' };
+            }
         }
     }
     
@@ -1275,8 +1312,8 @@ export class GameEventManager extends BaseManager {
             }
 
             if (this.io) {
-                // Merge parentModifiedEvents, modifiedEvents, and recalculatedEvents
-                const allModified = [...parentModifiedEvents, ...modifiedEvents];
+                // Merge modifiedEvents and recalculatedEvents
+                const allModified = [...modifiedEvents];
                 for (const re of recalculatedEvents) {
                     const idx = allModified.findIndex(m => m.id === re.id);
                     if (idx > -1) {
