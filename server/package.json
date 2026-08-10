@@ -7,6 +7,7 @@
     "dev": "nodemon",
     "build": "tsc",
     "db:init": "ts-node src/scripts/setup/init-db.ts",
+    "db:migrate": "ts-node src/scripts/run-all-migrations.ts",
     "db:reset": "ts-node src/scripts/setup/reset-db.ts && npm run db:init",
     "db:seed": "ts-node src/scripts/setup/seed-db.ts",
     "db:setup": "npm run db:reset && npm run db:seed"

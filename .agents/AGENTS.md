@@ -67,6 +67,8 @@
 ## Schema Isolation & Migration Discipline
 - **No Inline DDL in Application Code**: Data access objects, managers, and API route/socket handlers must NEVER execute inline DDL or schema alterations (e.g., `ALTER TABLE`, `CREATE TABLE`, `DROP COLUMN`) or auto-migration try-catches. Application code must strictly query and mutate data based on expected schemas.
 - **Explicit Migration Process Only**: All database schema changes (adding/modifying tables, columns, indexes, constraints) MUST be implemented exclusively through dedicated, versioned migration scripts inside `server/src/scripts/migrations/` (or `init-db.ts` for fresh database initialization).
+- **Mandatory Synchronization with `init-db.ts`**: Whenever creating a new database migration that alters database structure, the developer or AI agent MUST ALSO update [`server/src/scripts/setup/init-db.ts`](file:///c:/Fred/Coding/SK/server/src/scripts/setup/init-db.ts) so fresh database deployments immediately reflect the latest schema.
+- **Inspect Live Database Schema Directly**: AI agents and developers must query the actual PostgreSQL database schema (e.g. querying `information_schema.columns` or database metadata) when inspecting table structure, column names, and data types, rather than relying solely on older TypeScript interfaces or table creation scripts.
 
 ## Strict Data Preservation Policy
 - **Zero Data Loss Rule**: Migration scripts and database operations must NEVER drop tables, drop columns, truncate data, or delete existing records unless explicitly requested and approved by the user.

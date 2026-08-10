@@ -3,85 +3,83 @@ import { BaseManager } from "./BaseManager";
 
 export class SportManager extends BaseManager {
   async getSports(): Promise<Sport[]> {
-    // 1. Fetch info from DB
+    // 1. Fetch info from DB including event_templates
     const res = await this.query(
-      `SELECT id, name, facility_term as "facilityTerm", period_term as "periodTerm", default_settings as "defaultSettings" 
+      `SELECT id, name, category_id as "categoryId", participant_type as "participantType", match_topology as "matchTopology", facility_term as "facilityTerm", period_term as "periodTerm", default_settings as "defaultSettings", event_templates as "eventTemplates" 
        FROM sports`
     );
     const dbSports = res.rows;
-    
-    // 2. Merge with shared registry configurations
-    const sports: Sport[] = [];
     const configuredIds = getConfiguredSportIds();
     
+    const sports: Sport[] = [];
     for (const dbSport of dbSports) {
-      if (configuredIds.includes(dbSport.id)) {
-        const config = await getSportConfig(dbSport.id);
-        if (config) {
-          // Merge registry data with DB data (DB values take preference)
-          sports.push({ 
-            ...config, 
-            name: dbSport.name,
-            facilityTerm: dbSport.facilityTerm || config.facilityTerm,
-            periodTerm: dbSport.periodTerm || config.periodTerm,
-            defaultSettings: {
-              ...config.defaultSettings,
-              ...dbSport.defaultSettings,
-              positions: dbSport.defaultSettings?.positions || config.defaultSettings?.positions || []
-            }
-          });
-          continue;
-        }
-      }
-      // Fallback for sports not yet migrated to the registry
-      sports.push(dbSport);
+      const codeConfig = configuredIds.includes(dbSport.id) ? await getSportConfig(dbSport.id) : null;
+      
+      const eventTemplates = (dbSport.eventTemplates && Array.isArray(dbSport.eventTemplates) && dbSport.eventTemplates.length > 0)
+        ? dbSport.eventTemplates
+        : codeConfig?.eventTemplates || [];
+
+      sports.push({
+        ...codeConfig,
+        ...dbSport,
+        facilityTerm: dbSport.facilityTerm || codeConfig?.facilityTerm,
+        periodTerm: dbSport.periodTerm || codeConfig?.periodTerm,
+        defaultSettings: {
+          ...codeConfig?.defaultSettings,
+          ...dbSport.defaultSettings,
+          positions: dbSport.defaultSettings?.positions || codeConfig?.defaultSettings?.positions || []
+        },
+        eventTemplates
+      });
     }
-    
     return sports;
   }
 
   async getSport(id: string): Promise<Sport | undefined> {
     const res = await this.query(
-      `SELECT id, name, facility_term as "facilityTerm", period_term as "periodTerm", default_settings as "defaultSettings" 
+      `SELECT id, name, category_id as "categoryId", participant_type as "participantType", match_topology as "matchTopology", facility_term as "facilityTerm", period_term as "periodTerm", default_settings as "defaultSettings", event_templates as "eventTemplates" 
        FROM sports WHERE id = $1`, 
       [id]
     );
     const dbSport = res.rows[0];
     if (!dbSport) return undefined;
 
-    const config = await getSportConfig(id);
-    if (config) {
-      return { 
-        ...config, 
-        name: dbSport.name,
-        facilityTerm: dbSport.facilityTerm || config.facilityTerm,
-        periodTerm: dbSport.periodTerm || config.periodTerm,
-        defaultSettings: {
-          ...config.defaultSettings,
-          ...dbSport.defaultSettings,
-          positions: dbSport.defaultSettings?.positions || config.defaultSettings?.positions || []
-        }
-      };
-    }
+    const configuredIds = getConfiguredSportIds();
+    const codeConfig = configuredIds.includes(id) ? await getSportConfig(id) : null;
     
-    return dbSport;
+    const eventTemplates = (dbSport.eventTemplates && Array.isArray(dbSport.eventTemplates) && dbSport.eventTemplates.length > 0)
+      ? dbSport.eventTemplates
+      : codeConfig?.eventTemplates || [];
+
+    return {
+      ...codeConfig,
+      ...dbSport,
+      facilityTerm: dbSport.facilityTerm || codeConfig?.facilityTerm,
+      periodTerm: dbSport.periodTerm || codeConfig?.periodTerm,
+      defaultSettings: {
+        ...codeConfig?.defaultSettings,
+        ...dbSport.defaultSettings,
+        positions: dbSport.defaultSettings?.positions || codeConfig?.defaultSettings?.positions || []
+      },
+      eventTemplates
+    };
   }
 
-  async createSport(data: { id: string; name: string; facilityTerm: string; periodTerm: string; defaultSettings: any }): Promise<Sport | undefined> {
+  async createSport(data: { id: string; name: string; facilityTerm: string; periodTerm: string; defaultSettings: any; eventTemplates?: any[] }): Promise<Sport | undefined> {
     await this.query(
-      `INSERT INTO sports (id, name, facility_term, period_term, default_settings) 
-       VALUES ($1, $2, $3, $4, $5)`,
-      [data.id, data.name, data.facilityTerm, data.periodTerm, JSON.stringify(data.defaultSettings || {})]
+      `INSERT INTO sports (id, name, facility_term, period_term, default_settings, event_templates) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [data.id, data.name, data.facilityTerm, data.periodTerm, JSON.stringify(data.defaultSettings || {}), JSON.stringify(data.eventTemplates || [])]
     );
     return this.getSport(data.id);
   }
 
-  async updateSport(id: string, data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any }): Promise<Sport | undefined> {
+  async updateSport(id: string, data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any; eventTemplates?: any[] }): Promise<Sport | undefined> {
     await this.query(
       `UPDATE sports 
-       SET name = $1, facility_term = $2, period_term = $3, default_settings = $4 
-       WHERE id = $5`,
-      [data.name, data.facilityTerm, data.periodTerm, JSON.stringify(data.defaultSettings || {}), id]
+       SET name = $1, facility_term = $2, period_term = $3, default_settings = $4, event_templates = $5 
+       WHERE id = $6`,
+      [data.name, data.facilityTerm, data.periodTerm, JSON.stringify(data.defaultSettings || {}), JSON.stringify(data.eventTemplates || []), id]
     );
     return this.getSport(id);
   }

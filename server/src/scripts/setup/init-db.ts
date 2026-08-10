@@ -43,6 +43,7 @@ const createTables = async () => {
                 participant_type TEXT, -- 'TEAM' | 'INDIVIDUAL'
                 match_topology TEXT, -- 'HEAD_TO_HEAD' | 'MULTI_COMPETITOR'
                 default_settings JSONB DEFAULT '{}'::jsonb,
+                event_templates JSONB DEFAULT '[]'::jsonb,
                 facility_term TEXT,
                 period_term TEXT
             );
@@ -400,6 +401,37 @@ const createTables = async () => {
                 type TEXT NOT NULL,
                 sub_type TEXT,
                 event_data JSONB DEFAULT '{}'::jsonb
+            );
+        `);
+
+        // Game Disputes
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_disputes (
+                id VARCHAR(255) PRIMARY KEY,
+                game_id VARCHAR(255) NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+                game_event_id VARCHAR(255) NOT NULL REFERENCES game_events(id) ON DELETE CASCADE,
+                initiator_org_profile_id VARCHAR(255),
+                initiator_id VARCHAR(255),
+                status VARCHAR(50) NOT NULL DEFAULT 'OPEN',
+                type VARCHAR(50) DEFAULT 'UNDO',
+                update_data JSONB,
+                dispute_config JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                resolved_at TIMESTAMP WITH TIME ZONE
+            );
+        `);
+
+        // Game Dispute Votes
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS game_dispute_votes (
+                id VARCHAR(255) PRIMARY KEY,
+                dispute_id VARCHAR(255) NOT NULL REFERENCES game_disputes(id) ON DELETE CASCADE,
+                voter_org_profile_id VARCHAR(255),
+                vote VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                UNIQUE(dispute_id, voter_org_profile_id)
             );
         `);
 

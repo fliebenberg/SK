@@ -2,6 +2,7 @@ import pool from '../../db';
 import bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
+import { SPORT_SEEDS, SYSTEM_SETTINGS_SEEDS } from './seeds';
 
 const seedDb = async () => {
     try {
@@ -12,12 +13,14 @@ const seedDb = async () => {
         console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
         // 1. Core Data: Sports (Core even in production)
-        const sports = [
+        const otherSports: any[] = [
             { 
                 id: "sport-soccer", 
                 name: "Soccer", 
                 facilityTerm: "Field", 
                 periodTerm: "Half",
+                participantType: "TEAM",
+                matchTopology: "HEAD_TO_HEAD",
                 defaultSettings: {
                     maxReserves: 5,
                     positions: [
@@ -33,49 +36,47 @@ const seedDb = async () => {
                         { id: "FW2", name: "Forward" },
                         { id: "FW3", name: "Forward" }
                     ]
-                }
+                },
+                eventTemplates: []
             },
-            { 
-                id: "sport-rugby", 
-                name: "Rugby", 
-                facilityTerm: "Field", 
-                periodTerm: "Half",
-                defaultSettings: {
-                    maxReserves: 8,
-                    positions: [
-                        { id: "1", name: "Loosehead Prop" },
-                        { id: "2", name: "Hooker" },
-                        { id: "3", name: "Tighthead Prop" },
-                        { id: "4", name: "Lock" },
-                        { id: "5", name: "Lock" },
-                        { id: "6", name: "Blindside Flanker" },
-                        { id: "7", name: "Openside Flanker" },
-                        { id: "8", name: "Number 8" },
-                        { id: "9", name: "Scrum-half" },
-                        { id: "10", name: "Fly-half" },
-                        { id: "11", name: "Left Wing" },
-                        { id: "12", name: "Inside Center" },
-                        { id: "13", name: "Outside Center" },
-                        { id: "14", name: "Right Wing" },
-                        { id: "15", name: "Full-back" }
-                    ]
-                }
-            },
-            { id: "sport-netball", name: "Netball", facilityTerm: "Court", periodTerm: "Period" },
-            { id: "sport-hockey", name: "Hockey", facilityTerm: "Field", periodTerm: "Period" },
-            { id: "sport-cricket", name: "Cricket", facilityTerm: "Field", periodTerm: "Period" },
-            { id: "sport-basketball", name: "Basketball", facilityTerm: "Court", periodTerm: "Quarter" },
+            { id: "sport-netball", name: "Netball", facilityTerm: "Court", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
+            { id: "sport-hockey", name: "Hockey", facilityTerm: "Field", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
+            { id: "sport-cricket", name: "Cricket", facilityTerm: "Field", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
+            { id: "sport-basketball", name: "Basketball", facilityTerm: "Court", periodTerm: "Quarter", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
         ];
         
-        for (const sport of sports) {
+        const allSports = [...SPORT_SEEDS, ...otherSports];
+
+        for (const sport of allSports) {
             await pool.query(`
-                INSERT INTO sports (id, name, facility_term, period_term, default_settings) 
-                VALUES ($1, $2, $3, $4, $5) 
+                INSERT INTO sports (id, name, facility_term, period_term, participant_type, match_topology, default_settings, event_templates) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
                 ON CONFLICT (id) DO UPDATE SET 
                     facility_term = EXCLUDED.facility_term, 
                     period_term = EXCLUDED.period_term,
-                    default_settings = EXCLUDED.default_settings
-            `, [sport.id, sport.name, sport.facilityTerm, sport.periodTerm, JSON.stringify(sport.defaultSettings || {})]);
+                    participant_type = EXCLUDED.participant_type,
+                    match_topology = EXCLUDED.match_topology,
+                    default_settings = EXCLUDED.default_settings,
+                    event_templates = EXCLUDED.event_templates
+            `, [
+                sport.id, 
+                sport.name, 
+                sport.facilityTerm, 
+                sport.periodTerm, 
+                sport.participantType || 'TEAM', 
+                sport.matchTopology || 'HEAD_TO_HEAD', 
+                JSON.stringify(sport.defaultSettings || {}),
+                JSON.stringify(sport.eventTemplates || [])
+            ]);
+        }
+
+        // 1b. Seed System Settings
+        for (const setting of SYSTEM_SETTINGS_SEEDS) {
+            await pool.query(`
+                INSERT INTO system_settings (key, value)
+                VALUES ($1, $2)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            `, [setting.key, setting.value]);
         }
 
         const SYSTEM_ORG_ID = 'org-system-admins';

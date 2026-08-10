@@ -5,36 +5,10 @@ const resetDb = async () => {
         console.log('Resetting Database...');
         await pool.query('BEGIN');
         
-        // Drop tables in reverse order of dependency
-        const tables = [
-            'org_claim_referrals',
-            'reports',
-            'user_badges',
-            'games',
-            'user_favorites',
-            'password_reset_tokens',
-            'verification_tokens',
-            'sessions',
-            'accounts',
-            'user_emails',
-            'users',
-            'events',
-            'org_memberships',
-            'team_memberships',
-            'org_memberships',
-            'org_profiles',
-            'persons',
-            'person_identifiers',
-            'teams',
-            'venues',
-            'organizations',
-            'sports'
-        ];
-
-        for (const table of tables) {
-            await pool.query(`DROP TABLE IF EXISTS ${table} CASCADE;`);
-        }
-
+        // Cleanly wipe all tables and objects by resetting the public schema
+        await pool.query('DROP SCHEMA public CASCADE;');
+        await pool.query('CREATE SCHEMA public;');
+        await pool.query('GRANT ALL ON SCHEMA public TO public;');
         await pool.query('COMMIT');
         console.log('Database reset successfully.');
         process.exit(0);
