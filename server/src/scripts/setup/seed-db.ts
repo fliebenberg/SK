@@ -15,7 +15,7 @@ const seedDb = async () => {
         // 1. Core Data: Sports (Core even in production)
         const otherSports: any[] = [
             { 
-                id: "sport-soccer", 
+                id: "soccer", 
                 name: "Soccer", 
                 facilityTerm: "Field", 
                 periodTerm: "Half",
@@ -39,10 +39,10 @@ const seedDb = async () => {
                 },
                 eventTemplates: []
             },
-            { id: "sport-netball", name: "Netball", facilityTerm: "Court", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
-            { id: "sport-hockey", name: "Hockey", facilityTerm: "Field", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
-            { id: "sport-cricket", name: "Cricket", facilityTerm: "Field", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
-            { id: "sport-basketball", name: "Basketball", facilityTerm: "Court", periodTerm: "Quarter", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
+            { id: "netball", name: "Netball", facilityTerm: "Court", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
+            { id: "hockey", name: "Hockey", facilityTerm: "Field", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
+            { id: "cricket", name: "Cricket", facilityTerm: "Field", periodTerm: "Period", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
+            { id: "basketball", name: "Basketball", facilityTerm: "Court", periodTerm: "Quarter", participantType: "TEAM", matchTopology: "HEAD_TO_HEAD", defaultSettings: {}, eventTemplates: [] },
         ];
         
         const allSports = [...SPORT_SEEDS, ...otherSports];
@@ -137,7 +137,7 @@ const seedDb = async () => {
                 {
                   id: "org-1",
                   name: "Springfield High School",
-                  supported_sport_ids: ["sport-soccer", "sport-rugby", "sport-netball"],
+                  supported_sport_ids: ["soccer", "rugby", "netball"],
                   primary_color: "#00ff00",
                   secondary_color: "#000000",
                   logo: "https://api.dicebear.com/7.x/initials/svg?seed=SHS&backgroundColor=00ff00&textColor=000000",
@@ -277,14 +277,14 @@ const seedDb = async () => {
                   id: "team-1",
                   name: "First XI",
                   ageGroup: "U19",
-                  sportId: "sport-soccer",
+                  sportId: "soccer",
                   orgId: "org-1",
                 },
                 {
                   id: "team-2",
                   name: "U16 A",
                   ageGroup: "U16",
-                  sportId: "sport-rugby",
+                  sportId: "rugby",
                   orgId: "org-1",
                 },
             ];

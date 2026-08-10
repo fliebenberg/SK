@@ -74,4 +74,17 @@
 - **Zero Data Loss Rule**: Migration scripts and database operations must NEVER drop tables, drop columns, truncate data, or delete existing records unless explicitly requested and approved by the user.
 - **Backwards-Compatible Schema Changes**: Always use safe, non-destructive migration statements (e.g., `ADD COLUMN IF NOT EXISTS ... DEFAULT NULL`) to preserve all existing data intact across deployments.
 
+# Error Handling & Strict Fallback Policy Rules
+
+## No Silent Fallbacks on Missing Required Data
+- **Avoid Silent Fallbacks**: Never implement hardcoded fallback strings, dummy values, or silent defaults (e.g. `sportId || 'rugby'`, returning empty state or default entities silently) when expected configuration, entity IDs, or required variables are missing.
+- **Surface Errors Explicitly**: If required dynamic variables or data schemas are missing or not found, throw an explicit, descriptive error or surface a visible alert in the application to indicate that something unexpected occurred.
+
+# Repository Architecture & Read-Only Directories
+
+## Deprecated Client Directory Rule
+- **`client/` Folder is Read-Only**: The `client/` directory contains legacy Web-only code and is strictly deprecated. Never edit, modify, or create files inside `client/`. All mobile and web frontend changes must be made exclusively in `expo-app/`.
+
+
+
 

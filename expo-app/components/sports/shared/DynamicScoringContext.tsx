@@ -180,13 +180,35 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
 
   // 3. Fetch sport definition
   useEffect(() => {
-    const resolvedSportId = game.sportId || game.customSettings?.sportId;
+    let resolvedSportId = (game.sportId || game.customSettings?.sportId || '').replace(/^sport-/, '');
+
     if (resolvedSportId) {
       wsService.emit('get_data', { type: 'sport', id: resolvedSportId }, (resSport: Sport) => {
-        if (resSport) setSport(resSport);
+        if (resSport) {
+          setSport(resSport);
+        } else {
+          setErrorMessage(`Failed to load sport definition for sport ID "${resolvedSportId}". Please ensure the sport configuration is properly seeded.`);
+        }
       });
+    } else if (game.eventId) {
+      wsService.emit('get_data', { type: 'event', id: game.eventId }, (resEvent: any) => {
+        const eventSportId = (resEvent?.sportIds?.[0] || '').replace(/^sport-/, '');
+        if (eventSportId) {
+          wsService.emit('get_data', { type: 'sport', id: eventSportId }, (resSport: Sport) => {
+            if (resSport) {
+              setSport(resSport);
+            } else {
+              setErrorMessage(`Failed to load sport definition for event sport ID "${eventSportId}".`);
+            }
+          });
+        } else {
+          setErrorMessage(`Game ${game.id} has no associated sportId or parent event sport configuration.`);
+        }
+      });
+    } else {
+      setErrorMessage(`Game ${game.id} has no sportId configured.`);
     }
-  }, [game.sportId, game.customSettings?.sportId]);
+  }, [game.sportId, game.customSettings?.sportId, game.eventId]);
 
   // 4. Fetch active disputes
   useEffect(() => {
@@ -530,7 +552,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       templateId: scoringState.templateId,
       points,
       pointsDelta: points,
-      pending: template?.id === 'conversion' && !eventPayload?.outcome,
+      pending: (template?.id === 'conversion' || template?.id === 'penalty_kick' || template?.id === 'drop_goal') && !eventPayload?.outcome,
     };
 
     if (scoringState.editingId) {

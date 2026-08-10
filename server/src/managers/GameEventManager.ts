@@ -139,7 +139,7 @@ export class GameEventManager extends BaseManager {
           const updateRes = await this.query(`
             UPDATE games 
             SET live_state = jsonb_set(
-              live_state, 
+              COALESCE(live_state, '{}'::jsonb), 
               '{scores}', 
               COALESCE(live_state->'scores', '{}'::jsonb) || jsonb_build_object($1::text, (COALESCE((live_state->'scores'->$1)::numeric, 0) + $2)::numeric)
             ),

@@ -72,15 +72,15 @@ export function calculateRugbyStats(events: GameEvent[], homeParticipantId?: str
           break;
         case 'conversion':
           side.conversionAttempts++;
-          if (data.successful) side.conversionSuccess++;
+          if (data.outcome === 'successful' || data.successful) side.conversionSuccess++;
           break;
         case 'penalty_kick':
           side.penaltyKickAttempts++;
-          if (data.successful) side.penaltyKickSuccess++;
+          if (data.outcome === 'successful' || data.successful) side.penaltyKickSuccess++;
           break;
         case 'drop_goal':
           side.dropGoalAttempts++;
-          if (data.successful) side.dropGoalSuccess++;
+          if (data.outcome === 'successful' || data.successful) side.dropGoalSuccess++;
           break;
         case 'penalty_try':
           side.penaltyTries++;

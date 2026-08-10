@@ -330,7 +330,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
               const points = eventData.points;
               const period = eventData.period;
-              const isPending = eventData.pending || (evt.subType === 'conversion' && !eventData.outcome);
+              const isPending = eventData.pending || ((evt.subType === 'conversion' || evt.subType === 'penalty_kick' || evt.subType === 'drop_goal') && !eventData.outcome);
               const isTimingEvent = evt.type === 'TIME' || evt.type === 'STATUS';
               const isDisputed = disputedEventIds.has(evt.id);
 

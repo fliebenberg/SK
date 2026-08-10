@@ -1,38 +1,25 @@
-import { Sport, getSportConfig, getConfiguredSportIds } from "@sk/types";
+import { Sport } from "@sk/types";
 import { BaseManager } from "./BaseManager";
 
 export class SportManager extends BaseManager {
   async getSports(): Promise<Sport[]> {
-    // 1. Fetch info from DB including event_templates
+    // Fetch info strictly from DB including default_settings and event_templates
     const res = await this.query(
       `SELECT id, name, category_id as "categoryId", participant_type as "participantType", match_topology as "matchTopology", facility_term as "facilityTerm", period_term as "periodTerm", default_settings as "defaultSettings", event_templates as "eventTemplates" 
        FROM sports`
     );
     const dbSports = res.rows;
-    const configuredIds = getConfiguredSportIds();
     
-    const sports: Sport[] = [];
-    for (const dbSport of dbSports) {
-      const codeConfig = configuredIds.includes(dbSport.id) ? await getSportConfig(dbSport.id) : null;
-      
-      const eventTemplates = (dbSport.eventTemplates && Array.isArray(dbSport.eventTemplates) && dbSport.eventTemplates.length > 0)
-        ? dbSport.eventTemplates
-        : codeConfig?.eventTemplates || [];
-
-      sports.push({
-        ...codeConfig,
-        ...dbSport,
-        facilityTerm: dbSport.facilityTerm || codeConfig?.facilityTerm,
-        periodTerm: dbSport.periodTerm || codeConfig?.periodTerm,
-        defaultSettings: {
-          ...codeConfig?.defaultSettings,
-          ...dbSport.defaultSettings,
-          positions: dbSport.defaultSettings?.positions || codeConfig?.defaultSettings?.positions || []
-        },
-        eventTemplates
-      });
-    }
-    return sports;
+    return dbSports.map(dbSport => ({
+      ...dbSport,
+      facilityTerm: dbSport.facilityTerm || 'Field',
+      periodTerm: dbSport.periodTerm || 'Period',
+      defaultSettings: {
+        ...(dbSport.defaultSettings || {}),
+        positions: dbSport.defaultSettings?.positions || []
+      },
+      eventTemplates: dbSport.eventTemplates || []
+    }));
   }
 
   async getSport(id: string): Promise<Sport | undefined> {
@@ -44,24 +31,15 @@ export class SportManager extends BaseManager {
     const dbSport = res.rows[0];
     if (!dbSport) return undefined;
 
-    const configuredIds = getConfiguredSportIds();
-    const codeConfig = configuredIds.includes(id) ? await getSportConfig(id) : null;
-    
-    const eventTemplates = (dbSport.eventTemplates && Array.isArray(dbSport.eventTemplates) && dbSport.eventTemplates.length > 0)
-      ? dbSport.eventTemplates
-      : codeConfig?.eventTemplates || [];
-
     return {
-      ...codeConfig,
       ...dbSport,
-      facilityTerm: dbSport.facilityTerm || codeConfig?.facilityTerm,
-      periodTerm: dbSport.periodTerm || codeConfig?.periodTerm,
+      facilityTerm: dbSport.facilityTerm || 'Field',
+      periodTerm: dbSport.periodTerm || 'Period',
       defaultSettings: {
-        ...codeConfig?.defaultSettings,
-        ...dbSport.defaultSettings,
-        positions: dbSport.defaultSettings?.positions || codeConfig?.defaultSettings?.positions || []
+        ...(dbSport.defaultSettings || {}),
+        positions: dbSport.defaultSettings?.positions || []
       },
-      eventTemplates
+      eventTemplates: dbSport.eventTemplates || []
     };
   }
 

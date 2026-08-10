@@ -358,7 +358,7 @@ export default function CreateEvent() {
   // Form Submit Handler
   const handleSubmit = () => {
     if (type !== 'game' && !eventName.trim()) return;
-    if (type === 'game' && (!selectedHomeTeamId || !selectedAwayTeamId)) return;
+    if (type === 'game' && (!selectedHomeTeamId || !selectedAwayTeamId || !selectedSportId)) return;
 
     setIsProcessing(true);
 
@@ -441,7 +441,7 @@ export default function CreateEvent() {
 
           const gamePayload = {
             eventId: newEvent.id,
-            sportId: selectedSportId || 'rugby',
+            sportId: selectedSportId,
             participants: [{ teamId: selectedHomeTeamId }, { teamId: selectedAwayTeamId }],
             scheduledStartTime: scheduledTime,
             startTime: scheduledTime,

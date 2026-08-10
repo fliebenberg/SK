@@ -1,7 +1,7 @@
 import { ActionStepType, TemplateDisputeType } from "@sk/types";
 
 export const RUGBY_SEED_SPEC = {
-  id: "sport-rugby",
+  id: "rugby",
   name: "Rugby",
   categoryId: "rugby",
   participantType: "TEAM",

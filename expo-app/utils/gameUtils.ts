@@ -51,8 +51,8 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
       outcome = outcomeObj.name;
     }
 
-    if (isPending && template.pendingOutcomeLabel) {
-      outcome = template.pendingOutcomeLabel;
+    if (isPending && (template.pendingOutcomeLabel || evt.subType === 'penalty_kick' || evt.subType === 'conversion' || evt.subType === 'drop_goal')) {
+      outcome = template.pendingOutcomeLabel || 'PENDING';
     }
 
     // Resolve Reason
