@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction } from '@sk/types';
+import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, ActionStepType } from '@sk/types';
 import { wsService } from '../../../services/websocket';
 import { getSystemSettingsOnce, getCachedSystemSettings } from '../../../services/systemSettings';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
+import { useSportStore } from '../../../store/sportStore';
 import { ConfirmationModal } from '../../ConfirmationModal';
 
 const resolveOrgProfileId = (game: Game): string | null => {
@@ -40,35 +41,9 @@ export interface EventTemplateItem {
   section: 'Scoring' | 'Game Events' | 'General Play';
   points?: number;
   steps?: any[];
+  triggerEventId?: string;
+  pendingOutcomeLabel?: string;
 }
-
-export const RUGBY_TEMPLATES: EventTemplateItem[] = [
-  // SCORING
-  { id: 'try', name: 'Try', mobileLabel: 'Try', section: 'Scoring', points: 5 },
-  { id: 'conversion', name: 'Conversion', mobileLabel: 'Conversion', section: 'Scoring', points: 2 },
-  { id: 'penalty_kick', name: 'Penalty Kick', mobileLabel: 'Penalty Kick', section: 'Scoring', points: 3 },
-  { id: 'drop_goal', name: 'Drop Goal', mobileLabel: 'Drop Goal', section: 'Scoring', points: 3 },
-  { id: 'penalty_try', name: 'Penalty Try', mobileLabel: 'Penalty Try', section: 'Scoring', points: 7 },
-
-  // GAME EVENTS
-  { id: 'kickoff', name: 'Kick-off', mobileLabel: 'Kick-off', section: 'Game Events' },
-  { id: 'dropout_22m', name: '22m Dropout', mobileLabel: '22m Dropout', section: 'Game Events' },
-  { id: 'dropout_goalline', name: 'Goalline Dropout', mobileLabel: 'Goalline Dropout', section: 'Game Events' },
-  { id: 'penalty_awarded', name: 'Penalty Against', mobileLabel: 'Penalty Against', section: 'Game Events' },
-  { id: 'free_kick', name: 'Free Kick Against', mobileLabel: 'Free Kick Against', section: 'Game Events' },
-  { id: 'yellow_card', name: 'Yellow Card', mobileLabel: 'Yellow Card', section: 'Game Events' },
-  { id: 'red_card', name: 'Red Card', mobileLabel: 'Red Card', section: 'Game Events' },
-  { id: 'timed_red_card', name: 'Timed Red Card', mobileLabel: 'Timed Red Card', section: 'Game Events' },
-  { id: 'line_kick', name: 'Line Kick', mobileLabel: 'Line Kick', section: 'Game Events' },
-
-  // GENERAL PLAY & SET PIECES
-  { id: 'scrum', name: 'Scrum', mobileLabel: 'Scrum', section: 'General Play' },
-  { id: 'lineout', name: 'Lineout', mobileLabel: 'Lineout', section: 'General Play' },
-  { id: 'knock_on', name: 'Knock-on', mobileLabel: 'Knock-on', section: 'General Play' },
-  { id: 'turnover', name: 'Turnover Won', mobileLabel: 'Turnover', section: 'General Play' },
-  { id: 'tackle_made', name: 'Tackle Made', mobileLabel: 'Tackle', section: 'General Play' },
-  { id: 'tackle_missed', name: 'Tackle Missed', mobileLabel: 'Missed Tackle', section: 'General Play' },
-];
 
 interface DynamicScoringContextType {
   game: Game;
@@ -113,7 +88,10 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   const [events, setEvents] = useState<GameEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState<boolean>(true);
   const [disputes, setDisputes] = useState<GameDispute[]>([]);
-  const [sport, setSport] = useState<Sport | undefined>(undefined);
+  const [sport, setSport] = useState<Sport | undefined>(() => {
+    const resolvedSportId = (game.sportId || game.customSettings?.sportId || '').replace(/^sport-/, '');
+    return resolvedSportId ? useSportStore.getState().getCachedSport(resolvedSportId) : undefined;
+  });
   const [profileMap, setProfileMap] = useState<{ [profileId: string]: string }>({});
   const [undoDelayMs, setUndoDelayMs] = useState<number>(() => {
     const cached = getCachedSystemSettings();
@@ -186,6 +164,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       wsService.emit('get_data', { type: 'sport', id: resolvedSportId }, (resSport: Sport) => {
         if (resSport) {
           setSport(resSport);
+          useSportStore.getState().setCachedSport(resSport);
         } else {
           setErrorMessage(`Failed to load sport definition for sport ID "${resolvedSportId}". Please ensure the sport configuration is properly seeded.`);
         }
@@ -197,6 +176,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           wsService.emit('get_data', { type: 'sport', id: eventSportId }, (resSport: Sport) => {
             if (resSport) {
               setSport(resSport);
+              useSportStore.getState().setCachedSport(resSport);
             } else {
               setErrorMessage(`Failed to load sport definition for event sport ID "${eventSportId}".`);
             }
@@ -452,7 +432,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   }, [game.id, homeParticipantId, awayParticipantId]);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const templates = RUGBY_TEMPLATES;
+  const templates: EventTemplateItem[] = (sport?.eventTemplates || []) as EventTemplateItem[];
 
   const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
     if (templateId === 'penalty_try' && !initialData?.eventId) {
@@ -523,13 +503,25 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
     const template = templates.find((t) => t.id === scoringState.templateId);
 
-    // Determine points: if kick outcome is missed or skipped, pointsDelta is 0
+    // Dynamically resolve steps and outcome definitions from template.steps
+    const flatSteps = template?.steps
+      ? template.steps.flatMap((s: any) => (s.type === ActionStepType.GROUP || s.type === 'GROUP' ? s.steps || [] : [s]))
+      : [];
+    const outcomeStep = flatSteps.find((s: any) => s.type === ActionStepType.OUTCOME_SELECTION || s.type === 'OUTCOME_SELECTION');
+    const hasOutcomeStep = !!outcomeStep;
+    const selectedOutcomeObj = outcomeStep?.outcomes?.find((o: any) => o.id === eventPayload?.outcome);
+
     let points = template?.points || 0;
-    if (template?.id === 'conversion' || template?.id === 'penalty_kick' || template?.id === 'drop_goal') {
-      if (eventPayload?.outcome === 'missed' || !eventPayload?.outcome) {
+    if (selectedOutcomeObj && selectedOutcomeObj.points !== undefined) {
+      points = selectedOutcomeObj.points;
+    } else if (hasOutcomeStep && (!eventPayload?.outcome || eventPayload?.outcome === 'missed')) {
+      if (template?.section === 'Scoring' || (template?.points && template.points > 0)) {
         points = 0;
       }
     }
+
+    const isScoring = template?.section === 'Scoring' || (template?.points && template.points > 0);
+    const isPending = isScoring && hasOutcomeStep && !eventPayload?.outcome;
 
     const currentPeriodLabel =
       game.liveState?.periodLabel ||
@@ -552,7 +544,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       templateId: scoringState.templateId,
       points,
       pointsDelta: points,
-      pending: (template?.id === 'conversion' || template?.id === 'penalty_kick' || template?.id === 'drop_goal') && !eventPayload?.outcome,
+      pending: isPending,
     };
 
     if (scoringState.editingId) {
@@ -564,7 +556,6 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       const inUndoWindow = age >= 0 && age < undoDelayMs;
       const isCreator = originalEvt?.initiatorOrgProfileId ? originalEvt.initiatorOrgProfileId === initiatorId : true;
       const isBypassed = inUndoWindow && isCreator;
-      const isScoring = template?.section === 'Scoring' || scoringState.templateId === 'penalty_kick' || scoringState.templateId === 'conversion' || scoringState.templateId === 'try' || scoringState.templateId === 'penalty_try' || scoringState.templateId === 'drop_goal';
       const isOutcomeAlreadySet = originalData.outcome !== undefined && originalData.outcome !== null && originalData.outcome !== '';
 
       const outcomeChanged = eventPayload?.outcome !== undefined && eventPayload.outcome !== originalData.outcome;
@@ -572,7 +563,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
 
       if (!isBypassed && isScoring && isOutcomeAlreadySet && (outcomeChanged || pointsChanged)) {
         // Prompt user confirmation for consensus update when outside undo window or non-creator
-        const eventName = template?.name || 'Penalty Kick';
+        const eventName = template?.name || scoringState.templateId || 'Event';
         setScoringState({ status: 'IDLE' });
         setUpdateDisputeTarget({
           gameId: game.id,

@@ -11,9 +11,14 @@ import { ActionStepType } from '@sk/types';
 import { ConfirmationModal } from '../../ConfirmationModal';
 import { COLORS } from '../../../constants/Colors';
 
+interface ReasonOption {
+  id: string;
+  name: string;
+}
+
 interface ReasonGroup {
   name: string;
-  options: string[];
+  options: ReasonOption[];
 }
 
 interface OutcomeOption {
@@ -22,131 +27,6 @@ interface OutcomeOption {
   variant?: 'primary' | 'success' | 'danger' | 'warning';
   triggerEventId?: string;
 }
-
-const GROUPED_REASON_OPTIONS: { [key: string]: ReasonGroup[] } = {
-  penalty_awarded: [
-    {
-      name: 'Tackle',
-      options: ['Dangerous Tackle', 'High Tackle', 'Late Tackle'],
-    },
-    {
-      name: 'Ruck',
-      options: ['Not Releasing', 'Not Rolling', 'Hands in Ruck', 'Side Entry', 'Off Feet'],
-    },
-    {
-      name: 'Set Piece',
-      options: ['Collapsing Scrum', 'Illegal Binding', 'Scrum Other', 'Lineout Foul'],
-    },
-    {
-      name: 'General',
-      options: ['Offside', 'Obstruction', 'Professional Foul', 'Other'],
-    },
-  ],
-  free_kick: [
-    {
-      name: 'Scrum',
-      options: ['Early Push', 'Delaying the Feed', 'Pre-engagement', 'Illegal Feed', 'Foot Up'],
-    },
-    {
-      name: 'Lineout',
-      options: ['Closing the Gap', 'Delaying the Lineout', 'Early Lift', 'Too Many Players', 'Faking a Throw', 'Not Straight'],
-    },
-    {
-      name: 'General',
-      options: ['Mark', 'Wasting Time', 'Kicking Ball Away', 'Other'],
-    },
-  ],
-  yellow_card: [
-    {
-      name: 'Foul Play',
-      options: ['High Tackle', 'Dangerous Play', 'Professional Foul', 'Cynical Foul', 'Unsportsmanlike Conduct'],
-    },
-    {
-      name: 'Technical',
-      options: ['Repeated Infringements', 'Offside', 'Other'],
-    },
-  ],
-  red_card: [
-    {
-      name: 'Serious Foul Play',
-      options: ['Dangerous High Tackle', 'Tip Tackle', 'Punching / Striking', 'Stamp / Kick', 'Abuse of Official', 'Second Yellow Card'],
-    },
-  ],
-  timed_red_card: [
-    {
-      name: 'Serious Foul Play (Timed)',
-      options: ['Dangerous High Tackle', 'Tip Tackle', 'Other'],
-    },
-  ],
-  scrum: [
-    {
-      name: 'Infringement',
-      options: ['Knock-on', 'Forward Pass', 'Held Up', 'Unplayable Maul', 'Accidental Offside', 'Penalty'],
-    },
-  ],
-  lineout: [
-    {
-      name: 'Cause',
-      options: ['Ball Out of Bounds', 'Touchjudge Signal', 'Direct Touch Kick', 'Not Straight'],
-    },
-  ],
-};
-
-const OUTCOME_OPTIONS: { [key: string]: OutcomeOption[] } = {
-  kickoff: [
-    { id: 'successful', name: 'Successful', variant: 'success' },
-    { id: 'directly_out', name: 'Directly Out', variant: 'danger' },
-    { id: 'too_short', name: 'Too Short', variant: 'danger' },
-    { id: 'long', name: 'Long', variant: 'danger' },
-  ],
-  dropout_22m: [
-    { id: 'successful', name: 'Successful', variant: 'success' },
-    { id: 'directly_out', name: 'Directly Out', variant: 'danger' },
-    { id: 'too_short', name: 'Too Short', variant: 'danger' },
-  ],
-  dropout_goalline: [
-    { id: 'successful', name: 'Successful', variant: 'success' },
-    { id: 'directly_out', name: 'Directly Out', variant: 'danger' },
-    { id: 'too_short', name: 'Too Short', variant: 'danger' },
-  ],
-  line_kick: [
-    { id: 'out', name: 'Out', variant: 'success' },
-    { id: 'stayed_in', name: 'Stayed In', variant: 'danger' },
-  ],
-  penalty_kick: [
-    { id: 'successful', name: 'Successful', variant: 'success' },
-    { id: 'missed', name: 'Missed', variant: 'danger' },
-  ],
-  conversion: [
-    { id: 'successful', name: 'Successful', variant: 'success' },
-    { id: 'missed', name: 'Missed', variant: 'danger' },
-  ],
-  drop_goal: [
-    { id: 'successful', name: 'Successful', variant: 'success' },
-    { id: 'missed', name: 'Missed', variant: 'danger' },
-  ],
-  penalty_awarded: [
-    { id: 'penalty_kick', name: 'Penalty Kick', variant: 'primary', triggerEventId: 'penalty_kick' },
-    { id: 'penalty_try', name: 'Penalty Try', variant: 'danger', triggerEventId: 'penalty_try' },
-    { id: 'line_kick', name: 'Line Kick', variant: 'primary', triggerEventId: 'line_kick' },
-    { id: 'scrum', name: 'Scrum', variant: 'warning', triggerEventId: 'scrum' },
-    { id: 'tap_go', name: 'Tap & Go', variant: 'success' },
-  ],
-  free_kick: [
-    { id: 'line_kick', name: 'Line Kick', variant: 'primary', triggerEventId: 'line_kick' },
-    { id: 'scrum', name: 'Scrum', variant: 'warning', triggerEventId: 'scrum' },
-    { id: 'tap_go', name: 'Tap & Go', variant: 'success' },
-  ],
-  scrum: [
-    { id: 'won', name: 'Won', variant: 'success' },
-    { id: 'lost', name: 'Lost', variant: 'danger' },
-  ],
-  lineout: [
-    { id: 'won', name: 'Won', variant: 'success' },
-    { id: 'lost', name: 'Lost', variant: 'danger' },
-    { id: 'not_straight', name: 'Not Straight', variant: 'warning' },
-  ],
-};
 
 export function DynamicScoringDialog() {
   const { height: screenHeight } = useWindowDimensions();
@@ -184,16 +64,43 @@ export function DynamicScoringDialog() {
   const roster = side === 'home' ? homeRoster : awayRoster;
   const isLoadingRoster = isLoadingRosters;
 
-  const reasonGroups = GROUPED_REASON_OPTIONS[templateId] || [];
-  const outcomes = OUTCOME_OPTIONS[templateId] || [];
+  // Flatten template steps dynamically
+  const flatSteps = template?.steps
+    ? template.steps.flatMap((s: any) => (s.type === ActionStepType.GROUP || s.type === 'GROUP' ? s.steps || [] : [s]))
+    : [];
+
+  // Parse Reason Groups dynamically
+  const reasonStep = flatSteps.find((s: any) => s.type === ActionStepType.REASON_SELECTION || s.type === 'REASON_SELECTION');
+  const reasonGroups: ReasonGroup[] = [];
+  if (reasonStep?.reasons && Array.isArray(reasonStep.reasons)) {
+    reasonStep.reasons.forEach((rg: any) => {
+      const opts = (rg.options || []).map((o: any) =>
+        typeof o === 'string' ? { id: o, name: o } : { id: o.id || o.name, name: o.name || o.id }
+      );
+      reasonGroups.push({ name: rg.name || 'General', options: opts });
+    });
+  }
+
+  // Parse Outcome Options dynamically
+  const outcomeStep = flatSteps.find((s: any) => s.type === ActionStepType.OUTCOME_SELECTION || s.type === 'OUTCOME_SELECTION');
+  const outcomes: OutcomeOption[] = (outcomeStep?.outcomes || []).map((o: any) => {
+    if (typeof o === 'string') return { id: o, name: o };
+    return {
+      id: o.id,
+      name: o.name || o.id,
+      variant: o.variant,
+      triggerEventId: o.triggerEventId,
+    };
+  });
+
   const hasReasons = reasonGroups.length > 0;
   const hasOutcomes = outcomes.length > 0;
-  const hasWidget = templateId === 'scrum';
+  const hasWidget = flatSteps.some((s: any) => s.type === ActionStepType.CUSTOM_WIDGET || s.type === 'CUSTOM_WIDGET') || templateId === 'scrum';
+  const hasPlayerSelection = flatSteps.some((s: any) => s.type === ActionStepType.PLAYER_SELECTION || s.type === 'PLAYER_SELECTION') || (template?.steps && template.steps.length === 0 ? false : templateId !== 'penalty_try');
 
-  const isNextActionStep = templateId === 'penalty_awarded' || templateId === 'free_kick';
+  const isNextActionStep = outcomes.some((o) => !!o.triggerEventId);
   const outcomeStepLabel = isNextActionStep ? 'Next Action' : 'Outcome';
 
-  const hasPlayerSelection = templateId !== 'penalty_try';
   const stepItems: { key: string; label: string; type: 'player' | 'reason' | 'widget' | 'outcome' }[] = [];
 
   if (hasPlayerSelection) {
@@ -238,11 +145,11 @@ export function DynamicScoringDialog() {
 
       if (init.initialStepType) {
         let targetIndex = -1;
-        if (init.initialStepType === ActionStepType.PLAYER_SELECTION) {
+        if (init.initialStepType === ActionStepType.PLAYER_SELECTION || init.initialStepType === 'PLAYER_SELECTION') {
           targetIndex = stepItems.findIndex((s) => s.type === 'player');
-        } else if (init.initialStepType === ActionStepType.REASON_SELECTION) {
+        } else if (init.initialStepType === ActionStepType.REASON_SELECTION || init.initialStepType === 'REASON_SELECTION') {
           targetIndex = stepItems.findIndex((s) => s.type === 'reason');
-        } else if (init.initialStepType === ActionStepType.OUTCOME_SELECTION) {
+        } else if (init.initialStepType === ActionStepType.OUTCOME_SELECTION || init.initialStepType === 'OUTCOME_SELECTION') {
           targetIndex = stepItems.findIndex((s) => s.type === 'outcome');
         }
         if (targetIndex >= 0) {
@@ -402,12 +309,12 @@ export function DynamicScoringDialog() {
                           </Text>
                         </View>
                         <View className="flex-row flex-wrap gap-2 pt-0.5">
-                          {group.options.map((r) => {
-                            const isSelected = selectedReason === r;
+                          {group.options.map((rOpt) => {
+                            const isSelected = selectedReason === rOpt.id || selectedReason === rOpt.name;
                             return (
                               <TouchableOpacity
-                                key={r}
-                                onPress={() => setSelectedReason(r)}
+                                key={rOpt.id}
+                                onPress={() => setSelectedReason(rOpt.id)}
                                 className={`px-3 py-2 rounded-xl border ${
                                   isSelected
                                     ? 'bg-brand-orange border-brand-orange'
@@ -419,7 +326,7 @@ export function DynamicScoringDialog() {
                                     isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
                                   }`}
                                 >
-                                  {r}
+                                  {rOpt.name}
                                 </Text>
                               </TouchableOpacity>
                             );

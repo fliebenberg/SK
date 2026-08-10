@@ -51,7 +51,8 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
       outcome = outcomeObj.name;
     }
 
-    if (isPending && (template.pendingOutcomeLabel || evt.subType === 'penalty_kick' || evt.subType === 'conversion' || evt.subType === 'drop_goal')) {
+    const isScoringTemplate = template.section === 'Scoring' || (template.points && template.points > 0);
+    if (isPending && isScoringTemplate) {
       outcome = template.pendingOutcomeLabel || 'PENDING';
     }
 
@@ -127,41 +128,41 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
 export function getMissingDetails(evt: GameEvent, template: any, roster?: any[]) {
   if (!template || !template.steps) return [];
 
-  const flatSteps = template.steps.flatMap((s: any) => (s.type === ActionStepType.GROUP ? s.steps || [] : [s]));
+  const flatSteps = template.steps.flatMap((s: any) => (s.type === ActionStepType.GROUP || s.type === 'GROUP' ? s.steps || [] : [s]));
   const missing: ('player' | 'reason' | 'outcome')[] = [];
   const eventData = evt.eventData || {};
 
   // 1. Reason Selection
-  const hasReasonStep = flatSteps.some((s: any) => s.type === ActionStepType.REASON_SELECTION);
+  const hasReasonStep = flatSteps.some((s: any) => s.type === ActionStepType.REASON_SELECTION || s.type === 'REASON_SELECTION');
   if (hasReasonStep && !eventData.reason) {
     missing.push('reason');
   }
 
   // 2. Outcome Selection
-  const hasOutcomeStep = flatSteps.some((s: any) => s.type === ActionStepType.OUTCOME_SELECTION);
+  const hasOutcomeStep = flatSteps.some((s: any) => s.type === ActionStepType.OUTCOME_SELECTION || s.type === 'OUTCOME_SELECTION');
   if (hasOutcomeStep && !eventData.outcome) {
     missing.push('outcome');
   }
 
   // 3. Player Selection
-  const hasPlayerStep = flatSteps.some((s: any) => s.type === ActionStepType.PLAYER_SELECTION);
+  const hasPlayerStep = flatSteps.some((s: any) => s.type === ActionStepType.PLAYER_SELECTION || s.type === 'PLAYER_SELECTION');
   if (hasPlayerStep && !evt.actorOrgProfileId) {
     const hasPlayers = roster && roster.length > 0;
     if (hasPlayers) {
       let skippedByReason = false;
       if (eventData.reason) {
-        const reasonStep = flatSteps.find((s: any) => s.type === ActionStepType.REASON_SELECTION);
-        const reasonOpt = reasonStep?.reasons?.flatMap((g: any) => g.options).find((o: any) => o.id === eventData.reason);
-        if (reasonOpt && reasonOpt.specifyPlayer === false) {
+        const reasonStep = flatSteps.find((s: any) => s.type === ActionStepType.REASON_SELECTION || s.type === 'REASON_SELECTION');
+        const reasonOpt = reasonStep?.reasons?.flatMap((g: any) => g.options).find((o: any) => (typeof o === 'string' ? o === eventData.reason : o.id === eventData.reason));
+        if (reasonOpt && typeof reasonOpt === 'object' && reasonOpt.specifyPlayer === false) {
           skippedByReason = true;
         }
       }
 
       let excludedByOutcome = false;
       if (eventData.outcome) {
-        const outcomeStep = flatSteps.find((s: any) => s.type === ActionStepType.OUTCOME_SELECTION);
-        const outcomeOpt = outcomeStep?.outcomes?.find((o: any) => o.id === eventData.outcome);
-        if (outcomeOpt && outcomeOpt.excludePlayer === true) {
+        const outcomeStep = flatSteps.find((s: any) => s.type === ActionStepType.OUTCOME_SELECTION || s.type === 'OUTCOME_SELECTION');
+        const outcomeOpt = outcomeStep?.outcomes?.find((o: any) => (typeof o === 'string' ? o === eventData.outcome : o.id === eventData.outcome));
+        if (outcomeOpt && typeof outcomeOpt === 'object' && outcomeOpt.excludePlayer === true) {
           excludedByOutcome = true;
         }
       }

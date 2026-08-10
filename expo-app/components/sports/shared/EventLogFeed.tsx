@@ -330,7 +330,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
               const points = eventData.points;
               const period = eventData.period;
-              const isPending = eventData.pending || ((evt.subType === 'conversion' || evt.subType === 'penalty_kick' || evt.subType === 'drop_goal') && !eventData.outcome);
+              const isScoringEvent = template?.section === 'Scoring' || (template?.points && template.points > 0);
+              const isPending = eventData.pending || (isScoringEvent && !eventData.outcome);
               const isTimingEvent = evt.type === 'TIME' || evt.type === 'STATUS';
               const isDisputed = disputedEventIds.has(evt.id);
 
@@ -347,31 +348,30 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
               const playerOffName = eventData.playerOffName || (eventData.playerOffProfileId ? profileMap[eventData.playerOffProfileId] : null);
               const playerOnName = eventData.playerOnName || (eventData.playerOnProfileId ? profileMap[eventData.playerOnProfileId] : null);
 
-              // Missing Details & Conversion action checks
+              // Missing Details & Conversion / Linked action checks
               const participantRoster = evt.gameParticipantId ? rosters[evt.gameParticipantId] : undefined;
               const missingDetails = canManage && !isDisputed ? getMissingDetails(evt, template, participantRoster) : [];
               
-              const isTry = template?.id === 'try' || evt.subType === 'try';
-              const hasLinkedConversion = events.some((e) => {
-                const isConversion = e.subType === 'conversion' || e.eventData?.templateId === 'conversion';
-                if (!isConversion) return false;
+              const triggerEventId = template?.triggerEventId;
+              const hasTriggerEvent = !!triggerEventId;
+              const hasLinkedTrigger = events.some((e) => {
                 const eData = e.eventData || (e as any).event_data || {};
                 if (eData.status === 'REMOVED') return false;
 
                 // 1. Explicit link
                 if (eData.linkedEventId === evt.id) return true;
 
-                // 2. Implicit link (same participant, conversion recorded within 5 min window after try)
-                if (e.gameParticipantId === evt.gameParticipantId) {
-                  const conversionTime = e.timestamp ? new Date(e.timestamp).getTime() : 0;
+                // 2. Implicit link (same participant, trigger event recorded within 5 min window)
+                if (e.subType === triggerEventId && e.gameParticipantId === evt.gameParticipantId) {
+                  const triggerTime = e.timestamp ? new Date(e.timestamp).getTime() : 0;
                   const tryTime = evt.timestamp ? new Date(evt.timestamp).getTime() : 0;
-                  if (conversionTime >= tryTime && conversionTime - tryTime < 300000) {
+                  if (triggerTime >= tryTime && triggerTime - tryTime < 300000) {
                     return true;
                   }
                 }
                 return false;
               });
-              const canAddConversion = canManage && !isDisputed && isTry && !hasLinkedConversion;
+              const canAddTrigger = canManage && !isDisputed && hasTriggerEvent && !hasLinkedTrigger;
               const side = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
 
               return (
@@ -435,8 +435,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                         )}
                       </View>
 
-                      {/* QUICK FIX ACTION PILLS & CONVERSION PROMPT INSIDE CARD */}
-                      {(missingDetails.length > 0 || canAddConversion) && (
+                      {/* QUICK FIX ACTION PILLS & CONVERSION / TRIGGER PROMPT INSIDE CARD */}
+                      {(missingDetails.length > 0 || canAddTrigger) && (
                         <View className="flex-row flex-wrap gap-1.5 mt-1.5">
                           {missingDetails.includes('player') && (
                             <TouchableOpacity
@@ -497,16 +497,18 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                             </TouchableOpacity>
                           )}
 
-                          {canAddConversion && (
+                          {canAddTrigger && triggerEventId && (
                             <TouchableOpacity
                               onPress={(e) => {
                                 e.stopPropagation();
-                                startDynamicFlow?.('conversion', side, { linkedEventId: evt.id });
+                                startDynamicFlow?.(triggerEventId, side, { linkedEventId: evt.id });
                               }}
                               className="flex-row items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/40 rounded-full"
                             >
                               <Ionicons name="add-circle-outline" size={10} color="#F59E0B" />
-                              <Text className="font-inter-bold text-[9px] uppercase text-amber-500">+ Add Conversion</Text>
+                              <Text className="font-inter-bold text-[9px] uppercase text-amber-500">
+                                {triggerEventId === 'conversion' ? '+ Add Conversion' : `+ ${triggerEventId.replace(/_/g, ' ')}`}
+                              </Text>
                             </TouchableOpacity>
                           )}
                         </View>

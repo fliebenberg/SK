@@ -227,7 +227,8 @@ export const RUGBY_SEED_SPEC = {
     },
     {
       id: "penalty_awarded",
-      name: "Penalty Awarded",
+      name: "Penalty Against",
+      mobileLabel: "Penalty Against",
       section: "Game Events",
       icon: "AlertTriangle",
       displayPattern: "PENALTY → {outcome}",
@@ -288,7 +289,8 @@ export const RUGBY_SEED_SPEC = {
     },
     {
       id: "free_kick",
-      name: "Free Kick Awarded",
+      name: "Free Kick Against",
+      mobileLabel: "Free Kick Against",
       section: "Game Events",
       icon: "Zap",
       displayPattern: "{name} → {reason}",
@@ -343,7 +345,7 @@ export const RUGBY_SEED_SPEC = {
     {
       id: "scrum",
       name: "Scrum",
-      section: "Game Events",
+      section: "General Play",
       icon: "Users",
       displayPattern: "{name} → {outcome}",
       steps: [
@@ -385,7 +387,7 @@ export const RUGBY_SEED_SPEC = {
     {
       id: "lineout",
       name: "Lineout",
-      section: "Game Events",
+      section: "General Play",
       icon: "ArrowUp",
       displayPattern: "{name} → {outcome}",
       steps: [
@@ -517,6 +519,7 @@ export const RUGBY_SEED_SPEC = {
     {
       id: "turnover",
       name: "Turnover Won",
+      mobileLabel: "Turnover",
       section: "General Play",
       icon: "RotateCw",
       displayPattern: "{name}",
@@ -534,6 +537,7 @@ export const RUGBY_SEED_SPEC = {
     {
       id: "tackle_made",
       name: "Tackle Made",
+      mobileLabel: "Tackle",
       section: "General Play",
       icon: "Zap",
       displayPattern: "{name}",
@@ -551,6 +555,7 @@ export const RUGBY_SEED_SPEC = {
     {
       id: "tackle_missed",
       name: "Tackle Missed",
+      mobileLabel: "Missed Tackle",
       section: "General Play",
       icon: "X",
       displayPattern: "{name}",
