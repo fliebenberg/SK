@@ -1,5 +1,5 @@
 import { View, Text, TextInput, ActivityIndicator, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '../../components/Button';
 import { GlassCard } from '../../components/GlassCard';
 import { useAuthStore } from '../../store/authStore';
@@ -12,6 +12,10 @@ import { useSafeBack } from '../../hooks/useSafeBack';
 export default function LoginScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
+  // Set by AuthGuard when it intercepts a protected route.
+  const { redirect } = useLocalSearchParams<{ redirect?: string }>();
+  // Only ever return to an in-app path, never to an absolute URL.
+  const redirectTarget = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : null;
   const login = useAuthStore(state => state.login);
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
@@ -50,6 +54,8 @@ export default function LoginScreen() {
 
       if (pendingToken) {
         router.replace({ pathname: '/claim', params: { token: pendingToken } });
+      } else if (redirectTarget) {
+        router.replace(redirectTarget as any);
       } else {
         router.replace('/(tabs)');
       }

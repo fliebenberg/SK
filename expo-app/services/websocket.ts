@@ -176,13 +176,16 @@ class WebSocketService {
           called = true;
           clearTimeout(timer);
           const res = args[0];
-          if (res && typeof res === 'object') {
-            if (res.status === 'error' || res.error) {
-              const errorMsg = res.message || res.error || 'Operation failed on server';
-              if (!options?.suppressToast) {
-                useToastStore.getState().showError(errorMsg, 'Server Action Error');
-              }
+          if (res && typeof res === 'object' && (res.status === 'error' || res.error)) {
+            const errorMsg = res.message || res.error || 'Operation failed on server';
+            if (!options?.suppressToast) {
+              useToastStore.getState().showError(errorMsg, 'Server Action Error');
             }
+            // The server rejects with { status: 'error', message }, while callers
+            // throughout the app test for `res.error`. Normalize so a rejected
+            // action is never mistaken for a successful one.
+            callback({ ...res, error: errorMsg }, ...args.slice(1));
+            return;
           }
           callback(...args);
         }

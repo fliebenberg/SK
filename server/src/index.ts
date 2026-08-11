@@ -933,6 +933,36 @@ io.use((socket, next) => {
 
 const PORT = process.env.PORT || 3001;
 
+/**
+ * Live-match mutations, mapped to the game they act on. Every one of these is
+ * authorized with `canScoreGame` against the identity proven by the socket
+ * handshake — never against anything in the payload, which the client controls.
+ */
+const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => string | undefined>> = {
+  [SocketAction.ADD_GAME_EVENT]: (p) => p?.gameId,
+  [SocketAction.UPDATE_GAME_EVENT]: (p) => p?.gameId,
+  [SocketAction.UNDO_GAME_EVENT]: (p) => p?.gameId,
+  [SocketAction.INITIATE_UNDO_VOTE]: (p) => p?.gameId,
+  [SocketAction.INITIATE_UPDATE_VOTE]: (p) => p?.gameId,
+  [SocketAction.CAST_UNDO_VOTE]: (p) => p?.gameId,
+  [SocketAction.CAST_UPDATE_VOTE]: (p) => p?.gameId,
+  [SocketAction.UPDATE_GAME_CLOCK]: (p) => p?.id,
+  [SocketAction.UPDATE_GAME_SCORE]: (p) => p?.id,
+  [SocketAction.UPDATE_GAME_STATUS]: (p) => p?.id,
+  [SocketAction.RESET_GAME]: (p) => p?.id,
+  [SocketAction.REMOVE_SIN_BIN]: (p) => p?.gameId,
+  [SocketAction.SAVE_GAME_ROSTER]: (p) => p?.gameId,
+};
+
+/**
+ * Payload fields naming the org profile the caller claims to be acting as.
+ * Attributing an action to somebody else's profile would let a client forge who
+ * scored an event or who cast a consensus vote, so each is checked for
+ * ownership. `actorOrgProfileId` is intentionally absent: it identifies the
+ * player an event is about, not the person submitting it.
+ */
+const CALLER_PROFILE_FIELDS = ['initiatorOrgProfileId', 'initiatorId', 'officialId'] as const;
+
 io.on('connection', (socket) => {
   // Intercept socket events/calls
   socket.use(([event, ...args], next) => {
@@ -1334,7 +1364,43 @@ io.on('connection', (socket) => {
         }
     };
 
+    // The handshake is the only trustworthy source of identity on this socket.
+    const socketUserId: string = (socket as any).userId;
+    const authUserId: string | null =
+      socketUserId && socketUserId !== 'anonymous' && socketUserId !== 'invalid-token'
+        ? socketUserId
+        : null;
+
     try {
+        // --- Authorization gate for live match mutations ---
+        const scoringGameIdFor = SCORING_ACTION_GAME_ID[action.type];
+        if (scoringGameIdFor) {
+            if (!authUserId) {
+                throw new Error('Unauthorized: You must be signed in to score this match.');
+            }
+            const targetGameId = scoringGameIdFor(action.payload);
+            if (!targetGameId) {
+                throw new Error(`Bad request: ${action.type} requires a game id.`);
+            }
+            if (!(await dataManager.canScoreGame(authUserId, targetGameId))) {
+                throw new Error('Unauthorized: You do not have permission to score this match.');
+            }
+        }
+
+        // A caller may only act as one of its own org profiles.
+        if (authUserId) {
+            for (const field of CALLER_PROFILE_FIELDS) {
+                const claimedProfileId = action.payload?.[field];
+                if (!claimedProfileId) continue;
+                if (!(await dataManager.ownsOrgProfile(authUserId, claimedProfileId))) {
+                    console.warn(
+                        `[Socket] User ${authUserId} attempted to act as org profile ${claimedProfileId} via ${action.type}`
+                    );
+                    throw new Error('Unauthorized: That profile does not belong to your account.');
+                }
+            }
+        }
+
         switch(action.type) {
             case SocketAction.DELETE_ORG:
                 result = await dataManager.deleteOrganization(action.payload.id);
@@ -1638,27 +1704,31 @@ io.on('connection', (socket) => {
                     io.to(`game:${action.payload.gameId}:events`).emit('update', { type: 'DISPUTE_VOTE_UPDATED', data: { dispute: castRes.dispute } });
                 }
                 break;
-            case SocketAction.UPDATE_GAME:
-                if (action.payload.userId && action.payload.orgId) {
-                    const isScoreUpdate = action.payload.data && (
-                        action.payload.data.finalScoreData !== undefined ||
-                        action.payload.data.liveState !== undefined ||
-                        action.payload.data.status === 'Finished'
+            case SocketAction.UPDATE_GAME: {
+                if (!authUserId) {
+                    throw new Error('Unauthorized: You must be signed in to update this match.');
+                }
+                const isScoreUpdate = action.payload.data && (
+                    action.payload.data.finalScoreData !== undefined ||
+                    action.payload.data.liveState !== undefined ||
+                    action.payload.data.status === 'Finished'
+                );
+                // Fall back to the game's own organization so the check cannot be
+                // skipped by omitting orgId from the payload.
+                const requestingOrgId = action.payload.orgId || await dataManager.getGameOrgId(action.payload.id);
+                const hasPermission = isScoreUpdate
+                    ? await dataManager.canScoreGame(authUserId, action.payload.id)
+                    : !!requestingOrgId && await dataManager.canEditEventOrGame(
+                        authUserId,
+                        requestingOrgId,
+                        undefined,
+                        action.payload.id
                     );
-                    const hasPermission = isScoreUpdate
-                        ? await dataManager.canScoreGame(action.payload.userId, action.payload.id)
-                        : await dataManager.canEditEventOrGame(
-                            action.payload.userId,
-                            action.payload.orgId,
-                            undefined,
-                            action.payload.id
-                        );
-                    if (!hasPermission) {
-                        throw new Error(isScoreUpdate 
-                            ? 'Unauthorized: You do not have permission to score this match.' 
-                            : 'Unauthorized: You do not have permission to edit this match details.'
-                        );
-                    }
+                if (!hasPermission) {
+                    throw new Error(isScoreUpdate
+                        ? 'Unauthorized: You do not have permission to score this match.'
+                        : 'Unauthorized: You do not have permission to edit this match details.'
+                    );
                 }
                 result = await dataManager.updateGame(action.payload.id, action.payload.data);
                 if (result) {
@@ -1671,6 +1741,7 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
+            }
             case SocketAction.UPDATE_GAME_SCORE:
                 const gameToUpdate = await dataManager.getGame(action.payload.id);
                 if (gameToUpdate) {
@@ -1724,17 +1795,19 @@ io.on('connection', (socket) => {
                     additionalBroadcasts.push({ topic: `game:${gameId}`, type: 'GAME_UPDATED', data: await dataManager.getGame(gameId) });
                 }
                 break;
-            case SocketAction.DELETE_GAME:
-                if (action.payload.userId && action.payload.orgId) {
-                    const hasPermission = await dataManager.canEditEventOrGame(
-                        action.payload.userId,
-                        action.payload.orgId,
-                        undefined,
-                        action.payload.id
-                    );
-                    if (!hasPermission) {
-                        throw new Error('Unauthorized: You do not have permission to delete this match.');
-                    }
+            case SocketAction.DELETE_GAME: {
+                if (!authUserId) {
+                    throw new Error('Unauthorized: You must be signed in to delete this match.');
+                }
+                const requestingOrgId = action.payload.orgId || await dataManager.getGameOrgId(action.payload.id);
+                const hasPermission = !!requestingOrgId && await dataManager.canEditEventOrGame(
+                    authUserId,
+                    requestingOrgId,
+                    undefined,
+                    action.payload.id
+                );
+                if (!hasPermission) {
+                    throw new Error('Unauthorized: You do not have permission to delete this match.');
                 }
                 result = await dataManager.deleteGame(action.payload.id);
                 if (result) {
@@ -1742,6 +1815,7 @@ io.on('connection', (socket) => {
                     additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_UPDATED', data: result });
                 }
                 break;
+            }
             case SocketAction.UNDO_GAME_EVENT:
                 if (!action.payload.initiatorId) {
                     result = { success: false, error: 'initiatorId is required for UNDO_GAME_EVENT action.' };
@@ -1776,10 +1850,15 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.UPDATE_EVENT:
-                if (action.payload.userId && action.payload.orgId) {
-                    const hasPermission = await dataManager.canEditEventOrGame(
-                        action.payload.userId,
-                        action.payload.orgId,
+                if (!authUserId) {
+                    throw new Error('Unauthorized: You must be signed in to edit this event.');
+                }
+                {
+                    const existingEvent = await dataManager.getEvent(action.payload.id);
+                    const requestingOrgId = action.payload.orgId || existingEvent?.orgId;
+                    const hasPermission = !!requestingOrgId && await dataManager.canEditEventOrGame(
+                        authUserId,
+                        requestingOrgId,
                         action.payload.id,
                         undefined
                     );
@@ -1809,10 +1888,15 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.DELETE_EVENT:
-                if (action.payload.userId && action.payload.orgId) {
-                    const hasPermission = await dataManager.canEditEventOrGame(
-                        action.payload.userId,
-                        action.payload.orgId,
+                if (!authUserId) {
+                    throw new Error('Unauthorized: You must be signed in to delete this event.');
+                }
+                const eventToDelete = await dataManager.getEvent(action.payload.id);
+                {
+                    const requestingOrgId = action.payload.orgId || eventToDelete?.orgId;
+                    const hasPermission = !!requestingOrgId && await dataManager.canEditEventOrGame(
+                        authUserId,
+                        requestingOrgId,
                         action.payload.id,
                         undefined
                     );
@@ -1820,7 +1904,6 @@ io.on('connection', (socket) => {
                         throw new Error('Unauthorized: You do not have permission to delete this event.');
                     }
                 }
-                const eventToDelete = await dataManager.getEvent(action.payload.id); 
                 result = await dataManager.deleteEvent(action.payload.id);
                 if (result) {
                     const orgIds = [result.orgId, ...(result.participatingOrgIds || [])];

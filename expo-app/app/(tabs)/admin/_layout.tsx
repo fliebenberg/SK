@@ -1,26 +1,19 @@
-import React, { useEffect } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import React from 'react';
+import { Stack } from 'expo-router';
 import { useActiveTheme } from '../../../store/settingsStore';
-import { useAuthStore } from '../../../store/authStore';
+import { AuthGuard } from '../../../components/AuthGuard';
 
 export default function AdminLayout() {
+  return (
+    <AuthGuard requireGlobalAdmin>
+      <AdminPortalStack />
+    </AuthGuard>
+  );
+}
+
+function AdminPortalStack() {
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
-  const user = useAuthStore(state => state.user);
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/landing');
-    } else if (user?.globalRole !== 'admin') {
-      router.replace('/(tabs)/settings');
-    }
-  }, [isAuthenticated, user]);
-
-  if (!isAuthenticated || user?.globalRole !== 'admin') {
-    return null;
-  }
 
   return (
     <Stack

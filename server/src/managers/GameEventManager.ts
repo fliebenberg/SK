@@ -28,6 +28,22 @@ export class GameEventManager extends BaseManager {
     return new Date(Date.now() + delayMs).toISOString();
   }
 
+  /**
+   * Does this event affect the score at the moment it is created?
+   *
+   * Only these get an undo window. An event created without an outcome (a pending
+   * penalty kick, say) scores nothing yet, so it needs no window: any scorer may
+   * remove it or supply its outcome immediately. Stamping one anyway would leave a
+   * dormant timestamp that springs to life — owned by the creator — as soon as
+   * somebody else makes the event score, locking out the very person who did it.
+   *
+   * Mirrors the parent-event half of the client's `getScoreImpact`.
+   */
+  private isScoreChangingOnCreate(eventData: any): boolean {
+    const points = eventData?.pointsDelta ?? eventData?.points ?? 0;
+    return points > 0 || eventData?.outcome === 'successful';
+  }
+
   private async getGameSportId(gameId: string): Promise<string | null> {
       try {
           const res = await this.query(`
@@ -136,11 +152,11 @@ export class GameEventManager extends BaseManager {
 
     // 4. Insert into game_events
     // Stamp the authoritative undo expiry so every client counts down to the same instant.
-    // Pending events (no outcome yet) get re-stamped when their outcome is first applied.
-    const eventDataToStore = {
-      ...(data.eventData || {}),
-      undoExpiresAt: await this.buildUndoExpiry(),
-    };
+    // The window opens here and only here — it is never re-opened or extended later.
+    const eventDataToStore = { ...(data.eventData || {}) };
+    if (this.isScoreChangingOnCreate(eventDataToStore)) {
+      eventDataToStore.undoExpiresAt = await this.buildUndoExpiry();
+    }
 
     const insertRes = await this.query(`
       INSERT INTO game_events (id, game_id, sequence, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
@@ -1045,13 +1061,11 @@ export class GameEventManager extends BaseManager {
             }
         }
 
-        const isOutcomeNowSet = finalEventData.outcome !== undefined && finalEventData.outcome !== null && finalEventData.outcome !== '';
-        const wasOutcomeUnset = previousOutcome === undefined || previousOutcome === null || previousOutcome === '';
-        if (isOutcomeNowSet && wasOutcomeUnset) {
-            console.log(`[Mutation Engine] Outcome set for event ${eventId} (was undefined). Initiating undo window.`);
-            // The score only lands now, so the undo window restarts from this moment.
-            finalEventData.undoExpiresAt = await this.buildUndoExpiry();
-        }
+        // No undo window is opened here. Applying an outcome is a deliberate,
+        // separately-confirmed action in the scoring dialog (select, then save), so it
+        // needs no slip-correction grace period — and re-opening the window would hand
+        // the undo to the event's *creator* rather than to whoever applied the outcome.
+        // Once an event scores, changing it again goes through the consensus flow.
 
         // INTELLIGENCE: Does the reason require a player?
         const reasonName = finalEventData.reason;
@@ -1301,12 +1315,12 @@ export class GameEventManager extends BaseManager {
         if (isScoreChanging) {
             const expiresAt = resolveUndoExpiryMs(event.eventData);
 
-            if (expiresAt === null) {
-              return { success: false, error: 'Undo window could not be determined for this event.' };
-            }
-
-            // UNDO_GRACE_MS absorbs the round trip so an undo tapped with a moment left still lands.
-            if (Date.now() > expiresAt + UNDO_GRACE_MS) {
+            // No stamp means the window never opened — the event did not score until
+            // somebody applied an outcome or linked a scoring child to it. That is a
+            // normal state, not a fault, and it is equivalent to an expired window:
+            // the change belongs in the consensus flow. Reported as "expired" so the
+            // client routes it there rather than surfacing a dead-end error.
+            if (expiresAt === null || Date.now() > expiresAt + UNDO_GRACE_MS) {
               return { success: false, error: 'Undo window has expired.' };
             }
         }

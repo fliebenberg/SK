@@ -57,11 +57,19 @@ interface AuthState {
   isAuthenticated: boolean;
   orgMemberships: OrgMembership[];
   teamMemberships: TeamMembership[];
+  /** True once persisted storage has been read back into the store. */
+  isHydrated: boolean;
+  /** True once any persisted token has been checked against the server. */
+  isSessionVerified: boolean;
+  /** True once memberships have been fetched for the current session. */
+  membershipsLoaded: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
   updateUser: (user: Partial<User>) => void;
   verifySession: () => Promise<void>;
   setMemberships: (orgs: OrgMembership[], teams: TeamMembership[]) => void;
+  /** Resolve the membership fetch without data, so guards stop waiting on it. */
+  markMembershipsResolved: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -72,6 +80,12 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       orgMemberships: [],
       teamMemberships: [],
+      isHydrated: false,
+      isSessionVerified: false,
+      membershipsLoaded: false,
+      // Deliberately leaves the existing lists alone: a failed fetch is not
+      // evidence that the user lost their memberships.
+      markMembershipsResolved: () => set({ membershipsLoaded: true }),
       setMemberships: (orgs, teams) => set((state) => {
         const hasAdminOrCoachRole = state.user?.globalRole === 'admin' ||
           (orgs || []).some(m => m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff') ||
@@ -82,6 +96,7 @@ export const useAuthStore = create<AuthState>()(
         return {
           orgMemberships: orgs || [],
           teamMemberships: teams || [],
+          membershipsLoaded: true,
           user: updatedUser
         };
       }),
@@ -90,8 +105,17 @@ export const useAuthStore = create<AuthState>()(
         if (user.theme === 'null' || user.theme === 'undefined') {
           user.theme = null;
         }
-        set({ token, user, isAuthenticated: true });
-        
+        // Memberships belong to the previous session until they are re-fetched.
+        set({
+          token,
+          user,
+          isAuthenticated: true,
+          isSessionVerified: true,
+          orgMemberships: [],
+          teamMemberships: [],
+          membershipsLoaded: false,
+        });
+
         // Sync theme preference on login
         try {
           const localTheme = useSettingsStore.getState().localOverrides.theme;
@@ -131,7 +155,15 @@ export const useAuthStore = create<AuthState>()(
         wsService.reconnect();
       },
       logout: () => {
-        set({ token: null, user: null, isAuthenticated: false, orgMemberships: [], teamMemberships: [] });
+        set({
+          token: null,
+          user: null,
+          isAuthenticated: false,
+          orgMemberships: [],
+          teamMemberships: [],
+          isSessionVerified: true,
+          membershipsLoaded: false,
+        });
         // Reconnect socket so handshake reverts to anonymous mode
         wsService.reconnect();
       },
@@ -146,7 +178,7 @@ export const useAuthStore = create<AuthState>()(
       verifySession: async () => {
         const { token } = get();
         if (!token) {
-          set({ token: null, user: null, isAuthenticated: false });
+          set({ token: null, user: null, isAuthenticated: false, isSessionVerified: true });
           return;
         }
         try {
@@ -155,7 +187,7 @@ export const useAuthStore = create<AuthState>()(
           if (freshUser.theme === 'null' || freshUser.theme === 'undefined') {
             freshUser = { ...freshUser, theme: null };
           }
-          set({ user: freshUser, isAuthenticated: true });
+          set({ user: freshUser, isAuthenticated: true, isSessionVerified: true });
 
           // Sync theme preference on session verify
           try {
@@ -194,15 +226,43 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch (error) {
           console.warn('[AuthStore] Token verification failed. User session cleared:', error);
-          set({ token: null, user: null, isAuthenticated: false });
+          set({
+            token: null,
+            user: null,
+            isAuthenticated: false,
+            orgMemberships: [],
+            teamMemberships: [],
+            isSessionVerified: true,
+            membershipsLoaded: false,
+          });
         }
       },
     }),
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => secureStorage),
+      // Only the session itself is durable. The resolution flags below describe
+      // *this* app launch and must always start false, otherwise a guard would
+      // trust a stale "verified" flag before the token has been re-checked.
+      partialize: (state) => ({
+        token: state.token,
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+        orgMemberships: state.orgMemberships,
+        teamMemberships: state.teamMemberships,
+      }),
     }
   )
 );
+
+/**
+ * Route guards must not treat a not-yet-rehydrated store as "signed out", so
+ * flag the moment persisted state has been read back (or failed to read).
+ */
+const markHydrated = () => useAuthStore.setState({ isHydrated: true });
+useAuthStore.persist.onFinishHydration(markHydrated);
+if (useAuthStore.persist.hasHydrated()) {
+  markHydrated();
+}
 
 wsService.setTokenGetter(() => useAuthStore.getState().token);

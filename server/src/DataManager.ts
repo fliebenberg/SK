@@ -39,6 +39,8 @@ export class DataManager {
   canManageTeam = (userId: string, teamId: string) => accessManager.canManageTeam(userId, teamId);
   canEditEventOrGame = (userId: string, requestingOrgId: string, eventId?: string, gameId?: string) => accessManager.canEditEventOrGame(userId, requestingOrgId, eventId, gameId);
   canScoreGame = (userId: string, gameId: string) => accessManager.canScoreGame(userId, gameId);
+  ownsOrgProfile = (userId: string, orgProfileId: string) => accessManager.ownsOrgProfile(userId, orgProfileId);
+  getGameOrgId = (gameId: string) => accessManager.getGameOrgId(gameId);
 
   // Sports
   getSports = () => sportManager.getSports();

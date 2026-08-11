@@ -3,15 +3,30 @@ import { Stack, useGlobalSearchParams, useRouter, useSegments } from 'expo-route
 import { useActiveTheme } from '../../../store/settingsStore';
 import { useWindowDimensions, View, TouchableOpacity, Text, Alert } from 'react-native';
 import { LeftNavigationRail } from '../../../components/LeftNavigationRail';
-import { useAuthStore } from '../../../store/authStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { Ionicons } from '@expo/vector-icons';
 import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { BottomMenu } from '../../../components/BottomMenu';
+import { AuthGuard } from '../../../components/AuthGuard';
 
+/**
+ * Every screen in the org workspace — including the scoring control room — is
+ * behind this gate, so the guard wraps the layout body rather than living inside
+ * it: unauthorized visitors never mount the workspace or its data subscriptions.
+ */
 export default function OrgAdminLayout() {
+  const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
+
+  return (
+    <AuthGuard orgId={orgId}>
+      <OrgAdminWorkspace />
+    </AuthGuard>
+  );
+}
+
+function OrgAdminWorkspace() {
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const { width } = useWindowDimensions();

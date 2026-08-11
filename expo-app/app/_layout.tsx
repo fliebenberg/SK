@@ -39,12 +39,15 @@ export default function RootLayout() {
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const verifySession = useAuthStore(state => state.verifySession);
-  const { user, isAuthenticated, setMemberships } = useAuthStore();
+  const { user, isAuthenticated, setMemberships, markMembershipsResolved } = useAuthStore();
+  const isHydrated = useAuthStore(state => state.isHydrated);
   const isConnected = useWsStore(state => state.isConnected);
 
   useEffect(() => {
     async function prepare() {
-      if (loaded) {
+      // Wait for rehydration: verifying first would read a null token and clear
+      // the session that storage is about to restore.
+      if (loaded && isHydrated) {
         try {
           // Check persistent auth token and fetch fresh user profile if present
           await verifySession();
@@ -57,7 +60,7 @@ export default function RootLayout() {
       }
     }
     prepare();
-  }, [loaded]);
+  }, [loaded, isHydrated]);
 
   useEffect(() => {
     if (loaded && isConnected && isAuthenticated && user?.id) {
@@ -72,6 +75,8 @@ export default function RootLayout() {
             setMemberships(res.orgs, res.teams);
           } else {
             console.warn(`[RootLayout] Failed to fetch memberships`);
+            // Unblock route guards that are waiting on this fetch.
+            markMembershipsResolved();
           }
         });
       };

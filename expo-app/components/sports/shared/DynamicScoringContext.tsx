@@ -553,7 +553,10 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       const originalData = originalEvt?.eventData || (originalEvt as any)?.event_data || {};
       const expiresAt = originalEvt ? getUndoExpiryMs(originalEvt) : null;
       const inUndoWindow = expiresAt !== null && getUndoNowMs() < expiresAt;
-      const isCreator = originalEvt?.initiatorOrgProfileId ? originalEvt.initiatorOrgProfileId === initiatorId : true;
+      // An event with no recorded initiator is owned by nobody, so nobody gets the
+      // in-window bypass for it. Defaulting to true would hand that bypass to whoever
+      // happened to open it.
+      const isCreator = !!originalEvt?.initiatorOrgProfileId && originalEvt.initiatorOrgProfileId === initiatorId;
       const isBypassed = inUndoWindow && isCreator;
       const isOutcomeAlreadySet = originalData.outcome !== undefined && originalData.outcome !== null && originalData.outcome !== '';
 

@@ -20,6 +20,7 @@ import { TeamRosterPanel } from '../../../../../../../components/sports/shared/T
 import RugbyGameStats from '../../../../../../../components/sports/rugby/RugbyGameStats';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { Tabs } from '../../../../../../../components/Tabs';
+import { AccessDenied } from '../../../../../../../components/AccessDenied';
 
 export default function ScoreGameScreen() {
   const router = useRouter();
@@ -101,6 +102,22 @@ export default function ScoreGameScreen() {
     orgMemberships,
     teamMemberships,
   });
+
+  // Being signed into the workspace is not enough to score: the control room is
+  // for org admins/staff and coaches of a participating team. Everyone else is
+  // sent to the read-only match view.
+  if (!permissions.canScore) {
+    return (
+      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+        <AccessDenied
+          title="Scoring Restricted"
+          message="You do not have permission to score this match. Org admins and staff, or a coach of one of the participating teams, can open the control room."
+          actionLabel="Open Match View"
+          onAction={() => router.replace(`/admin/${orgId}/events/${eventId}/games/${gameId}/view` as any)}
+        />
+      </SafeAreaView>
+    );
+  }
 
   const sportCategory = game.sportId ? 'Rugby' : 'Rugby';
   const ScoreboardComponent = SportComponentRegistry.getScoreboard(sportCategory);

@@ -402,22 +402,45 @@ export default function SettingsScreen() {
         )}
 
         {!isAuthenticated ? (
-          <GlassCard className="mb-6 max-w-xl mx-auto">
-            <Text className="font-inter-bold text-lg text-slate-900 dark:text-white mb-4">
-              Account Settings
-            </Text>
-            <Text className="font-inter text-slate-600 dark:text-slate-400 text-sm leading-relaxed mb-6">
-              You are currently browsing as a guest. Log in to manage your
-              profile, customize your avatar, set a direct password, and link
-              multiple emails.
-            </Text>
-            <Button
-              title="Log In / Sign Up"
-              variant="primary"
-              onPress={handleLogin}
-              className="w-full md:w-auto md:self-start md:px-8"
-            />
-          </GlassCard>
+          <View className="w-full max-w-xl mx-auto mb-6 gap-6">
+            <GlassCard>
+              <Text className="font-inter-bold text-lg text-slate-900 dark:text-white mb-4">
+                Account Settings
+              </Text>
+              <Text className="font-inter text-slate-600 dark:text-slate-400 text-sm leading-relaxed mb-6">
+                You are currently browsing as a guest. Log in to manage your
+                profile, customize your avatar, set a direct password, and link
+                multiple emails.
+              </Text>
+              <Button
+                title="Log In / Sign Up"
+                variant="primary"
+                onPress={handleLogin}
+                className="w-full md:w-auto md:self-start md:px-8"
+              />
+            </GlassCard>
+
+            {/* Appearance is a device preference rather than account data, so
+                guests can set it. It is stored locally and, on sign-in, adopted
+                by the account if that account has no theme of its own. */}
+            <GlassCard>
+              <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-1">
+                Appearance
+              </Text>
+              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                Saved on this device. Sign in to carry it across your devices.
+              </Text>
+              <SegmentedControl<ThemePreference>
+                options={[
+                  { key: "system", label: "Auto" },
+                  { key: "dark", label: "Dark" },
+                  { key: "light", label: "Light" },
+                ]}
+                value={currentTheme}
+                onChange={setTheme}
+              />
+            </GlassCard>
+          </View>
         ) : isLoading ? (
           <View className="py-12 items-center justify-center">
             <ActivityIndicator size="large" color="#FF3E00" />

@@ -48,41 +48,62 @@ export class AccessManager extends BaseManager {
     return false;
   }
 
+  /**
+   * Event and match details may be edited by an admin or staff member of the
+   * organization the event belongs to — the org it was created under. A
+   * participating (guest) org's staff can see the event but not edit it.
+   *
+   * `requestingOrgId` is the workspace the caller is acting from; it must match
+   * the event's owning org, so acting from another org's workspace never grants
+   * edit rights (this is what constrains app admins too).
+   */
   async canEditEventOrGame(userId: string, requestingOrgId: string, eventId?: string, gameId?: string): Promise<boolean> {
-    if (await this.isAppAdmin(userId)) {
-      // System admin can edit, but ONLY if the requesting organization context matches the event's owning organization
-      let eventOrgId: string | null = null;
-      if (eventId) {
-        const res = await this.query('SELECT org_id FROM events WHERE id = $1', [eventId]);
-        if (res.rows[0]) eventOrgId = res.rows[0].org_id;
-      } else if (gameId) {
-        const res = await this.query(`
-          SELECT e.org_id FROM games g
-          JOIN events e ON g.event_id = e.id
-          WHERE g.id = $1
-        `, [gameId]);
-        if (res.rows[0]) eventOrgId = res.rows[0].org_id;
-      }
-      return eventOrgId ? requestingOrgId === eventOrgId : false;
-    }
-
     let eventOrgId: string | null = null;
     if (eventId) {
       const res = await this.query('SELECT org_id FROM events WHERE id = $1', [eventId]);
       if (res.rows[0]) eventOrgId = res.rows[0].org_id;
     } else if (gameId) {
-      const res = await this.query(`
-        SELECT e.org_id FROM games g
-        JOIN events e ON g.event_id = e.id
-        WHERE g.id = $1
-      `, [gameId]);
-      if (res.rows[0]) eventOrgId = res.rows[0].org_id;
+      eventOrgId = await this.getGameOrgId(gameId);
     }
 
     if (!eventOrgId) return false;
     if (requestingOrgId !== eventOrgId) return false;
 
-    return this.isOrganizationAdmin(userId, requestingOrgId);
+    if (await this.isAppAdmin(userId)) return true;
+
+    const role = await this.getOrganizationRole(userId, eventOrgId);
+    return role === 'role-org-admin' || role === 'role-org-staff';
+  }
+
+  /**
+   * True when `orgProfileId` is one of the profiles this user legitimately acts
+   * through. Deliberately mirrors the matching rule in
+   * `UserManager.getUserOrgMemberships`, so the server accepts exactly the
+   * profile ids it hands out to that user and nothing else.
+   */
+  async ownsOrgProfile(userId: string, orgProfileId: string): Promise<boolean> {
+    const res = await this.query(`
+      SELECT 1 FROM org_profiles
+      WHERE id = $2 AND (
+        user_id = $1
+        OR email IN (
+          SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
+          UNION
+          SELECT email FROM users WHERE id = $1
+        )
+      )
+    `, [userId, orgProfileId]);
+    return res.rows.length > 0;
+  }
+
+  /** Organization that owns the event a game belongs to. */
+  async getGameOrgId(gameId: string): Promise<string | null> {
+    const res = await this.query(`
+      SELECT e.org_id FROM games g
+      JOIN events e ON g.event_id = e.id
+      WHERE g.id = $1
+    `, [gameId]);
+    return res.rows[0]?.org_id || null;
   }
 
   async canScoreGame(userId: string, gameId: string): Promise<boolean> {
@@ -96,7 +117,11 @@ export class AccessManager extends BaseManager {
     const eventRes = await this.query('SELECT org_id FROM events WHERE id = $1', [eventId]);
     if (eventRes.rows[0]) {
       const eventOrgId = eventRes.rows[0].org_id;
-      if (await this.isOrganizationAdmin(userId, eventOrgId)) return true;
+      // Admin *and* staff of the hosting org may score, matching the client's
+      // permission model (utils/matchPermissions.ts) and the staff allowance
+      // already granted below for participating teams' organizations.
+      const eventOrgRole = await this.getOrganizationRole(userId, eventOrgId);
+      if (eventOrgRole === 'role-org-admin' || eventOrgRole === 'role-org-staff') return true;
     }
 
     // 2. Check if official SCORER for the game

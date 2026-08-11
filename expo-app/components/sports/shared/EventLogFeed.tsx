@@ -163,23 +163,24 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   const orgMemberships = useAuthStore((state) => state.orgMemberships);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Org profiles only. A user id is never a valid initiator: every scorer acts through
+  // an org profile, and admitting the raw user id here would match events it never owned.
   const myOrgProfileIds = useMemo(() => {
     const ids = new Set<string>();
     (orgMemberships || []).forEach((m: any) => {
       if (m?.orgProfileId) ids.add(m.orgProfileId);
     });
-    if (user?.id) ids.add(user.id);
     return ids;
-  }, [orgMemberships, user?.id]);
+  }, [orgMemberships]);
 
-  // Only the scorer who recorded the event may undo it while the window is open.
-  // Once it expires, all scorers can remove the event or change the outcome.
+  // Only the scorer who recorded the event may undo it while the window is open, and
+  // only events that scored on creation have a window at all. Once it expires, all
+  // scorers can remove the event or change the outcome via consensus.
   const getUndoState = (targetEvt: GameEvent) =>
     evaluateUndoWindow({
       event: targetEvt,
       events,
       myOrgProfileIds,
-      isGlobalAdmin: user?.globalRole === 'admin',
       now,
     });
 
@@ -196,7 +197,9 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
       );
       if (matchedOfficial?.orgProfileId) return matchedOfficial.orgProfileId;
     }
-    return orgMemberships[0]?.orgProfileId || user.id;
+    // No fallback to user.id — a scorer without an org profile cannot be attributed,
+    // and the server would reject the action anyway.
+    return orgMemberships[0]?.orgProfileId;
   };
 
   const handleConfirmUndo = () => {

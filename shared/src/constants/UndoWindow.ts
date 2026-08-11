@@ -2,9 +2,12 @@
  * Undo window constants shared by the server guard and the client UI.
  *
  * The expiry for an individual event is authoritative and stamped by the server onto
- * `eventData.undoExpiresAt` (ISO string) when the window opens — at event creation, and
- * again when a pending event's outcome is first applied. Clients count down to that value
- * and never compute a window of their own.
+ * `eventData.undoExpiresAt` (ISO string) when the window opens. It opens once, at event
+ * creation, and only for events that score immediately — it is never re-opened or
+ * extended. Clients count down to that value and never compute a window of their own.
+ *
+ * An event that scores only later (a pending penalty kick whose outcome another scorer
+ * supplies) therefore has no stamp and no window: changing it goes through consensus.
  */
 
 /**

@@ -24,10 +24,17 @@ export function getMatchPermissions(params: {
   // View is accessible to everyone
   const canView = true;
 
+  // Editing event/match details belongs to the organization the event was
+  // created under, acting from that organization's own workspace — a
+  // participating (guest) org can see the event but not edit it. Mirrors
+  // AccessManager.canEditEventOrGame, which applies the workspace constraint to
+  // app admins as well.
+  const isEventOrgWorkspace = !!event?.orgId && (!currentOrgId || currentOrgId === event.orgId);
+
   if (user?.globalRole === 'admin') {
     return {
       canView,
-      canEdit: true,
+      canEdit: isEventOrgWorkspace,
       canScore: true,
       canSelectLineup: true,
       canEditTeam1Lineup: true,
@@ -56,7 +63,7 @@ export function getMatchPermissions(params: {
 
   const isEventOwner = isAdminOfCurrentOrg || isAdminOfEventOrg;
 
-  const canEdit = isEventOwner;
+  const canEdit = isEventOrgWorkspace && isAdminOfEventOrg;
   let canScore = isEventOwner;
 
   let canEditTeam1Lineup = isEventOwner;
