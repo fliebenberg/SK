@@ -4,7 +4,7 @@ import { Server } from "socket.io";
 import { dataManager } from "../DataManager";
 import { DisputeResolutionHandler, DisputeConfig } from "../sports/core/SportDisputeHandler";
 import { sportManager } from "./SportManager";
-import { EventTemplate, ActionStep, Outcome } from "@sk/types";
+import { EventTemplate, ActionStep, Outcome, DEFAULT_UNDO_DELAY_MS, UNDO_GRACE_MS, resolveUndoExpiryMs } from "@sk/types";
 
 const SPORT_MODULES: Record<string, string> = {};
 export class GameEventManager extends BaseManager {
@@ -12,6 +12,21 @@ export class GameEventManager extends BaseManager {
   public io: Server | null = null;
   private GAME_EVENT_COLUMNS = 'id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"';
   private DISPUTE_COLUMNS = 'id, game_id as "gameId", game_event_id as "gameEventId", type, initiator_org_profile_id as "initiatorOrgProfileId", status, expires_at as "expiresAt", created_at as "createdAt", resolved_at as "resolvedAt", update_data as "updateData", dispute_config as "disputeConfig"';
+
+  /** Configured undo window length (ms) from system settings. */
+  private async getUndoDelayMs(): Promise<number> {
+    const settingsRes = await this.query(`SELECT value FROM system_settings WHERE key = 'undo_delay_ms'`);
+    const configured = Number(settingsRes.rows[0]?.value);
+    if (!isNaN(configured) && configured > 0) return configured;
+    console.warn(`[Undo Window] system_settings.undo_delay_ms is not set — falling back to ${DEFAULT_UNDO_DELAY_MS}ms.`);
+    return DEFAULT_UNDO_DELAY_MS;
+  }
+
+  /** Absolute expiry stamped onto an event when its undo window opens. */
+  private async buildUndoExpiry(): Promise<string> {
+    const delayMs = await this.getUndoDelayMs();
+    return new Date(Date.now() + delayMs).toISOString();
+  }
 
   private async getGameSportId(gameId: string): Promise<string | null> {
       try {
@@ -120,11 +135,18 @@ export class GameEventManager extends BaseManager {
     }
 
     // 4. Insert into game_events
+    // Stamp the authoritative undo expiry so every client counts down to the same instant.
+    // Pending events (no outcome yet) get re-stamped when their outcome is first applied.
+    const eventDataToStore = {
+      ...(data.eventData || {}),
+      undoExpiresAt: await this.buildUndoExpiry(),
+    };
+
     const insertRes = await this.query(`
       INSERT INTO game_events (id, game_id, sequence, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING ${this.GAME_EVENT_COLUMNS}
-    `, [newEventId, data.gameId, nextSeq, data.gameParticipantId, data.actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, data.eventData || {}]);
+    `, [newEventId, data.gameId, nextSeq, data.gameParticipantId, data.actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, eventDataToStore]);
 
     const newEvent = insertRes.rows[0] as GameEvent;
 
@@ -344,9 +366,6 @@ export class GameEventManager extends BaseManager {
         console.error("Failed to read dispute_duration_minutes from settings", e);
     }
     
-    // TEMPORARY OVERRIDE FOR TESTING (1 MINUTE):
-    durationMinutes = 1; 
-
     const expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
 
     let res;
@@ -1030,7 +1049,8 @@ export class GameEventManager extends BaseManager {
         const wasOutcomeUnset = previousOutcome === undefined || previousOutcome === null || previousOutcome === '';
         if (isOutcomeNowSet && wasOutcomeUnset) {
             console.log(`[Mutation Engine] Outcome set for event ${eventId} (was undefined). Initiating undo window.`);
-            finalEventData.undoWindowStart = new Date().toISOString();
+            // The score only lands now, so the undo window restarts from this moment.
+            finalEventData.undoExpiresAt = await this.buildUndoExpiry();
         }
 
         // INTELLIGENCE: Does the reason require a player?
@@ -1279,10 +1299,14 @@ export class GameEventManager extends BaseManager {
         const isScoreChanging = (totalPoints > 0) || (event.eventData?.outcome === 'successful') || hasChildScore;
 
         if (isScoreChanging) {
-            const settingsRes = await this.query(`SELECT value FROM system_settings WHERE key = 'undo_delay_ms'`);
-            const delayMs = settingsRes.rows[0]?.value || 15000;
-            const eventTime = new Date(event.timestamp).getTime();
-            if (Date.now() - eventTime > delayMs) {
+            const expiresAt = resolveUndoExpiryMs(event.eventData);
+
+            if (expiresAt === null) {
+              return { success: false, error: 'Undo window could not be determined for this event.' };
+            }
+
+            // UNDO_GRACE_MS absorbs the round trip so an undo tapped with a moment left still lands.
+            if (Date.now() > expiresAt + UNDO_GRACE_MS) {
               return { success: false, error: 'Undo window has expired.' };
             }
         }

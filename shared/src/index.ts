@@ -30,6 +30,7 @@ export * from './models/feed/Feed';
 export * from './models/Address';
 export * from './models/league/League';
 export * from './constants/SocketActions';
+export * from './constants/UndoWindow';
 export * from './types/Protocol';
 export * from './utils/stringUtils';
 export * from './utils/gameUtils';

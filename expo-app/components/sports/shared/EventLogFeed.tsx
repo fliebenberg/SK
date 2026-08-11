@@ -8,6 +8,7 @@ import { COLORS } from '../../../constants/Colors';
 import { ConfirmationModal } from '../../ConfirmationModal';
 import { resolveEventTemplate, getEventLabel, getMissingDetails, getTeamColor } from '../../../utils/gameUtils';
 import { useAuthStore } from '../../../store/authStore';
+import { evaluateUndoWindow, getScoreImpact, getUndoNowMs } from '../../../utils/undoWindow';
 
 interface EventLogFeedProps {
   gameId: string;
@@ -49,7 +50,6 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     profileMap,
     homeRoster,
     awayRoster,
-    undoDelayMs,
   } = useSharedDynamicScoring();
 
   const [activeFilters, setActiveFilters] = useState<Set<EventFilterCategory>>(
@@ -57,12 +57,11 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   );
   const [undoEventTarget, setUndoEventTarget] = useState<GameEvent | null>(null);
   const [disputeEventTarget, setDisputeEventTarget] = useState<GameEvent | null>(null);
-  const [now, setNow] = useState(Date.now());
+  // Server-aligned clock so every scorer counts down the same undo window
+  const [now, setNow] = useState(getUndoNowMs);
 
   const homeParticipantId = game?.participants?.[0]?.id;
   const awayParticipantId = game?.participants?.[1]?.id;
-
-  const UNDO_WINDOW_MS = undoDelayMs || 60000;
 
   const rosters = useMemo(() => {
     const map: { [participantId: string]: any[] } = {};
@@ -74,26 +73,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   const getLinkedEventsInfo = (targetEvt: GameEvent | null) => {
     if (!targetEvt) return { childEvents: [], childLabels: [], isScoreChanging: false, totalPointsEffect: 0 };
 
-    const childEvents = events.filter((e) => {
-      const eData = e.eventData || (e as any).event_data || {};
-      return eData.linkedEventId === targetEvt.id && eData.status !== 'REMOVED';
-    });
-
-    const parentPoints = targetEvt.eventData?.pointsDelta ?? targetEvt.eventData?.points ?? 0;
-    const childPoints = childEvents.reduce((acc, c) => {
-      const cData = c.eventData || (c as any).event_data || {};
-      return acc + (cData.pointsDelta ?? cData.points ?? 0);
-    }, 0);
-
-    const totalPointsEffect = parentPoints + childPoints;
-    const parentSuccessful = targetEvt.eventData?.outcome === 'successful' || (parentPoints > 0);
-    const hasSuccessfulChild = childEvents.some((c) => {
-      const cData = c.eventData || (c as any).event_data || {};
-      const cPts = cData.pointsDelta ?? cData.points ?? 0;
-      return cPts > 0 || cData.outcome === 'successful';
-    });
-
-    const isScoreChanging = totalPointsEffect > 0 || parentSuccessful || hasSuccessfulChild;
+    const { childEvents, totalPointsEffect, isScoreChanging } = getScoreImpact(targetEvt, events);
 
     const childLabels = childEvents.map((c) => {
       const label = getEventLabel(c, sport).label || c.subType;
@@ -124,7 +104,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   };
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(getUndoNowMs()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -161,6 +141,11 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     const isTimingEvent = evt.type === 'TIME' || evt.type === 'STATUS';
     if (isTimingEvent) return;
 
+    if (getUndoState(evt).isLockedByOtherScorer) {
+      setErrorMessage('Event locked: the scorer is still within their undo window. Please wait.');
+      return;
+    }
+
     const templateId = evt.eventData?.templateId || evt.subType;
     const side = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
 
@@ -175,7 +160,28 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   };
 
   const user = useAuthStore((state) => state.user);
+  const orgMemberships = useAuthStore((state) => state.orgMemberships);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const myOrgProfileIds = useMemo(() => {
+    const ids = new Set<string>();
+    (orgMemberships || []).forEach((m: any) => {
+      if (m?.orgProfileId) ids.add(m.orgProfileId);
+    });
+    if (user?.id) ids.add(user.id);
+    return ids;
+  }, [orgMemberships, user?.id]);
+
+  // Only the scorer who recorded the event may undo it while the window is open.
+  // Once it expires, all scorers can remove the event or change the outcome.
+  const getUndoState = (targetEvt: GameEvent) =>
+    evaluateUndoWindow({
+      event: targetEvt,
+      events,
+      myOrgProfileIds,
+      isGlobalAdmin: user?.globalRole === 'admin',
+      now,
+    });
 
   const resolveInitiatorId = () => {
     if (!user) return undefined;
@@ -355,10 +361,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
               const barClass = getTeamColor(evt, game?.participants);
 
-              const evtTime = evt.timestamp ? new Date(evt.timestamp).getTime() : now;
-              const age = now - evtTime;
-              const inUndoWindow = age >= 0 && age < UNDO_WINDOW_MS;
-              const remainingSecs = Math.max(0, Math.ceil((UNDO_WINDOW_MS - age) / 1000));
+              const { canUndo, isLockedByOtherScorer, remainingSecs } = getUndoState(evt);
 
               // Actor / Player details & Substitutions
               const actorName = evt.actorOrgProfileId ? profileMap[evt.actorOrgProfileId] || null : null;
@@ -368,7 +371,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
               // Missing Details & Conversion / Linked action checks
               const participantRoster = evt.gameParticipantId ? rosters[evt.gameParticipantId] : undefined;
-              const missingDetails = canManage && !isDisputed ? getMissingDetails(evt, template, participantRoster) : [];
+              const missingDetails = canManage && !isDisputed && !isLockedByOtherScorer ? getMissingDetails(evt, template, participantRoster) : [];
               
               const triggerEventId = template?.triggerEventId;
               const hasTriggerEvent = !!triggerEventId;
@@ -389,7 +392,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                 }
                 return false;
               });
-              const canAddTrigger = canManage && !isDisputed && hasTriggerEvent && !hasLinkedTrigger;
+              const canAddTrigger = canManage && !isDisputed && !isLockedByOtherScorer && hasTriggerEvent && !hasLinkedTrigger;
               const side = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
 
               return (
@@ -537,30 +540,39 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
                   {/* RIGHT SIDE ACTIONS & SCORE */}
                   <View className="flex-row items-center gap-2 shrink-0">
-                    {/* UNDO BUTTON */}
+                    {/* UNDO / REMOVE BUTTON — undo is reserved for the original scorer */}
                     {canManage && !isTimingEvent && !isDisputed && isUndoableChildEvent(evt) && (
-                      <TouchableOpacity
-                        {...(Platform.OS === 'web' ? { title: inUndoWindow ? `Undo (${remainingSecs}s)` : 'Remove' } : {})}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          const { isScoreChanging } = getLinkedEventsInfo(evt);
-                          const canDirectUndo = inUndoWindow || !isScoreChanging;
+                      isLockedByOtherScorer ? (
+                        <View
+                          {...(Platform.OS === 'web' ? { title: `Locked — scorer's undo window (${remainingSecs}s)` } : {})}
+                          className="items-center justify-center px-1.5 py-1 rounded-lg border bg-slate-500/10 border-slate-500/20 min-w-[32px]"
+                        >
+                          <Ionicons name="lock-closed" size={14} color={COLORS.dark.textSecondary} />
+                          <Text className="font-mono font-bold text-[9px] text-slate-400 mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          {...(Platform.OS === 'web' ? { title: canUndo ? `Undo (${remainingSecs}s)` : 'Remove' } : {})}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            const { isScoreChanging } = getLinkedEventsInfo(evt);
 
-                          if (canDirectUndo) {
-                            setUndoEventTarget(evt);
-                          } else {
-                            setDisputeEventTarget(evt);
-                          }
-                        }}
-                        className={`items-center justify-center px-1.5 py-1 rounded-lg border ${
-                          inUndoWindow ? 'bg-amber-500/10 border-amber-500/40 min-w-[32px]' : 'bg-red-500/10 border-red-500/20 min-w-[32px]'
-                        }`}
-                      >
-                        <Ionicons name={inUndoWindow ? "arrow-undo-outline" : "trash-outline"} size={14} color={inUndoWindow ? '#F59E0B' : '#EF4444'} />
-                        {inUndoWindow && (
-                          <Text className="font-mono font-bold text-[9px] text-amber-500 animate-pulse mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
-                        )}
-                      </TouchableOpacity>
+                            if (canUndo || !isScoreChanging) {
+                              setUndoEventTarget(evt);
+                            } else {
+                              setDisputeEventTarget(evt);
+                            }
+                          }}
+                          className={`items-center justify-center px-1.5 py-1 rounded-lg border ${
+                            canUndo ? 'bg-amber-500/10 border-amber-500/40 min-w-[32px]' : 'bg-red-500/10 border-red-500/20 min-w-[32px]'
+                          }`}
+                        >
+                          <Ionicons name={canUndo ? "arrow-undo-outline" : "trash-outline"} size={14} color={canUndo ? '#F59E0B' : '#EF4444'} />
+                          {canUndo && (
+                            <Text className="font-mono font-bold text-[9px] text-amber-500 animate-pulse mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
+                          )}
+                        </TouchableOpacity>
+                      )
                     )}
 
                     {/* RUNNING SCORE SNAPSHOT BADGE */}

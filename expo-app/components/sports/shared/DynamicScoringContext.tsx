@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, ActionStepType } from '@sk/types';
 import { wsService } from '../../../services/websocket';
-import { getSystemSettingsOnce, getCachedSystemSettings } from '../../../services/systemSettings';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
 import { useSportStore } from '../../../store/sportStore';
 import { ConfirmationModal } from '../../ConfirmationModal';
+import { getUndoExpiryMs, getUndoNowMs } from '../../../utils/undoWindow';
 
 const resolveOrgProfileId = (game: Game): string | null => {
   const user = useAuthStore.getState().user;
@@ -58,7 +58,6 @@ interface DynamicScoringContextType {
   sport?: Sport;
   profileMap: { [profileId: string]: string };
   templates: EventTemplateItem[];
-  undoDelayMs: number;
   scoringState: {
     status: 'IDLE' | 'ACTIVE';
     templateId?: string;
@@ -93,14 +92,6 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     return resolvedSportId ? useSportStore.getState().getCachedSport(resolvedSportId) : undefined;
   });
   const [profileMap, setProfileMap] = useState<{ [profileId: string]: string }>({});
-  const [undoDelayMs, setUndoDelayMs] = useState<number>(() => {
-    const cached = getCachedSystemSettings();
-    if (cached && cached.undo_delay_ms) {
-      const val = Number(cached.undo_delay_ms);
-      if (!isNaN(val) && val > 0) return val;
-    }
-    return 60000;
-  });
   const [updateDisputeTarget, setUpdateDisputeTarget] = useState<{
     gameId: string;
     eventId: string;
@@ -117,18 +108,6 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   const awayParticipantId = game.participants?.[1]?.id;
   const homeTeamId = game.participants?.[0]?.teamId;
   const awayTeamId = game.participants?.[1]?.teamId;
-
-  // 1. Fetch system settings once per session (in-memory cached)
-  useEffect(() => {
-    getSystemSettingsOnce().then((res) => {
-      if (res && res.undo_delay_ms) {
-        const val = Number(res.undo_delay_ms);
-        if (!isNaN(val) && val > 0) {
-          setUndoDelayMs(val);
-        }
-      }
-    });
-  }, []);
 
   // 1. WebSocket room subscriptions
   useEffect(() => {
@@ -572,9 +551,8 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       // EDIT EXISTING EVENT
       const originalEvt = events.find((e) => e.id === scoringState.editingId);
       const originalData = originalEvt?.eventData || (originalEvt as any)?.event_data || {};
-      const evtTime = originalEvt?.timestamp ? new Date(originalEvt.timestamp).getTime() : Date.now();
-      const age = Date.now() - evtTime;
-      const inUndoWindow = age >= 0 && age < undoDelayMs;
+      const expiresAt = originalEvt ? getUndoExpiryMs(originalEvt) : null;
+      const inUndoWindow = expiresAt !== null && getUndoNowMs() < expiresAt;
       const isCreator = originalEvt?.initiatorOrgProfileId ? originalEvt.initiatorOrgProfileId === initiatorId : true;
       const isBypassed = inUndoWindow && isCreator;
       const isOutcomeAlreadySet = originalData.outcome !== undefined && originalData.outcome !== null && originalData.outcome !== '';
@@ -767,7 +745,6 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         sport,
         profileMap,
         templates,
-        undoDelayMs,
         scoringState,
         startDynamicFlow,
         cancelDynamicFlow,
