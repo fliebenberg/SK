@@ -278,16 +278,16 @@ Invites sent to organizations to claim their profile.
 - `notified_referrer_at` (TIMESTAMPTZ)
 
 ### 20. `reports`
-User reports for moderation.
+Moderation reports raised by users, plus system-generated audit records. See [reports.md](reports.md) for the feature overview.
 - `id` (TEXT, PK)
-- `reporter_user_id` (TEXT): FK to `users.id`.
-- `entity_type` (TEXT): 'organization', 'event', 'user'.
-- `entity_id` (TEXT)
-- `reason` (TEXT)
-- `description` (TEXT)
-- `status` (TEXT): 'open', 'investigating', 'resolved', 'dismissed'.
-- `resolved_by_user_id` (TEXT)
-- `resolved_at` (TIMESTAMPTZ)
+- `reporter_user_id` (TEXT): FK to `users.id`. **Nullable** — NULL identifies a system-generated report (no human reporter).
+- `entity_type` (TEXT): 'organization', 'event', 'user', 'system_audit'.
+- `entity_id` (TEXT): id of the reported entity. For 'system_audit' rows this is the audited organization's id.
+- `reason` (TEXT): 'impersonation', 'inappropriate_content', 'spam', 'other'.
+- `description` (TEXT): free-text detail from the reporter, or the audit's correction summary.
+- `status` (TEXT): 'open', 'investigating', 'resolved', 'dismissed'. Currently always 'open' — no resolution workflow is implemented yet.
+- `resolved_by_user_id` (TEXT): no FK constraint. Never written yet.
+- `resolved_at` (TIMESTAMPTZ): never written yet.
 - `created_at` (TIMESTAMPTZ)
 
 ### 21. `user_badges`

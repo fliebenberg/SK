@@ -191,9 +191,22 @@ All state-changing operations are sent via the `action` event.
 
 ### 7. Reports
 
+See [reports.md](reports.md) for the feature overview (producers, consumers, and current limitations).
+
 #### `SUBMIT_REPORT`
 *   **Payload**: `{ entityType, entityId, reason, description, reporterUserId }`
-*   **Logic**: Submits a report for an organization, user, or event for moderation.
+    *   `entityType`: `'organization' | 'event' | 'user'`
+    *   `reason`: `'impersonation' | 'inappropriate_content' | 'spam' | 'other'`
+*   **Logic**: Submits a report for an organization, user, or event for moderation. Inserted with `status: 'open'`.
+*   **Returns**: The created `Report`.
+*   **Broadcasts**: None. Admins do not receive a live update; the reports list is fetched on demand.
+
+#### `get_data` — `{ type: 'reports' }`
+*   **Payload**: `{ type: 'reports', id, entityType? }` where `id` is the **requesting user's id**, used for the permission check.
+*   **Logic**: Returns all reports, newest first, optionally filtered by `entityType`. Guarded by `isAppAdmin(id)` — non-admins receive an empty array rather than an error.
+*   **Returns**: `Report[]`
+
+*Note: `reportManager.getReportsForEntity()` is exposed on `DataManager` but is not currently routed to any socket action.*
 
 ### 8. Badges
 

@@ -1,7 +1,7 @@
 export interface Report {
   id: string;
-  reporterUserId: string;
-  entityType: 'organization' | 'event' | 'user';
+  reporterUserId: string | null; // null for system-generated reports
+  entityType: 'organization' | 'event' | 'user' | 'system_audit';
   entityId: string;
   reason: 'impersonation' | 'inappropriate_content' | 'spam' | 'other';
   description?: string;

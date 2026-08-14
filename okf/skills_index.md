@@ -6,7 +6,7 @@ tags:
   - concept
   - skills
   - agent-rules
-timestamp: 2026-07-02T14:56:00Z
+timestamp: 2026-08-14T07:20:00Z
 ---
 
 # Agentic Skills Catalog
@@ -23,4 +23,5 @@ The `.agent/skills/` directory contains rules and instructions for coding agents
 8. **[date-formatting](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md)**: Standards for handling dates and times (use `date-fns`, UTC storage, and prevent database parsing errors).
 9. **[test-org-reuse](file:///c:/Fred/Coding/SK/.agent/skills/test-org-reuse/SKILL.md)**: Enforces reuse of the common "App Test Org" in integration tests.
 10. **[unsaved-changes-warning](file:///c:/Fred/Coding/SK/.agent/skills/unsaved-changes-warning/SKILL.md)**: Mandates the `useUnsavedChanges` hook on all pages that allow data editing.
-11. **[okf-maintenance](file:///c:/Fred/Coding/SK/.agent/skills/okf-maintenance/SKILL.md)** (NEW): Procedural guide for maintaining OKF index documents.
+11. **[okf-maintenance](file:///c:/Fred/Coding/SK/.agent/skills/okf-maintenance/SKILL.md)**: Procedural guide for maintaining OKF index documents.
+12. **[todo-checkin](file:///c:/Fred/Coding/SK/.agent/skills/todo-checkin/SKILL.md)** (NEW): Requires consulting the Known Issues & Tech Debt backlog in `TODO.md` before implementing a feature, and logging newly found issues there rather than fixing them opportunistically.
