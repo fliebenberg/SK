@@ -1,22 +1,24 @@
-import { ActionStep, ActionStepType, Outcome, ReasonOption, TriggerTeam } from '../models/sport/EventTemplate';
+import { ActionStep, ActionStepType, Outcome, ReasonGroup, ReasonOption, TriggerTeam } from '../models/sport/EventTemplate';
 
 /**
- * Helpers for reading an event template's `steps`.
+ * Helpers for reading an event template.
  *
- * `steps` is a tree: a step of type `GROUP` holds its own `steps` and renders as a single
- * screen in the scoring dialog. Almost no caller cares about that shape — they want to know
- * "what outcomes exist" or "does this template collect a player", which are questions about
- * the whole set of steps regardless of how they are grouped.
+ * A template separates *what an event means* from *how it is captured*. The meaning —
+ * `outcomes` and `reasons` — sits on the template itself, and the server reads only that.
+ * The capture flow is `steps`, a tree in which a `GROUP` holds its own `steps` and renders as
+ * a single screen, and it concerns the scoring dialog alone.
  *
- * So the tree is deliberately not exported in any form. Ask the questions below instead of
- * walking `template.steps` yourself, and grouping can never silently change an answer. The
- * one caller that genuinely needs the structure — the dialog, which draws the screens — uses
+ * The tree is deliberately not exported in any form. Ask the questions below instead of
+ * walking `template.steps` yourself, and grouping can never silently change an answer. The one
+ * caller that genuinely needs the structure — the dialog, which draws the screens — uses
  * {@link getScreens}.
  */
 
 /** A template, loosely typed so clients holding untyped sport specs can call these too. */
 type TemplateLike = {
   steps?: ActionStep[];
+  outcomes?: Outcome[];
+  reasons?: ReasonGroup[];
   triggerEventId?: string;
   triggerTeam?: TriggerTeam;
 } | null | undefined;
@@ -64,13 +66,13 @@ export function hasStep(template: TemplateLike, type: ActionStepType | string): 
 }
 
 /**
- * The outcomes the template offers, or an empty array if it has no outcome step.
+ * The outcomes the template offers, or an empty array if it defines none.
  *
  * Options are normalised: a spec may store one as a bare string rather than an object, and no
  * caller should have to handle both.
  */
 export function getOutcomes(template: TemplateLike): Outcome[] {
-  const outcomes = (findStep(template, ActionStepType.OUTCOME_SELECTION)?.outcomes || []) as (Outcome | string)[];
+  const outcomes = (template?.outcomes || []) as (Outcome | string)[];
   const normalised: Outcome[] = [];
   for (const outcome of outcomes) {
     if (typeof outcome === 'string') {
@@ -82,32 +84,72 @@ export function getOutcomes(template: TemplateLike): Outcome[] {
   return normalised;
 }
 
+/** Whether the template ends in a chosen outcome at all. */
+export function hasOutcomes(template: TemplateLike): boolean {
+  return getOutcomes(template).length > 0;
+}
+
 /** The definition of a chosen outcome, or undefined if the template does not define it. */
 export function findOutcome(template: TemplateLike, outcomeId: string | null | undefined): Outcome | undefined {
   if (!outcomeId) return undefined;
   return getOutcomes(template).find((outcome) => outcome.id === outcomeId);
 }
 
-/** The reason options the template offers, flattened across reason groups and normalised. */
-export function getReasonOptions(template: TemplateLike): ReasonOption[] {
-  const groups = findStep(template, ActionStepType.REASON_SELECTION)?.reasons || [];
-  const options: ReasonOption[] = [];
+/**
+ * The reason groups the template offers, normalised, keeping the grouping the spec declared —
+ * the dialog renders reasons under their group headings. Use {@link getReasonOptions} when the
+ * grouping does not matter.
+ */
+export function getReasonGroups(template: TemplateLike): ReasonGroup[] {
+  const groups = (template?.reasons || []) as ReasonGroup[];
+  const normalised: ReasonGroup[] = [];
   for (const group of groups) {
+    if (!group) continue;
+    const options: ReasonOption[] = [];
     for (const option of (group.options || []) as (ReasonOption | string)[]) {
       if (typeof option === 'string') {
         options.push({ id: option, name: option });
       } else if (option) {
-        options.push({ ...option, id: option.id || option.name });
+        options.push({ ...option, id: option.id || option.name, name: option.name || option.id });
       }
     }
+    normalised.push({ name: group.name || 'General', options });
+  }
+  return normalised;
+}
+
+/** The reason options the template offers, flattened across reason groups and normalised. */
+export function getReasonOptions(template: TemplateLike): ReasonOption[] {
+  const options: ReasonOption[] = [];
+  for (const group of getReasonGroups(template)) {
+    options.push(...group.options);
   }
   return options;
+}
+
+/** Whether the template attributes its events to a reason at all. */
+export function hasReasons(template: TemplateLike): boolean {
+  return getReasonOptions(template).length > 0;
 }
 
 /** The definition of a chosen reason, or undefined if the template does not define it. */
 export function findReason(template: TemplateLike, reasonId: string | null | undefined): ReasonOption | undefined {
   if (!reasonId) return undefined;
   return getReasonOptions(template).find((option) => (option.id || option.name) === reasonId);
+}
+
+/**
+ * Whether an individual player should be recorded, given the reason chosen so far.
+ *
+ * True unless the reason explicitly says otherwise, and true while no reason has been chosen —
+ * an unanswered reason must not suppress the player prompt that follows it.
+ *
+ * Three layers have to agree on this or the data goes wrong: the dialog skips the player screen,
+ * the event feed does not flag a missing player, and the mutation engine clears any actor that
+ * was set anyway. Each used to spell out its own `=== false` check; the default lives here now.
+ */
+export function reasonRequiresPlayer(template: TemplateLike, reasonId: string | null | undefined): boolean {
+  return findReason(template, reasonId)?.specifyPlayer !== false;
 }
 
 /**
@@ -132,15 +174,39 @@ export function getTriggerFor(
   return { eventId: source.triggerEventId, team: source.triggerTeam || 'same' };
 }
 
+/** What has been answered so far, for deciding which steps still apply. */
+export interface ScreenContext {
+  /** The chosen reason, if the flow has reached and answered its reason step. */
+  reason?: string | null;
+}
+
+/**
+ * Whether a step no longer applies given what has been answered.
+ *
+ * Only one rule so far: a reason with `specifyPlayer: false` has no individual offender, so the
+ * player prompt is dropped rather than collecting an attribution the server would discard.
+ */
+function isStepSkipped(template: TemplateLike, step: ActionStep, context: ScreenContext): boolean {
+  if (step.type === ActionStepType.PLAYER_SELECTION) {
+    return !reasonRequiresPlayer(template, context.reason);
+  }
+  return false;
+}
+
 /**
  * The template's steps as the screens a scoring dialog should render, in spec order: one
  * screen per top-level step, with a `GROUP` becoming a single screen holding its children.
- * Groups that contain nothing are dropped.
+ *
+ * Screens with nothing left on them are dropped — an empty group, or one whose every step has
+ * been skipped by `context`. Pass the answers collected so far to get the live flow; call it
+ * bare for the template's full shape.
  */
-export function getScreens(template: TemplateLike): TemplateScreen[] {
+export function getScreens(template: TemplateLike, context: ScreenContext = {}): TemplateScreen[] {
   const screens: TemplateScreen[] = [];
   for (const step of template?.steps || []) {
-    const steps = isGroup(step) ? flattenSteps(step.steps) : [step];
+    const steps = (isGroup(step) ? flattenSteps(step.steps) : [step]).filter(
+      (candidate) => !isStepSkipped(template, candidate, context)
+    );
     if (steps.length === 0) continue;
     screens.push({ name: step.name, steps });
   }

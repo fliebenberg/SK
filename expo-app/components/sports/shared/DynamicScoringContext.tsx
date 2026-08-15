@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, ActionStepType, findOutcome, getTriggerFor, hasStep, TriggerTeam } from '@sk/shared';
+import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, findOutcome, getTriggerFor, hasOutcomes, TriggerTeam } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
@@ -503,20 +503,22 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
     const template = templates.find((t) => t.id === scoringState.templateId);
 
-    const hasOutcomeStep = hasStep(template, ActionStepType.OUTCOME_SELECTION);
+    // Whether the event's value depends on an outcome is a question about the template's
+    // `outcomes`, not about where its picker sits in the flow.
+    const isOutcomeDriven = hasOutcomes(template);
     const selectedOutcomeObj = findOutcome(template, eventPayload?.outcome);
 
     let points = template?.points || 0;
     if (selectedOutcomeObj && selectedOutcomeObj.points !== undefined) {
       points = selectedOutcomeObj.points;
-    } else if (hasOutcomeStep && (!eventPayload?.outcome || eventPayload?.outcome === 'missed')) {
+    } else if (isOutcomeDriven && (!eventPayload?.outcome || eventPayload?.outcome === 'missed')) {
       if (template?.section === 'Scoring' || (template?.points && template.points > 0)) {
         points = 0;
       }
     }
 
     const isScoring = template?.section === 'Scoring' || (template?.points && template.points > 0);
-    const isPending = isScoring && hasOutcomeStep && !eventPayload?.outcome;
+    const isPending = isScoring && isOutcomeDriven && !eventPayload?.outcome;
 
     // Whose event a triggered follow-up is belongs to the template: a try's conversion is taken
     // by the scoring team, a penalty's kick by the non-offending one. Never hardcode the list of

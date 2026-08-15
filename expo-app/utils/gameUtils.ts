@@ -1,4 +1,15 @@
-import { GameEvent, Sport, GameParticipant, ActionStepType, findOutcome, findReason, hasStep } from '@sk/shared';
+import {
+  GameEvent,
+  Sport,
+  GameParticipant,
+  ActionStepType,
+  findOutcome,
+  findReason,
+  hasOutcomes,
+  hasReasons,
+  hasStep,
+  reasonRequiresPlayer,
+} from '@sk/shared';
 
 /**
  * Resolves an event template from a sport configuration.
@@ -123,13 +134,18 @@ export function getMissingDetails(evt: GameEvent, template: any, roster?: any[])
   const missing: ('player' | 'reason' | 'outcome')[] = [];
   const eventData = evt.eventData || {};
 
+  // A detail counts as missing when the template both asks for it (a step) and defines answers
+  // for it (template-level `reasons` / `outcomes`) — a picker with nothing to pick is not a gap.
+  // Steps are optional by default, so this drives the feed's chips only; `required` is what
+  // actually blocks a save, and that is the dialog's business.
+
   // 1. Reason Selection
-  if (hasStep(template, ActionStepType.REASON_SELECTION) && !eventData.reason) {
+  if (hasStep(template, ActionStepType.REASON_SELECTION) && hasReasons(template) && !eventData.reason) {
     missing.push('reason');
   }
 
   // 2. Outcome Selection
-  if (hasStep(template, ActionStepType.OUTCOME_SELECTION) && !eventData.outcome) {
+  if (hasStep(template, ActionStepType.OUTCOME_SELECTION) && hasOutcomes(template) && !eventData.outcome) {
     missing.push('outcome');
   }
 
@@ -137,7 +153,9 @@ export function getMissingDetails(evt: GameEvent, template: any, roster?: any[])
   if (hasStep(template, ActionStepType.PLAYER_SELECTION) && !evt.actorOrgProfileId) {
     const hasPlayers = roster && roster.length > 0;
     if (hasPlayers) {
-      const skippedByReason = findReason(template, eventData.reason)?.specifyPlayer === false;
+      // The dialog hides the player screen for these, so flagging it would point at a screen
+      // the scorer was never shown.
+      const skippedByReason = !reasonRequiresPlayer(template, eventData.reason);
       const excludedByOutcome = findOutcome(template, eventData.outcome)?.excludePlayer === true;
 
       if (!skippedByReason && !excludedByOutcome) {

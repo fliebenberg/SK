@@ -5,21 +5,19 @@ import { wsService } from '../../../services/websocket';
 import { RosterGrid } from './ScoringActionButton';
 import { Button } from '../../Button';
 import { Tabs } from '../../Tabs';
-import { CounterStep } from './CounterStep';
+import { WidgetStep } from './widgets';
 import { Ionicons } from '@expo/vector-icons';
-import { ActionStep, ActionStepType, TemplateScreen, findStep, getOutcomes, getScreens, hasStep } from '@sk/shared';
+import {
+  ActionStep,
+  ActionStepType,
+  TemplateScreen,
+  findSteps,
+  getOutcomes,
+  getReasonGroups,
+  getScreens,
+} from '@sk/shared';
 import { ConfirmationModal } from '../../ConfirmationModal';
 import { COLORS } from '../../../constants/Colors';
-
-interface ReasonOption {
-  id: string;
-  name: string;
-}
-
-interface ReasonGroup {
-  name: string;
-  options: ReasonOption[];
-}
 
 interface OutcomeOption {
   id: string;
@@ -48,7 +46,8 @@ export function DynamicScoringDialog() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>(undefined);
   const [selectedReason, setSelectedReason] = useState<string | undefined>(undefined);
   const [selectedOutcome, setSelectedOutcome] = useState<string | undefined>(undefined);
-  const [scrumResets, setScrumResets] = useState<number>(0);
+  /** Widget values, keyed by each `CUSTOM_WIDGET` step's `dataKey`. */
+  const [widgetValues, setWidgetValues] = useState<Record<string, any>>({});
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isConfirmingUndo, setIsConfirmingUndo] = useState<boolean>(false);
 
@@ -66,21 +65,16 @@ export function DynamicScoringDialog() {
 
   // The dialog is the one place that cares how a template's steps are grouped: each screen is
   // a top-level step, or a GROUP rendered as a single screen. Every other question about the
-  // template ("does it collect a player?") goes through the helpers, which ignore grouping.
-  const screens = getScreens(template);
+  // template ("what outcomes are there?") goes through the helpers, which ignore grouping.
+  //
+  // The chosen reason is passed in because it can remove a screen: an infringement with no
+  // individual offender drops the player prompt rather than collecting an attribution the
+  // server would discard.
+  const screens = getScreens(template, { reason: selectedReason });
   const activeScreen: TemplateScreen | undefined = screens[currentStep];
 
-  // Parse Reason Groups dynamically
-  const reasonGroups: ReasonGroup[] = (findStep(template, ActionStepType.REASON_SELECTION)?.reasons || []).map(
-    (rg: any) => ({
-      name: rg.name || 'General',
-      options: (rg.options || []).map((o: any) =>
-        typeof o === 'string' ? { id: o, name: o } : { id: o.id || o.name, name: o.name || o.id }
-      ),
-    })
-  );
+  const reasonGroups = getReasonGroups(template);
 
-  // Parse Outcome Options dynamically
   const outcomes: OutcomeOption[] = getOutcomes(template).map((o) => ({
     id: o.id,
     name: o.name || o.id,
@@ -88,8 +82,34 @@ export function DynamicScoringDialog() {
     triggerEventId: o.triggerEventId,
   }));
 
-  const hasWidget = hasStep(template, ActionStepType.CUSTOM_WIDGET);
+  /** Every widget the template declares, wherever it is grouped. */
+  const widgetSteps = findSteps(template, ActionStepType.CUSTOM_WIDGET);
   const isNextActionStep = outcomes.some((o) => !!o.triggerEventId);
+
+  /** What the scorer has entered for a step, or undefined if it is still unanswered. */
+  const answerFor = (step: ActionStep): any => {
+    switch (step.type) {
+      case ActionStepType.PLAYER_SELECTION:
+        return selectedPlayerId;
+      case ActionStepType.REASON_SELECTION:
+        return selectedReason;
+      case ActionStepType.OUTCOME_SELECTION:
+        return selectedOutcome;
+      default:
+        // A widget always holds a value, so `required` is meaningless on one.
+        return true;
+    }
+  };
+
+  /**
+   * Steps that must be answered before the event can be saved.
+   *
+   * Read off the visible screens, so a step the flow skipped can never block the save.
+   */
+  const unansweredRequired = screens
+    .flatMap((screen) => screen.steps)
+    .filter((step) => step.required && !answerFor(step));
+  const canSave = unansweredRequired.length === 0;
 
   /** A step's own name when the spec supplies one, else a default for its kind. */
   const stepLabel = (step: ActionStep): string => {
@@ -120,12 +140,20 @@ export function DynamicScoringDialog() {
       setSelectedPlayerId(init.playerId || init.actorOrgProfileId);
       setSelectedReason(init.reason);
       setSelectedOutcome(init.outcome);
-      setScrumResets(init.scrumResets || 0);
+      setWidgetValues(
+        Object.fromEntries(
+          widgetSteps.filter((step) => step.dataKey).map((step) => [step.dataKey!, init[step.dataKey!]])
+        )
+      );
+
+      // Derived from `init` rather than from `screens`, which still reflects the reason from the
+      // event this dialog last opened — the state above has not been applied yet.
+      const initialScreens = getScreens(template, { reason: init.reason });
 
       // Callers (e.g. the event feed's "missing detail" chips) name a step type rather than a
       // position, so a grouped step resolves to the screen that contains it.
       if (init.initialStepType) {
-        const targetIndex = screens.findIndex((screen) =>
+        const targetIndex = initialScreens.findIndex((screen) =>
           screen.steps.some((step) => step.type === init.initialStepType)
         );
         if (targetIndex >= 0) {
@@ -137,6 +165,14 @@ export function DynamicScoringDialog() {
     }
   }, [isVisible, templateId, side, scoringState.initialData]);
 
+  // Choosing a reason can remove a later screen, which would otherwise leave `currentStep`
+  // pointing past the end and the dialog rendering nothing.
+  useEffect(() => {
+    if (screens.length > 0 && currentStep > screens.length - 1) {
+      setCurrentStep(screens.length - 1);
+    }
+  }, [screens.length, currentStep]);
+
   if (!isVisible || !template) return null;
 
   const homeTeamName = homeTeam?.name || 'Home Team';
@@ -144,21 +180,30 @@ export function DynamicScoringDialog() {
   const teamName = side === 'home' ? homeTeamName : awayTeamName;
 
   const handleConfirm = () => {
+    if (!canSave) return;
+
     const selectedOutcomeObj = outcomes.find((o) => o.id === selectedOutcome);
     const triggerEventId = selectedOutcomeObj?.triggerEventId;
+
+    // Each widget writes to the key its step declares, so two widgets on one template cannot
+    // collide and the stored field name outlives the widget that produced it.
+    const widgetData: Record<string, any> = {};
+    for (const step of widgetSteps) {
+      if (step.dataKey) widgetData[step.dataKey] = widgetValues[step.dataKey];
+    }
 
     submitEvent({
       playerId: selectedPlayerId,
       reason: selectedReason,
       outcome: selectedOutcome,
       triggerEventId,
-      scrumResets: hasWidget ? scrumResets : undefined,
+      ...widgetData,
       side,
     });
     setSelectedPlayerId(undefined);
     setSelectedReason(undefined);
     setSelectedOutcome(undefined);
-    setScrumResets(0);
+    setWidgetValues({});
   };
 
   const handleUndo = () => {
@@ -186,6 +231,9 @@ export function DynamicScoringDialog() {
     }
   };
 
+  /** Steps are optional unless the spec says otherwise, and the prompt should say which. */
+  const suffix = (step: ActionStep) => (step.required ? '(Required)' : '(Optional)');
+
   /** Renders one step. Which steps share a screen is the template's call, not this file's. */
   const renderStep = (step: ActionStep) => {
     switch (step.type) {
@@ -194,7 +242,7 @@ export function DynamicScoringDialog() {
           <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
             <View className="flex-row items-center justify-between flex-shrink-0">
               <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Select Player (Optional):
+                Select Player {suffix(step)}:
               </Text>
 
               {/* SINGLE READ-ONLY TEAM BADGE */}
@@ -224,7 +272,7 @@ export function DynamicScoringDialog() {
         return (
           <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
             <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
-              Select Infringement / Detail:
+              Select Infringement / Detail {suffix(step)}:
             </Text>
 
             <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
@@ -268,9 +316,17 @@ export function DynamicScoringDialog() {
         );
 
       case ActionStepType.CUSTOM_WIDGET:
+        // The dialog resolves the widget by name and stores whatever it returns; what the
+        // control is and how it works are the widget's own business.
         return (
           <View className="my-3 flex-shrink-0">
-            <CounterStep label={step.name || 'Count'} value={scrumResets} onChange={setScrumResets} />
+            <WidgetStep
+              step={step}
+              value={step.dataKey ? widgetValues[step.dataKey] : undefined}
+              onChange={(value) =>
+                step.dataKey && setWidgetValues((prev) => ({ ...prev, [step.dataKey!]: value }))
+              }
+            />
           </View>
         );
 
@@ -278,7 +334,7 @@ export function DynamicScoringDialog() {
         return (
           <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
             <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
-              {isNextActionStep ? 'Select Next Action (Optional):' : 'Select Outcome (Optional):'}
+              {isNextActionStep ? 'Select Next Action' : 'Select Outcome'} {suffix(step)}:
             </Text>
 
             <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
@@ -390,6 +446,16 @@ export function DynamicScoringDialog() {
               <React.Fragment key={`${currentStep}-${index}`}>{renderStep(step)}</React.Fragment>
             ))}
 
+            {/* WHY THE SAVE IS BLOCKED — named, so the scorer is not left hunting the screens */}
+            {!canSave && (
+              <View className="flex-row items-center gap-1.5 pt-2 flex-shrink-0">
+                <Ionicons name="alert-circle-outline" size={14} color={COLORS.brand.orange} />
+                <Text className="font-inter text-xs text-brand-orange flex-1">
+                  Required: {unansweredRequired.map(stepLabel).join(', ')}
+                </Text>
+              </View>
+            )}
+
             {/* DIALOG ACTION FOOTER */}
             <View className="flex-row gap-2 pt-3 border-t border-slate-200 dark:border-white/10 flex-shrink-0 mt-auto">
               <Button title="Cancel" variant="ghost" onPress={cancelDynamicFlow} className="flex-1 py-2.5 rounded-xl" />
@@ -397,14 +463,14 @@ export function DynamicScoringDialog() {
               {isEditing ? (
                 <>
                   <Button title="Undo Event" variant="danger" onPress={handleUndo} className="px-3 py-2.5 rounded-xl" />
-                  <Button title="Save Changes" variant="primary" onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
+                  <Button title="Save Changes" variant="primary" disabled={!canSave} onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
                 </>
               ) : (
                 <>
                   {currentStep < totalSteps - 1 && (
                     <Button title="Next Step" variant="secondary" onPress={handleNextStep} className="flex-1 py-2.5 rounded-xl" />
                   )}
-                  <Button title="Confirm Event" variant="primary" onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
+                  <Button title="Confirm Event" variant="primary" disabled={!canSave} onPress={handleConfirm} className="flex-1 py-2.5 rounded-xl" />
                 </>
               )}
             </View>

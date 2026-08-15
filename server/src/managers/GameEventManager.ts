@@ -6,15 +6,14 @@ import { DisputeResolutionHandler, DisputeConfig } from "../sports/core/SportDis
 import { sportManager } from "./SportManager";
 import {
   EventTemplate,
-  ActionStepType,
   DEFAULT_UNDO_DELAY_MS,
   UNDO_GRACE_MS,
   resolveUndoExpiryMs,
   findOutcome,
-  findReason,
   getOutcomes,
   getTriggerFor,
-  hasStep,
+  hasOutcomes,
+  reasonRequiresPlayer,
 } from "@sk/shared";
 
 const SPORT_MODULES: Record<string, string> = {};
@@ -1079,13 +1078,9 @@ export class GameEventManager extends BaseManager {
         const reasonName = finalEventData.reason;
         let forcedActorId: string | null | undefined = undefined;
 
-        if (template && reasonName) {
-            const reasonOpt = findReason(template, reasonName);
-            // Default to TRUE (requires player) if specifyPlayer is undefined
-            if (reasonOpt && reasonOpt.specifyPlayer === false) {
-                console.log(`[Mutation Engine] Reason "${reasonName}" does not require a player. Clearing actorId.`);
-                forcedActorId = null;
-            }
+        if (template && reasonName && !reasonRequiresPlayer(template, reasonName)) {
+            console.log(`[Mutation Engine] Reason "${reasonName}" does not require a player. Clearing actorId.`);
+            forcedActorId = null;
         }
 
         // Resolve final values, respecting null for explicit clearing
@@ -1148,8 +1143,7 @@ export class GameEventManager extends BaseManager {
 
              // Only consider orphaning when this template spawns children at all, so templates
              // that link children by some other means are left alone.
-             const templateCanTrigger =
-                 hasStep(template, ActionStepType.OUTCOME_SELECTION) || !!template.triggerEventId;
+             const templateCanTrigger = hasOutcomes(template) || !!template.triggerEventId;
              const stillTriggered = getTriggerFor(template, finalOutcome)?.eventId === childSubType;
 
              if (templateCanTrigger && !stillTriggered) {
