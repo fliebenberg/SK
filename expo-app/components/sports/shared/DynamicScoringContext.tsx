@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, findOutcome, getTriggerFor, hasOutcomes, TriggerTeam } from '@sk/shared';
+import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, findOutcome, getTriggerFor, hasOutcomes, reasonRequiresPlayer, TriggerTeam } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
@@ -532,10 +532,21 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
 
     const initialData = scoringState.initialData || {};
 
-    const actorOrgProfileId =
+    const collectedPlayerId =
       eventPayload?.playerId !== undefined
         ? eventPayload.playerId
         : (initialData.actorOrgProfileId || initialData.playerId);
+
+    // Mirrors how `eventData` below resolves the reason: the payload wins, else what the dialog
+    // was opened with.
+    const effectiveReason = eventPayload?.reason !== undefined ? eventPayload.reason : initialData.reason;
+
+    // A scorer can pick a player and then change the reason to one with no individual offender —
+    // a free kick for "Too Many Players". The dialog hides the player screen at that point but
+    // keeps the selection, so switching back restores it; what must not happen is the stale
+    // player reaching the event. Resolved to null rather than simply omitted, because on an edit
+    // an omitted actor means "unchanged" and would leave a previously saved player in place.
+    const actorOrgProfileId = reasonRequiresPlayer(template, effectiveReason) ? collectedPlayerId : null;
 
     const { playerId: _, ...cleanEventPayload } = eventPayload || {};
 

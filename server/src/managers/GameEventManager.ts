@@ -168,11 +168,27 @@ export class GameEventManager extends BaseManager {
       eventDataToStore.undoExpiresAt = await this.buildUndoExpiry();
     }
 
+    // A reason with `specifyPlayer: false` has no individual offender, so no player is recorded
+    // against it — a scorer who picked one before switching the reason must not leave it behind.
+    // `applyMutation` enforces this when an event is edited; enforcing it here too means the rule
+    // holds from the moment an event is created, whatever the client sent.
+    let actorOrgProfileId = data.actorOrgProfileId;
+    if (actorOrgProfileId && eventDataToStore.reason) {
+      const sportId = await this.getGameSportId(data.gameId);
+      const sport = sportId ? await sportManager.getSport(sportId) : null;
+      const templateId = eventDataToStore.templateId || data.subType;
+      const template = sport?.eventTemplates?.find((t: EventTemplate) => t.id === templateId);
+      if (template && !reasonRequiresPlayer(template, eventDataToStore.reason)) {
+        console.log(`[Ingest] Reason "${eventDataToStore.reason}" does not require a player. Dropping actorId.`);
+        actorOrgProfileId = undefined;
+      }
+    }
+
     const insertRes = await this.query(`
       INSERT INTO game_events (id, game_id, sequence, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING ${this.GAME_EVENT_COLUMNS}
-    `, [newEventId, data.gameId, nextSeq, data.gameParticipantId, data.actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, eventDataToStore]);
+    `, [newEventId, data.gameId, nextSeq, data.gameParticipantId, actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, eventDataToStore]);
 
     const newEvent = insertRes.rows[0] as GameEvent;
 

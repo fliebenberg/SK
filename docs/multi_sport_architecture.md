@@ -142,9 +142,15 @@ agree, so the default lives in `reasonRequiresPlayer`:
 
 | Layer | Behaviour when `specifyPlayer: false` |
 |---|---|
-| scoring dialog | the player screen is dropped from the flow |
+| scoring dialog | the player screen is dropped from the flow, and no player is submitted |
 | event feed | no "missing player" chip |
-| mutation engine | clears any `actor_org_profile_id` that was set |
+| server, on create (`ingestEvent`) | the actor is dropped before the insert |
+| server, on edit (`applyMutation`) | clears any `actor_org_profile_id` that was set |
+
+Both server paths matter, and for the same reason: a scorer can pick a player and *then* change
+the reason to one with no individual offender. The dialog keeps the selection so switching back
+restores it, but resolves the submitted actor to `null` — not simply omitting it, since on an edit
+an omitted actor means "unchanged" and would leave a previously saved player in place.
 
 ### Custom widgets
 
