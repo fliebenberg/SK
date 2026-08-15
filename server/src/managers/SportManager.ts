@@ -1,4 +1,4 @@
-import { Sport } from "@sk/types";
+import { Sport } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 
 export class SportManager extends BaseManager {

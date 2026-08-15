@@ -9,7 +9,7 @@ import { useActiveTheme } from '../../../../../store/settingsStore';
 import { wsService } from '../../../../../services/websocket';
 import { useWsStore } from '../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../store/authStore';
-import { Site, Facility, Sport, Organization } from '@sk/types';
+import { Site, Facility, Sport, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web

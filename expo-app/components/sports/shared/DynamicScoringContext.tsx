@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, ActionStepType } from '@sk/types';
+import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, ActionStepType, findOutcome, getTriggerFor, hasStep, TriggerTeam } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
@@ -503,13 +503,8 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     const participant = side === 'home' ? game.participants?.[0] : game.participants?.[1];
     const template = templates.find((t) => t.id === scoringState.templateId);
 
-    // Dynamically resolve steps and outcome definitions from template.steps
-    const flatSteps = template?.steps
-      ? template.steps.flatMap((s: any) => (s.type === ActionStepType.GROUP || s.type === 'GROUP' ? s.steps || [] : [s]))
-      : [];
-    const outcomeStep = flatSteps.find((s: any) => s.type === ActionStepType.OUTCOME_SELECTION || s.type === 'OUTCOME_SELECTION');
-    const hasOutcomeStep = !!outcomeStep;
-    const selectedOutcomeObj = outcomeStep?.outcomes?.find((o: any) => o.id === eventPayload?.outcome);
+    const hasOutcomeStep = hasStep(template, ActionStepType.OUTCOME_SELECTION);
+    const selectedOutcomeObj = findOutcome(template, eventPayload?.outcome);
 
     let points = template?.points || 0;
     if (selectedOutcomeObj && selectedOutcomeObj.points !== undefined) {
@@ -522,6 +517,12 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
 
     const isScoring = template?.section === 'Scoring' || (template?.points && template.points > 0);
     const isPending = isScoring && hasOutcomeStep && !eventPayload?.outcome;
+
+    // Whose event a triggered follow-up is belongs to the template: a try's conversion is taken
+    // by the scoring team, a penalty's kick by the non-offending one. Never hardcode the list of
+    // templates that flip — a sport spec we have never seen must be able to say so.
+    const sideForTrigger = (team: TriggerTeam | undefined): 'home' | 'away' =>
+      team === 'opponent' ? (side === 'home' ? 'away' : 'home') : side;
 
     const currentPeriodLabel =
       game.liveState?.periodLabel ||
@@ -596,11 +597,17 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           setErrorMessage(res.error);
         } else {
           const updatedEventId = res?.id || res?.data?.id || scoringState.editingId;
-          if (eventPayload?.triggerEventId) {
-            const targetSide = (scoringState.templateId === 'penalty_awarded' || scoringState.templateId === 'free_kick')
-              ? (side === 'home' ? 'away' : 'home')
-              : side;
-            startDynamicFlow(eventPayload.triggerEventId, targetSide, {
+          // The dialog always reports the trigger for the currently selected outcome, so
+          // editing an unrelated field (e.g. the reason) would otherwise re-open the linked
+          // event dialog for a linked event that already exists. Only chain when the outcome
+          // is being set for the first time or actually changing.
+          const shouldChainLinkedEvent = !isOutcomeAlreadySet || outcomeChanged;
+          // Gated on the outcome's own trigger, not on `getTriggerFor`: a template-level trigger
+          // (try → conversion) fires once, when the event is created. Re-firing it here would
+          // re-open the conversion dialog every time an unrelated field on the try was corrected.
+          if (eventPayload?.triggerEventId && shouldChainLinkedEvent) {
+            const trigger = getTriggerFor(template, eventPayload.outcome);
+            startDynamicFlow(eventPayload.triggerEventId, sideForTrigger(trigger?.team), {
               linkedEventId: updatedEventId,
               elapsedMS: originalData?.elapsedMS || eventData.elapsedMS,
             });
@@ -628,14 +635,11 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           return;
         }
         const addedEventId = res?.id || res?.data?.id || res?.eventId;
-        // AUTOMATED CHAINED FLOW: Scoring a Try automatically triggers Conversion dialog!
-        if (scoringState.templateId === 'try') {
-          startDynamicFlow('conversion', side, { linkedEventId: addedEventId });
-        } else if (eventPayload?.triggerEventId) {
-          const targetSide = (scoringState.templateId === 'penalty_awarded' || scoringState.templateId === 'free_kick')
-            ? (side === 'home' ? 'away' : 'home')
-            : side;
-          startDynamicFlow(eventPayload.triggerEventId, targetSide, { linkedEventId: addedEventId });
+        // AUTOMATED CHAINED FLOW: the template says what a completed event spawns — a try always
+        // spawns a conversion, a penalty spawns whatever its chosen outcome names — and whose it is.
+        const trigger = getTriggerFor(template, eventPayload?.outcome);
+        if (trigger) {
+          startDynamicFlow(trigger.eventId, sideForTrigger(trigger.team), { linkedEventId: addedEventId });
         } else {
           setScoringState({ status: 'IDLE' });
         }

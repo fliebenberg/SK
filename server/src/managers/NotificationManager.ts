@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import pool from '../db';
-import { Notification } from '@sk/types';
+import { Notification } from '@sk/shared';
 import { randomBytes } from 'crypto';
 
 export class NotificationManager {

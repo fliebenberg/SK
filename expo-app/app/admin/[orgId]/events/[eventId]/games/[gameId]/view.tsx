@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
-import { Event, Game, Sport, Site, Team, Organization } from '@sk/types';
+import { Event, Game, Sport, Site, Team, Organization } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
 
 import { useAuthStore } from '../../../../../../../store/authStore';

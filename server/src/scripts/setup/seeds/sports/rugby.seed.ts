@@ -1,4 +1,4 @@
-import { ActionStepType, TemplateDisputeType } from "@sk/types";
+import { ActionStepType, TemplateDisputeType } from "@sk/shared";
 
 export const RUGBY_SEED_SPEC = {
   id: "rugby",
@@ -78,18 +78,12 @@ export const RUGBY_SEED_SPEC = {
         impactsPoints: true
       },
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            {
-              type: ActionStepType.OUTCOME_SELECTION,
-              outcomes: [
-                { id: "successful", name: "Successful", displayOverride: "", points: 2, variant: "success", eventData: { "successful": true } },
-                { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
-              ]
-            }
+          type: ActionStepType.OUTCOME_SELECTION,
+          outcomes: [
+            { id: "successful", name: "Successful", displayOverride: "", points: 2, variant: "success", eventData: { "successful": true } },
+            { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
           ]
         }
       ]
@@ -107,18 +101,12 @@ export const RUGBY_SEED_SPEC = {
         impactsPoints: true
       },
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            {
-              type: ActionStepType.OUTCOME_SELECTION,
-              outcomes: [
-                { id: "successful", name: "Successful", displayOverride: "OVER", points: 3, variant: "success", eventData: { "successful": true } },
-                { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
-              ]
-            }
+          type: ActionStepType.OUTCOME_SELECTION,
+          outcomes: [
+            { id: "successful", name: "Successful", displayOverride: "OVER", points: 3, variant: "success", eventData: { "successful": true } },
+            { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
           ]
         }
       ]
@@ -136,18 +124,12 @@ export const RUGBY_SEED_SPEC = {
         impactsPoints: true
       },
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            {
-              type: ActionStepType.OUTCOME_SELECTION,
-              outcomes: [
-                { id: "successful", name: "Successful", displayOverride: "SUCCESS", points: 3, variant: "success", eventData: { "successful": true } },
-                { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
-              ]
-            }
+          type: ActionStepType.OUTCOME_SELECTION,
+          outcomes: [
+            { id: "successful", name: "Successful", displayOverride: "SUCCESS", points: 3, variant: "success", eventData: { "successful": true } },
+            { id: "missed", name: "Missed", displayOverride: "MISSED", points: 0, variant: "danger", eventData: { "successful": false } }
           ]
         }
       ]
@@ -159,20 +141,14 @@ export const RUGBY_SEED_SPEC = {
       icon: "Play",
       displayPattern: "{name} → {outcome}",
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            {
-              type: ActionStepType.OUTCOME_SELECTION,
-              outcomes: [
-                { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
-                { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
-                { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } },
-                { id: "long", name: "Long", variant: "danger", eventData: { successful: false } }
-              ]
-            }
+          type: ActionStepType.OUTCOME_SELECTION,
+          outcomes: [
+            { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
+            { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
+            { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } },
+            { id: "long", name: "Long", variant: "danger", eventData: { successful: false } }
           ]
         }
       ]
@@ -184,19 +160,13 @@ export const RUGBY_SEED_SPEC = {
       icon: "ArrowUpRight",
       displayPattern: "{name} → {outcome}",
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            {
-              type: ActionStepType.OUTCOME_SELECTION,
-              outcomes: [
-                { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
-                { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
-                { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
-              ]
-            }
+          type: ActionStepType.OUTCOME_SELECTION,
+          outcomes: [
+            { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
+            { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
+            { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
           ]
         }
       ]
@@ -208,19 +178,13 @@ export const RUGBY_SEED_SPEC = {
       icon: "ArrowUp",
       displayPattern: "{name} → {outcome}",
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            {
-              type: ActionStepType.OUTCOME_SELECTION,
-              outcomes: [
-                { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
-                { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
-                { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
-              ]
-            }
+          type: ActionStepType.OUTCOME_SELECTION,
+          outcomes: [
+            { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
+            { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
+            { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
           ]
         }
       ]
@@ -279,9 +243,11 @@ export const RUGBY_SEED_SPEC = {
         {
           type: ActionStepType.OUTCOME_SELECTION,
           outcomes: [
-            { id: "penalty_kick", name: "Penalty Kick", variant: "primary", triggerEventId: "penalty_kick" },
-            { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick" },
-            { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Penalty" } },
+            // A penalty is recorded against the offending team, so everything it awards belongs
+            // to their opponents.
+            { id: "penalty_kick", name: "Penalty Kick", variant: "primary", triggerEventId: "penalty_kick", triggerTeam: "opponent" },
+            { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick", triggerTeam: "opponent" },
+            { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", triggerTeam: "opponent", eventData: { reason: "Penalty" } },
             { id: "tap_go", name: "Tap n Go", variant: "success", eventData: { reason: "Penalty" } }
           ]
         }
@@ -335,8 +301,9 @@ export const RUGBY_SEED_SPEC = {
         {
           type: ActionStepType.OUTCOME_SELECTION,
           outcomes: [
-            { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", eventData: { reason: "Free Kick" } },
-            { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick" },
+            // As with a penalty, a free kick is recorded against the offending team.
+            { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", triggerTeam: "opponent", eventData: { reason: "Free Kick" } },
+            { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick", triggerTeam: "opponent" },
             { id: "tap_go", name: "Tap n Go", variant: "success", eventData: { reason: "Free Kick" } }
           ]
         }
@@ -371,6 +338,7 @@ export const RUGBY_SEED_SPEC = {
           steps: [
             {
               type: ActionStepType.CUSTOM_WIDGET,
+              name: "Scrum Resets",
               widgetName: "ScrumResetsCounter",
             },
             {
@@ -408,31 +376,25 @@ export const RUGBY_SEED_SPEC = {
       icon: "AlertTriangle",
       displayPattern: "{name}",
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Details",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
+          type: ActionStepType.REASON_SELECTION,
+          reasons: [
             {
-              type: ActionStepType.REASON_SELECTION,
-              reasons: [
-                {
-                  name: "Foul Play",
-                  options: [
-                    { id: "high_tackle", name: "High Tackle" },
-                    { id: "dangerous_play", name: "Dangerous Play" },
-                    { id: "professional_foul", name: "Professional Foul" },
-                    { id: "cynical_foul", name: "Cynical Foul" }
-                  ]
-                },
-                {
-                  name: "Technical",
-                  options: [
-                    { id: "repeated_infringements", name: "Repeated Infringements" },
-                    { id: "offside", name: "Offside" },
-                    { id: "other", name: "Other" }
-                  ]
-                }
+              name: "Foul Play",
+              options: [
+                { id: "high_tackle", name: "High Tackle" },
+                { id: "dangerous_play", name: "Dangerous Play" },
+                { id: "professional_foul", name: "Professional Foul" },
+                { id: "cynical_foul", name: "Cynical Foul" }
+              ]
+            },
+            {
+              name: "Technical",
+              options: [
+                { id: "repeated_infringements", name: "Repeated Infringements" },
+                { id: "offside", name: "Offside" },
+                { id: "other", name: "Other" }
               ]
             }
           ]
@@ -446,24 +408,18 @@ export const RUGBY_SEED_SPEC = {
       icon: "XCircle",
       displayPattern: "{name}",
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Details",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
+          type: ActionStepType.REASON_SELECTION,
+          reasons: [
             {
-              type: ActionStepType.REASON_SELECTION,
-              reasons: [
-                {
-                  name: "Serious Foul Play",
-                  options: [
-                    { id: "punching_striking", name: "Punching/Striking" },
-                    { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
-                    { id: "tip_tackle", name: "Tip Tackle" },
-                    { id: "stamp_kick", name: "Stamp/Kick" },
-                    { id: "second_yellow", name: "Second Yellow Card" }
-                  ]
-                }
+              name: "Serious Foul Play",
+              options: [
+                { id: "punching_striking", name: "Punching/Striking" },
+                { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
+                { id: "tip_tackle", name: "Tip Tackle" },
+                { id: "stamp_kick", name: "Stamp/Kick" },
+                { id: "second_yellow", name: "Second Yellow Card" }
               ]
             }
           ]
@@ -477,22 +433,16 @@ export const RUGBY_SEED_SPEC = {
       icon: "Clock",
       displayPattern: "{name}",
       steps: [
+        { type: ActionStepType.PLAYER_SELECTION },
         {
-          type: ActionStepType.GROUP,
-          name: "Details",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
+          type: ActionStepType.REASON_SELECTION,
+          reasons: [
             {
-              type: ActionStepType.REASON_SELECTION,
-              reasons: [
-                {
-                  name: "Serious Foul Play (Timed)",
-                  options: [
-                    { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
-                    { id: "tip_tackle", name: "Tip Tackle" },
-                    { id: "other", name: "Other" }
-                  ]
-                }
+              name: "Serious Foul Play (Timed)",
+              options: [
+                { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
+                { id: "tip_tackle", name: "Tip Tackle" },
+                { id: "other", name: "Other" }
               ]
             }
           ]
@@ -506,14 +456,8 @@ export const RUGBY_SEED_SPEC = {
       icon: "Hand",
       displayPattern: "{name}",
       steps: [
-        {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
-          ]
-        }
+        { type: ActionStepType.PLAYER_SELECTION },
+        { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
       ]
     },
     {
@@ -524,14 +468,8 @@ export const RUGBY_SEED_SPEC = {
       icon: "RotateCw",
       displayPattern: "{name}",
       steps: [
-        {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
-          ]
-        }
+        { type: ActionStepType.PLAYER_SELECTION },
+        { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
       ]
     },
     {
@@ -542,14 +480,8 @@ export const RUGBY_SEED_SPEC = {
       icon: "Zap",
       displayPattern: "{name}",
       steps: [
-        {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
-          ]
-        }
+        { type: ActionStepType.PLAYER_SELECTION },
+        { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
       ]
     },
     {
@@ -560,14 +492,8 @@ export const RUGBY_SEED_SPEC = {
       icon: "X",
       displayPattern: "{name}",
       steps: [
-        {
-          type: ActionStepType.GROUP,
-          name: "Selection",
-          steps: [
-            { type: ActionStepType.PLAYER_SELECTION },
-            { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
-          ]
-        }
+        { type: ActionStepType.PLAYER_SELECTION },
+        { type: ActionStepType.OUTCOME_SELECTION, outcomes: [{ id: "confirmed", name: "Confirmed" }] }
       ]
     },
     {

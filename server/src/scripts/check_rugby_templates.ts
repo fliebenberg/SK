@@ -14,6 +14,20 @@ async function check() {
       templates.forEach((t: any, idx: number) => {
         console.log(` ${idx + 1}. id="${t.id}", name="${t.name}", section="${t.section}"`);
       });
+
+      console.log('\nTriggered follow-ups (child event -> side it is recorded for):');
+      templates.forEach((t: any) => {
+        if (t.triggerEventId) {
+          console.log(` ${t.id} -> ${t.triggerEventId} (${t.triggerTeam || 'same'})`);
+        }
+        (t.steps || []).forEach((step: any) => {
+          (step.outcomes || []).forEach((o: any) => {
+            if (o.triggerEventId) {
+              console.log(` ${t.id}/${o.id} -> ${o.triggerEventId} (${o.triggerTeam || 'same'})`);
+            }
+          });
+        });
+      });
     }
   } catch (err) {
     console.error('Check failed:', err);

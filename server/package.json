@@ -13,7 +13,7 @@
     "db:setup": "npm run db:reset && npm run db:seed"
   },
   "dependencies": {
-    "@sk/types": "file:../shared",
+    "@sk/shared": "file:../shared",
     "@types/sharp": "^0.32.0",
     "@types/winston": "^2.4.4",
     "bcryptjs": "^3.0.3",

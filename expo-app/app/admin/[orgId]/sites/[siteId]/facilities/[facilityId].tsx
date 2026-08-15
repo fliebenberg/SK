@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSettingsStore, useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../store/wsStore';
-import { SocketAction, Facility, Site } from '@sk/types';
+import { SocketAction, Facility, Site } from '@sk/shared';
 import { useSocketQuery } from '../../../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../../../store/unsavedChangesStore';

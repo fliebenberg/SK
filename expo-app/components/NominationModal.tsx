@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { useAuthStore } from '../store/authStore';
 import { useActiveTheme } from '../store/settingsStore';
 import { wsService } from '../services/websocket';
-import { SocketAction } from '@sk/types';
+import { SocketAction } from '@sk/shared';
 import { getThemeColor } from '../constants';
 
 interface NominationModalProps {

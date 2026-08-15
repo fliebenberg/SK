@@ -1,4 +1,4 @@
-import { OrgProfile, OrgMembership, User, UserEmail, OrgMember } from "@sk/types";
+import { OrgProfile, OrgMembership, User, UserEmail, OrgMember } from "@sk/shared";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
@@ -575,22 +575,12 @@ export class UserManager extends BaseManager {
       const profile = (await this.query(`SELECT ${this.ORG_PROFILE_COLUMNS} FROM org_profiles WHERE id = $1`, [id])).rows[0];
       if (!profile) return null;
 
-      // Get active memberships to decrement count
-      const activeMemberships = await this.query(
-          `SELECT COUNT(*)::int as count FROM org_memberships 
-           WHERE org_profile_id = $1 AND (end_date IS NULL OR end_date > NOW())`,
-          [id]
-      );
-      const activeCount = activeMemberships.rows[0].count;
-
       await this.query('DELETE FROM team_memberships WHERE org_profile_id = $1', [id]);
       await this.query('DELETE FROM org_memberships WHERE org_profile_id = $1', [id]);
 
       await this.query('DELETE FROM org_profiles WHERE id = $1', [id]);
 
-      if (activeCount > 0) {
-          // No manual decrement needed, refreshOrgSummary will handle it
-      }
+      // Org counts are computed live, so removing the memberships is sufficient.
 
       // Attempt safe delete of image
       if (profile.image) {

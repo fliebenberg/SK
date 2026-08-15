@@ -1,4 +1,4 @@
-import { Address } from "@sk/types";
+import { Address } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 
 export class AddressManager extends BaseManager {

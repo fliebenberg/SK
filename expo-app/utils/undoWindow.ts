@@ -1,4 +1,4 @@
-import { GameEvent, resolveUndoExpiryMs } from '@sk/types';
+import { GameEvent, resolveUndoExpiryMs } from '@sk/shared';
 import { wsService } from '../services/websocket';
 
 /**

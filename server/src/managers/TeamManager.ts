@@ -1,4 +1,4 @@
-import { Team, TeamRole, TeamMembership, TeamMember } from "@sk/types";
+import { Team, TeamRole, TeamMembership, TeamMember } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 
@@ -94,7 +94,7 @@ export class TeamManager extends BaseManager {
     );
     if (!res.rows[0]) return null;
 
-    // No manual count update needed, refreshOrgSummary will handle it
+    // Org counts are computed live, so there is nothing to update here.
     organizationManager.invalidateCache();
     return this.enrichTeam(res.rows[0]);
   }

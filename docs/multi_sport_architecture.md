@@ -87,3 +87,77 @@ Some sports allow draws, while others demand a winner. The `Sport.defaultSetting
 - **Extra Time / Additional Periods:** If tied at the end of regulation (`Tied && Settings.overtimeRule === 'EXTRA_TIME'`), the system prompts the officials to start `Overtime Period 1`. This uses the `Settings.overtimeDurationMinutes`.
 - **Sudden Death (Golden Point):** If `Settings.overtimeRule === 'SUDDEN_DEATH'`, the match enters a special unfixed period. The next `SCORE` event entered into the system that breaks the tie automatically triggers a `MATCH_COMPLETED` event.
 - **Shootout / Penalties:** A structured final phase where regular time stops, and the UI shifts into a `ShootoutPanel` (a specialized Component Registry slot) where scorers log binary Make/Miss events until a winner emerges.
+
+---
+
+## 5. Event Templates: Steps and Screens
+
+Each sport's `eventTemplates` describe what a scorer is asked when they log an event. A template
+holds an ordered `steps` array, and the scoring dialog renders **one screen per top-level step**,
+in the order the spec declares them. There is no ordering, labelling or step logic hardcoded in the
+client — moving a step in the seed moves it on screen.
+
+### Step types
+
+| Type | Renders |
+|---|---|
+| `PLAYER_SELECTION` | the team's roster grid |
+| `REASON_SELECTION` | the infringement / detail options, grouped by `ReasonGroup` |
+| `OUTCOME_SELECTION` | the outcome buttons; labelled "Next Action" when the outcomes carry triggers |
+| `CUSTOM_WIDGET` | a counter, labelled from the step's `name` |
+| `GROUP` | its child steps, together on **one** screen |
+
+`GROUP` exists solely to put more than one control on a single screen — a scrum asks for its reset
+count beside won/lost, because the two are one judgement. Anything that should be answered
+independently is a top-level step instead. A step's optional `name` titles its screen; a group's
+`name` titles the combined one.
+
+### Triggered follow-up events
+
+An outcome (or a whole template) may spawn a linked follow-up event via `triggerEventId`. The
+follow-up is **not always the same team's**: a try's conversion is taken by the scoring team, but a
+penalty is recorded *against* the offending team and the kick it awards belongs to their opponents.
+
+`triggerTeam` states that, relative to the parent:
+
+| Value | Meaning |
+|---|---|
+| `same` (default) | the follow-up is recorded for the parent's participant — `try` → `conversion` |
+| `opponent` | the follow-up is recorded for the other participant — `penalty_awarded` → `penalty_kick` |
+
+It sits beside `triggerEventId`, at whichever level that is declared, and is read through
+`getTriggerFor`, which returns `{ eventId, team }` so no caller can learn what to spawn without
+learning whose it is. This was previously a hardcoded list of rugby template ids in the scoring
+client; a spec the client has never seen can now say it.
+
+A child's side is decided **once, when it is created**. The mutation engine never rewrites a
+child's `game_participant_id` when its parent is edited — see `applyMutation`'s cascade in
+`GameEventManager`.
+
+### Reading `steps` in code
+
+`steps` is a tree, but almost every question about a template ("what outcomes exist?", "does this
+collect a player?") concerns all steps regardless of grouping. Answering those by walking
+`template.steps` directly means remembering to unwrap `GROUP` every time, and forgetting is silent
+— the code finds nothing and skips its work rather than failing.
+
+So the traversal lives in one place, `shared/src/utils/templateSteps.ts`, exported via `@sk/shared`:
+
+- `findStep` / `findSteps` / `hasStep` — locate steps by type
+- `getOutcomes` / `findOutcome` — outcome definitions, normalised
+- `getReasonOptions` / `findReason` — reason options, flattened across groups
+- `getTriggerFor(template, outcomeId)` — the linked child a selection spawns **and whose side it
+  is** (`{ eventId, team }`), resolving outcome-level triggers before the template-level one
+- `getScreens(template)` — the screen layout, for the dialog only
+
+No flat step array is exported, so no caller can hold one and pass it where the grouped structure
+belonged. Use these helpers rather than reading `steps` yourself.
+
+### Applying a spec change
+
+`eventTemplates` are stored in `sports.event_templates` in the database, so editing a seed file has
+no effect until it is synced:
+
+```sh
+cd server && npx ts-node src/scripts/sync_db_rugby_templates.ts
+```

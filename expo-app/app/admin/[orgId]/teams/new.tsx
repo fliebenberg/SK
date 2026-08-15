@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Sport, Organization } from '@sk/types';
+import { SocketAction, Sport, Organization } from '@sk/shared';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 
 export default function NewTeam() {

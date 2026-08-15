@@ -1,4 +1,4 @@
-import { Game, FeedHomeResponse, FeedItem, UserPreferences } from "@sk/types";
+import { Game, FeedHomeResponse, FeedItem, UserPreferences } from "@sk/shared";
 import { eventManager } from "./EventManager";
 import { organizationManager } from "./OrganizationManager";
 import { userManager } from "./UserManager";

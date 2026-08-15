@@ -68,6 +68,8 @@ High-level entities like schools, clubs, or federations.
 - `settings` (JSONB): Organization-specific configuration.
 - `address_id` (TEXT): FK to `addresses.id`.
 
+*Derived, not stored*: `teamCount`, `siteCount`, `memberCount` and `eventCount` are computed live by the organization queries and returned on the API model. They were previously cached columns maintained by background jobs; see [background-tasks.md](background-tasks.md) for why that was removed.
+
 ### 4. `sites`
 Primary locations managed by an organization (e.g., 'Main Campus').
 - `id` (TEXT, PK)
@@ -278,11 +280,11 @@ Invites sent to organizations to claim their profile.
 - `notified_referrer_at` (TIMESTAMPTZ)
 
 ### 20. `reports`
-Moderation reports raised by users, plus system-generated audit records. See [reports.md](reports.md) for the feature overview.
+Moderation reports raised by users. See [reports.md](reports.md) for the feature overview.
 - `id` (TEXT, PK)
-- `reporter_user_id` (TEXT): FK to `users.id`. **Nullable** — NULL identifies a system-generated report (no human reporter).
-- `entity_type` (TEXT): 'organization', 'event', 'user', 'system_audit'.
-- `entity_id` (TEXT): id of the reported entity. For 'system_audit' rows this is the audited organization's id.
+- `reporter_user_id` (TEXT): FK to `users.id`. Nullable, though every current producer sets it.
+- `entity_type` (TEXT): 'organization', 'event', 'user'.
+- `entity_id` (TEXT): id of the reported entity.
 - `reason` (TEXT): 'impersonation', 'inappropriate_content', 'spam', 'other'.
 - `description` (TEXT): free-text detail from the reporter, or the audit's correction summary.
 - `status` (TEXT): 'open', 'investigating', 'resolved', 'dismissed'. Currently always 'open' — no resolution workflow is implemented yet.

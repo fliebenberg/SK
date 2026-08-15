@@ -331,7 +331,7 @@ const seedDb = async () => {
         const PORT = process.env.PORT || 3001;
         try {
             const { io } = require('socket.io-client');
-            const { SocketAction } = require('@sk/types');
+            const { SocketAction } = require('@sk/shared');
             const socket = io(`http://localhost:${PORT}`);
             
             socket.on('connect', () => {

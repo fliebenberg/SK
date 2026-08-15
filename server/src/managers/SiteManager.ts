@@ -1,4 +1,4 @@
-import { Site } from "@sk/types";
+import { Site } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { addressManager } from "./AddressManager";
 

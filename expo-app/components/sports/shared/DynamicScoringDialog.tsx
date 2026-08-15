@@ -7,7 +7,7 @@ import { Button } from '../../Button';
 import { Tabs } from '../../Tabs';
 import { CounterStep } from './CounterStep';
 import { Ionicons } from '@expo/vector-icons';
-import { ActionStepType } from '@sk/types';
+import { ActionStep, ActionStepType, TemplateScreen, findStep, getOutcomes, getScreens, hasStep } from '@sk/shared';
 import { ConfirmationModal } from '../../ConfirmationModal';
 import { COLORS } from '../../../constants/Colors';
 
@@ -64,75 +64,54 @@ export function DynamicScoringDialog() {
   const roster = side === 'home' ? homeRoster : awayRoster;
   const isLoadingRoster = isLoadingRosters;
 
-  // Flatten template steps dynamically
-  const flatSteps = template?.steps
-    ? template.steps.flatMap((s: any) => (s.type === ActionStepType.GROUP || s.type === 'GROUP' ? s.steps || [] : [s]))
-    : [];
+  // The dialog is the one place that cares how a template's steps are grouped: each screen is
+  // a top-level step, or a GROUP rendered as a single screen. Every other question about the
+  // template ("does it collect a player?") goes through the helpers, which ignore grouping.
+  const screens = getScreens(template);
+  const activeScreen: TemplateScreen | undefined = screens[currentStep];
 
   // Parse Reason Groups dynamically
-  const reasonStep = flatSteps.find((s: any) => s.type === ActionStepType.REASON_SELECTION || s.type === 'REASON_SELECTION');
-  const reasonGroups: ReasonGroup[] = [];
-  if (reasonStep?.reasons && Array.isArray(reasonStep.reasons)) {
-    reasonStep.reasons.forEach((rg: any) => {
-      const opts = (rg.options || []).map((o: any) =>
+  const reasonGroups: ReasonGroup[] = (findStep(template, ActionStepType.REASON_SELECTION)?.reasons || []).map(
+    (rg: any) => ({
+      name: rg.name || 'General',
+      options: (rg.options || []).map((o: any) =>
         typeof o === 'string' ? { id: o, name: o } : { id: o.id || o.name, name: o.name || o.id }
-      );
-      reasonGroups.push({ name: rg.name || 'General', options: opts });
-    });
-  }
+      ),
+    })
+  );
 
   // Parse Outcome Options dynamically
-  const outcomeStep = flatSteps.find((s: any) => s.type === ActionStepType.OUTCOME_SELECTION || s.type === 'OUTCOME_SELECTION');
-  const outcomes: OutcomeOption[] = (outcomeStep?.outcomes || []).map((o: any) => {
-    if (typeof o === 'string') return { id: o, name: o };
-    return {
-      id: o.id,
-      name: o.name || o.id,
-      variant: o.variant,
-      triggerEventId: o.triggerEventId,
-    };
-  });
+  const outcomes: OutcomeOption[] = getOutcomes(template).map((o) => ({
+    id: o.id,
+    name: o.name || o.id,
+    variant: o.variant as OutcomeOption['variant'],
+    triggerEventId: o.triggerEventId,
+  }));
 
-  const hasReasons = reasonGroups.length > 0;
-  const hasOutcomes = outcomes.length > 0;
-  const hasWidget = flatSteps.some((s: any) => s.type === ActionStepType.CUSTOM_WIDGET || s.type === 'CUSTOM_WIDGET') || templateId === 'scrum';
-  const hasPlayerSelection = flatSteps.some((s: any) => s.type === ActionStepType.PLAYER_SELECTION || s.type === 'PLAYER_SELECTION') || (template?.steps && template.steps.length === 0 ? false : templateId !== 'penalty_try');
-
+  const hasWidget = hasStep(template, ActionStepType.CUSTOM_WIDGET);
   const isNextActionStep = outcomes.some((o) => !!o.triggerEventId);
-  const outcomeStepLabel = isNextActionStep ? 'Next Action' : 'Outcome';
 
-  const stepItems: { key: string; label: string; type: 'player' | 'reason' | 'widget' | 'outcome' }[] = [];
+  /** A step's own name when the spec supplies one, else a default for its kind. */
+  const stepLabel = (step: ActionStep): string => {
+    if (step.name) return step.name;
+    switch (step.type) {
+      case ActionStepType.PLAYER_SELECTION:
+        return 'Player';
+      case ActionStepType.REASON_SELECTION:
+        return 'Infringement';
+      case ActionStepType.OUTCOME_SELECTION:
+        return isNextActionStep ? 'Next Action' : 'Outcome';
+      default:
+        return 'Details';
+    }
+  };
 
-  if (hasPlayerSelection) {
-    stepItems.push({ key: '0', label: '1. Player', type: 'player' });
-  }
-
-  if (hasReasons) {
-    stepItems.push({
-      key: stepItems.length.toString(),
-      label: `${stepItems.length + 1}. Infringement`,
-      type: 'reason',
-    });
-  }
-
-  if (hasWidget) {
-    stepItems.push({
-      key: stepItems.length.toString(),
-      label: `${stepItems.length + 1}. Resets`,
-      type: 'widget',
-    });
-  }
-
-  if (hasOutcomes) {
-    stepItems.push({
-      key: stepItems.length.toString(),
-      label: `${stepItems.length + 1}. ${outcomeStepLabel}`,
-      type: 'outcome',
-    });
-  }
+  const stepItems = screens.map((screen, index) => ({
+    key: index.toString(),
+    label: `${index + 1}. ${screen.name || screen.steps.map(stepLabel).join(' & ')}`,
+  }));
 
   const totalSteps = stepItems.length;
-  const activeStepType = stepItems[currentStep]?.type;
 
   useEffect(() => {
     if (isVisible) {
@@ -143,15 +122,12 @@ export function DynamicScoringDialog() {
       setSelectedOutcome(init.outcome);
       setScrumResets(init.scrumResets || 0);
 
+      // Callers (e.g. the event feed's "missing detail" chips) name a step type rather than a
+      // position, so a grouped step resolves to the screen that contains it.
       if (init.initialStepType) {
-        let targetIndex = -1;
-        if (init.initialStepType === ActionStepType.PLAYER_SELECTION || init.initialStepType === 'PLAYER_SELECTION') {
-          targetIndex = stepItems.findIndex((s) => s.type === 'player');
-        } else if (init.initialStepType === ActionStepType.REASON_SELECTION || init.initialStepType === 'REASON_SELECTION') {
-          targetIndex = stepItems.findIndex((s) => s.type === 'reason');
-        } else if (init.initialStepType === ActionStepType.OUTCOME_SELECTION || init.initialStepType === 'OUTCOME_SELECTION') {
-          targetIndex = stepItems.findIndex((s) => s.type === 'outcome');
-        }
+        const targetIndex = screens.findIndex((screen) =>
+          screen.steps.some((step) => step.type === init.initialStepType)
+        );
         if (targetIndex >= 0) {
           setCurrentStep(targetIndex);
           return;
@@ -210,6 +186,153 @@ export function DynamicScoringDialog() {
     }
   };
 
+  /** Renders one step. Which steps share a screen is the template's call, not this file's. */
+  const renderStep = (step: ActionStep) => {
+    switch (step.type) {
+      case ActionStepType.PLAYER_SELECTION:
+        return (
+          <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
+            <View className="flex-row items-center justify-between flex-shrink-0">
+              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Select Player (Optional):
+              </Text>
+
+              {/* SINGLE READ-ONLY TEAM BADGE */}
+              <View className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
+                <Text className="font-inter-bold text-[10px] text-brand-orange uppercase">
+                  {teamName}
+                </Text>
+              </View>
+            </View>
+
+            {isLoadingRoster ? (
+              <View className="py-8 items-center justify-center">
+                <ActivityIndicator size="small" color={COLORS.brand.orange} />
+                <Text className="font-orbitron-bold text-xs text-slate-400 mt-2 uppercase tracking-wider">
+                  Loading Roster...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
+                <RosterGrid roster={roster} onSelect={setSelectedPlayerId} selectedPlayerId={selectedPlayerId} />
+              </ScrollView>
+            )}
+          </View>
+        );
+
+      case ActionStepType.REASON_SELECTION:
+        return (
+          <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
+            <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
+              Select Infringement / Detail:
+            </Text>
+
+            <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
+              <View className="gap-3">
+                {reasonGroups.map((group) => (
+                  <View key={group.name} className="gap-1.5">
+                    <View className="pb-1 border-b border-slate-200 dark:border-white/10">
+                      <Text className="font-orbitron-bold text-[10px] uppercase text-brand-orange tracking-widest">
+                        {group.name}
+                      </Text>
+                    </View>
+                    <View className="flex-row flex-wrap gap-2 pt-0.5">
+                      {group.options.map((rOpt) => {
+                        const isSelected = selectedReason === rOpt.id || selectedReason === rOpt.name;
+                        return (
+                          <TouchableOpacity
+                            key={rOpt.id}
+                            onPress={() => setSelectedReason(rOpt.id)}
+                            className={`px-3 py-2 rounded-xl border ${
+                              isSelected
+                                ? 'bg-brand-orange border-brand-orange'
+                                : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                            }`}
+                          >
+                            <Text
+                              className={`font-inter-bold text-xs ${
+                                isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+                              }`}
+                            >
+                              {rOpt.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        );
+
+      case ActionStepType.CUSTOM_WIDGET:
+        return (
+          <View className="my-3 flex-shrink-0">
+            <CounterStep label={step.name || 'Count'} value={scrumResets} onChange={setScrumResets} />
+          </View>
+        );
+
+      case ActionStepType.OUTCOME_SELECTION:
+        return (
+          <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
+            <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
+              {isNextActionStep ? 'Select Next Action (Optional):' : 'Select Outcome (Optional):'}
+            </Text>
+
+            <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
+              <View className="flex-row flex-wrap gap-2.5 py-2">
+                {outcomes.map((opt) => {
+                  const isSelected = selectedOutcome === opt.id;
+                  const isSuccess = opt.variant === 'success';
+                  const isWarning = opt.variant === 'warning';
+                  const isDanger = opt.variant === 'danger';
+
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      onPress={() => setSelectedOutcome(opt.id)}
+                      className={`px-4 py-3 rounded-xl border flex-row items-center gap-2 ${
+                        isSelected
+                          ? 'bg-brand-orange border-brand-orange'
+                          : isSuccess
+                          ? 'bg-emerald-500/10 border-emerald-500/30'
+                          : isWarning
+                          ? 'bg-amber-500/10 border-amber-500/30'
+                          : isDanger
+                          ? 'bg-red-500/10 border-red-500/30'
+                          : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                      }`}
+                    >
+                      <Text
+                        className={`font-inter-bold text-xs ${
+                          isSelected
+                            ? 'text-white'
+                            : isSuccess
+                            ? 'text-emerald-500'
+                            : isWarning
+                            ? 'text-amber-500'
+                            : isDanger
+                            ? 'text-red-500'
+                            : 'text-slate-800 dark:text-white'
+                        }`}
+                      >
+                        {opt.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <>
       <Modal visible={isVisible} transparent={true} animationType="fade" onRequestClose={cancelDynamicFlow}>
@@ -249,156 +372,23 @@ export function DynamicScoringDialog() {
             </View>
 
             {/* NO STEPS REQUIRED (e.g. Penalty Try) */}
-            {stepItems.length === 0 && (
+            {screens.length === 0 && (
               <View className="py-6 px-4 items-center justify-center bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-white/10 my-3 gap-1">
                 <Ionicons name="flash-outline" size={32} color={COLORS.brand.orange} />
                 <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider mt-1">
                   {template.name}
                 </Text>
                 <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center">
-                  Awarded to {teamName} (7 Points). Penalty tries do not require individual player selection.
+                  Awarded to {teamName}
+                  {template.points ? ` (${template.points} Points)` : ''}. No further details are required.
                 </Text>
               </View>
             )}
 
-            {/* STEP TYPE: PLAYER SELECTION */}
-            {activeStepType === 'player' && (
-              <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
-                <View className="flex-row items-center justify-between flex-shrink-0">
-                  <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    Select Player (Optional):
-                  </Text>
-
-                  {/* SINGLE READ-ONLY TEAM BADGE */}
-                  <View className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
-                    <Text className="font-inter-bold text-[10px] text-brand-orange uppercase">
-                      {teamName}
-                    </Text>
-                  </View>
-                </View>
-
-                {isLoadingRoster ? (
-                  <View className="py-8 items-center justify-center">
-                    <ActivityIndicator size="small" color={COLORS.brand.orange} />
-                    <Text className="font-orbitron-bold text-xs text-slate-400 mt-2 uppercase tracking-wider">
-                      Loading Roster...
-                    </Text>
-                  </View>
-                ) : (
-                  <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
-                    <RosterGrid roster={roster} onSelect={setSelectedPlayerId} selectedPlayerId={selectedPlayerId} />
-                  </ScrollView>
-                )}
-              </View>
-            )}
-
-            {/* STEP TYPE: REASON / INFRINGEMENT / DETAILS SELECTION */}
-            {activeStepType === 'reason' && (
-              <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
-                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
-                  Select Infringement / Detail:
-                </Text>
-
-                <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
-                  <View className="gap-3">
-                    {reasonGroups.map((group) => (
-                      <View key={group.name} className="gap-1.5">
-                        <View className="pb-1 border-b border-slate-200 dark:border-white/10">
-                          <Text className="font-orbitron-bold text-[10px] uppercase text-brand-orange tracking-widest">
-                            {group.name}
-                          </Text>
-                        </View>
-                        <View className="flex-row flex-wrap gap-2 pt-0.5">
-                          {group.options.map((rOpt) => {
-                            const isSelected = selectedReason === rOpt.id || selectedReason === rOpt.name;
-                            return (
-                              <TouchableOpacity
-                                key={rOpt.id}
-                                onPress={() => setSelectedReason(rOpt.id)}
-                                className={`px-3 py-2 rounded-xl border ${
-                                  isSelected
-                                    ? 'bg-brand-orange border-brand-orange'
-                                    : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
-                                }`}
-                              >
-                                <Text
-                                  className={`font-inter-bold text-xs ${
-                                    isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
-                                  }`}
-                                >
-                                  {rOpt.name}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </ScrollView>
-              </View>
-            )}
-
-            {/* STEP TYPE: COUNTER WIDGET (e.g. Scrum Resets) */}
-            {activeStepType === 'widget' && (
-              <View className="my-3 flex-shrink-0">
-                <CounterStep label="Scrum Resets" value={scrumResets} onChange={setScrumResets} />
-              </View>
-            )}
-
-            {/* STEP TYPE: OUTCOME / NEXT ACTION SELECTION */}
-            {activeStepType === 'outcome' && (
-              <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
-                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
-                  {isNextActionStep ? 'Select Next Action (Optional):' : 'Select Outcome (Optional):'}
-                </Text>
-
-                <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
-                  <View className="flex-row flex-wrap gap-2.5 py-2">
-                    {outcomes.map((opt) => {
-                      const isSelected = selectedOutcome === opt.id;
-                      const isSuccess = opt.variant === 'success';
-                      const isWarning = opt.variant === 'warning';
-                      const isDanger = opt.variant === 'danger';
-
-                      return (
-                        <TouchableOpacity
-                          key={opt.id}
-                          onPress={() => setSelectedOutcome(opt.id)}
-                          className={`px-4 py-3 rounded-xl border flex-row items-center gap-2 ${
-                            isSelected
-                              ? 'bg-brand-orange border-brand-orange'
-                              : isSuccess
-                              ? 'bg-emerald-500/10 border-emerald-500/30'
-                              : isWarning
-                              ? 'bg-amber-500/10 border-amber-500/30'
-                              : isDanger
-                              ? 'bg-red-500/10 border-red-500/30'
-                              : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
-                          }`}
-                        >
-                          <Text
-                            className={`font-inter-bold text-xs ${
-                              isSelected
-                                ? 'text-white'
-                                : isSuccess
-                                ? 'text-emerald-500'
-                                : isWarning
-                                ? 'text-amber-500'
-                                : isDanger
-                                ? 'text-red-500'
-                                : 'text-slate-800 dark:text-white'
-                            }`}
-                          >
-                            {opt.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              </View>
-            )}
+            {/* THE ACTIVE SCREEN: every step the spec puts on it, in spec order */}
+            {activeScreen?.steps.map((step, index) => (
+              <React.Fragment key={`${currentStep}-${index}`}>{renderStep(step)}</React.Fragment>
+            ))}
 
             {/* DIALOG ACTION FOOTER */}
             <View className="flex-row gap-2 pt-3 border-t border-slate-200 dark:border-white/10 flex-shrink-0 mt-auto">

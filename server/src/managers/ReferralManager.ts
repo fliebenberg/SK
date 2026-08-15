@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 import { mailManager } from './MailManager';
 import { userManager } from './UserManager';
 import { organizationManager } from './OrganizationManager';
-import { OrgClaimReferral, UserBadge } from '@sk/types';
+import { OrgClaimReferral, UserBadge } from '@sk/shared';
 
 export class ReferralManager {
   private pool: Pool;

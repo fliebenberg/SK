@@ -1,10 +1,21 @@
 import { BaseManager } from "./BaseManager";
-import { GameEvent } from "@sk/types";
+import { GameEvent } from "@sk/shared";
 import { Server } from "socket.io";
 import { dataManager } from "../DataManager";
 import { DisputeResolutionHandler, DisputeConfig } from "../sports/core/SportDisputeHandler";
 import { sportManager } from "./SportManager";
-import { EventTemplate, ActionStep, Outcome, DEFAULT_UNDO_DELAY_MS, UNDO_GRACE_MS, resolveUndoExpiryMs } from "@sk/types";
+import {
+  EventTemplate,
+  ActionStepType,
+  DEFAULT_UNDO_DELAY_MS,
+  UNDO_GRACE_MS,
+  resolveUndoExpiryMs,
+  findOutcome,
+  findReason,
+  getOutcomes,
+  getTriggerFor,
+  hasStep,
+} from "@sk/shared";
 
 const SPORT_MODULES: Record<string, string> = {};
 export class GameEventManager extends BaseManager {
@@ -1022,9 +1033,7 @@ export class GameEventManager extends BaseManager {
                     const parentTemplateId = parentEvt.eventData?.templateId || parentEvt.subType;
                     const parentTemplate = sport?.eventTemplates?.find((t: any) => t.id === parentTemplateId);
 
-                    const flatSteps = parentTemplate?.steps?.flatMap((s: any) => (s.type === 'GROUP' ? s.steps || [] : [s])) || [];
-                    const outcomeStep = flatSteps.find((s: any) => s.type === 'OUTCOME_SELECTION');
-                    const hasMultipleOutcomes = outcomeStep?.outcomes && outcomeStep.outcomes.length > 1;
+                    const hasMultipleOutcomes = getOutcomes(parentTemplate).length > 1;
 
                     if (hasMultipleOutcomes) {
                         console.log(`[Mutation Engine] Resetting parent event ${parentEvt.id} outcome to null (child ${eventId} undone)`);
@@ -1049,8 +1058,7 @@ export class GameEventManager extends BaseManager {
         const previousOutcome = evt.eventData?.outcome;
         const newOutcomeName = updateData.newOutcome || updateData.eventData?.outcome;
         if (template && newOutcomeName && newOutcomeName !== previousOutcome) {
-            const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
-            const newOutcome = outcomeStep?.outcomes?.find((o: Outcome) => o.id === newOutcomeName);
+            const newOutcome = findOutcome(template, newOutcomeName);
             if (newOutcome) {
                 finalEventData = {
                     ...finalEventData,
@@ -1072,8 +1080,7 @@ export class GameEventManager extends BaseManager {
         let forcedActorId: string | null | undefined = undefined;
 
         if (template && reasonName) {
-            const reasonStep = template.steps.find((s: ActionStep) => s.type === 'REASON_SELECTION');
-            const reasonOpt = reasonStep?.reasons?.flatMap(g => g.options).find(o => (o.id || o.name) === reasonName);
+            const reasonOpt = findReason(template, reasonName);
             // Default to TRUE (requires player) if specifyPlayer is undefined
             if (reasonOpt && reasonOpt.specifyPlayer === false) {
                 console.log(`[Mutation Engine] Reason "${reasonName}" does not require a player. Clearing actorId.`);
@@ -1120,21 +1127,33 @@ export class GameEventManager extends BaseManager {
         let childMutationData = updateData ? {
             ...updateData,
             actorOrgProfileId: undefined, // Do not propagate parent-specific player/actor changes to linked child events
+            // A child's side is settled when it is created, from the parent template's
+            // `triggerTeam`, and is often NOT the parent's: a penalty is recorded against the
+            // offending team while its kick belongs to the opponents. Propagating the parent's
+            // participant here silently moved the kick — and its points — to the wrong team
+            // whenever the penalty's reason or player was edited.
+            gameParticipantId: undefined,
             eventData: {} // Do not propagate parent-specific eventData changes to children
         } : null;
 
-        // SPECIAL CASE: If parent changed to an outcome that doesn't trigger the child, remove the child
-        if (updateData && template && finalizedEvt.eventData?.outcome) {
-             const outcomeStep = template.steps.find((s: ActionStep) => s.type === 'OUTCOME_SELECTION');
-             const outcomeDef = outcomeStep?.outcomes?.find((o: Outcome) => o.id === finalizedEvt.eventData.outcome);
-             
+        // SPECIAL CASE: If the parent no longer carries a trigger for this child, remove the
+        // child. Clearing the outcome back to "not specified" triggers nothing, so it orphans
+        // the child just as surely as switching to a different outcome does.
+        if (updateData && template) {
+             const finalOutcome = finalizedEvt.eventData?.outcome;
+
              // Fetch child to see its type
              const childEvtRes = await this.query(`SELECT sub_type FROM game_events WHERE id = $1`, [childRow.id]);
              const childSubType = childEvtRes.rows[0]?.sub_type;
-             
-             // If the new outcome doesn't trigger this specific child type anymore, undo the child
-             if (outcomeDef && outcomeDef.triggerEventId !== childSubType) {
-                 console.log(`[Mutation Engine] Cascading UNDO to orphan child: ${childRow.id} (Parent ${eventId} changed outcome)`);
+
+             // Only consider orphaning when this template spawns children at all, so templates
+             // that link children by some other means are left alone.
+             const templateCanTrigger =
+                 hasStep(template, ActionStepType.OUTCOME_SELECTION) || !!template.triggerEventId;
+             const stillTriggered = getTriggerFor(template, finalOutcome)?.eventId === childSubType;
+
+             if (templateCanTrigger && !stillTriggered) {
+                 console.log(`[Mutation Engine] Cascading UNDO to orphan child: ${childRow.id} (Parent ${eventId} outcome is now ${finalOutcome || 'unset'})`);
                  childMutationData = null;
              }
         }
@@ -1243,9 +1262,7 @@ export class GameEventManager extends BaseManager {
             const parentTemplateId = parentEvt.eventData?.templateId || parentEvt.subType;
             const parentTemplate = sport?.eventTemplates?.find((t: any) => t.id === parentTemplateId);
 
-            const flatSteps = parentTemplate?.steps?.flatMap((s: any) => (s.type === 'GROUP' ? s.steps || [] : [s])) || [];
-            const outcomeStep = flatSteps.find((s: any) => s.type === 'OUTCOME_SELECTION');
-            const hasMultipleOutcomes = outcomeStep?.outcomes && outcomeStep.outcomes.length > 1;
+            const hasMultipleOutcomes = getOutcomes(parentTemplate).length > 1;
 
             if (!hasMultipleOutcomes) {
                 return { success: false, error: 'This event cannot be removed independently because it is the sole linked outcome for its parent event.' };

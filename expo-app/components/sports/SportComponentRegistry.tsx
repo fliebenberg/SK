@@ -1,5 +1,5 @@
 import React from 'react';
-import { Game } from '@sk/types';
+import { Game } from '@sk/shared';
 import { DynamicScoringPanel } from './shared/DynamicScoringPanel';
 
 export interface SlotProps {

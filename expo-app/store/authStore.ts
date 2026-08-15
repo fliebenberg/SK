@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { OrgMembership, TeamMembership } from '@sk/types';
+import { OrgMembership, TeamMembership } from '@sk/shared';
 import { apiService } from '../services/api';
 import { useSettingsStore } from './settingsStore';
 import { wsService } from '../services/websocket';

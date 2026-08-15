@@ -10,7 +10,7 @@ import { useSettingsStore, useActiveTheme } from '../../../../store/settingsStor
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Site, Facility, Address } from '@sk/types';
+import { SocketAction, Site, Facility, Address } from '@sk/shared';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';

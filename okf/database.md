@@ -8,7 +8,7 @@ tags:
   - PostgreSQL
   - migrations
   - persistence
-timestamp: 2026-07-11T13:20:00Z
+timestamp: 2026-08-14T08:10:00Z
 ---
 
 # Database & Data Persistence
@@ -34,6 +34,11 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260705_add_league_and_season_logos.ts`: Adds branding logo support to leagues/seasons.
     - `20260711_rename_invite_cooldown_hours.ts`: Sets up default invite cooldown periods (2 weeks) and configures referral settings.
     - `20260808_create_system_admin_org.ts`: Creates the System Administration Organization (`org-system-admins`) and provisions admin org profiles and memberships.
+    - `20260814_derive_org_counts.ts`: Drops the denormalized `team_count` / `site_count` / `member_count` columns (now computed live) and `org_memberships.expiry_processed`; adds org-scoped foreign key indexes.
+
+## Derived vs Stored Values
+
+Organization team/site/member counts are **computed live** by the queries in [OrganizationManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/OrganizationManager.ts), not stored. Caching them previously required background jobs that could not keep them accurate, because membership validity depends on the clock rather than on writes. Before denormalizing any similar value, read [docs/background-tasks.md](file:///c:/Fred/Coding/SK/docs/background-tasks.md).
 
 ## Integration Test Rule: Test Org Reuse
 

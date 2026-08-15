@@ -9,7 +9,7 @@ import { useActiveTheme } from '../../../../../store/settingsStore';
 import { wsService } from '../../../../../services/websocket';
 import { useWsStore } from '../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../store/authStore';
-import { Team, TeamMember, Game, Sport, Organization } from '@sk/types';
+import { Team, TeamMember, Game, Sport, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { getAvatarUrl } from '../../../../../services/api';
 import { COLORS } from '../../../../../constants/Colors';

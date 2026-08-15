@@ -13,7 +13,7 @@ config.watchFolders = [
 // TODO: Remove this resolveRequest custom hook once upgrading to an Expo SDK / Hermes version 
 // with native support for ESM 'import.meta' (e.g. SDK 56+).
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (moduleName === "@sk/types") {
+  if (moduleName === "@sk/shared") {
     return {
       type: "sourceFile",
       filePath: path.resolve(__dirname, "../shared/src/index.ts"),

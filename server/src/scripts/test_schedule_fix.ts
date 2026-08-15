@@ -1,6 +1,6 @@
 import { eventManager } from '../managers/EventManager';
 import pool from '../db';
-import { Game } from '@sk/types';
+import { Game } from '@sk/shared';
 
 async function test() {
     try {

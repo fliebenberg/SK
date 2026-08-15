@@ -1,5 +1,5 @@
-import { Event, Game, GameParticipant, GameClockState, GameEvent, AddGamePayload, UpdateGamePayload } from "@sk/types";
-import { getPeriodLabel } from "@sk/types";
+import { Event, Game, GameParticipant, GameClockState, GameEvent, AddGamePayload, UpdateGamePayload } from "@sk/shared";
+import { getPeriodLabel } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 import { sportManager } from "./SportManager";

@@ -1,6 +1,6 @@
 try {
-    const path = require.resolve('@sk/types');
-    console.log('Resolved @sk/types to:', path);
+    const path = require.resolve('@sk/shared');
+    console.log('Resolved @sk/shared to:', path);
 } catch (e) {
-    console.error('Failed to resolve @sk/types');
+    console.error('Failed to resolve @sk/shared');
 }

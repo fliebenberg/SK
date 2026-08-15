@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { useWsStore } from '../store/wsStore';
 import { useToastStore } from '../store/toastStore';
 
-import { SocketAction, SocketActionPayload, SocketActionResponse, createSocketAction } from '@sk/types';
+import { SocketAction, SocketActionPayload, SocketActionResponse, createSocketAction } from '@sk/shared';
 
 export interface EmitOptions {
   suppressToast?: boolean;

@@ -12,7 +12,7 @@ import { ConfirmationModal } from '../../../../../../components/ConfirmationModa
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../store/wsStore';
-import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team } from '@sk/types';
+import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team } from '@sk/shared';
 import DatePicker from '../../../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../../../services/api';
 import * as ImagePicker from 'expo-image-picker';

@@ -8,7 +8,7 @@ import { COLORS, getThemeColor } from '../constants/Colors';
 import { useActiveTheme } from '../store/settingsStore';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
-import { SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/types';
+import { SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/shared';
 import { useAuthStore } from '../store/authStore';
 import { NominationModal } from './NominationModal';
 import { GlassCard } from './GlassCard';

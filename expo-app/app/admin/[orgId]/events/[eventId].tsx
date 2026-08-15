@@ -12,7 +12,7 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { useAuthStore } from '../../../../store/authStore';
-import { SocketAction, Event, Game, Sport, Site, Team, Organization, calculateStandings, LeagueStandingRow } from '@sk/types';
+import { SocketAction, Event, Game, Sport, Site, Team, Organization, calculateStandings, LeagueStandingRow } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import CustomSelect from '../../../../components/CustomSelect';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';

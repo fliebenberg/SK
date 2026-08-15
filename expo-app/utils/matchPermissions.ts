@@ -1,4 +1,4 @@
-import { Game, Event, OrgMembership, TeamMembership } from '@sk/types';
+import { Game, Event, OrgMembership, TeamMembership } from '@sk/shared';
 import { User } from '../store/authStore';
 
 export interface MatchPermissions {

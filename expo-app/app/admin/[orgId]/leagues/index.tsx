@@ -10,7 +10,7 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, League, Sport, Organization } from '@sk/types';
+import { SocketAction, League, Sport, Organization } from '@sk/shared';
 import { getOrgLogoUrl } from '../../../../services/api';
 import CustomSelect from '../../../../components/CustomSelect';
 import * as ImagePicker from 'expo-image-picker';

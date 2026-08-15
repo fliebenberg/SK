@@ -19,8 +19,10 @@ For details on the extensible multi-sport architecture, see [multi_sport_archite
 
 *   **[expo-app/](file:///c:/Fred/Coding/SK/expo-app/)**: The active client application built with Expo (React Native). It is responsive (mobile bottom tabs, desktop left rail navigation) and compiles to iOS, Android, and Web viewports.
 *   **[server/](file:///c:/Fred/Coding/SK/server/)**: The backend server built with Node.js, Express, PostgreSQL, and WebSockets.
-*   **[shared/](file:///c:/Fred/Coding/SK/shared/)**: Shares interfaces, constants, and utilities between the frontend and backend.
-    - Path: [shared/src/types/](file:///c:/Fred/Coding/SK/shared/src/types/) houses the shared TypeScript models (`@sk/types`).
+*   **[shared/](file:///c:/Fred/Coding/SK/shared/)**: Shares interfaces, constants, and utilities between the frontend and backend. Published as the `@sk/shared` package — renamed from `@sk/types` on 2026-08-15 once the folder outgrew holding only types. The deprecated `client/` was deliberately left on the old `@sk/types` name; everything live imports from `@sk/shared`.
+    - [shared/src/models/](file:///c:/Fred/Coding/SK/shared/src/models/): the shared TypeScript models.
+    - [shared/src/utils/](file:///c:/Fred/Coding/SK/shared/src/utils/): shared logic used by both sides, e.g. [templateSteps.ts](file:///c:/Fred/Coding/SK/shared/src/utils/templateSteps.ts) for reading a sport's event templates.
+    - [shared/src/constants/](file:///c:/Fred/Coding/SK/shared/src/constants/): socket actions, undo-window rules.
 *   **[docs/](file:///c:/Fred/Coding/SK/docs/)**: Canonical specifications and documentation.
 *   **[client/](file:///c:/Fred/Coding/SK/client/)** (DEPRECATED): Contains an older, web-only version of the application. **This directory must not be edited or changed under any circumstances.**
 

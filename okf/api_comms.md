@@ -25,7 +25,7 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
 2. **WebSocket Action Emission Standard**:
    - All state mutation operations sent over Socket.io MUST be emitted using the `'action'` event name with payload `{ type: SocketAction.ENUM_NAME, payload: { ... } }`.
    - Never emit `SocketAction.ENUM` directly as the socket event name.
-   - Use `createSocketAction(type, payload)` from `@sk/types` and `wsService.emitAction(type, payload, callback)` on the client for compile-time type validation.
+   - Use `createSocketAction(type, payload)` from `@sk/shared` and `wsService.emitAction(type, payload, callback)` on the client for compile-time type validation.
    - `wsService.emit` / `wsService.emitAction` are callback-based; do not `await` them.
 3. **Client-Side Smart Subscription**:
    - Client components register to data streams using reference counting.

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
-import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction } from '@sk/types';
+import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction, getOutcomes, getTriggerFor } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
 import { useOptionalSharedDynamicScoring, useSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -96,11 +96,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
     const parentTemplate = sport?.eventTemplates?.find((t) => t.id === parentTemplateId);
     if (!parentTemplate) return true;
 
-    const flatSteps = parentTemplate.steps?.flatMap((s: any) => (s.type === 'GROUP' ? s.steps || [] : [s])) || [];
-    const outcomeStep = flatSteps.find((s: any) => s.type === 'OUTCOME_SELECTION' || s.type === ActionStepType.OUTCOME_SELECTION);
-    const hasMultipleOutcomes = outcomeStep?.outcomes && outcomeStep.outcomes.length > 1;
-
-    return !!hasMultipleOutcomes;
+    return getOutcomes(parentTemplate).length > 1;
   };
 
   useEffect(() => {
@@ -376,8 +372,19 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
               const participantRoster = evt.gameParticipantId ? rosters[evt.gameParticipantId] : undefined;
               const missingDetails = canManage && !isDisputed && !isLockedByOtherScorer ? getMissingDetails(evt, template, participantRoster) : [];
               
-              const triggerEventId = template?.triggerEventId;
-              const hasTriggerEvent = !!triggerEventId;
+              const side = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
+
+              // Only a template-level trigger earns a standing "add the follow-up" pill; an
+              // outcome-level one is spawned by the outcome step when it is answered. Passing no
+              // outcome resolves the template-level entry, and with it the side the follow-up
+              // belongs to — which is not always this event's own.
+              const templateTrigger = template?.triggerEventId ? getTriggerFor(template, undefined) : undefined;
+              const triggerEventId = templateTrigger?.eventId;
+              const hasTriggerEvent = !!templateTrigger;
+              const triggerSide =
+                templateTrigger?.team === 'opponent' ? (side === 'home' ? 'away' : 'home') : side;
+              const triggerParticipantId = triggerSide === 'home' ? homeParticipantId : awayParticipantId;
+
               const hasLinkedTrigger = events.some((e) => {
                 const eData = e.eventData || (e as any).event_data || {};
                 if (eData.status === 'REMOVED') return false;
@@ -385,8 +392,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                 // 1. Explicit link
                 if (eData.linkedEventId === evt.id) return true;
 
-                // 2. Implicit link (same participant, trigger event recorded within 5 min window)
-                if (e.subType === triggerEventId && e.gameParticipantId === evt.gameParticipantId) {
+                // 2. Implicit link (trigger event for the expected side, recorded within 5 min)
+                if (e.subType === triggerEventId && e.gameParticipantId === triggerParticipantId) {
                   const triggerTime = e.timestamp ? new Date(e.timestamp).getTime() : 0;
                   const tryTime = evt.timestamp ? new Date(evt.timestamp).getTime() : 0;
                   if (triggerTime >= tryTime && triggerTime - tryTime < 300000) {
@@ -396,7 +403,6 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                 return false;
               });
               const canAddTrigger = canManage && !isDisputed && !isLockedByOtherScorer && hasTriggerEvent && !hasLinkedTrigger;
-              const side = evt.gameParticipantId === homeParticipantId ? 'home' : 'away';
 
               return (
                 <TouchableOpacity
@@ -525,7 +531,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                             <TouchableOpacity
                               onPress={(e) => {
                                 e.stopPropagation();
-                                startDynamicFlow?.(triggerEventId, side, { linkedEventId: evt.id });
+                                startDynamicFlow?.(triggerEventId, triggerSide, { linkedEventId: evt.id });
                               }}
                               className="flex-row items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/40 rounded-full"
                             >

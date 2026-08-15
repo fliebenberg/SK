@@ -32,7 +32,7 @@ The goal is to build the second version of the ScoreKeeper client using Expo, Re
 ### Phase 1: Foundation & Setup
 - Initialize the Expo app with TypeScript (`npx create-expo-app@latest expo-app -t expo-template-blank-typescript`).
 - Configure Expo Router for file-based navigation.
-- Set up path aliases (e.g., `@/*`), link the existing `@sk/types` from the `shared` directory, and configure the default page-not-found route via Expo Router (`+not-found.tsx`).
+- Set up path aliases (e.g., `@/*`), link the existing `@sk/shared` from the `shared` directory, and configure the default page-not-found route via Expo Router (`+not-found.tsx`).
 - Establish the theme provider for the variable-driven design system (Dark mode first, Electric Orange/Electric Blue accents).
 - Load custom fonts (`Orbitron` for numbers/headers, `Inter` for body).
 - Implement the baseline WebSocket service for connecting to the existing `server`.
@@ -79,7 +79,7 @@ The goal is to build the second version of the ScoreKeeper client using Expo, Re
 ## Verification Plan
 
 ### Automated Tests
-- Run TypeScript type checks across the new Expo project to ensure compatibility with `@sk/types`.
+- Run TypeScript type checks across the new Expo project to ensure compatibility with `@sk/shared`.
 - Add unit tests for the Game Clock engine and Dynamic Scoring Engine.
 
 ### Manual Verification

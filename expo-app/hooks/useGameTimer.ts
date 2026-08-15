@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { GameClockState } from '@sk/types';
+import { GameClockState } from '@sk/shared';
 import { wsService } from '../services/websocket';
 
 const formatTime = (ms: number, showHours: boolean = true): string => {

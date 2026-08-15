@@ -8,7 +8,7 @@
       "@/*": [
         "./*"
       ],
-      "@sk/types": [
+      "@sk/shared": [
         "../shared/src"
       ]
     }

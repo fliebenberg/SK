@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Sport } from '@sk/types';
+import { Sport } from '@sk/shared';
 
 interface SportStoreState {
   sportsCache: Record<string, Sport>;

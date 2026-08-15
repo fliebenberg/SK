@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
-import { Game, getPeriodLabel, SocketAction } from '@sk/types';
+import { Game, getPeriodLabel, SocketAction } from '@sk/shared';
 import { useGameTimer } from '../../../hooks/useGameTimer';
 import { wsService } from '../../../services/websocket';
 import { useAuthStore } from '../../../store/authStore';

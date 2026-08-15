@@ -1,4 +1,4 @@
-import { Facility } from "@sk/types";
+import { Facility } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { addressManager } from "./AddressManager";
 

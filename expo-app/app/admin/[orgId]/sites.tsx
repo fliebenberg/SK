@@ -10,7 +10,7 @@ import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, Site, Facility, Address, Organization } from '@sk/types';
+import { SocketAction, Site, Facility, Address, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useAuthStore } from '../../../store/authStore';
 

@@ -15,3 +15,10 @@ It is being replaced by the multi-platform Expo application located in the `expo
 2. **DO NOT DEVELOP** any new features, styling, or bug fixes in the `client/` directory.
 3. All new client-side features, styling, logic, and multi-platform views must be implemented within `expo-app/`.
 4. You may read files in `client/` strictly to reference old implementations, API structures, styling choices, or business logic.
+
+### Known intentional drift
+
+`client/` still imports the shared package as `@sk/types`. The rest of the repo renamed it to
+`@sk/shared` on 2026-08-15 (`SHARED-1`) and `client/` was left behind on purpose under rule 1 —
+do **not** "fix" those imports. Consequences are recorded as `SHARED-3` in
+[TODO.md](file:///c:/Fred/Coding/SK/TODO.md).

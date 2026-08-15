@@ -36,4 +36,5 @@ export * from './utils/stringUtils';
 export * from './utils/gameUtils';
 export * from './utils/standings';
 export * from './utils/socketActionUtils';
+export * from './utils/templateSteps';
 export * from './constants/TestConstants';

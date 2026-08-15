@@ -10,7 +10,7 @@ import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, OrgProfile, OrgMember } from '@sk/types';
+import { SocketAction, OrgProfile, OrgMember } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../components/PersonnelAutocomplete';
 import { ImageEditor, ImageConfig } from '../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../services/api';

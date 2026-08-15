@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, ScrollView } from 'react-native';
-import { Game } from '@sk/types';
+import { Game } from '@sk/shared';
 import { calculateRugbyStats } from './rugbyUtils';
 import { useSharedDynamicScoring } from '../shared/DynamicScoringContext';
 import { COLORS } from '../../../constants/Colors';

@@ -5,7 +5,7 @@ import { GlassCard } from '../../components/GlassCard';
 import { useAuthStore } from '../../store/authStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { apiService } from '../../services/api';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { useSafeBack } from '../../hooks/useSafeBack';
 
@@ -24,6 +24,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -109,12 +110,17 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               editable={!isLoading}
+              autoFocus
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
           </View>
           
           <View>
             <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Password</Text>
-            <TextInput 
+            <TextInput
+              ref={passwordRef}
               className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
               placeholder="Enter your password"
               placeholderTextColor={placeholderColor}
@@ -122,6 +128,8 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               secureTextEntry
               editable={!isLoading}
+              returnKeyType="go"
+              onSubmitEditing={handleLogin}
             />
           </View>
 

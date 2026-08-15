@@ -11,7 +11,7 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
 import { useAuthStore } from '../../../store/authStore';
-import { SocketAction, Team, Sport, Organization } from '@sk/types';
+import { SocketAction, Team, Sport, Organization } from '@sk/shared';
 
 export default function OrgTeams() {
   const router = useRouter();

@@ -2,6 +2,39 @@
 
 This document details all the game events (types and subtypes) that are logged during a Rugby match, along with their associated data structures. Every event records the core information (like `gameId`, `participantId`, `initiatorOrgProfileId`, etc.), but the `type`, `subType`, and `eventData` structures vary uniquely as defined below.
 
+## Linked events
+
+Some events spawn a follow-up event that carries `linkedEventId` pointing back at its parent. A
+parent declares the follow-up in one of two ways in the sport spec:
+
+* **Template-level `triggerEventId`** — the follow-up always applies, e.g. `try` → `conversion`.
+* **Outcome-level `triggerEventId`** — the follow-up depends on which outcome was chosen, e.g.
+  `penalty_awarded` → `penalty_kick` / `line_kick` / `scrum`, while `tap_go` spawns nothing.
+
+**Whose event it is.** `triggerTeam` accompanies `triggerEventId` and is `same` unless the spec says
+otherwise. `penalty_awarded` and `free_kick` are recorded **against the offending team**, so their
+`penalty_kick`, `line_kick` and `scrum` outcomes are marked `opponent` and the follow-up is logged
+for the other team. A conversion stays with the team that scored the try.
+
+The child's side is fixed when it is created. Editing the parent afterwards — its reason, its
+player, even its outcome — never moves the child to another team.
+
+**Creation.** The client opens the follow-up dialog only when the parent's outcome is being set for
+the first time or is actually changing. Editing an unrelated field (the reason, the player) on an
+event whose outcome already stands does not re-open it. To re-create a follow-up that was removed,
+use the `+ Add …` action on the parent in the event feed.
+
+**Removal.** When a parent is mutated, the mutation engine re-checks every child against the
+parent's current trigger. A child whose `subType` is no longer triggered is marked
+`eventData.status = 'REMOVED'` in the same mutation — this covers both switching to a different
+outcome and clearing the outcome back to unset. Scores are then re-derived from the earliest
+affected sequence, so the removed child's points drop out automatically.
+
+**Consensus.** Nothing is written until the change is authorised. Inside the undo window the
+event's creator applies it directly; otherwise it goes to a vote and the proposed change waits in
+`game_disputes.update_data`. The parent edit and its child removals apply together on approval, and
+on rejection neither is applied — so there is no partial state to roll back.
+
 ## Scoring Events (type: `SCORE`)
 
 These events directly affect the match points of the participants and are generated from the primary Rugby Scoring Panel.

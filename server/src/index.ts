@@ -7,10 +7,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { dataManager } from './DataManager';
 import { gameEventManager } from './managers/GameEventManager';
-import { SocketAction } from '@sk/types';
-import { jobManager } from './jobs/JobManager';
-import { membershipExpiryJob } from './jobs/handlers/MembershipExpiryJob';
-import { accuracyAuditJob } from './jobs/handlers/AccuracyAuditJob';
+import { SocketAction } from '@sk/shared';
 import pool from './db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -1352,7 +1349,7 @@ io.on('connection', (socket) => {
         const uniqueOrgIds = [...new Set(orgIds.filter((id): id is string => !!id))];
         console.log(`Server: Requesting summary broadcast for orgs: ${uniqueOrgIds.join(', ')}`);
         for (const orgId of uniqueOrgIds) {
-            const updatedOrg = await dataManager.refreshOrgSummary(orgId);
+            const updatedOrg = await dataManager.getOrgSummary(orgId);
             if (updatedOrg) {
                 // Emit to the specific organization summary room (for dashboards)
                 const room = `org:${orgId}:summary`;
@@ -2302,19 +2299,4 @@ gameEventManager.rehydrateDisputes().catch(err => {
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  
-  // Start Jobs
-  jobManager.registerJob({
-      name: 'membership-expiry',
-      intervalMs: 60 * 60 * 1000, // 1 hour
-      handler: membershipExpiryJob
-  });
-  
-  jobManager.registerJob({
-      name: 'accuracy-audit',
-      intervalMs: 24 * 60 * 60 * 1000, // 24 hours
-      handler: accuracyAuditJob
-  });
-  
-  jobManager.start();
 });

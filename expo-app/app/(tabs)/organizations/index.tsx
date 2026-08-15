@@ -8,7 +8,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, OrganizationType } from '@sk/types';
+import { SocketAction, OrganizationType } from '@sk/shared';
 import { getOrgLogoUrl } from '../../../services/api';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';

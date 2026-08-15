@@ -1,5 +1,5 @@
 import { BaseManager } from "./BaseManager";
-import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, calculateStandings } from "@sk/types";
+import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, calculateStandings } from "@sk/shared";
 import { v4 as uuidv4 } from "uuid";
 import { imageService } from "../services/ImageService";
 

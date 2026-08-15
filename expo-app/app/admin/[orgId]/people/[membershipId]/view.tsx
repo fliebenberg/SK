@@ -7,7 +7,7 @@ import { GlassCard } from '../../../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../../store/settingsStore';
 import { useAuthStore } from '../../../../../store/authStore';
-import { OrgMember, Organization } from '@sk/types';
+import { OrgMember, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { getAvatarUrl } from '../../../../../services/api';
 

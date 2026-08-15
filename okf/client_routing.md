@@ -53,7 +53,7 @@ Admin workflows are restricted to authenticated managers/owners:
 *   `/admin/organizations/[id]/sites`: Manage organization venues/courts.
 *   `/admin/games/[id]`: General edit panel for scheduling fixtures.
 *   `/admin/games/[id]/score`: **Active Scorekeeper Console** for real-time play-by-play event entry.
-*   `/admin/reports`: Moderation reports and system accuracy audits (Global Admins only). Not analytics — see [docs/reports.md](file:///c:/Fred/Coding/SK/docs/reports.md). The `expo-app` screen is still a mockup on hardcoded data.
+*   `/admin/reports`: User moderation reports (Global Admins only). Not analytics — see [docs/reports.md](file:///c:/Fred/Coding/SK/docs/reports.md). The `expo-app` screen is still a mockup on hardcoded data.
 *   `/admin/settings`: Management configurations.
 *   `/admin/users`: User management interface (restricted to Global Admins).
 

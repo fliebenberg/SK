@@ -10,12 +10,23 @@ export interface ReasonGroup {
   options: ReasonOption[];
 }
 
+/**
+ * Which side a triggered follow-up event belongs to, relative to the event that triggered it.
+ *
+ * A try's conversion is taken by the team that scored (`same`), while a penalty is recorded
+ * against the offending team and the resulting kick belongs to their opponents (`opponent`).
+ * Stated relative to the parent so a template never has to know how its own side was chosen.
+ */
+export type TriggerTeam = 'same' | 'opponent';
+
 export interface Outcome {
   id: string;
   name: string;
   displayOverride?: string;
   points?: number;
   triggerEventId?: string;
+  /** The side `triggerEventId` is recorded for. Defaults to `same`. */
+  triggerTeam?: TriggerTeam;
   variant?: string;
   eventData?: any;
   excludePlayer?: boolean;
@@ -39,7 +50,15 @@ export enum ActionStepType {
 export interface ActionStep {
   type: ActionStepType;
   name?: string;
-  steps?: ActionStep[]; // For type: 'GROUP'
+  /**
+   * Sub-steps, for `type: 'GROUP'` — they render together on one screen.
+   *
+   * Do not walk this yourself: a question like "what outcomes does this template offer" is
+   * about all steps regardless of grouping, and missing the nesting gives a silently wrong
+   * answer. Use the helpers in `utils/templateSteps` (`getOutcomes`, `findStep`, `hasStep`,
+   * `getTriggerFor`), or `getScreens` when you actually need the screen layout.
+   */
+  steps?: ActionStep[];
   optional?: boolean;
   groupWithNext?: boolean;
   dependsOnReason?: boolean;
@@ -91,6 +110,8 @@ export interface EventTemplate {
   outcomeOverrides?: Record<string, string>; // e.g. { "Penalty Kick": "KICK" }
   steps: ActionStep[];
   triggerEventId?: string;
+  /** The side `triggerEventId` is recorded for. Defaults to `same`. */
+  triggerTeam?: TriggerTeam;
   eventData?: any;
   disputeConfig?: TemplateDisputeConfig;
 }

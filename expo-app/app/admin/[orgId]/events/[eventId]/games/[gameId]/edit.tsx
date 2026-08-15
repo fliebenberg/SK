@@ -9,7 +9,7 @@ import { ConfirmationModal } from '../../../../../../../components/ConfirmationM
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
-import { SocketAction, Event, Game, Sport, Site, Team, Organization } from '@sk/types';
+import { SocketAction, Event, Game, Sport, Site, Team, Organization } from '@sk/shared';
 import { COLORS } from '../../../../../../../constants/Colors';
 import MatchForm, { MatchFormData } from '../../../../../../../components/MatchForm';
 import { useAuthStore } from '../../../../../../../store/authStore';

@@ -1,4 +1,4 @@
-import { GameEvent } from '@sk/types';
+import { GameEvent } from '@sk/shared';
 
 export interface TeamStats {
   tries: number;

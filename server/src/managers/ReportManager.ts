@@ -1,6 +1,6 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import pool from '../db';
-import { Report } from '@sk/types';
+import { Report } from '@sk/shared';
 import { randomBytes } from 'crypto';
 
 export class ReportManager {
@@ -11,14 +11,14 @@ export class ReportManager {
   }
 
   async submitReport(data: {
-    reporterUserId: string | null; // null for system-generated reports
+    reporterUserId: string | null;
     entityType: string;
     entityId: string;
     reason: string;
     description?: string;
-  }, executor: Pool | PoolClient = this.pool): Promise<Report> {
+  }): Promise<Report> {
     const id = `rep-${randomBytes(8).toString('hex')}`;
-    const res = await executor.query(
+    const res = await this.pool.query(
       `INSERT INTO reports (id, reporter_user_id, entity_type, entity_id, reason, description)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, reporter_user_id as "reporterUserId", entity_type as "entityType", 

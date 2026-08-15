@@ -1,26 +1,18 @@
 # Reports & Moderation
 
-The `reports` table serves two distinct purposes that share one schema: **user-submitted moderation reports** and **system-generated audit records**. Both are surfaced to app admins on the same screen.
+The `reports` table records **user-submitted moderation reports**, surfaced to app admins on a single screen.
 
 Schema: [database_structure.md §20](database_structure.md). Socket actions: [api_actions.md §7](api_actions.md).
 
-## Producers
+## Producer
 
-### 1. User moderation reports
-
-Raised by a signed-in user against an entity they believe is problematic.
+Reports are raised by a signed-in user against an entity they believe is problematic.
 
 *   **Reasons**: `impersonation` (impersonation / false organization), `inappropriate_content`, `spam`, `other`, plus an optional free-text description.
 *   **Entity types**: the payload type allows `organization`, `event` and `user`.
 *   **Purpose**: give users a way to flag bad or fraudulent entities — most importantly organizations claimed or created by someone who has no connection to them.
 
-### 2. System accuracy-audit reports
-
-Written by the `accuracy-audit` scheduled job ([AccuracyAuditJob.ts](../server/src/jobs/handlers/AccuracyAuditJob.ts)).
-
-*   **Shape**: `entityType: 'system_audit'`, `reason: 'other'`, `reporterUserId: null`, `entityId` = the audited organization.
-*   **Purpose**: leave an audit trail whenever the job silently corrects drift in an organization's cached counts (`team_count`, `member_count`, `site_count`), so an automatic correction is still reviewable after the fact. Global admins also get a `system_alert` notification pointing at the reports screen.
-*   These rows are informational. They are not moderation items and need no action.
+*Historical note*: an `accuracy-audit` background job also wrote `system_audit` rows here to log automatic corrections of cached organization counts. Those counts are now derived rather than cached, so the job and its reports no longer exist — see [background-tasks.md](background-tasks.md). No such rows were ever committed (every insert failed on a foreign key), so the table holds moderation reports only. `reports.reporter_user_id` remains nullable.
 
 ## Consumer
 

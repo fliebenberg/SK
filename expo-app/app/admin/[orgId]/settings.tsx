@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, OrganizationType } from '@sk/types';
+import { SocketAction, OrganizationType } from '@sk/shared';
 
 const orgTypes: { value: OrganizationType; label: string }[] = [
   { value: 'SCHOOL', label: 'School' },

@@ -26,7 +26,7 @@ import {
   AddOrgProfilePayload, UpdateOrgProfilePayload, AddOrgMemberPayload,
   UpdateOrgMemberPayload, AddTeamMemberPayload, UpdateTeamMemberPayload,
   SubmitReportPayload, FeedHomeResponse
-} from "@sk/types";
+} from "@sk/shared";
 
 export class DataManager {
   constructor() {
@@ -85,7 +85,7 @@ export class DataManager {
 
   getOrganizationRoles = () => organizationManager.getOrganizationRoles();
   getOrganizationRole = (id: string) => organizationManager.getOrganizationRole(id);
-  refreshOrgSummary = (id: string) => organizationManager.refreshOrgSummary(id);
+  getOrgSummary = (id: string) => organizationManager.getOrgSummary(id);
   deleteOrganization = (id: string) => organizationManager.deleteOrganization(id);
 
   // Sites

@@ -10,7 +10,7 @@ import DatePicker from '../../../../components/DatePicker';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Event, Sport, Site, Team, Organization, Facility } from '@sk/types';
+import { SocketAction, Event, Sport, Site, Team, Organization, Facility } from '@sk/shared';
 import { useAuthStore } from '../../../../store/authStore';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { NominationModal } from '@/components/NominationModal';

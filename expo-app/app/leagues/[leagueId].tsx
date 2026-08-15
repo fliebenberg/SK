@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
-import { League, Season, LeagueStandingRow, Game, Sport } from '@sk/types';
+import { League, Season, LeagueStandingRow, Game, Sport } from '@sk/shared';
 import CustomSelect from '../../components/CustomSelect';
 
 export default function PublicLeagueStandings() {

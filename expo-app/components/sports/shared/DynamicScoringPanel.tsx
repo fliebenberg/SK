@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity } from 'react-native';
-import { Game } from '@sk/types';
+import { Game } from '@sk/shared';
 import { useSharedDynamicScoring } from './DynamicScoringContext';
 import { ScoringActionButton } from './ScoringActionButton';
 import { wsService } from '../../../services/websocket';

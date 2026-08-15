@@ -74,10 +74,9 @@ const createTables = async () => {
                 settings JSONB DEFAULT '{}'::jsonb,
                 address_id TEXT REFERENCES addresses(id),
                 type TEXT DEFAULT 'OTHER',
-                custom_type TEXT DEFAULT NULL,
-                team_count INTEGER DEFAULT 0,
-                member_count INTEGER DEFAULT 0,
-                site_count INTEGER DEFAULT 0
+                custom_type TEXT DEFAULT NULL
+                -- Team/member/site counts are computed live by the org queries, not stored here.
+                -- See migration 20260814_derive_org_counts.ts.
             );
         `);
 
@@ -221,8 +220,7 @@ const createTables = async () => {
                 org_id TEXT REFERENCES organizations(id),
                 role_id TEXT,
                 start_date TIMESTAMPTZ,
-                end_date TIMESTAMPTZ,
-                expiry_processed BOOLEAN DEFAULT false
+                end_date TIMESTAMPTZ
             );
         `);
 
@@ -545,6 +543,10 @@ const createTables = async () => {
         `);
 
         // Indexes for performance
+        // Back the live organization counts (and every other org-scoped filter).
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(org_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_sites_org ON sites(org_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_org_memberships_org ON org_memberships(org_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_leagues_org ON leagues(org_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_seasons_league ON seasons(league_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_seasons_season ON game_seasons(season_id);`);

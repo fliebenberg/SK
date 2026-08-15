@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
-import { SocketAction, Event, Game } from '@sk/types';
+import { SocketAction, Event, Game } from '@sk/shared';
 import { COLORS } from '../../../../../../../constants/Colors';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';

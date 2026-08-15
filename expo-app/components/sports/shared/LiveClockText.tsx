@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect } from 'react';
 import { Text } from 'react-native';
-import { GameClockState } from '@sk/types';
+import { GameClockState } from '@sk/shared';
 import { useGameTimer } from '../../../hooks/useGameTimer';
 import { COLORS } from '../../../constants/Colors';
 

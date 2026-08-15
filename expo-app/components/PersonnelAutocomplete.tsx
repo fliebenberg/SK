@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView,
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
 import { wsService } from '../services/websocket';
-import { OrgProfile } from '@sk/types';
+import { OrgProfile } from '@sk/shared';
 
 interface PersonnelAutocompleteProps {
   orgId: string;

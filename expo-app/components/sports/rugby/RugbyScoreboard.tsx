@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Game, SinBin } from '@sk/types';
+import { Game, SinBin } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
 import { useGameTimer } from '../../../hooks/useGameTimer';
 import { LiveClockText } from '../shared/LiveClockText';

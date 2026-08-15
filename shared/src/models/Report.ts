@@ -1,7 +1,7 @@
 export interface Report {
   id: string;
-  reporterUserId: string | null; // null for system-generated reports
-  entityType: 'organization' | 'event' | 'user' | 'system_audit';
+  reporterUserId: string | null; // column is nullable; null would mean a non-user reporter
+  entityType: 'organization' | 'event' | 'user';
   entityId: string;
   reason: 'impersonation' | 'inappropriate_content' | 'spam' | 'other';
   description?: string;

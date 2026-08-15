@@ -1,7 +1,26 @@
-import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse } from "@sk/types";
+import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
+
+/**
+ * Live-computed organization counts, exposed as `c.team_count` / `c.site_count` / `c.member_count`.
+ *
+ * These were previously denormalized columns on `organizations`, maintained by background jobs.
+ * That could not be made reliable: `member_count` depends on the clock (a membership lapses when
+ * `end_date` passes, with no accompanying write), so no trigger can maintain it and any cached
+ * copy drifts. Deriving them makes them correct by construction.
+ *
+ * Append to a query whose `organizations` row is aliased `o`. Callers are paginated, so this is
+ * evaluated per page rather than per table.
+ */
+const ORG_COUNTS_JOIN = `
+      LEFT JOIN LATERAL (
+        SELECT
+          (SELECT COUNT(*)::int FROM teams t WHERE t.org_id = o.id AND t.is_active = true) as team_count,
+          (SELECT COUNT(*)::int FROM sites s WHERE s.org_id = o.id) as site_count,
+          (SELECT COUNT(*)::int FROM org_memberships om WHERE om.org_id = o.id AND (om.end_date IS NULL OR om.end_date > NOW())) as member_count
+      ) c ON true`;
 
 export class OrganizationManager extends BaseManager {
   private organizationCache: Map<string, Organization> = new Map();
@@ -44,12 +63,12 @@ export class OrganizationManager extends BaseManager {
         a.country,
         a.latitude,
         a.longitude,
-        o.team_count as "teamCount",
-        o.site_count as "siteCount",
+        c.team_count as "teamCount",
+        c.site_count as "siteCount",
         (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
-        o.member_count as "memberCount"
+        c.member_count as "memberCount"
       FROM organizations o
-      LEFT JOIN addresses a ON o.address_id = a.id
+      LEFT JOIN addresses a ON o.address_id = a.id${ORG_COUNTS_JOIN}
     `;
 
     const queryParams: any[] = [];
@@ -156,15 +175,15 @@ export class OrganizationManager extends BaseManager {
         a.country,
         a.latitude,
         a.longitude,
-        o.team_count as "teamCount",
-        o.site_count as "siteCount",
+        c.team_count as "teamCount",
+        c.site_count as "siteCount",
         (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
-        o.member_count as "memberCount"
+        c.member_count as "memberCount"
       FROM organizations o
-      LEFT JOIN addresses a ON o.address_id = a.id
+      LEFT JOIN addresses a ON o.address_id = a.id${ORG_COUNTS_JOIN}
       WHERE o.id = $1
     `, [id]);
-    
+
     const org = res.rows[0] ? this.mapOrg(res.rows[0]) : undefined;
     if (org) {
         this.organizationCache.set(org.id, org);
@@ -173,57 +192,14 @@ export class OrganizationManager extends BaseManager {
   }
 
   /**
-   * Re-fetches a single organization's summary data (counts) and updates the database and cache.
-   * This is the authoritative source of truth for organization counts.
+   * Re-reads a single organization, bypassing the in-memory cache, and refreshes that cache entry.
+   *
+   * Counts are computed live by the query (see {@link ORG_COUNTS_JOIN}), so this is a pure read —
+   * it exists to pick up changes made by a mutation and to feed the `org:{id}:summary` broadcast.
    */
-  async refreshOrgSummary(id: string): Promise<Organization | undefined> {
-    // 1. Calculate fresh counts from the database
-    const calcRes = await this.query(`
-      SELECT 
-        (SELECT COUNT(*)::int FROM teams t WHERE t.org_id = o.id AND t.is_active = true) as "teamCount",
-        (SELECT COUNT(*)::int FROM sites s WHERE s.org_id = o.id) as "siteCount",
-        (SELECT COUNT(*)::int FROM org_memberships om WHERE om.org_id = o.id AND (om.end_date IS NULL OR om.end_date > NOW())) as "memberCount"
-      FROM organizations o
-      WHERE o.id = $1
-    `, [id]);
-
-    if (calcRes.rows.length === 0) {
-        this.organizationCache.delete(id);
-        return undefined;
-    }
-
-    const { teamCount, siteCount, memberCount } = calcRes.rows[0];
-
-    // 2. Persist the accurate counts back to the organizations table
-    await this.query(`
-      UPDATE organizations 
-      SET team_count = $1, site_count = $2, member_count = $3 
-      WHERE id = $4
-    `, [teamCount, siteCount, memberCount, id]);
-
-    // 3. Fetch the full organization record (now with updated counts) for cache and return
-    const res = await this.query(`
-      SELECT 
-        o.id, o.name, o.logo, o.primary_color as "primaryColor", o.secondary_color as "secondaryColor", 
-        ARRAY(SELECT sport_id FROM organization_sports WHERE org_id = o.id) as "supportedSportIds", o.short_name as "shortName", ARRAY(SELECT role_id FROM organization_roles WHERE org_id = o.id) as "supportedRoleIds",
-        o.is_claimed as "isClaimed", o.creator_id as "creatorId", o.is_active as "isActive", o.settings,
-        o.type, o.custom_type as "customType",
-        o.address_id as "addressId", a.full_address as "fullAddress", a.city, a.province, a.postal_code as "postalCode",
-        a.country, a.latitude, a.longitude, o.team_count as "teamCount", o.site_count as "siteCount",
-        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
-        o.member_count as "memberCount"
-      FROM organizations o
-      LEFT JOIN addresses a ON o.address_id = a.id
-      WHERE o.id = $1
-    `, [id]);
-    
-    const org = res.rows[0] ? this.mapOrg(res.rows[0]) : undefined;
-    if (org) {
-        this.organizationCache.set(org.id, org);
-    } else {
-        this.organizationCache.delete(id);
-    }
-    return org;
+  async getOrgSummary(id: string): Promise<Organization | undefined> {
+    this.organizationCache.delete(id);
+    return this.getOrganization(id);
   }
 
   invalidateCache() {
@@ -284,7 +260,7 @@ export class OrganizationManager extends BaseManager {
     }
     
     // Don't fully invalidate, just add the new one or refresh if it exists
-    return this.refreshOrgSummary(id) as Promise<Organization>;
+    return this.getOrgSummary(id) as Promise<Organization>;
   }
 
   async updateOrganization(id: string, data: Partial<Organization>): Promise<Organization | null> {
@@ -376,7 +352,7 @@ export class OrganizationManager extends BaseManager {
     }
 
     // Only refresh this specific org's summary/cache
-    return this.refreshOrgSummary(id).then(r => r || null);
+    return this.getOrgSummary(id).then(r => r || null);
   }
 
   async getOrganizationRoles(): Promise<OrganizationRole[]> {
@@ -462,7 +438,7 @@ export class OrganizationManager extends BaseManager {
     
     const isClaimed = res.rows[0].count > 0;
     await this.query('UPDATE organizations SET is_claimed = $1 WHERE id = $2', [isClaimed, orgId]);
-    await this.refreshOrgSummary(orgId);
+    await this.getOrgSummary(orgId);
   }
 
   async deleteOrganization(id: string): Promise<void> {

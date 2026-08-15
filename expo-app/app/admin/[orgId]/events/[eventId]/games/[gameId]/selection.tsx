@@ -22,7 +22,7 @@ import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChange
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { COLORS } from '../../../../../../../constants/Colors';
-import { SocketAction } from '@sk/types';
+import { SocketAction } from '@sk/shared';
 
 interface RosterItem {
   orgProfileId: string;
