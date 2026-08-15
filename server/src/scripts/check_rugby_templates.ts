@@ -15,17 +15,40 @@ async function check() {
         console.log(` ${idx + 1}. id="${t.id}", name="${t.name}", section="${t.section}"`);
       });
 
+      // A trigger's prefilled data is only as good as the ids it names: a `triggerEventData.reason`
+      // the child template does not define resolves to nothing, so the scorer sees an unselected
+      // reason picker and the stored event carries an id no display can render. Cheap to check
+      // here, invisible until mid-match otherwise.
+      const unresolved: string[] = [];
+      const describeTrigger = (source: any, label: string) => {
+        const carried = source.triggerEventData || {};
+        const keys = Object.keys(carried);
+        const carriedStr = keys.length > 0 ? ` prefills ${keys.map((k) => `${k}=${carried[k]}`).join(', ')}` : '';
+        console.log(` ${label} -> ${source.triggerEventId} (${source.triggerTeam || 'same'})${carriedStr}`);
+
+        if (carried.reason) {
+          const child = templates.find((c: any) => c.id === source.triggerEventId);
+          const known = (child?.reasons || []).some((g: any) =>
+            (g.options || []).some((opt: any) => (opt.id || opt.name) === carried.reason)
+          );
+          if (!known) unresolved.push(`${label} prefills reason="${carried.reason}", not defined by "${source.triggerEventId}"`);
+        }
+      };
+
       console.log('\nTriggered follow-ups (child event -> side it is recorded for):');
       templates.forEach((t: any) => {
-        if (t.triggerEventId) {
-          console.log(` ${t.id} -> ${t.triggerEventId} (${t.triggerTeam || 'same'})`);
-        }
+        if (t.triggerEventId) describeTrigger(t, t.id);
         (t.outcomes || []).forEach((o: any) => {
-          if (o.triggerEventId) {
-            console.log(` ${t.id}/${o.id} -> ${o.triggerEventId} (${o.triggerTeam || 'same'})`);
-          }
+          if (o.triggerEventId) describeTrigger(o, `${t.id}/${o.id}`);
         });
       });
+
+      console.log('\nPrefilled follow-up data:');
+      if (unresolved.length > 0) {
+        unresolved.forEach((u) => console.log(` UNRESOLVED — ${u}`));
+      } else {
+        console.log(' OK — every prefilled reason resolves against the child template.');
+      }
 
       // `outcomes` and `reasons` moved from the step to the template. A template still carrying
       // the old shape is one the sync missed: the server would resolve no points and no triggers

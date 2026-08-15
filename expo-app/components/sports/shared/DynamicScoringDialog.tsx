@@ -26,6 +26,26 @@ interface OutcomeOption {
   triggerEventId?: string;
 }
 
+/**
+ * Whether the data the dialog was opened with already answers this step.
+ *
+ * Read off `initialData` rather than off the dialog's state, which has not been applied yet when
+ * the opening screen is chosen. A `CUSTOM_WIDGET` counts as unanswered: it always holds a value,
+ * so treating it as answered would let the flow skip past a counter nobody has looked at.
+ */
+const isSeeded = (step: ActionStep, init: any): boolean => {
+  switch (step.type) {
+    case ActionStepType.PLAYER_SELECTION:
+      return !!(init.playerId || init.actorOrgProfileId);
+    case ActionStepType.REASON_SELECTION:
+      return !!init.reason;
+    case ActionStepType.OUTCOME_SELECTION:
+      return !!init.outcome;
+    default:
+      return false;
+  }
+};
+
 export function DynamicScoringDialog() {
   const { height: screenHeight } = useWindowDimensions();
   const maxScrollHeight = Math.max(screenHeight - 220, 160);
@@ -160,6 +180,19 @@ export function DynamicScoringDialog() {
           setCurrentStep(targetIndex);
           return;
         }
+      }
+
+      // A chained follow-up opens with whatever its parent's outcome seeded — a scrum awarded from
+      // a free kick already knows its reason. Opening on that screen would ask the scorer for
+      // something the chain has just answered, so a new event starts at the first screen still
+      // needing an answer. Editing always starts at the beginning: every screen is filled in then,
+      // and the scorer opened the dialog to find one of them.
+      if (!scoringState.editingId) {
+        const firstUnanswered = initialScreens.findIndex((screen) =>
+          screen.steps.some((step) => !isSeeded(step, init))
+        );
+        setCurrentStep(firstUnanswered > 0 ? firstUnanswered : 0);
+        return;
       }
       setCurrentStep(0);
     }

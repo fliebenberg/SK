@@ -224,11 +224,13 @@ export const RUGBY_SEED_SPEC = {
       ],
       outcomes: [
         // A penalty is recorded against the offending team, so everything it awards belongs
-        // to their opponents.
+        // to their opponents. `triggerEventData` is the follow-up's own data, not this event's:
+        // the scrum's reason is that a penalty awarded it, while this event's reason stays the
+        // infringement the scorer picked.
         { id: "penalty_kick", name: "Penalty Kick", variant: "primary", triggerEventId: "penalty_kick", triggerTeam: "opponent" },
         { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick", triggerTeam: "opponent" },
-        { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", triggerTeam: "opponent", eventData: { reason: "Penalty" } },
-        { id: "tap_go", name: "Tap n Go", variant: "success", eventData: { reason: "Penalty" } }
+        { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", triggerTeam: "opponent", triggerEventData: { reason: "penalty_scrum" } },
+        { id: "tap_go", name: "Tap n Go", variant: "success" }
       ],
       steps: [
         { type: ActionStepType.REASON_SELECTION },
@@ -277,9 +279,9 @@ export const RUGBY_SEED_SPEC = {
       ],
       outcomes: [
         // As with a penalty, a free kick is recorded against the offending team.
-        { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", triggerTeam: "opponent", eventData: { reason: "Free Kick" } },
+        { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", triggerTeam: "opponent", triggerEventData: { reason: "free_kick" } },
         { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick", triggerTeam: "opponent" },
-        { id: "tap_go", name: "Tap n Go", variant: "success", eventData: { reason: "Free Kick" } }
+        { id: "tap_go", name: "Tap n Go", variant: "success" }
       ],
       steps: [
         { type: ActionStepType.REASON_SELECTION },
@@ -293,6 +295,10 @@ export const RUGBY_SEED_SPEC = {
       section: "General Play",
       icon: "Users",
       displayPattern: "{name} → {outcome}",
+      // A scrum is awarded for something, and that something is often the event that chained into
+      // it — `penalty_awarded` and `free_kick` name the matching id in their `triggerEventData`,
+      // so the reason arrives already chosen. Ids here are the contract for that: renaming one
+      // silently breaks the prefill, which `check_rugby_templates.ts` warns about.
       reasons: [
         {
           name: "Infringement",
@@ -302,7 +308,8 @@ export const RUGBY_SEED_SPEC = {
             { id: "held_up", name: "Held Up" },
             { id: "unplayable", name: "Unplayable" },
             { id: "accidental_offside", name: "Accidental Offside" },
-            { id: "penalty_scrum", name: "Penalty" }
+            { id: "penalty_scrum", name: "Penalty" },
+            { id: "free_kick", name: "Free Kick" }
           ]
         }
       ],

@@ -179,13 +179,39 @@ penalty is recorded *against* the offending team and the kick it awards belongs 
 | `opponent` | the follow-up is recorded for the other participant — `penalty_awarded` → `penalty_kick` |
 
 It sits beside `triggerEventId`, at whichever level that is declared, and is read through
-`getTriggerFor`, which returns `{ eventId, team }` so no caller can learn what to spawn without
-learning whose it is. This was previously a hardcoded list of rugby template ids in the scoring
-client; a spec the client has never seen can now say it.
+`getTriggerFor`, which returns `{ eventId, team, eventData }` so no caller can learn what to spawn
+without learning whose it is. This was previously a hardcoded list of rugby template ids in the
+scoring client; a spec the client has never seen can now say it.
 
 A child's side is decided **once, when it is created**. The mutation engine never rewrites a
 child's `game_participant_id` when its parent is edited — see `applyMutation`'s cascade in
 `GameEventManager`.
+
+#### What the follow-up already knows
+
+`triggerEventData` is `eventData` the **child** opens with. A scrum awarded from a free kick is a
+scrum *for a free kick*, and the chain already knows that, so:
+
+```ts
+{ id: "scrum", triggerEventId: "scrum", triggerTeam: "opponent",
+  triggerEventData: { reason: "free_kick" } }
+```
+
+opens the scrum dialog with its reason already selected, and — since the reason screen is answered —
+lands the scorer on the next screen instead. Prefilled values are answers, not decisions: every one
+is editable before the child is saved.
+
+It is deliberately **not** `Outcome.eventData`, which describes the event being scored and is merged
+onto *it* when the outcome is chosen (`successful: true`). Rugby had the two confused: the scrum
+outcomes carried `eventData: { reason: "Penalty" }`, so setting a free kick's outcome to Scrum
+overwrote the free kick's own infringement reason.
+
+The keys are ordinary `eventData` keys, so `reason`, `outcome` and `playerId` prefill their steps.
+A prefilled `reason` must be an id the **child** template defines, or it resolves to nothing and the
+picker opens unselected — `check_rugby_templates.ts` warns when one does not.
+
+The same values seed the event feed's `+ Add …` pill, so re-creating a follow-up by hand records it
+identically to the automatic chain.
 
 ### Reading a template in code
 
@@ -196,8 +222,9 @@ Every question about a template goes through `shared/src/utils/templateSteps.ts`
 - `getReasonGroups` / `getReasonOptions` / `findReason` / `hasReasons` — reason definitions, grouped
   or flattened
 - `reasonRequiresPlayer(template, reasonId)` — whether to record an individual, defaulting to yes
-- `getTriggerFor(template, outcomeId)` — the linked child a selection spawns **and whose side it
-  is** (`{ eventId, team }`), resolving outcome-level triggers before the template-level one
+- `getTriggerFor(template, outcomeId)` — the linked child a selection spawns, **whose side it is**
+  and **what it starts with** (`{ eventId, team, eventData }`), resolving outcome-level triggers
+  before the template-level one
 - `findStep` / `findSteps` / `hasStep` — locate steps by type, ignoring grouping
 - `getScreens(template, context?)` — the live screen layout, for the dialog only
 

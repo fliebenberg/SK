@@ -531,7 +531,13 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                             <TouchableOpacity
                               onPress={(e) => {
                                 e.stopPropagation();
-                                startDynamicFlow?.(triggerEventId, triggerSide, { linkedEventId: evt.id });
+                                startDynamicFlow?.(triggerEventId, triggerSide, {
+                                  // Re-adding a follow-up by hand must seed it exactly as the
+                                  // automatic chain does, or the same event ends up recorded two
+                                  // different ways depending on which route created it.
+                                  ...(templateTrigger?.eventData || {}),
+                                  linkedEventId: evt.id,
+                                });
                               }}
                               className="flex-row items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/40 rounded-full"
                             >

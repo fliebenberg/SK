@@ -21,6 +21,7 @@ type TemplateLike = {
   reasons?: ReasonGroup[];
   triggerEventId?: string;
   triggerTeam?: TriggerTeam;
+  triggerEventData?: Record<string, any>;
 } | null | undefined;
 
 /** One screen in the scoring dialog: a single step, or all the children of a `GROUP`. */
@@ -163,15 +164,23 @@ export function reasonRequiresPlayer(template: TemplateLike, reasonId: string | 
  * The child's side comes back with it, because knowing what to spawn without knowing whose it
  * is has caused real mis-scoring: a penalty's kick belongs to the non-offending team, and that
  * rule used to live in the client as a hardcoded list of template ids.
+ *
+ * So does `eventData`, the answers the child starts with — a scrum awarded from a free kick opens
+ * with its reason already set. Same argument: the trigger, its side and what it carries are one
+ * decision the spec makes, and a caller that resolves one without the others gets it wrong.
  */
 export function getTriggerFor(
   template: TemplateLike,
   outcomeId: string | null | undefined
-): { eventId: string; team: TriggerTeam } | undefined {
+): { eventId: string; team: TriggerTeam; eventData: Record<string, any> } | undefined {
   const outcome = findOutcome(template, outcomeId);
   const source = outcome?.triggerEventId ? outcome : template?.triggerEventId ? template : undefined;
   if (!source?.triggerEventId) return undefined;
-  return { eventId: source.triggerEventId, team: source.triggerTeam || 'same' };
+  return {
+    eventId: source.triggerEventId,
+    team: source.triggerTeam || 'same',
+    eventData: { ...(source.triggerEventData || {}) },
+  };
 }
 
 /** What has been answered so far, for deciding which steps still apply. */

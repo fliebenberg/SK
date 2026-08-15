@@ -19,6 +19,13 @@ for the other team. A conversion stays with the team that scored the try.
 The child's side is fixed when it is created. Editing the parent afterwards — its reason, its
 player, even its outcome — never moves the child to another team.
 
+**What it starts with.** `triggerEventData` on the outcome is `eventData` the child opens with, so
+the scorer is not asked something the chain has already answered. Rugby uses it for one thing today:
+a scrum awarded by `penalty_awarded` opens with reason `penalty_scrum` ("Penalty"), and one awarded
+by `free_kick` with reason `free_kick` ("Free Kick"). The scrum dialog therefore opens on its
+outcome screen with the reason already selected — and still editable. Note this is the *child's*
+reason; the penalty or free kick keeps the infringement the scorer picked for it.
+
 **Creation.** The client opens the follow-up dialog only when the parent's outcome is being set for
 the first time or is actually changing. Editing an unrelated field (the reason, the player) on an
 event whose outcome already stands does not re-open it. To re-create a follow-up that was removed,

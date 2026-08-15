@@ -621,6 +621,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           if (eventPayload?.triggerEventId && shouldChainLinkedEvent) {
             const trigger = getTriggerFor(template, eventPayload.outcome);
             startDynamicFlow(eventPayload.triggerEventId, sideForTrigger(trigger?.team), {
+              ...(trigger?.eventData || {}),
               linkedEventId: updatedEventId,
               elapsedMS: originalData?.elapsedMS || eventData.elapsedMS,
             });
@@ -649,10 +650,15 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         }
         const addedEventId = res?.id || res?.data?.id || res?.eventId;
         // AUTOMATED CHAINED FLOW: the template says what a completed event spawns — a try always
-        // spawns a conversion, a penalty spawns whatever its chosen outcome names — and whose it is.
+        // spawns a conversion, a penalty spawns whatever its chosen outcome names — whose it is,
+        // and what the follow-up already knows about itself. A scrum awarded from a free kick
+        // opens with its reason set, so the scorer is not asked something the chain just answered.
         const trigger = getTriggerFor(template, eventPayload?.outcome);
         if (trigger) {
-          startDynamicFlow(trigger.eventId, sideForTrigger(trigger.team), { linkedEventId: addedEventId });
+          startDynamicFlow(trigger.eventId, sideForTrigger(trigger.team), {
+            ...trigger.eventData,
+            linkedEventId: addedEventId,
+          });
         } else {
           setScoringState({ status: 'IDLE' });
         }

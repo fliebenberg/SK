@@ -37,7 +37,20 @@ export interface Outcome {
   /** The side `triggerEventId` is recorded for. Defaults to `same`. */
   triggerTeam?: TriggerTeam;
   variant?: string;
+  /** `eventData` merged onto **this** event when the outcome is chosen, e.g. `successful: true`. */
   eventData?: any;
+  /**
+   * `eventData` the follow-up named by `triggerEventId` **starts with**, e.g. a free kick's scrum
+   * opens with its reason already set to "Free Kick".
+   *
+   * Deliberately separate from `eventData`: the two describe different events, and conflating them
+   * corrupts the parent. A free kick's own reason is the infringement the scorer picked ("Early
+   * Push"); the scrum's reason is *why the scrum was awarded*, which is the free kick itself.
+   *
+   * Prefilled values are answers, not decisions — the follow-up's dialog shows them selected and
+   * the scorer can change any of them before saving.
+   */
+  triggerEventData?: Record<string, any>;
   excludePlayer?: boolean;
 }
 
@@ -157,6 +170,8 @@ export interface EventTemplate {
   triggerEventId?: string;
   /** The side `triggerEventId` is recorded for. Defaults to `same`. */
   triggerTeam?: TriggerTeam;
+  /** `eventData` the follow-up starts with. See {@link Outcome.triggerEventData}. */
+  triggerEventData?: Record<string, any>;
   eventData?: any;
   disputeConfig?: TemplateDisputeConfig;
 }

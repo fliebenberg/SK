@@ -61,6 +61,20 @@ dedicated cleanup pass.
 - [x] `SCORE-6` **Move `outcomes` off the step and onto the template.** ~~The server traversed step structure for one reason only — resolving outcome definitions — and never cared about screens.~~ Resolved 2026-08-15: `outcomes` **and** `reasons` now live at template level, and the `OUTCOME_SELECTION` / `REASON_SELECTION` steps are positional markers that carry no data. The scope grew to include `reasons` because the original note was wrong that outcomes were the server's only step read — it also called `findReason` for `specifyPlayer`, so moving outcomes alone would have left the traversal in place. `GameEventManager` now imports no step helpers at all, and grouping is purely client-side. The stored JSON was re-synced with `sync_db_rugby_templates.ts`; `check_rugby_templates.ts` warns if any step still carries the pre-split shape.
 
 - [ ] `SCORE-9` **`Outcome.excludePlayer` is only half-honoured.** The deprecated client cleared the actor on commit when the chosen outcome set `excludePlayer: true` ([useDynamicScoring.ts:190](file:///c:/Fred/Coding/SK/client/src/hooks/useDynamicScoring.ts)); the server's `applyMutation` never does, so nothing enforces it now. expo-app reads it in [getMissingDetails](file:///c:/Fred/Coding/SK/expo-app/utils/gameUtils.ts) to suppress the missing-player chip, which is the only live behaviour. Latent rather than broken: no rugby outcome sets the flag. It is deliberately not part of the reason-based skip in `getScreens` — the outcome screen usually comes *after* the player screen, so an outcome cannot retroactively remove a screen already answered. The fix is server-side, mirroring the `specifyPlayer` clear, which as of 2026-08-15 lives in **two** places: `ingestEvent` (create) and `applyMutation` (edit). Do it when a sport first needs the flag.
+- [ ] `SCORE-11` **Rugby's reason lists have never been reviewed end to end.** The `reasons` on
+  `penalty_awarded`, `free_kick`, `scrum`, `yellow_card`, `red_card` and `timed_red_card` grew ad
+  hoc and no one has checked them against the laws for completeness, wording, or overlap. Two
+  concrete gaps found on 2026-08-15 while adding follow-up prefill: `scrum` had no reason covering
+  a free kick (added as `free_kick`), and its `penalty_scrum` id reads as an implementation
+  artefact next to plain ids like `knock_on`. Now that a parent's outcome can prefill a child's
+  reason via `triggerEventData`, the lists are also a contract between templates — every event that
+  can *award* a scrum or lineout needs a matching reason on the child, and
+  `check_rugby_templates.ts` warns when one does not resolve.
+
+  Wants a pass over each template with someone who knows the laws, deciding for each list: what is
+  missing, what should be merged, and which reasons carry `specifyPlayer: false`. Renaming an
+  **id** is a data migration — stored events hold the id — so decide whether existing events get
+  rewritten or the old ids stay as aliases before touching any of them.
 - [ ] `SCORE-10` **The step bar no longer shows what was chosen.** The deprecated client's stepper rendered the selected value under each step name — "Dangerous Tackle", "3 Resets", the player's number and name — so a scorer could see the whole event at a glance and jump straight back to the wrong one ([DynamicScoringDialog.tsx:200-233](file:///c:/Fred/Coding/SK/client/src/components/sports/shared/DynamicScoringDialog.tsx)). expo-app's `Tabs` shows only `1. Infringement`. Confirmed 2026-08-15 that we want this back, in its own session.
 
   `Tabs` takes a flat string label, so this needs either a richer item type or a purpose-built stepper. Everything else is available — `findReason`, `findOutcome`, the roster and `widgetValues`.
