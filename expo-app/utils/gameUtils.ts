@@ -152,15 +152,10 @@ export function getMissingDetails(evt: GameEvent, template: any, roster?: any[])
   // 3. Player Selection
   if (hasStep(template, ActionStepType.PLAYER_SELECTION) && !evt.actorOrgProfileId) {
     const hasPlayers = roster && roster.length > 0;
-    if (hasPlayers) {
-      // The dialog hides the player screen for these, so flagging it would point at a screen
-      // the scorer was never shown.
-      const skippedByReason = !reasonRequiresPlayer(template, eventData.reason);
-      const excludedByOutcome = findOutcome(template, eventData.outcome)?.excludePlayer === true;
-
-      if (!skippedByReason && !excludedByOutcome) {
-        missing.push('player');
-      }
+    // The dialog hides the player screen when the chosen reason has no individual offender, so
+    // flagging it would point at a screen the scorer was never shown.
+    if (hasPlayers && reasonRequiresPlayer(template, eventData.reason)) {
+      missing.push('player');
     }
   }
 

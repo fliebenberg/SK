@@ -51,7 +51,6 @@ export interface Outcome {
    * the scorer can change any of them before saving.
    */
   triggerEventData?: Record<string, any>;
-  excludePlayer?: boolean;
 }
 
 export enum ActionStepType {

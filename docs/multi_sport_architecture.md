@@ -152,6 +152,12 @@ the reason to one with no individual offender. The dialog keeps the selection so
 restores it, but resolves the submitted actor to `null` — not simply omitting it, since on an edit
 an omitted actor means "unchanged" and would leave a previously saved player in place.
 
+There is deliberately **no outcome-level equivalent**. `Outcome.excludePlayer` existed as a declared
+flag and was removed on 2026-08-18: no sport ever set it, and because the outcome screen comes
+*after* the player screen it could never skip a screen — only retract an attribution the scorer had
+already, correctly, made. If a sport one day needs an outcome that nullifies fault (a reversed
+penalty, a rescinded card), reintroduce it deliberately rather than assuming the old flag worked.
+
 ### Custom widgets
 
 A `CUSTOM_WIDGET` step names a component with `widgetName` and a storage key with `dataKey`. The
