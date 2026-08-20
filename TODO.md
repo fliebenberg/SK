@@ -75,23 +75,122 @@ dedicated cleanup pass.
   missing, what should be merged, and which reasons carry `specifyPlayer: false`. Renaming an
   **id** is a data migration — stored events hold the id — so decide whether existing events get
   rewritten or the old ids stay as aliases before touching any of them.
-- [ ] `SCORE-10` **The step bar no longer shows what was chosen.** The deprecated client's stepper rendered the selected value under each step name — "Dangerous Tackle", "3 Resets", the player's number and name — so a scorer could see the whole event at a glance and jump straight back to the wrong one ([DynamicScoringDialog.tsx:200-233](file:///c:/Fred/Coding/SK/client/src/components/sports/shared/DynamicScoringDialog.tsx)). expo-app's `Tabs` shows only `1. Infringement`. Confirmed 2026-08-15 that we want this back, in its own session.
 
-  `Tabs` takes a flat string label, so this needs either a richer item type or a purpose-built stepper. Everything else is available — `findReason`, `findOutcome`, the roster and `widgetValues`.
+  **Groundwork done 2026-08-18:** [docs/rugby/laws-infringements.md](file:///c:/Fred/Coding/SK/docs/rugby/laws-infringements.md)
+  catalogues ~130 infringements from the 2026 Laws of the Game — by phase (tackle, ruck, maul,
+  scrum, lineout, restart, open play, in-goal, administration) and by sanction (penalty, free kick,
+  scrum, lineout, card) — each mapped to the reason id that covers it today, or marked as a gap.
+  It records 12 gaps against the seed (the maul is absent entirely; `scrum_other` and `lineout_foul`
+  hide two whole laws; the dangerous-tackle reasons live only on the card templates) and 7 open
+  decisions the review has to settle first, chief among them **D1: are cards their own event or an
+  escalation of a penalty**, which gates how much of the catalogue gets written where. **Nothing has
+  been applied to the seed.** The remaining work is the decisions plus the edit.
 
-  **The old formatting rules, recorded here because `client/` is due for deletion and this file is their only record** (see `SHARED-3`):
+  Review it with `npm run review:rugby` — [scripts/rugby-review.js](file:///c:/Fred/Coding/SK/scripts/rugby-review.js)
+  serves the doc as a page with a comment box per row, saving to `laws-infringements.comments.json`
+  beside it.
 
-  - **Step name** — `step.name`, else the type humanised (`OUTCOME_SELECTION` → `OUTCOME`); a `CUSTOM_WIDGET` with no name fell back to its `widgetName`, else `"Custom"`.
-  - **Reason** — the matched option's `name`, falling back to the raw stored id if it no longer resolves.
-  - **Player** — `"{position}. {name}"` when the player is on the roster (position `"?"` and name `"Unknown"` when either is missing), otherwise the bare profile name.
-  - **Outcome** — the matched option's `name`, same raw-id fallback as reason.
-  - **Widget** — `"{n} Resets"`, and **only when non-zero**, so an untouched counter added no noise. Note this was hardcoded to `ScrumResetsCounter`; post-`SCORE-4` the honest version is a `summarise(value)` on the widget's registry entry, so the stepper does not learn what a widget means.
-  - **A `GROUP`** showed its children's values joined with `", "`, skipping any sub-step the flow had skipped.
-  - **Layout** — step name 10px uppercase, widely tracked; value beneath at 9px bold, normal-case, truncated at 150px; the active step in the primary colour and heaviest weight.
+  **Review progress — all 10 phases have a draft list (2026-08-18).** The second comment round
+  covered §1.2–§1.9, and the doc's **Part 5** now runs to 5.11: a consolidated list per phase, a
+  record of what was deliberately excluded, and a rollup of what each template becomes. Distinct
+  *offences*: 29 on `penalty_awarded`, 14 on `free_kick` — the id counts below are higher because
+  Part 6 gives each phase its own copy. The maul is covered
+  without a `maul` template (gap `3.1`), `scrum_other` and `lineout_foul` are both replaced by named
+  reasons (gap `3.2`), and the restart templates converge on one 8-outcome list.
+
+  Gap `3.7` is settled without losing detail: the lineout **keeps** `not_straight` as an outcome and
+  gains `short_throw`, and every outcome except `won` carries `winnerSide: "other"` — the rule being
+  that anything handing the next throw to the opposition counts as a loss. The same two ids also
+  appear as *reasons*, describing why the following lineout or scrum exists. That fixes a live stat
+  bug on the way past: `not_straight` carries no `eventData` today, so
+  [rugbyUtils.ts](file:///c:/Fred/Coding/SK/expo-app/components/sports/rugby/rugbyUtils.ts) counts it
+  in `lineoutsTotal` and in neither won nor lost, depressing the success rate. Seed-only fix, no
+  client change. Six law offences are deliberately unrecorded — two of them (19.22, 19.26)
+  only as scrum resets, which makes the resets counter load-bearing.
+
+  **All seven decisions answered (2026-08-18), and the doc now carries a Part 6 spec.** D1: a card
+  is its **own event** with its own reason list, never a linked child of a penalty — the overlap with
+  `penalty_awarded` is accepted as real, with wording kept identical across the two. D2: reasons are
+  split by phase and the phase is the scorer's *first* choice; §4.1 proposes the screen — a 3×3 grid
+  of phase tiles drilling into that phase's options, which is a `DynamicScoringDialog`
+  `REASON_SELECTION` change only, with a fallback to today's flat chips for single-group templates.
+  D3: one phase vocabulary across every template. D4: `line_kick` chains into **nothing** — a lineout
+  is recorded by hand, which makes its new reason list load-bearing rather than redundant. D5:
+  elections are not recorded; the next event shows what was chosen. D6: **there is nothing to
+  migrate** — the ids are being chosen now, so Part 6 fixes them, including a phase prefix on every
+  `penalty_awarded` / `free_kick` reason (`tackle_offside`, `ruck_offside`, …, which closes gap `3.4`
+  by construction) and `penalty_scrum` → `penalty` (gap `3.10`). D7: `specifyPlayer` stays `true`
+  everywhere for now; the cleanup pass comes after the list settles.
+
+  **Four more refinements, 2026-08-19.** The penalty's Administration group is renamed **Technical**
+  (matching the yellow card's), with ids `admin_` → `tech_`. Lineout reason names drop the word
+  "lineout" — "Short throw", "Early jump", "Faking throw", "Leaving early" — since the group and the
+  id prefix already carry the phase; that is now a stated convention, a reason never repeats its
+  phase. The cards go to **one group each**. And `timed_red_card` is **deleted**: in practice a
+  referee shows a yellow and signals a review, so the review lives on `yellow_card` as its outcome —
+  `stands` / `under_review` / `upgraded_timed_red` / `upgraded_red` — with `red_card` gaining
+  `permanent` / `timed` for a red shown directly. `under_review` is a real outcome, not an unset one,
+  so "the TMO is looking at it" cannot be confused with "the scorer has not filled this in". This one
+  is a **server** change as much as a seed change: see `SCORE-13`.
+
+  **Part 6 is the edit.** `penalty_awarded` 40 reasons in 9 groups · `free_kick` 21 in 6 · `scrum` 16
+  in 5 · `lineout` 7 reasons and 4 outcomes · `yellow_card` 9, `red_card` 9, `timed_red_card` 6 ·
+  the three restart templates sharing one 8-outcome list.
+
+  **Three refinements, 2026-08-19.** The tackle drops Off feet, Side entry and Croc roll — all three
+  are offences by a player *arriving* (14.8a–c, 14.8e), so they move to the ruck under a clean rule:
+  the tackle is the two players in it, everyone arriving is the ruck. The maul's scrum cause is
+  `maul_unplayable` ("Ball unplayable") rather than a turnover, which pairs it with `ruck_unplayable`
+  and drops the planned "Open Play Turnover" template rename — the clash it was solving is gone. And
+  every card reason carries `specifyPlayer: true` as a **rule**, not a default: a card is given to a
+  person, so the player step is never skipped, `repeated_offence` and `second_yellow` included. The
+  D7 pass must not switch those off.
+  §6.8 lists what has to happen with it: write the seed, re-sync with `sync_db_rugby_templates.ts`
+  and run `check_rugby_templates.ts` (the prefill contract changes), **verify and reset the stored
+  `game_events` before the new ids ship** — D6 rests on that being safe — add `winnerSide: "other"`
+  to the lineout's non-won outcomes, build the phase picker, then the D7 pass. One open contradiction
+  is left: 21.5 was excluded on the grounds that lineouts need no reason, written before they got
+  one.
+
+- [x] `SCORE-10` **The step bar no longer shows what was chosen.** ~~The deprecated client's stepper rendered the selected value under each step name — "Dangerous Tackle", "3 Resets", the player's number and name — so a scorer could see the whole event at a glance and jump straight back to the wrong one. expo-app's `Tabs` showed only `1. Infringement`.~~ Resolved 2026-08-18. `TabItem` gained an optional `sublabel`, rendered as a muted, one-line-truncated second line in both `Tabs` variants; the scoring dialog fills it from a `screenSummary(screen)` that joins each step's chosen value with `", "`.
+
+  Three of the old client's rules came for free and one was dropped deliberately:
+
+  - **Groups and skipped steps** needed no special case. `getScreens` already unwraps a `GROUP` and drops steps the flow skipped, so joining a screen's `steps` reproduces the old GROUP behaviour exactly.
+  - **Reason and outcome** resolve through `findReason` / `findOutcome` with the same raw-id fallback `getEventLabel` uses, so a renamed option still shows *something*.
+  - **Widgets** no longer hardcode `ScrumResetsCounter`. A registry entry may declare `summarise(value, step)`, returning `undefined` when the value is not worth showing — so an untouched counter stays silent and the step bar never learns what a widget means. This is the honest version the old note asked for; it is the only part of the parked widget-generality item ([Pending Tasks](#pending-tasks)) that was pulled in.
+  - **`displayOverride` is deliberately not used.** The outcome's plain `name` is shown instead. The override exists to make the *feed headline* read well — rugby sets it to `""` for a successful conversion so the card reads "CONVERSION" alone — and reusing it here would have blanked the tab for the button the scorer had just tapped.
+
+  Step-name defaults were already correct in expo-app (`stepLabel`), so only the value line was missing. The old client's 10px/9px sizing is approximated by the design system's `text-xs` / `text-[9px]`.
+
+- [x] `SCORE-12` **The event card printed the raw reason id.** ~~The card's sub-line rendered `eventData.reason.replace(/^(General|Set Piece) - /i, '')` — a leftover from when reasons were stored as display strings like `"General - Knock On"`. Reasons have been snake_case ids since, so the regex stripped nothing and the card read "Reason: early_push", while the title on the same card resolved the same reason properly through `getEventLabel`. On `free_kick`, whose `displayPattern` is `{name} → {reason}`, both appeared at once.~~ Found and fixed 2026-08-18 alongside `SCORE-10`, which needed the same id→name resolution: [EventLogFeed.tsx](file:///c:/Fred/Coding/SK/expo-app/components/sports/shared/EventLogFeed.tsx) now goes through `findReason` and the dead regex is gone.
 
 ### Shared Package & Tooling
 
 - [x] `SHARED-1` **The `@sk/types` package holds far more than types.** ~~`shared/` contains `models/`, `constants/`, `utils/` and `types/`, but `shared/package.json` names the package `@sk/types`, so every import reads `from '@sk/types'` even when pulling in `calculateStandings` or `getScreens`.~~ Resolved 2026-08-15: renamed to `@sk/shared` across `shared/`, `server/` and `expo-app/` — imports, `server/package.json`, `expo-app/tsconfig.json` paths and the `metro.config.js` `resolveRequest` hook. **The deprecated `client/` was deliberately left on `@sk/types`** per [deprecated-client](file:///c:/Fred/Coding/SK/.agent/skills/deprecated-client/SKILL.md); it still resolves through its own `tsconfig` path mapping and its existing `node_modules/@sk/types` symlink, but a fresh `npm install` there would fail. That is accepted — see `SHARED-3` if we ever need it to build again.
+- [ ] `SCORE-13` **The sin bin is written once and never corrected.**
+  [GameEventManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/GameEventManager.ts) appends a
+  `live_state.sinBins` entry when a card event is created and removes it when the event is removed,
+  and nothing in between rewrites it — so editing a card leaves the entry stale. It is latent today
+  because nothing can change what a card *means*: `type` and `durationMS` are derived from the
+  `subType`, which an edit cannot alter. `SCORE-11`'s Part 6 makes it live, because it moves the
+  yellow/20-minute-red distinction onto the card's **outcome** so a yellow can be upgraded after a
+  TMO review — and without an update path the scoreboard would keep counting down 10 minutes for a
+  player who is off for 20 or for good. The fix is to re-derive the entry (`type`, `durationMS`,
+  keeping the original `awardedAtMS`) wherever a card event is mutated, on both the direct-update and
+  consensus-approved paths, which already share the engine.
+
+  Two smaller things in the same code, found 2026-08-19 while checking this:
+
+  - `sinBinEntry.playerId` is set to `data.gameParticipantId` — the *team's* participant row, the
+    same value `teamId` is derived from — not the carded player, who is `actorOrgProfileId`. The
+    `SinBin` interface in [Game.ts](file:///c:/Fred/Coding/SK/shared/src/models/event/Game.ts)
+    documents it as the player. Latent: `SinBinBadge` renders only the clock and the colour, so
+    nothing reads the wrong value yet. Worth fixing when the badge learns to show who is off.
+  - The three `subType === 'timed_red_card'` guards (plus the duration test) all disappear with the
+    template, so this is the moment to collapse the card checks into one helper rather than four
+    copies of the same three-way `||`.
+
 - [ ] `SHARED-3` **The deprecated `client/` cannot be reinstalled from scratch.** Its `package.json` still depends on `"@sk/types": "file:../shared"`, but `shared/package.json` is now named `@sk/shared`, so `npm install` in `client/` errors on the name mismatch. It builds today only off the symlink already on disk. Not worth fixing while the folder is reference-only — the fix, if we want one, is to delete `client/` outright rather than to keep it installable. Second reason to delete it, 2026-08-15: `SCORE-6` moved `outcomes` and `reasons` to template level and re-synced the stored specs, and `client/` still reads them off the step — so it now finds no outcomes or reasons for any rugby template. Agreed at the time to leave it broken rather than update a folder we intend to remove.
 - [ ] `SHARED-2` **No automated guard against raw `template.steps` traversal.** The defence today is design rather than tooling: `flattenSteps` is private to [templateSteps.ts](file:///c:/Fred/Coding/SK/shared/src/utils/templateSteps.ts) so no flat array can circulate, plus a JSDoc note on `ActionStep.steps`. Narrowed 2026-08-15 by `SCORE-6`: with `outcomes` and `reasons` on the template, walking `steps` can no longer give a wrong answer about what an event *means* — the remaining risk is only screen layout, and `getScreens` is the sole legitimate reason to traverse. A `no-restricted-syntax` rule banning `.steps.find(` / `.steps.some(` / `.steps.flatMap(` outside that module would still catch the copy-paste path, but there is no ESLint config or lint script anywhere in the repo, so this means standing up linting first — worth folding in if we ever do, not worth doing for this rule alone.
 

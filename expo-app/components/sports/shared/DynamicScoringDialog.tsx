@@ -5,12 +5,14 @@ import { wsService } from '../../../services/websocket';
 import { RosterGrid } from './ScoringActionButton';
 import { Button } from '../../Button';
 import { Tabs } from '../../Tabs';
-import { WidgetStep } from './widgets';
+import { summariseWidget, WidgetStep } from './widgets';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ActionStep,
   ActionStepType,
   TemplateScreen,
+  findOutcome,
+  findReason,
   findSteps,
   getOutcomes,
   getReasonGroups,
@@ -146,9 +148,60 @@ export function DynamicScoringDialog() {
     }
   };
 
+  /** The chosen player as the roster button spelled them, so the tab and the button agree. */
+  const playerSummary = (): string | undefined => {
+    if (!selectedPlayerId) return undefined;
+    const item = roster.find((entry: any) => (entry.orgProfileId || entry.id) === selectedPlayerId);
+    if (!item) return undefined;
+    const name = item.name || item.orgProfileName || (item.position ? `Player ${item.position}` : 'Player');
+    return `${item.position || '?'}. ${name}`;
+  };
+
+  /**
+   * What the scorer has chosen on a screen, as a short phrase for the step bar — so the whole
+   * event reads at a glance and a wrong answer can be jumped straight back to.
+   *
+   * A screen already has its groups unwrapped and its skipped steps removed, so joining its
+   * steps covers grouped screens (scrum's resets beside won/lost) without special-casing them.
+   * Unanswered steps contribute nothing rather than a placeholder: a tab that says only its own
+   * name is already the plainest way to show it is still empty.
+   */
+  const screenSummary = (screen: TemplateScreen): string | undefined => {
+    const values = screen.steps
+      .map((step) => {
+        switch (step.type) {
+          case ActionStepType.REASON_SELECTION:
+            // Falling back to the stored id keeps a renamed reason visible as *something*, which
+            // is the same choice `getEventLabel` makes for the event feed.
+            return selectedReason
+              ? findReason(template, selectedReason)?.name || selectedReason
+              : undefined;
+          case ActionStepType.PLAYER_SELECTION:
+            return playerSummary();
+          case ActionStepType.OUTCOME_SELECTION:
+            // The outcome's `name`, deliberately not its `displayOverride`. The override exists
+            // to make the feed headline read well — rugby sets it to `''` for a successful
+            // conversion so the card reads "CONVERSION" alone — and reusing it here would blank
+            // the tab for the button the scorer just tapped.
+            return selectedOutcome
+              ? findOutcome(template, selectedOutcome)?.name || selectedOutcome
+              : undefined;
+          case ActionStepType.CUSTOM_WIDGET:
+            // What the value means is the widget's business, not the step bar's.
+            return step.dataKey ? summariseWidget(step, widgetValues[step.dataKey]) : undefined;
+          default:
+            return undefined;
+        }
+      })
+      .filter(Boolean);
+
+    return values.length > 0 ? values.join(', ') : undefined;
+  };
+
   const stepItems = screens.map((screen, index) => ({
     key: index.toString(),
     label: `${index + 1}. ${screen.name || screen.steps.map(stepLabel).join(' & ')}`,
+    sublabel: screenSummary(screen),
   }));
 
   const totalSteps = stepItems.length;
@@ -451,7 +504,7 @@ export function DynamicScoringDialog() {
               {totalSteps > 1 && (
                 <View className="pb-3 pt-1">
                   <Tabs<string>
-                    items={stepItems.map((item) => ({ key: item.key, label: item.label }))}
+                    items={stepItems}
                     activeKey={currentStep.toString()}
                     onChange={(key) => setCurrentStep(parseInt(key, 10))}
                     variant="underline"

@@ -7,6 +7,12 @@ import { COLORS, getThemeColor } from '../constants/Colors';
 export interface TabItem<T extends string = string> {
   key: T;
   label: string;
+  /**
+   * A second line under the label, for tabs that stand for something the user has chosen rather
+   * than somewhere they can go — the scoring stepper shows the reason or player picked on each
+   * step here. Truncated to one line, so keep it to a few words.
+   */
+  sublabel?: string;
   icon?: keyof typeof Ionicons.glyphMap;
   badge?: string | number;
   disabled?: boolean;
@@ -59,13 +65,25 @@ export function Tabs<T extends string = string>({
                   color={isActive ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
                 />
               )}
-              <Text
-                className={`font-inter-bold text-xs ${
-                  isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                {tab.label}
-              </Text>
+              <View className="min-w-0">
+                <Text
+                  className={`font-inter-bold text-xs ${
+                    isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  {tab.label}
+                </Text>
+                {!!tab.sublabel && (
+                  <Text
+                    numberOfLines={1}
+                    className={`font-inter-bold text-[9px] mt-0.5 ${
+                      isActive ? 'text-brand-orange/80' : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {tab.sublabel}
+                  </Text>
+                )}
+              </View>
               {tab.badge !== undefined && (
                 <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-brand-orange' : 'bg-slate-300 dark:bg-slate-700'}`}>
                   <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>
@@ -94,13 +112,25 @@ export function Tabs<T extends string = string>({
                 color={isActive ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
               />
             )}
-            <Text
-              className={`font-inter-bold text-xs text-center ${
-                isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
-              }`}
-            >
-              {tab.label}
-            </Text>
+            <View className="min-w-0 flex-shrink">
+              <Text
+                className={`font-inter-bold text-xs text-center ${
+                  isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                {tab.label}
+              </Text>
+              {!!tab.sublabel && (
+                <Text
+                  numberOfLines={1}
+                  className={`font-inter-bold text-[9px] text-center mt-0.5 ${
+                    isActive ? 'text-brand-orange/80' : 'text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  {tab.sublabel}
+                </Text>
+              )}
+            </View>
             {tab.badge !== undefined && (
               <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-brand-orange/20' : 'bg-slate-200 dark:bg-slate-800'}`}>
                 <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'}`}>

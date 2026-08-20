@@ -2,6 +2,11 @@
 
 This document details all the game events (types and subtypes) that are logged during a Rugby match, along with their associated data structures. Every event records the core information (like `gameId`, `participantId`, `initiatorOrgProfileId`, etc.), but the `type`, `subType`, and `eventData` structures vary uniquely as defined below.
 
+For *why* an event was awarded rather than what it stores, see
+[laws-infringements.md](file:///c:/Fred/Coding/SK/docs/rugby/laws-infringements.md) — a catalogue of
+the infringements in the Laws of the Game and the sanction each carries, written as the reference
+for the `SCORE-11` review of the `reasons` lists.
+
 ## Linked events
 
 Some events spawn a follow-up event that carries `linkedEventId` pointing back at its parent. A

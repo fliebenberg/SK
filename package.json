@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "release": "commit-and-tag-version",
-    "release:push": "npm run release && git push --follow-tags"
+    "release:push": "npm run release && git push --follow-tags",
+    "review:rugby": "node scripts/rugby-review.js"
   },
   "devDependencies": {
     "commit-and-tag-version": "^12.6.1"

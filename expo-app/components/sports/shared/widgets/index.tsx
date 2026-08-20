@@ -21,13 +21,38 @@ export interface WidgetProps {
   onChange: (value: any) => void;
 }
 
+/**
+ * A widget's entry in the registry: the control itself, and optionally how to describe its value
+ * in one short phrase.
+ */
+export interface WidgetEntry {
+  Component: React.ComponentType<WidgetProps>;
+  /**
+   * A few words describing `value` for the scoring dialog's step bar, or `undefined` when there
+   * is nothing worth saying.
+   *
+   * This lives on the widget rather than in the step bar so that reading a value stays the
+   * widget's business, exactly as rendering one is: the dialog asks "describe this" and prints
+   * whatever comes back. Returning `undefined` is how a widget says its value is not worth
+   * showing — an untouched counter should add no noise to the step bar.
+   */
+  summarise?: (value: any, step: ActionStep) => string | undefined;
+}
+
 /** A plain increment/decrement counter, e.g. rugby's scrum resets. */
 function CounterWidget({ step, value, onChange }: WidgetProps) {
   return <CounterStep label={step.name || 'Count'} value={value || 0} onChange={onChange} />;
 }
 
-const WIDGETS: Record<string, React.ComponentType<WidgetProps>> = {
-  ScrumResetsCounter: CounterWidget,
+const WIDGETS: Record<string, WidgetEntry> = {
+  ScrumResetsCounter: {
+    Component: CounterWidget,
+    summarise: (value) => {
+      const count = Number(value) || 0;
+      if (count <= 0) return undefined;
+      return `${count} Reset${count === 1 ? '' : 's'}`;
+    },
+  },
 };
 
 /**
@@ -38,7 +63,7 @@ const WIDGETS: Record<string, React.ComponentType<WidgetProps>> = {
  * nobody finds out until the data is read back.
  */
 export function WidgetStep({ step, value, onChange }: WidgetProps) {
-  const Widget = step.widgetName ? WIDGETS[step.widgetName] : undefined;
+  const Widget = step.widgetName ? WIDGETS[step.widgetName]?.Component : undefined;
 
   if (!Widget) {
     return (
@@ -51,6 +76,16 @@ export function WidgetStep({ step, value, onChange }: WidgetProps) {
   }
 
   return <Widget step={step} value={value} onChange={onChange} />;
+}
+
+/**
+ * A short phrase describing what a widget currently holds, or `undefined` when the widget has
+ * nothing worth showing — including when its name does not resolve, since an unregistered widget
+ * has no one who can say what its value means.
+ */
+export function summariseWidget(step: ActionStep, value: any): string | undefined {
+  const entry = step.widgetName ? WIDGETS[step.widgetName] : undefined;
+  return entry?.summarise?.(value, step);
 }
 
 /** Whether a widget name resolves — for specs that want to check before rendering. */

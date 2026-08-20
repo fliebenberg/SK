@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rugby Infringements — Review</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #fbfcfd;
+    --ink: #16191d;
+    --ink-2: #545c66;
+    --ink-3: #858e99;
+    --line: #e2e6ea;
+    --line-2: #eef1f4;
+    --accent: #1f6feb;
+    --accent-soft: #e8f0fe;
+    --penalty: #b42318;
+    --penalty-bg: #fdeceb;
+    --freekick: #8a5a00;
+    --freekick-bg: #fdf3e0;
+    --scrum: #175cd3;
+    --scrum-bg: #e8f1fe;
+    --choice: #6941c6;
+    --choice-bg: #f2ecfd;
+    --gap: #b42318;
+    --gap-bg: #fdeceb;
+    --have: #067647;
+    --have-bg: #e7f6ee;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216;
+      --panel: #171b21;
+      --panel-2: #1c2129;
+      --ink: #e8ecf1;
+      --ink-2: #a3adba;
+      --ink-3: #78828f;
+      --line: #272d36;
+      --line-2: #212730;
+      --accent: #58a6ff;
+      --accent-soft: #16273f;
+      --penalty: #ff9c92;
+      --penalty-bg: #351a18;
+      --freekick: #f0c26a;
+      --freekick-bg: #33270f;
+      --scrum: #86b7fe;
+      --scrum-bg: #14243d;
+      --choice: #c4aaff;
+      --choice-bg: #251c3a;
+      --gap: #ff9c92;
+      --gap-bg: #351a18;
+      --have: #6ed3a2;
+      --have-bg: #102a1e;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  code {
+    font: 12.5px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    background: var(--line-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  a { color: var(--accent); }
+
+  /* ---- header ---- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 20px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -.01em; white-space: nowrap; }
+  header .sub { color: var(--ink-3); font-size: 12.5px; white-space: nowrap; }
+  .spacer { flex: 1 1 auto; }
+  .search {
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 7px;
+    padding: 6px 10px; font-size: 13px; min-width: 210px;
+  }
+  .search:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; color: var(--ink-2);
+    border: 1px solid var(--line); border-radius: 7px;
+    padding: 6px 10px; cursor: pointer; background: var(--panel-2);
+    user-select: none; white-space: nowrap;
+  }
+  .toggle[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  #status {
+    font-size: 12.5px; color: var(--ink-3);
+    padding: 6px 10px; border-radius: 7px; white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  #status.saving { color: var(--freekick); }
+  #status.saved  { color: var(--have); }
+  #status.error  { color: var(--penalty); background: var(--gap-bg); border-color: currentColor; }
+
+  /* ---- layout ---- */
+  .wrap { display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 26px; padding: 22px 20px 120px; max-width: 1320px; margin: 0 auto; align-items: start; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { display: none; } }
+
+  nav.toc { position: sticky; top: 66px; max-height: calc(100vh - 90px); overflow: auto; font-size: 13px; }
+  nav.toc .part { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); margin: 16px 0 6px; font-weight: 650; }
+  nav.toc a { display: flex; justify-content: space-between; gap: 8px; text-decoration: none; color: var(--ink-2); padding: 4px 8px; border-radius: 6px; }
+  nav.toc a:hover { background: var(--line-2); color: var(--ink); }
+  nav.toc a .n { color: var(--ink-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  nav.toc a .n.has { color: var(--accent); font-weight: 700; }
+
+  /* ---- content ---- */
+  .intro { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 18px 14px; margin-bottom: 22px; box-shadow: var(--shadow); }
+  .intro summary { cursor: pointer; padding: 12px 0; font-weight: 600; font-size: 13.5px; color: var(--ink-2); }
+  .intro p, .intro li { color: var(--ink-2); font-size: 13.5px; }
+  .intro h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 16px 0 6px; }
+  .intro .kv { display: grid; grid-template-columns: 130px minmax(0,1fr); gap: 10px; padding: 5px 0; border-top: 1px solid var(--line-2); font-size: 13px; color: var(--ink-2); }
+  .intro .kv span:first-child { color: var(--ink); font-weight: 600; }
+
+  section.grp { margin-bottom: 30px; scroll-margin-top: 72px; }
+  section.grp > h2 { font-size: 16.5px; margin: 0 0 3px; font-weight: 650; letter-spacing: -.01em; }
+  section.grp > .partlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 650; margin-bottom: 10px; }
+  .note { background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 8px; padding: 2px 14px; margin: 0 0 12px; color: var(--ink-2); font-size: 13.5px; }
+
+  .item { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 9px; box-shadow: var(--shadow); }
+  .item.commented { border-color: var(--accent); }
+  .item .t { font-weight: 570; margin-bottom: 7px; letter-spacing: -.005em; }
+  .item .body p { margin: 6px 0; color: var(--ink-2); font-size: 13.5px; }
+  .item .body ul { margin: 6px 0; padding-left: 20px; color: var(--ink-2); font-size: 13.5px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+  .chip { font-size: 11.5px; line-height: 1.35; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-2); }
+  .chip b { font-weight: 650; color: var(--ink-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; margin-right: 4px; }
+  .chip code { background: none; border: none; padding: 0; font-size: 11.5px; }
+  .chip.penalty  { background: var(--penalty-bg);  border-color: transparent; color: var(--penalty);  font-weight: 600; }
+  .chip.freekick { background: var(--freekick-bg); border-color: transparent; color: var(--freekick); font-weight: 600; }
+  .chip.scrumc   { background: var(--scrum-bg);    border-color: transparent; color: var(--scrum);    font-weight: 600; }
+  .chip.choice   { background: var(--choice-bg);   border-color: transparent; color: var(--choice);   font-weight: 600; }
+  .chip.gap      { background: var(--gap-bg);      border-color: transparent; color: var(--gap);      font-weight: 650; }
+  .chip.have     { background: var(--have-bg);     border-color: transparent; color: var(--have);     font-weight: 600; }
+
+  textarea {
+    width: 100%; display: block; resize: vertical;
+    background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 7px;
+    padding: 8px 10px; font: inherit; font-size: 13.5px;
+    min-height: 38px; overflow: hidden;
+  }
+  textarea::placeholder { color: var(--ink-3); }
+  textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); background: var(--panel); }
+  .hidden { display: none !important; }
+  .empty { color: var(--ink-3); font-size: 13.5px; padding: 30px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Rugby Infringements</h1>
+  <span class="sub" id="counts"></span>
+  <span class="spacer"></span>
+  <input class="search" id="q" type="search" placeholder="Filter rows…" autocomplete="off">
+  <button class="toggle" id="fGap" aria-pressed="false">Gaps only</button>
+  <button class="toggle" id="fCom" aria-pressed="false">Commented only</button>
+  <span id="status">Ready</span>
+</header>
+
+<div class="wrap">
+  <nav class="toc" id="toc"></nav>
+  <main id="main"></main>
+</div>
+
+<script>
+const DATA = "__REVIEW_DATA__";
+const comments = Object.assign({}, DATA.comments || {});
+const main = document.getElementById('main');
+const toc = document.getElementById('toc');
+const statusEl = document.getElementById('status');
+
+const el = (tag, cls, html) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (html != null) n.innerHTML = html;
+  return n;
+};
+
+// A sanction is the field that decides which template a reason belongs on, so it gets the colour.
+function sanctionClass(v) {
+  const t = v.toLowerCase();
+  if (t.includes('choice')) return 'choice';
+  if (t.includes('free kick') || t.includes('free-kick')) return 'freekick';
+  if (t.includes('penalty')) return 'penalty';
+  if (t.includes('scrum') || t.includes('drop-out') || t.includes('lineout')) return 'scrumc';
+  return '';
+}
+
+function chipFor(m) {
+  const key = m.key.toLowerCase();
+  const isGap = m.text === '—' || m.text === '-';
+  if (key === 'today') {
+    return isGap
+      ? '<span class="chip gap">not in template</span>'
+      : '<span class="chip have"><b>today</b>' + m.value + '</span>';
+  }
+  if (key === 'sanction') {
+    const c = sanctionClass(m.text);
+    return '<span class="chip ' + c + '">' + m.value + '</span>';
+  }
+  if (key === 'player?') {
+    return '<span class="chip"><b>player</b>' + m.value + '</span>';
+  }
+  return '<span class="chip"><b>' + m.key + '</b>' + m.value + '</span>';
+}
+
+const autosize = (ta) => { ta.style.height = 'auto'; ta.style.height = Math.max(38, ta.scrollHeight + 2) + 'px'; };
+
+let items = [];
+
+DATA.doc.groups.forEach((g) => {
+  const sec = el('section', 'grp');
+  sec.id = g.id;
+  if (g.part) sec.appendChild(el('div', 'partlabel', g.part));
+  sec.appendChild(el('h2', null, g.name));
+  (g.notes || []).forEach((n) => sec.appendChild(el('div', 'note', n)));
+
+  g.items.forEach((it) => {
+    const card = el('div', 'item');
+    card.appendChild(el('div', 't', it.title));
+    if (it.meta && it.meta.length) {
+      card.appendChild(el('div', 'chips', it.meta.map(chipFor).join('')));
+    }
+    if (it.html) card.appendChild(el('div', 'body', it.html));
+
+    const ta = document.createElement('textarea');
+    ta.placeholder = 'Comment…';
+    ta.value = comments[it.id] || '';
+    ta.addEventListener('input', () => {
+      comments[it.id] = ta.value;
+      card.classList.toggle('commented', !!ta.value.trim());
+      autosize(ta);
+      refreshCounts();
+      queueSave();
+    });
+    card.appendChild(ta);
+    card.classList.toggle('commented', !!ta.value.trim());
+    sec.appendChild(card);
+
+    const isGap = (it.meta || []).some((m) => m.key.toLowerCase() === 'today' && (m.text === '—' || m.text === '-'));
+    items.push({
+      id: it.id, card, ta, isGap,
+      hay: (it.text + ' ' + (it.meta || []).map((m) => m.text).join(' ') + ' ' + it.html).toLowerCase(),
+      group: g.id
+    });
+  });
+
+  main.appendChild(sec);
+});
+
+// Intro is context rather than something to comment on, so it collapses out of the way.
+if (DATA.doc.intro) {
+  const d = el('details', 'intro');
+  d.appendChild(el('summary', null, 'About this document — provenance, accuracy caveats, how to read the rows'));
+  d.appendChild(el('div', null, DATA.doc.intro));
+  main.insertBefore(d, main.firstChild);
+}
+
+items.forEach((i) => autosize(i.ta));
+
+// ---- table of contents ----
+let lastPart = null;
+DATA.doc.groups.forEach((g) => {
+  if (g.part !== lastPart) { toc.appendChild(el('div', 'part', g.part || '')); lastPart = g.part; }
+  const a = el('a');
+  a.href = '#' + g.id;
+  a.innerHTML = '<span>' + g.name + '</span><span class="n" data-g="' + g.id + '">0</span>';
+  toc.appendChild(a);
+});
+
+function refreshCounts() {
+  const n = items.filter((i) => (comments[i.id] || '').trim()).length;
+  document.getElementById('counts').textContent =
+    n + ' of ' + items.length + ' commented · ' + items.filter((i) => i.isGap).length + ' gaps';
+  toc.querySelectorAll('.n').forEach((s) => {
+    const c = items.filter((i) => i.group === s.dataset.g && (comments[i.id] || '').trim()).length;
+    s.textContent = c || '';
+    s.classList.toggle('has', c > 0);
+  });
+}
+
+// ---- filtering ----
+const q = document.getElementById('q');
+const fGap = document.getElementById('fGap');
+const fCom = document.getElementById('fCom');
+[fGap, fCom].forEach((b) => b.addEventListener('click', () => {
+  b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+  applyFilter();
+}));
+q.addEventListener('input', applyFilter);
+
+function applyFilter() {
+  const term = q.value.trim().toLowerCase();
+  const gapOnly = fGap.getAttribute('aria-pressed') === 'true';
+  const comOnly = fCom.getAttribute('aria-pressed') === 'true';
+  items.forEach((i) => {
+    const ok = (!term || i.hay.includes(term)) &&
+               (!gapOnly || i.isGap) &&
+               (!comOnly || (comments[i.id] || '').trim());
+    i.card.classList.toggle('hidden', !ok);
+  });
+  document.querySelectorAll('section.grp').forEach((s) => {
+    const any = s.querySelector('.item:not(.hidden)');
+    s.classList.toggle('hidden', !any);
+  });
+}
+
+// ---- autosave ----
+let timer = null, inflight = false, dirty = false;
+function queueSave() {
+  dirty = true;
+  statusEl.textContent = 'Unsaved…';
+  statusEl.className = 'saving';
+  clearTimeout(timer);
+  timer = setTimeout(save, 600);
+}
+async function save() {
+  if (inflight) { queueSave(); return; }
+  inflight = true; dirty = false;
+  statusEl.textContent = 'Saving…';
+  statusEl.className = 'saving';
+  try {
+    const r = await fetch('/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(comments)
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'save failed');
+    statusEl.textContent = 'Saved · ' + j.count;
+    statusEl.className = 'saved';
+  } catch (e) {
+    statusEl.textContent = 'NOT SAVED — is the server still running?';
+    statusEl.className = 'error';
+  } finally {
+    inflight = false;
+    if (dirty) queueSave();
+  }
+}
+addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); clearTimeout(timer); save(); }
+});
+addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+refreshCounts();
+</script>
+</body>
+</html>

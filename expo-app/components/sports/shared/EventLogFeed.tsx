@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
-import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction, getOutcomes, getTriggerFor } from '@sk/shared';
+import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction, findReason, getOutcomes, getTriggerFor } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
 import { useOptionalSharedDynamicScoring, useSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -368,6 +368,12 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
               const playerOffName = eventData.playerOffName || (eventData.playerOffProfileId ? profileMap[eventData.playerOffProfileId] : null);
               const playerOnName = eventData.playerOnName || (eventData.playerOnProfileId ? profileMap[eventData.playerOnProfileId] : null);
 
+              // The stored reason is an id (`early_push`), so it goes through the template the same
+              // way the title does — printing it raw showed the scorer an implementation detail.
+              const reasonLabel = eventData.reason
+                ? findReason(template, eventData.reason)?.name || eventData.reason
+                : undefined;
+
               // Missing Details & Conversion / Linked action checks
               const participantRoster = evt.gameParticipantId ? rosters[evt.gameParticipantId] : undefined;
               const missingDetails = canManage && !isDisputed && !isLockedByOtherScorer ? getMissingDetails(evt, template, participantRoster) : [];
@@ -450,14 +456,14 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                           </Text>
                         ) : (
                           <>
-                            {eventData.reason && evt.type !== 'SCORE' && (
+                            {reasonLabel && evt.type !== 'SCORE' && (
                               <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-                                Reason: {eventData.reason.replace(/^(General|Set Piece) - /i, '')}
+                                Reason: {reasonLabel}
                               </Text>
                             )}
                             {actorName && (
                               <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-300">
-                                {eventData.reason && evt.type !== 'SCORE' ? '• ' : ''}
+                                {reasonLabel && evt.type !== 'SCORE' ? '• ' : ''}
                                 {actorName}
                               </Text>
                             )}

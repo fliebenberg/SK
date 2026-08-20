@@ -171,6 +171,12 @@ stored field name survives the widget being swapped out. An unregistered `widget
 explicit error rather than falling back to another control — a spec asking for a stopwatch and
 silently getting a counter records the wrong number.
 
+A registry entry may also declare `summarise(value, step)`, returning a few words describing the
+value for the scoring dialog's step bar, or `undefined` when there is nothing worth showing — an
+untouched counter adds no noise. This keeps *reading* a widget's value the widget's business, just
+as rendering it is: the step bar asks "describe this" and prints whatever comes back, so it never
+learns that `scrumResets` means resets.
+
 ### Triggered follow-up events
 
 An outcome (or a whole template) may spawn a linked follow-up event via `triggerEventId`. The
