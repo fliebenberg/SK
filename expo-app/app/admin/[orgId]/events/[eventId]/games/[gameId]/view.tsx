@@ -15,6 +15,7 @@ import { useAuthStore } from '../../../../../../../store/authStore';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { EventLogFeed } from '../../../../../../../components/sports/shared/EventLogFeed';
+import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
 
 export default function ViewGame() {
   const router = useRouter();
@@ -272,7 +273,10 @@ export default function ViewGame() {
 
         {/* LIVE EVENT FEED */}
         <View className="h-[360px] mb-6">
-          <EventLogFeed gameId={game.id} game={game} canManage={false} />
+          {/* The feed reads its events, rosters and sport from the shared scoring context */}
+          <DynamicScoringProvider game={game}>
+            <EventLogFeed gameId={game.id} game={game} canManage={false} />
+          </DynamicScoringProvider>
         </View>
       </ScrollView>
     </SafeAreaView>

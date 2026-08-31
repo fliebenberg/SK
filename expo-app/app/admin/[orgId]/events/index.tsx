@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
@@ -9,11 +9,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
-import { useWsStore } from '../../../../store/wsStore';
 import { useAuthStore } from '../../../../store/authStore';
-import { SocketAction, Event, Game, Sport, Site } from '@sk/shared';
+import { SocketAction, Event, Site, Facility, GameSummary, participantLabel, hasLiveScore } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
+import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 
 class EventsErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -56,18 +56,10 @@ export default function OrgEventsList() {
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore((state: any) => state.isConnected);
 
   const user = useAuthStore((state: any) => state.user);
   const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships);
-
-  // Data States
-  const [isLoading, setIsLoading] = useState(true);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [games, setGames] = useState<Game[]>([]);
-  const [sports, setSports] = useState<Sport[]>([]);
-  const [sites, setSites] = useState<Site[]>([]);
 
   // UI States
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,73 +68,83 @@ export default function OrgEventsList() {
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Load Data & Subscribe to socket updates
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
+  /**
+   * One room holds an org's whole fixture list: the events, and a summary of
+   * every game under them. Joining it pushes both, so there is no `get_data`
+   * here at all - the subscription IS the load, and every later change arrives
+   * carrying its own data rather than as a nudge to re-read the list.
+   *
+   * The room's audience is the hosting org plus every org playing in it, so a
+   * visiting school sees the same live fixture the host does.
+   */
+  const fixturesRoom = orgId ? `org:${orgId}:events` : null;
 
-    let active = true;
-    setIsLoading(true);
-
-    const loadData = () => {
-      wsService.emit('get_data', { type: 'events', orgId }, (res: any) => {
-        if (!active) return;
-        console.log('[OrgEventsList] Fetched events count:', Array.isArray(res) ? res.length : 0);
-        if (Array.isArray(res)) setEvents(res);
-      });
-
-      wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
-        if (!active) return;
-        console.log('[OrgEventsList] Fetched games count:', Array.isArray(res) ? res.length : 0);
-        if (Array.isArray(res)) setGames(res);
-        setIsLoading(false);
-      });
-
-      wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-        if (!active) return;
-        if (Array.isArray(res)) setSports(res);
-      });
-
-      wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-        if (!active) return;
-        if (Array.isArray(res)) setSites(res);
-      });
-    };
-
-    loadData();
-
-    // Subscribe to event updates for this organization
-    const eventsRoom = `org:${orgId}:events`;
-    const gamesRoom = `org:${orgId}:games`;
-    const unsubEvents = wsService.subscribeToRoom(eventsRoom);
-    const unsubGames = wsService.subscribeToRoom(gamesRoom);
-
-    const handleUpdate = (eventPayload: any) => {
-      if (!active) return;
-      if (eventPayload) {
-        if (eventPayload.type.startsWith('EVENT') || eventPayload.type === 'EVENTS_SYNC') {
-          wsService.emit('get_data', { type: 'events', orgId }, (res: any) => {
-            if (!active) return;
-            if (Array.isArray(res)) setEvents(res);
-          });
-        }
-        if (eventPayload.type.startsWith('GAME') || eventPayload.type === 'GAMES_SYNC') {
-          wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
-            if (!active) return;
-            if (Array.isArray(res)) setGames(res);
-          });
-        }
+  const { items: events, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(fixturesRoom, {
+    reduce: (message) => {
+      switch (message.type) {
+        case 'EVENTS_SYNC':
+          return { kind: 'replace', items: message.data || [] };
+        case 'EVENT_ADDED':
+        case 'EVENT_UPDATED':
+          return { kind: 'upsert', item: message.data };
+        case 'EVENT_DELETED':
+          return { kind: 'remove', id: message.data?.id };
+        default:
+          return { kind: 'ignore' };
       }
-    };
+    },
+  });
 
-    wsService.on('update', handleUpdate);
+  const { items: gameSummaries, isLoading: gamesLoading } = useLiveRoom<GameSummary>(fixturesRoom, {
+    reduce: (message) => {
+      switch (message.type) {
+        case 'GAME_SUMMARIES_SYNC':
+          return { kind: 'replace', items: message.data || [] };
+        case 'GAME_SUMMARY_UPDATED':
+          return { kind: 'upsert', item: message.data };
+        case 'GAME_SUMMARY_REMOVED':
+          return { kind: 'remove', id: message.data?.id };
+        default:
+          return { kind: 'ignore' };
+      }
+    },
+  });
 
-    return () => {
-      active = false;
-      unsubEvents();
-      unsubGames();
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, orgId]);
+  const isLoading = eventsLoading || gamesLoading;
+
+  // Venue names are the one thing a fixture summary does not carry, since a
+  // site and facility are the org's own reference data rather than the game's.
+  const { items: sites } = useLiveRoom<Site>(orgId ? `org:${orgId}:sites` : null, {
+    reduce: (message) => {
+      switch (message.type) {
+        case 'SITES_SYNC':
+          return { kind: 'replace', items: message.data || [] };
+        case 'SITE_ADDED':
+        case 'SITE_UPDATED':
+          return { kind: 'upsert', item: message.data };
+        case 'SITE_DELETED':
+          return { kind: 'remove', id: message.data?.id };
+        default:
+          return { kind: 'ignore' };
+      }
+    },
+  });
+
+  const { items: facilities } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
+    reduce: (message) => {
+      switch (message.type) {
+        case 'FACILITIES_SYNC':
+          return { kind: 'replace', items: message.data || [] };
+        case 'FACILITY_ADDED':
+        case 'FACILITY_UPDATED':
+          return { kind: 'upsert', item: message.data };
+        case 'FACILITY_DELETED':
+          return { kind: 'remove', id: message.data?.id };
+        default:
+          return { kind: 'ignore' };
+      }
+    },
+  });
 
   // Handle Deleting an Event
   const handleDeleteEvent = async () => {
@@ -163,19 +165,68 @@ export default function OrgEventsList() {
     }
   };
 
+  /**
+   * A fixture's teams, straight off the summary the server published. The
+   * summary carries each participant's team name and org short name, so this
+   * needs no teams or organizations lookup of its own - and cannot go stale
+   * while the screen is open, because a rename republishes the summary.
+   */
+  const getMatchupLabel = (game?: GameSummary): string | undefined => {
+    if (!game) return undefined;
+    const home = participantLabel(game.participants?.[0]);
+    const away = participantLabel(game.participants?.[1]);
+    if (!home && !away) return undefined;
+    return `${home || 'TBD'} vs ${away || 'TBD'}`;
+  };
+
+  /** "12 - 7", in the same participant order as the matchup line. */
+  const getScoreLabel = (game?: GameSummary): string | undefined => {
+    if (!game || !hasLiveScore(game)) return undefined;
+    const [home, away] = game.participants || [];
+    if (!home || !away) return undefined;
+    return `${game.scores?.[home.id] ?? 0} - ${game.scores?.[away.id] ?? 0}`;
+  };
+
+  // "<site> · <facility>", dropping whichever half we cannot resolve
+  const getVenueLabel = (siteId?: string, facilityId?: string): string | undefined => {
+    const site = sites.find(s => s.id === siteId)?.name;
+    const facility = facilities.find(f => f.id === facilityId)?.name;
+    const parts = [site, facility].filter(Boolean);
+    return parts.length ? parts.join(' · ') : undefined;
+  };
+
+  // Date (and kick-off time, where the game carries one) shown on the card's top line
+  const getWhenLabel = (event: Event, game?: GameSummary): string => {
+    const gameTime = game?.scheduledStartTime || game?.startTime;
+    const iso = gameTime || event?.startDate;
+    if (!iso) return 'Date TBD';
+
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) return 'Date TBD';
+
+    const dateLabel = date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Multi-day events (sports days, tournaments) read as a range rather than a kick-off
+    if (!gameTime && event?.endDate) {
+      const endDate = new Date(event.endDate);
+      if (!isNaN(endDate.getTime()) && endDate.toDateString() !== date.toDateString()) {
+        return `${dateLabel} – ${endDate.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}`;
+      }
+    }
+
+    if (!gameTime) return dateLabel;
+    if (game?.timeTbd) return `${dateLabel} · TBD`;
+    return `${dateLabel} · ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
   // Helper to determine display name for event
   const getEventName = (event: Event) => {
     if (!event) return 'Unnamed Event';
-    if (event.name) return event.name;
 
-    const eventGames = (games || []).filter(g => g && g.eventId === event.id);
+    const eventGames = (gameSummaries || []).filter(g => g && g.eventId === event.id);
     if (event.type === 'SingleMatch' && eventGames.length === 1) {
-      const game = eventGames[0];
-      const p1 = game?.participants?.[0]?.teamId;
-      const p2 = game?.participants?.[1]?.teamId;
-      if (p1 && p2) {
-        return `Game: ${p1} vs ${p2}`;
-      }
+      const matchup = getMatchupLabel(eventGames[0]);
+      if (matchup) return matchup;
     }
     return event.name || 'Unnamed Event';
   };
@@ -184,8 +235,10 @@ export default function OrgEventsList() {
   const filteredEvents = (events || [])
     .filter(e => {
       if (!e) return false;
-      const name = getEventName(e).toLowerCase();
-      const matchesSearch = searchQuery ? name.includes(searchQuery.toLowerCase()) : true;
+      // A single match now displays its resolved matchup rather than its stored name,
+      // so search has to cover both or a custom name becomes unfindable.
+      const haystack = `${getEventName(e)} ${e.name || ''}`.toLowerCase();
+      const matchesSearch = searchQuery ? haystack.includes(searchQuery.toLowerCase()) : true;
       if (!matchesSearch) return false;
 
       if (!e.startDate) {
@@ -315,13 +368,24 @@ export default function OrgEventsList() {
           </View>
         ) : (
           <EventsErrorBoundary>
-            <View className="space-y-4">
+            <View className="space-y-3">
               {filteredEvents.map(event => {
-                const eventGames = (games || []).filter(g => g && g.eventId === event.id);
+                const eventGames = (gameSummaries || []).filter(g => g && g.eventId === event.id);
                 const isSportsDay = event.type === 'SportsDay';
                 const isTournament = event.type === 'Tournament';
                 const isContainer = isSportsDay || isTournament;
                 const isEventOwner = event.orgId === orgId;
+
+                // An event fully described by one game borrows that game's kick-off time and
+                // venue, and needs no separate details block repeating them below the card.
+                const primaryGame = !isContainer && eventGames.length === 1 ? eventGames[0] : undefined;
+                const whenLabel = getWhenLabel(event, primaryGame);
+                const scoreLabel = getScoreLabel(primaryGame);
+                const isLive = primaryGame?.status === 'Live';
+                const venueLabel = getVenueLabel(
+                  primaryGame?.siteId || event.siteId,
+                  primaryGame?.facilityId || event.facilityId
+                );
 
                 return (
                 <TouchableOpacity
@@ -335,9 +399,36 @@ export default function OrgEventsList() {
                   }}
                   activeOpacity={0.85}
                 >
-                  <GlassCard className="border border-slate-200 dark:border-white/5 p-5 relative">
-                    {/* Right-Aligned Compact Actions */}
-                    <View className="absolute right-4 top-4 flex-row items-center gap-1.5 z-10">
+                  <GlassCard className="border border-slate-200 dark:border-white/5 p-4">
+                    {/* TOP LINE: when -> type -> status -> actions */}
+                    <View className="flex-row items-center gap-2 mb-2">
+                      <Text
+                        numberOfLines={1}
+                        className="font-inter-bold text-[11px] text-slate-600 dark:text-slate-400 flex-shrink"
+                      >
+                        {whenLabel}
+                      </Text>
+                      <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-md flex-shrink-0">
+                        <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">
+                          {event.type === 'SingleMatch' ? 'Single Match' : event.type === 'SportsDay' ? 'Sports Day' : 'Tournament'}
+                        </Text>
+                      </View>
+                      {isLive && (
+                        <View className="bg-brand-orange/15 px-2 py-0.5 rounded-md flex-shrink-0">
+                          <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-widest">
+                            Live
+                          </Text>
+                        </View>
+                      )}
+                      {event.status === 'Cancelled' && (
+                        <View className="bg-red-500/10 px-2 py-0.5 rounded-md flex-shrink-0">
+                          <Text className="font-inter-bold text-[9px] text-brand-red uppercase tracking-widest">
+                            Cancelled
+                          </Text>
+                        </View>
+                      )}
+                      <View className="flex-1" />
+                      <View className="flex-row items-center gap-1.5 flex-shrink-0">
                       {event.type === 'SingleMatch' && eventGames.length > 0 ? (() => {
                         const singleGame = eventGames[0];
                         const perms = getMatchPermissions({
@@ -405,59 +496,50 @@ export default function OrgEventsList() {
                           <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
                         </TouchableOpacity>
                       )}
-                    </View>
-
-                    <View className="flex-row items-center gap-2 mb-2 pr-12">
-                      <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-md">
-                        <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                          {event.type === 'SingleMatch' ? 'Single Match' : event.type === 'SportsDay' ? 'Sports Day' : 'Tournament'}
-                        </Text>
                       </View>
-                      {event.status === 'Cancelled' && (
-                        <View className="bg-red-500/10 px-2 py-0.5 rounded-md">
-                          <Text className="font-inter-bold text-[9px] text-brand-red uppercase tracking-widest">
-                            Cancelled
-                          </Text>
-                        </View>
-                      )}
                     </View>
 
-                    <View className="pr-12">
-                      <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white mb-2 leading-tight">
+                    {/* MAIN LINE: "A vs B" on the left, where it is played on the right */}
+                    <View className="flex-row items-center justify-between gap-3">
+                      <Text
+                        numberOfLines={1}
+                        className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight flex-1"
+                      >
                         {getEventName(event)}
                       </Text>
-                    </View>
-
-                    <View className="flex-row items-center gap-6 mt-2">
-                      <View className="flex-row items-center gap-1.5">
-                        <Ionicons name="calendar-outline" size={13} color={COLORS.dark.textSecondary} />
-                        <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                          {event.startDate ? event.startDate.split('T')[0] : 'TBD'}
+                      {scoreLabel ? (
+                        <Text
+                          className={`font-orbitron-bold text-sm flex-shrink-0 ${isLive ? 'text-brand-orange' : 'text-slate-800 dark:text-white'}`}
+                        >
+                          {scoreLabel}
                         </Text>
-                      </View>
-                      {event.siteId && (
-                        <View className="flex-row items-center gap-1.5">
-                          <Ionicons name="location-outline" size={13} color={COLORS.dark.textSecondary} />
-                          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                            {sites.find(s => s.id === event.siteId)?.name || 'Multi-site'}
+                      ) : null}
+                      {venueLabel ? (
+                        <View className="flex-row items-center gap-1 flex-shrink-0 max-w-[45%]">
+                          <Ionicons name="location-outline" size={12} color={COLORS.dark.textSecondary} />
+                          <Text
+                            numberOfLines={1}
+                            className="font-inter text-[11px] text-slate-600 dark:text-slate-400 flex-shrink"
+                          >
+                            {venueLabel}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
                     </View>
 
-                    {/* Render Nested Game Summaries */}
-                    {eventGames.length > 0 && (
-                      <View className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 space-y-2">
+                    {/* Nested game summaries - only where the header line does not already say it all */}
+                    {!primaryGame && eventGames.length > 0 && (
+                      <View className="mt-3 pt-3 border-t border-slate-100 dark:border-white/5 space-y-2">
                         <Text className="font-orbitron text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
-                          {isContainer ? `${eventGames.length} Scheduled Games` : 'Game Details'}
+                          {eventGames.length} Scheduled Games
                         </Text>
                         {eventGames.slice(0, 3).map(game => (
                           <View key={game.id} className="flex-row justify-between items-center bg-slate-50 dark:bg-white/5 p-2 rounded-lg">
                             <Text className="font-inter text-[11px] text-slate-800 dark:text-white flex-1" numberOfLines={1}>
-                              {game.participants?.[0]?.teamId || 'TBD'} vs {game.participants?.[1]?.teamId || 'TBD'}
+                              {getMatchupLabel(game) || 'TBD vs TBD'}
                             </Text>
                             <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 pl-2">
-                              {game.status}
+                              {getScoreLabel(game) || game.status}
                             </Text>
                           </View>
                         ))}
@@ -473,7 +555,18 @@ export default function OrgEventsList() {
               );
               })}
 
-              {filteredEvents.length === 0 && (
+              {/* An empty list and no permission to see one are different answers. */}
+              {accessDenied ? (
+                <View className="items-center justify-center py-16">
+                  <Ionicons name="lock-closed-outline" size={48} color={COLORS.dark.textSecondary} style={{ opacity: 0.3, marginBottom: 12 }} />
+                  <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
+                    No Access
+                  </Text>
+                  <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+                    You do not have permission to view this organization's fixtures.
+                  </Text>
+                </View>
+              ) : filteredEvents.length === 0 && (
                 <View className="items-center justify-center py-16">
                   <Ionicons name="calendar-outline" size={48} color={COLORS.dark.textSecondary} style={{ opacity: 0.3, marginBottom: 12 }} />
                   <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">

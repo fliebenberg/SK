@@ -11,7 +11,7 @@ export const RUGBY_SEED_SPEC = {
   timerShowHours: false,
   defaultSettings: {
     periodLengthMS: 40 * 60 * 1000,
-    periods: 2,
+    scheduledPeriods: 2,
     maxReserves: 8,
     positions: [
       { id: "1", name: "Loosehead Prop" },
@@ -32,8 +32,20 @@ export const RUGBY_SEED_SPEC = {
     ],
     yellowCardDurationMS: 600000,
     redCardDurationMS: 1200000,
-    allowTimedRedCard: false
+    // On from 2026-08-19 so the 20-minute red is exercisable: a yellow upgraded to
+    // `upgraded_timed_red`, or a direct red with outcome `timed`, puts the player off for
+    // `redCardDurationMS` and lets the team replace them. With this false the server degrades both
+    // to a permanent red, which is the community-rugby behaviour a competition can still opt into.
+    allowTimedRedCard: true
   },
+  // The panels the control room stacks, in order. `Scoring` is the section that moves the
+  // scoreboard; the rest are recorded for the log and the stats screens.
+  eventSections: [
+    { id: "Scoring", name: "Scoring Events", affectsScore: true },
+    { id: "Game Events", name: "Game Events" },
+    { id: "Infringements", name: "Infringement Events" },
+    { id: "Stats", name: "Stats Events" }
+  ],
   eventTemplates: [
     {
       id: "try",
@@ -134,11 +146,17 @@ export const RUGBY_SEED_SPEC = {
       section: "Game Events",
       icon: "Play",
       displayPattern: "{name} → {outcome}",
+      // The three restart templates share one outcome list: the laws treat a kick-off and a
+      // drop-out the same way, and a scorer should not have to learn two.
       outcomes: [
         { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
         { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
         { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } },
-        { id: "long", name: "Long", variant: "danger", eventData: { successful: false } }
+        { id: "too_long", name: "Too Long", displayOverride: "LONG", variant: "danger", eventData: { successful: false } },
+        { id: "not_a_drop", name: "Not a Drop", variant: "danger", eventData: { successful: false } },
+        { id: "wrong_place", name: "Wrong Place", variant: "danger", eventData: { successful: false } },
+        { id: "in_front_of_ball", name: "In Front of Ball", variant: "danger", eventData: { successful: false } },
+        { id: "other", name: "Other", variant: "warning", eventData: { successful: false } }
       ],
       steps: [
         { type: ActionStepType.PLAYER_SELECTION },
@@ -151,10 +169,17 @@ export const RUGBY_SEED_SPEC = {
       section: "Game Events",
       icon: "ArrowUpRight",
       displayPattern: "{name} → {outcome}",
+      // The three restart templates share one outcome list: the laws treat a kick-off and a
+      // drop-out the same way, and a scorer should not have to learn two.
       outcomes: [
         { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
         { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
-        { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
+        { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } },
+        { id: "too_long", name: "Too Long", displayOverride: "LONG", variant: "danger", eventData: { successful: false } },
+        { id: "not_a_drop", name: "Not a Drop", variant: "danger", eventData: { successful: false } },
+        { id: "wrong_place", name: "Wrong Place", variant: "danger", eventData: { successful: false } },
+        { id: "in_front_of_ball", name: "In Front of Ball", variant: "danger", eventData: { successful: false } },
+        { id: "other", name: "Other", variant: "warning", eventData: { successful: false } }
       ],
       steps: [
         { type: ActionStepType.PLAYER_SELECTION },
@@ -167,10 +192,17 @@ export const RUGBY_SEED_SPEC = {
       section: "Game Events",
       icon: "ArrowUp",
       displayPattern: "{name} → {outcome}",
+      // The three restart templates share one outcome list: the laws treat a kick-off and a
+      // drop-out the same way, and a scorer should not have to learn two.
       outcomes: [
         { id: "successful", name: "Successful", displayOverride: "", variant: "success", eventData: { successful: true } },
         { id: "directly_out", name: "Directly Out", displayOverride: "OUT", variant: "danger", eventData: { successful: false } },
-        { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } }
+        { id: "too_short", name: "Too Short", displayOverride: "SHORT", variant: "danger", eventData: { successful: false } },
+        { id: "too_long", name: "Too Long", displayOverride: "LONG", variant: "danger", eventData: { successful: false } },
+        { id: "not_a_drop", name: "Not a Drop", variant: "danger", eventData: { successful: false } },
+        { id: "wrong_place", name: "Wrong Place", variant: "danger", eventData: { successful: false } },
+        { id: "in_front_of_ball", name: "In Front of Ball", variant: "danger", eventData: { successful: false } },
+        { id: "other", name: "Other", variant: "warning", eventData: { successful: false } }
       ],
       steps: [
         { type: ActionStepType.PLAYER_SELECTION },
@@ -181,44 +213,100 @@ export const RUGBY_SEED_SPEC = {
       id: "penalty_awarded",
       name: "Penalty Against",
       mobileLabel: "Penalty Against",
-      section: "Game Events",
+      section: "Infringements",
       icon: "AlertTriangle",
       displayPattern: "PENALTY → {outcome}",
       // `specifyPlayer: false` marks the infringements committed by a unit rather than a person —
       // a collapsed scrum has no individual offender — and drops the player prompt for them.
+      // Grouped by phase (D3), and every id is prefixed with its phase (D6): reason ids must be
+      // unique within a template and "offside" happens in five of them, so `tackle_offside` and
+      // `scrum_offside` are different offences rather than one shared id that loses the phase.
+      // Group order is how often the phase occurs, not the alphabet — it is the picker's order.
+      // `specifyPlayer` is true throughout for now (D7); the cleanup pass narrows it later.
       reasons: [
         {
           name: "Tackle",
           options: [
-            { id: "dangerous_tackle", name: "Dangerous Tackle", specifyPlayer: true },
-            { id: "late_tackle", name: "Late Tackle", specifyPlayer: true }
+            { id: "tackle_dangerous", name: "Dangerous Tackle", specifyPlayer: true },
+            { id: "tackle_no_ball", name: "Tackle Without Ball", specifyPlayer: true },
+            { id: "tackle_in_air", name: "Tackle in the Air", specifyPlayer: true },
+            { id: "tackle_tip", name: "Tip Tackle", specifyPlayer: true },
+            { id: "tackle_tackler_not_releasing", name: "Tackler Not Releasing", specifyPlayer: true },
+            { id: "tackle_tackler_not_rolling", name: "Tackler Not Rolling Away", specifyPlayer: true },
+            { id: "tackle_not_releasing", name: "Not Releasing the Ball", specifyPlayer: true },
+            { id: "tackle_on_ground", name: "Playing on the Ground", specifyPlayer: true },
+            { id: "tackle_offside", name: "Offside", specifyPlayer: true },
+            { id: "tackle_other", name: "Other", specifyPlayer: true }
           ]
         },
         {
           name: "Ruck",
           options: [
-            { id: "not_releasing", name: "Not Releasing", specifyPlayer: true },
-            { id: "not_rolling", name: "Not Rolling", specifyPlayer: true },
-            { id: "hands_in_ruck", name: "Hands in Ruck", specifyPlayer: true },
-            { id: "side_entry", name: "Side Entry", specifyPlayer: true },
-            { id: "off_feet", name: "Off Feet", specifyPlayer: true }
+            { id: "ruck_illegal_entry", name: "Illegal Entry", specifyPlayer: true },
+            { id: "ruck_offside", name: "Offside", specifyPlayer: true },
+            { id: "ruck_hands_in", name: "Hands in Ruck", specifyPlayer: true },
+            { id: "ruck_off_feet", name: "Off Feet", specifyPlayer: true },
+            { id: "ruck_collapsing", name: "Collapsing", specifyPlayer: true },
+            { id: "ruck_dangerous_play", name: "Dangerous Play", specifyPlayer: true },
+            { id: "ruck_other", name: "Other", specifyPlayer: true }
           ]
         },
         {
-          name: "Set Piece",
+          name: "Scrum",
           options: [
-            { id: "collapsing_scrum", name: "Collapsing Scrum", specifyPlayer: false },
-            { id: "scrum_other", name: "Scrum Other", specifyPlayer: false },
-            { id: "lineout_foul", name: "Lineout Foul", specifyPlayer: false }
+            { id: "scrum_illegal_binding", name: "Illegal Binding", specifyPlayer: true },
+            { id: "scrum_illegal_scrumming", name: "Illegal Scrumming", specifyPlayer: true },
+            { id: "scrum_collapsing", name: "Collapsing Scrum", specifyPlayer: true },
+            { id: "scrum_offside", name: "Offside", specifyPlayer: true },
+            { id: "scrum_other", name: "Other", specifyPlayer: true }
           ]
         },
         {
-          name: "General",
+          name: "Lineout",
           options: [
-            { id: "offside", name: "Offside", specifyPlayer: true },
-            { id: "obstruction", name: "Obstruction", specifyPlayer: true },
-            { id: "professional_foul", name: "Professional Foul", specifyPlayer: true },
-            { id: "other", name: "Other", specifyPlayer: false }
+            { id: "lineout_contact", name: "Contact", specifyPlayer: true },
+            { id: "lineout_infringing_jumper", name: "Infringing Jumper", specifyPlayer: true },
+            { id: "lineout_leaving_early", name: "Leaving Early", specifyPlayer: true },
+            { id: "lineout_other", name: "Other", specifyPlayer: true }
+          ]
+        },
+        {
+          name: "Maul",
+          options: [
+            { id: "maul_offside", name: "Offside", specifyPlayer: true },
+            { id: "maul_illegal_entry", name: "Illegal Entry", specifyPlayer: true },
+            { id: "maul_collapsing", name: "Collapsing", specifyPlayer: true },
+            { id: "maul_obstruction", name: "Obstruction", specifyPlayer: true },
+            { id: "maul_other", name: "Other", specifyPlayer: true }
+          ]
+        },
+        {
+          name: "Open Play",
+          options: [
+            { id: "open_knock_down", name: "Knock Down", specifyPlayer: true },
+            { id: "open_offside", name: "Offside", specifyPlayer: true },
+            { id: "open_obstruction", name: "Obstruction", specifyPlayer: true },
+            { id: "open_professional_foul", name: "Professional Foul", specifyPlayer: true },
+            { id: "open_other", name: "Other", specifyPlayer: true }
+          ]
+        },
+        {
+          name: "Restart",
+          options: [
+            { id: "restart_wasting_time", name: "Wasting Time", specifyPlayer: true }
+          ]
+        },
+        {
+          name: "In-goal",
+          options: [
+            { id: "ingoal_double_movement", name: "Double Movement", specifyPlayer: true },
+            { id: "ingoal_other", name: "Other", specifyPlayer: true }
+          ]
+        },
+        {
+          name: "Technical",
+          options: [
+            { id: "tech_not_10m_back", name: "Not 10m Back", specifyPlayer: true }
           ]
         }
       ],
@@ -229,7 +317,7 @@ export const RUGBY_SEED_SPEC = {
         // infringement the scorer picked.
         { id: "penalty_kick", name: "Penalty Kick", variant: "primary", triggerEventId: "penalty_kick", triggerTeam: "opponent" },
         { id: "line_kick", name: "Line Kick", variant: "primary", triggerEventId: "line_kick", triggerTeam: "opponent" },
-        { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", triggerTeam: "opponent", triggerEventData: { reason: "penalty_scrum" } },
+        { id: "scrum", name: "Scrum", variant: "warning", triggerEventId: "scrum", triggerTeam: "opponent", triggerEventData: { reason: "penalty" } },
         { id: "tap_go", name: "Tap n Go", variant: "success" }
       ],
       steps: [
@@ -242,38 +330,63 @@ export const RUGBY_SEED_SPEC = {
       id: "free_kick",
       name: "Free Kick Against",
       mobileLabel: "Free Kick Against",
-      section: "Game Events",
+      section: "Infringements",
       icon: "Zap",
       displayPattern: "{name} → {reason}",
       // Nearly every free kick is against the scrum or lineout as a unit; only Mark and Kicking
       // ball away name an individual, so the player prompt appears for those two alone.
+      // Same phase vocabulary and the same prefixes as `penalty_awarded` (D3): an offence has one
+      // id whichever sanction it drew, and the template says which sanction that was.
       reasons: [
         {
           name: "Scrum",
           options: [
-            { id: "early_push", name: "Early Push", specifyPlayer: false },
-            { id: "delaying_feed", name: "Delaying the Feed", specifyPlayer: false },
-            { id: "pre_engagement", name: "Pre-engagement", specifyPlayer: false },
-            { id: "illegal_feed", name: "Illegal Feed", specifyPlayer: false }
+            { id: "scrum_illegal_scrumming", name: "Illegal Scrumming", specifyPlayer: true },
+            { id: "scrum_illegal_feed", name: "Illegal Feed", specifyPlayer: true },
+            { id: "scrum_foot_up", name: "Foot Up", specifyPlayer: true },
+            { id: "scrum_wasting_time", name: "Wasting Time", specifyPlayer: true },
+            { id: "scrum_other", name: "Other", specifyPlayer: true }
           ]
         },
         {
           name: "Lineout",
           options: [
-            { id: "closing_gap", name: "Closing the Gap", specifyPlayer: false },
-            { id: "delaying_lineout", name: "Delaying the Lineout", specifyPlayer: false },
-            { id: "early_lift", name: "Early Lift", specifyPlayer: false },
-            { id: "too_many_players", name: "Too Many Players", specifyPlayer: false },
-            { id: "faking_throw", name: "Faking a Throw", specifyPlayer: false }
+            { id: "lineout_not_5m", name: "Not 5m", specifyPlayer: true },
+            { id: "lineout_closing_gap", name: "Closing the Gap", specifyPlayer: true },
+            { id: "lineout_player_numbers", name: "Player Numbers", specifyPlayer: true },
+            { id: "lineout_early_jump", name: "Early Jump", specifyPlayer: true },
+            { id: "lineout_short_throw", name: "Short Throw", specifyPlayer: true },
+            { id: "lineout_faking_throw", name: "Faking Throw", specifyPlayer: true },
+            { id: "lineout_dangerous_jump", name: "Dangerous Jump", specifyPlayer: true },
+            { id: "lineout_wasting_time", name: "Wasting Time", specifyPlayer: true },
+            { id: "lineout_other", name: "Other", specifyPlayer: true }
           ]
         },
         {
-          name: "General",
+          name: "Ruck",
           options: [
-            { id: "mark", name: "Mark", specifyPlayer: true },
-            { id: "wasting_time", name: "Wasting Time", specifyPlayer: false },
-            { id: "kicking_ball_away", name: "Kicking ball away", specifyPlayer: true },
-            { id: "other", name: "Other", specifyPlayer: false }
+            { id: "ruck_other", name: "Other", specifyPlayer: true }
+          ]
+        },
+        {
+          name: "Maul",
+          options: [
+            { id: "maul_illegal_entry", name: "Illegal Entry", specifyPlayer: true },
+            { id: "maul_other", name: "Other", specifyPlayer: true }
+          ]
+        },
+        {
+          name: "Open Play",
+          options: [
+            { id: "open_mark", name: "Mark", specifyPlayer: true },
+            { id: "open_wasting_time", name: "Wasting Time", specifyPlayer: true },
+            { id: "open_other", name: "Other", specifyPlayer: true }
+          ]
+        },
+        {
+          name: "Restart",
+          options: [
+            { id: "restart_wasting_time", name: "Wasting Time", specifyPlayer: true }
           ]
         }
       ],
@@ -292,7 +405,7 @@ export const RUGBY_SEED_SPEC = {
     {
       id: "scrum",
       name: "Scrum",
-      section: "General Play",
+      section: "Game Events",
       icon: "Users",
       displayPattern: "{name} → {outcome}",
       // A scrum is awarded for something, and that something is often the event that chained into
@@ -301,15 +414,47 @@ export const RUGBY_SEED_SPEC = {
       // silently breaks the prefill, which `check_rugby_templates.ts` warns about.
       reasons: [
         {
-          name: "Infringement",
+          name: "Open Play",
           options: [
             { id: "knock_on", name: "Knock-on" },
             { id: "forward_pass", name: "Forward Pass" },
+            { id: "accidental_offside", name: "Accidental Offside" }
+          ]
+        },
+        {
+          name: "Breakdown",
+          options: [
+            { id: "ruck_unplayable", name: "Ruck Unplayable" },
+            { id: "maul_unplayable", name: "Maul Unplayable" }
+          ]
+        },
+        {
+          name: "Lineout",
+          options: [
+            { id: "lineout_not_straight", name: "Not Straight" },
+            { id: "lineout_short_throw", name: "Short Throw" },
+            { id: "lineout_quick_throw", name: "Quick Throw" }
+          ]
+        },
+        {
+          name: "In-goal",
+          options: [
             { id: "held_up", name: "Held Up" },
-            { id: "unplayable", name: "Unplayable" },
-            { id: "accidental_offside", name: "Accidental Offside" },
-            { id: "penalty_scrum", name: "Penalty" },
-            { id: "free_kick", name: "Free Kick" }
+            { id: "carried_back", name: "Carried Back" },
+            { id: "dead_ball", name: "Dead Ball" }
+          ]
+        },
+        {
+          name: "Sanction",
+          options: [
+            // `penalty` and `free_kick` are the prefilled ones: `penalty_awarded` and `free_kick`
+            // name them in `triggerEventData`, so renaming either breaks the prefill silently —
+            // `check_rugby_templates.ts` is the guard.
+            { id: "penalty", name: "Penalty" },
+            { id: "free_kick", name: "Free Kick" },
+            { id: "restart_offence", name: "Restart Offence" },
+            { id: "tech_offside", name: "Offside at the Kick" },
+            { id: "tech_other", name: "Other" }
           ]
         }
       ],
@@ -338,142 +483,173 @@ export const RUGBY_SEED_SPEC = {
     {
       id: "lineout",
       name: "Lineout",
-      section: "General Play",
+      section: "Game Events",
       icon: "ArrowUp",
       displayPattern: "{name} → {outcome}",
+      // Nothing prefills these: `line_kick` deliberately chains into nothing (D4), so a lineout is
+      // recorded by hand and its reason is the only record of what put it on the field.
+      reasons: [
+        {
+          name: "Open Play",
+          options: [
+            { id: "out", name: "Out" }
+          ]
+        },
+        {
+          name: "Sanction",
+          options: [
+            { id: "penalty", name: "Penalty" },
+            { id: "free_kick", name: "Free Kick" },
+            { id: "restart_offence", name: "Restart Offence" }
+          ]
+        },
+        {
+          name: "Lineout",
+          options: [
+            { id: "not_straight", name: "Not Straight" },
+            { id: "short_throw", name: "Short Throw" },
+            { id: "quick_throw", name: "Quick Throw" }
+          ]
+        }
+      ],
+      // Every outcome but `won` carries `winnerSide: "other"`: anything that hands the next throw
+      // to the opposition is a loss, which is what `lineoutsWon` counts. An outcome with no
+      // `winnerSide` would land in the total and in neither column.
       outcomes: [
         { id: "won", name: "Won", variant: "success", eventData: { winnerSide: "same" } },
         { id: "lost", name: "Lost", variant: "danger", eventData: { winnerSide: "other" } },
-        { id: "not_straight", name: "Not Straight", variant: "warning" }
+        { id: "not_straight", name: "Not Straight", variant: "warning", eventData: { winnerSide: "other" } },
+        { id: "short_throw", name: "Short Throw", variant: "warning", eventData: { winnerSide: "other" } }
       ],
       steps: [
+        { type: ActionStepType.REASON_SELECTION },
         { type: ActionStepType.OUTCOME_SELECTION }
       ]
     },
     {
       id: "yellow_card",
       name: "Yellow Card",
-      section: "Game Events",
+      section: "Infringements",
       icon: "AlertTriangle",
-      displayPattern: "{name}",
+      displayPattern: "{name} → {outcome}",
+      // How a 20-minute red actually happens: the referee shows a yellow and signals it for review,
+      // and the TMO either confirms it or upgrades it. So the review is this card's *outcome*
+      // rather than a separate template — a third card button would have made the upgrade
+      // unrecordable, since the scorer would have had to delete the yellow and create something
+      // else, losing the fact that a review happened at all.
+      //
+      // `under_review` is a real outcome, not an unset one: "the TMO is looking at it" and "the
+      // scorer has not filled this in" must not read the same in the feed.
+      outcomes: [
+        { id: "stands", name: "Yellow", displayOverride: "", variant: "warning" },
+        { id: "under_review", name: "Under Review", displayOverride: "REVIEW", variant: "primary" },
+        { id: "upgraded_timed_red", name: "Upgraded — 20-min Red", displayOverride: "20-MIN RED", variant: "danger" },
+        { id: "upgraded_red", name: "Upgraded — Red", displayOverride: "RED", variant: "danger" }
+      ],
+      disputeConfig: {
+        type: TemplateDisputeType.CHANGE_OUTCOME,
+        heading: "Change Card Outcome"
+      },
+      // One group: nine reasons do not need dividing, and a card is always given to a person, so
+      // every option specifies a player — including `repeated_offence`, where the offence is the
+      // team's but the card still goes to somebody.
       reasons: [
         {
           name: "Foul Play",
           options: [
-            { id: "high_tackle", name: "High Tackle" },
-            { id: "dangerous_play", name: "Dangerous Play" },
-            { id: "professional_foul", name: "Professional Foul" },
-            { id: "cynical_foul", name: "Cynical Foul" }
-          ]
-        },
-        {
-          name: "Technical",
-          options: [
-            { id: "repeated_infringements", name: "Repeated Infringements" },
-            { id: "offside", name: "Offside" },
-            { id: "other", name: "Other" }
+            { id: "dangerous_tackle", name: "Dangerous Tackle", specifyPlayer: true },
+            { id: "tip_tackle", name: "Tip Tackle", specifyPlayer: true },
+            { id: "tackle_in_air", name: "Tackle in the Air", specifyPlayer: true },
+            { id: "croc_roll", name: "Croc Roll", specifyPlayer: true },
+            { id: "dangerous_play", name: "Dangerous Play", specifyPlayer: true },
+            { id: "professional_foul", name: "Professional Foul", specifyPlayer: true },
+            { id: "repeated_offence", name: "Repeated Offence", specifyPlayer: true },
+            { id: "offside", name: "Offside", specifyPlayer: true },
+            { id: "other", name: "Other", specifyPlayer: true }
           ]
         }
       ],
       steps: [
         { type: ActionStepType.PLAYER_SELECTION },
-        { type: ActionStepType.REASON_SELECTION }
+        { type: ActionStepType.REASON_SELECTION },
+        { type: ActionStepType.OUTCOME_SELECTION }
       ]
     },
     {
       id: "red_card",
       name: "Red Card",
-      section: "Game Events",
+      section: "Infringements",
       icon: "XCircle",
-      displayPattern: "{name}",
+      displayPattern: "{name} → {outcome}",
+      // A red shown on the field without a yellow first. The 20-minute variant is an outcome here
+      // too, so the old `timed_red_card` template is gone: the server reads the outcome, and
+      // degrades `timed` to permanent when the competition has not enabled `allowTimedRedCard`.
+      outcomes: [
+        { id: "permanent", name: "Red", displayOverride: "", variant: "danger" },
+        { id: "timed", name: "20-min Red", displayOverride: "20-MIN", variant: "danger" }
+      ],
+      disputeConfig: {
+        type: TemplateDisputeType.CHANGE_OUTCOME,
+        heading: "Change Card Outcome"
+      },
       reasons: [
         {
           name: "Serious Foul Play",
           options: [
-            { id: "punching_striking", name: "Punching/Striking" },
-            { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
-            { id: "tip_tackle", name: "Tip Tackle" },
-            { id: "stamp_kick", name: "Stamp/Kick" },
-            { id: "second_yellow", name: "Second Yellow Card" }
+            { id: "punching_striking", name: "Punching/Striking", specifyPlayer: true },
+            { id: "stamping_kicking", name: "Stamping/Kicking", specifyPlayer: true },
+            { id: "biting_eye_contact", name: "Biting/Eye Contact", specifyPlayer: true },
+            { id: "retaliation", name: "Retaliation", specifyPlayer: true },
+            { id: "dangerous_tackle", name: "Dangerous Tackle", specifyPlayer: true },
+            { id: "tip_tackle", name: "Tip Tackle", specifyPlayer: true },
+            { id: "dangerous_play", name: "Dangerous Play", specifyPlayer: true },
+            // A second yellow is never a 20-minute red — it is the one reason that fixes the
+            // outcome to `permanent`.
+            { id: "second_yellow", name: "Second Yellow Card", specifyPlayer: true },
+            { id: "other", name: "Other", specifyPlayer: true }
           ]
         }
       ],
       steps: [
         { type: ActionStepType.PLAYER_SELECTION },
-        { type: ActionStepType.REASON_SELECTION }
-      ]
-    },
-    {
-      id: "timed_red_card",
-      name: "Timed Red Card",
-      section: "Game Events",
-      icon: "Clock",
-      displayPattern: "{name}",
-      reasons: [
-        {
-          name: "Serious Foul Play (Timed)",
-          options: [
-            { id: "dangerous_high_tackle", name: "Dangerous High Tackle" },
-            { id: "tip_tackle", name: "Tip Tackle" },
-            { id: "other", name: "Other" }
-          ]
-        }
-      ],
-      steps: [
-        { type: ActionStepType.PLAYER_SELECTION },
-        { type: ActionStepType.REASON_SELECTION }
+        { type: ActionStepType.REASON_SELECTION },
+        { type: ActionStepType.OUTCOME_SELECTION }
       ]
     },
     {
       id: "knock_on",
       name: "Knock-on",
-      section: "General Play",
+      section: "Stats",
       icon: "Hand",
       displayPattern: "{name}",
-      outcomes: [{ id: "confirmed", name: "Confirmed" }],
-      steps: [
-        { type: ActionStepType.PLAYER_SELECTION },
-        { type: ActionStepType.OUTCOME_SELECTION }
-      ]
+      steps: [{ type: ActionStepType.PLAYER_SELECTION }]
     },
     {
       id: "turnover",
       name: "Turnover Won",
       mobileLabel: "Turnover",
-      section: "General Play",
+      section: "Stats",
       icon: "RotateCw",
       displayPattern: "{name}",
-      outcomes: [{ id: "confirmed", name: "Confirmed" }],
-      steps: [
-        { type: ActionStepType.PLAYER_SELECTION },
-        { type: ActionStepType.OUTCOME_SELECTION }
-      ]
+      steps: [{ type: ActionStepType.PLAYER_SELECTION }]
     },
     {
       id: "tackle_made",
       name: "Tackle Made",
       mobileLabel: "Tackle",
-      section: "General Play",
+      section: "Stats",
       icon: "Zap",
       displayPattern: "{name}",
-      outcomes: [{ id: "confirmed", name: "Confirmed" }],
-      steps: [
-        { type: ActionStepType.PLAYER_SELECTION },
-        { type: ActionStepType.OUTCOME_SELECTION }
-      ]
+      steps: [{ type: ActionStepType.PLAYER_SELECTION }]
     },
     {
       id: "tackle_missed",
       name: "Tackle Missed",
       mobileLabel: "Missed Tackle",
-      section: "General Play",
+      section: "Stats",
       icon: "X",
       displayPattern: "{name}",
-      outcomes: [{ id: "confirmed", name: "Confirmed" }],
-      steps: [
-        { type: ActionStepType.PLAYER_SELECTION },
-        { type: ActionStepType.OUTCOME_SELECTION }
-      ]
+      steps: [{ type: ActionStepType.PLAYER_SELECTION }]
     },
     {
       id: "line_kick",

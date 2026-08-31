@@ -67,6 +67,8 @@ export function DynamicScoringDialog() {
   } = useSharedDynamicScoring();
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>(undefined);
   const [selectedReason, setSelectedReason] = useState<string | undefined>(undefined);
+  /** Which reason group the picker has drilled into, or undefined while the phase grid is up. */
+  const [openReasonGroup, setOpenReasonGroup] = useState<string | undefined>(undefined);
   const [selectedOutcome, setSelectedOutcome] = useState<string | undefined>(undefined);
   /** Widget values, keyed by each `CUSTOM_WIDGET` step's `dataKey`. */
   const [widgetValues, setWidgetValues] = useState<Record<string, any>>({});
@@ -96,6 +98,21 @@ export function DynamicScoringDialog() {
   const activeScreen: TemplateScreen | undefined = screens[currentStep];
 
   const reasonGroups = getReasonGroups(template);
+
+  /** The group a reason belongs to. Reason ids repeat names across phases — five phases have an
+   *  "Offside" — so the group is what tells them apart on screen and in the step bar. */
+  const groupNameFor = (reasonId?: string): string | undefined =>
+    reasonId
+      ? reasonGroups.find((g) => g.options.some((o) => o.id === reasonId || o.name === reasonId))?.name
+      : undefined;
+
+  // A long list grouped by phase is faster to work through as two taps than as one scroll: pick
+  // the phase, then pick from that phase's handful. Templates with a single group, or few enough
+  // options to take in at a glance, keep the flat list — drilling into a five-option list would
+  // be a tap for nothing.
+  const reasonOptionCount = reasonGroups.reduce((n, g) => n + g.options.length, 0);
+  const usePhasePicker = reasonGroups.length > 1 && reasonOptionCount > 8;
+  const openGroup = reasonGroups.find((g) => g.name === openReasonGroup);
 
   const outcomes: OutcomeOption[] = getOutcomes(template).map((o) => ({
     id: o.id,
@@ -140,7 +157,9 @@ export function DynamicScoringDialog() {
       case ActionStepType.PLAYER_SELECTION:
         return 'Player';
       case ActionStepType.REASON_SELECTION:
-        return 'Infringement';
+        // "Reason", not "Infringement": the same step captures why a scrum was set or which
+        // restart was elected, and neither is an offence.
+        return 'Reason';
       case ActionStepType.OUTCOME_SELECTION:
         return isNextActionStep ? 'Next Action' : 'Outcome';
       default:
@@ -173,9 +192,10 @@ export function DynamicScoringDialog() {
           case ActionStepType.REASON_SELECTION:
             // Falling back to the stored id keeps a renamed reason visible as *something*, which
             // is the same choice `getEventLabel` makes for the event feed.
-            return selectedReason
-              ? findReason(template, selectedReason)?.name || selectedReason
-              : undefined;
+            if (!selectedReason) return undefined;
+            const reasonLabel = findReason(template, selectedReason)?.name || selectedReason;
+            const phase = usePhasePicker ? groupNameFor(selectedReason) : undefined;
+            return phase ? `${phase} · ${reasonLabel}` : reasonLabel;
           case ActionStepType.PLAYER_SELECTION:
             return playerSummary();
           case ActionStepType.OUTCOME_SELECTION:
@@ -212,6 +232,14 @@ export function DynamicScoringDialog() {
       const init = scoringState.initialData || {};
       setSelectedPlayerId(init.playerId || init.actorOrgProfileId);
       setSelectedReason(init.reason);
+      // Editing an event opens straight on its reason's phase; a new one opens on the grid.
+      setOpenReasonGroup(
+        init.reason
+          ? getReasonGroups(template).find((g) =>
+              g.options.some((o) => o.id === init.reason || o.name === init.reason)
+            )?.name
+          : undefined
+      );
       setSelectedOutcome(init.outcome);
       setWidgetValues(
         Object.fromEntries(
@@ -355,10 +383,110 @@ export function DynamicScoringDialog() {
         );
 
       case ActionStepType.REASON_SELECTION:
+        if (usePhasePicker && !openGroup) {
+          // Level one: the phases, as a grid of large targets with their option counts. The count
+          // is not decoration — it says whether the next screen holds ten options or one.
+          return (
+            <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
+              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
+                Where did it happen? {suffix(step)}
+              </Text>
+
+              <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
+                <View className="flex-row flex-wrap gap-2">
+                  {reasonGroups.map((group) => {
+                    const holdsSelection = group.options.some(
+                      (o) => o.id === selectedReason || o.name === selectedReason
+                    );
+                    return (
+                      <TouchableOpacity
+                        key={group.name}
+                        onPress={() => setOpenReasonGroup(group.name)}
+                        style={{ width: '31.5%' }}
+                        className={`items-center justify-center py-4 rounded-xl border ${
+                          holdsSelection
+                            ? 'bg-brand-orange border-brand-orange'
+                            : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                        }`}
+                      >
+                        <Text
+                          className={`font-orbitron-bold text-[11px] uppercase text-center ${
+                            holdsSelection ? 'text-white' : 'text-slate-800 dark:text-white'
+                          }`}
+                          numberOfLines={2}
+                        >
+                          {group.name}
+                        </Text>
+                        <Text
+                          className={`font-inter-bold text-[10px] mt-1 ${
+                            holdsSelection ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {group.options.length}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          );
+        }
+
+        if (usePhasePicker && openGroup) {
+          // Level two: one phase's options as full-width rows. Rows rather than wrapped chips, so
+          // every option is the same size and the same distance from the thumb.
+          return (
+            <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
+              <View className="flex-row items-center justify-between flex-shrink-0">
+                <TouchableOpacity
+                  onPress={() => setOpenReasonGroup(undefined)}
+                  className="flex-row items-center gap-1 py-1 pr-2"
+                >
+                  <Ionicons name="chevron-back" size={14} color={COLORS.brand.orange} />
+                  <Text className="font-inter-bold text-xs text-brand-orange uppercase tracking-wider">
+                    All Phases
+                  </Text>
+                </TouchableOpacity>
+                <Text className="font-orbitron-bold text-[11px] uppercase text-slate-700 dark:text-slate-300 tracking-widest">
+                  {openGroup.name}
+                </Text>
+              </View>
+
+              <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>
+                <View className="gap-1.5">
+                  {openGroup.options.map((rOpt) => {
+                    const isSelected = selectedReason === rOpt.id || selectedReason === rOpt.name;
+                    return (
+                      <TouchableOpacity
+                        key={rOpt.id}
+                        onPress={() => setSelectedReason(rOpt.id)}
+                        className={`px-3 py-3 rounded-xl border ${
+                          isSelected
+                            ? 'bg-brand-orange border-brand-orange'
+                            : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                        }`}
+                      >
+                        <Text
+                          className={`font-inter-bold text-xs ${
+                            isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+                          }`}
+                        >
+                          {rOpt.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          );
+        }
+
         return (
           <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
             <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
-              Select Infringement / Detail {suffix(step)}:
+              Select Reason {suffix(step)}:
             </Text>
 
             <ScrollView style={{ maxHeight: maxScrollHeight }} className="my-1" showsVerticalScrollIndicator={true}>

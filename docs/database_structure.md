@@ -43,6 +43,7 @@ Metadata for supported sports.
 - `participant_type` (TEXT): 'TEAM' or 'INDIVIDUAL'.
 - `match_topology` (TEXT): 'HEAD_TO_HEAD' or 'MULTI_COMPETITOR'.
 - `default_settings` (JSONB): Contains rules, periods, positions, event types, match resolution logic.
+- `event_sections` (JSONB): The scoring panels this sport stacks, in order — `[{ id, name, affectsScore? }]`. A template's `section` names one by `id`; `affectsScore` is what decides whether recording it moves the scoreboard.
 - `facility_term` (TEXT): Term used for the sport's facility (e.g., 'Field', 'Court').
 
 ### 2c. `sport_presets`

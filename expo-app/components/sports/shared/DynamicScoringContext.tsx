@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, findOutcome, getTriggerFor, hasOutcomes, reasonRequiresPlayer, TriggerTeam } from '@sk/shared';
+import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, captureEventLabels, findOutcome, getTriggerFor, hasOutcomes, isScoringTemplate, reasonRequiresPlayer, TriggerTeam } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
@@ -34,11 +34,21 @@ const resolveOrgProfileId = (game: Game): string | null => {
   return null;
 };
 
+/**
+ * The `section` a template names, matching the `id` of one of the sport's `eventSections`.
+ *
+ * This was a fixed union of four panel names, with `Scoring` carrying the extra meaning "this
+ * event changes the score". Both are per-sport data now: the sport declares its sections and
+ * which of them affect the score, so a section is just an id here and
+ * {@link isScoringTemplate} answers the scoring question.
+ */
+export type ScoringSection = string;
+
 export interface EventTemplateItem {
   id: string;
   name: string;
   mobileLabel?: string;
-  section: 'Scoring' | 'Game Events' | 'General Play';
+  section: ScoringSection;
   points?: number;
   steps?: any[];
   triggerEventId?: string;
@@ -512,12 +522,12 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     if (selectedOutcomeObj && selectedOutcomeObj.points !== undefined) {
       points = selectedOutcomeObj.points;
     } else if (isOutcomeDriven && (!eventPayload?.outcome || eventPayload?.outcome === 'missed')) {
-      if (template?.section === 'Scoring' || (template?.points && template.points > 0)) {
+      if (isScoringTemplate(sport, template)) {
         points = 0;
       }
     }
 
-    const isScoring = template?.section === 'Scoring' || (template?.points && template.points > 0);
+    const isScoring = isScoringTemplate(sport, template);
     const isPending = isScoring && isOutcomeDriven && !eventPayload?.outcome;
 
     // Whose event a triggered follow-up is belongs to the template: a try's conversion is taken
@@ -550,7 +560,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
 
     const { playerId: _, ...cleanEventPayload } = eventPayload || {};
 
-    const eventData = {
+    const capturedData = {
       elapsedMS: getLiveElapsedMS(game.liveState?.clock),
       period: currentPeriodLabel,
       ...initialData,
@@ -559,6 +569,15 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       points,
       pointsDelta: points,
       pending: isPending,
+    };
+
+    // The words the scorer saw are stored alongside the ids they chose, so this row reads the
+    // same in a year's time whatever happens to the template afterwards. `templateName` and
+    // friends are merged last so an edit that clears the outcome clears its label too, rather
+    // than leaving the previous one behind.
+    const eventData = {
+      ...capturedData,
+      ...captureEventLabels(template, capturedData),
     };
 
     if (scoringState.editingId) {
@@ -635,7 +654,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       const payload = {
         gameId: game.id,
         gameParticipantId: participant?.id,
-        type: template?.section === 'Scoring' ? 'SCORE' : 'GAME_EVENT',
+        type: isScoringTemplate(sport, template) ? 'SCORE' : 'GAME_EVENT',
         subType: scoringState.templateId,
         actorOrgProfileId,
         initiatorOrgProfileId: initiatorId,

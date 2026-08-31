@@ -1,4 +1,4 @@
-import { Event, Game, GameParticipant, GameClockState, GameEvent, AddGamePayload, UpdateGamePayload } from "@sk/shared";
+import { Event, Game, GameParticipant, GameClockState, GameEvent, GameSummary, AddGamePayload, UpdateGamePayload } from "@sk/shared";
 import { getPeriodLabel } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
@@ -7,6 +7,76 @@ import { sportManager } from "./SportManager";
 export class EventManager extends BaseManager {
   private EVENT_COLUMNS = 'id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id) as "participatingOrgIds", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
   private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'name\', t.name, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p LEFT JOIN teams t ON t.id = p.team_id WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
+
+  /**
+   * The summary projection: what a fixtures list, match card or scoreboard
+   * header needs, and nothing more. Narrower than `GAME_COLUMNS` on purpose —
+   * it takes only `scores`, `clock` and `periodLabel` out of `live_state`,
+   * leaving sin bins and the `final_score_data` blob behind, and it resolves
+   * each participant's org so a client never has to fetch teams and orgs
+   * separately just to print "SBHS 1st XV".
+   */
+  private GAME_SUMMARY_COLUMNS = `
+      g.id, g.event_id as "eventId", g.sport_id as "sportId",
+      g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime",
+      g.finish_time as "finishTime", g.status,
+      g.site_id as "siteId", g.facility_id as "facilityId",
+      (g.custom_settings->>'timeTbd')::boolean as "timeTbd",
+      g.live_state->'scores' as "scores",
+      g.live_state->'clock' as "clock",
+      g.live_state->>'periodLabel' as "periodLabel",
+      g.updated_at as "updatedAt",
+      COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', p.id,
+          'teamId', p.team_id,
+          'name', t.name,
+          'orgId', t.org_id,
+          'orgShortName', o.short_name,
+          'status', p.status,
+          'sortOrder', p.sort_order
+        ) ORDER BY p.sort_order, p.id)
+        FROM game_participants p
+        LEFT JOIN teams t ON t.id = p.team_id
+        LEFT JOIN organizations o ON o.id = t.org_id
+        WHERE p.game_id = g.id
+      ), '[]'::jsonb) as participants`;
+
+  /**
+   * Every game an org has a stake in, as summaries. Matches `getGames`'s
+   * reach exactly — host org, registered participant orgs, and any game whose
+   * participating team belongs to the org.
+   */
+  async getGameSummaries(orgId?: string): Promise<GameSummary[]> {
+    if (!orgId) {
+      const res = await this.query(`SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g`);
+      return res.rows;
+    }
+    const res = await this.query(`
+        SELECT ${this.GAME_SUMMARY_COLUMNS}
+        FROM games g
+        JOIN events e ON g.event_id = e.id
+        WHERE e.org_id = $1
+           OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = $1)
+           OR EXISTS (
+               SELECT 1 FROM game_participants gp
+               JOIN teams t ON gp.team_id = t.id
+               WHERE gp.game_id = g.id AND t.org_id = $1
+           )
+    `, [orgId]);
+    return res.rows;
+  }
+
+  async getGameSummary(gameId: string): Promise<GameSummary | undefined> {
+    const res = await this.query(`SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g WHERE g.id = $1`, [gameId]);
+    return res.rows[0];
+  }
+
+  async getGameSummariesByEvent(eventId: string): Promise<GameSummary[]> {
+    const res = await this.query(`SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g WHERE g.event_id = $1`, [eventId]);
+    return res.rows;
+  }
+
   async getEvents(orgId?: string): Promise<Event[]> {
     console.log(`EventManager: getEvents called for org ${orgId}`);
     let queryText = `SELECT ${this.EVENT_COLUMNS} FROM events`;
@@ -296,7 +366,7 @@ export class EventManager extends BaseManager {
           
       const scheduledPeriods = game.customSettings?.scheduledPeriods 
           || (event as any)?.settings?.scheduledPeriods 
-          || sport?.defaultSettings?.periods 
+          || sport?.defaultSettings?.scheduledPeriods 
           || 2;
 
       const clock: GameClockState = game.liveState?.clock || {
@@ -483,6 +553,13 @@ export class EventManager extends BaseManager {
 
       await this.query('DELETE FROM games WHERE id = $1', [id]);
       return game;
+  }
+
+  /** The game a participant row belongs to, for authorizing roster reads. */
+  async getGameIdForParticipant(participantId: string): Promise<string | null> {
+    if (!participantId) return null;
+    const res = await this.query('SELECT game_id as "gameId" FROM game_participants WHERE id = $1', [participantId]);
+    return res.rows[0]?.gameId || null;
   }
 
   async getGameRoster(participantId: string): Promise<any[]> {

@@ -43,6 +43,7 @@ const createTables = async () => {
                 participant_type TEXT, -- 'TEAM' | 'INDIVIDUAL'
                 match_topology TEXT, -- 'HEAD_TO_HEAD' | 'MULTI_COMPETITOR'
                 default_settings JSONB DEFAULT '{}'::jsonb,
+                event_sections JSONB DEFAULT '[]'::jsonb,
                 event_templates JSONB DEFAULT '[]'::jsonb,
                 facility_term TEXT,
                 period_term TEXT

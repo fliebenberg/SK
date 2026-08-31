@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { EventSection, EventTemplate } from '@sk/shared';
 import { useToastStore } from '../store/toastStore';
 
 const getApiUrl = () => {
@@ -347,7 +348,7 @@ export const apiService = {
   async updateAdminSport(
     token: string,
     id: string,
-    data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any },
+    data: SportWritePayload,
     options?: ApiRequestOptions
   ): Promise<Sport> {
     return apiFetch<Sport>(
@@ -369,7 +370,7 @@ export const apiService = {
    */
   async createAdminSport(
     token: string,
-    data: { name: string; facilityTerm: string; periodTerm: string; defaultSettings: any },
+    data: SportWritePayload,
     options?: ApiRequestOptions
   ): Promise<Sport> {
     return apiFetch<Sport>(
@@ -423,9 +424,25 @@ export interface SportPosition {
 export interface SportSettings {
   maxReserves?: number;
   positions?: SportPosition[];
+  /** Periods a fixture is scheduled to run; games and events may override it under the same name. */
+  scheduledPeriods?: number;
+  periodLengthMS?: number;
   yellowCardDurationMS?: number;
   redCardDurationMS?: number;
   allowTimedRedCard?: boolean;
+}
+
+/** Body accepted by the admin sport create and update endpoints. */
+export interface SportWritePayload {
+  name: string;
+  facilityTerm: string;
+  periodTerm: string;
+  participantType?: Sport['participantType'];
+  matchTopology?: Sport['matchTopology'];
+  defaultSettings: SportSettings;
+  /** Omit either to leave the sport's stored value untouched. */
+  eventSections?: EventSection[];
+  eventTemplates?: EventTemplate[];
 }
 
 export interface Sport {
@@ -436,5 +453,6 @@ export interface Sport {
   participantType?: 'TEAM' | 'INDIVIDUAL';
   matchTopology?: 'HEAD_TO_HEAD' | 'MULTI_COMPETITOR';
   defaultSettings?: SportSettings;
-  eventTemplates?: any[];
+  eventSections?: EventSection[];
+  eventTemplates?: EventTemplate[];
 }

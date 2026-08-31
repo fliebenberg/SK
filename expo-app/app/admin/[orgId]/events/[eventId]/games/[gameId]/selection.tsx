@@ -276,8 +276,9 @@ export default function GameSelectionScreen() {
     const room = `game:${gameId}`;
     const unsubscribeRoom = wsService.subscribeToRoom(room);
 
-    const handleUpdate = (evt: { type: string; data: any }) => {
+    const handleUpdate = (evt: { topic?: string; type: string; data: any }) => {
       if (!evt) return;
+      if (evt.topic && evt.topic !== room) return;
 
       if (evt.type === 'GAME_ROSTER_UPDATED') {
         const { participantId, items } = evt.data || {};
@@ -300,25 +301,11 @@ export default function GameSelectionScreen() {
           }
           setIsLoading(false);
         }
-        if (currentParticipant?.id) {
-          wsService.emit(
-            'get_data',
-            { type: 'game_roster', id: currentParticipant.id },
-            (data: any[]) => {
-              if (data) {
-                const mapped: RosterItem[] = data.map((r) => ({
-                  orgProfileId: r.orgProfileId,
-                  position: r.position || undefined,
-                  jerseyNumber: r.jerseyNumber || undefined,
-                  isReserve: !!r.isReserve,
-                }));
-                setRoster(mapped);
-                setOriginalRoster(mapped);
-                useUnsavedChangesStore.getState().clear();
-              }
-            }
-          );
-        }
+        // Deliberately does not re-read the roster. A roster change arrives as
+        // GAME_ROSTER_UPDATED above, carrying its own items; refetching on every
+        // GAME_UPDATED meant a clock start or a score re-read the roster and
+        // called `clear()` on it, discarding whatever the selector had in
+        // progress while the match was running.
       }
     };
 

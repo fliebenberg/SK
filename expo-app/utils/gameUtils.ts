@@ -3,12 +3,13 @@ import {
   Sport,
   GameParticipant,
   ActionStepType,
-  findOutcome,
-  findReason,
   hasOutcomes,
   hasReasons,
   hasStep,
+  isScoringTemplate,
   reasonRequiresPlayer,
+  resolveOutcomeLabel,
+  resolveReasonLabel,
 } from '@sk/shared';
 
 /**
@@ -42,37 +43,41 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
   let warning = '';
   let error = '';
 
-  if (template) {
-    label = template.displayPattern || (eventData.outcome || template.pendingOutcomeLabel ? '{name} → {outcome}' : '{name}');
+  // An event records the words it was captured with, so a row can be drawn from the event alone.
+  // The template is still consulted for the pattern, for the pending label, and to resolve rows
+  // recorded before the labels were stored.
+  const capturedName = eventData.templateName;
+  const hasCapturedLabels =
+    capturedName !== undefined || eventData.outcomeName !== undefined || eventData.reasonName !== undefined;
 
-    // Resolve Outcome
-    let outcome = eventData.outcome;
-    const isPending = outcome === undefined || outcome === null;
-    const outcomeObj = findOutcome(template, outcome);
+  if (template || hasCapturedLabels) {
+    const eventName = capturedName ?? template?.name ?? '';
+    label =
+      template?.displayPattern ||
+      (eventData.outcome || eventData.outcomeName !== undefined || template?.pendingOutcomeLabel
+        ? '{name} → {outcome}'
+        : '{name}');
 
-    if (outcomeObj && outcomeObj.displayOverride !== undefined) {
-      outcome = outcomeObj.displayOverride;
-    } else if (outcome && template.outcomeOverrides && template.outcomeOverrides[outcome]) {
-      outcome = template.outcomeOverrides[outcome];
-    } else if (outcomeObj) {
-      outcome = outcomeObj.name;
-    }
+    // Resolve Outcome — what was captured wins, including a deliberate empty string.
+    const isPending = eventData.outcome === undefined || eventData.outcome === null;
+    let outcome =
+      eventData.outcomeName !== undefined
+        ? eventData.outcomeName
+        : resolveOutcomeLabel(template, eventData.outcome) ?? eventData.outcome;
 
-    const isScoringTemplate = template.section === 'Scoring' || (template.points && template.points > 0);
-    if (isPending && isScoringTemplate) {
-      outcome = template.pendingOutcomeLabel || 'PENDING';
+    if (isPending && isScoringTemplate(sport, template)) {
+      outcome = template?.pendingOutcomeLabel || 'PENDING';
     }
 
     // Resolve Reason
-    let reason = eventData.reason;
-    const reasonOpt = findReason(template, reason);
-    if (reasonOpt) {
-      reason = reasonOpt.name;
-    }
+    const reason =
+      eventData.reasonName !== undefined
+        ? eventData.reasonName
+        : resolveReasonLabel(template, eventData.reason) ?? eventData.reason;
 
     // Fill the pattern
     label = label
-      .replace(/{name}/g, (template.name || '').toUpperCase())
+      .replace(/{name}/g, eventName.toUpperCase())
       .replace(/{outcome\|([^}]+)}/g, (_match, fallback) => {
         return (outcome != null ? String(outcome) : fallback || '').toUpperCase();
       })

@@ -148,6 +148,9 @@ export class DataManager {
   getGames = (orgId?: string) => eventManager.getGames(orgId);
   getGamesByTeam = (teamId: string) => eventManager.getGamesByTeam(teamId);
   getGame = (id: string) => eventManager.getGame(id);
+  getGameSummaries = (orgId?: string) => eventManager.getGameSummaries(orgId);
+  getGameSummary = (id: string) => eventManager.getGameSummary(id);
+  getGameSummariesByEvent = (eventId: string) => eventManager.getGameSummariesByEvent(eventId);
   addGame = (game: AddGamePayload) => eventManager.addGame(game);
   updateGameStatus = (id: string, status: Game['status']) => eventManager.updateGameStatus(id, status);
   updateGameClock = (id: string, action: any) => eventManager.updateGameClock(id, action);
@@ -157,6 +160,7 @@ export class DataManager {
   resetGame = (id: string) => eventManager.resetGame(id);
   getGameEvents = (gameId: string, fromSequence?: number, limit?: number) => gameEventManager.getGameEvents(gameId, fromSequence, limit);
   getGameRoster = (participantId: string) => eventManager.getGameRoster(participantId);
+  getGameIdForParticipant = (participantId: string) => eventManager.getGameIdForParticipant(participantId);
   saveGameRoster = (gameId: string, participantId: string, items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }>) => eventManager.saveGameRoster(gameId, participantId, items);
 
   // Search

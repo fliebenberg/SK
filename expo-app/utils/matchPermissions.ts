@@ -1,5 +1,14 @@
-import { Game, Event, OrgMembership, TeamMembership } from '@sk/shared';
+import { Event, OrgMembership, TeamMembership } from '@sk/shared';
 import { User } from '../store/authStore';
+
+/**
+ * Only the participants decide a match permission, so this takes the shape
+ * rather than a concrete type - a full `Game` and the `GameSummary` a fixtures
+ * list holds both satisfy it.
+ */
+export type MatchPermissionsGame = {
+  participants?: { teamId?: string; orgId?: string }[];
+};
 
 export interface MatchPermissions {
   canView: boolean;
@@ -11,7 +20,7 @@ export interface MatchPermissions {
 }
 
 export function getMatchPermissions(params: {
-  game: Game | null;
+  game: MatchPermissionsGame | null;
   event: Event | null;
   currentOrgId?: string;
   user: User | null;
@@ -90,11 +99,13 @@ export function getMatchPermissions(params: {
       )
     );
 
+    // A summary names each participant's org directly; a raw `Game` does not,
+    // so fall back to the caller's team lookup.
     const homeOrgId =
-      (game.participants?.[0] as any)?.orgId ||
+      game.participants?.[0]?.orgId ||
       (homeTeamId ? teamsMap?.[homeTeamId]?.orgId : undefined);
     const awayOrgId =
-      (game.participants?.[1] as any)?.orgId ||
+      game.participants?.[1]?.orgId ||
       (awayTeamId ? teamsMap?.[awayTeamId]?.orgId : undefined);
 
     const isAdminOfHomeOrg = !!(

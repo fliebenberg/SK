@@ -12,6 +12,7 @@ import { getMatchPermissions } from '../../../../../../../utils/matchPermissions
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
 import { DynamicScoringDialog } from '../../../../../../../components/sports/shared/DynamicScoringDialog';
+import { DynamicScoringPanels } from '../../../../../../../components/sports/shared/DynamicScoringPanels';
 import { SportComponentRegistry } from '../../../../../../../components/sports/SportComponentRegistry';
 import { TimerPanelSlot } from '../../../../../../../components/sports/shared/TimerPanelSlot';
 import { ActiveDisputesPanel } from '../../../../../../../components/sports/shared/ActiveDisputesPanel';
@@ -121,9 +122,6 @@ export default function ScoreGameScreen() {
 
   const sportCategory = game.sportId ? 'Rugby' : 'Rugby';
   const ScoreboardComponent = SportComponentRegistry.getScoreboard(sportCategory);
-  const ScoringPanelComponent = SportComponentRegistry.getScoringPanel(sportCategory);
-  const GameEventsPanelComponent = SportComponentRegistry.getGameEventsPanel(sportCategory);
-  const GeneralPlayPanelComponent = SportComponentRegistry.getGeneralPlayPanel(sportCategory);
 
   const p1 = game.participants?.[0];
   const p2 = game.participants?.[1];
@@ -164,14 +162,8 @@ export default function ScoreGameScreen() {
               {/* DISPUTES PANEL */}
               <ActiveDisputesPanel gameId={game.id} />
 
-              {/* SCORING PANEL SLOT */}
-              {ScoringPanelComponent && <ScoringPanelComponent game={game} role="SCORER" />}
-
-              {/* GAME EVENTS PANEL SLOT */}
-              {GameEventsPanelComponent && <GameEventsPanelComponent game={game} role="SCORER" />}
-
-              {/* GENERAL PLAY PANEL SLOT */}
-              {GeneralPlayPanelComponent && <GeneralPlayPanelComponent game={game} role="SCORER" />}
+              {/* SCORING PANELS — one per section the sport declares, in its own order */}
+              <DynamicScoringPanels role="SCORER" />
             </View>
 
             {/* EVENTS & DRAWER TABS PANEL (LOG FEED / ROSTERS / STATS - SHOWN ON RIGHT ON LARGE SCREENS) */}

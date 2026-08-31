@@ -36,14 +36,30 @@ When an official starts or pauses the clock:
 1. The client emits an `UPDATE_GAME_CLOCK` action.
 2. The server calculates the new `elapsedMS` and `lastStartedAt`, updates the database, and broadcasts a **minimal delta payload** (containing `{ id, liveState: { clock } }`) to all clients in the game's room.
 3. **No Per-Second Broadcasts**: The server does NOT broadcast WebSocket messages every second. Broadcasts only occur on discrete actions (Start, Pause, Reset, Period Change). Between actions, clients calculate the continuous ticking locally via `requestAnimationFrame`.
-4. **Direct Delta Merging**: Every connected client receives the delta payload and directly merges it into its local state without executing a follow-up `get_data` refetch query.
+4. **Direct Delta Merging**: Every connected client receives the delta payload and directly merges it into its local state without executing a follow-up `get_data` refetch query. This is the app-wide rule, not a clock special case — see [.agent/skills/live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md). The clock is the one place a **partial** payload is still sent; everything else broadcasts the whole object, which makes merging a plain replace-by-id.
+   A clock change also publishes a `GameSummary` to the org fixtures rooms, so a list showing a running match stays in step without joining the match's own room.
 5. The local `useGameTimer` hook immediately reflects the change.
 
 ### Clock Drift & Skew
 To ensure that "CurrentTime" is consistent across clients:
-- **Server Time as Source of Truth**: On initial connection, the client calculates the offset between its local system clock and the server's clock.
-- **Handshake**: The server includes its current time in the socket handshake or a heartbeat.
-- **Adjustment**: `CurrentTime` in the calculation above is adjusted by this offset: `AdjustedTime = Date.now() + serverOffset`.
+- **Server Time as Source of Truth**: On connect, the client measures the offset between its
+  local system clock and the server's, and every reader goes through
+  `wsService.getServerTime()` — `Date.now() + serverOffset` — rather than `Date.now()`.
+- **Measurement**: `syncTime()` emits `time_sync` and times the round trip, so the offset is
+  latency-compensated: `serverOffset = (serverTime + rtt/2) - receiveTime`. Assuming the two legs
+  were equal bounds the worst-case error at **half the RTT**; `getServerTimeAccuracyMS()` returns
+  that bound.
+- **The `server_time` seed**: the server also pushes `server_time` the moment a socket attaches.
+  This is a *coarse seed only* — the client cannot know when it was sent, so the offset it yields
+  is slow by a full one-way latency. It is applied only while no measured sample exists, and can
+  never overwrite one. Both paths fire on every connect and their ordering is not guaranteed, so
+  this guard is what keeps the uncompensated value from winning a reconnect (`LIVE-6`).
+
+> **Precision ceiling.** The sync is a single unfiltered sample taken once per connect on a
+> non-monotonic base. That is right-sized for a clock that displays whole seconds, and is *not*
+> sufficient for measuring durations to better than a few hundred milliseconds on a poor link.
+> See `LIVE-7` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md) before building anything that
+> needs more.
 
 ## 4. Workflows
 

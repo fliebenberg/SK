@@ -9,6 +9,57 @@ This document summarizes the WebSocket actions currently implemented in the serv
 *   **Organization Scoped Rooms**: Lists of teams and venues are now broadcast to organization-specific rooms: `org:{orgId}:teams` and `org:{orgId}:venues`.
 *   **Item Scoped Rooms**: Updates to specific items (like a single team) are broadcast to that item's room (e.g., `team:{id}`) to support detailed real-time views.
 
+**Message envelope.** Every update is `{ topic, type, data }`, published through
+[wss/broadcast.ts](file:///c:/Fred/Coding/SK/server/src/wss/broadcast.ts). `topic` names the
+room it was sent to — socket.io does not tell a receiver which room delivered a message, so
+without it a client can only filter on `type`. `data` is **the changed object itself**, never
+a signal to refetch. See [.agent/skills/live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md).
+
+**Joining a room loads it.** `join_room` pushes the room's current state to the joining
+socket, using the same envelope. A screen that subscribes does not also issue a `get_data`.
+
+**Room access.** `join_room` authorizes before joining, against the identity proven by the
+socket handshake, and refuses any room name not declared in
+[wss/roomAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/roomAccess.ts). A refusal is
+answered with `ROOM_ACCESS_DENIED`. Three levels: `public` (fixtures, results, venues, team
+names — anonymous sockets included, since the org directory is browsable logged out),
+`member` (personal data and org internals — `org:*:members`, `team:*`, `game:*`,
+`game:*:events`), and `self` (`user:*`). The identity is resolved once per user in a single
+query behind a 30-second TTL, so joining several rooms costs one lookup; that cache is
+read-path only and never authorizes a write. Access is checked at **join** time and again on
+**revocation**: `USER_MEMBERSHIPS_UPDATED` drops the cached identity and force-leaves any room the
+user may no longer hold, answered with `ROOM_ACCESS_REVOKED`. A purely clock-based expiry is picked
+up at the socket's next reconnect instead (`LIVE-5` in TODO.md).
+
+**`get_data` authorization.** Queries are classified in
+[wss/dataAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/dataAccess.ts); most resolve to the
+room that owns the data and defer to `canJoinRoom`, and an unmapped type is refused. Running
+log-only (`[DataAccess] WOULD-REFUSE`) until the flag `GET_DATA_ENFORCE=true` is set — see `DATA-1`.
+
+### Fixture rooms
+
+| Room | Access | Pushes on join | Carries |
+| --- | --- | --- | --- |
+| `org:{orgId}:events` | public | `EVENTS_SYNC`, `GAME_SUMMARIES_SYNC` | `EVENT_ADDED/UPDATED/DELETED`, `GAME_SUMMARY_UPDATED/REMOVED` |
+| `event:{id}` | public | `EVENT_UPDATED`, `GAME_SUMMARIES_SYNC` | event and game changes for one event |
+| `game:{id}:summary` | public | `GAME_SUMMARY_UPDATED` | score, clock, status, teams |
+| `game:{id}` | member | `GAME_UPDATED` (full game) | game state, rosters |
+| `game:{id}:events` | member | `GAME_EVENTS_SYNC`, `ACTIVE_DISPUTES_SYNC` | the recorded scoring feed and disputes |
+
+There is **no** `org:{orgId}:games` room — nothing ever published to one; game changes reach
+a fixtures list on `org:{orgId}:events`.
+
+A `GameSummary` ([shared](file:///c:/Fred/Coding/SK/shared/src/models/event/GameSummary.ts)) is
+status, scores, clock, times, venue ids and participants **with team name and org short name** —
+so a client renders "SBHS 1st XV vs PBHS 1st XV 12 - 7" from the broadcast alone, with no teams
+or organizations lookup. It deliberately excludes recorded events, disputes, rosters, sin bins
+and `finalScoreData`.
+
+Every change to a game's score, clock, status, kick-off, venue or participants publishes a
+summary via `publishGameSummary`
+([wss/fixtures.ts](file:///c:/Fred/Coding/SK/server/src/wss/fixtures.ts)), to the hosting org,
+every org registered on the event, **and** every org owning a participating team.
+
 ## Action Handler
 
 All state-changing operations are sent via the `action` event.
@@ -108,6 +159,11 @@ All state-changing operations are sent via the `action` event.
     2.  **Topic**: `venue:{id}`
         *   **Event**: `VENUE_DELETED`
         *   **Data**: `{ id: string }`
+
+#### `get_data` — `{ type: 'facilities' }`
+*   **Payload**: `{ type: 'facilities', id? | siteId? | orgId? }`
+*   **Logic**: Scoped by site when `id` or `siteId` names one; otherwise scoped to every site belonging to `orgId` (`getFacilitiesByOrg`). A caller that supplies none of the three gets an unfiltered read, so always pass one.
+*   **Returns**: `Facility[]`
 
 ### 4. Games
 

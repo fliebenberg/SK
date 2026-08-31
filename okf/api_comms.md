@@ -30,6 +30,22 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
 3. **Client-Side Smart Subscription**:
    - Client components register to data streams using reference counting.
    - The WebSocket Service connects when subscriptions > 0 and automatically disconnects/unsubscribes when count hits 0 to preserve bandwidth.
+   - **Updates carry their data.** A broadcast is never a nudge to refetch: with N clients on
+     a room, "notify then everyone re-reads" costs one fan-out plus N round trips, where
+     sending the object costs one fan-out of a few hundred bytes. Screens merge the payload.
+   - **Joining a room is the initial load.** `join_room` pushes the room's current state back
+     to the joining socket, so a screen that subscribes does not also query.
+     [`useLiveRoom`](file:///c:/Fred/Coding/SK/expo-app/hooks/useLiveRoom.ts) is the client
+     primitive; `useSocketQuery` remains correct only for one-shot reads no room owns.
+   - **Every message carries its `topic`.** Socket.io does not tell a receiver which room
+     delivered a message, so the server stamps the room on
+     ([wss/broadcast.ts](file:///c:/Fred/Coding/SK/server/src/wss/broadcast.ts)) and listeners
+     drop anything addressed elsewhere.
+   - **Rooms are the read boundary.** Because a broadcast carries data, whatever a socket can
+     join it can read — so `join_room` authorizes before joining, against the identity proven
+     by the handshake, and refuses any room name it does not recognise
+     ([wss/roomAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/roomAccess.ts)).
+   - Full rules: [.agent/skills/live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md).
 4. **Offline Resilience**:
    - Connection statuses are actively monitored on the client to show offline banners when connections drop.
 5. **Centralized Error Toast Interception**:
@@ -41,9 +57,14 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
 *   **Game Clock Engine**: Real-time timers (start, stop, period controls) run client-side, decoupled from continuous server loops, synchronizing occasionally to prevent latency lag.
 *   **Dynamic Scoring Engine**: Complex scoring arithmetic (e.g. Try + Conversion in rugby) is computed locally before dispatching action events to the server.
 *   **Modular Sport UI Registry**: Scoreboards and timeline events load dynamically depending on the `Sport` of the game. For details on defining new registries, refer to [multi_sport_architecture.md](file:///c:/Fred/Coding/SK/docs/multi_sport_architecture.md).
+*   **Data-Driven Scoring Panels**: The control room's scoring panels are not registered per sport — [DynamicScoringPanels](file:///c:/Fred/Coding/SK/expo-app/components/sports/shared/DynamicScoringPanels.tsx) renders one per section the sport declares, in the sport's own order. Only genuinely bespoke pieces (the scoreboard) are still resolved by category through `SportComponentRegistry`.
 
 ## Code Entrypoints
 
 *   **Server Routes**: [server/src/index.ts](file:///c:/Fred/Coding/SK/server/src/index.ts) is the central Express server.
-*   **WebSocket Handler**: [server/src/wss/](file:///c:/Fred/Coding/SK/server/src/wss/) manages socket protocols.
+*   **Sport Admin Writes**: `/api/admin/sports` (list, create, update) is the only path that writes a sport's rules, positions and event templates. Bodies are validated by [server/src/utils/sportValidation.ts](file:///c:/Fred/Coding/SK/server/src/utils/sportValidation.ts) before they reach `SportManager` — templates drive live scoring, so an invalid one is rejected rather than stored.
+*   **WebSocket Handler**: Socket wiring lives in [server/src/index.ts](file:///c:/Fred/Coding/SK/server/src/index.ts);
+    [server/src/wss/](file:///c:/Fred/Coding/SK/server/src/wss/) holds the publishing and access
+    rules — `broadcast.ts` (the one exit for every update), `roomAccess.ts` (who may join what)
+    and `fixtures.ts` (who hears about a fixture change).
 *   **Expo Services**: [expo-app/services/](file:///c:/Fred/Coding/SK/expo-app/services/) holds the WebSocket connection manager.

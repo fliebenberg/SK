@@ -1,34 +1,43 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../store/authStore';
-import { useActiveTheme } from '../../../../store/settingsStore';
 import { GlassCard } from '../../../../components/GlassCard';
+import { Tabs } from '../../../../components/Tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { apiService, Sport, SportPosition } from '../../../../services/api';
+import { apiService, Sport } from '../../../../services/api';
+import { SportSettingsTab } from '../../../../components/admin/sports/SportSettingsTab';
+import { SportPositionsTab } from '../../../../components/admin/sports/SportPositionsTab';
+import { SportEventsTab } from '../../../../components/admin/sports/SportEventsTab';
+import {
+  EMPTY_FORM,
+  SportForm,
+  formFromSport,
+  payloadFromForm,
+} from '../../../../components/admin/sports/sportForm';
+
+type SportTab = 'settings' | 'positions' | 'events';
 
 export default function EditSport() {
-  const router = useRouter();
   const safeBack = useSafeBack();
   const { sportId } = useLocalSearchParams<{ sportId: string }>();
   const token = useAuthStore(state => state.token);
-  const isDark = useActiveTheme() === 'dark';
 
   const isNew = sportId === 'new';
 
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<SportTab>('settings');
 
   // Original data loaded from backend (null for new sports)
   const [originalSport, setOriginalSport] = useState<Sport | null>(null);
 
-  // Form states
-  const [name, setName] = useState('');
-  const [facilityTerm, setFacilityTerm] = useState('');
-  const [periodTerm, setPeriodTerm] = useState('');
-  const [positions, setPositions] = useState<SportPosition[]>([]);
+  const [form, setForm] = useState<SportForm>(EMPTY_FORM);
+
+  const setField = <K extends keyof SportForm>(field: K, value: SportForm[K]) =>
+    setForm(prev => ({ ...prev, [field]: value }));
 
   useEffect(() => {
     if (isNew) {
@@ -43,10 +52,7 @@ export default function EditSport() {
       try {
         const sport = await apiService.getAdminSport(token, sportId);
         setOriginalSport(sport);
-        setName(sport.name || '');
-        setFacilityTerm(sport.facilityTerm || '');
-        setPeriodTerm(sport.periodTerm || '');
-        setPositions(sport.defaultSettings?.positions || []);
+        setForm(formFromSport(sport));
       } catch (err: any) {
         console.error('[EditSport] Failed to load sport:', err);
         setError(err.message || 'Failed to load sport details.');
@@ -57,52 +63,28 @@ export default function EditSport() {
     loadSport();
   }, [token, sportId, isNew]);
 
-  // Determine if there are changes
+  // The form as the screen was last loaded or saved — what Cancel restores and what
+  // "unsaved changes" is measured against.
+  const baselineForm = useMemo(
+    () => (originalSport ? formFromSport(originalSport) : EMPTY_FORM),
+    [originalSport]
+  );
+
+  /** Section ids the sport was loaded with — those ids are referenced by its templates. */
+  const savedSectionIds = useMemo(
+    () => new Set((originalSport?.eventSections || []).map((section) => section.id)),
+    [originalSport]
+  );
+
   const hasChanges = useMemo(() => {
-    if (isNew) {
-      return name.trim() !== '' || facilityTerm.trim() !== '' || periodTerm.trim() !== '' || positions.length > 0;
-    }
-
-    if (!originalSport) return false;
-    
-    const originalPositions = originalSport.defaultSettings?.positions || [];
-    const positionsChanged = positions.length !== originalPositions.length || 
-      positions.some((pos, idx) => {
-        const orig = originalPositions[idx];
-        return !orig || pos.id !== orig.id || pos.name !== orig.name;
-      });
-
-    return (
-      name.trim() !== (originalSport.name || '') ||
-      facilityTerm.trim() !== (originalSport.facilityTerm || '') ||
-      periodTerm.trim() !== (originalSport.periodTerm || '') ||
-      positionsChanged
-    );
-  }, [originalSport, name, facilityTerm, periodTerm, positions, isNew]);
-
-  const handlePositionIdChange = (index: number, text: string) => {
-    setPositions(prev => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], id: text.toUpperCase().replace(/\s+/g, '') };
-      return copy;
-    });
-  };
-
-  const handlePositionNameChange = (index: number, text: string) => {
-    setPositions(prev => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], name: text };
-      return copy;
-    });
-  };
-
-  const addPosition = () => {
-    setPositions(prev => [...prev, { id: '', name: '' }]);
-  };
-
-  const removePosition = (index: number) => {
-    setPositions(prev => prev.filter((_, idx) => idx !== index));
-  };
+    const trimmed = {
+      ...form,
+      name: form.name.trim(),
+      facilityTerm: form.facilityTerm.trim(),
+      periodTerm: form.periodTerm.trim(),
+    };
+    return JSON.stringify(trimmed) !== JSON.stringify(baselineForm);
+  }, [form, baselineForm]);
 
   const handleCancel = () => {
     if (isNew) {
@@ -110,44 +92,84 @@ export default function EditSport() {
       return;
     }
     if (!originalSport) return;
-    setName(originalSport.name || '');
-    setFacilityTerm(originalSport.facilityTerm || '');
-    setPeriodTerm(originalSport.periodTerm || '');
-    setPositions(originalSport.defaultSettings?.positions || []);
+    setForm(baselineForm);
+  };
+
+  /** Everything that must hold before we send the sport, with the tab to open if it does not. */
+  const validate = (): { message: string; tab: SportTab } | null => {
+    if (!form.name.trim()) return { message: 'The sport needs a name.', tab: 'settings' };
+
+    const numericFields: Array<{ label: string; value: string }> = [
+      { label: 'Max Reserves', value: form.maxReserves },
+      { label: 'Scheduled Periods', value: form.scheduledPeriods },
+      { label: 'Period Length', value: form.periodLengthMinutes },
+      { label: 'Yellow Card Duration', value: form.yellowCardMinutes },
+      { label: 'Red Card Duration', value: form.redCardMinutes },
+    ];
+    for (const field of numericFields) {
+      if (field.value.trim() === '') continue;
+      const parsed = Number(field.value);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return { message: `${field.label} must be a non-negative number.`, tab: 'settings' };
+      }
+    }
+
+    const positionIds = new Set<string>();
+    for (const position of form.positions) {
+      if (!position.id.trim()) return { message: 'Position IDs (abbreviations) cannot be empty.', tab: 'positions' };
+      if (!position.name.trim()) return { message: `Position name for "${position.id}" cannot be empty.`, tab: 'positions' };
+      if (positionIds.has(position.id)) {
+        return { message: `Duplicate position ID "${position.id}". Each position needs a unique abbreviation.`, tab: 'positions' };
+      }
+      positionIds.add(position.id);
+    }
+
+    const sectionIds = new Set<string>();
+    for (const section of form.eventSections) {
+      if (!section.id?.trim() || !section.name?.trim()) {
+        return { message: 'Every section needs a name and an id.', tab: 'events' };
+      }
+      if (sectionIds.has(section.id)) {
+        return { message: `Two sections share the id "${section.id}".`, tab: 'events' };
+      }
+      sectionIds.add(section.id);
+    }
+
+    // Templates are validated in full by the server; these catch the states the editor can
+    // leave behind, where pointing at the offending tab is more use than a server message.
+    const templateIds = new Set<string>();
+    for (const template of form.eventTemplates) {
+      if (!template.id?.trim() || !template.name?.trim()) {
+        return { message: `"${template.name || template.id || 'An event'}" is incomplete — open it and fill in its name and id.`, tab: 'events' };
+      }
+      if (templateIds.has(template.id)) {
+        return { message: `Two events share the id "${template.id}".`, tab: 'events' };
+      }
+      templateIds.add(template.id);
+      if (!sectionIds.has(template.section)) {
+        return {
+          message: `"${template.name}" is filed under "${template.section || 'nothing'}", which is not one of this sport's sections.`,
+          tab: 'events',
+        };
+      }
+    }
+
+    return null;
   };
 
   const handleSave = async () => {
-    if (!token || !name.trim()) return;
+    if (!token) return;
 
-    // Validate that position IDs are unique and not empty
-    const uniqueIds = new Set<string>();
-    for (const pos of positions) {
-      if (!pos.id.trim()) {
-        Alert.alert('Validation Error', 'Position IDs (abbreviations) cannot be empty.');
-        return;
-      }
-      if (!pos.name.trim()) {
-        Alert.alert('Validation Error', `Position name for "${pos.id}" cannot be empty.`);
-        return;
-      }
-      if (uniqueIds.has(pos.id)) {
-        Alert.alert('Validation Error', `Duplicate position ID "${pos.id}" detected. Each position must have a unique abbreviation.`);
-        return;
-      }
-      uniqueIds.add(pos.id);
+    const problem = validate();
+    if (problem) {
+      setActiveTab(problem.tab);
+      Alert.alert('Validation Error', problem.message);
+      return;
     }
 
     setIsProcessing(true);
     try {
-      const payload = {
-        name: name.trim(),
-        facilityTerm: facilityTerm.trim(),
-        periodTerm: periodTerm.trim(),
-        defaultSettings: {
-          ...(originalSport?.defaultSettings || {}),
-          positions: positions
-        }
-      };
+      const payload = payloadFromForm(form, originalSport);
 
       if (isNew) {
         await apiService.createAdminSport(token, payload);
@@ -157,10 +179,7 @@ export default function EditSport() {
       } else if (sportId) {
         const updated = await apiService.updateAdminSport(token, sportId, payload);
         setOriginalSport(updated);
-        setName(updated.name || '');
-        setFacilityTerm(updated.facilityTerm || '');
-        setPeriodTerm(updated.periodTerm || '');
-        setPositions(updated.defaultSettings?.positions || []);
+        setForm(formFromSport(updated));
         Alert.alert('Success', 'Sport configuration saved successfully.');
       }
     } catch (err: any) {
@@ -195,149 +214,46 @@ export default function EditSport() {
     );
   }
 
-  const isCodeConfigured = !isNew && originalSport?.eventTemplates && originalSport.eventTemplates.length > 0;
-
   return (
     <View className="flex-1 bg-slate-50 dark:bg-slate-950">
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* CORE DETAILS */}
-        <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
-          Sport General Details
-        </Text>
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-4 mb-6">
-          <View>
-            <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 mb-1.5">Sport Name</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Soccer, Netball"
-              className="bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 p-3 rounded-xl font-inter text-sm text-slate-800 dark:text-white"
-            />
-          </View>
+      <View className="px-6 pt-4">
+        <Tabs<SportTab>
+          items={[
+            { key: 'settings', label: 'Settings', icon: 'options-outline' },
+            { key: 'positions', label: 'Positions', icon: 'people-outline', badge: form.positions.length || undefined },
+            { key: 'events', label: 'Events', icon: 'flash-outline', badge: form.eventTemplates.length || undefined },
+          ]}
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          variant="underline"
+        />
+      </View>
 
-          <View className="flex-row gap-4">
-            <View className="flex-1">
-              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 mb-1.5">Facility Term</Text>
-              <TextInput
-                value={facilityTerm}
-                onChangeText={setFacilityTerm}
-                placeholder="e.g. Field, Court"
-                className="bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 p-3 rounded-xl font-inter text-sm text-slate-800 dark:text-white"
-              />
-            </View>
-            <View className="flex-1">
-              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 mb-1.5">Period Term</Text>
-              <TextInput
-                value={periodTerm}
-                onChangeText={setPeriodTerm}
-                placeholder="e.g. Half, Quarter, Period"
-                className="bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 p-3 rounded-xl font-inter text-sm text-slate-800 dark:text-white"
-              />
-            </View>
-          </View>
-        </GlassCard>
+      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 140 }}>
+        {activeTab === 'settings' && (
+          <SportSettingsTab
+            form={form}
+            setField={setField}
+            showCardSettings={form.eventTemplates.length > 0}
+          />
+        )}
 
-        {/* DEFAULT PLAYER POSITIONS */}
-        <View className="flex-row items-center justify-between mb-3">
-          <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-            Default Team Positions
-          </Text>
-          <TouchableOpacity
-            onPress={addPosition}
-            className="flex-row items-center gap-1 bg-slate-200 dark:bg-slate-850 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-white/5 active:opacity-80"
-          >
-            <Ionicons name="add" size={12} color="#FF3E00" />
-            <Text className="font-orbitron-bold text-[8px] text-slate-700 dark:text-slate-300 uppercase tracking-wider mt-0.5">Add Position</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl mb-6">
-          {positions.length === 0 ? (
-            <View className="items-center py-6">
-              <Ionicons name="people-outline" size={24} color="#94A3B8" />
-              <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic mt-2">
-                No positions added. Click "Add Position" above to configure some.
-              </Text>
-            </View>
-          ) : (
-            <View className="space-y-3">
-              {positions.map((pos, index) => (
-                <View key={index} className="flex-row items-center gap-2.5">
-                  <View className="w-16">
-                    <TextInput
-                      value={pos.id}
-                      onChangeText={(text) => handlePositionIdChange(index, text)}
-                      placeholder="ID (e.g. GK)"
-                      autoCapitalize="characters"
-                      className="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 px-2 py-2.5 rounded-xl font-orbitron-bold text-xs text-center text-slate-800 dark:text-white"
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <TextInput
-                      value={pos.name}
-                      onChangeText={(text) => handlePositionNameChange(index, text)}
-                      placeholder="Name (e.g. Goalkeeper)"
-                      className="bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 px-3 py-2.5 rounded-xl font-inter text-sm text-slate-800 dark:text-white"
-                    />
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => removePosition(index)}
-                    className="p-2.5 bg-red-500/10 dark:bg-red-500/5 border border-red-500/20 rounded-xl active:opacity-80"
-                  >
-                    <Ionicons name="trash" size={14} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </GlassCard>
+        {activeTab === 'positions' && (
+          <SportPositionsTab
+            positions={form.positions}
+            onChange={(positions) => setField('positions', positions)}
+          />
+        )}
 
-        {/* SYSTEM DETAILS SECTION (Only when editing an existing sport) */}
-        {!isNew && originalSport && (
-          <>
-            <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
-              System Rules & Configuration (Read-only)
-            </Text>
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-3">
-              <View className="flex-row justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
-                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">Participant Type</Text>
-                <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-300">
-                  {originalSport.participantType || 'TEAM'}
-                </Text>
-              </View>
-              <View className="flex-row justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
-                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">Match Topology</Text>
-                <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-300">
-                  {originalSport.matchTopology || 'HEAD_TO_HEAD'}
-                </Text>
-              </View>
-              <View className="flex-row justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
-                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">Max Reserves</Text>
-                <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-300">
-                  {originalSport.defaultSettings?.maxReserves ?? 'N/A'}
-                </Text>
-              </View>
-              
-              {isCodeConfigured && (
-                <>
-                  <View className="flex-row justify-between py-1.5 border-b border-slate-100 dark:border-white/5">
-                    <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">Yellow Card Duration</Text>
-                    <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-300">
-                      {originalSport.defaultSettings?.yellowCardDurationMS 
-                        ? `${originalSport.defaultSettings.yellowCardDurationMS / 60000} mins` 
-                        : 'N/A'}
-                    </Text>
-                  </View>
-                  <View className="flex-row justify-between py-1.5">
-                    <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">Timed Red Cards Allowed</Text>
-                    <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-300">
-                      {originalSport.defaultSettings?.allowTimedRedCard ? 'Yes' : 'No'}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </GlassCard>
-          </>
+        {activeTab === 'events' && (
+          <SportEventsTab
+            sections={form.eventSections}
+            onSectionsChange={(sections) => setField('eventSections', sections)}
+            templates={form.eventTemplates}
+            savedTemplates={originalSport?.eventTemplates || []}
+            savedSectionIds={savedSectionIds}
+            onChange={(templates) => setField('eventTemplates', templates)}
+          />
         )}
       </ScrollView>
 
@@ -362,7 +278,7 @@ export default function EditSport() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
-              disabled={isProcessing || !name.trim()}
+              disabled={isProcessing || !form.name.trim()}
               className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
             >
               {isProcessing ? (

@@ -49,14 +49,15 @@ const seedDb = async () => {
 
         for (const sport of allSports) {
             await pool.query(`
-                INSERT INTO sports (id, name, facility_term, period_term, participant_type, match_topology, default_settings, event_templates) 
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+                INSERT INTO sports (id, name, facility_term, period_term, participant_type, match_topology, default_settings, event_sections, event_templates) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
                 ON CONFLICT (id) DO UPDATE SET 
                     facility_term = EXCLUDED.facility_term, 
                     period_term = EXCLUDED.period_term,
                     participant_type = EXCLUDED.participant_type,
                     match_topology = EXCLUDED.match_topology,
                     default_settings = EXCLUDED.default_settings,
+                    event_sections = EXCLUDED.event_sections,
                     event_templates = EXCLUDED.event_templates
             `, [
                 sport.id, 
@@ -66,6 +67,7 @@ const seedDb = async () => {
                 sport.participantType || 'TEAM', 
                 sport.matchTopology || 'HEAD_TO_HEAD', 
                 JSON.stringify(sport.defaultSettings || {}),
+                JSON.stringify(sport.eventSections || []),
                 JSON.stringify(sport.eventTemplates || [])
             ]);
         }

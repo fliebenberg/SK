@@ -72,7 +72,7 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
           <TouchableOpacity
             onPress={() => setViewMode('list')}
             className={`flex-row items-center px-2.5 py-1 rounded-md gap-1 ${
-              viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm' : ''
+              viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm' : 'shadow-none'
             }`}
           >
             <Ionicons
@@ -93,7 +93,7 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
           <TouchableOpacity
             onPress={() => setViewMode('pitch')}
             className={`flex-row items-center px-2.5 py-1 rounded-md gap-1 ${
-              viewMode === 'pitch' ? 'bg-white dark:bg-slate-700 shadow-sm' : ''
+              viewMode === 'pitch' ? 'bg-white dark:bg-slate-700 shadow-sm' : 'shadow-none'
             }`}
           >
             <Ionicons

@@ -165,7 +165,7 @@ export default function TeamsPage() {
                   onPress={() => toggleFollow(team.id)}
                   className={`px-4 py-2.5 rounded-xl flex-row items-center gap-1.5 border active:opacity-85 ${
                     isFollowing
-                      ? 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                      ? 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 shadow-none'
                       : 'bg-brand-orange border-brand-orange shadow-sm shadow-brand-orange/20'
                   }`}
                 >

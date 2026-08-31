@@ -10,7 +10,7 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Team, Sport, Organization, TeamMember, Game } from '@sk/shared';
+import { SocketAction, Team, Sport, Organization, TeamMember, GameSummary, participantLabel } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
@@ -60,7 +60,7 @@ export default function TeamDetailsScreen() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [org, setOrg] = useState<Organization | null>(null);
   const [roster, setRoster] = useState<TeamMember[]>([]);
-  const [games, setGames] = useState<Game[]>([]);
+  const [games, setGames] = useState<GameSummary[]>([]);
   const [availableRoles, setAvailableRoles] = useState<TeamRole[]>([]);
 
   // Form Details State
@@ -180,12 +180,8 @@ export default function TeamDetailsScreen() {
         if (Array.isArray(res)) setRoster(res);
       });
 
-      // Get games (for events tab, stats, and delete check)
-      wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
-        if (!active) return;
-        if (Array.isArray(res)) setGames(res);
-        setIsLoading(false);
-      });
+      // Games are not fetched: joining the fixtures room pushes them.
+      setIsLoading(false);
 
       // Get roles
       wsService.emit('get_data', { type: 'roles' }, (res: any) => {
@@ -201,18 +197,20 @@ export default function TeamDetailsScreen() {
     // Rooms Subscriptions
     const teamRoom = `team:${teamId}`;
     const teamsRoom = `org:${orgId}:teams`;
-    const gamesRoom = `org:${orgId}:games`;
+    // Games arrive on the org's fixtures room - there is no separate games
+    // room, and nothing ever published to the one that used to be joined here.
+    const fixturesRoom = `org:${orgId}:events`;
 
     const unsubscribeTeam = wsService.subscribeToRoom(teamRoom);
     const unsubscribeTeams = wsService.subscribeToRoom(teamsRoom);
-    const unsubscribeGames = wsService.subscribeToRoom(gamesRoom);
+    const unsubscribeGames = wsService.subscribeToRoom(fixturesRoom);
 
     const handleUpdate = (event: any) => {
       if (!active) return;
       if (!event) return;
 
       // Realtime team details or roster membership update
-      if (event.type === 'TEAM_MEMBER_UPDATED' || event.topic === teamRoom) {
+      if (event.type === 'TEAM_MEMBER_UPDATED' || event.type === 'TEAM_MEMBERS_SYNC' || event.topic === teamRoom) {
         wsService.emit('get_data', { type: 'team_members', teamId }, (res: any) => {
           if (!active) return;
           if (Array.isArray(res)) setRoster(res);
@@ -238,11 +236,22 @@ export default function TeamDetailsScreen() {
         });
       }
 
-      if (event.type === 'GAMES_SYNC' || event.type === 'GAME_ADDED' || event.type === 'GAME_UPDATED' || event.type === 'GAME_DELETED') {
-        wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
-          if (!active) return;
-          if (Array.isArray(res)) setGames(res);
-        });
+      // Fixture updates carry their own data, so merge rather than re-reading
+      // the org's whole game list on every change.
+      if (event.topic === fixturesRoom) {
+        if (event.type === 'GAME_SUMMARIES_SYNC') {
+          setGames(Array.isArray(event.data) ? event.data : []);
+        } else if (event.type === 'GAME_SUMMARY_UPDATED' && event.data?.id) {
+          setGames(prev => {
+            const idx = prev.findIndex((g: any) => g.id === event.data.id);
+            if (idx === -1) return [...prev, event.data];
+            const next = prev.slice();
+            next[idx] = event.data;
+            return next;
+          });
+        } else if (event.type === 'GAME_SUMMARY_REMOVED' && event.data?.id) {
+          setGames(prev => prev.filter((g: any) => g.id !== event.data.id));
+        }
       }
     };
 
@@ -297,6 +306,21 @@ export default function TeamDetailsScreen() {
   }
 
   const teamGames = games.filter(g => g.participants?.some(p => p.teamId === teamId));
+
+  /**
+   * This team's score and its opponent's, from the summary's participant-keyed
+   * `scores`. The screen previously read `liveState.home` / `finalScoreData.home`,
+   * neither of which anything ever writes - so every game rendered 0-0 and every
+   * finished game counted as a draw.
+   */
+  const scoresFor = (game: GameSummary): { mine: number; theirs: number } => {
+    const mineP = game.participants?.find(p => p.teamId === teamId);
+    const theirsP = game.participants?.find(p => p.teamId !== teamId);
+    return {
+      mine: mineP ? (game.scores?.[mineP.id] ?? 0) : 0,
+      theirs: theirsP ? (game.scores?.[theirsP.id] ?? 0) : 0,
+    };
+  };
   const hasGames = teamGames.length > 0;
 
   const players = roster.filter(m => m.roleId === 'role-player');
@@ -306,11 +330,12 @@ export default function TeamDetailsScreen() {
     return sports.find(s => s.id === sportId)?.name || 'Unknown Sport';
   };
 
-  const getOpponentName = (game: Game) => {
+  const getOpponentName = (game: GameSummary) => {
     const opp = game.participants?.find(p => p.teamId !== teamId);
     if (!opp) return 'TBD';
-    const oppTeam = teams.find(t => t.id === opp.teamId);
-    return oppTeam ? oppTeam.name : 'Opponent';
+    // The summary already names the team and its org, so a visiting side reads
+    // correctly without this org's team list having to contain it.
+    return participantLabel(opp) || teams.find(t => t.id === opp.teamId)?.name || 'Opponent';
   };
 
   // ---------------- DETAILS TAB ACTIONS ----------------
@@ -562,9 +587,7 @@ export default function TeamDetailsScreen() {
     let won = 0, lost = 0, drawn = 0, goalsFor = 0, goalsAgainst = 0;
 
     finished.forEach(g => {
-      const isHome = g.participants?.[0]?.teamId === teamId;
-      const myScore = isHome ? (g.finalScoreData?.home || 0) : (g.finalScoreData?.away || 0);
-      const oppScore = isHome ? (g.finalScoreData?.away || 0) : (g.finalScoreData?.home || 0);
+      const { mine: myScore, theirs: oppScore } = scoresFor(g);
 
       goalsFor += myScore;
       goalsAgainst += oppScore;
@@ -1025,9 +1048,7 @@ export default function TeamDetailsScreen() {
             <View className="space-y-4">
               {teamGames.map(game => {
                 const isFinished = game.status === 'Finished';
-                const isHome = game.participants?.[0]?.teamId === teamId;
-                const myScore = isHome ? (game.liveState?.home ?? 0) : (game.liveState?.away ?? 0);
-                const oppScore = isHome ? (game.liveState?.away ?? 0) : (game.liveState?.home ?? 0);
+                const { mine: myScore, theirs: oppScore } = scoresFor(game);
                 let gameOutcome = '-';
                 if (isFinished) {
                   if (myScore > oppScore) gameOutcome = 'W';
@@ -1073,7 +1094,7 @@ export default function TeamDetailsScreen() {
                           </View>
                         )}
                         <Text className="font-mono-bold text-lg text-slate-800 dark:text-white mr-1">
-                          {game.liveState?.home ?? 0} - {game.liveState?.away ?? 0}
+                          {myScore} - {oppScore}
                         </Text>
                         {targetEventId && (
                           <View className="flex-row items-center gap-1.5 ml-1">
@@ -1152,9 +1173,7 @@ export default function TeamDetailsScreen() {
             <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Recent games</Text>
             <View className="space-y-2">
               {teamGames.filter(g => g.status === 'Finished').slice(0, 5).map(game => {
-                const isHome = game.participants?.[0]?.teamId === teamId;
-                const myScore = isHome ? (game.finalScoreData?.home ?? 0) : (game.finalScoreData?.away ?? 0);
-                const oppScore = isHome ? (game.finalScoreData?.away ?? 0) : (game.finalScoreData?.home ?? 0);
+                const { mine: myScore, theirs: oppScore } = scoresFor(game);
                 const outcome = myScore > oppScore ? 'W' : myScore < oppScore ? 'L' : 'D';
 
                 return (

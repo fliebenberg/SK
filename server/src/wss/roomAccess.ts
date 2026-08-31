@@ -1,0 +1,191 @@
+import { accessManager } from '../managers/AccessManager';
+
+/**
+ * Who may subscribe to a room.
+ *
+ * Room membership is the read boundary for every live update: a broadcast
+ * carries the data itself, not a nudge to refetch, so whatever a socket can
+ * join, it can read. `join_room` used to accept any string and immediately
+ * push that room's full state back, which meant an anonymous socket could
+ * read any org's member list by guessing an id.
+ *
+ *  - `public` — anything a spectator may legitimately see: fixtures, results,
+ *    venues, team names, league tables. The org directory is browsable while
+ *    logged out, so `public` deliberately includes anonymous sockets.
+ *  - `member` — carries a person's data (member lists, rosters) or an org's
+ *    internal state. Requires a current membership of a related org.
+ *  - `self`  — the socket's own user.
+ *
+ * An unrecognised room shape is denied. Adding a room means adding it here.
+ */
+export type RoomAccess = 'public' | 'member' | 'self';
+
+export interface RoomPolicy {
+  access: RoomAccess;
+  /** Orgs whose membership grants access, for `member` rooms. */
+  orgsFor?: (id: string) => Promise<string[] | null>;
+  /** The user id that must match the socket, for `self` rooms. */
+  selfId?: string;
+}
+
+/**
+ * Classify a room name. Returns null when the shape is not one we publish to,
+ * which the caller must treat as a refusal rather than as "no restriction".
+ */
+export function classifyRoom(room: string): RoomPolicy | null {
+  const parts = room.split(':');
+  const [kind, id, sub] = parts;
+  if (!kind || !id || parts.length > 3) return null;
+
+  switch (kind) {
+    case 'user':
+      if (sub) return null;
+      return { access: 'self', selfId: id };
+
+    case 'org':
+      switch (sub) {
+        // An org's people and its commercial relationships.
+        case 'members':
+        case 'referrals':
+          return { access: 'member', orgsFor: async () => [id] };
+        // Fixtures, venues, teams and competitions are public information.
+        case 'summary':
+        case 'events':
+        case 'teams':
+        case 'sites':
+        case 'facilities':
+        case 'leagues':
+          return { access: 'public' };
+        default:
+          return null;
+      }
+
+    case 'team':
+      // The roster is personal data, and often a minor's.
+      if (sub) return null;
+      return {
+        access: 'member',
+        orgsFor: async () => {
+          const orgId = await accessManager.getTeamOrgId(id);
+          return orgId ? [orgId] : null;
+        },
+      };
+
+    case 'game':
+      switch (sub) {
+        // The summary tier is the spectator view: score, clock, status, teams.
+        case 'summary':
+          return { access: 'public' };
+        // The base room carries rosters; `:events` and `:detail` carry the
+        // granular scoring feed and open disputes. All three are internal.
+        case undefined:
+        case 'detail':
+        case 'events':
+          return {
+            access: 'member',
+            orgsFor: async () => {
+              const orgIds = await accessManager.getGameOrgIds(id);
+              return orgIds.length ? orgIds : null;
+            },
+          };
+        default:
+          return null;
+      }
+
+    case 'event':
+    case 'site':
+    case 'facility':
+      return sub ? null : { access: 'public' };
+
+    case 'league':
+      return sub === 'seasons' ? { access: 'public' } : null;
+
+    case 'season':
+      return sub === 'standings' ? { access: 'public' } : null;
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Short-lived cache of "which orgs is this user in".
+ *
+ * A screen typically joins several rooms at once, and resolving the identity
+ * per room meant two queries per room. Resolving it once per user covers the
+ * whole burst.
+ *
+ * The TTL is short and there is no explicit invalidation, because membership
+ * validity depends on the clock as well as on writes — `end_date` lapses with
+ * no row being touched, so a cache that only cleared on write would hold a
+ * lapsed membership open indefinitely. Thirty seconds bounds the staleness in
+ * both directions: a revoked membership stops granting joins within the window,
+ * and a newly added one starts working within it.
+ *
+ * Read path only. Writes go through `isOrganizationAdmin` / `canEditEventOrGame`
+ * / `canScoreGame`, which query directly every time — deliberately, so that no
+ * cached identity can ever authorize a mutation. Do not reuse this there.
+ */
+const MEMBERSHIP_TTL_MS = 30_000;
+
+interface CachedMembership {
+  orgIds: Set<string>;
+  isAppAdmin: boolean;
+  expiresAt: number;
+}
+
+const membershipCache = new Map<string, CachedMembership>();
+
+async function getMembership(userId: string): Promise<CachedMembership> {
+  const now = Date.now();
+  const cached = membershipCache.get(userId);
+  if (cached && cached.expiresAt > now) return cached;
+
+  const snapshot = await accessManager.getMembershipSnapshot(userId);
+  const entry: CachedMembership = { ...snapshot, expiresAt: now + MEMBERSHIP_TTL_MS };
+  membershipCache.set(userId, entry);
+
+  // The map is only ever added to, so evict what has aged out while we are here.
+  if (membershipCache.size > 128) {
+    for (const [key, value] of membershipCache) {
+      if (value.expiresAt <= now) membershipCache.delete(key);
+    }
+  }
+  return entry;
+}
+
+/** Drop a user's cached memberships, for a change that must take effect at once. */
+export function invalidateMembership(userId: string) {
+  membershipCache.delete(userId);
+}
+
+/**
+ * `userId` is the identity proven by the socket handshake — never anything the
+ * client put in a payload. `'anonymous'` and `'invalid-token'` are the two
+ * values the handshake middleware assigns when no valid token was presented.
+ *
+ * Note this is checked when a room is *joined*. A membership that lapses while
+ * a socket is already in a room keeps delivering until it disconnects; see
+ * `LIVE-5` in TODO.md.
+ */
+export async function canJoinRoom(userId: string, room: string): Promise<boolean> {
+  const policy = classifyRoom(room);
+  if (!policy) return false;
+
+  if (policy.access === 'public') return true;
+
+  const isAuthenticated = !!userId && userId !== 'anonymous' && userId !== 'invalid-token';
+  if (!isAuthenticated) return false;
+
+  if (policy.access === 'self') return policy.selfId === userId;
+
+  const membership = await getMembership(userId);
+  if (membership.isAppAdmin) return true;
+
+  // Only now resolve which orgs the *resource* belongs to — an app admin never
+  // needs the lookup, and a stranger is rejected without it either way.
+  const orgIds = policy.orgsFor ? await policy.orgsFor(room.split(':')[1]) : null;
+  if (!orgIds || orgIds.length === 0) return false;
+
+  return orgIds.some(orgId => membership.orgIds.has(orgId));
+}

@@ -25,8 +25,12 @@ export default function AdminDashboard() {
         </Text>
         <View className="space-y-4 mb-8">
           {/* USER MANAGEMENT CARD */}
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
-            <View className="flex-row items-center gap-3.5 flex-1">
+          <TouchableOpacity
+            accessibilityRole="button"
+            activeOpacity={0.85}
+            onPress={() => router.push('/admin/users' as any)}
+          >
+            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
               <View className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-brand-orange/10 border border-orange-200 dark:border-brand-orange/20 items-center justify-center flex-shrink-0">
                 <Ionicons name="people-outline" size={18} color={isDark ? "#FF3E00" : "#c2410c"} />
               </View>
@@ -38,18 +42,16 @@ export default function AdminDashboard() {
                   Search and manage application users and members
                 </Text>
               </View>
-            </View>
-            <TouchableOpacity
-              onPress={() => router.push('/admin/users' as any)}
-              className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg active:opacity-85"
-            >
-              <Ionicons name="arrow-forward" size={16} color="#FF3E00" />
-            </TouchableOpacity>
-          </GlassCard>
+            </GlassCard>
+          </TouchableOpacity>
 
           {/* SYSTEM AUDITS CARD */}
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
-            <View className="flex-row items-center gap-3.5 flex-1">
+          <TouchableOpacity
+            accessibilityRole="button"
+            activeOpacity={0.85}
+            onPress={() => router.push('/admin/reports' as any)}
+          >
+            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
               <View className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-850/20 items-center justify-center flex-shrink-0">
                 <Ionicons name="shield-outline" size={18} color={isDark ? "#A78BFA" : "#6D28D9"} />
               </View>
@@ -61,18 +63,16 @@ export default function AdminDashboard() {
                   Monitor score conflicts and game disputes
                 </Text>
               </View>
-            </View>
-            <TouchableOpacity
-              onPress={() => router.push('/admin/reports' as any)}
-              className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg active:opacity-85"
-            >
-              <Ionicons name="arrow-forward" size={16} color="#FF3E00" />
-            </TouchableOpacity>
-          </GlassCard>
+            </GlassCard>
+          </TouchableOpacity>
 
           {/* SPORT MANAGEMENT CARD */}
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
-            <View className="flex-row items-center gap-3.5 flex-1">
+          <TouchableOpacity
+            accessibilityRole="button"
+            activeOpacity={0.85}
+            onPress={() => router.push('/admin/sports' as any)}
+          >
+            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
               <View className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-850/20 items-center justify-center flex-shrink-0">
                 <Ionicons name="trophy-outline" size={18} color={isDark ? "#60A5FA" : "#1D4ED8"} />
               </View>
@@ -84,14 +84,8 @@ export default function AdminDashboard() {
                   View and edit sport rules, names, terms, and player positions
                 </Text>
               </View>
-            </View>
-            <TouchableOpacity
-              onPress={() => router.push('/admin/sports' as any)}
-              className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg active:opacity-85"
-            >
-              <Ionicons name="arrow-forward" size={16} color="#FF3E00" />
-            </TouchableOpacity>
-          </GlassCard>
+            </GlassCard>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>

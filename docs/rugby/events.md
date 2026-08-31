@@ -7,6 +7,29 @@ For *why* an event was awarded rather than what it stores, see
 the infringements in the Laws of the Game and the sanction each carries, written as the reference
 for the `SCORE-11` review of the `reasons` lists.
 
+## Control room sections
+
+Every template names a `section`, and the control room stacks one panel per section in this order:
+
+| `section` | Panel badge | Templates |
+| --- | --- | --- |
+| `Scoring` | Scoring Events | `try`, `penalty_try`, `penalty_kick`, `drop_goal` (`conversion` is spawned by a try, never tapped) |
+| `Game Events` | Game Events | `kickoff`, `dropout_22m`, `dropout_goalline`, `scrum`, `lineout`, `line_kick` |
+| `Infringements` | Infringement Events | `penalty_awarded`, `free_kick`, `yellow_card`, `red_card` |
+| `Stats` | Stats Events | `knock_on`, `turnover`, `tackle_made`, `tackle_missed` |
+
+**The split is by whose button you press.** Everything in Infringements is recorded against the
+*offending* team; everything in Game Events is recorded for the team taking the restart or set
+piece. Keeping one rule per panel is what the grouping is for — `line_kick` stays with the
+restarts even though a penalty or free kick can trigger it, because the team kicking to touch is
+the one it is recorded for.
+
+The key and the badge are allowed to differ, and `Scoring` is why: it is not only a grouping, it is
+what marks an event as affecting the score — `DynamicScoringContext` and `getEventLabel` both read
+`section === 'Scoring'` — so it keeps its name while its badge reads "Scoring Events". The other
+three are grouping alone. Section membership is a **display** decision and nothing else: it does
+not change an event's `type`, its points, or what it triggers.
+
 ## Linked events
 
 Some events spawn a follow-up event that carries `linkedEventId` pointing back at its parent. A
@@ -127,38 +150,93 @@ These events track the progression and administrative state of the match.
   * `action`: The system interpretation of what happened (`START`, `PAUSE`, `RESUME`, `END_PERIOD`, etc.).
   * `elapsedMS`: The recorded clock time when the action was taken to sync local client states and provide an audit.
   * `period`: The precise period in which the clock change occurred.
-85: 
-86: ---
-87: 
-88: ## Game Action Events (type: `GAME_EVENT`)
-89: 
-90: These events track specific actions and infringements during the match.
-91: 
-92: ### Penalty Awarded
-93: * **subType:** `Penalty Awarded`
-94: * **Event Data:**
-95:   * `reason`: The reason for the penalty (e.g., "High Tackle").
-96:   * `decision`: The chosen option ("Penalty Kick", "Line Kick", "Scrum", or "Tap n Go").
-97: 
-98: ### Free Kick Awarded
-99: * **subType:** `Free Kick Awarded`
-100: * **Event Data:**
-101:   * `reason`: The reason for the free kick (e.g., "Scrum - Early Push").
-102:   * `decision`: The chosen option ("Line Kick", "Scrum", or "Tap n Go").
-103: 
-104: ### Scrum
-105: * **subType:** `Scrum`
-106: * **Event Data:**
-107:   * `reason`: The reason the scrum was called (e.g., "Knock-on").
-108:   * `winnerSide`: "home" or "away" (if recorded).
-109:   * `winnerName`: The name of the winning team (if recorded).
-110: 
-111: ### Lineout
-112: * **subType:** `Lineout`
-113: * **Event Data:**
-114:   * `winnerSide`: "home" or "away" (if recorded).
-115:   * `winnerName`: The name of the winning team (if recorded).
-116: 
-117: ### Miscellaneous Actions
-118: * **subType:** `Yellow Card`, `Red Card`, `Knock-on`, `Turnover`, `Replacement`, `Kick-off`, `22m Dropout`, `Goalline Dropout`
-119: * **Event Data:** Varies by event (e.g., `actorId` for cards, `playerOffId`/`playerOnId` for replacements).
+
+---
+
+## Game Action Events (type: `GAME_EVENT`)
+
+These events track specific actions and infringements during the match. The reason and outcome
+**ids** below are the contract — the stored event holds the id, and the display name is resolved
+from the template. The full list, and the reasoning behind it, is
+[laws-infringements.md](file:///c:/Fred/Coding/SK/docs/rugby/laws-infringements.md) Part 6.
+
+**Reasons are grouped by phase, and every id carries its phase.** `penalty_awarded` and `free_kick`
+share one vocabulary — Tackle · Ruck · Scrum · Lineout · Maul · Open Play · Restart · In-goal ·
+Technical — and a reason id is prefixed with the phase it belongs to (`tackle_offside`,
+`ruck_offside`, `scrum_offside`). Five phases have an "Offside"; the prefix is what keeps them
+apart in the data, and it means a stored event still says which phase it happened in even if the
+picker is regrouped later. Every reason sets `specifyPlayer: true` for now.
+
+### Penalty Awarded
+* **subType:** `penalty_awarded`
+* **Reasons:** 40 across 9 phase groups, e.g. `tackle_dangerous`, `ruck_illegal_entry`,
+  `scrum_illegal_binding`, `lineout_contact`, `maul_obstruction`, `open_professional_foul`,
+  `tech_not_10m_back`.
+* **Outcomes:** `penalty_kick` · `line_kick` · `scrum` · `tap_go`. The first three are recorded for
+  the **opponent** (`triggerTeam: "opponent"`); `scrum` prefills the child's reason as `penalty`.
+* **Event Data:** `reason`, `outcome`.
+
+### Free Kick Awarded
+* **subType:** `free_kick`
+* **Reasons:** 21 across 6 phase groups, e.g. `scrum_illegal_feed`, `lineout_early_jump`,
+  `open_mark`.
+* **Outcomes:** `scrum` (prefills the child's reason as `free_kick`) · `line_kick` · `tap_go`.
+* **Event Data:** `reason`, `outcome`.
+
+### Scrum
+* **subType:** `scrum`
+* **Reasons:** 16 — what put the scrum on the field: `knock_on`, `forward_pass`,
+  `accidental_offside`, `ruck_unplayable`, `maul_unplayable`, `lineout_not_straight`,
+  `lineout_short_throw`, `lineout_quick_throw`, `held_up`, `carried_back`, `dead_ball`,
+  `restart_offence`, `tech_offside`, `tech_other`, and the two prefilled ones, `penalty` and
+  `free_kick`.
+* **Outcomes:** `won` · `lost`.
+* **Event Data:** `reason`, `outcome`, `scrumResets` (from the `ScrumResetsCounter` widget).
+
+### Lineout
+* **subType:** `lineout`
+* **Reasons:** `out` · `penalty` · `free_kick` · `restart_offence` · `not_straight` ·
+  `short_throw` · `quick_throw`. Nothing prefills them — `line_kick` deliberately chains into
+  nothing, so a lineout is recorded by hand.
+* **Outcomes:** `won` (`winnerSide: "same"`) · `lost` · `not_straight` · `short_throw`. **Every
+  outcome except `won` carries `winnerSide: "other"`**: anything that hands the next throw to the
+  opposition counts as a loss, which is what the `lineoutsWon` stat reads.
+* **Event Data:** `reason`, `outcome`, `winnerSide`.
+
+### Kick-off and drop-outs
+* **subTypes:** `kickoff`, `dropout_22m`, `dropout_goalline`
+* **Outcomes (one shared list):** `successful` · `directly_out` · `too_short` · `too_long` ·
+  `not_a_drop` · `wrong_place` · `in_front_of_ball` · `other`.
+* **Event Data:** `outcome`, `successful`.
+
+### Cards
+* **subTypes:** `yellow_card`, `red_card`. There is no `timed_red_card` template: the 20-minute red
+  is an **outcome**, not a third card.
+* **Reasons:** one group each, 9 apiece. A card is always attributed to a player, so every reason
+  sets `specifyPlayer: true` — `repeated_offence` included, where the offence is the team's but the
+  card goes to somebody.
+* **`yellow_card` outcomes:** `stands` · `under_review` · `upgraded_timed_red` · `upgraded_red`.
+  This is how a 20-minute red actually happens: the referee shows a yellow and signals a review, and
+  the TMO confirms or upgrades it. `under_review` is a real outcome rather than an unset one, so
+  "the TMO is looking at it" cannot be confused with "the scorer has not answered yet".
+* **`red_card` outcomes:** `permanent` · `timed`, for a red shown directly.
+* **Event Data:** `reason`, `outcome`, `actorOrgProfileId` (the carded player).
+
+**Cards and `live_state.sinBins`.** A card event writes an entry holding its `type`
+(`yellow` | `red`) and `durationMS` (`0` meaning permanent), and the scoreboard counts it down.
+Both values are derived from the card's **outcome**, not its subType — an upgraded yellow is a red
+serving 20 minutes or gone for good. `allowTimedRedCard` is `true` in the rugby defaults, so a
+20-minute red serves `redCardDurationMS`; a competition that sets it `false` degrades one to a
+permanent red instead. Because the outcome can change after the fact, `GameEventManager.syncSinBin` re-derives
+the entry on every card mutation as well as on creation, preserving the original `awardedAtMS` so an
+edit never restarts a clock the player is already serving.
+
+### Miscellaneous Actions
+* **subTypes:** `knock_on`, `turnover` ("Turnover Won"), `tackle_made`, `tackle_missed`,
+  `line_kick`, `replacement`
+* **Event Data:** Varies by event (e.g. `playerOffId`/`playerOnId` for replacements).
+* **No outcome on the counting stats.** `knock_on`, `turnover`, `tackle_made` and `tackle_missed`
+  record a player and nothing else: the event happening *is* the whole fact, so they define no
+  `outcomes` and carry no `OUTCOME_SELECTION` step. They used to offer a single "Confirmed"
+  outcome, which was a screen with one button that answered nothing. `line_kick` keeps its
+  `out` / `stayed_in` outcomes, which do distinguish two real results.

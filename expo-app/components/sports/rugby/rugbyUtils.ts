@@ -95,7 +95,13 @@ export function calculateRugbyStats(events: GameEvent[], homeParticipantId?: str
           if (side) side.freeKicksAwarded++;
           break;
         case 'yellow_card':
-          if (side) side.yellowCards++;
+          // A yellow the TMO upgrades stays a `yellow_card` event — the upgrade is its outcome —
+          // so counting by template alone would report a sending-off as a yellow.
+          if (side) {
+            const upgraded = data.outcome === 'upgraded_timed_red' || data.outcome === 'upgraded_red';
+            if (upgraded) side.redCards++;
+            else side.yellowCards++;
+          }
           break;
         case 'red_card':
           if (side) side.redCards++;

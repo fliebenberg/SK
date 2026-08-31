@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity } from 'react-native';
-import { Game } from '@sk/shared';
-import { useSharedDynamicScoring } from './DynamicScoringContext';
+import { Game, findEventSection } from '@sk/shared';
+import { useSharedDynamicScoring, ScoringSection } from './DynamicScoringContext';
 import { ScoringActionButton } from './ScoringActionButton';
 import { wsService } from '../../../services/websocket';
 import { Button } from '../../Button';
 
 interface DynamicScoringPanelProps {
-  section: 'Scoring' | 'Game Events' | 'General Play';
+  section: ScoringSection;
   role?: string;
 }
 
 export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps) {
-  const { game, homeTeam, awayTeam, templates, scoringState, startDynamicFlow, updateFinalScore } = useSharedDynamicScoring();
+  const { game, homeTeam, awayTeam, sport, templates, scoringState, startDynamicFlow, updateFinalScore } = useSharedDynamicScoring();
   const [isFinalScoreOpen, setIsFinalScoreOpen] = useState(false);
   const [finalScores, setFinalScores] = useState<{ [key: string]: string }>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -88,12 +88,11 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
     );
   };
 
-  const sectionTitle =
-    section === 'Scoring'
-      ? 'Scoring Actions'
-      : section === 'Game Events'
-      ? 'Game Events & Cards'
-      : 'General Play & Set Pieces';
+  // The heading and whether this panel offers the final-score override are the sport's to
+  // decide — both used to be hardcoded against the four sections that no longer exist.
+  const sectionDefinition = findEventSection(sport, section);
+  const sectionTitle = sectionDefinition?.name || section;
+  const affectsScore = !!sectionDefinition?.affectsScore;
 
   return (
     <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-1.5 pt-2.5 shadow-sm mb-1.5 relative">
@@ -105,7 +104,7 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
       </View>
 
       {/* FINAL SCORE OVERRIDE BANNER */}
-      {section === 'Scoring' && isFinished && (
+      {affectsScore && isFinished && (
         <View className="mb-2 mt-1">
           <TouchableOpacity
             onPress={handleOpenFinalScore}

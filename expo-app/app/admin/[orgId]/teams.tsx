@@ -65,16 +65,8 @@ export default function OrgTeams() {
         if (res) setOrg(res);
       });
 
-      // Get teams
-      wsService.emit('get_data', { type: 'teams', orgId }, (res: any) => {
-        if (!active) return;
-        if (Array.isArray(res)) {
-          setTeams(res);
-          const uniqueSportIds = new Set(res.map((t: Team) => t.sportId));
-          setGroupBy(uniqueSportIds.size > 1 ? 'sport' : 'age');
-        }
-        setIsLoading(false);
-      });
+      // Teams are not fetched: joining `org:{orgId}:teams` pushes them, and
+      // every later change arrives carrying its own data.
 
       // Get sports
       wsService.emit('get_data', { type: 'sports' }, (res: any) => {
@@ -91,15 +83,29 @@ export default function OrgTeams() {
     const room = `org:${orgId}:teams`;
     const unsubscribe = wsService.subscribeToRoom(room);
 
+    const applyTeams = (next: Team[]) => {
+      setTeams(next);
+      const uniqueSportIds = new Set(next.map(t => t.sportId));
+      setGroupBy(uniqueSportIds.size > 1 ? 'sport' : 'age');
+      setIsLoading(false);
+    };
+
     const handleUpdate = (event: any) => {
-      if (!active) return;
-      if (event && (event.type === 'TEAM_ADDED' || event.type === 'TEAM_UPDATED' || event.type === 'TEAM_DELETED' || event.type === 'TEAMS_SYNC')) {
-        wsService.emit('get_data', { type: 'teams', orgId }, (res: any) => {
-          if (!active) return;
-          if (Array.isArray(res)) {
-            setTeams(res);
-          }
+      if (!active || !event) return;
+      if (event.topic && event.topic !== room) return;
+
+      if (event.type === 'TEAMS_SYNC') {
+        applyTeams(Array.isArray(event.data) ? event.data : []);
+      } else if ((event.type === 'TEAM_ADDED' || event.type === 'TEAM_UPDATED') && event.data?.id) {
+        setTeams(prev => {
+          const idx = prev.findIndex(t => t.id === event.data.id);
+          if (idx === -1) return [...prev, event.data];
+          const next = prev.slice();
+          next[idx] = event.data;
+          return next;
         });
+      } else if (event.type === 'TEAM_DELETED' && event.data?.id) {
+        setTeams(prev => prev.filter(t => t.id !== event.data.id));
       }
     };
 

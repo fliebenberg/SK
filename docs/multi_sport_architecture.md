@@ -13,8 +13,8 @@ Stores the generic configuration and rules for a sport.
 - `participantType`: `TEAM` | `INDIVIDUAL`
 - `matchTopology`: `HEAD_TO_HEAD` (2 participants battling) | `MULTI_COMPETITOR` (many participants ranked).
 - `defaultSettings` (JSON):
-  - `periods`: 2
-  - `periodDurationMinutes`: 40
+  - `scheduledPeriods`: 2 (same key name the game- and event-level overrides use)
+  - `periodLengthMS`: 2400000
   - `scoringRules`: `[{ id: 'try', name: 'Try', points: 5 }, { id: 'conv', name: 'Conversion', points: 2 }]`
   - `allowFlexibleScoring`: `false` (If true, allows manual entry of points).
   - `positions`: `[{id: 'prop', name: 'Prop'}, ...]`
@@ -25,10 +25,43 @@ Stores the generic configuration and rules for a sport.
     - `overtimePeriods`: e.g., 2
     - `overtimeDurationMinutes`: e.g., 10
 
+> **The event log is a record, not a reference**: a recorded event stores the *words* it was
+> captured with — `templateName`, `outcomeName`, `reasonName` — alongside the ids it chose, the
+> same way `period` stores "1st Half". A feed row therefore reads exactly as it did on the day,
+> whatever is renamed or deleted afterwards. `captureEventLabels` in
+> [capturedEvent.ts](file:///c:/Fred/Coding/SK/shared/src/utils/capturedEvent.ts) stamps them and
+> `getEventLabel` prefers them, falling back to the template only for rows recorded before this
+> existed. An outcome's `displayOverride: ""` is a value, not an absence — it is captured as an
+> empty string so a successful conversion keeps reading "CONVERSION" rather than gaining a
+> "→ SUCCESSFUL" it never had.
+>
+> **Sections**: the panels the scoring control room stacks are per sport, stored on
+> `sports.event_sections` as `[{ id, name, affectsScore? }]` and read through `getEventSections`
+> in [sportSections.ts](file:///c:/Fred/Coding/SK/shared/src/utils/sportSections.ts). A sport that
+> declares none derives them from the sections its templates name. `affectsScore` replaced the
+> hardcoded `section === 'Scoring'` test that used to appear in four call sites — ask
+> `isScoringTemplate(sport, template)` instead, which also counts anything worth points.
+>
+> Sections are stored beside the templates rather than wrapped around them — `event_templates`
+> stays a flat array whose entries name their section by id. Templates are resolved by id far
+> more often than they are listed by section (the mutation engine alone does it eight times, and
+> triggers cross sections: a penalty in Infringements spawns a kick in Scoring), and a section
+> has to exist before any event is filed under it. The cost of that choice is that an event can
+> name a section that does not exist, so both the editor and
+> [sportValidation.ts](file:///c:/Fred/Coding/SK/server/src/utils/sportValidation.ts) check for it.
+>
+> **Authoring**: a sport's event templates are seeded from the specs under
+> [server/src/scripts/setup/seeds/sports/](file:///c:/Fred/Coding/SK/server/src/scripts/setup/seeds/sports/)
+> and are editable from the system admin sport screen's **Events** tab
+> ([expo-app/components/admin/sports/](file:///c:/Fred/Coding/SK/expo-app/components/admin/sports/)).
+> Two capture-flow details are still code-bound: a `CUSTOM_WIDGET` can only name a widget that
+> exists in the client widget registry, and a `FORM_INPUT` step's `fields` have no fixed shape,
+> so the editor takes them as JSON.
+
 ### **B. `SportPreset` (Variants)**
 A table to hold variation templates for a specific sport.
 - `id`, `sportId`, `name` (e.g., "U13 Rugby")
-- `settingsOverride` (JSON): E.g., `{ periods: 2, periodDurationMinutes: 15 }`.
+- `settingsOverride` (JSON): E.g., `{ scheduledPeriods: 2, periodLengthMS: 900000 }`.
 - When creating a Match, the user picks the Sport and optionally a Preset, making setup rapid.
 
 ### **C. The `Match` (or `Event`) Entity**

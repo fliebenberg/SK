@@ -92,3 +92,11 @@ export function summariseWidget(step: ActionStep, value: any): string | undefine
 export function isWidgetRegistered(widgetName: string | undefined): boolean {
   return !!widgetName && widgetName in WIDGETS;
 }
+
+/**
+ * The registered widget names, for callers that offer a choice rather than resolve one — the
+ * sport editor lists these so a spec cannot be authored against a widget that does not exist.
+ */
+export function registeredWidgetNames(): string[] {
+  return Object.keys(WIDGETS);
+}

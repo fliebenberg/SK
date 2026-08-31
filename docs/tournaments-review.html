@@ -1,0 +1,2793 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#F8FAFC; --surface:#FFFFFF; --surface-2:#F1F5F9; --surface-3:#E9EEF5;
+  --text:#0F172A; --text-dim:#64748B; --text-faint:#94A3B8;
+  --border:#E2E8F0; --border-strong:#CBD5E1;
+  --accent:#FF3E00; --accent-text:#B82B00; --accent-soft:rgba(255,62,0,.07); --accent-line:rgba(255,62,0,.35);
+  --info:#155E75; --ok:#047857; --alert:#BE123C;
+  --shadow:0 1px 2px rgba(15,23,42,.05), 0 10px 30px -18px rgba(15,23,42,.35);
+  --code-bg:#F1F5F9; --code-text:#334155;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F172A; --surface:#172136; --surface-2:#1E293B; --surface-3:#243146;
+    --text:#FFFFFF; --text-dim:#94A3B8; --text-faint:#64748B;
+    --border:rgba(255,255,255,.09); --border-strong:rgba(255,255,255,.16);
+    --accent:#FF3E00; --accent-text:#FF7A4D; --accent-soft:rgba(255,62,0,.12); --accent-line:rgba(255,62,0,.45);
+    --info:#00E5FF; --ok:#00E676; --alert:#FF003C;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -18px rgba(0,0,0,.8);
+    --code-bg:#111C31; --code-text:#CBD5E1;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F172A; --surface:#172136; --surface-2:#1E293B; --surface-3:#243146;
+  --text:#FFFFFF; --text-dim:#94A3B8; --text-faint:#64748B;
+  --border:rgba(255,255,255,.09); --border-strong:rgba(255,255,255,.16);
+  --accent:#FF3E00; --accent-text:#FF7A4D; --accent-soft:rgba(255,62,0,.12); --accent-line:rgba(255,62,0,.45);
+  --info:#00E5FF; --ok:#00E676; --alert:#FF003C;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -18px rgba(0,0,0,.8);
+  --code-bg:#111C31; --code-text:#CBD5E1;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:88px}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} *{transition:none !important; animation:none !important} }
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:16.5px; line-height:1.68; -webkit-font-smoothing:antialiased;
+}
+.label{font-family:Orbitron,"Segoe UI",sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.14em}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:40; background:var(--bg); background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.topbar-inner{
+  max-width:1280px; margin:0 auto; padding:0 24px; height:60px;
+  display:flex; align-items:center; gap:20px;
+}
+.wordmark{display:flex; align-items:center; gap:10px; min-width:0}
+.wordmark .dot{width:9px; height:9px; border-radius:50%; background:var(--accent); flex:none; box-shadow:0 0 0 4px var(--accent-soft)}
+.wordmark .name{font-family:Orbitron,sans-serif; font-weight:700; font-size:12.5px; letter-spacing:.16em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.wordmark .sub{font-size:11px; color:var(--text-dim); letter-spacing:.04em; white-space:nowrap}
+.spacer{flex:1}
+.progress{display:flex; align-items:center; gap:9px; font-size:11px; color:var(--text-dim); white-space:nowrap}
+.progress .bar{width:74px; height:5px; border-radius:99px; background:var(--surface-3); overflow:hidden}
+.progress .bar > i{display:block; height:100%; background:var(--accent); width:0%; transition:width .3s ease}
+.progress b{font-family:Orbitron,sans-serif; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; font-size:11px}
+
+.btn{
+  font-family:Inter,sans-serif; font-size:12px; font-weight:600; color:var(--text);
+  background:var(--surface); border:1px solid var(--border-strong); border-radius:9px;
+  padding:7px 12px; cursor:pointer; display:inline-flex; align-items:center; gap:7px;
+  transition:background .15s ease, border-color .15s ease, color .15s ease; white-space:nowrap;
+}
+.btn:hover{background:var(--surface-2); border-color:var(--accent-line)}
+.btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.btn-primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn-primary:hover{background:#E63700; border-color:#E63700; color:#fff}
+.btn-ghost{background:transparent; border-color:transparent; color:var(--text-dim); padding:7px 9px}
+.btn-ghost:hover{background:var(--surface-2); color:var(--text)}
+.btn .count{
+  font-family:Orbitron,sans-serif; font-weight:700; font-size:10px; font-variant-numeric:tabular-nums;
+  background:var(--accent); color:#fff; border-radius:99px; padding:1px 6px; min-width:18px; text-align:center;
+}
+
+/* ---------- shell ---------- */
+.shell{max-width:1280px; margin:0 auto; padding:0 24px; display:grid; grid-template-columns:236px minmax(0,1fr); gap:56px; align-items:start}
+.toc{position:sticky; top:84px; padding:36px 0 48px; max-height:calc(100vh - 100px); overflow-y:auto}
+.toc h4{margin:0 0 12px; font-size:9.5px; color:var(--text-faint)}
+.toc a{
+  display:flex; align-items:baseline; gap:8px; text-decoration:none; color:var(--text-dim);
+  font-size:13px; line-height:1.4; padding:6px 10px; border-radius:7px; border-left:2px solid transparent;
+}
+.toc a:hover{background:var(--surface-2); color:var(--text)}
+.toc a.active{color:var(--text); border-left-color:var(--accent); background:var(--accent-soft)}
+.toc a .num{font-family:Orbitron,sans-serif; font-size:9.5px; font-weight:700; color:var(--text-faint); flex:none; font-variant-numeric:tabular-nums}
+.toc a.docrow{margin-top:14px; color:var(--text); font-weight:600}
+.toc a.docrow .num{color:var(--accent)}
+.toc .tocgroup .sub{display:none; font-size:12px; padding:4px 10px 4px 26px; color:var(--text-faint)}
+.toc .tocgroup.open .sub{display:flex}
+.toc .tocgroup .sub:hover{color:var(--text); background:var(--surface-2)}
+.toc .tocgroup .sub .num{font-size:9px}
+.toc a .badge{
+  margin-left:auto; font-family:Orbitron,sans-serif; font-size:9px; font-weight:700; font-variant-numeric:tabular-nums;
+  background:var(--accent); color:#fff; border-radius:99px; padding:1px 5px; flex:none;
+}
+
+main{padding:36px 48px 160px 0; min-width:0}
+article{max-width:68ch}
+
+/* ---------- document typography ---------- */
+h1.doc-title{
+  font-family:Orbitron,sans-serif; font-weight:700; font-size:clamp(26px,3.4vw,38px); line-height:1.15;
+  letter-spacing:-.005em; margin:0 0 14px; text-wrap:balance;
+}
+.doc-meta{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 44px; padding-bottom:32px; border-bottom:1px solid var(--border)}
+.chip{
+  font-size:11px; color:var(--text-dim); background:var(--surface-2);
+  border:1px solid var(--border); border-radius:99px; padding:4px 11px;
+}
+.chip strong{color:var(--text); font-weight:600}
+
+h2{
+  font-family:Orbitron,sans-serif; font-weight:700; font-size:19px; line-height:1.3; letter-spacing:.01em;
+  margin:64px 0 4px; padding-top:28px; border-top:1px solid var(--border); text-wrap:balance;
+}
+h2:first-of-type{border-top:none; padding-top:0}
+h2.docbreak{
+  font-size:24px; margin-top:88px; padding-top:36px; border-top:2px solid var(--accent);
+}
+h2.docbreak::before{
+  content:"Document"; display:block; font-size:9px; letter-spacing:.16em; color:var(--accent-text);
+  margin-bottom:10px;
+}
+h3{font-size:15.5px; font-weight:700; margin:38px 0 2px; letter-spacing:.005em; color:var(--text); text-wrap:balance}
+p{margin:16px 0}
+ul,ol{margin:16px 0; padding-left:22px}
+li{margin:9px 0}
+li::marker{color:var(--text-faint)}
+strong{font-weight:650; color:var(--text)}
+em{font-style:italic}
+a.mdlink{color:var(--accent-text); text-decoration:none; border-bottom:1px solid var(--accent-line)}
+a.mdlink:hover{border-bottom-color:var(--accent-text)}
+code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.855em;
+  background:var(--code-bg); color:var(--code-text); border:1px solid var(--border); border-radius:5px; padding:1px 5px;
+}
+pre{
+  background:var(--code-bg); border:1px solid var(--border); border-radius:11px;
+  padding:16px 18px; overflow-x:auto; margin:20px 0;
+}
+pre code{background:none; border:none; padding:0; font-size:12.8px; line-height:1.65; color:var(--code-text)}
+hr.rule{display:none}
+
+.tablewrap{overflow-x:auto; margin:20px 0; border:1px solid var(--border); border-radius:11px; background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-size:13.5px}
+th{
+  text-align:left; font-family:Orbitron,sans-serif; font-weight:700; font-size:9.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--text-dim); padding:12px 15px; border-bottom:1px solid var(--border); white-space:nowrap;
+}
+td{padding:12px 15px; border-bottom:1px solid var(--border); vertical-align:top; line-height:1.55}
+tr:last-child td{border-bottom:none}
+td:first-child{color:var(--text); font-weight:500}
+
+/* ---------- open question blocks ---------- */
+.qblock{
+  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent);
+  border-radius:0 11px 11px 0; padding:18px 20px 18px 22px; margin:24px 0; box-shadow:var(--shadow);
+}
+.qblock .qhead{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+.qblock .qnum{
+  font-family:Orbitron,sans-serif; font-weight:700; font-size:9.5px; letter-spacing:.1em;
+  color:#fff; background:var(--accent); border-radius:5px; padding:3px 7px; flex:none;
+}
+.qblock .qtag{font-family:Orbitron,sans-serif; font-weight:700; font-size:9px; letter-spacing:.13em; text-transform:uppercase; color:var(--text-faint)}
+.qblock p{margin:8px 0 0; font-size:14.5px; line-height:1.62; color:var(--text-dim)}
+.qblock p:first-of-type{margin-top:0}
+.qblock p strong{color:var(--text)}
+.dblock{
+  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--ok);
+  border-radius:0 11px 11px 0; padding:18px 20px 18px 22px; margin:24px 0;
+}
+.dblock .qhead{display:flex; align-items:center; gap:10px; margin-bottom:8px}
+.dblock .qnum{
+  font-family:Orbitron,sans-serif; font-weight:700; font-size:9.5px; letter-spacing:.1em;
+  color:var(--ok); border:1px solid var(--ok); border-radius:5px; padding:2px 7px; flex:none;
+}
+.dblock .qtag{font-family:Orbitron,sans-serif; font-weight:700; font-size:9px; letter-spacing:.13em; text-transform:uppercase; color:var(--text-faint)}
+.dblock p{margin:8px 0 0; font-size:14.5px; line-height:1.62; color:var(--text-dim)}
+.dblock p:first-of-type{margin-top:0}
+.dblock p strong{color:var(--text)}
+blockquote.note{
+  border-left:3px solid var(--border-strong); padding:2px 0 2px 18px; margin:22px 0; color:var(--text-dim); font-size:14.5px;
+}
+
+/* ---------- comment machinery ---------- */
+.block{position:relative}
+.block > .addbtn{
+  position:absolute; right:-44px; top:3px; width:30px; height:30px; border-radius:8px;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-faint);
+  display:grid; place-items:center; cursor:pointer; opacity:0; transition:opacity .14s ease, color .14s ease, border-color .14s ease;
+}
+.block:hover > .addbtn, .block:focus-within > .addbtn, .block.has-comments > .addbtn{opacity:1}
+.block > .addbtn:hover{color:var(--accent-text); border-color:var(--accent-line)}
+.block > .addbtn:focus-visible{opacity:1; outline:2px solid var(--accent); outline-offset:2px}
+.block.has-comments{background:var(--accent-soft); border-radius:8px; box-shadow:0 0 0 8px var(--accent-soft)}
+.block.flash{animation:flash 1.4s ease}
+@keyframes flash{0%,100%{box-shadow:0 0 0 8px var(--accent-soft)} 30%{box-shadow:0 0 0 8px rgba(255,62,0,.28)}}
+
+.editor{margin:12px 0 4px; background:var(--surface); border:1px solid var(--accent-line); border-radius:11px; padding:12px; box-shadow:var(--shadow)}
+.editor textarea{
+  width:100%; min-height:88px; resize:vertical; border:1px solid var(--border); border-radius:8px;
+  background:var(--bg); color:var(--text); font-family:Inter,sans-serif; font-size:14px; line-height:1.6; padding:10px 12px;
+}
+.editor textarea:focus{outline:2px solid var(--accent); outline-offset:-1px; border-color:transparent}
+.editor .row{display:flex; align-items:center; gap:8px; margin-top:10px}
+.editor .hint{font-size:11px; color:var(--text-faint); margin-left:auto}
+
+.comments{display:flex; flex-direction:column; gap:8px; margin:12px 0 4px}
+.comment{background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:0 10px 10px 0; padding:11px 14px}
+.comment .ctop{display:flex; align-items:center; gap:8px; margin-bottom:5px}
+.comment .who{font-family:Orbitron,sans-serif; font-weight:700; font-size:9px; letter-spacing:.12em; color:var(--accent-text)}
+.comment .when{font-size:10.5px; color:var(--text-faint); font-variant-numeric:tabular-nums}
+.comment .acts{margin-left:auto; display:flex; gap:2px}
+.comment .acts button{
+  background:none; border:none; color:var(--text-faint); font-size:11px; font-weight:600;
+  cursor:pointer; padding:2px 6px; border-radius:5px; font-family:Inter,sans-serif;
+}
+.comment .acts button:hover{color:var(--text); background:var(--surface-2)}
+.comment .acts button.del:hover{color:var(--alert)}
+.comment .body{font-size:14px; line-height:1.6; white-space:pre-wrap; color:var(--text)}
+
+/* ---------- drawer ---------- */
+.scrim{position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:50; opacity:0; pointer-events:none; transition:opacity .2s ease}
+.scrim.open{opacity:1; pointer-events:auto}
+.drawer{
+  position:fixed; top:0; right:0; height:100%; width:min(420px,92vw); z-index:60; background:var(--bg);
+  border-left:1px solid var(--border); transform:translateX(100%); transition:transform .24s cubic-bezier(.4,0,.2,1);
+  display:flex; flex-direction:column;
+}
+.drawer.open{transform:translateX(0)}
+.drawer header{display:flex; align-items:center; gap:12px; padding:18px 20px; border-bottom:1px solid var(--border)}
+.drawer header h3{margin:0; font-family:Orbitron,sans-serif; font-size:11px; letter-spacing:.14em; text-transform:uppercase}
+.drawer .body{overflow-y:auto; padding:14px 20px 40px; display:flex; flex-direction:column; gap:10px}
+.drawer .grp{font-family:Orbitron,sans-serif; font-weight:700; font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-faint); margin:14px 0 2px}
+.tabs{display:flex; gap:4px; background:var(--surface-2); padding:3px; border-radius:9px}
+.tab{
+  font-family:Orbitron,sans-serif; font-weight:700; font-size:9px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--text-dim); background:transparent; border:1px solid transparent;
+  border-radius:7px; padding:6px 11px; cursor:pointer;
+}
+.tab.is-on{background:var(--surface); color:var(--text); border-color:var(--accent-line)}
+.tab:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.qrow{display:flex; gap:10px; align-items:flex-start}
+.qrow .tick{
+  font-family:Orbitron,sans-serif; font-weight:700; font-size:9px; letter-spacing:.06em;
+  border-radius:5px; padding:3px 6px; flex:none; margin-top:1px;
+}
+.qrow .tick.todo{color:#fff; background:var(--accent)}
+.qrow .tick.done{color:var(--ok); border:1px solid var(--ok)}
+.qrow .qt{min-width:0}
+.qrow .qtag{font-size:12px; font-weight:600; color:var(--text); display:block; margin-bottom:3px}
+.dcard.answered{opacity:.6}
+button.progress{
+  background:transparent; border:1px solid transparent; border-radius:9px; padding:5px 9px;
+  cursor:pointer; font-family:inherit;
+}
+button.progress:hover{background:var(--surface-2); border-color:var(--border)}
+button.progress:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.dcard{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:11px 13px; cursor:pointer; text-align:left; width:100%; font:inherit; color:inherit}
+.dcard:hover{border-color:var(--accent-line)}
+.dcard .q{font-size:11px; color:var(--text-faint); margin-bottom:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.dcard .t{font-size:13.5px; line-height:1.55; white-space:pre-wrap}
+.empty{color:var(--text-faint); font-size:13.5px; text-align:center; padding:40px 20px; line-height:1.6}
+
+/* ---------- export modal ---------- */
+.modal{position:fixed; inset:0; z-index:70; display:none; place-items:center; padding:24px}
+.modal.open{display:grid}
+.modal .card{background:var(--bg); border:1px solid var(--border); border-radius:14px; width:min(760px,100%); max-height:86vh; display:flex; flex-direction:column; box-shadow:var(--shadow)}
+.modal header{display:flex; align-items:center; gap:12px; padding:18px 20px; border-bottom:1px solid var(--border)}
+.modal header h3{margin:0; font-family:Orbitron,sans-serif; font-size:11px; letter-spacing:.14em; text-transform:uppercase}
+.modal .out{
+  flex:1; overflow:auto; margin:0; padding:16px 20px; background:var(--code-bg); color:var(--code-text);
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; line-height:1.6; white-space:pre-wrap; border:none;
+}
+.modal footer{display:flex; align-items:center; gap:10px; padding:14px 20px; border-top:1px solid var(--border)}
+.modal footer .note{font-size:11.5px; color:var(--text-dim); margin-right:auto; line-height:1.5}
+
+.warn{
+  max-width:1280px; margin:0 auto; padding:10px 24px; font-size:12.5px; color:var(--alert);
+  background:var(--accent-soft); border-bottom:1px solid var(--border); display:none;
+}
+.warn.show{display:block}
+.warn.info{color:var(--text-dim); background:var(--surface-2)}
+.warn.info strong{color:var(--text)}
+
+@media (max-width:1080px){
+  .shell{grid-template-columns:1fr; gap:0}
+  .toc{display:none}
+  main{padding:28px 0 140px}
+  .block > .addbtn{position:static; opacity:1; margin-top:8px}
+}
+@media (max-width:620px){
+  .topbar-inner{gap:10px; padding:0 16px}
+  .wordmark .sub, .progress .bar{display:none}
+  .shell{padding:0 16px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="wordmark">
+      <span class="dot"></span>
+      <span class="name" id="wmName">Review</span>
+      <span class="sub" id="wmSub"></span>
+    </div>
+    <div class="spacer"></div>
+    <button class="progress" id="openQuestions" title="Jump to an open question">
+      <span class="bar"><i id="pbar"></i></span>
+      <span><b id="pnum">0/0</b> questions answered</span>
+    </button>
+    <button class="btn" id="openDrawer">Comments <span class="count" id="ccount">0</span></button>
+    <button class="btn btn-primary" id="exportBtn">Export</button>
+    <button class="btn btn-ghost" id="themeBtn" aria-label="Toggle colour theme" title="Toggle colour theme">◐</button>
+  </div>
+</header>
+
+<div class="warn" id="storageWarn">
+  This browser is not letting the page save to local storage, so your comments will be lost when you close the tab.
+  Use <strong>Export</strong> before you leave.
+</div>
+<div class="warn info" id="staleWarn"></div>
+
+<div class="shell">
+  <nav class="toc" id="toc" aria-label="Sections"><h4 class="label">Contents</h4></nav>
+  <main><article id="doc"></article></main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="All comments">
+  <header>
+    <div class="tabs">
+      <button class="tab is-on" id="tabQuestions" data-tab="questions">Questions</button>
+      <button class="tab" id="tabComments" data-tab="comments">Comments</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" id="closeDrawer" aria-label="Close">✕</button>
+  </header>
+  <div class="body" id="drawerBody"></div>
+</aside>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Export comments">
+  <div class="card">
+    <header>
+      <h3>Export</h3>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" id="closeModal" aria-label="Close">✕</button>
+    </header>
+    <pre class="out" id="exportOut"></pre>
+    <footer>
+      <span class="note">Save this into the repo beside the source documents, then tell Claude to read it.</span>
+      <button class="btn" id="copyBtn">Copy</button>
+      <button class="btn btn-primary" id="downloadBtn">Download .md</button>
+    </footer>
+  </div>
+</div>
+
+<script id="review-config" type="application/json">
+{
+  "title": "Tournaments — Feature Spec",
+  "subtitle": "· review draft",
+  "storageKey": "sk-tournament-spec-review-v1",
+  "exportFileName": "tournaments-review-comments.md",
+  "sources": [
+    "docs/tournaments.md",
+    "docs/tournaments-data-model.md"
+  ]
+}
+</script>
+
+<script id="spec-src" type="text/plain">
+# Tournaments — Feature Spec
+
+**Status:** Draft / in discussion. Nothing here is built yet.
+**Supersedes:** the `SportsDay` event type (see Consolidation).
+**Review rounds:** round 1 (through Q8) and round 2 (through Q14) processed 2026-08-28;
+the UI review round (2026-08-30) added D33 and closed two open questions.
+**Related:** TODO.md — "Consolidate Sportsday and Tournament view";
+docs/design_spec.md (wizards for complex entry);
+docs/database_structure.md (`events` and friends).
+
+## Purpose
+
+Give the organiser of a multi-organisation event a way to set the whole thing up in the app:
+who is coming, what they are playing, where and when each fixture happens, and — where it
+matters — how the day is won.
+
+The current app can do the *first* and *last* few percent of this. You can create an event with
+sports and participating orgs, and once games exist it will keep live scores and a standings
+table. Everything in between — turning "four schools, three sports, five age groups" into
+sixty scheduled fixtures across eight fields — is manual, one fixture at a time, through
+games/new.tsx.
+That is the gap this feature closes.
+
+### The two shapes we are designing for
+
+**A school sports day.** Three or four schools meet for a morning. Multiple sports run in
+parallel — rugby on two fields, netball on three courts, hockey on the astro. Each sport runs
+several age groups. Most fixtures are just "u14A vs u14A"; there is no bracket and nobody is
+knocked out. The schools may or may not agree beforehand that the day is scored — and if it is,
+a 1st XV win usually counts for more than a u13C win.
+
+**A single-sport tournament.** One sport, usually one age group, six to sixteen teams. Pool
+stage, then a knockout, then a final. Entrants are teams, progression is automatic, and there is
+exactly one winner.
+
+These look like different products but they are the same object with different knobs turned. The
+whole design below follows from taking that seriously.
+
+### Even an unscored day still has a scoreboard
+
+A sports day with no agreed points system is still full of results, and organisers and parents
+still want to see them. So the absence of a competition points system must never mean the absence
+of a summary. Where the day is not scored we still show plain counts — games played, won, drawn,
+lost per organisation — groupable by sport and by age group. This is a *presentation* default
+rather than a competition rule, and it needs no configuration to be useful.
+
+### Design stance: model for the hard cases, ship the easy ones
+
+Settled in review round 2, and it governs every decision below. We work the **complex** formats
+through the model now — knockouts with progression, pools, multi-stage draws, ranked meets — so
+we know the structure admits them. We may still ship the *user interface* in phases, simplest
+first. What we do not do is design against the simple cases and hope the complex ones fit later,
+because the places where they would not fit are structural and expensive to move.
+
+### Decisions so far
+
+Recorded in place in the section each belongs to.
+
+| | Decision |
+|---|---|
+| **D1** | `SportsDay` rows migrate **in place** to `Tournament` + `format: 'Festival'`. No alias kept. |
+| **D2** | `Festival` is the stored format name **and**, since the UI review, the label as well. |
+| **D3** | Divisions are confirmed, **and are always user-editable** — the app proposes, the organiser disposes. |
+| **D4** | "Division" is the name. |
+| **D5** | Pools live as flexible data inside a division rather than as their own entity. |
+| **D6** | A `Festival` computes **both** a per-division table and an organisation roll-up. |
+| **D7** | Placeholder / TBC entrants are supported from v1. |
+| **D8** | Fixture generation is a starting point the organiser can always override. |
+| **D9** | On entrant change, offer **regenerate from scratch** or **add manually** — never a silent top-up. |
+| **D10** | Straight **replacement** of one entrant by another rewrites the fixtures in place and recalculates nothing. |
+| **D11** | **Stages** are built into the model *and the UI* from the start, not deferred. |
+| **D12** | Model for the complex formats now; phase the UI, not the schema. |
+| **D13** | Bulk writes: batch support on the actions that need it, under one shared batch contract. |
+| **D14** | Scheduling is a greedy first pass plus easy manual adjustment. **No optimiser for now** — deferred on complexity, not ruled out. |
+| **D15** | Multi-day is supported, with per-day time windows and per-stage earliest-start rules. |
+| **D16** | Show venue **and** facility wherever more than one venue is in play. |
+| **D17** | **3/1/0** becomes the shared default for tournaments *and* leagues. |
+| **D18** | Division weighting: a multiplier per division, default 1.0, editable. |
+| **D19** | Leagues and tournaments share one scoring-system shape, bonus rules included. |
+| **D20** | Tiebreaks are configurable — the organiser orders the progression factors; we ship a default order. |
+| **D21** | A game can belong to a tournament **and** to one or more leagues/ladders at the same time. |
+| **D22** | Divisions can be delegated to a convenor who edits that division without running the event. |
+| **D23** | Automatic knockout progression is **in scope**, not deferred. |
+| **D24** | A **ladder is a scoring context**, not a tournament format. |
+| **D25** | Stay at two levels (event → division). Revisit only when a real case breaks it. |
+| **D26** | **One** placeholder entrant type, carrying an optional fill rule. Not two. |
+| **D27** | Ranked contests are designed into the schema now, built later. |
+| **D28** | **Double elimination is deferred.** Plate / consolation is the v1 loser-routing format. |
+| **D29** | Tiebreak factors as listed, ordered by the organiser — and **any result can be manually overridden**. |
+| **D30** | Standings are **persisted**, recalculated when a result is finalised. |
+| **D31** | A division organiser edits fixtures and enters results. Nothing else, for now. |
+| **D32** | The unread sport flags are logged as `SPORT-10` rather than fixed here. |
+| **D33** | An organiser is a **named person, not an org role** — assignable at event or division scope. |
+
+## 1. Consolidation: Sports Day becomes a format
+
+Today `EventType` is `'SingleMatch' | 'SportsDay' | 'Tournament'`
+(Event.ts). `SportsDay` and
+`Tournament` are indistinguishable in code — the only difference anywhere in the active codebase
+is the header label on the create screen. Both are just "an event with more than one game".
+
+We collapse them:
+
+```
+EventType = 'SingleMatch' | 'Tournament'
+
+TournamentFormat =
+  | 'Festival'      // sports day: fixtures are arranged, not generated by a bracket
+  | 'RoundRobin'    // everyone plays everyone, ranked by table
+  | 'Knockout'      // single-elimination bracket
+  | 'PoolsKnockout' // pools, then the top N progress to a bracket
+  | …               // see the catalogue in §5
+```
+
+A sports day is `type: 'Tournament', format: 'Festival'`. The event detail screen keys its tabs
+and its setup steps off `format`, which is what the TODO item asks for.
+
+> **Decided — migration.** Existing `type = 'SportsDay'` rows are rewritten **in place** to
+> `type = 'Tournament'` with `format: 'Festival'`. No alias is retained; there is little enough
+> data that a one-shot migration script is cheaper than carrying a legacy string forever.
+
+> **Decided — the name `Festival`.** Kept as the stored format value. Since format is now one of
+> several options an organiser picks when setting up a tournament, having a clearly named format
+> is worth more than matching the everyday phrase. What the UI *calls* it is a separate,
+> reversible decision we can take when we design the screen.
+
+## 2. The missing layer: Divisions
+
+This is the central structural proposal, and everything downstream depends on it.
+
+Right now a `Game` hangs directly off an `Event` and carries its own `sportId` and two team
+participants. For a single match that is exactly right. For a sports day it means the event is a
+flat bag of sixty unrelated fixtures with no way to say "these eight are the u14 rugby" — which
+in turn means no way to generate them in bulk, rank them separately, or hand them to a different
+person to run.
+
+So we introduce a grouping layer between the event and its games:
+
+```
+Event (Tournament)
+└── Division            e.g. "u14 Rugby", "Open Netball", "u16 Rugby — Division B"
+    ├── sportId
+    ├── ageGroup        (optional — a tournament may have only one)
+    ├── entrants        teams, individuals, or unresolved placeholders
+    ├── facilities      which fields/courts this division may use (optional)
+    ├── weighting       multiplier applied to its points in the org roll-up (default 1.0)
+    └── Stage[]         ordered phases — pool, knockout, final. One implicit stage is the
+        ├── format          degenerate case, and covers round robin and Festival.
+        ├── entrantSource   how this stage's entrants are derived from the previous one
+        └── Games           the fixtures
+```
+
+A single-sport tournament has exactly one division and the UI can hide the concept entirely — you
+would never make the organiser of a 12-team u16 hockey tournament create a division called "u16
+Hockey" before adding teams. A sports day has one division per sport × age group, and that is
+precisely the unit an organiser thinks in when they build the schedule.
+
+Divisions are also the natural unit for the things a tournament needs that a single match does
+not: a points table, a bracket, a start time, a set of facilities, and a person responsible.
+
+> **Decided — divisions are a default, never a constraint.** Sport × age group is how the app
+> *proposes* divisions, not how it defines them. An organiser running a single sport at a single
+> age group must still be able to split it into "Division A" and "Division B" and assign teams
+> to each by hand; equally they must be able to merge or rename what we proposed. Every
+> auto-derived division is a suggestion the organiser can override. This is the general principle
+> for the whole feature: **generate to save labour, never to remove control.**
+
+> **Decided — naming.** "Division" it is.
+
+> **Decided — pools do not nest as entities.** A division's stage carries its `pools` as flexible
+> structured data, and each game records the pool it belongs to. Tournament formats vary enough
+> that a rigid schema for every one of them would be a liability; format-specific data stays in a
+> format-shaped blob. The catalogue in §5
+> is the check on whether that blob is expressive enough.
+
+> **Decided — stages are in from the start.** Pools → knockout, multi-stage draws, plate brackets
+> and athletics heats → final all describe a division proceeding through phases, where each
+> phase's entrants come from the last. Since we will need it, we build it now rather than
+> retrofitting it onto live tournament data — **and we build it in the UI too**, so the concept is
+> real to the organiser rather than a hidden schema affordance. A division with one stage is the
+> degenerate case and the UI can stay quiet about staging when there is only one.
+
+### Is a division enough, or do we need a level above it?
+
+Raised in review: a sports day might be understood as *"one event containing a rugby tournament,
+a netball tournament and a hockey tournament"*, each of which then has its own age-group
+divisions. That is three levels, where the model above has two.
+
+The two-level model gets most of the way there, because a division carries its own stages and
+format. "The rugby tournament" is then *the set of divisions whose sport is rugby* — a grouping
+the UI can present, and a convenor can be given (D22), without it being a stored entity.
+
+It stops being enough if a per-sport grouping needs to *own* something: its own overall winner
+across age groups, its own points configuration, or its own progression between age groups.
+
+> **Decided — stay at two levels.** "The rugby tournament" is a filtered view over divisions, not
+> a stored entity. We push the two-level model as far as it goes and let a real case tell us if it
+> breaks, rather than adding a level speculatively. Now that delegation attaches to divisions (D31)
+> and weighting is per division (D18), the main candidates for sport-level ownership are already
+> handled a level down — which is the evidence that the extra level is not yet earning its place.
+
+## 3. Entrants: who is competing?
+
+The two shapes disagree here, and the disagreement is real rather than cosmetic.
+
+- In a **tournament**, the entrant *is* the team. "Who won?" means "which team lifted the trophy".
+- In a **sports day**, the entrant is the **organisation**. Individual teams play the fixtures,
+  but "who won the day?" means "which school accumulated the most points across every fixture in
+  every sport". The current standings code already does exactly this — it remaps every game
+  participant's `teamId` to its `orgId` before ranking
+  ([[eventId].tsx:272](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/[eventId].tsx#L272)),
+  and `calculateStandings` documents the intent in its docstring.
+
+So the tournament carries a **scoring subject**:
+
+```
+scoringSubject: 'Team' | 'Organisation'
+```
+
+`Festival` defaults to `Organisation`; every other format defaults to `Team`. The subject decides
+what the standings table ranks and what the results screen calls a winner.
+
+> **Decided — compute both tables.** A `Festival` always produces the per-division table *and*
+> the organisation roll-up. The division table is how you find out who won the u14 rugby; the
+> roll-up is how you find out who won the day. Neither is derivable from the other by the reader,
+> and both are cheap to compute, so `scoringSubject` decides which is given top billing rather
+> than which exists.
+
+### An entrant is not always a team
+
+Raised in review, via the athletics case: an inter-school athletics day is a tournament whose
+*winner* is an organisation, and where teams may not feature at all — the competitors are
+individuals who score for their school. So `scoringSubject: 'Organisation'` must be available
+independently of whether entrants are teams, and an entrant must be able to be a person.
+
+An entrant is therefore one of three things:
+
+| Kind | What it is | Already supported? |
+|---|---|---|
+| **Team** | The default. A `Team` belonging to a participating org. | Yes — `game_participants.team_id`. |
+| **Individual** | A person competing for their org. An athlete, a swimmer, a singles player. | **Yes** — `game_participants.org_profile_id` already exists alongside `team_id`, and both are nullable. |
+| **Placeholder** | An unresolved slot: "Winner QF1", "TBC — awaiting confirmation". | No. To build. |
+
+That second row is the useful surprise, and it is covered in
+§4.
+
+### Getting teams into a division
+
+An organiser adding "Northcliff High" to a sports day expects the app to work out which of their
+teams play. Northcliff has an u14A rugby team already on the system; they do not have an u16
+netball team yet because they have never entered one.
+
+Proposed flow, per division:
+
+1. The event already knows its participating orgs (this exists today, including quick-create of
+   an unclaimed org with a nomination email invite — see
+   create.tsx).
+2. For a division of *sport S, age group A*, the app offers each participating org's teams
+   matching `sportId === S && ageGroup === A` — the same filter `games/new.tsx` already applies.
+3. Where an org has no matching team, offer to create one inline. `Team` is a light record
+   (`name`, `ageGroup`, `sportId`, `orgId`) so this is cheap, and the create-event screen already
+   does inline team creation today.
+4. An org may enter more than one team in a division (u14A *and* u14B). This must not be blocked.
+
+> **Decided — placeholder entrants are in from v1.** Three needs converge on one mechanism. A
+> knockout bracket cannot name a semi-finalist until the quarters are played, so later stages
+> *must* hold unresolved slots. An organiser waiting on confirmations wants to build fixtures and
+> a schedule now and fill in teams later. And a stage whose entrants come from the previous one
+> (D11) is expressed as placeholders until that stage finishes. Everything downstream —
+> scheduling, printing, the fixture list — must tolerate a slot with no entrant yet, and standings
+> must skip unresolved fixtures rather than treating them as byes.
+
+> **Decided — one placeholder, with an optional fill rule.** A slot carries a label and, if it has
+> one, a rule: `source: null` is filled by a person; `source: { winnerOf: <gameId> }` fills itself
+> when that game finishes. One entity, not two.
+>
+> The reasoning, since this was left as a judgement call. Everything downstream has to treat the
+> two identically — the scheduler must place a fixture whose entrant is unknown, the printed
+> fixture list must render the label, and standings must skip the fixture rather than score it as a
+> bye. Two types would mean writing that handling twice and keeping the two in step forever, and
+> the only thing that actually differs is whether a rule exists.
+>
+> The decisive argument is the override. Real tournaments break their own rules: a team withdraws
+> and the losing semi-finalist is promoted; a match is awarded as a walkover; a side is
+> disqualified after progressing. Under one entity that is just clearing the rule and naming an
+> entrant — the same edit as filling a TBC slot. Under two entities it means converting a
+> rule-based slot into a manual one, which is a state transition someone has to design, build and
+> test. Given the general override principle in D29, one entity is the shape that makes the
+> exception cheap.
+
+## 4. Beyond head-to-head: athletics and meet-style events
+
+Everything above assumes a fixture is A versus B with a score each. An athletics day is not that.
+It has **events** (100m, high jump, 4×100m relay), each with many competitors at once. An event
+may run several **rounds** — heats, then semis, then a final. The result of an event is a
+**ranking**, and the ranking converts into points for the athlete's school.
+
+The same shape covers swimming galas, cross-country, cycling, and any "everyone competes, then we
+rank them" contest.
+
+### The model is already most of the way there
+
+Review recalled that a team-versus-individual distinction already exists. It does — and there is
+more of it than remembered. Verified in the codebase:
+
+| What exists | Where | State |
+|---|---|---|
+| `SportParticipantType` = `TEAM \| INDIVIDUAL` | Sport.ts:37 | Persisted on `sports.participant_type`, validated in `sportValidation.ts`, **editable in the sport admin UI** |
+| `MatchTopology` = `HEAD_TO_HEAD \| MULTI_COMPETITOR` | Sport.ts:44 | Same — persisted, validated, admin-editable. Its own comment gives "a race" as the example |
+| Individual competitors on a fixture | `game_participants.org_profile_id`, nullable alongside `team_id` | Schema supports it today |
+| Non-finishing outcomes | `game_participants.status` = `active / withdrawn / disqualified / did_not_start` | Schema supports it today |
+| Finishing order | `game_participants.sort_order` | Schema supports it today |
+
+`disqualified`, `did_not_start` and `sort_order` are not team-sport vocabulary. Someone modelled a
+multi-competitor race here deliberately. So the athletics story is much less structural work than
+it first appeared.
+
+**The catch:** none of it is read yet. `participantType` and `matchTopology` are written by the
+sport admin screen and consumed by *nothing* — no scoring path, no fixture creation, no standings.
+An admin can mark a sport `INDIVIDUAL` / `MULTI_COMPETITOR` today and the app behaves identically.
+
+That is deliberate groundwork rather than abandoned work: the structures were designed alongside
+features that have not been built, on the principle that laying the basic shape early is cheaper
+than retrofitting it. This spec is the first consumer that gives them meaning, which is exactly how
+it was meant to go. The one genuine problem is narrower than "unread" — the sport editor *offers*
+a setting that currently does nothing, so an admin can make a choice the app silently ignores.
+
+> **Decided — logged as `SPORT-10`.** Recorded in `TODO.md` under Sport Configuration, alongside
+> `SPORT-1` and `SPORT-2`, which are the same family. Tracked there so the gap survives whether or
+> not tournaments land first, rather than being fixed opportunistically inside this feature.
+
+### What actually breaks
+
+Two things, both narrower than the model suggested:
+
+- **The result shape.** A result is currently a score per side, from which win/draw/loss is
+  derived. A ranked event produces a finishing order, and points come from *placing* (8 for first,
+  6 for second…) rather than from a win. `finalScoreData` needs to admit a ranking.
+- **The two-sided assumptions in logic.** `Game.participants` is already an array, so N
+  competitors is representable. What assumes exactly two is the code around it —
+  `calculateStandings` reads `participantsList[0]` and `[1]` and `finalScoreData.home` / `.away`
+  (standings.ts) — and the scoring
+  screens, which are built around two sides.
+
+**Rounds** are not new structure after all: heats feeding a final is a division with stages
+(D11), which is the same mechanism the knockout needs. One mechanism, three uses.
+
+> **Decided — designed in, built later.** Ranked contests are a first-class case the schema must
+> satisfy — `sortOrder`-based results, placing-to-points, `MatchTopology` actually consulted — but
+> no athletics UI ships in v1. The detailed mechanics (lanes, seeding, field-event attempts, relay
+> legs) remain a spec of their own. Note that the existing final-score override already takes
+> `{ [participantId]: number }` rather than a home/away pair
+> (DynamicScoringContext.tsx:759),
+> so at least one scoring path is already N-shaped.
+
+## 5. Format catalogue — what we must be able to express
+
+A survey of the formats that exist, as a check on the model. "Expressible" means *the Event →
+Division → Stage → Games structure can represent it* — not that we build its UI in v1.
+
+| Format | What it is | Expressible? |
+|---|---|---|
+| **Single round robin** | Everyone plays everyone once; ranked by table. | Yes — one stage. |
+| **Double round robin** | As above, home and away. | Yes — a `legs: 2` setting. |
+| **Single elimination** | Knockout; lose and you are out. | Yes — stages + placeholder entrants + progression. |
+| **Knockout + 3rd-place playoff** | As above with a bronze final. | Yes — one extra fixture fed by the losing semi-finalists. |
+| **Pools → knockout** | Group stage, top N of each pool progress. World Cup shape. | Yes — pool stage then bracket stage, with crossover rules (A1 v B2). |
+| **Plate / consolation / shield** | Losers of an early round drop into a secondary bracket and play it out for their own trophy. | Yes — a parallel stage fed by losers. |
+| **Double elimination** | Two defeats to be eliminated; a losers' bracket runs alongside the winners'. | Expressible, but **deferred** — see below. |
+| **Multi-stage (Super 6/8)** | Pool → seeded crossovers → finals, sometimes carrying pool points forward. | Yes — stages, with a rule for what carries over. |
+| **Swiss system** | Fixed number of rounds; each round's pairings computed from the current standings. | Yes structurally, but it **breaks up-front generation** — see below. |
+| **Festival / arranged** | Fixtures agreed between organisers; no bracket. | Yes — our `Festival`. |
+| **Ranked meet** | Athletics, swimming, cross-country. N competitors, placings, points by place. | Yes once results admit a ranking — see §4. |
+| **Ladder** | Ongoing; players challenge upward. | Not a format at all — a scoring context. See §9. |
+
+### Double elimination, and why the simpler version is also worth having
+
+Review asked whether double elimination is just "a first knockout round where winners and losers
+go into two separate brackets". That describes a real and genuinely useful format — but it is the
+**plate** format, not double elimination, and the difference matters for what we build.
+
+- **Plate / consolation.** The split happens **once**. Lose in round 1 and you move to the plate
+  bracket, where you stay. Two independent knockouts running in parallel, one for a cup and one
+  for a plate. Simple, predictable, and very common in school sport, because it guarantees every
+  team a second game and gives the weaker half something to play for.
+- **Double elimination.** The drop happens **every round**. Lose in winners' round 3 and you enter
+  the losers' bracket at a *correspondingly later* point, meeting someone who has been surviving
+  down there all along. The losers' bracket therefore has roughly twice as many rounds and
+  alternates between "survivors play each other" and "survivors play the newly dropped". The grand
+  final pits the winners'-bracket champion against the losers'-bracket champion — and since the
+  latter has one loss and the former none, a strict reading requires a **bracket reset**: if the
+  losers' champion wins, they play a second final to settle it.
+
+Both need the same primitive: **a loser routes somewhere rather than exiting.** They differ only
+in how often it fires — once for plate, every round for double elimination.
+
+> **Decided — build plate, defer double elimination.** Plate is what v1 gets, and it is the answer
+> to "what happens to the losers" for a school tournament. Double elimination is rare in school
+> sport, needs a losers' bracket roughly twice as long as the winners' with its own seeding rules,
+> and drags in the bracket reset, which makes the fixture count non-deterministic — you cannot
+> fully schedule a day whose final match may or may not happen. None of that fits the basics
+> neatly, so it waits until the basics are in place.
+>
+> What this decision does *not* do is design it out. Both formats run on the same loser-routing
+> primitive, which we are building for plate anyway, so double elimination later is a matter of
+> firing that primitive every round instead of once — plus the seeding and scheduling rules. The
+> bracket reset stays a flag on top of that, whenever it is wanted.
+
+### The Swiss system, explained
+
+Requested in review. Swiss solves a specific problem: **you have too many entrants for a round
+robin, but you do not want to eliminate anyone.**
+
+Sixteen teams playing a full round robin is 120 fixtures — impossible in a day. A knockout gets it
+done in 15, but half the teams go home after one game. Swiss splits the difference:
+
+1. You fix the number of **rounds** in advance — typically enough to separate the field, around
+   4–5 for 16 entrants. Everyone plays in every round.
+2. **Round 1** pairings are random, or seeded if you have rankings.
+3. After each round, entrants are grouped by their **current score** and paired *within* those
+   groups: the 2–0 teams play each other, the 1–1 teams play each other, and so on. A pairing is
+   never repeated.
+4. After the last round, the standings table is the result. No final, no bracket — the team on top
+   has beaten progressively stronger opposition and is a fair winner.
+
+It is standard in chess, esports and debating, and it suits a school one-day competition with a
+large field well: everyone plays the same number of games, nobody is eliminated, and the fixtures
+get more evenly matched as the day goes on.
+
+**The consequence for us is structural.** Every other format lets us generate the full fixture
+list up front. Swiss cannot: round N+1's pairings do not exist until round N's results are in. So
+the generator's interface must be **"produce the next stage"**, with "produce everything now"
+as the special case where all stages happen to be computable immediately. That is cheap to honour
+while designing the generator and expensive to retrofit — which is the whole reason to settle it
+before writing one.
+
+## 6. Fixture generation
+
+Per division and stage, given N entrants and a format, produce the games.
+
+| Format | Generation |
+|---|---|
+| `RoundRobin` | Every entrant plays every other, once (or twice — `legs`). Standard circle method, so byes distribute evenly on odd N. |
+| `PoolsKnockout` | Split entrants into P pools (seeded or random), round-robin within each pool, then a bracket stage seeded from pool finishers. |
+| `Knockout` | Single-elimination bracket sized to the next power of two, with byes for the top seeds. |
+| `Swiss` | One round at a time, from the standings after the previous round. |
+| `Festival` | **No automatic bracket.** Fixtures are arranged, not derived. |
+
+`Festival` is the interesting one, because a sports day's fixtures are not a mathematical
+consequence of its entrants. When four schools meet, the u14A teams may play a full round robin,
+while the u16s play only two of the three possible fixtures because one school's u16s are away.
+The organiser knows what they want; the app's job is to make expressing it fast.
+
+> **Decided — generate, then get out of the way.** A `Festival` division offers round-robin
+> generation as a starting point, and the organiser can then delete, add, reorder and reschedule
+> freely. Generation is a labour-saver, not a constraint, and a hand-built division is
+> indistinguishable from a generated one — which is correct.
+
+> **Decided — regeneration is explicit, never silent.** When entrants are **added or removed**
+> after fixtures exist, the organiser is offered exactly two paths: **regenerate the stage from
+> scratch** (with a clear warning about what is discarded, and a hard confirmation if any fixture
+> already has a result), or **leave the fixtures alone and add the new ones by hand**. The clever
+> middle option — silently generating just the fixtures the new entrant creates — is rejected: it
+> is the hardest to implement and the hardest to predict, and an organiser who cannot tell what
+> the app just did to their schedule will not trust it again.
+
+> **Decided — replacing an entrant is not a regeneration.** Swapping one entrant for another
+> leaves the fixture structure identical, so the substitution is made in place across the existing
+> fixtures and nothing is recalculated or offered. Regeneration is prompted only when the *number*
+> or *arrangement* of entrants changes. If the organiser wants a fresh draw after a substitution,
+> they can ask for one.
+
+### Bulk writes
+
+Four schools × three sports × five age groups × round robin is 90 fixtures. Ninety sequential
+`ADD_GAME` round-trips would be visibly slow and would broadcast ninety times into the fixtures
+rooms, so generation needs to write in bulk.
+
+> **Decided — targeted batches under one contract.** Batch support goes on the actions with a real
+> N>1 case (game creation, game updates, roster changes) rather than reshaping every action into an
+> array. Converting everything would touch every call site and every response shape across
+> `expo-app` and the server for no gain on actions that will always carry one item. The batch
+> actions we do add all follow one contract so they behave identically.
+
+The contract has to answer four things, and they are the same four each time:
+
+- **Partial failure.** With ninety items, "it failed" is not a useful ack. Default to one
+  transaction — all or nothing — plus a per-item error report so the client can say *which* fixture
+  was rejected.
+- **Permissions are per item, not per batch.** A batch could name games in two events belonging to
+  two orgs. Refuse batches that span more than one permission scope; it is cheaper than checking
+  each item and far easier to reason about.
+- **Broadcasts batch too**, or the ninety round-trips simply move to the response side. Clients
+  need a batch-aware handler — one that applies updates one at a time will re-render ninety times.
+- **Retries must not double-write.** A dropped ack on a batch of ninety is much worse than on a
+  single insert, so batches carry client-generated ids or an idempotency key.
+
+This contract outlives the feature and belongs in
+okf/api_comms.md once written.
+
+## 7. Scheduling
+
+Generation produces *who plays whom*. Scheduling decides *where and when*, and it is genuinely
+constrained: a team cannot be in two places at once, a field hosts one fixture at a time, and a
+rugby fixture cannot go on a netball court.
+
+`Facility` already carries `supportedSportIds` and `primarySportId`
+(Facility.ts), and `Game` already
+carries `siteId`, `facilityId` and `scheduledStartTime`. So the constraint data mostly exists.
+
+### Venues cascade down
+
+The event holds a **set** of facilities in play, not the single `facilityId` it holds today.
+
+1. The organiser picks the **venue(s)** for the event. That narrows the facilities on offer.
+2. They pick which of those **facilities** the event will use.
+3. They may then allocate facilities **down to a division or a pool** — "u14 rugby is on Fields 3
+   and 4", "Pool A plays on Court 1". The scheduler uses that allocation as a hard constraint.
+
+Allocation at the lower levels is optional. A division with no allocation may use any of the
+event's facilities that support its sport.
+
+> **Decided — show venue and facility together.** Wherever more than one venue is in play, the
+> fixture list, the schedule grid and the game screen all name the venue as well as the field or
+> court. "Field A" is ambiguous the moment two sites are involved, and a tournament makes that the
+> normal case rather than the exception. This closes the `TODO.md` item "Add Venue Location (a
+> group of Venues)" for tournament purposes.
+
+### Time
+
+Proposed inputs: fixture duration per sport (rugby 25min, netball 15min), a turnaround gap, and
+the day windows below.
+
+> **Decided — the greedy pass, then the human.** v1 assigns fixtures to slots in order, respecting
+> two hard constraints — an entrant plays once at a time, a facility hosts once at a time — and
+> then makes manual adjustment easy and obvious.
+>
+> **No optimiser for now.** That is a decision about sequencing, not a permanent one: an optimiser
+> that minimises gaps and stops a team playing three in a row is a genuinely useful thing to have,
+> and worth revisiting once organisers have used the greedy version and told us where it hurts.
+> What we are avoiding is building that complexity before we know which constraints actually
+> matter in practice — and much of the gap between a legal schedule and a good one is the
+> organiser's own context, which no optimiser will have.
+
+> **Decided — multi-day, with windows and stage gates.** A tournament may span days, so the
+> scheduler needs a **start and end time per day** (the end time being the latest a fixture may
+> *start*, so a day does not overrun). Stages may additionally carry an **earliest start** — the
+> knockout rounds begin on day 2 even if day 1 has daylight left after the pools. Without that, a
+> greedy scheduler will happily start a semi-final before the pool it depends on has finished.
+
+## 8. Points and standings
+
+`calculateStandings` (standings.ts) is
+a clean pure function taking games, participants and a `{pointsPerWin, pointsPerDraw,
+pointsPerLoss}` config, and the event screen already calls it with org-mapped participants. What
+is missing is any way to *configure* it and any notion that some fixtures count more than others.
+
+`Event.settings` already declares `pointSystem: 'standard' | 'weighted'`, `pointsPerWin`,
+`pointsPerDraw` and `levelWeighting`. Only the two point values are ever read, and nothing anywhere
+writes any of them — there is no UI. `pointSystem` and `levelWeighting` are **declared and never
+read by any code in the repo**: groundwork laid for this feature before it was specified. Unlike
+the sport flags in §4, they have no
+writer either, so nothing invites anyone to set them. The decisions below supersede their shape, so
+they should be replaced rather than carried forward.
+
+> **Decided — one default, 3/1/0.** Tournaments and leagues both default to 3 points for a win,
+> 1 for a draw, 0 for a loss. The current split — 3/1/0 for events
+> ([[eventId].tsx:289](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/[eventId].tsx#L289))
+> versus 4/2/0 for leagues
+> (LeagueManager.ts:162) —
+> is drift, not design, and is exactly the kind of divergence that follows from two systems owning
+> the same idea.
+
+> **Decided — one scoring system, shared.** Leagues and tournaments use the same scoring-system
+> shape, so a competition means the same thing wherever it is configured, and bonus rules
+> (`LeagueSettings.bonusRules` — four tries, a losing margin under seven) land in one place for
+> both. Bonus rules are not built in v1, but the shape must not preclude them.
+
+> **Decided — weighting is a per-division multiplier.** Every division carries a multiplier,
+> default `1.0`, editable by the organiser. The org roll-up multiplies each division's competition
+> points by it before summing, so a 1st XV result can outweigh a u13C result. No separate
+> `pointSystem: 'weighted'` mode is needed — "standard" is simply every weight left at 1.
+
+> **Decided — tiebreaks are configurable and ordered.** `calculateStandings` currently ranks by
+> points then points difference, which is fine for display and useless for progression: a knockout
+> needs a *definite* answer to who goes through. So a tournament carries an ordered list of
+> tiebreak factors that the organiser can rearrange, with a sensible default order shipped. The
+> engine walks the list until one factor separates the entrants.
+
+> **Decided — the factor list, and a manual override on any result.** We ship: points difference,
+> points for, head-to-head result, most wins, and fewest disciplinary points. The organiser orders
+> them; more factors can be added later without disturbing the mechanism.
+>
+> Above all of them sits a **manual override**. Real tournaments resolve things off the field — a
+> coin toss, a countback, a withdrawal, a disciplinary ruling — and if the app cannot record that,
+> its table will contradict the trophy. So the principle is general rather than specific to
+> tiebreaks: **any result the app computes, a person with the right permission can override, and
+> the override is recorded as such** rather than by quietly editing the underlying data. A
+> narrower version of this already exists for game scores — the final-score override on a finished
+> game (DynamicScoringPanel.tsx) —
+> so the pattern is established; what is new is extending it to standings and progression.
+
+**No points system is still a scoreboard.** Per the Purpose section, a division or event with no
+competition points configured still shows played / won / drawn / lost per entrant and per
+organisation. The points column is what a points system adds, not the table itself.
+
+> **Decided — points by placing is a scoring system, not a special case.** Awarding points by
+> finishing position is as legitimate a scoring system as awarding them for a win, so it becomes a
+> **mode** of the shared scoring system rather than a sibling mechanism. A division scores either
+> **by result** — the familiar `pointsPerWin` / `Draw` / `Loss` — or **by placing**, a table mapping
+> finishing position to points (8 for first, 6 for second, and so on).
+>
+> Both modes feed the same standings engine, the same division weighting (D18) and the same
+> organisation roll-up (D6), so an athletics division and a rugby division can sit in one sports day
+> and contribute to one table. That is what makes a mixed day expressible at all, and it is why the
+> two belong in one configuration shape rather than two.
+
+## 9. Competitions and containers: leagues, ladders and tournaments
+
+Review reframed this section, and the reframing is worth stating as the model rather than as a
+comparison:
+
+> A **league** is a scoring system without fixtures of its own. It has a start and end date to
+> determine which games count towards it. A **tournament** is a grouped set of games over a
+> defined period, usually at one venue or a few close together. Both use the same scoring
+> mechanisms.
+
+That separates two things the app had tangled together:
+
+- A **container** owns fixtures — when they happen, where, and who is in them. A tournament is a
+  container. So is a single match.
+- A **scoring context** owns a table. It owns no fixtures; it *collects* them by rule and ranks
+  the results. A league season is a scoring context. So is a ladder.
+
+A game therefore belongs to exactly one container and to **any number of scoring contexts**.
+
+> **Decided — a game can count in several places at once.** A fixture played inside a tournament
+> may simultaneously count towards one or more league seasons. "The u16 league's mid-season
+> festival" is a real thing, and its results should feed the league table without the game being
+> duplicated.
+
+**This is already built.** A `game_seasons` join table exists, with
+`addGameToSeason` / `removeGameFromSeason` on `LeagueManager`, an `ADD_GAME_TO_SEASON` socket
+action, and a UI on the season screen
+([seasons/[seasonId].tsx:307](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/leagues/[leagueId]/seasons/[seasonId].tsx#L307))
+that already attaches games to a season and recalculates its standings. The many-to-many the
+decision needs is in place; what is missing is the ability to do it **from the tournament side**,
+as part of setting a division up, rather than only by going to the league afterwards.
+
+> **Decided — a ladder is a scoring context, not a tournament format.** A ladder is just a ranking
+> rule applied to games between two entrants. Any game marked as counting toward a ladder affects
+> it, whether it was played inside a tournament, a league season, or on its own. So we do not build
+> a "ladder tournament format" — we let a ladder collect games the same way a season does. This
+> also supersedes the framing in
+> FUTURE_IDEAS.md, where the ladder is described as an
+> event type; the challenge-and-scheduling mechanics parked there remain future work.
+
+### Where the table actually lives
+
+The two systems currently answer this differently, and review asked what the difference amounts
+to. It is worth spelling out, because it stops being a storage question the moment progression
+depends on it.
+
+- **Computed on read** — what events do today. Nothing is stored. Each time someone opens the
+  event, their device fetches the games and runs `calculateStandings`. The table can never be
+  stale, because it is derived fresh every time. But the work repeats for every viewer, the
+  calculation has to be identical everywhere it is implemented, and — the part that matters — the
+  *server has no idea what the table says*, so nothing server-side can act on it.
+- **Persisted** — what seasons do today, via `Season.cachedStandings`. The table is stored and
+  recalculated when a result changes. Reads are cheap, there is one authoritative answer, and the
+  server can act on it. The risk is the ordinary risk of any cache: it drifts if some code path
+  changes a result without triggering the recalculation.
+
+> **Decided — persist the standings, recalculate when a result is finalised.** Reviewed and
+> settled: results and standings both live in the database, and finalising a game result updates
+> the standings that depend on it.
+>
+> The deciding factor is not performance, it is **progression**. Once a placeholder fills itself
+> from "the top two of Pool A" (D26), the standings stop being a display and become an *input to
+> the fixture list*. A client-side calculation cannot be allowed to decide who plays the
+> semi-final; that has to be server-side and durable. D21 points the same way — with one game
+> feeding a tournament and a league season at once, both should read one authoritative
+> recalculation rather than each deriving their own answer.
+>
+> **The thing to get right is the trigger.** A cache is only as good as the paths that invalidate
+> it, so recalculation must hang off the write that finalises a result rather than off each caller
+> remembering to ask. The paths that change a result are more numerous than they look: a game
+> finishing normally, the final-score override on an already-finished game, a dispute being
+> resolved, a game being deleted, a game being attached to or removed from a season, and an entrant
+> substitution (D10). Every one of those must go through the same choke point.
+
+## 10. Permissions
+
+A tournament spans organisations, and the participating orgs are frequently not on the app yet —
+the existing create flow already handles this by quick-creating unclaimed orgs and emailing a
+nomination invite.
+
+Assumed model for v1 (**needs confirming against
+okf/auth_control.md**): the hosting org's admins
+own the tournament — structure, fixtures and schedule. Participating orgs can see everything and
+can manage *their own* teams and player selections. Scoring a fixture follows the existing
+per-game permission rules and is not changed here.
+
+> **Decided — divisions can be delegated.** At a real sports day the host does not run all six
+> sports; the netball convenor runs netball. So a division can be assigned one or more organisers
+> who can edit its entrants, fixtures and schedule without being an admin of the whole event. This
+> is also why the per-sport grouping question in §2
+> matters less than it first appeared — the unit people are actually given is the division.
+
+> **Decided — an organiser is a named person, not an org role.** Added in the UI review round
+> (2026-08-30). The hosting org's admins can all edit the tournament, but they must also be able to
+> **nominate a member who is not an admin** to organise it — the person who runs the sports day is
+> usually a teacher rather than whoever administers the app account.
+>
+> This makes a tournament organiser and a division convenor (D22) the same mechanism at two scopes: a
+> named person granted edit rights over a container, assigned **per event** rather than through an
+> org role. That is the right shape, because the grant concerns one event and should expire with it,
+> and it means org roles need no new tier.
+>
+> **The event-level organiser's rights are full**, settled in the UI review's second round: within
+> the tournament they can do everything an org admin can, and outside it nothing. That is safe
+> because the admins' own rights come from being admins rather than from an assignment, so an
+> appointee cannot lock out the people who appointed them, and any admin can withdraw the grant. The
+> narrow role is the *division* convenor (D31), not this one — see
+> docs/tournaments-ui.md §4.
+
+> **Decided — fixtures and results, and nothing else for now.** A division organiser can edit that
+> division's fixtures and enter its results. They cannot add entrants, change the division's
+> settings, or move fixtures onto facilities shared with other divisions — those stay with the
+> event's admins, because they are the decisions that affect somebody else's division. The list
+> can grow once we see what convenors actually get stuck on.
+
+## 11. Explicitly out of scope for v1
+
+Naming these so they do not get built by accident. Note that the design stance (D12) means several
+of them are *modelled* now even though no UI ships.
+
+- **Ranked / meet-style contests** — the schema must satisfy them
+  (§4), but no athletics UI in v1.
+- **Double elimination and the bracket reset** — deferred (D28). Plate / consolation covers
+  "what happens to the losers" for v1, and runs on the same loser-routing primitive, so double
+  elimination remains reachable later.
+- **A scheduling optimiser** — deferred, not ruled out (D14).
+- **Bonus points** — the scoring shape must admit them (§8); no UI.
+- **Ladder mechanics** — challenges, who may challenge whom, how often. The ladder *as a scoring
+  context* is settled (D24); the challenge and scheduling rules stay parked in
+  FUTURE_IDEAS.md.
+- **Officials assignment** across the schedule.
+- **Public spectator view** of a tournament (fixtures/results are already public per
+  docs/api_actions.md; a tournament-shaped public
+  page is a later piece).
+- **Entry fees, catering, anything non-sporting.**
+
+**Moved into scope in review round 2:** automatic knockout progression — the winner of QF1 flowing
+into SF1. It was parked as "a separate mechanism with its own failure modes", and it is, but it is
+the *same* mechanism that plate brackets, double elimination and athletics heats all need, and
+placeholder entrants (D7) are meaningless without it. Building it once, now, is cheaper than
+building the three things that depend on it around its absence.
+
+## 12. Related parked work
+
+Per .agent/skills/todo-checkin/SKILL.md,
+these live in the code this feature touches:
+
+- **"Add the ability to make a copy of an event"** — strongly relevant. Last year's sports day is
+  the best possible template for this year's, and duplication is far cheaper than re-running the
+  wizard. Worth folding in.
+- **"Prevent saving duplicate events"** — same code path.
+- **"Add Venue Location (a group of Venues)"** — addressed for tournaments by D16; confirm whether
+  that closes the item or only part of it.
+- **`SPORT-10` — unread sport flags.** `participantType` and `matchTopology` are written by the
+  sport admin UI and read by nothing
+  (§4). Logged 2026-08-29 under Sport
+  Configuration; this spec is the first consumer that would give them meaning.
+- **Doc drift:** database_structure.md lists
+  `participating_org_ids` and `sport_ids` as columns on `events`; they are actually the
+  `event_sports` and `event_organizations` join tables
+  (init-db.ts:244). Fix when
+  this feature touches the schema.
+
+## 13. Open questions
+
+Rebuilt after review round 3, then narrowed again by the UI review (2026-08-30). Thirty-three
+decisions are recorded above; one question remains here, and three more sit in
+docs/tournaments-ui.md §17.
+
+1. ~~**Points by placing**~~ — **answered.** The data model settles it as a *mode* of the shared
+   scoring system rather than a sibling: a division scores either by result or by placing, and both
+   feed the same standings engine, weighting and roll-up. See
+   docs/tournaments-data-model.md §10.
+2. ~~**Which formats get a v1 interface**~~ — **answered in the UI review.** All four are in scope
+   for v1. The sequencing is `Festival` and `RoundRobin`, then `Knockout` and `PoolsKnockout` on a
+   round-by-round list rendering (which is the narrow-screen view in any case), then the bracket
+   graphic on wide screens. The expensive part of a knockout is the progression, not the drawing,
+   and it arrives with the second step. See
+   docs/tournaments-ui.md §14.
+3. **Venue Location `TODO`** — does D16 (show venue and facility together) close the parked item,
+   or only its tournament half? (§12)
+
+Everything else has an answer. The concrete tables and types that implement these decisions are in
+docs/tournaments-data-model.md.
+
+## Appendix: what exists today
+
+So that implementation starts from an accurate picture rather than this document's proposals.
+
+| Piece | State |
+|---|---|
+| `EventType` incl. `SportsDay`, `Tournament` | Event.ts — the two container types are identical in behaviour |
+| Event persistence, sports + orgs | EventManager.ts:105 — join tables, works |
+| Create screen | create.tsx — one 945-line screen for all three types |
+| Event detail | [[eventId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/[eventId].tsx) — Schedule / Standings / Settings tabs |
+| Adding a fixture | games/new.tsx — one at a time |
+| Standings | standings.ts — pure, works, supports the org roll-up; **assumes exactly two participants** |
+| Game ↔ season link | `game_seasons` join table + `ADD_GAME_TO_SEASON` + season-screen UI — **the many-to-many D21 needs already exists**, but is only reachable from the league side |
+| `Game.participants` | already an array of `GameParticipant`; N competitors is representable |
+| `game_participants` columns | `team_id` **and** `org_profile_id` (both nullable), `status` incl. `disqualified` / `did_not_start`, `sort_order` — a race is already modellable |
+| `SportParticipantType`, `MatchTopology` | declared, persisted, validated, **admin-editable — and read by nothing**. Logged as `SPORT-10` |
+| Final-score override | DynamicScoringPanel offers it on a finished game; `updateFinalScore` takes `{ [participantId]: number }` — already N-shaped, not home/away |
+| Points config | `Event.settings.pointsPerWin/PerDraw` read with 3/1 defaults; **no UI writes them** |
+| `pointSystem`, `levelWeighting` | declared in `Event.settings`, **never read anywhere**; superseded by D18 |
+| Divisions, stages, generation, scheduling, progression | **do not exist** |
+
+# Tournaments — Data Model
+
+**Status:** Proposal, for review. Nothing is built.
+**Implements:** the decisions in docs/tournaments.md.
+Decision ids below (D1…D32) refer to that document's table.
+
+Conventions follow the existing schema
+(init-db.ts): `TEXT` primary keys
+with a typed prefix and a uuid, `ON DELETE CASCADE` from owner to owned, `JSONB` for
+format-shaped configuration, snake_case columns aliased to camelCase in the manager layer, and
+indexes on every foreign key used as a filter.
+
+## 1. The shape
+
+```
+events                       (existing — gains a format, a scoring system, day windows)
+│
+├── event_facilities         which fields/courts the whole event may use          [new]
+│
+└── tournament_divisions      "u14 Rugby", "Open Netball"                        [new]
+    │   weighting, scoring subject, tiebreak order
+    │
+    ├── division_facilities    optional narrowing of the event's facilities       [new]
+    │
+    ├── division_entrants      the roster: who is entered in this division        [new]
+    │      a team, an individual, or an unresolved "TBC"
+    │
+    ├── division_adjustments   manual points corrections, recorded as such        [new]
+    │
+    └── division_stages        ordered phases: "Pools", "Knockout", "Final"       [new]
+        │   format, sequence, earliest start, cached standings
+        │
+        ├── stage_entrants     who plays this stage, and in which pool            [new]
+        │
+        └── games              (existing — unchanged except for its participants)
+            │
+            └── game_participants   (existing — gains an entrant link and a fill rule)
+```
+
+Four new tables carry the concepts (`divisions`, `stages`, `entrants`, `stage_entrants`), three
+more are joins or ledgers, and the fixture tables we already have are extended rather than
+replaced. `games` itself needs no change at all.
+
+## 2. The central choice: how an unknown competitor is represented
+
+This is the decision everything else hangs off, so the alternatives are worth setting out.
+
+A knockout semi-final exists in the schedule before anyone knows who plays in it. Something has to
+represent "the winner of QF1" — printable, schedulable, and replaceable by a real team later
+(D7, D26).
+
+### 2.0 The three states of a fixture side
+
+Whichever option below is chosen, a side of a fixture is in one of three states. What prints on
+the fixture list differs in each, and the difference is worth being precise about.
+
+| State | Who is playing | What prints | Where the text comes from |
+|---|---|---|---|
+| **Known** | A real team or individual | "Northcliff u14A" | The team's own name |
+| **Awaiting a person** | Nobody yet; a human will decide | "TBC — awaiting confirmation" | `division_entrants.label` |
+| **Awaiting a result** | Nobody yet; a fixture will decide | "Winner QF1" | Derived from the fill rule; not stored |
+
+The middle row is what `label` is for, and it belongs to a **registered entrant that has no team
+attached yet**. The organiser has said "a fourth school is coming, I just do not know which" — so
+the division roster holds an entrant row with `team_id` null and `label` set, and fixtures can be
+generated and scheduled against it like any other entrant. When the school confirms, `team_id` is
+filled in and every fixture referring to that entrant updates at once, because they all point at
+the same row.
+
+The third row needs no label stored, because the rule already says what to print: a participant
+whose rule is `{winnerOf: QF1}` renders as "Winner QF1" from the rule itself. Storing a label there
+too would be a second copy to keep in step.
+
+*(An earlier draft of this table wrongly showed the "awaiting a person" state with `entrant_id`
+null, which contradicted the label living on the entrant. It is `entrant_id` **set**, pointing at
+an entrant with no team.)*
+
+### 2.1 The two options, concretely
+
+Take an 8-team knockout: four quarter-finals, two semis, a final. Seven fixtures, of which four
+have known competitors and three do not.
+
+**Option A — the fill rule lives on `game_participants` (proposed).**
+
+`game_participants` is already the row that says "this side of this fixture". It gains
+`entrant_id` (which competitor, once known) and `source_rule` (how it will be filled). The
+knockout is then 8 entrant rows, 7 games and 14 participant rows, and nothing else:
+
+```
+game_participants
+  QF1  ├─ team_id=northcliff  entrant_id=ent-1  source_rule=null
+       └─ team_id=parktown    entrant_id=ent-2  source_rule=null
+  …
+  SF1  ├─ team_id=null  entrant_id=null  source_rule={winnerOf: QF1}
+       └─ team_id=null  entrant_id=null  source_rule={winnerOf: QF2}
+  F    ├─ team_id=null  entrant_id=null  source_rule={winnerOf: SF1}
+       └─ team_id=null  entrant_id=null  source_rule={winnerOf: SF2}
+```
+
+When QF1 finishes, the recalculation path finds the participant whose rule names QF1, writes
+`team_id` and `entrant_id`, and clears the rule. That row is now indistinguishable from one that
+was known all along.
+
+**Option B — a `tournament_slots` table.**
+
+A slot is a *position in the bracket*, existing independently of the fixture that fills it. The
+same knockout becomes 8 entrants, 14 slots, 7 games, and participant rows that point at slots:
+
+```
+tournament_slots
+  slot-1  stage=QF  position=1  entrant_id=ent-1  source=null
+  …
+  slot-9  stage=SF  position=1  entrant_id=null   source_game_id=QF1  source_type=winner
+  …
+games → game_participants → slot_id → entrant_id → team_id
+```
+
+Resolution writes `entrant_id` onto the slot. Every consumer asking "who is playing?" walks
+participant → slot → entrant → team.
+
+### 2.2 How they compare
+
+| | **A — rules on participants** | **B — slots table** |
+|---|---|---|
+| **Existing readers** (scoring screens, `calculateStandings`, fixture list, `GameSummary` broadcast) | Unchanged. They read `team_id`, which a resolved slot writes. | Every one learns a two-hop lookup, or we denormalise the team back onto the participant and maintain both copies. |
+| **Single matches and existing data** | Both columns null; nothing behaves differently. | Either slots become mandatory for all fixtures, or fixtures have two shapes. |
+| **Resolving a slot** | One `UPDATE` on a row that already exists. | One `UPDATE`, plus the denormalisation if we chose it. |
+| **Manual override** (withdrawal promotes the beaten semi-finalist) | Same edit as any other fill: write the team, clear the rule. | Same edit, on the slot. Both fine. |
+| **Rendering a bracket** | Read the stage's games and reconstruct the tree from the rules. Derivable, but it *is* work. | The bracket is already an object with positions. Straightforward. |
+| **Referential integrity** | A `gameId` inside JSONB cannot have a foreign key — deleting a game could orphan a rule. **Mitigated below.** | Real FK with `ON DELETE`, enforced by the database. |
+| **Regenerating a stage** (D9) | Rewrite participant rows. | Repoint slots; fixtures can survive. |
+| **Table count for the common case** | None. A festival fixture between two known teams needs nothing new. | Two slot rows per fixture, for every fixture, forever. |
+
+### 2.3 Why A, and what would change my mind
+
+Two arguments decide it.
+
+**The first is reversibility.** Option A can become Option B later without a rewrite: a slots table
+can be introduced and *populated from the existing `source_rule` values*, because the rules already
+contain everything a slot would hold. Going the other way is much harder — once every consumer
+reads through slots, unwinding that indirection touches all of them. Starting with A is the
+decision that stays open; starting with B is the one that commits.
+
+**The second is blast radius.** Option B's cost is not in the tournament code, which we are writing
+anyway — it is in the code we are *not* touching. The scoring screens, the standings engine, the
+fixture list and the live `GameSummary` broadcast all read `game_participants.team_id` today. Under
+A they never learn tournaments exist. Under B they either change, or we keep a denormalised copy
+and accept two sources of truth for "who is playing" during the window between the two writes.
+
+What B genuinely buys is bracket *geometry* and database-enforced integrity. Geometry we do not
+need until we build a bracket view, and it is derivable. Integrity is a fair hit, so:
+
+> **Refinement prompted by review.** Rather than leaving the game reference buried in JSON, promote
+> it to real columns: `source_game_id TEXT REFERENCES games(id) ON DELETE SET NULL` and
+> `source_stage_id TEXT REFERENCES division_stages(id) ON DELETE SET NULL`, with `source_rule`
+> keeping only the parts a foreign key cannot express (the rule type, pool key, position). That
+> recovers most of B's integrity advantage at the cost of two columns, and means a deleted fixture
+> cannot leave a rule pointing at nothing.
+
+**What would change my mind:** if we decide to build a proper visual bracket editor — drag a team
+onto a position, reshape the draw by hand — then geometry becomes a first-class thing the user
+manipulates, and deriving it from rules on every render gets uncomfortable. That is a v2 question,
+and by then A→B is still available.
+
+### 2.4 Also rejected: entrants scoped to the stage rather than the division
+
+Tempting, because a stage's entrant list is exactly what generation consumes, and it would remove
+`stage_entrants` entirely. Rejected because the scheduler's hardest constraint — an entrant cannot
+play two fixtures at once — has to hold *across* stages. If a team's pool identity and its knockout
+identity are separate rows, every such check has to resolve through progression rules first.
+Keeping one entrant row per competitor per division means the constraint is a straight comparison,
+and "who is entered in u14 Rugby?" stays a single query.
+
+## 3. New tables
+
+### 3.0 A note on the names
+
+Raised in review: why name a table for the tournament when its parent is the *division*?
+
+> **Decided — name tables after their parent.** Everything owned by a division carries the
+> `division_` prefix: `division_stages`, `division_entrants`, `division_adjustments`,
+> `division_facilities`. Everything owned by a stage carries `stage_`: `stage_entrants`. This
+> matches the dominant convention in the existing schema — `event_sports`, `season_teams`,
+> `game_seasons`, `game_participants` — and it means a table name tells you what deletes it.
+
+**`tournament_divisions` is the one exception**, and deliberately. Its parent is `events`, but
+`event_divisions` would sit alongside `event_sports` and `event_organizations` and read as another
+join table, which it is not — a division is a substantial entity with children of its own. It also
+only exists for events that are tournaments, so `tournament_divisions` describes it more honestly
+than its parent table does. Say so rather than leaving it looking like an oversight.
+
+For reference, the two conventions the existing schema mixes:
+
+- **Entities with their own identity** get a plain plural: `leagues`, `seasons`, `events`, `games`,
+  `teams`. A season belongs to a league but is not called `league_seasons`.
+- **Links and owned rows** get `<parent>_<children>`: `event_sports`, `season_teams`,
+  `game_seasons`, `game_participants`.
+
+### 3.1 `tournament_divisions`
+
+```sql
+CREATE TABLE IF NOT EXISTS tournament_divisions (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    sport_id TEXT REFERENCES sports(id),
+    age_group TEXT,
+    scoring_subject TEXT,           -- 'Team' | 'Organisation'; NULL inherits the event
+    weighting NUMERIC(6,3) NOT NULL DEFAULT 1.0,
+    settings JSONB DEFAULT '{}'::jsonb,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_divisions_event ON tournament_divisions(event_id);
+```
+
+Ids are `div-<uuid>`.
+
+`name` is required and free text, because divisions are user-editable and need not be
+`sport + age group` (D3). `sport_id` and `age_group` remain as the fields generation and team
+filtering key off, and are what the app uses to *propose* divisions — but a division named
+"Division B" with the same sport and age group as "Division A" is legitimate and expected.
+
+`weighting` implements D18. `NUMERIC` rather than a float so 1.5 means 1.5.
+
+`settings` holds the division's scoring system and tiebreak order when it overrides the event's —
+see §6.
+
+### 3.2 `division_stages`
+
+```sql
+CREATE TABLE IF NOT EXISTS division_stages (
+    id TEXT PRIMARY KEY,
+    division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    format TEXT NOT NULL,           -- 'Festival' | 'RoundRobin' | 'Knockout' | 'Plate' | 'Swiss'
+    sequence INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Pending',
+                                    -- 'Pending' | 'Ready' | 'InProgress' | 'Complete'
+    earliest_start TIMESTAMPTZ,     -- D15: the knockout may not start before day 2
+    settings JSONB DEFAULT '{}'::jsonb,
+    cached_standings JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (division_id, sequence)
+);
+CREATE INDEX IF NOT EXISTS idx_division_stages_division ON division_stages(division_id);
+```
+
+Ids are `stg-<uuid>`.
+
+Every division has at least one stage (D11). A `Festival` or plain round robin has exactly one,
+and the UI stays silent about staging when that is so.
+
+`status` is what makes Swiss work: a stage is `Pending` until its entrants are known, `Ready` when
+they are and fixtures can be generated, `InProgress` once fixtures exist, `Complete` when every
+fixture has a result. Generation acts on `Ready` stages, which is the "produce the next stage"
+interface the Swiss discussion in the spec called for.
+
+`settings` is the format-shaped blob D5 settled on. Its known shapes:
+
+```jsonc
+// RoundRobin
+{ "legs": 1 }
+
+// Pools (a RoundRobin stage split into groups)
+{ "legs": 1, "pools": [ { "key": "A", "name": "Pool A" }, { "key": "B", "name": "Pool B" } ] }
+
+// Knockout / Plate
+{ "bracketSize": 8, "thirdPlacePlayoff": true, "feedsPlate": "stg-…" }
+
+// Swiss
+{ "rounds": 5, "roundsGenerated": 2 }
+
+// Where this stage's entrants come from, when they are not registered directly
+{ "entrantSource": [
+    { "fromStage": "stg-…", "poolKey": "A", "positions": [1, 2] },
+    { "fromStage": "stg-…", "poolKey": "B", "positions": [1, 2] }
+] }
+```
+
+### 3.3 `division_entrants`
+
+```sql
+CREATE TABLE IF NOT EXISTS division_entrants (
+    id TEXT PRIMARY KEY,
+    division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+    team_id TEXT REFERENCES teams(id) ON DELETE SET NULL,
+    org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+    org_id TEXT REFERENCES organizations(id),
+    label TEXT,                     -- shown while unresolved: 'TBC — awaiting confirmation'
+    seed INTEGER,
+    status TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'withdrawn'
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT entrant_is_team_or_person CHECK (team_id IS NULL OR org_profile_id IS NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_division_entrants_division ON division_entrants(division_id);
+CREATE INDEX IF NOT EXISTS idx_division_entrants_org ON division_entrants(org_id);
+```
+
+Ids are `ent-<uuid>`.
+
+The three kinds of entrant from the spec, in one table:
+
+- **Team** — `team_id` set. The default.
+- **Individual** — `org_profile_id` set. An athlete or a singles player. This mirrors
+  `game_participants`, which already carries both columns, so nothing new is being invented.
+- **Unresolved** — both null, `label` carries what to print. Filled in by a person later.
+
+`org_id` is denormalised from the team or the profile's membership at write time. It exists
+because the organisation roll-up (D6) and the weighting sum (D18) both group by it, and without it
+every roll-up joins through teams and memberships. It is derived data and must be rewritten
+whenever `team_id` changes.
+
+The `CHECK` prevents an entrant being both a team and a person. It does not require one of them —
+that is the unresolved case.
+
+### 3.4 `stage_entrants`
+
+```sql
+CREATE TABLE IF NOT EXISTS stage_entrants (
+    stage_id TEXT REFERENCES division_stages(id) ON DELETE CASCADE,
+    entrant_id TEXT REFERENCES division_entrants(id) ON DELETE CASCADE,
+    pool_key TEXT,                  -- 'A', 'B'; NULL when the stage has no pools
+    seed INTEGER,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (stage_id, entrant_id)
+);
+CREATE INDEX IF NOT EXISTS idx_stage_entrants_stage ON stage_entrants(stage_id);
+```
+
+Who takes part in each stage, and where they sit in it. For a single-stage division this is a copy
+of the roster and the UI never mentions it. For pools it is where pool membership lives — on the
+membership row rather than in the stage's JSON, so "which pool is Northcliff in?" is a query
+rather than a scan.
+
+A stage's rows are written when the stage becomes `Ready`: directly by the organiser for the first
+stage, or by resolving `settings.entrantSource` against the previous stage's standings.
+
+### 3.5 `event_facilities` and `division_facilities`
+
+```sql
+CREATE TABLE IF NOT EXISTS event_facilities (
+    event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+    facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
+    PRIMARY KEY (event_id, facility_id)
+);
+
+CREATE TABLE IF NOT EXISTS division_facilities (
+    division_id TEXT REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+    facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
+    PRIMARY KEY (division_id, facility_id)
+);
+CREATE INDEX IF NOT EXISTS idx_division_facilities_division ON division_facilities(division_id);
+```
+
+The cascade from §7 of the spec. The event names the facilities in play; a division may narrow
+that to its own subset; a division with no rows may use any of the event's facilities that support
+its sport. Pool-level allocation, being rarer, rides in the stage's `settings` rather than earning
+a third table.
+
+`events.facility_id` stays as it is for `SingleMatch`, where one facility is the whole story.
+
+### 3.6 `division_adjustments`
+
+```sql
+CREATE TABLE IF NOT EXISTS division_adjustments (
+    id TEXT PRIMARY KEY,
+    division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+    entrant_id TEXT NOT NULL REFERENCES division_entrants(id) ON DELETE CASCADE,
+    points_delta NUMERIC(6,2) NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL,
+    created_by_user_id TEXT REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_division_adjustments_division ON division_adjustments(division_id);
+```
+
+Ids are `adj-<uuid>`.
+
+This is the standings half of D29 — "any result the app computes, a person can override, and the
+override is recorded *as* an override". A points deduction for an ineligible player, or points
+awarded for a walkover, becomes a row here with a reason and an author, rather than a quiet edit to
+a game that never happened. `calculateStandings` adds these after computing from fixtures.
+
+The other halves of D29 need no new storage: a game score override already exists
+(`updateFinalScore`),
+and a manual slot fill is just writing `team_id` and clearing `source_rule`.
+
+## 4. Changes to existing tables
+
+### 4.1 `game_participants` — two nullable columns
+
+```sql
+ALTER TABLE game_participants ADD COLUMN IF NOT EXISTS entrant_id TEXT
+    REFERENCES division_entrants(id) ON DELETE SET NULL;
+ALTER TABLE game_participants ADD COLUMN IF NOT EXISTS source_game_id TEXT
+    REFERENCES games(id) ON DELETE SET NULL;
+ALTER TABLE game_participants ADD COLUMN IF NOT EXISTS source_stage_id TEXT
+    REFERENCES division_stages(id) ON DELETE SET NULL;
+ALTER TABLE game_participants ADD COLUMN IF NOT EXISTS source_rule JSONB;
+CREATE INDEX IF NOT EXISTS idx_game_participants_entrant ON game_participants(entrant_id);
+CREATE INDEX IF NOT EXISTS idx_game_participants_source_game ON game_participants(source_game_id);
+```
+
+All null for every existing row and for every single match, so nothing that reads this table today
+changes behaviour. `team_id` remains the field the scoring screens and `calculateStandings` read —
+a resolved slot writes it, so those consumers never learn that progression exists.
+
+`source_game_id` and `source_stage_id` are real foreign keys rather than ids buried in JSON, per
+the refinement in §2.3: the database then guarantees a
+rule cannot point at a fixture that no longer exists. `source_rule` carries only what a key cannot
+express:
+
+```jsonc
+// with source_game_id = 'game-…'
+{ "type": "winnerOf" }
+{ "type": "loserOf" }                              // plate; and double elimination if D28 returns
+
+// with source_stage_id = 'stg-…'
+{ "type": "standing", "poolKey": "A", "position": 1 }
+```
+
+**Rules compose more than a bracket needs**, which is worth stating because it is the main thing
+the approach buys. `standing` names a stage, an optional pool and a position, so it expresses far
+more than "winner of game 4":
+
+```jsonc
+{ "type": "standing", "poolKey": "C", "position": 3 }   // third place in Pool C
+{ "type": "standing", "position": 2 }                   // runner-up of the whole stage
+{ "type": "standing", "poolKey": "B", "position": 1 }   // Pool B winner, for an A1 v B2 crossover
+```
+
+That is what makes pools-into-knockout seeding, plate brackets and multi-stage draws the same
+mechanism rather than three. The position is resolved against the stage's `cached_standings` after
+tiebreakers have run, which is why D20's ordered tiebreak list has to produce a *definite* rank
+rather than a display ordering.
+
+### 4.2 `events` — a format, a scoring system, day windows
+
+```sql
+ALTER TABLE events ADD COLUMN IF NOT EXISTS cached_standings JSONB DEFAULT '[]'::jsonb;
+```
+
+Everything else the event needs goes in its existing `settings` JSONB, which is already there and
+already carries loose configuration:
+
+```jsonc
+{
+  "format": "Festival",              // D1/D2 — replaces the SportsDay event type
+  "scoringSubject": "Organisation",  // divisions inherit unless they override
+  "scoring": { "pointsPerWin": 3, "pointsPerDraw": 1, "pointsPerLoss": 0, "bonusRules": {} },
+  "tiebreakers": ["pointsDifference", "pointsFor", "headToHead", "mostWins", "fewestCards"],
+  "schedule": {
+    "days": [ { "date": "2026-09-12", "startTime": "08:00", "lastStartTime": "15:30" } ],
+    "turnaroundMinutes": 5,
+    "durationBySport": { "rugby": 25, "netball": 15 }
+  }
+}
+```
+
+`cached_standings` is a real column rather than another settings key because it is written by the
+recalculation path on every result and read on every view — it is data, not configuration, and it
+follows the `seasons.cached_standings` precedent exactly.
+
+**`Event.settings.pointSystem` and `levelWeighting` are removed.** They are superseded by
+`scoring` above and by `tournament_divisions.weighting` (D18), and nothing reads them today.
+
+### 4.3 `seasons` — one default, one shape
+
+```sql
+ALTER TABLE seasons ALTER COLUMN settings
+    SET DEFAULT '{"pointsPerWin": 3, "pointsPerDraw": 1, "pointsPerLoss": 0}'::jsonb;
+```
+
+D17. This changes the default for *new* seasons only; existing rows have their values stored
+explicitly and are untouched, so no league's table moves. The `settings` shape is now the same
+`ScoringSystem` a tournament uses (D19), which is the point — the same configuration means the
+same thing in both places.
+
+### 4.4 What deliberately does not change
+
+- **`games`** — no new columns. A fixture already knows its event, sport, facility and scheduled
+  time. Its stage is reached through its participants' entrants, and if that indirection proves
+  awkward in queries a `stage_id` column is a cheap denormalisation to add later.
+- **`game_seasons`** — already the many-to-many D21 needs. A tournament fixture counting toward a
+  league season is an existing row in an existing table; only the UI to create it from the
+  tournament side is missing.
+- **`teams`, `organizations`, `facilities`, `sports`** — untouched.
+
+## 5. Shared types
+
+New file `shared/src/models/event/Tournament.ts`:
+
+```ts
+export type TournamentFormat =
+  | 'Festival'
+  | 'RoundRobin'
+  | 'Knockout'
+  | 'Plate'
+  | 'Swiss';
+
+export type ScoringSubject = 'Team' | 'Organisation';
+
+export type TiebreakFactor =
+  | 'pointsDifference'
+  | 'pointsFor'
+  | 'headToHead'
+  | 'mostWins'
+  | 'fewestCards';
+
+/**
+ * Shared by tournaments and league seasons (D19).
+ *
+ * Two modes, because awarding points by finishing position is a scoring system in its own right
+ * and not a special case: a head-to-head division scores `byResult`, a ranked meet scores
+ * `byPlacing`. Both feed the same standings engine, so an athletics division and a rugby division
+ * can sit in one sports day and roll up into one organisation table.
+ */
+export type ScoringSystem =
+  | {
+      mode: 'byResult';
+      pointsPerWin: number;
+      pointsPerDraw: number;
+      pointsPerLoss: number;
+      bonusRules?: Record<string, any>;
+    }
+  | {
+      mode: 'byPlacing';
+      /** Position (1-based) to points. Positions beyond the last entry score `pointsBeyond`. */
+      pointsByPosition: number[];
+      pointsBeyond?: number;
+    };
+
+export interface TournamentDivision {
+  id: string;
+  eventId: string;
+  name: string;
+  sportId?: string;
+  ageGroup?: string;
+  scoringSubject?: ScoringSubject;   // inherits the event when unset
+  weighting: number;                 // D18, default 1.0
+  settings?: {
+    scoring?: ScoringSystem;         // overrides the event's
+    tiebreakers?: TiebreakFactor[];
+  };
+  sortOrder: number;
+  stages?: TournamentStage[];
+  entrants?: TournamentEntrant[];
+}
+
+export interface StagePool { key: string; name: string; }
+
+export interface EntrantSourceRule {
+  fromStage: string;
+  poolKey?: string;
+  positions: number[];
+}
+
+export interface TournamentStage {
+  id: string;
+  divisionId: string;
+  name: string;
+  format: TournamentFormat;
+  sequence: number;
+  status: 'Pending' | 'Ready' | 'InProgress' | 'Complete';
+  earliestStart?: string;            // ISO
+  settings?: {
+    legs?: number;
+    pools?: StagePool[];
+    bracketSize?: number;
+    thirdPlacePlayoff?: boolean;
+    feedsPlate?: string;             // stage id losers drop into
+    rounds?: number;                 // Swiss
+    roundsGenerated?: number;        // Swiss
+    entrantSource?: EntrantSourceRule[];
+  };
+  cachedStandings?: TournamentStandingRow[];
+}
+
+export interface TournamentEntrant {
+  id: string;
+  divisionId: string;
+  teamId?: string;
+  orgProfileId?: string;
+  orgId?: string;
+  label?: string;                    // printed while unresolved
+  seed?: number;
+  status: 'active' | 'withdrawn';
+}
+
+/** How an unfilled fixture slot knows what will fill it (D26). */
+export type ParticipantSourceRule =
+  | { type: 'winnerOf' }                                    // with sourceGameId
+  | { type: 'loserOf' }                                     // with sourceGameId
+  | { type: 'standing'; poolKey?: string; position: number }; // with sourceStageId
+
+export interface TournamentAdjustment {
+  id: string;
+  divisionId: string;
+  entrantId: string;
+  pointsDelta: number;
+  reason: string;
+  createdByUserId?: string;
+  createdAt: string;
+}
+```
+
+`TournamentStandingRow` extends the existing `LeagueStandingRow` rather than replacing it, so one
+table shape serves leagues, seasons and tournaments (D19):
+
+```ts
+export interface TournamentStandingRow extends LeagueStandingRow {
+  entrantId: string;
+  orgId?: string;
+  poolKey?: string;
+  adjustment?: number;    // sum of division_adjustments, already folded into `points`
+  rank?: number;          // after tiebreakers — the definite answer progression needs
+}
+```
+
+And `GameParticipant` gains the two fields matching §4.1:
+
+```ts
+export interface GameParticipant {
+  // …existing fields…
+  entrantId?: string;
+  sourceGameId?: string;
+  sourceStageId?: string;
+  sourceRule?: ParticipantSourceRule;
+}
+```
+
+## 6. Scoring configuration
+
+Resolution order, most specific wins: **division `settings.scoring`** → **event
+`settings.scoring`** → **3/1/0** (D17). The same order applies to `tiebreakers` and
+`scoringSubject`.
+
+Only two levels can override, deliberately. A per-stage scoring system is expressible in the JSON
+but is not read: a division whose pool stage and knockout scored differently would produce a table
+nobody could interpret.
+
+## 7. Standings: where the numbers live and when they move
+
+D30 settled that standings are persisted and recalculated when a result is finalised. The model
+puts them in two places:
+
+- **`division_stages.cached_standings`** — the table people look at, and the one progression
+  reads. Pool tables are distinguished by `poolKey` on the rows rather than by separate storage.
+- **`events.cached_standings`** — the organisation roll-up (D6): each division's competition points
+  multiplied by its `weighting` and summed by `org_id`.
+
+The division level deliberately caches nothing. For a single-stage division it would duplicate the
+stage exactly; for a pools-and-knockout division a combined table is not a meaningful object.
+
+### The choke point
+
+The spec's warning was that a cache is only as good as the paths that invalidate it, and there are
+more of those than is obvious. So recalculation hangs off **one function**, called by the write
+that changes a result and by nothing else:
+
+```
+recalculateForGame(gameId)
+  → the stage that owns the game        → rewrite division_stages.cached_standings
+  → the event that owns the stage       → rewrite events.cached_standings
+  → every season in game_seasons        → existing recalculateSeasonStandings  (D21)
+  → any stage whose entrants source from this one, if it just became Complete
+      → resolve its stage_entrants and fill its participants' source_rules  (D23)
+```
+
+The callers that must route through it: a game finishing, the final-score override on an
+already-finished game, dispute resolution, game deletion, a game being attached to or detached
+from a season, an entrant substitution (D10), and a new `division_adjustments` row.
+
+That last arrow is the important one — it is where progression actually happens. A pool stage
+completing is what fills the knockout's slots, and it is the same code path as recalculating the
+table, because the table is what it reads.
+
+## 8. Socket actions
+
+Following D13 — batch where N>1 is genuinely the case, single elsewhere, one shared batch
+contract (one transaction, per-item error report, one broadcast, idempotency key).
+
+| Action | Payload | Batch? |
+|---|---|---|
+| `ADD_DIVISION` / `UPDATE_DIVISION` / `DELETE_DIVISION` | a division | no |
+| `ADD_STAGE` / `UPDATE_STAGE` / `DELETE_STAGE` | a stage | no |
+| `SET_DIVISION_ENTRANTS` | `{ divisionId, entrants: [...] }` | **yes** — a whole roster arrives at once |
+| `GENERATE_STAGE_FIXTURES` | `{ stageId, mode: 'create' \| 'regenerate' }` | server-side fan-out |
+| `SCHEDULE_STAGE` | `{ stageId, ...constraints }` | server-side fan-out |
+| `ADD_GAMES` | `{ games: [...] }` | **yes** — the 90-fixture case |
+| `UPDATE_GAMES` | `{ games: [...] }` | **yes** — rescheduling a day moves many at once |
+| `RESOLVE_PARTICIPANT` | `{ gameParticipantId, teamId? , entrantId? }` | no — the manual override |
+| `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no |
+
+`GENERATE_STAGE_FIXTURES` and `SCHEDULE_STAGE` are single actions that write many rows inside one
+transaction, rather than the client sending ninety `ADD_GAME` calls. `ADD_GAMES` still exists for
+the organiser hand-adding fixtures to a `Festival`.
+
+## 9. Migration
+
+### How the two paths already work
+
+The repo already has the split this needs, documented in
+migrations/README.md:
+
+- **`init-db.ts` is the source of truth for a fresh database.** Its stated rule is that any
+  migration altering structure **must also** be added to `init-db.ts`, so a new environment gets
+  the current schema without running a single migration file.
+- **Migrations only bring an existing database forward.** `run-all-migrations.ts` tracks applied
+  files in `schema_migrations` and runs only what is pending.
+
+So the concern about a future production database is already answered by policy: a clean prod
+install runs `db:init` + `db:seed` and needs no migration files at all. What we owe it is
+discipline — the new DDL goes into `init-db.ts` *as well as* the migration, not instead of it.
+
+> **Gap worth closing.** `init-db.ts` does not populate `schema_migrations`, so a freshly created
+> database believes *no* migrations have run. If anyone then runs `db:migrate` against it, every
+> historical migration executes against an already-current schema. Today that is harmless —
+> the existing migrations are all written defensively, with `IF NOT EXISTS` and guarded `WHERE`
+> clauses (`20260810_migrate_sport_ids` only touches rows `LIKE 'sport-%'`, for instance) — but
+> that safety is a property of how each was written, not something the tooling enforces. Having
+> `init-db.ts` stamp every migration filename into `schema_migrations` on completion would make a
+> fresh database correctly "already migrated", and would let the migration files be kept
+> indefinitely without risk. Small change, outside this feature's scope; flagged rather than done.
+
+### The steps
+
+1. **Create** the new tables and columns — `IF NOT EXISTS` throughout, so re-runnable — in the
+   migration **and** in `init-db.ts`.
+2. **Rewrite the event type** (D1) — `UPDATE events SET type = 'Tournament', settings = settings ||
+   '{"format":"Festival"}'::jsonb WHERE type = 'SportsDay'`. In place, no alias retained.
+3. **Backfill `event_facilities`** from each event's existing single `facility_id`.
+4. **Drop** `pointSystem` and `levelWeighting` from `events.settings`.
+5. **Change the `seasons.settings` default** to 3/1/0 (D17). New rows only; existing seasons store
+   their values explicitly and do not move.
+
+### The step that is probably unnecessary
+
+An earlier draft had a sixth step: *derive a division per sport for every existing container event,
+register its teams as entrants, and attach them to a generated `Festival` stage* — so that events
+predating this feature would open with a populated schedule rather than an empty one.
+
+Review reports the database holds **one real event, a single match, used for testing**. If that is
+accurate the step is a no-op: `SingleMatch` events get no divisions, and there are no `SportsDay` or
+`Tournament` rows to convert. Writing a backfill that will never process a row is not worth the
+effort or the risk of getting it subtly wrong.
+
+**Recommendation:** drop the backfill and keep steps 1–5, which are all schema-level and fast.
+Before running anything, confirm with
+`SELECT type, COUNT(*) FROM events GROUP BY type;` — if that returns any `SportsDay` or
+`Tournament` rows, the backfill goes back in.
+
+### On testing the migration versus resetting
+
+Both, cheaply. `db:setup` (reset + init + seed) is the fastest way to get a correct database and is
+what a fresh environment will do anyway, so it exercises the `init-db.ts` half. But the migration
+half deserves one real run, because it is what a *deployed* environment will execute and it is the
+only path that is never tested by starting clean.
+
+Suggested sequence: take a dump of the current database, run `db:migrate` against a restored copy,
+confirm the tables appear and the single test event still loads — then reset the working database
+with `db:setup` and carry on. That way the migration is proven without the dev database depending
+on it having worked.
+
+## 10. Resolved, and what is left
+
+> **Decided — table naming.** Tables are named for their parent: `division_stages`,
+> `division_entrants`, `division_adjustments`, `stage_entrants`. `tournament_divisions` is the
+> deliberate exception — see §3.0.
+
+> **Decided — bracket geometry is derived, not stored.** The rules-based approach is confirmed. The
+> observation that settles it: a drag-and-drop bracket editor can *pre-compute* slot positions in
+> the UI from the rule chains, so it gets a concrete grid to manipulate while the stored model stays
+> rule-based. That was the one scenario in §2.3 that would have argued for a slots table, and it
+> turns out not to — the UI can have its positions without the database committing to them, and
+> rules keep the flexibility for structures that change while a tournament is running.
+
+> **Decided — no `stage_pairings` table for now.** Swiss can ask "have these two met in this
+> stage?" as a query over existing fixtures, which is cheap at tournament sizes. Revisit when the
+> Swiss format is actually built; the table is additive if it turns out to be wanted.
+
+> **Decided — no `games.stage_id` for now.** Deferred as a pure optimisation. It is additive and
+> can be backfilled in one statement, so it costs almost nothing to add later if the scheduler's
+> query path proves slow.
+
+> **Decided — points by placing is a scoring system.** Awarding points by finishing position is a
+> legitimate scoring system in its own right, not a special case bolted onto win/draw/loss. So the
+> shared `ScoringSystem` shape gains a mode: a division scores either by *result* (the current
+> `pointsPerWin` / `Draw` / `Loss`) or by *placing* (a table mapping position to points — 8 for
+> first, 6 for second, and so on). Both feed the same standings engine and the same organisation
+> roll-up, and a ranked meet simply picks the second mode. Its only storage consequence is that
+> `finalScoreData` must admit an ordering, which is a JSONB shape question, not a schema change.
+
+### Still open
+
+> **Open — `init-db.ts` and `schema_migrations`.** Stamping applied migrations on a fresh database,
+> so a clean install is correctly "already migrated". Outside this feature, but it affects how
+> safely this migration ships — see §9.
+
+> **Open — seed tiers, and preserving hand-entered data.** Raised in review: would a database reset
+> lose the organisations and players entered through the app? **It would.** `reset-db.ts` runs
+> `DROP SCHEMA public CASCADE`, and `seed-db.ts` restores only a fixed demo set. See §11.
+
+## 11. Seeds, and what a reset would cost you
+
+Raised in review: *do the seeds already cover the orgs and players created in the app? I would not
+want to re-enter everything if the database is reset.*
+
+### The direct answer: no, and a reset would lose them
+
+- reset-db.ts runs
+  `DROP SCHEMA public CASCADE` — a total wipe, not a selective clear. `npm run db:setup` calls it.
+- seed-db.ts then restores a
+  **fixed** set: the sports and their event templates, system settings, one admin org and user, and
+  hardcoded demo data — "Springfield High School", two teams (`First XI`, `U16 A`) and three
+  profiles (Sarah Connor, Kyle Reese, John Connor).
+- There is a partial escape hatch:
+  extract-orgs.ts dumps
+  organisations to `server/data/existing_orgs.json`, and the seed loads that file when present. It
+  currently holds **10 organisations** — including "Fred's Cool School" and the test schools —
+  captured on **28 February 2026**, so it is six months stale.
+- Critically, that escape hatch covers **organisations only**. Its query is
+  `WHERE logo IS NOT NULL OR name ILIKE '%Springfield%'`, and nothing extracts sites, facilities,
+  teams, `org_profiles`, memberships, events or games.
+
+**So: the players would be lost.** No `team_memberships` are seeded at all, and no profile beyond
+the three hardcoded ones. Organisations would come back as a stale, partial February snapshot.
+
+### Before running any reset
+
+Take a dump. This is what `pg_dump` is for, and it is the right tool for preserving real work —
+seeds are for a *reproducible starting state*, not for protecting data somebody typed in:
+
+```bash
+pg_dump --format=custom --file=backup-$(date +%Y%m%d).dump "$DATABASE_URL"
+# restore: pg_restore --clean --if-exists --dbname="$DATABASE_URL" backup-YYYYMMDD.dump
+```
+
+### The two-tier split, which is the right structure
+
+The review's own proposal is correct and worth building:
+
+| Tier | Contents | Runs on production? |
+|---|---|---|
+| **Core** | Sports and their event templates, system settings, roles, the initial admin user. Everything the app needs to *function*. | **Yes** |
+| **Development** | Demo organisations, sites, facilities, teams, profiles, memberships. Everything that exists to have something to look at. | No |
+
+`db:setup` would run reset → init → `seed:core` → `seed:dev`; a production install runs init →
+`seed:core` and stops. Today the two are interleaved in one file, so there is no way to get a clean
+production database without also getting Springfield High School.
+
+A third, optional piece would answer the original worry properly: extend `extract-orgs.ts` into a
+real snapshot — orgs, sites, facilities, teams, profiles and memberships — writing a
+`seed:local` dataset so hand-entered work survives a deliberate reset. Larger than the split, and
+only worth it if resets stay frequent; a `pg_dump` covers the same need with no code.
+
+> **Not part of this feature.** Logged as `DATA-3` in `TODO.md`. Flagged here because the
+> tournaments migration is the first thing likely to prompt a reset.
+
+## 12. Does this change lose any existing data?
+
+Asked directly in review: *will we lose org, team or sport data? Game data is expendable — there is
+one test game — but anything else should be preserved first.*
+
+**No. Nothing in this plan destroys organisations, teams, sports, sites, facilities, people or
+memberships.** Step by step:
+
+| Migration step | Effect on existing data |
+|---|---|
+| Create the new tables | **Additive.** New empty tables; nothing else is read or written. |
+| Add columns to `game_participants` | **Additive.** Three nullable columns, null on every existing row. |
+| Add `events.cached_standings` | **Additive.** Nullable with a default. |
+| Rewrite `SportsDay` → `Tournament` | Touches `events.type` and `events.settings` only. **No rows to touch** — there are no container events. |
+| Backfill `event_facilities` | **Additive insert**, reading `events.facility_id` and leaving it in place. |
+| Drop `pointSystem` / `levelWeighting` | Removes two keys from `events.settings` that **nothing writes and nothing reads**. There is no stored value to lose. |
+| `seasons.settings` default → 3/1/0 | Changes the *default for new rows*. Existing seasons store their settings explicitly and are untouched. |
+
+No table is dropped, no column is dropped, and no row is deleted. The one rewrite targets a row
+type that does not exist in the database.
+
+### The danger is the reset, not the migration
+
+The two paths differ completely, and it is worth being explicit about which to run:
+
+```bash
+npm run db:migrate    # applies pending migrations. Additive. Keeps everything.
+npm run db:setup      # reset + init + seed. DROP SCHEMA public CASCADE. Destroys everything.
+```
+
+`db:setup` is the one that loses the orgs and players — see §11. So for this change: **run
+`db:migrate`, not `db:setup`.**
+
+### Take a dump anyway
+
+Cheap insurance, and it makes the question moot:
+
+```bash
+pg_dump --format=custom --file=pre-tournaments-20260830.dump "$DATABASE_URL"
+```
+
+Restore with `pg_restore --clean --if-exists --dbname="$DATABASE_URL" pre-tournaments-20260830.dump`.
+Worth doing before the first migration run whatever the analysis above says — the cost is seconds
+and the alternative is re-entering everything by hand.
+
+### One destructive default caught while checking this
+
+The audit found a genuine mistake in an earlier draft of §4.1. `source_stage_id` was declared
+`ON DELETE CASCADE`, which would mean **deleting a stage deletes the `game_participants` rows that
+reference it** — silently removing one side of a fixture and leaving a half-populated game behind.
+It is now `ON DELETE SET NULL`, matching `source_game_id`: deleting a stage leaves the participant
+in place with its fill rule dangling, which the resolution path already has to tolerate.
+
+Worth stating as a rule for the rest of the implementation: **cascade deletes belong on rows that
+are meaningless without their parent** — a `stage_entrants` link, a `division_facilities`
+allocation — and never on a row that something else still depends on.
+</script>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------------- config ---------------- */
+var CONFIG = { title: "Review", subtitle: "", storageKey: "sk-review-v1",
+               exportFileName: "review-comments.md", sources: [] };
+try {
+  CONFIG = Object.assign(CONFIG, JSON.parse(document.getElementById("review-config").textContent));
+} catch (e) { /* keep defaults */ }
+
+document.title = CONFIG.title;
+document.getElementById("wmName").textContent = CONFIG.title;
+document.getElementById("wmSub").textContent = CONFIG.subtitle || "";
+
+/* ---------------- storage ---------------- */
+var KEY = CONFIG.storageKey;
+var storageOK = true;
+var data = {};
+try {
+  var raw = window.localStorage.getItem(KEY);
+  data = raw ? JSON.parse(raw) : {};
+} catch (e) { storageOK = false; data = {}; }
+if (!storageOK) document.getElementById("storageWarn").classList.add("show");
+
+function save(){
+  if (!storageOK) return;
+  try { window.localStorage.setItem(KEY, JSON.stringify(data)); }
+  catch (e) { storageOK = false; document.getElementById("storageWarn").classList.add("show"); }
+}
+
+/* ---------------- theme ---------------- */
+var TKEY = CONFIG.storageKey + "-theme";
+try { var t = localStorage.getItem(TKEY); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var cur = document.documentElement.getAttribute("data-theme");
+  var isDark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  var next = isDark ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem(TKEY, next); } catch (e) {}
+});
+
+/* ---------------- markdown ---------------- */
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function inline(s){
+  var codes = [];
+  s = esc(s).replace(/`([^`]+)`/g, function(_, c){ codes.push(c); return "@@CODE" + (codes.length-1) + "@@"; });
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a class="mdlink" href="$2">$1</a>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/@@CODE([0-9]+)@@/g, function(_, i){ return "<code>" + codes[+i] + "</code>"; });
+  return s;
+}
+
+function hash(str){
+  var h = 5381;
+  for (var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+function parse(md){
+  var lines = md.replace(/\r/g, "").split("\n");
+  var blocks = [], i = 0;
+
+  function isListStart(l){ return /^\s*[-*] /.test(l); }
+  function isOrderedStart(l){ return /^\s*\d+\. /.test(l); }
+  function isBlockStart(l){
+    return l.trim() === "" || /^#{1,6} /.test(l) || /^```/.test(l) || /^>/.test(l) ||
+           /^\|/.test(l) || isListStart(l) || isOrderedStart(l) || /^---\s*$/.test(l);
+  }
+
+  while (i < lines.length){
+    var line = lines[i];
+
+    if (line.trim() === ""){ i++; continue; }
+
+    if (/^```/.test(line)){
+      var code = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]);
+      i++;
+      blocks.push({ type: "code", text: code.join("\n") });
+      continue;
+    }
+
+    var hm = line.match(/^(#{1,6}) (.*)$/);
+    if (hm){ blocks.push({ type: "h", level: hm[1].length, text: hm[2].trim() }); i++; continue; }
+
+    if (/^---\s*$/.test(line)){ i++; continue; }
+
+    if (/^>/.test(line)){
+      var q = [];
+      while (i < lines.length && /^>/.test(lines[i])) q.push(lines[i++].replace(/^>\s?/, ""));
+      blocks.push({ type: "quote", text: q.join(" ").trim() });
+      continue;
+    }
+
+    if (/^\|/.test(line)){
+      var rows = [];
+      while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
+      blocks.push({ type: "table", rows: rows });
+      continue;
+    }
+
+    if (isListStart(line) || isOrderedStart(line)){
+      var ordered = isOrderedStart(line);
+      var items = [];
+      while (i < lines.length){
+        var l = lines[i];
+        if (ordered ? isOrderedStart(l) : isListStart(l)){
+          items.push(l.replace(/^\s*(?:[-*]|\d+\.) /, ""));
+          i++;
+        } else if (l.trim() !== "" && /^\s+\S/.test(l) && items.length){
+          items[items.length - 1] += " " + l.trim();
+          i++;
+        } else break;
+      }
+      blocks.push({ type: ordered ? "ol" : "ul", items: items });
+      continue;
+    }
+
+    var para = [];
+    while (i < lines.length && !isBlockStart(lines[i])) para.push(lines[i++]);
+    blocks.push({ type: "p", text: para.join(" ").trim() });
+  }
+  return blocks;
+}
+
+/* ---------------- render ---------------- */
+var doc = document.getElementById("doc");
+var tocEl = document.getElementById("toc");
+var blocks = parse(document.getElementById("spec-src").textContent);
+var sections = [];      // {id, title, num, el}
+var questionIds = [];   // block ids that are open questions
+var blockMeta = {};     // id -> {section, quote, qnum}
+var seenIds = {};
+var currentSection = null;
+var qCounter = 0;
+var dCounter = 0;
+var seenTitle = false;
+
+function uid(text){
+  var base = "b" + hash(text.slice(0, 160));
+  var n = 0, id = base;
+  while (seenIds[id]) { n++; id = base + "-" + n; }
+  seenIds[id] = true;
+  return id;
+}
+
+function plain(html){
+  var d = document.createElement("div");
+  d.innerHTML = html;
+  return (d.textContent || "").replace(/\s+/g, " ").trim();
+}
+
+function wrap(inner, sourceText, opts){
+  opts = opts || {};
+  var id = uid(sourceText);
+  var div = document.createElement("div");
+  div.className = "block" + (opts.cls ? " " + opts.cls : "");
+  div.id = id;
+  div.innerHTML = inner;
+  var btn = document.createElement("button");
+  btn.className = "addbtn";
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Add a comment here");
+  btn.innerHTML = "&#43;";
+  btn.addEventListener("click", function(){ openEditor(id, div); });
+  div.appendChild(btn);
+  blockMeta[id] = {
+    section: currentSection ? currentSection.title : "Preamble",
+    quote: plain(inner).slice(0, 150),
+    qnum: opts.qnum || null,
+    qtag: opts.qtag || null
+  };
+  if (opts.qnum) questionIds.push(id);
+  doc.appendChild(div);
+  return div;
+}
+
+// Title and meta, both derived rather than hardcoded: the heading is the first document's own h1,
+// and the chips name the source files so a reader knows what they are commenting on.
+var firstH1 = blocks.filter(function(b){ return b.type === "h" && b.level === 1; })[0];
+var titleWrap = document.createElement("div");
+titleWrap.innerHTML =
+  '<h1 class="doc-title">' + inline(firstH1 ? firstH1.text : CONFIG.title) + "</h1>" +
+  '<div class="doc-meta">' +
+    (CONFIG.sources || []).map(function(s){
+      return '<span class="chip"><strong>' + esc(s) + "</strong></span>";
+    }).join("") +
+    '<span class="chip">Click the <strong>+</strong> beside any block to comment</span>' +
+  "</div>";
+doc.appendChild(titleWrap);
+
+blocks.forEach(function(b){
+  // The page concatenates more than one document. The first h1 is the page title, already
+  // rendered above; any later one starts a new document and reads as a major break.
+  if (b.type === "h" && b.level === 1 && !seenTitle){ seenTitle = true; return; }
+
+  if (b.type === "h"){
+    if (b.level === 2 || b.level === 1){
+      var sid = "s" + hash(b.text);
+      var h2 = document.createElement("h2");
+      if (b.level === 1) h2.className = "docbreak";
+      h2.id = sid;
+      h2.innerHTML = inline(b.text);
+      doc.appendChild(h2);
+      currentSection = { id: sid, title: b.text, count: 0, isDoc: b.level === 1, subs: [] };
+      sections.push(currentSection);
+    } else {
+      var h3 = document.createElement("h3");
+      h3.id = "h" + hash(b.text);
+      h3.innerHTML = inline(b.text);
+      doc.appendChild(h3);
+      if (currentSection) currentSection.subs.push({ id: h3.id, title: b.text });
+    }
+    return;
+  }
+
+  if (b.type === "p"){
+    // The first document's metadata lines are already drawn as chips under the title. A later
+    // document's own header lines are not, so only strip these before any section has begun.
+    if (!currentSection && /^\*\*(Status|Supersedes|Related|Review):/.test(b.text)) return;
+    wrap("<p>" + inline(b.text) + "</p>", b.text);
+    return;
+  }
+
+  if (b.type === "code"){
+    wrap("<pre><code>" + esc(b.text) + "</code></pre>", b.text);
+    return;
+  }
+
+  if (b.type === "ul" || b.type === "ol"){
+    var tag = b.type === "ul" ? "ul" : "ol";
+    var html = "<" + tag + ">" + b.items.map(function(it){ return "<li>" + inline(it) + "</li>"; }).join("") + "</" + tag + ">";
+    wrap(html, b.items.join("|"));
+    return;
+  }
+
+  if (b.type === "table"){
+    var cells = b.rows.map(function(r){
+      return r.replace(/^\||\|$/g, "").split("|").map(function(c){ return c.trim(); });
+    });
+    var head = cells[0], body = cells.slice(2);
+    var html = '<div class="tablewrap"><table><thead><tr>' +
+      head.map(function(c){ return "<th>" + inline(c) + "</th>"; }).join("") +
+      "</tr></thead><tbody>" +
+      body.map(function(r){
+        return "<tr>" + r.map(function(c){ return "<td>" + inline(c) + "</td>"; }).join("") + "</tr>";
+      }).join("") +
+      "</tbody></table></div>";
+    wrap(html, b.rows.join("\n"));
+    return;
+  }
+
+  if (b.type === "quote"){
+    var m = b.text.match(/^\*\*Open\s*[—-]\s*([^*]+?)\.?\*\*\s*([\s\S]*)$/);
+    if (m){
+      qCounter++;
+      var html2 =
+        '<div class="qhead">' +
+          '<span class="qnum">Q' + qCounter + '</span>' +
+          '<span class="qtag">Open &middot; ' + inline(m[1].trim()) + "</span>" +
+        "</div><p>" + inline(m[2].trim()) + "</p>";
+      wrap(html2, b.text, { cls: "qblock", qnum: qCounter, qtag: m[1].trim() });
+      return;
+    }
+    var d = b.text.match(/^\*\*Decided\s*[—-]\s*([^*]+?)\.?\*\*\s*([\s\S]*)$/);
+    if (d){
+      dCounter++;
+      var html3 =
+        '<div class="qhead">' +
+          '<span class="qnum">&#10003; D' + dCounter + '</span>' +
+          '<span class="qtag">Decided &middot; ' + inline(d[1].trim()) + "</span>" +
+        "</div><p>" + inline(d[2].trim()) + "</p>";
+      wrap(html3, b.text, { cls: "dblock" });
+      return;
+    }
+    wrap('<blockquote class="note">' + inline(b.text) + "</blockquote>", b.text);
+    return;
+  }
+});
+
+/* ---------------- table of contents ---------------- */
+// Rows carry the document's OWN section number where the heading has one, so a reference to
+// "§2.3" in the prose matches what the sidebar shows. Sequential numbering would fight it —
+// two concatenated documents both have a section 2.
+function splitNumber(title){
+  var m = title.match(/^(\d+(?:\.\d+)*)\.?\s+(.*)$/);
+  return m ? { num: m[1], text: m[2] } : { num: null, text: title };
+}
+
+sections.forEach(function(s){
+  var group = document.createElement("div");
+  group.className = "tocgroup";
+
+  var head = splitNumber(s.title);
+  var a = document.createElement("a");
+  a.href = "#" + s.id;
+  a.dataset.section = s.title;
+  if (s.isDoc) a.className = "docrow";
+  a.innerHTML = '<span class="num">' + (s.isDoc ? "&#9679;" : esc(head.num || "&middot;")) + "</span>" +
+                "<span>" + esc(head.text) + "</span>" +
+                '<span class="badge" hidden></span>';
+  group.appendChild(a);
+
+  // Subsections stay collapsed until you are reading that section, so the sidebar stays short
+  // but "2.3" is reachable the moment it is relevant.
+  s.subs.forEach(function(sub){
+    var subInfo = splitNumber(sub.title);
+    var sa = document.createElement("a");
+    sa.className = "sub";
+    sa.href = "#" + sub.id;
+    sa.innerHTML = '<span class="num">' + esc(subInfo.num || "&middot;") + "</span>" +
+                   "<span>" + esc(subInfo.text) + "</span>";
+    group.appendChild(sa);
+  });
+
+  tocEl.appendChild(group);
+  s.link = a;
+  s.group = group;
+});
+
+/* ---------------- comment UI ---------------- */
+function fmtTime(ts){
+  var d = new Date(ts);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + " " +
+         d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+function listFor(id){ return data[id] || []; }
+
+function renderComments(id, blockEl){
+  var existing = blockEl.querySelector(".comments");
+  if (existing) existing.remove();
+  var items = listFor(id);
+  blockEl.classList.toggle("has-comments", items.length > 0);
+  if (!items.length) return;
+
+  var box = document.createElement("div");
+  box.className = "comments";
+  items.forEach(function(c){
+    var el = document.createElement("div");
+    el.className = "comment";
+    var top = document.createElement("div");
+    top.className = "ctop";
+    top.innerHTML = '<span class="who">Note</span><span class="when">' + fmtTime(c.ts) + "</span>";
+    var acts = document.createElement("div");
+    acts.className = "acts";
+    var ed = document.createElement("button");
+    ed.type = "button"; ed.textContent = "Edit";
+    ed.addEventListener("click", function(){ openEditor(id, blockEl, c); });
+    var del = document.createElement("button");
+    del.type = "button"; del.className = "del"; del.textContent = "Delete";
+    del.addEventListener("click", function(){
+      data[id] = listFor(id).filter(function(x){ return x.id !== c.id; });
+      if (!data[id].length) delete data[id];
+      save(); renderComments(id, blockEl); refresh();
+    });
+    acts.appendChild(ed); acts.appendChild(del);
+    top.appendChild(acts);
+    var body = document.createElement("div");
+    body.className = "body";
+    body.textContent = c.text;
+    el.appendChild(top); el.appendChild(body);
+    box.appendChild(el);
+  });
+  blockEl.insertBefore(box, blockEl.querySelector(".addbtn"));
+}
+
+function openEditor(id, blockEl, editing){
+  var old = blockEl.querySelector(".editor");
+  if (old) old.remove();
+
+  var ed = document.createElement("div");
+  ed.className = "editor";
+  var ta = document.createElement("textarea");
+  ta.placeholder = "What do you think? Disagree, decide, or ask for something different…";
+  ta.value = editing ? editing.text : "";
+  var row = document.createElement("div");
+  row.className = "row";
+  var saveBtn = document.createElement("button");
+  saveBtn.className = "btn btn-primary"; saveBtn.type = "button";
+  saveBtn.textContent = editing ? "Update" : "Add comment";
+  var cancel = document.createElement("button");
+  cancel.className = "btn"; cancel.type = "button"; cancel.textContent = "Cancel";
+  var hint = document.createElement("span");
+  hint.className = "hint"; hint.textContent = "Ctrl+Enter to save";
+  row.appendChild(saveBtn); row.appendChild(cancel); row.appendChild(hint);
+  ed.appendChild(ta); ed.appendChild(row);
+  blockEl.insertBefore(ed, blockEl.querySelector(".addbtn"));
+  ta.focus();
+
+  function commit(){
+    var text = ta.value.trim();
+    if (!text){ ed.remove(); return; }
+    if (editing){
+      editing.text = text;
+      editing.ts = Date.now();
+    } else {
+      if (!data[id]) data[id] = [];
+      data[id].push({ id: "c" + Date.now() + Math.floor(Math.random() * 1000), text: text, ts: Date.now() });
+    }
+    save(); ed.remove(); renderComments(id, blockEl); refresh();
+  }
+  saveBtn.addEventListener("click", commit);
+  cancel.addEventListener("click", function(){ ed.remove(); });
+  ta.addEventListener("keydown", function(e){
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commit(); }
+    if (e.key === "Escape") { e.preventDefault(); ed.remove(); }
+  });
+}
+
+/* ---------------- counters, drawer ---------------- */
+var drawer = document.getElementById("drawer");
+var scrim = document.getElementById("scrim");
+var drawerBody = document.getElementById("drawerBody");
+var activeTab = "questions";
+
+function totalComments(){
+  return Object.keys(data).reduce(function(n, k){ return n + data[k].length; }, 0);
+}
+
+function refresh(){
+  var total = totalComments();
+  document.getElementById("ccount").textContent = total;
+
+  var answered = questionIds.filter(function(id){ return listFor(id).length > 0; }).length;
+  document.getElementById("pnum").textContent = answered + "/" + questionIds.length;
+  document.getElementById("pbar").style.width =
+    (questionIds.length ? (answered / questionIds.length) * 100 : 0) + "%";
+
+  sections.forEach(function(s){
+    var n = 0;
+    Object.keys(data).forEach(function(id){
+      if (blockMeta[id] && blockMeta[id].section === s.title) n += data[id].length;
+    });
+    var badge = s.link.querySelector(".badge");
+    badge.textContent = n;
+    badge.hidden = n === 0;
+  });
+
+  document.getElementById("tabQuestions").textContent =
+    "Questions " + (questionIds.length - answered);
+  document.getElementById("tabComments").textContent = "Comments " + total;
+
+  drawerBody.innerHTML = "";
+  if (activeTab === "questions") renderQuestionsTab();
+  else renderCommentsTab(total);
+}
+
+function jumpTo(id){
+  closeDrawer();
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ block: "center" });
+  el.classList.remove("flash");
+  void el.offsetWidth;
+  el.classList.add("flash");
+}
+
+function renderQuestionsTab(){
+  if (!questionIds.length){
+    drawerBody.innerHTML = '<div class="empty">No open questions in this document.</div>';
+    return;
+  }
+  var lastSection = null;
+  questionIds.forEach(function(id){
+    var meta = blockMeta[id];
+    var answered = listFor(id).length > 0;
+
+    if (meta.section !== lastSection){
+      lastSection = meta.section;
+      var g = document.createElement("div");
+      g.className = "grp";
+      g.textContent = meta.section;
+      drawerBody.appendChild(g);
+    }
+
+    var card = document.createElement("button");
+    card.type = "button";
+    card.className = "dcard" + (answered ? " answered" : "");
+    var row = document.createElement("div");
+    row.className = "qrow";
+    row.innerHTML =
+      '<span class="tick ' + (answered ? "done" : "todo") + '">' +
+        (answered ? "&#10003;" : "Q" + meta.qnum) + "</span>" +
+      '<span class="qt">' +
+        '<span class="qtag">' + esc(meta.qtag || ("Question " + meta.qnum)) + "</span>" +
+        '<span class="q">' + esc(meta.quote.slice(0, 130)) + "&hellip;</span>" +
+      "</span>";
+    card.appendChild(row);
+    card.addEventListener("click", function(){ jumpTo(id); });
+    drawerBody.appendChild(card);
+  });
+}
+
+function renderCommentsTab(total){
+  if (!total){
+    drawerBody.innerHTML = '<div class="empty">No comments yet.<br>Hover any paragraph and press <strong>+</strong>.</div>';
+    return;
+  }
+  var bySection = {};
+  Object.keys(data).forEach(function(id){
+    var sec = blockMeta[id] ? blockMeta[id].section : "Other";
+    (bySection[sec] = bySection[sec] || []).push(id);
+  });
+  sections.concat([{ title: "Preamble" }]).forEach(function(s){
+    var ids = bySection[s.title];
+    if (!ids) return;
+    var g = document.createElement("div");
+    g.className = "grp";
+    g.textContent = s.title;
+    drawerBody.appendChild(g);
+    ids.forEach(function(id){
+      listFor(id).forEach(function(c){
+        var card = document.createElement("button");
+        card.type = "button";
+        card.className = "dcard";
+        var q = blockMeta[id].qnum ? "Q" + blockMeta[id].qnum + " · " : "";
+        card.innerHTML = '<div class="q">' + esc(q + blockMeta[id].quote) + "</div>";
+        var t = document.createElement("div");
+        t.className = "t";
+        t.textContent = c.text;
+        card.appendChild(t);
+        card.addEventListener("click", function(){ jumpTo(id); });
+        drawerBody.appendChild(card);
+      });
+    });
+  });
+}
+
+function openDrawer(tab){
+  if (tab) setTab(tab);
+  drawer.classList.add("open");
+  scrim.classList.add("open");
+}
+function closeDrawer(){ drawer.classList.remove("open"); scrim.classList.remove("open"); }
+
+function setTab(tab){
+  activeTab = tab;
+  document.getElementById("tabQuestions").classList.toggle("is-on", tab === "questions");
+  document.getElementById("tabComments").classList.toggle("is-on", tab === "comments");
+  refresh();
+}
+document.getElementById("tabQuestions").addEventListener("click", function(){ setTab("questions"); });
+document.getElementById("tabComments").addEventListener("click", function(){ setTab("comments"); });
+document.getElementById("openQuestions").addEventListener("click", function(){ openDrawer("questions"); });
+
+document.getElementById("openDrawer").addEventListener("click", function(){ openDrawer("comments"); });
+document.getElementById("closeDrawer").addEventListener("click", closeDrawer);
+scrim.addEventListener("click", closeDrawer);
+
+/* ---------------- export ---------------- */
+function buildMarkdown(){
+  var out = [];
+  out.push("# " + CONFIG.title + " — Review Comments");
+  out.push("");
+  out.push("Exported " + new Date().toLocaleString() + " · " + totalComments() + " comment(s) on " + (CONFIG.sources || []).map(function(x){ return "`" + x + "`"; }).join(", ") + ".");
+  out.push("");
+  var any = false;
+  sections.concat([{ title: "Preamble" }]).forEach(function(s){
+    var ids = Object.keys(data).filter(function(id){
+      return blockMeta[id] && blockMeta[id].section === s.title;
+    });
+    if (!ids.length) return;
+    any = true;
+    out.push("## " + s.title);
+    out.push("");
+    ids.forEach(function(id){
+      var meta = blockMeta[id];
+      var label = meta.qnum ? "Open question Q" + meta.qnum : "On";
+      out.push("**" + label + "** — “" + meta.quote + "…”");
+      out.push("");
+      listFor(id).forEach(function(c){
+        out.push("- " + c.text.split("\n").join("\n  "));
+      });
+      out.push("");
+    });
+  });
+  if (!any) out.push("_No comments._");
+  return out.join("\n");
+}
+
+var modal = document.getElementById("modal");
+document.getElementById("exportBtn").addEventListener("click", function(){
+  document.getElementById("exportOut").textContent = buildMarkdown();
+  modal.classList.add("open");
+});
+document.getElementById("closeModal").addEventListener("click", function(){ modal.classList.remove("open"); });
+modal.addEventListener("click", function(e){ if (e.target === modal) modal.classList.remove("open"); });
+document.addEventListener("keydown", function(e){
+  if (e.key === "Escape"){ modal.classList.remove("open"); closeDrawer(); }
+});
+
+document.getElementById("copyBtn").addEventListener("click", function(){
+  var btn = this, text = buildMarkdown();
+  function done(){ btn.textContent = "Copied"; setTimeout(function(){ btn.textContent = "Copy"; }, 1600); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, fallback);
+  } else fallback();
+  function fallback(){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); }
+    catch (e) { btn.textContent = "Select above"; }
+    document.body.removeChild(ta);
+  }
+});
+
+document.getElementById("downloadBtn").addEventListener("click", function(){
+  var blob = new Blob([buildMarkdown()], { type: "text/markdown;charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = CONFIG.exportFileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+});
+
+/* ---------------- restore + scrollspy ---------------- */
+// A comment is keyed to the text it was attached to. When that text is revised — which is what
+// happens once a round of review is applied to the spec — the key no longer resolves. Those
+// comments have served their purpose, so retire them rather than leaving them counted but unseen.
+var stale = 0;
+Object.keys(data).forEach(function(id){
+  var el = document.getElementById(id);
+  if (el) { renderComments(id, el); return; }
+  stale += data[id].length;
+  delete data[id];
+});
+if (stale){
+  save();
+  var sw = document.getElementById("staleWarn");
+  sw.innerHTML = "<strong>" + stale + " earlier comment" + (stale === 1 ? "" : "s") +
+    "</strong> were written against wording that has since been revised, so they have been " +
+    "cleared. They were already applied to the spec &mdash; this page is ready for the next round.";
+  sw.classList.add("show");
+}
+refresh();
+
+var headings = sections.map(function(s){ return document.getElementById(s.id); }).filter(Boolean);
+function spy(){
+  var best = null;
+  headings.forEach(function(h){
+    if (h.getBoundingClientRect().top <= 140) best = h;
+  });
+  sections.forEach(function(s){
+    var isActive = !!(best && s.id === best.id);
+    s.link.classList.toggle("active", isActive);
+    if (s.group) s.group.classList.toggle("open", isActive);
+  });
+}
+window.addEventListener("scroll", spy, { passive: true });
+spy();
+
+})();
+</script>
+</body>
+</html>

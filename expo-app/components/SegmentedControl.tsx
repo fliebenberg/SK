@@ -31,6 +31,11 @@ export function SegmentedControl<T extends string = string>({
   const isDark = useActiveTheme() === 'dark';
   const isCompact = explicitIsCompact ?? width < 640;
 
+  // The inactive option carries `shadow-none` on purpose. NativeWind's shadow
+  // utilities are backed by CSS variables, and a component that only starts
+  // declaring one after its first render gets wrapped in a variable provider —
+  // which changes its element type and remounts it. Declaring the variable in
+  // both states keeps selecting an option a re-render rather than a remount.
   return (
     <View className={`flex-row items-center bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200/80 dark:border-white/10 ${className}`}>
       {options.map((item) => {
@@ -47,7 +52,7 @@ export function SegmentedControl<T extends string = string>({
               className={`w-8 h-8 rounded-lg items-center justify-center ${
                 isActive
                   ? 'bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-sm'
-                  : 'bg-transparent border border-transparent'
+                  : 'bg-transparent border border-transparent shadow-none'
               } ${item.disabled ? 'opacity-40' : ''}`}
             >
               <Ionicons
@@ -68,7 +73,7 @@ export function SegmentedControl<T extends string = string>({
             className={`flex-1 px-3 py-2 rounded-lg flex-row items-center justify-center gap-1.5 ${
               isActive
                 ? 'bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-sm'
-                : 'bg-transparent border border-transparent'
+                : 'bg-transparent border border-transparent shadow-none'
             } ${item.disabled ? 'opacity-40' : ''}`}
           >
             {iconName && (

@@ -1,10 +1,34 @@
 import { EventTemplate } from "./EventTemplate";
 
+/**
+ * A panel in the scoring control room, and the group a sport's event templates are filed under.
+ *
+ * Sections are per sport rather than a fixed list, because what a sport records in one group
+ * another does not record at all. A template names its section by `id`; `name` is only the
+ * heading drawn above the panel, so renaming a section never disturbs the templates in it.
+ */
+export interface EventSection {
+  /** What a template's `section` names. Stable — templates reference it. */
+  id: string;
+  /** The heading the scoring panel draws. */
+  name: string;
+  /**
+   * Whether recording an event from this section changes the score.
+   *
+   * This is what used to be hardcoded as `section === 'Scoring'` in four separate places. It
+   * decides whether the event is sent as a `SCORE` or a `GAME_EVENT`, whether an unanswered
+   * outcome shows as pending, and whether the panel offers the final-score override.
+   */
+  affectsScore?: boolean;
+}
+
 export interface SportSettings {
   positions?: { id: string, name: string }[];
   maxReserves?: number;
   periodLengthMS?: number;
-  periods?: number;
+  /** How many periods a fixture is scheduled to run — the sport-level default for
+   *  `game.customSettings.scheduledPeriods` and `clock.scheduledPeriods`. */
+  scheduledPeriods?: number;
   yellowCardDurationMS?: number;
   redCardDurationMS?: number;
   allowTimedRedCard?: boolean;
@@ -37,5 +61,7 @@ export interface SportTemplate {
 }
 
 export interface Sport extends SportTemplate {
+  /** The scoring panels this sport shows, in the order they are stacked. */
+  eventSections?: EventSection[];
   eventTemplates?: EventTemplate[];
 }

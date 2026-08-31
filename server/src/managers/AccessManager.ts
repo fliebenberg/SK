@@ -35,6 +35,89 @@ export class AccessManager extends BaseManager {
     return roleId === 'role-org-admin';
   }
 
+  /**
+   * Any current membership of the org, of any role. This is the read gate for
+   * rooms carrying an org's personal data (member lists, rosters) — distinct
+   * from `isOrganizationAdmin`, which gates writes.
+   */
+  async isOrgMember(userId: string, orgId: string): Promise<boolean> {
+    if (await this.isAppAdmin(userId)) return true;
+    return (await this.getOrganizationRole(userId, orgId)) !== null;
+  }
+
+  /**
+   * Every org this user currently belongs to, in one query.
+   *
+   * Answering "is this user in org X" one org at a time costs two queries each
+   * (`isAppAdmin` plus `getOrganizationRole`), which a socket joining several
+   * rooms pays over and over. This resolves the whole identity once, so the
+   * per-room checks become in-memory set lookups.
+   *
+   * The two matching rules the app already uses are deliberately different and
+   * both are reproduced here rather than unified:
+   *  - membership of an org matches a profile by `user_id` OR by a verified
+   *    email, exactly as `getOrganizationRole` does;
+   *  - app-admin matches by `user_id` only, exactly as `isAppAdmin` does, so an
+   *    unclaimed profile carrying an admin's email never confers it.
+   */
+  async getMembershipSnapshot(userId: string): Promise<{ orgIds: Set<string>; isAppAdmin: boolean }> {
+    const res = await this.query(`
+      SELECT DISTINCT om.org_id as "orgId", (op.user_id = $1) as "byUserId"
+      FROM org_memberships om
+      JOIN org_profiles op ON om.org_profile_id = op.id
+      WHERE (
+        op.user_id = $1
+        OR op.email IN (
+          SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
+          UNION
+          SELECT email FROM users WHERE id = $1
+        )
+      ) AND (om.end_date IS NULL OR om.end_date > NOW())
+    `, [userId]);
+
+    const orgIds = new Set<string>();
+    let isAppAdmin = false;
+    for (const row of res.rows) {
+      orgIds.add(row.orgId);
+      if (row.orgId === 'org-system-admins' && row.byUserId) isAppAdmin = true;
+    }
+    return { orgIds, isAppAdmin };
+  }
+
+
+  /**
+   * Every org with a stake in a game: the org hosting the event, the orgs
+   * registered on it, and the orgs owning the participating teams. The third
+   * source is why this is not simply `getGameOrgId` — a team's org can be
+   * playing without the event ever recording it (see `FIX-5`).
+   */
+  async getGameOrgIds(gameId: string): Promise<string[]> {
+    const res = await this.query(`
+      SELECT e.org_id AS "orgId" FROM games g JOIN events e ON g.event_id = e.id WHERE g.id = $1
+      UNION
+      SELECT eo.org_id FROM games g JOIN event_organizations eo ON eo.event_id = g.event_id WHERE g.id = $1
+      UNION
+      SELECT t.org_id FROM game_participants gp JOIN teams t ON t.id = gp.team_id WHERE gp.game_id = $1
+    `, [gameId]);
+    return res.rows.map((r: any) => r.orgId).filter(Boolean);
+  }
+
+  /** True when the user belongs to any org with a stake in the game. */
+  async canViewGameInternals(userId: string, gameId: string): Promise<boolean> {
+    if (await this.isAppAdmin(userId)) return true;
+    const orgIds = await this.getGameOrgIds(gameId);
+    for (const orgId of orgIds) {
+      if ((await this.getOrganizationRole(userId, orgId)) !== null) return true;
+    }
+    return false;
+  }
+
+  /** Organization owning a team, or null if the team does not exist. */
+  async getTeamOrgId(teamId: string): Promise<string | null> {
+    const res = await this.query('SELECT org_id FROM teams WHERE id = $1', [teamId]);
+    return res.rows[0]?.org_id || null;
+  }
+
   async canManageTeam(userId: string, teamId: string): Promise<boolean> {
     if (await this.isAppAdmin(userId)) return true;
     

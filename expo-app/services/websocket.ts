@@ -13,6 +13,12 @@ class WebSocketService {
   private socket: Socket | null = null;
   private url: string;
   private serverOffset: number = 0;
+  /**
+   * Round-trip time of the ping-pong sample that produced `serverOffset`.
+   * `Infinity` means no measured sample has landed yet, so the offset is either
+   * unset or came from the uncompensated `server_time` seed.
+   */
+  private serverOffsetRTT: number = Infinity;
   private tokenGetter: (() => string | null) | null = null;
 
   constructor(url: string) {
@@ -31,6 +37,15 @@ class WebSocketService {
     return this.serverOffset;
   }
 
+  /**
+   * Worst-case error on `getServerTime()`, in ms. The ping-pong assumes the two
+   * legs of the round trip were equal; if one leg carried all of it, we are out
+   * by half the RTT. `Infinity` until a measured sample lands.
+   */
+  getServerTimeAccuracyMS(): number {
+    return this.serverOffsetRTT === Infinity ? Infinity : Math.ceil(this.serverOffsetRTT / 2);
+  }
+
   syncTime() {
     if (this.socket && this.socket.connected) {
       const sendTime = Date.now();
@@ -39,7 +54,11 @@ class WebSocketService {
           const receiveTime = Date.now();
           const rtt = receiveTime - sendTime;
           this.serverOffset = (res.serverTime + Math.floor(rtt / 2)) - receiveTime;
-          console.log(`[WS] Time synced via ping-pong. Offset: ${this.serverOffset}ms (RTT: ${rtt}ms)`);
+          this.serverOffsetRTT = rtt;
+          console.log(
+            `[WS] Time synced via ping-pong. Offset: ${this.serverOffset}ms ` +
+            `(RTT: ${rtt}ms, worst case ±${this.getServerTimeAccuracyMS()}ms)`
+          );
         }
       });
     }
@@ -74,10 +93,17 @@ class WebSocketService {
         });
       });
 
+      // Coarse seed the server pushes at connection time. We cannot know when it
+      // was sent, so the offset it yields is slow by a full one-way latency
+      // rather than the half-RTT a ping-pong costs. It must never overwrite a
+      // measured sample: `syncTime()` fires from the same 'connect' handler and
+      // nothing orders its ack against this event, so before this guard a
+      // reconnect could leave the uncompensated value in place.
       this.socket.on('server_time', (data: { serverTime: number }) => {
         if (data?.serverTime) {
+          if (this.serverOffsetRTT !== Infinity) return;
           this.serverOffset = data.serverTime - Date.now();
-          console.log(`[WS] Server time received. Offset: ${this.serverOffset}ms`);
+          console.log(`[WS] Server time seed applied. Offset: ${this.serverOffset}ms (uncompensated)`);
         }
       });
 

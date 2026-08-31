@@ -25,6 +25,9 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { apiService, API_BASE_URL } from "../../services/api";
 import { CONSTANTS } from '../../constants';
 
+/** Sections of the settings screen, in the order they appear in the nav rail. */
+type SettingsTab = "general" | "profile" | "security" | "emails";
+
 export default function SettingsScreen() {
   const router = useRouter();
   const activeTheme = useActiveTheme();
@@ -43,6 +46,13 @@ export default function SettingsScreen() {
 
   const currentTheme = localOverrides.theme ?? globalTheme;
 
+  const hapticFeedbackEnabled =
+    useSettingsStore(
+      (state) =>
+        state.localOverrides.hapticFeedbackEnabled ??
+        state.globalPreferences.hapticFeedbackEnabled,
+    ) !== false;
+
   // Form states
   const [name, setName] = useState("");
   const [avatarSource, setAvatarSource] = useState("custom");
@@ -55,9 +65,7 @@ export default function SettingsScreen() {
   >([]);
 
   // UI states
-  const [activeTab, setActiveTab] = useState<"profile" | "security" | "emails">(
-    "profile",
-  );
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditingPassword, setIsEditingPassword] = useState(false);
@@ -506,6 +514,21 @@ export default function SettingsScreen() {
                 {/* Left Navigation Rails for Desktop/Tablets */}
                 <View className="hidden md:flex w-full border-t border-slate-200 dark:border-white/10 pt-4 gap-2">
                   <TouchableOpacity
+                    onPress={() => setActiveTab("general")}
+                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "general" ? "bg-slate-200 dark:bg-white/10" : ""}`}
+                  >
+                    <Ionicons
+                      name="options"
+                      size={18}
+                      color={activeTab === "general" ? "#FF3E00" : "#64748B"}
+                    />
+                    <Text
+                      className={`font-inter-bold text-sm ${activeTab === "general" ? "text-slate-950 dark:text-white" : "text-slate-600 dark:text-slate-400"}`}
+                    >
+                      General
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     onPress={() => setActiveTab("profile")}
                     className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "profile" ? "bg-slate-200 dark:bg-white/10" : ""}`}
                   >
@@ -560,48 +583,16 @@ export default function SettingsScreen() {
                   className="w-full mt-6"
                 />
               </GlassCard>
-
-              {/* Theme Settings (always visible in Left column on desktop, stacked on mobile) */}
-              <GlassCard className="hidden md:flex">
-                <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-4">
-                  Appearance
-                </Text>
-                <SegmentedControl<ThemePreference>
-                  options={[
-                    { key: "system", label: "Auto" },
-                    { key: "dark", label: "Dark" },
-                    { key: "light", label: "Light" },
-                  ]}
-                  value={currentTheme}
-                  onChange={setTheme}
-                />
-
-                <View className="flex-row items-center justify-between pt-4 mt-4 border-t border-slate-100 dark:border-white/5">
-                  <View className="flex-1 pr-2">
-                    <Text className="font-inter-bold text-xs text-slate-900 dark:text-white">
-                      Haptic Vibration
-                    </Text>
-                    <Text className="font-inter text-[10px] text-slate-400">
-                      Tactile feedback when tapping scoring action buttons
-                    </Text>
-                  </View>
-                  <Switch
-                    value={useSettingsStore.getState().getEffectivePreference('hapticFeedbackEnabled') !== false}
-                    onValueChange={(val) => setLocalOverride('hapticFeedbackEnabled', val)}
-                    trackColor={{ false: '#64748B', true: '#FF3E00' }}
-                    thumbColor="#FFFFFF"
-                  />
-                </View>
-              </GlassCard>
             </View>
 
             {/* RIGHT COLUMN (Edit Panels - Tablet split view, stacked on mobile) */}
             <View className="flex-1 w-full gap-6">
               {/* MOBILE TABS SELECTOR (Only shown on small screens) */}
               <View className="md:hidden mb-2">
-                <Tabs<"profile" | "security" | "emails">
+                <Tabs<SettingsTab>
                   items={[
-                    { key: "profile", label: "Edit Profile", icon: "person-outline" },
+                    { key: "general", label: "General", icon: "options-outline" },
+                    { key: "profile", label: "Profile", icon: "person-outline" },
                     { key: "security", label: "Security", icon: "lock-closed-outline" },
                     { key: "emails", label: "Accounts", icon: "mail-outline" },
                   ]}
@@ -610,6 +601,56 @@ export default function SettingsScreen() {
                   variant="underline"
                 />
               </View>
+
+              {/* 0. GENERAL TAB (display and device preferences) */}
+              {activeTab === "general" && (
+                <GlassCard className="gap-6">
+                  <View className="flex-row items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
+                    <Ionicons name="options" size={20} color="#FF3E00" />
+                    <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+                      GENERAL
+                    </Text>
+                  </View>
+
+                  <View>
+                    <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-1">
+                      Appearance
+                    </Text>
+                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                      Pick a display theme, or follow the device setting. Saved to
+                      your account, so it carries across your devices.
+                    </Text>
+                    <SegmentedControl<ThemePreference>
+                      options={[
+                        { key: "system", label: "Auto" },
+                        { key: "dark", label: "Dark" },
+                        { key: "light", label: "Light" },
+                      ]}
+                      value={currentTheme}
+                      onChange={setTheme}
+                      isCompact={false}
+                    />
+                  </View>
+
+                  <View className="flex-row items-center justify-between pt-5 border-t border-slate-100 dark:border-white/5">
+                    <View className="flex-1 pr-4">
+                      <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-1">
+                        Haptic Vibration
+                      </Text>
+                      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Tactile feedback when tapping scoring action buttons.
+                        Saved on this device only.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={hapticFeedbackEnabled}
+                      onValueChange={(val) => setLocalOverride('hapticFeedbackEnabled', val)}
+                      trackColor={{ false: '#64748B', true: '#FF3E00' }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+                </GlassCard>
+              )}
 
               {/* 1. EDIT PROFILE TAB */}
               {activeTab === "profile" && (
@@ -972,24 +1013,6 @@ export default function SettingsScreen() {
                 </GlassCard>
               )}
 
-              {/* MOBILE APPEARANCE (Only shown stacked on mobile) */}
-              <View className="flex md:hidden">
-                <GlassCard>
-                  <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-4">
-                    Appearance
-                  </Text>
-                  <SegmentedControl<ThemePreference>
-                    options={[
-                      { key: "system", label: "Auto" },
-                      { key: "dark", label: "Dark" },
-                      { key: "light", label: "Light" },
-                    ]}
-                    value={currentTheme}
-                    onChange={setTheme}
-                    isCompact={false}
-                  />
-                </GlassCard>
-              </View>
             </View>
           </View>
         )}

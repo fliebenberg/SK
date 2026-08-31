@@ -1,14 +1,16 @@
 import { BaseManager } from "./BaseManager";
 import { GameEvent } from "@sk/shared";
-import { Server } from "socket.io";
 import { dataManager } from "../DataManager";
 import { DisputeResolutionHandler, DisputeConfig } from "../sports/core/SportDisputeHandler";
 import { sportManager } from "./SportManager";
+import { broadcast } from "../wss/broadcast";
+import { publishGameSummary } from "../wss/fixtures";
 import {
   EventTemplate,
   DEFAULT_UNDO_DELAY_MS,
   UNDO_GRACE_MS,
   resolveUndoExpiryMs,
+  captureEventLabels,
   findOutcome,
   getOutcomes,
   getTriggerFor,
@@ -19,7 +21,6 @@ import {
 const SPORT_MODULES: Record<string, string> = {};
 export class GameEventManager extends BaseManager {
   private activeTimers = new Map<string, NodeJS.Timeout>();
-  public io: Server | null = null;
   private GAME_EVENT_COLUMNS = 'id, game_id as "gameId", sequence, timestamp, game_participant_id as "gameParticipantId", actor_org_profile_id as "actorOrgProfileId", initiator_org_profile_id as "initiatorOrgProfileId", type, sub_type as "subType", event_data as "eventData"';
   private DISPUTE_COLUMNS = 'id, game_id as "gameId", game_event_id as "gameEventId", type, initiator_org_profile_id as "initiatorOrgProfileId", status, expires_at as "expiresAt", created_at as "createdAt", resolved_at as "resolvedAt", update_data as "updateData", dispute_config as "disputeConfig"';
 
@@ -102,9 +103,6 @@ export class GameEventManager extends BaseManager {
       }
   }
 
-  setIo(io: Server) {
-    this.io = io;
-  }
   /**
    * Ingests a new game event, applies deduplication, and updates live state.
    */
@@ -240,63 +238,8 @@ export class GameEventManager extends BaseManager {
     }
     
     // 5. Trigger live_state mutation for cards (Sin Bin)
-    if (data.subType === 'yellow_card' || data.subType === 'red_card' || data.subType === 'timed_red_card') {
-      const sportId = await this.getGameSportId(data.gameId);
-      const sport = sportId ? await sportManager.getSport(sportId) : null;
-      
-      // Fetch game to get custom settings and current state
-      const gameRes = await this.query(`
-        SELECT live_state->'clock' as clock, 
-               custom_settings as "customSettings",
-               (SELECT team_id FROM game_participants WHERE id = $1) as "teamId"
-        FROM games WHERE id = $2
-      `, [data.gameParticipantId, data.gameId]);
+    await this.syncSinBin(data.gameId, newEvent.id);
 
-      if (gameRes.rows.length > 0) {
-        const customSettings = gameRes.rows[0].customSettings || {};
-        const defaultSettings = sport?.defaultSettings || {};
-        const settings = { ...defaultSettings, ...customSettings };
-        
-        const type = (data.subType === 'yellow_card') ? 'yellow' : 'red';
-        const isYellow = type === 'yellow';
-        
-        // Yellow cards are always timed. 
-        // Red cards are timed ONLY if the match allows it AND the specific subType is 'timed_red_card'.
-        const isTimedRed = type === 'red' && data.subType === 'timed_red_card' && (settings.allowTimedRedCard);
-        const isPermanent = type === 'red' && !isTimedRed;
-
-        const durationMS = isYellow 
-            ? (settings.yellowCardDurationMS || 600000) 
-            : (settings.redCardDurationMS || 1200000); // Default 20 mins for timed red if not specified
-
-        const clock = gameRes.rows[0].clock;
-        const teamId = gameRes.rows[0].teamId;
-        // Use totalActualElapsedMS from eventData if available, otherwise fallback to DB clock totalActualElapsedMS
-        const awardedAtMS = data.eventData?.totalActualElapsedMS ?? clock?.totalActualElapsedMS ?? 0;
-
-        const sinBinEntry = {
-          id: newEvent.id,
-          playerId: data.gameParticipantId,
-          teamId: teamId,
-          awardedAtMS: awardedAtMS,
-          durationMS: isPermanent ? 0 : durationMS,
-          type: type,
-          reason: data.eventData?.reason
-        };
-
-        await this.query(`
-          UPDATE games 
-          SET live_state = jsonb_set(
-            live_state, 
-            '{sinBins}', 
-            COALESCE(live_state->'sinBins', '[]'::jsonb) || $1::jsonb
-          ),
-          updated_at = NOW()
-          WHERE id = $2
-        `, [JSON.stringify(sinBinEntry), data.gameId]);
-      }
-    }
-    
     // Broadcast via socket occurs in the route/controller layer after this manager returns.
     
     return newEvent;
@@ -510,11 +453,8 @@ export class GameEventManager extends BaseManager {
         this.activeTimers.delete(disputeId);
         const result = await this.checkDisputeResolution(disputeId);
         
-        if (result.resolved && this.io) {
-            this.io.to(`game:${result.dispute.gameId}:events`).emit('update', { 
-                type: 'DISPUTE_RESOLVED', 
-                data: { dispute: result.dispute } 
-            });
+        if (result.resolved) {
+            broadcast(`game:${result.dispute.gameId}:events`, 'DISPUTE_RESOLVED', { dispute: result.dispute });
             console.log(`[Dispute] Timer-based resolution broadcasted for ${disputeId}`);
         }
     }, delay);
@@ -602,21 +542,21 @@ export class GameEventManager extends BaseManager {
         }
 
         // 5. Broadcast
-        if (this.io) {
-            this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
-            
-            // Also broadcast individual updates for the main entities
-            for (const me of allModified) {
-                this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: me });
-            }
+        broadcast(`game:${gameId}:events`, 'GAME_EVENTS_BATCH_UPDATED', allModified);
+        
+        // Also broadcast individual updates for the main entities
+        for (const me of allModified) {
+            broadcast(`game:${gameId}`, 'GAME_EVENT_UPDATED', me);
+        }
 
-            if (scoresChanged) {
-                const updatedGame = await dataManager.getGame(gameId);
-                if (updatedGame) {
-                    this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                    this.io.to(`game:${gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                }
+        if (scoresChanged) {
+            const updatedGame = await dataManager.getGame(gameId);
+            if (updatedGame) {
+                broadcast(`game:${gameId}`, 'GAME_UPDATED', updatedGame);
+                broadcast(`game:${gameId}:detail`, 'GAME_UPDATED', updatedGame);
             }
+            // A corrected score changes what every fixture list shows.
+            await publishGameSummary(gameId);
         }
 
         return allModified.find(e => e.id === eventId) || mainEvent;
@@ -640,11 +580,8 @@ export class GameEventManager extends BaseManager {
         if (expiresAt.getTime() <= Date.now()) {
             console.log(`[Dispute System] Resolving expired dispute ${row.id} found at startup/sweep`);
             const result = await this.checkDisputeResolution(row.id);
-            if (result.resolved && this.io) {
-                this.io.to(`game:${row.gameId}:events`).emit('update', { 
-                    type: 'DISPUTE_RESOLVED', 
-                    data: { dispute: result.dispute } 
-                });
+            if (result.resolved) {
+                broadcast(`game:${row.gameId}:events`, 'DISPUTE_RESOLVED', { dispute: result.dispute });
                 resolvedCount++;
             }
         } else {
@@ -896,13 +833,8 @@ export class GameEventManager extends BaseManager {
          await this.query(`UPDATE game_disputes SET status = $1, resolved_at = NOW() WHERE id = $2`, [outcome, disputeId]);
          dispute.status = outcome;
 
-         if (this.io) {
-             this.io.to(`game:${dispute.gameId}:events`).emit('update', { 
-                 type: 'DISPUTE_RESOLVED', 
-                 data: { disputeId, dispute } 
-             });
-             console.log(`[Dispute Engine] Broadcasted DISPUTE_RESOLVED for ${disputeId}`);
-         }
+         broadcast(`game:${dispute.gameId}:events`, 'DISPUTE_RESOLVED', { disputeId, dispute });
+         console.log(`[Dispute Engine] Broadcasted DISPUTE_RESOLVED for ${disputeId}`);
 
          if (outcome === 'RESOLVED_APPROVED') {
              try {
@@ -939,30 +871,27 @@ export class GameEventManager extends BaseManager {
                            await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), dispute.gameId]);
                        }
 
-                      if (this.io) {
-                          // Broadcast removals and updates
-                          for (const me of allModified) {
-                              if (me.eventData?.status === 'REMOVED') {
-                                  this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: me.id } });
-                              } else {
-                                  this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_EVENT_UPDATED', data: me });
-                              }
+                      // Broadcast removals and updates
+                      for (const me of allModified) {
+                          if (me.eventData?.status === 'REMOVED') {
+                              broadcast(`game:${dispute.gameId}:events`, 'GAME_EVENT_REMOVED', { id: me.id });
+                          } else {
+                              broadcast(`game:${dispute.gameId}`, 'GAME_EVENT_UPDATED', me);
                           }
-                          
-                          this.io.to(`game:${dispute.gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
-                          
-                          const hasCardChanges = allModified.some(me => 
-                              me.subType === 'yellow_card' || me.subType === 'red_card' || me.subType === 'timed_red_card'
-                          );
-                          const liveStateChanged = scoresChanged || hasCardChanges;
+                      }
+                      
+                      broadcast(`game:${dispute.gameId}:events`, 'GAME_EVENTS_BATCH_UPDATED', allModified);
+                      
+                      const hasCardChanges = allModified.some(me => this.isCardSubType(me.subType));
+                      const liveStateChanged = scoresChanged || hasCardChanges;
 
-                          if (liveStateChanged) {
-                              const updatedGame = await dataManager.getGame(dispute.gameId);
-                              if (updatedGame) {
-                                  this.io.to(`game:${dispute.gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                                  this.io.to(`game:${dispute.gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                              }
+                      if (liveStateChanged) {
+                          const updatedGame = await dataManager.getGame(dispute.gameId);
+                          if (updatedGame) {
+                              broadcast(`game:${dispute.gameId}`, 'GAME_UPDATED', updatedGame);
+                              broadcast(`game:${dispute.gameId}:detail`, 'GAME_UPDATED', updatedGame);
                           }
+                          await publishGameSummary(dispute.gameId);
                       }
                   }
              } catch (err: any) {
@@ -1022,7 +951,7 @@ export class GameEventManager extends BaseManager {
             console.log(`[Mutation Engine] Event ${eventId} marked as REMOVED in DB`);
 
             // If it's a card event, remove from live_state.sinBins
-            if (evt.subType === 'yellow_card' || evt.subType === 'red_card' || evt.subType === 'timed_red_card') {
+            if (this.isCardSubType(evt.subType)) {
               await this.query(`
                 UPDATE games 
                 SET live_state = jsonb_set(
@@ -1055,6 +984,9 @@ export class GameEventManager extends BaseManager {
                         const updatedParentData = { 
                             ...(parentEvt.eventData || {}), 
                             outcome: null, 
+                            // The captured label goes with the outcome it described, or the feed
+                            // would keep printing the outcome this event no longer has.
+                            outcomeName: undefined,
                             nextAction: null,
                             pointsDelta: 0,
                             points: 0
@@ -1079,7 +1011,10 @@ export class GameEventManager extends BaseManager {
                     ...finalEventData,
                     ...newOutcome.eventData,
                     outcome: newOutcomeName,
-                    pointsDelta: newOutcome.points || 0
+                    pointsDelta: newOutcome.points || 0,
+                    // Re-capture the words with the outcome: a dispute that upgrades a yellow to
+                    // a red rewrites what this event *is*, so the stored label has to follow.
+                    ...captureEventLabels(template, { outcome: newOutcomeName, reason: finalEventData.reason })
                 };
             }
         }
@@ -1126,6 +1061,13 @@ export class GameEventManager extends BaseManager {
     `, [eventId]);
     const finalizedEvt = finalizedRes.rows[0];
     modifiedEvents.push(finalizedEvt);
+
+    // A card's severity is its outcome, so an edit can change how long the player is off — or
+    // whether they come back at all. Re-derive the sin bin rather than leaving the entry written
+    // at creation time.
+    if (this.isCardSubType(finalizedEvt?.subType)) {
+        await this.syncSinBin(gameId, eventId);
+    }
 
     // 4. CASCADE LOGIC
     // Find any events linked to this one
@@ -1376,41 +1318,38 @@ export class GameEventManager extends BaseManager {
                 await this.query(`UPDATE games SET live_state = jsonb_set(live_state, '{scores}', $1::jsonb) WHERE id = $2`, [JSON.stringify(finalScores), gameId]);
             }
 
-            if (this.io) {
-                // Merge modifiedEvents and recalculatedEvents
-                const allModified = [...modifiedEvents];
-                for (const re of recalculatedEvents) {
-                    const idx = allModified.findIndex(m => m.id === re.id);
-                    if (idx > -1) {
-                        allModified[idx] = re;
-                    } else {
-                        allModified.push(re);
-                    }
+            // Merge modifiedEvents and recalculatedEvents
+            const allModified = [...modifiedEvents];
+            for (const re of recalculatedEvents) {
+                const idx = allModified.findIndex(m => m.id === re.id);
+                if (idx > -1) {
+                    allModified[idx] = re;
+                } else {
+                    allModified.push(re);
                 }
+            }
 
-                for (const me of allModified) {
-                    if (me.eventData?.status === 'REMOVED') {
-                        console.log(`[Undo Broadcast] Emitting GAME_EVENT_REMOVED for ${me.id}`);
-                        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_REMOVED', data: { id: me.id, gameId } });
-                    } else {
-                        console.log(`[Undo Broadcast] Emitting GAME_EVENT_UPDATED for ${me.id}`);
-                        this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENT_UPDATED', data: me });
-                    }
+            for (const me of allModified) {
+                if (me.eventData?.status === 'REMOVED') {
+                    console.log(`[Undo Broadcast] Emitting GAME_EVENT_REMOVED for ${me.id}`);
+                    broadcast(`game:${gameId}:events`, 'GAME_EVENT_REMOVED', { id: me.id, gameId });
+                } else {
+                    console.log(`[Undo Broadcast] Emitting GAME_EVENT_UPDATED for ${me.id}`);
+                    broadcast(`game:${gameId}:events`, 'GAME_EVENT_UPDATED', me);
                 }
-                console.log(`[Undo Broadcast] Emitting GAME_EVENTS_BATCH_UPDATED for ${allModified.length} events`);
-                this.io.to(`game:${gameId}:events`).emit('update', { type: 'GAME_EVENTS_BATCH_UPDATED', data: allModified });
-                const hasCardChanges = allModified.some(me => 
-                    me.subType === 'yellow_card' || me.subType === 'red_card' || me.subType === 'timed_red_card'
-                );
-                const liveStateChanged = scoresChanged || hasCardChanges;
-                
-                if (liveStateChanged) {
-                    const updatedGame = await dataManager.getGame(gameId);
-                    if (updatedGame) {
-                        this.io.to(`game:${gameId}`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                        this.io.to(`game:${gameId}:detail`).emit('update', { type: 'GAME_UPDATED', data: updatedGame });
-                    }
+            }
+            console.log(`[Undo Broadcast] Emitting GAME_EVENTS_BATCH_UPDATED for ${allModified.length} events`);
+            broadcast(`game:${gameId}:events`, 'GAME_EVENTS_BATCH_UPDATED', allModified);
+            const hasCardChanges = allModified.some(me => this.isCardSubType(me.subType));
+            const liveStateChanged = scoresChanged || hasCardChanges;
+            
+            if (liveStateChanged) {
+                const updatedGame = await dataManager.getGame(gameId);
+                if (updatedGame) {
+                    broadcast(`game:${gameId}`, 'GAME_UPDATED', updatedGame);
+                    broadcast(`game:${gameId}:detail`, 'GAME_UPDATED', updatedGame);
                 }
+                await publishGameSummary(gameId);
             }
         }
         return { success: true };
@@ -1419,6 +1358,109 @@ export class GameEventManager extends BaseManager {
         return { success: false, error: err.message };
     }
   }
+  /** A card event, whichever colour. The 20-minute red is an outcome now, not a third subType. */
+  private isCardSubType(subType?: string | null): boolean {
+    return subType === 'yellow_card' || subType === 'red_card';
+  }
+
+  /**
+   * How long a card keeps a player off, derived from the card's **outcome** rather than its
+   * subType. A yellow that the TMO upgrades stays a `yellow_card` event — the upgrade is the
+   * outcome — so reading the subType alone would leave an upgraded player serving ten minutes.
+   *
+   * `durationMS: 0` means permanent. A 20-minute red is a timed `red`, so the scoreboard counts it
+   * down exactly as it counts down a yellow, and it degrades to a permanent red when the
+   * competition has not enabled `allowTimedRedCard`.
+   */
+  private deriveCardSuspension(
+    subType: string,
+    outcome: string | undefined,
+    settings: any
+  ): { type: 'yellow' | 'red'; durationMS: number } {
+    const timedAllowed = !!settings?.allowTimedRedCard;
+    const timedRedMS = settings?.redCardDurationMS || 1200000;
+
+    if (subType === 'yellow_card') {
+      if (outcome === 'upgraded_timed_red') {
+        return { type: 'red', durationMS: timedAllowed ? timedRedMS : 0 };
+      }
+      if (outcome === 'upgraded_red') return { type: 'red', durationMS: 0 };
+      // `stands`, `under_review`, or not yet answered: the player is in the bin either way.
+      return { type: 'yellow', durationMS: settings?.yellowCardDurationMS || 600000 };
+    }
+
+    // red_card
+    if (outcome === 'timed' && timedAllowed) return { type: 'red', durationMS: timedRedMS };
+    return { type: 'red', durationMS: 0 };
+  }
+
+  /**
+   * Brings `live_state.sinBins` into line with a card event, whether it has just been created or
+   * has since been edited. Both paths run through here so an upgraded yellow cannot keep serving a
+   * yellow's ten minutes — before this existed the entry was written on create and deleted on
+   * remove, and nothing in between ever corrected it.
+   *
+   * `awardedAtMS` is preserved when an entry already exists: editing a card does not restart the
+   * clock the player is already serving.
+   */
+  private async syncSinBin(gameId: string, eventId: string): Promise<boolean> {
+    const evtRes = await this.query(`
+      SELECT sub_type as "subType", event_data as "eventData", game_participant_id as "gameParticipantId"
+      FROM game_events WHERE id = $1
+    `, [eventId]);
+    const evt = evtRes.rows[0];
+    if (!evt || !this.isCardSubType(evt.subType)) return false;
+
+    // A removed card serves nothing.
+    if (evt.eventData?.status === 'REMOVED') {
+      await this.removeSinBin(gameId, eventId);
+      return true;
+    }
+
+    const sportId = await this.getGameSportId(gameId);
+    const sport = sportId ? await sportManager.getSport(sportId) : null;
+
+    const gameRes = await this.query(`
+      SELECT live_state->'clock' as clock,
+             live_state->'sinBins' as "sinBins",
+             custom_settings as "customSettings",
+             (SELECT team_id FROM game_participants WHERE id = $1) as "teamId"
+      FROM games WHERE id = $2
+    `, [evt.gameParticipantId, gameId]);
+    if (gameRes.rows.length === 0) return false;
+
+    const row = gameRes.rows[0];
+    const settings = { ...(sport?.defaultSettings || {}), ...(row.customSettings || {}) };
+    const { type, durationMS } = this.deriveCardSuspension(evt.subType, evt.eventData?.outcome, settings);
+
+    const existing: any[] = row.sinBins || [];
+    const previous = existing.find((sb: any) => sb.id === eventId);
+
+    const entry = {
+      id: eventId,
+      playerId: evt.gameParticipantId,
+      teamId: row.teamId,
+      awardedAtMS: previous?.awardedAtMS
+        ?? evt.eventData?.totalActualElapsedMS
+        ?? row.clock?.totalActualElapsedMS
+        ?? 0,
+      durationMS,
+      type,
+      reason: evt.eventData?.reason
+    };
+
+    const next = existing.filter((sb: any) => sb.id !== eventId).concat([entry]);
+
+    await this.query(`
+      UPDATE games
+      SET live_state = jsonb_set(live_state, '{sinBins}', $1::jsonb),
+          updated_at = NOW()
+      WHERE id = $2
+    `, [JSON.stringify(next), gameId]);
+
+    return true;
+  }
+
   /**
    * Removes a specific sin bin entry from a game's live state.
    */

@@ -1040,7 +1040,7 @@ export default function OrgSettings() {
                     className={`w-7 h-7 rounded-full border items-center justify-center active:scale-95 ${
                       (primaryHue === hue.h && isPrimaryGrey === !!hue.isGrey)
                         ? 'border-brand-orange border-2 scale-105 shadow-md'
-                        : 'border-slate-200 dark:border-white/10'
+                        : 'border-slate-200 dark:border-white/10 scale-100 shadow-none'
                     }`}
                     style={{ backgroundColor: hslToHex(hue.h, hue.s, hue.l) }}
                   />
@@ -1061,7 +1061,7 @@ export default function OrgSettings() {
                     className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 ${
                       tempPrimary.toUpperCase() === shade.toUpperCase()
                         ? 'border-brand-orange border-2 scale-105 shadow-md'
-                        : 'border-slate-200 dark:border-white/10'
+                        : 'border-slate-200 dark:border-white/10 scale-100 shadow-none'
                     }`}
                     style={{ backgroundColor: shade }}
                   />
@@ -1171,7 +1171,7 @@ export default function OrgSettings() {
                     className={`w-7 h-7 rounded-full border items-center justify-center active:scale-95 ${
                       (secondaryHue === hue.h && isSecondaryGrey === !!hue.isGrey)
                         ? 'border-brand-orange border-2 scale-105 shadow-md'
-                        : 'border-slate-200 dark:border-white/10'
+                        : 'border-slate-200 dark:border-white/10 scale-100 shadow-none'
                     }`}
                     style={{ backgroundColor: hslToHex(hue.h, hue.s, hue.l) }}
                   />
@@ -1192,7 +1192,7 @@ export default function OrgSettings() {
                     className={`w-7 h-7 rounded-lg border items-center justify-center active:scale-95 ${
                       tempSecondary.toUpperCase() === shade.toUpperCase()
                         ? 'border-brand-orange border-2 scale-105 shadow-md'
-                        : 'border-slate-200 dark:border-white/10'
+                        : 'border-slate-200 dark:border-white/10 scale-100 shadow-none'
                     }`}
                     style={{ backgroundColor: shade }}
                   />

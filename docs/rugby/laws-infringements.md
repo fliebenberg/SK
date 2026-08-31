@@ -378,8 +378,10 @@ A card never stands alone: it always accompanies a penalty or a penalty try. The
 Full law from 1 July 2026 for elite rugby: the offender is permanently sent off and the team may
 replace them after 20 minutes. It applies to offences that are **neither intentional nor highly
 dangerous** — a deliberate punch stays a full red, while a mistimed high tackle with head contact is
-the typical 20-minute case. `defaultSettings.allowTimedRedCard` is `false` in the seed, so it is off
-unless a competition enables it.
+the typical 20-minute case. `defaultSettings.allowTimedRedCard` is **`true`** from 2026-08-19, so a
+yellow upgraded to `upgraded_timed_red` — or a direct red with outcome `timed` — puts the player off
+for `redCardDurationMS` and the team may replace them. Setting it back to `false` degrades both to a
+permanent red, which is the community-rugby behaviour.
 
 ---
 

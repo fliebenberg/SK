@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
-import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction, findReason, getOutcomes, getTriggerFor } from '@sk/shared';
+import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction, findReason, getOutcomes, getTriggerFor, isScoringTemplate } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
-import { useOptionalSharedDynamicScoring, useSharedDynamicScoring } from './DynamicScoringContext';
+import { useSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
 import { ConfirmationModal } from '../../ConfirmationModal';
@@ -39,10 +39,8 @@ function getEventCategory(evt: GameEvent): EventFilterCategory {
 }
 
 export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedProps) {
-  const dynamicScoring = useOptionalSharedDynamicScoring();
-  const startDynamicFlow = dynamicScoring?.startDynamicFlow;
-
   const {
+    startDynamicFlow,
     events,
     isLoadingEvents: loading,
     disputes,
@@ -353,7 +351,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
               const points = eventData.points;
               const period = eventData.period;
-              const isScoringEvent = template?.section === 'Scoring' || (template?.points && template.points > 0);
+              const isScoringEvent = isScoringTemplate(sport, template);
               const isPending = eventData.pending || (isScoringEvent && !eventData.outcome);
               const isTimingEvent = evt.type === 'TIME' || evt.type === 'STATUS';
               const isDisputed = disputedEventIds.has(evt.id);
@@ -458,7 +456,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                           <>
                             {reasonLabel && evt.type !== 'SCORE' && (
                               <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-                                Reason: {reasonLabel}
+                                {reasonLabel}
                               </Text>
                             )}
                             {actorName && (
