@@ -239,7 +239,7 @@ export default function GameSelectionScreen() {
     // 1. Fetch team available players
     wsService.emit(
       'get_data',
-      { type: 'team_members', teamId: currentTeamId },
+      { type: 'team_members', teamId: currentTeamId, gameId },
       (members: any[]) => {
         if (isMounted) {
           setAvailablePlayers(members || []);

@@ -36,6 +36,19 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260808_create_system_admin_org.ts`: Creates the System Administration Organization (`org-system-admins`) and provisions admin org profiles and memberships.
     - `20260814_derive_org_counts.ts`: Drops the denormalized `team_count` / `site_count` / `member_count` columns (now computed live) and `org_memberships.expiry_processed`; adds org-scoped foreign key indexes.
 
+## Migrations vs a clean install
+
+Two paths build the same schema and both must be kept in step when a table or column is added:
+
+*   `npm run db:migrate` — [run-all-migrations.ts](file:///c:/Fred/Coding/SK/server/src/scripts/run-all-migrations.ts) runs each unrun file in `src/scripts/migrations/` in its own transaction and records its filename in `schema_migrations`. This is the path a **deployed** environment takes.
+*   `npm run db:setup` — reset, then [init-db.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/init-db.ts), then seed. `reset-db.ts` is a `DROP SCHEMA public CASCADE`, so this path **destroys data**; take a dump first ([server/backups/](file:///c:/Fred/Coding/SK/server/backups/)).
+
+`init-db.ts` **stamps every migration filename into `schema_migrations`** as it finishes, so a
+freshly created database is correctly "already migrated" and `db:migrate` against it is a no-op.
+Without that a clean install believed no migration had ever run and replayed all of them — harmless
+only for as long as every migration happens to be written defensively, and it made the two paths
+impossible to compare. **A new table therefore goes in both files**, `IF NOT EXISTS` in each.
+
 ## Derived vs Stored Values
 
 Organization team/site/member counts are **computed live** by the queries in [OrganizationManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/OrganizationManager.ts), not stored. Caching them previously required background jobs that could not keep them accurate, because membership validity depends on the clock rather than on writes. Before denormalizing any similar value, read [docs/background-tasks.md](file:///c:/Fred/Coding/SK/docs/background-tasks.md).

@@ -78,7 +78,7 @@ export default function TeamViewScreen() {
     });
 
     // Get Roster
-    wsService.emit('get_data', { type: 'team_roster', teamId }, (res: any) => {
+    wsService.emit('get_data', { type: 'team_members', teamId }, (res: any) => {
       if (Array.isArray(res)) {
         setRoster(res);
       }

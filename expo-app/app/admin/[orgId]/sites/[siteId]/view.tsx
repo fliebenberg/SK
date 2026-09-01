@@ -63,7 +63,7 @@ export default function SiteViewScreen() {
     });
 
     // Get Facilities directory
-    wsService.emit('get_data', { type: 'site_facilities', siteId }, (res: any) => {
+    wsService.emit('get_data', { type: 'facilities', siteId }, (res: any) => {
       if (Array.isArray(res)) {
         setFacilities(res);
       }

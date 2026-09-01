@@ -16,3 +16,6 @@ logs/
 server/logs/
 *.log
 
+
+# Database dumps (contain real personal data — never committed)
+server/backups/*.dump

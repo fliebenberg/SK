@@ -79,7 +79,20 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
                             return orgId ? `org:${orgId}:teams` : null;
                           } },
   // Rosters are personal data, often a minor's — the `team:{id}` room's level.
-  team_members:         { room: (req: any) => (req.teamId || req.id) ? `team:${req.teamId || req.id}` : null },
+  //
+  // A scoring screen is the exception, and it is why `gameId` is honoured: it shows both
+  // sides' players while the scorer belongs to only one of the two orgs. Naming the game
+  // moves the decision to `game:{id}`, which already admits every org with a stake in the
+  // fixture — but only once the team is confirmed to be playing in it, so the parameter
+  // cannot be used to reach a roster that has nothing to do with the caller's game.
+  team_members:         { room: async (req: any) => {
+                            const teamId = req.teamId || req.id;
+                            if (!teamId) return null;
+                            if (req.gameId && await accessManager.gameHasTeam(req.gameId, teamId)) {
+                              return `game:${req.gameId}`;
+                            }
+                            return `team:${teamId}`;
+                          } },
   team_memberships:     { room: (req: any) => (req.teamId || req.id) ? `team:${req.teamId || req.id}` : null },
   team_games:           { room: async (req: any) => {
                             const teamId = req.teamId || req.id;
@@ -89,7 +102,13 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
 
   // --- Venues --------------------------------------------------------------
   sites:                { room: orgRoom('sites') },
-  facilities:           { room: (req: any) => (req.orgId ? `org:${req.orgId}:facilities` : `site:${req.id || req.siteId}`) },
+  // Named subject or nothing: without the guard a request carrying neither builds the
+  // room `site:undefined`, which classifies as a public site room and is let through.
+  facilities:           { room: (req: any) => {
+                            if (req.orgId) return `org:${req.orgId}:facilities`;
+                            const siteId = req.id || req.siteId;
+                            return siteId ? `site:${siteId}` : null;
+                          } },
   site:                 { room: (req: any) => (req.id ? `site:${req.id}` : null) },
   facility:             { room: (req: any) => (req.id ? `facility:${req.id}` : null) },
 

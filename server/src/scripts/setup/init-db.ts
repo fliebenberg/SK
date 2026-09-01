@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import pool from '../../db';
 
 const createTables = async () => {
@@ -559,6 +561,39 @@ const createTables = async () => {
                 value TEXT NOT NULL
             );
         `);
+
+        // Stamp every existing migration as already applied.
+        //
+        // A database built here *is* the current schema, so `db:migrate` against it has
+        // nothing left to do — but without this it believes no migration has ever run and
+        // replays all seven. That is harmless only for as long as every migration happens to
+        // be written defensively, and it makes the tournaments Phase 1 check ("the migration
+        // runs against a restored dump AND db:setup produces an identical schema") a ritual
+        // rather than a check. See docs/tournaments-implementation-plan.md §0.3.
+        //
+        // The table definition is repeated from run-all-migrations.ts deliberately: whichever
+        // script touches a fresh database first has to create it, and both are IF NOT EXISTS.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name VARCHAR(255) PRIMARY KEY,
+                executed_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        const migrationsDir = path.join(__dirname, '..', 'migrations');
+        const migrationFiles = fs.existsSync(migrationsDir)
+            ? fs.readdirSync(migrationsDir)
+                .filter(f => f.endsWith('.ts') && !f.endsWith('.d.ts'))
+                .sort((a, b) => a.localeCompare(b))
+            : [];
+
+        for (const file of migrationFiles) {
+            await pool.query(
+                'INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
+                [file]
+            );
+        }
+        console.log(`Stamped ${migrationFiles.length} existing migration(s) as already applied.`);
 
         await pool.query('COMMIT');
         console.log('Tables created successfully.');

@@ -218,7 +218,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           if (activeFetches === 0) setIsLoadingRosters(false);
           
           if (homeTeamId) {
-            wsService.emit('get_data', { type: 'team_members', teamId: homeTeamId }, (members: any[]) => {
+            wsService.emit('get_data', { type: 'team_members', teamId: homeTeamId, gameId: game.id }, (members: any[]) => {
               if (Array.isArray(members) && members.length > 0) {
                 const memberMap = new Map(
                   members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
@@ -232,7 +232,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
             });
           }
         } else if (homeTeamId) {
-          wsService.emit('get_data', { type: 'team_members', teamId: homeTeamId }, (members: any[]) => {
+          wsService.emit('get_data', { type: 'team_members', teamId: homeTeamId, gameId: game.id }, (members: any[]) => {
             if (Array.isArray(members) && members.length > 0) {
               const fallback = members.map((m: any) => ({
                 id: m.orgProfileId || m.id,
@@ -268,7 +268,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
           if (activeFetches === 0) setIsLoadingRosters(false);
 
           if (awayTeamId) {
-            wsService.emit('get_data', { type: 'team_members', teamId: awayTeamId }, (members: any[]) => {
+            wsService.emit('get_data', { type: 'team_members', teamId: awayTeamId, gameId: game.id }, (members: any[]) => {
               if (Array.isArray(members) && members.length > 0) {
                 const memberMap = new Map(
                   members.map((m: any) => [m.orgProfileId || m.id, m.name || m.orgProfileName])
@@ -282,7 +282,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
             });
           }
         } else if (awayTeamId) {
-          wsService.emit('get_data', { type: 'team_members', teamId: awayTeamId }, (members: any[]) => {
+          wsService.emit('get_data', { type: 'team_members', teamId: awayTeamId, gameId: game.id }, (members: any[]) => {
             if (Array.isArray(members) && members.length > 0) {
               const fallback = members.map((m: any) => ({
                 id: m.orgProfileId || m.id,
@@ -305,7 +305,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         }
       });
     }
-  }, [homeParticipantId, awayParticipantId, homeTeamId, awayTeamId]);
+  }, [game.id, homeParticipantId, awayParticipantId, homeTeamId, awayTeamId]);
 
   // 7. Derive profileMap from rosters
   useEffect(() => {

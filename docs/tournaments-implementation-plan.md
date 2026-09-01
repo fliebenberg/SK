@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** Proposed execution plan. Nothing built.
+**Status:** In progress. **Phase 0 complete and its exit criterion met (2026-09-01)**; Phase 1 is next.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -354,6 +354,66 @@ once — an untested backup is not a backup.
 **Docs:** `TODO.md` (`DATA-1` checked off with what enforcement caught); §0 answers recorded in
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md).
 
+### Done — 2026-09-01
+
+1. **Dump taken and test-restored.** `server/backups/sk-20260901-phase0.dump`, custom format,
+   git-ignored, with [a README](file:///c:/Fred/Coding/SK/server/backups/README.md) carrying the
+   take-and-restore commands. Restored into a scratch database and compared against the source —
+   41 tables, 1 event, 11 organisations, 1 game, 29 org profiles, 7 stamped migrations, identical —
+   then dropped.
+2. **Census run.** `SELECT type, COUNT(*) FROM events GROUP BY type` returns exactly one row,
+   `SingleMatch = 1`, and no untyped rows. Recorded in
+   [tournaments-data-model.md §9](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md), which is
+   where Phase 1's migration header comment should copy it from. **The dropped backfill stays
+   dropped**, and `FIX-1` has no row to fix — but re-run the census immediately before the migration
+   rather than trusting a stale number.
+3. **`GET_DATA_ENFORCE=true`**, in `server/.env` and documented in `server/.env.example`; the
+   server boots logging `[DataAccess] get_data authorization: ENFORCING`. Before flipping it,
+   `audit-data-access.ts` — a throwaway, deleted with the phase — ran `canReadData` over every request shape expo-app
+   emits, with real ids, as an anonymous socket and as a signed-in org member. **It found two
+   things, both fixed:** `team_members` would have blanked the opposing side's names on every
+   cross-org scoring screen (now widened via an authorization-only `gameId`, honoured only once
+   `gameHasTeam` confirms the team is in that game), and `facilities` with no subject was building
+   the room `site:undefined` and being **allowed** (now refused, like every other rule).
+4. **`DATA-2` closed.** Neither call was dead — both were quietly broken screens with a working
+   handler under another name. See `TODO.md`.
+5. **§0.1, §0.2, §0.3 recorded.** The first two were already carried into the data model; §0.3 is
+   now *built*: `init-db.ts` stamps `schema_migrations`, verified on a scratch database where
+   `db:init` stamped 7 migrations and `db:migrate` then found nothing pending. The two schema paths
+   are written up in [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md).
+
+6. **The screen pass — automated, not clicked through.** The exit criterion's *"full pass over the
+   existing screens"* was first written up here as a manual check. That was the wrong call:
+   [no-browser-verification](file:///c:/Fred/Coding/SK/.agent/skills/no-browser-verification/SKILL.md)
+   says the opposite — do not hand the user a click-through, automate it or drive it yourself.
+
+   `verify-screens.ts` — a throwaway, deleted with the phase — connected a **real socket.io client to the running server as a real
+   signed-in user**, then replays screen by screen the exact `get_data` calls and `join_room`
+   subscriptions each screen issues, in the order it issues them, resolving ids from earlier responses
+   where the screen does — a game's participants, a team's org — and repeats the public screens signed
+   out. Under enforcement a refusal comes back as `{ status: 'error' }` and a refused join as
+   `ROOM_ACCESS_DENIED`, so both are visible to it.
+
+   **Result: 136 calls across 31 screens — zero refusals, zero denied joins, zero timeouts**, and the
+   server log carried no `[DataAccess] REFUSED` line at all. Both `DATA-2` fixes were confirmed
+   *with data* rather than merely reaching a handler (18-player roster, 1 facility), and so was the
+   `team_members` widening — the opposing side's 18 players came back through `gameId` on the
+   scoring path.
+
+   **It found one defect, and it is worth having.** `DATA-4`: the `organization` handler read only
+   `id`, but six screens pass `{ orgId }`, so `org` came back `undefined` and `isOwner` was
+   permanently false on them — an org's creator silently lost edit affordances unless they also held
+   an admin or staff membership. Not a refusal, so not strictly this phase's business, but the same
+   client/server contract mismatch as `DATA-2` and a one-line fix: the handler now reads
+   `getOrganization(id || orgId)`, widened rather than correcting the six callers, because
+   correcting callers leaves the next one free to repeat it. **Fixed and re-verified** — the walk
+   was re-run against the running server and `organization orgId=…` returns the org, with the other
+   135 calls unchanged.
+
+**What the walk still does not cover.** It exercises the *data* path, not rendering — it cannot tell
+you a screen lays out correctly, and it replays the request shapes as written rather than as a user
+might provoke them. That residue is small and is not what the exit criterion was about.
+
 ---
 
 ## Phase 1 — Schema and migration
@@ -382,10 +442,52 @@ migration, not a later one.
    ('SingleMatch','Tournament'))`. This lands here because it is the same statement that changes which
    values are valid. The four *client* call sites are Phase 5.
 
-Every statement `IF NOT EXISTS` or otherwise re-runnable.
+9. **`FIX-10` — give `game_participants` its foreign keys**, in two parts, and in this order:
+   **clean, then constrain.** The table has exactly one constraint today (`PRIMARY KEY (id)`), and
+   Phase 0 found **8 rows** in the working database pointing at a `game_id` no longer in `games` and
+   a `team_id` no longer in `teams` — so adding the constraints over the data as it stands would
+   simply fail.
 
-**In scope from `TODO.md`:** `FIX-1` (closed). "Consolidate Sportsday and Tournament view" — this
-phase does its schema half; the UI half is Phase 5.
+   ```sql
+   -- (a) Clean. Report the count first; a migration that silently deletes rows is worse than one
+   --     that stops. See the note below on how this differs from every other step here.
+   DELETE FROM game_participants gp
+    WHERE NOT EXISTS (SELECT 1 FROM games g WHERE g.id = gp.game_id);
+
+   -- (b) Constrain. Cascade only where the row is meaningless without its parent — which a
+   --     participant is, relative to its game. The other two are references, not ownership.
+   ALTER TABLE game_participants
+     ADD CONSTRAINT game_participants_game_fk
+     FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE;
+   ALTER TABLE game_participants
+     ADD CONSTRAINT game_participants_team_fk
+     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL;
+   ALTER TABLE game_participants
+     ADD CONSTRAINT game_participants_profile_fk
+     FOREIGN KEY (org_profile_id) REFERENCES org_profiles(id) ON DELETE SET NULL;
+   ```
+
+   `team_id` and `org_profile_id` are `SET NULL` rather than `CASCADE` deliberately: deleting a team
+   must not delete the fixtures it played, and `game_participants.team_id` is already nullable
+   because a tournament side can be an unresolved rule (§2.0). `RESTRICT` was the alternative and is
+   rejected for the same reason — it would make a team undeletable for the lifetime of its results.
+
+   **Note the asymmetry, because it is the point.** Step (b) is ordinary schema work. Step (a)
+   **deletes rows**, which nothing else in this migration does, and it is included only because the
+   user asked for `FIX-10` in this phase (2026-09-01) — otherwise a destructive statement does not
+   belong in a schema migration. Two consequences: it runs **after** the Phase 1 dump is confirmed,
+   and it must `RAISE NOTICE` the count it is about to remove so the run log records what was lost.
+   If the count comes back larger than the 8 Phase 0 measured, **stop and look** rather than letting
+   it run — a jump means something is deleting games without their participants, which is a bug to
+   find, not data to tidy.
+
+Every statement `IF NOT EXISTS` or otherwise re-runnable. The `ADD CONSTRAINT` statements are the
+exception — Postgres has no `IF NOT EXISTS` for them, so guard each on `pg_constraint` or catch the
+duplicate-object error, or a re-run fails.
+
+**In scope from `TODO.md`:** `FIX-1` (closed) and `FIX-10` (closed — **added to this phase
+2026-09-01 at the user's request**, having been logged in Phase 0). "Consolidate Sportsday and
+Tournament view" — this phase does its schema half; the UI half is Phase 5.
 
 **Exit criterion — two runs, both required:**
 
@@ -396,6 +498,11 @@ phase does its schema half; the UI half is Phase 5.
   (`pg_dump --schema-only` both, compare) rather than eyeballing — the two-source-of-truth rule in
   `migrations/README.md` is only as good as the check that enforces it, and a missed `init-db.ts`
   mirror is invisible until a new environment is built months later.
+- **`game_participants` has no orphans and three foreign keys.** `SELECT count(*) FROM
+  game_participants gp LEFT JOIN games g ON g.id = gp.game_id WHERE g.id IS NULL` returns `0`, and
+  `pg_constraint` lists the three `FOREIGN KEY` rows alongside the primary key. Check on **both**
+  databases — the constraints are part of the schema diff above, but the orphan count is data, so
+  only the migrated copy can answer it.
 
 **Docs:** [database_structure.md](file:///c:/Fred/Coding/SK/docs/database_structure.md) — add the new
 tables, **and fix the drift the spec §12 already found** (it lists `participating_org_ids` and

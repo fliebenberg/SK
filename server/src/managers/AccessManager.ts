@@ -112,6 +112,24 @@ export class AccessManager extends BaseManager {
     return false;
   }
 
+  /**
+   * True when the team is one of the two sides in the game.
+   *
+   * Used to widen a roster read from "a member of the team's org" to "a member of any
+   * org with a stake in the game" — the scoring screen legitimately needs both sides'
+   * player lists, and the scorer belongs to only one of them. The check is what keeps
+   * that from becoming "name any game and read any team": the caller's game must
+   * actually be the one the team is playing in.
+   */
+  async gameHasTeam(gameId: string, teamId: string): Promise<boolean> {
+    if (!gameId || !teamId) return false;
+    const res = await this.query(
+      'SELECT 1 FROM game_participants WHERE game_id = $1 AND team_id = $2 LIMIT 1',
+      [gameId, teamId]
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
   /** Organization owning a team, or null if the team does not exist. */
   async getTeamOrgId(teamId: string): Promise<string | null> {
     const res = await this.query('SELECT org_id FROM teams WHERE id = $1', [teamId]);

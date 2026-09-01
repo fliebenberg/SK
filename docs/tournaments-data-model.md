@@ -864,6 +864,24 @@ Before running anything, confirm with
 `SELECT type, COUNT(*) FROM events GROUP BY type;` — if that returns any `SportsDay` or
 `Tournament` rows, the backfill goes back in.
 
+> **Confirmed 2026-09-01 (Phase 0, step 2).** The census was run against the working database and
+> returns a single row:
+>
+> | `type` | count |
+> |---|---|
+> | `SingleMatch` | 1 |
+>
+> No `SportsDay` rows, no `Tournament` rows, and **no untyped rows** — `count(*) FILTER (WHERE type
+> IS NULL)` is `0`. Two consequences for Phase 1, and this paragraph is where its migration header
+> comment should copy them from:
+>
+> - **The backfill stays dropped.** There is nothing for it to convert.
+> - **`FIX-1`'s backfill of the untyped row is also a no-op**, and step 3 reduces to backfilling
+>   `format` — which no row needs either, since the one event is a `SingleMatch`. Step 6's
+>   `SET NOT NULL` and `CHECK` will therefore pass on the existing data as it stands. Re-run the
+>   census immediately before the migration rather than trusting this table: it is a statement about
+>   2026-09-01, not an invariant.
+
 ### On testing the migration versus resetting
 
 Both, cheaply. `db:setup` (reset + init + seed) is the fastest way to get a correct database and is
@@ -920,6 +938,13 @@ on it having worked.
 > `db:setup` on a clean one"*, and that comparison cannot be trusted while one side is mislabelled.
 > See [the implementation plan](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md)
 > §0.3.
+>
+> **Done 2026-09-01.** [init-db.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/init-db.ts)
+> creates `schema_migrations` and inserts every filename in `src/scripts/migrations/` inside the
+> same transaction that creates the tables, `ON CONFLICT DO NOTHING`. Verified end to end on a
+> scratch database: `db:init` reported *"Stamped 7 existing migration(s) as already applied"*, and
+> `db:migrate` against that same database then reported *"No pending database migrations"* — which
+> before this change would have replayed all seven.
 
 > **Decided — seed tiers are logged, not built.** The two-tier `seed:core` / `seed:dev` split and the
 > loss of hand-entered data on reset are real, and are recorded as **`DATA-3`** in `TODO.md` with the
@@ -1031,6 +1056,15 @@ pg_dump --format=custom --file=pre-tournaments-20260830.dump "$DATABASE_URL"
 Restore with `pg_restore --clean --if-exists --dbname="$DATABASE_URL" pre-tournaments-20260830.dump`.
 Worth doing before the first migration run whatever the analysis above says — the cost is seconds
 and the alternative is re-entering everything by hand.
+
+> **Taken 2026-09-01 (Phase 0, step 1):** `server/backups/sk-20260901-phase0.dump`, custom format,
+> with [server/backups/README.md](file:///c:/Fred/Coding/SK/server/backups/README.md) carrying the
+> take-and-restore commands. The directory is tracked; the dumps themselves are git-ignored, because
+> they hold real names, emails and phone numbers.
+>
+> **And test-restored, because an untested backup is not a backup.** It was restored into a scratch
+> `sk_restore_test` database, which came back identical to the source — 41 tables, 1 event, 11
+> organisations, 1 game, 29 org profiles, 7 stamped migrations — and was then dropped.
 
 ### One destructive default caught while checking this
 

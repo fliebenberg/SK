@@ -33,8 +33,20 @@ up at the socket's next reconnect instead (`LIVE-5` in TODO.md).
 
 **`get_data` authorization.** Queries are classified in
 [wss/dataAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/dataAccess.ts); most resolve to the
-room that owns the data and defer to `canJoinRoom`, and an unmapped type is refused. Running
-log-only (`[DataAccess] WOULD-REFUSE`) until the flag `GET_DATA_ENFORCE=true` is set — see `DATA-1`.
+room that owns the data and defer to `canJoinRoom`, and an unmapped type is refused. A request that
+names no subject — no `orgId`, no `id` — is refused rather than authorized against a room built
+from `undefined`.
+
+**Enforcing since 2026-09-01** (`GET_DATA_ENFORCE=true`; the boot log says which mode is active).
+Clearing the flag returns it to log-only, where the decision is still made and every refusal logged
+as `[DataAccess] WOULD-REFUSE` but nothing is blocked. Because an unmapped type is refused,
+**adding a `get_data` case now means adding its rule**, or the first call fails.
+
+One request carries a parameter purely for authorization: **`team_members` accepts an optional
+`gameId`**. A scoring screen shows both sides' players while the scorer belongs to only one of the
+two orgs, so naming the game moves the decision from `team:{id}` to `game:{id}` — the tier that
+already admits every org with a stake in the fixture. It is honoured only once the team is confirmed
+to be playing in that game, so it cannot be used to reach an unrelated roster.
 
 ### Fixture rooms
 

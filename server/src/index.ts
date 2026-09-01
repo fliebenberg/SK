@@ -1088,7 +1088,12 @@ io.on('connection', (socket) => {
                 break;
             case 'organization':
             case 'org_summary':
-                callback(await dataManager.getOrganization(id));
+                // Both spellings, because both are in use: most callers send `id`, but six
+                // screens send `orgId` and were silently answered `undefined` until 2026-09-01
+                // (`DATA-4`) — which left `isOwner` permanently false wherever it was computed
+                // from the result. Same shape as `facilities` below, and widening the handler
+                // rather than correcting the callers is what stops the next one repeating it.
+                callback(await dataManager.getOrganization(id || orgId));
                 break;
             case 'teams':
                 callback(await dataManager.getTeams(orgId));
