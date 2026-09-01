@@ -29,16 +29,37 @@ just edit the markdown.
 
 | | **Static page** | **Local server** |
 |---|---|---|
-| Files | [scripts/review-sync.js](file:///c:/Fred/Coding/SK/scripts/review-sync.js) + [scripts/review-template.html](file:///c:/Fred/Coding/SK/scripts/review-template.html) | [scripts/rugby-review.js](file:///c:/Fred/Coding/SK/scripts/rugby-review.js) + [scripts/rugby-review.html](file:///c:/Fred/Coding/SK/scripts/rugby-review.html) |
-| How the user opens it | Double-click the `.html` — no tooling | `node scripts/…` then a `localhost` URL |
-| Where comments live | The browser's `localStorage` | A JSON file in the repo, written on save |
+| Command | `node scripts/review-sync.js --out docs/foo-review.html docs/foo.md` | `node scripts/review-serve.js docs/foo.md` |
+| How the user opens it | Double-click the `.html` — no tooling | The `localhost` URL it prints |
+| Where comments live | The browser's `localStorage` | `docs/foo.comments.json`, written on save |
 | How you read them back | User clicks **Export**, saves the `.md`, you read it | You read the JSON straight from disk |
+| Re-sync after editing the markdown | Re-run `review-sync.js` | None — the server re-reads on every load |
 | Main weakness | An export step every round; comments are lost if site data is cleared | Needs a server running while reviewing |
 
 **Prefer the server variant when the review will run over several rounds.** The static page's
 export step means the user downloads a file and you go looking for it — workable, but it is
 friction on every round and the comments never land in the repo. The static page is right when the
 user wants to open something without running anything, or will read it somewhere the repo is not.
+
+### They share one renderer
+
+Both variants build from
+[scripts/review-template.html](file:///c:/Fred/Coding/SK/scripts/review-template.html) via
+[scripts/review-build.js](file:///c:/Fred/Coding/SK/scripts/review-build.js), which owns the
+markdown preprocessing, the config injection and the counting. The **only** difference is where a
+comment goes when it is typed: the template has one `save()` with two backends, chosen by
+`CONFIG.persist` (`"local"` or `"server"`). So the two cannot drift in what they display, and
+because both derive block ids the same way, **a document can move between them and keep its
+comments** — copy `localStorage` into the JSON file, or the reverse.
+
+Server saves are debounced 400ms with one request in flight at a time, so a slow response cannot
+land after a newer one and write back stale text. The header shows a save state; if the server is
+stopped mid-review it turns red rather than failing silently.
+
+> **`scripts/rugby-review.js` is the older, bespoke server.** It predates the generalised one and
+> its parser is hardcoded to `laws-infringements.md`'s table structure — Part 3 gaps, `D<n>`
+> paragraphs, a Comments column. It still works for that document. **Do not copy it for a new
+> review**; use `review-serve.js`, which takes any markdown and shares the main renderer.
 
 Both use the same document conventions below, so a document can move between them.
 
@@ -85,13 +106,20 @@ prose. It gives the user somewhere to see the whole picture without scrolling.
 
 ## The round-trip
 
-1. Sync the page and tell the user where it is.
-2. They comment and click **Export**, which downloads a markdown file.
-3. Read it — for the static variant it lands in the user's `Downloads` folder, newest first.
-4. Work through the comments and apply them to the **markdown**, not the page.
-5. Re-sync. Comments attached to text you rewrote are cleared automatically, with a banner
-   explaining why; comments on untouched text survive.
+**Server variant (preferred):**
+
+1. Start `review-serve.js` and give the user the URL.
+2. They comment; typing autosaves into `docs/<doc>.comments.json`.
+3. Read that file straight off disk — no export, no download folder.
+4. Apply the comments to the **markdown**, not the page.
+5. They refresh. The server re-reads the markdown, so there is no re-sync step. Comments attached
+   to text you rewrote are cleared automatically, with a banner explaining why; comments on
+   untouched text survive.
 6. Report back what changed, and say what is still open.
+
+**Static variant:** as above, except step 2 is "they click **Export**, which downloads a markdown
+file" — read it from the user's `Downloads` folder, newest first — and step 5 needs a `review-sync.js`
+re-run before they refresh.
 
 ### Reading the export
 
@@ -142,7 +170,18 @@ documents on one page, both had a section 2. Rows carry the number from the head
 
 **`localStorage` can be unavailable on `file://`.** Some browsers refuse it. The page detects this
 and shows a banner telling the user to export before closing. This is the strongest argument for
-the server variant.
+the server variant, which does not touch `localStorage` for comments at all.
+
+**Comments are keyed by block text, so the JSON file is not a diffable record.** Rewriting a
+paragraph orphans its comment, which is correct behaviour but means `docs/<doc>.comments.json`
+churns. It is a working artifact like the generated page — commit it if you want the review
+history, delete it with the page when the review is done, and never treat it as documentation.
+
+**An open question only counts if it is written as one.** The header meter, the `Q<n>` chips and
+the drawer's Questions tab all key off a blockquote starting `> **Open — `. A question written as
+an ordinary bolded paragraph renders as prose and is silently absent from the count — which reads,
+correctly, as the document having nothing open. Check the reported `open questions:` against what
+you believe you wrote.
 
 **Say which document you mean.** With several documents on one page, "§2.3" is ambiguous. Write
 "data model §2.3".

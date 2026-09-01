@@ -1,8 +1,11 @@
 # Tournaments — Data Model
 
-**Status:** Proposal, for review. Nothing is built.
+**Status:** Settled. Nothing is built. Updated 2026-09-01 from the implementation-plan review —
+§3.7 (organiser storage, which D33 needed and this document lacked), §4.2 (`format` becomes a
+column; `events.type` becomes `NOT NULL`), §9 (migration step order), §10 (both open items answered).
 **Implements:** the decisions in [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md).
-Decision ids below (D1…D32) refer to that document's table.
+Decision ids below (D1…D33) refer to that document's table.
+**Build order:** [docs/tournaments-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md).
 
 Conventions follow the existing schema
 ([init-db.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/init-db.ts)): `TEXT` primary keys
@@ -19,10 +22,14 @@ events                       (existing — gains a format, a scoring system, day
 │
 ├── event_facilities         which fields/courts the whole event may use          [new]
 │
+├── event_organizers         people who may edit the whole tournament (D33)       [new]
+│
 └── tournament_divisions      "u14 Rugby", "Open Netball"                        [new]
     │   weighting, scoring subject, tiebreak order
     │
     ├── division_facilities    optional narrowing of the event's facilities       [new]
+    │
+    ├── division_organizers    the convenor: this division only (D22, D31)        [new]
     │
     ├── division_entrants      the roster: who is entered in this division        [new]
     │      a team, an individual, or an unresolved "TBC"
@@ -39,7 +46,7 @@ events                       (existing — gains a format, a scoring system, day
             └── game_participants   (existing — gains an entrant link and a fill rule)
 ```
 
-Four new tables carry the concepts (`divisions`, `stages`, `entrants`, `stage_entrants`), three
+Four new tables carry the concepts (`divisions`, `stages`, `entrants`, `stage_entrants`), five
 more are joins or ledgers, and the fixture tables we already have are extended rather than
 replaced. `games` itself needs no change at all.
 
@@ -395,6 +402,68 @@ The other halves of D29 need no new storage: a game score override already exist
 ([`updateFinalScore`](file:///c:/Fred/Coding/SK/expo-app/components/sports/shared/DynamicScoringContext.tsx#L759)),
 and a manual slot fill is just writing `team_id` and clearing `source_rule`.
 
+### 3.7 `event_organizers` and `division_organizers`
+
+Added 2026-09-01. **D33 postdates the first draft of this document**, so the storage for it was
+specified in the UI review and never carried back here — the gap was found while writing
+[the implementation plan](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md) §0.1,
+where the full reasoning lives.
+
+```sql
+CREATE TABLE IF NOT EXISTS event_organizers (
+    event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+    org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE CASCADE,
+    granted_by_org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (event_id, org_profile_id)
+);
+CREATE INDEX IF NOT EXISTS idx_event_organizers_profile ON event_organizers(org_profile_id);
+
+CREATE TABLE IF NOT EXISTS division_organizers (
+    division_id TEXT REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+    org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE CASCADE,
+    granted_by_org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (division_id, org_profile_id)
+);
+CREATE INDEX IF NOT EXISTS idx_division_organizers_profile ON division_organizers(org_profile_id);
+```
+
+The four things about this shape that were decided rather than assumed:
+
+> **Decided — two tables, not one with a nullable `division_id`.** A composite primary key is then
+> the uniqueness rule, which matters because Postgres treats NULLs as *distinct* in a unique index:
+> `UNIQUE (event_id, division_id, org_profile_id)` would have let the same person be appointed event
+> organiser any number of times. Splitting also means each foreign key points at exactly one parent,
+> so a grant cannot pair event A with a division of event B — which one table could only guarantee
+> with a composite foreign key and a redundant `UNIQUE (event_id, id)` on `tournament_divisions`.
+
+> **Decided — grants reference `org_profiles`, never `users`.** `AccessManager` already resolves a
+> user *into a set of profile ids*, by `user_id` or verified email
+> ([AccessManager.ts:65](file:///c:/Fred/Coding/SK/server/src/managers/AccessManager.ts#L65)), so
+> profile is the identity the permission layer works in. Three consequences: a person with no account
+> can be appointed (`org_profiles.user_id` is nullable and `last_invite_sent_at` exists for exactly
+> this); the grant needs no rewrite when they later claim it, because matching is by email; and
+> organiser, convenor and *player* stay in one identity space, since playing is already
+> `org_profiles` everywhere.
+
+> **Decided — `granted_by` is a profile too.** The field is written for audit and display, and a
+> person should be shown as who they are known as in the organisation. **The general rule: refer to
+> people by profile, and reach for `users` only to identify the account behind one.** The profile
+> recorded is the one through which the actor's own permission derived — their `event_organizers` row,
+> or their profile in the org whose admin rights they used. Nullable, since an app admin acting
+> globally may hold no profile in any org involved.
+
+> **Decided — an appointment says nothing about participation.** A convenor may come from a visiting
+> org, or from **no participating org at all** — an external specialist official belongs to none of
+> the schools present. Appointing them must **never** write a row into `event_organizations`:
+> *participation is determined by the teams taking part, and by nothing else.* The precedent is
+> [`GameOfficial`](file:///c:/Fred/Coding/SK/shared/src/models/event/GameOfficial.ts), which is
+> `{ gameId, orgProfileId, role }` — a person attached to a fixture with no organisation on the record.
+> An external with no profile anywhere gets one in the hosting org **with no `org_membership`**:
+> `getMembershipSnapshot` derives orgs by joining `org_memberships`, so such a profile confers
+> nothing, and the grant adds exactly the tournament rights and no more.
+
 ---
 
 ## 4. Changes to existing tables
@@ -450,14 +519,26 @@ rather than a display ordering.
 
 ```sql
 ALTER TABLE events ADD COLUMN IF NOT EXISTS cached_standings JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS format TEXT;
+
+-- U39 / FIX-1: an event without a type should not exist, so stop defaulting and start refusing.
+-- Both constraints come after the SportsDay rewrite in §9, or they would reject the rows it fixes.
+ALTER TABLE events ALTER COLUMN type SET NOT NULL;
+ALTER TABLE events ADD CONSTRAINT events_type_check CHECK (type IN ('SingleMatch', 'Tournament'));
 ```
+
+> **Decided 2026-09-01 — `format` is a column, not a settings key.** An earlier draft put it in
+> `settings` JSONB alongside the rest of the configuration. That sat badly beside U39, which in the
+> *same migration* makes `type` `NOT NULL` with a `CHECK` on the grounds that an unknown value should
+> raise rather than default — while `format`, which after D1 carries more meaning than `type` does
+> (it is what the event screen keys its tabs and setup steps off), would have been an unconstrained
+> string inside a blob. A column also makes "list the festivals at this venue" a query.
 
 Everything else the event needs goes in its existing `settings` JSONB, which is already there and
 already carries loose configuration:
 
 ```jsonc
 {
-  "format": "Festival",              // D1/D2 — replaces the SportsDay event type
   "scoringSubject": "Organisation",  // divisions inherit unless they override
   "scoring": { "pointsPerWin": 3, "pointsPerDraw": 1, "pointsPerLoss": 0, "bonusRules": {} },
   "tiebreakers": ["pointsDifference", "pointsFor", "headToHead", "mostWins", "fewestCards"],
@@ -747,13 +828,24 @@ discipline — the new DDL goes into `init-db.ts` *as well as* the migration, no
 
 ### The steps
 
+**Order matters from step 2 onward** — the constraints in step 6 would reject the very rows steps 2
+and 3 exist to fix.
+
 1. **Create** the new tables and columns — `IF NOT EXISTS` throughout, so re-runnable — in the
-   migration **and** in `init-db.ts`.
-2. **Rewrite the event type** (D1) — `UPDATE events SET type = 'Tournament', settings = settings ||
-   '{"format":"Festival"}'::jsonb WHERE type = 'SportsDay'`. In place, no alias retained.
-3. **Backfill `event_facilities`** from each event's existing single `facility_id`.
-4. **Drop** `pointSystem` and `levelWeighting` from `events.settings`.
-5. **Change the `seasons.settings` default** to 3/1/0 (D17). New rows only; existing seasons store
+   migration **and** in `init-db.ts`. This is all nine new tables, including `event_organizers` and
+   `division_organizers` (§3.7), plus `events.format` and `events.cached_standings`.
+2. **Rewrite the event type** (D1) — `UPDATE events SET type = 'Tournament', format = 'Festival'
+   WHERE type = 'SportsDay'`. In place, no alias retained. Note `format` is now a column (§4.2), not
+   a `settings` key.
+3. **Backfill `format`** for container events that were already `Tournament`, and **backfill `type`**
+   for the one untyped test row (`FIX-1`). Confirm the counts first with
+   `SELECT type, format, COUNT(*) FROM events GROUP BY type, format;`.
+4. **Backfill `event_facilities`** from each event's existing single `facility_id`.
+5. **Drop** `pointSystem` and `levelWeighting` from `events.settings`, and `format` if any row
+   acquired one there before this decision.
+6. **Constrain `events.type`** — `SET NOT NULL` and the `CHECK` (U39, §4.2). Last, because it is only
+   safe once steps 2 and 3 have left every row with a valid value.
+7. **Change the `seasons.settings` default** to 3/1/0 (D17). New rows only; existing seasons store
    their values explicitly and do not move.
 
 ### The step that is probably unnecessary
@@ -815,15 +907,25 @@ on it having worked.
 > roll-up, and a ranked meet simply picks the second mode. Its only storage consequence is that
 > `finalScoreData` must admit an ordering, which is a JSONB shape question, not a schema change.
 
-### Still open
+### Both former open items now have answers
 
-> **Open — `init-db.ts` and `schema_migrations`.** Stamping applied migrations on a fresh database,
-> so a clean install is correctly "already migrated". Outside this feature, but it affects how
-> safely this migration ships — see §9.
+> **Decided 2026-09-01 — stamp `schema_migrations` from `init-db.ts`, in Phase 0.** A fresh database
+> currently believes no migration has run, so `db:migrate` against it replays everything; that is
+> harmless today only because each existing migration happens to be written defensively. Having
+> `init-db.ts` insert every filename in `src/scripts/migrations/` on completion makes a clean install
+> correctly "already migrated" and lets the migration files be kept indefinitely.
+>
+> It moved from "outside this feature" to "first task of it" for a concrete reason: the tournament
+> migration's exit criterion is *"`db:migrate` against a restored dump produces the same schema as
+> `db:setup` on a clean one"*, and that comparison cannot be trusted while one side is mislabelled.
+> See [the implementation plan](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md)
+> §0.3.
 
-> **Open — seed tiers, and preserving hand-entered data.** Raised in review: would a database reset
-> lose the organisations and players entered through the app? **It would.** `reset-db.ts` runs
-> `DROP SCHEMA public CASCADE`, and `seed-db.ts` restores only a fixed demo set. See §11.
+> **Decided — seed tiers are logged, not built.** The two-tier `seed:core` / `seed:dev` split and the
+> loss of hand-entered data on reset are real, and are recorded as **`DATA-3`** in `TODO.md` with the
+> full analysis in §11 below. Not folded into this feature: it is test-and-environment infrastructure
+> rather than tournament work, and `pg_dump` covers the immediate risk this migration creates. The
+> plan's Phase 0 takes that dump before anything runs.
 
 ---
 

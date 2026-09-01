@@ -379,9 +379,29 @@ that spans weeks.
 > **Decided — copy first, and choose what comes across.** "Start from scratch / copy an existing
 > tournament" is the first question in the create wizard, since last year's sports day is the best
 > template for this year's. Copying then asks **what** to bring — structure, divisions, entrants,
-> facilities — and collects what cannot be copied, chiefly the new dates. This closes the parked
-> "make a copy of an event" item for tournaments; whether it closes it for a `SingleMatch` is a
-> separate call.
+> facilities, participating organisations and **the organiser and convenor assignments** — and
+> collects what cannot be copied, chiefly the new dates. This closes the parked "make a copy of an
+> event" item for tournaments; whether it closes it for a `SingleMatch` is a separate call.
+>
+> **Decided — the copy step offers, it never assumes.** Added 2026-09-01. Every element of the source
+> tournament that *can* be carried across is offered as a choice, defaulted sensibly and overridable —
+> including the people. Last year's netball convenor is usually this year's netball convenor, and
+> making the organiser rebuild that list by hand because we guessed they would not want it is the same
+> mistake in miniature that D8 and D9 rule out elsewhere: **generate to save labour, never to remove
+> control.** The copy wizard is that principle applied to setup rather than to fixtures.
+>
+> Three things follow for the build:
+>
+> - **The choices have dependencies.** Entrants imply divisions; convenor assignments imply divisions.
+>   Selecting a dependent element selects its parent rather than failing, and says so.
+> - **A copied grant is a new grant.** `granted_by_user_id` records whoever ran the copy, not the
+>   original grantor, and the appointee is subject to the same withdrawal by any admin. Copying access
+>   is a deliberate act by someone who already holds it.
+> - **Some things are never offered**, because copying them would be a falsehood rather than a
+>   convenience: results, scores, standings, `division_adjustments`, and scheduled times, which belong
+>   to dates that no longer apply. The *fixtures themselves* **are** offered, but for a `Festival`
+>   only and defaulted off — settled in §17, since a hand-arranged draw is real work a generator
+>   cannot reproduce.
 
 ---
 
@@ -726,8 +746,30 @@ There is no tournament-specific decision hiding in it. The only question is **or
 
 ## 17. Where this leaves us
 
-Nothing is open. Forty-two decisions are recorded above, the four parked items in §16 each have an
-answer, and the build order below follows from them.
+Forty-two decisions are recorded above, the four parked items in §16 each have an answer, and the
+build order below follows from them.
+
+Nothing is open. The question raised on 2026-09-01 by the refinement to U18 in §7 was answered the
+same day and is recorded below.
+
+> **Decided — a `Festival`'s fixtures are offered, like everything else.** The copy step offers every
+> carryable element rather than assuming (U18), and the hand-arranged draw is one of them. For a
+> `Knockout` the question does not arise — the draw is a consequence of the entrants and is
+> regenerated — so the option appears **for `Festival` only**, and is absent rather than disabled
+> elsewhere.
+>
+> The reasoning that decided it: a draw where the u16s play only two of the three possible fixtures
+> because one school's u16s were away is real work that no generator reproduces, and refusing to carry
+> it would be the wizard overruling the organiser about their own document.
+>
+> **Defaulted off, and dependent on entrants.** Off, because a copied fixture arrives with no
+> scheduled time (dates are collected fresh) and encodes *last year's* absences — a default that
+> silently reproduces a decision nobody re-made is the one thing this whole section is against. And
+> ticking fixtures ticks entrants, which ticks divisions, because a fixture between entrants that were
+> not copied is incoherent; the dependency rule in §7 already covers this and needs no special case.
+>
+> **Scheduled times never come across** under any combination. They belong to dates that no longer
+> apply, and the schedule is regenerated in any case.
 
 The build order that follows from the decisions:
 

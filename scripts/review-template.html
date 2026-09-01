@@ -80,6 +80,16 @@ body{
 .btn-primary:hover{background:#E63700; border-color:#E63700; color:#fff}
 .btn-ghost{background:transparent; border-color:transparent; color:var(--text-dim); padding:7px 9px}
 .btn-ghost:hover{background:var(--surface-2); color:var(--text)}
+/* Server-mode save indicator. Hidden entirely on a static page, where there is nothing to report. */
+.save-state{
+  font-size:11px; letter-spacing:.02em; color:var(--text-dim); padding:0 4px; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.save-state::before{content:""; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none}
+.save-state.saving{color:var(--text-dim)}
+.save-state.saved{color:var(--ok)}
+.save-state.error{color:var(--alert); font-weight:600}
+@media (max-width:760px){ .save-state{display:none} }
 .btn .count{
   font-family:Orbitron,sans-serif; font-weight:700; font-size:10px; font-variant-numeric:tabular-nums;
   background:var(--accent); color:#fff; border-radius:99px; padding:1px 6px; min-width:18px; text-align:center;
@@ -323,6 +333,7 @@ button.progress:focus-visible{outline:2px solid var(--accent); outline-offset:2p
       <span class="bar"><i id="pbar"></i></span>
       <span><b id="pnum">0/0</b> questions answered</span>
     </button>
+    <span class="save-state" id="saveState" hidden></span>
     <button class="btn" id="openDrawer">Comments <span class="count" id="ccount">0</span></button>
     <button class="btn btn-primary" id="exportBtn">Export</button>
     <button class="btn btn-ghost" id="themeBtn" aria-label="Toggle colour theme" title="Toggle colour theme">◐</button>
@@ -391,7 +402,7 @@ Run scripts/review-sync.js to fill this in.
 
 /* ---------------- config ---------------- */
 var CONFIG = { title: "Review", subtitle: "", storageKey: "sk-review-v1",
-               exportFileName: "review-comments.md", sources: [] };
+               exportFileName: "review-comments.md", sources: [], persist: "local", comments: null };
 try {
   CONFIG = Object.assign(CONFIG, JSON.parse(document.getElementById("review-config").textContent));
 } catch (e) { /* keep defaults */ }
@@ -400,17 +411,81 @@ document.title = CONFIG.title;
 document.getElementById("wmName").textContent = CONFIG.title;
 document.getElementById("wmSub").textContent = CONFIG.subtitle || "";
 
-/* ---------------- storage ---------------- */
+/* ---------------- storage ----------------
+   Two backends behind one `save()`. Every mutation in this file writes `data[id]` and then calls
+   save(), so this is the only place that knows which is in play.
+
+     'local'  (default)  localStorage, for a page opened straight off the filesystem.
+     'server'            POST to the review server, which writes a JSON file into the repo.
+
+   Server mode is the better round-trip when a review runs over several rounds — the comments land
+   in the repo instead of in one browser profile, and there is no export step. It is chosen by
+   review-serve.js, never by review-sync.js, so a static page's behaviour is unchanged. */
 var KEY = CONFIG.storageKey;
+var SERVER = CONFIG.persist === "server";
 var storageOK = true;
 var data = {};
-try {
-  var raw = window.localStorage.getItem(KEY);
-  data = raw ? JSON.parse(raw) : {};
-} catch (e) { storageOK = false; data = {}; }
-if (!storageOK) document.getElementById("storageWarn").classList.add("show");
+
+if (SERVER) {
+  data = CONFIG.comments && typeof CONFIG.comments === "object" ? CONFIG.comments : {};
+  var saveEl = document.getElementById("saveState");
+  if (saveEl) { saveEl.hidden = false; saveEl.className = "save-state saved"; saveEl.textContent = "Saved to repo"; }
+  /* Export is not part of the round-trip here — the comments are already in the repo, and the
+     agent reads them from disk. Leave it available for taking a readable copy away, but demote it
+     so it no longer looks like the button that submits the review. */
+  var exp = document.getElementById("exportBtn");
+  if (exp) {
+    exp.className = "btn";
+    exp.textContent = "Download a copy";
+    exp.title = "Optional. Your comments are already saved in the repo — this just takes a readable markdown copy.";
+  }
+} else {
+  try {
+    var raw = window.localStorage.getItem(KEY);
+    data = raw ? JSON.parse(raw) : {};
+  } catch (e) { storageOK = false; data = {}; }
+  if (!storageOK) document.getElementById("storageWarn").classList.add("show");
+}
+
+/* Server saves are coalesced: typing a comment fires save() on every keystroke in some paths, and
+   one POST per keystroke would race — a slow response could land after a newer one and write back
+   stale text. A short debounce plus "only one request in flight" keeps the file consistent. */
+var saveTimer = null, saveInFlight = false, savePending = false;
+
+function postSave(){
+  if (saveInFlight) { savePending = true; return; }
+  saveInFlight = true;
+  var body = JSON.stringify(data);
+  fetch("/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: body })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      saveInFlight = false;
+      setSaveState(res && res.ok ? "saved" : "error");
+      if (savePending) { savePending = false; postSave(); }
+    })
+    .catch(function(){
+      saveInFlight = false;
+      setSaveState("error");
+      if (savePending) { savePending = false; postSave(); }
+    });
+}
+
+function setSaveState(state){
+  var el = document.getElementById("saveState");
+  if (!el) return;
+  el.className = "save-state " + state;
+  el.textContent = state === "saved" ? "Saved to repo"
+                 : state === "saving" ? "Saving…"
+                 : "Not saved — is the server still running?";
+}
 
 function save(){
+  if (SERVER) {
+    setSaveState("saving");
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(postSave, 400);
+    return;
+  }
   if (!storageOK) return;
   try { window.localStorage.setItem(KEY, JSON.stringify(data)); }
   catch (e) { storageOK = false; document.getElementById("storageWarn").classList.add("show"); }
