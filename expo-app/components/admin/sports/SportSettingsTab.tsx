@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { GlassCard } from '../../GlassCard';
 import { SegmentedControl } from '../../SegmentedControl';
-import { NumberField, SectionLabel, TextField, ToggleField } from './editorPrimitives';
+import { COLORS } from '../../../constants/Colors';
+import { Field, NumberField, SectionLabel, TextField, ToggleField } from './editorPrimitives';
 import { SportForm } from './sportForm';
 
 /**
@@ -48,8 +50,26 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
 
       <SectionLabel className="mb-3">System Rules & Configuration</SectionLabel>
       <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-4 mb-6">
-        <View>
-          <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 mb-1.5">Participant Type</Text>
+        {/*
+          These two describe the sport truthfully, but the app has not caught up with them yet:
+          the multi-competitor screens have not been designed. Saying so on the control is the
+          point - a setting that silently does nothing is worse than no setting, because it looks
+          like it took effect (`SPORT-10`). Each hint below names what reads it *today*, so the
+          notice stops being a blanket disclaimer as consumers land.
+        */}
+        <View className="flex-row items-start gap-2 rounded-lg border border-brand-orange/25 bg-brand-orange/5 p-3">
+          <Ionicons name="information-circle-outline" size={14} color={COLORS.brand.orange} />
+          <Text className="flex-1 font-inter text-[10px] leading-4 text-slate-700 dark:text-slate-300">
+            Set these to describe the sport correctly. Individual and multi-competitor formats are
+            only partly built - fixture creation and the scoring screens still assume two sides -
+            so each setting says below what already reads it.
+          </Text>
+        </View>
+
+        <Field
+          label="Participant Type"
+          hint="Whether sides are teams with rosters, or single competitors. Stored and kept, but nothing reads it yet."
+        >
           <SegmentedControl
             isCompact={false}
             value={form.participantType}
@@ -59,13 +79,12 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
               { key: 'INDIVIDUAL', label: 'Individual' },
             ]}
           />
-          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
-            Whether sides are teams with rosters, or single competitors.
-          </Text>
-        </View>
+        </Field>
 
-        <View>
-          <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 mb-1.5">Match Topology</Text>
+        <Field
+          label="Match Topology"
+          hint="Two sides per fixture, or many competing at once. Standings honour this; fixture creation and the scoring screens still assume two sides."
+        >
           <SegmentedControl
             isCompact={false}
             value={form.matchTopology}
@@ -75,10 +94,7 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
               { key: 'MULTI_COMPETITOR', label: 'Multi Competitor' },
             ]}
           />
-          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">
-            Two sides per fixture, or many competing at once.
-          </Text>
-        </View>
+        </Field>
 
         <View className="flex-row gap-4">
           <NumberField

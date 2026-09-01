@@ -60,7 +60,15 @@ Three things about it are worth knowing before touching it:
     it now would create a second answer to "which stage is this fixture in?".
 *   **An unknown competitor is a `game_participants` row with `team_id` null** and a `source_rule`
     beside a `source_game_id` or `source_stage_id`. Resolving it writes `team_id`, so the scoring
-    screens and `calculateStandings` never learn that progression exists.
+    screens and `calculateStandings` never learn that progression exists. What such a row *prints*
+    is derived from the rule and never stored — one shared helper,
+    [fixtureSide.ts](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts), so a label cannot
+    drift from the rule it describes.
+*   **`cached_standings` on `division_stages` and on `events` is written by one engine.**
+    [standings.ts](file:///c:/Fred/Coding/SK/shared/src/utils/standings.ts) computes every table in
+    the app — a pool, a division, a league season, and the weighted organisation roll-up — because
+    progression resolves `{ type: 'standing', position: 1 }` against the same `rank` a viewer reads,
+    and two implementations of that answer is what the whole design exists to prevent.
 *   **`tournament_divisions` is the one table not named for its parent.** `event_divisions` would sit
     beside `event_sports` and read as another join table, which it is not.
 

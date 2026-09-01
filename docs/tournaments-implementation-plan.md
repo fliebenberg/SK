@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0 and 1 complete, both exit criteria met (2026-09-01)**; Phase 2 is next.
+**Status:** In progress. **Phases 0, 1 and 2 complete, every exit criterion met (2026-09-01)**; Phase 3 is next.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -666,6 +666,122 @@ implementations of the standings answer is precisely what D19 and D30 exist to p
 **Docs:** [okf/api_comms.md](file:///c:/Fred/Coding/SK/okf/api_comms.md) if the shared types are
 catalogued there; `TODO.md` for `SPORT-10`.
 
+### Done — 2026-09-01
+
+**Exit criterion met: `npm test` in `shared/` passes, 42 assertions across two files**, covering
+every case the criterion named and asserting ranks rather than absence of a throw —
+[standings.test.ts](file:///c:/Fred/Coding/SK/shared/src/utils/standings.test.ts) and
+[fixtureSide.test.ts](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.test.ts). Vitest is a
+dev dependency of `shared/` only, with [vitest.config.mts](file:///c:/Fred/Coding/SK/shared/vitest.config.mts)
+and an `npm test` script; `tsconfig.json` excludes `*.test.ts` so nothing test-shaped reaches `dist/`.
+
+1. **The engine is one implementation, and the old two-participant path is gone.**
+   [standings.ts](file:///c:/Fred/Coding/SK/shared/src/utils/standings.ts) takes N sides, a
+   `ScoringSystem` in either mode, an ordered tiebreak list, adjustments and disciplinary points.
+   Both existing callers were moved onto the new signature rather than left on a shim —
+   `LeagueManager.recalculateSeasonStandings` and the event screen's live standings — so there is no
+   second answer for the two-sided case, which is what D19 and D30 exist to prevent.
+
+2. **`rank` is definite, and where it cannot be, it says so.** Ranking is group-based rather than a
+   pairwise comparator: rows are partitioned by points, and each group is split by the factors in
+   order, recursing on what a factor could not separate. That matters for `headToHead`, which is
+   computed as a **mini-league among the tied entrants only** (`requireAllSidesRanked`) — a pairwise
+   head-to-head comparator over three teams can be non-transitive, and a non-transitive comparator
+   makes `Array.sort` produce a different table depending on input order. Entrants no configured
+   factor can separate **share** a rank (1, 2, 2, 4). That is the honest answer, and D29's manual
+   override is the mechanism for breaking it; inventing an order from ids would have looked definite
+   and been arbitrary, which is worse for progression than a visible tie.
+
+3. **The three-way-tie test exercises every factor in one pool**, as the criterion asked. Four
+   entrants: one clear on 6 points; three level on 3 with identical points difference *and*
+   identical points for, so the first two factors decide nothing; head-to-head lifts the only one of
+   the three to have beaten another of them; most wins cannot split the remaining pair; fewest cards
+   does. Asserted as `[1, 2, 3, 4]`, and as `[1, 2, 3, 3]` when no disciplinary record exists.
+
+4. **Where a score comes from turned out to be the real decision, and it is not what the old code
+   read.** `calculateStandings` read `finalScoreData.home` / `.away`; nothing writes that on the
+   normal scoring path — the score lives at `liveState.scores[gameParticipantId]` (this is `FIX-9`
+   again, one layer down). The engine now reads three shapes in order of how final they are:
+   `finalScoreData.scores`, then `finalScoreData.placings` for a meet recorded as finishing order
+   alone, then the legacy `{ home, away }` blob, and only then `liveState.scores`. **The order is
+   load-bearing**: the event screen's quick-score modal writes `finalScoreData` onto a game whose
+   `liveState.scores` is still the empty object it was created with, so reading the live state first
+   would have scored every such fixture 0-0 and called it a draw. There is a test for exactly that.
+
+5. **`byPlacing` is the same code path, not a branch beside it.** Positions come from explicit
+   `finalScoreData.placings` where present — so a race where the lower time wins works — and
+   otherwise from score order, with standard competition ranking (1, 2, 2, 4). A dead heat **splits
+   the points of the positions it occupies** (two tied for second share 2nd and 3rd), which is what
+   keeps the total awarded constant; a shared first place counts as a draw for each of them, so
+   `mostWins` still means something in a ranked division.
+
+6. **`SPORT-10`'s consult is small, real, and deliberately not more than that.** `matchTopology`
+   decides one thing: whether the two-sided `{ home, away }` shape may be read at all. Under
+   `MULTI_COMPETITOR` it is refused, because "home" and "away" mean nothing in an eight-competitor
+   race and applying them to whichever two participants sort first would invent a result. A
+   competitor is also matched by `entrantId`, then `teamId`, then `orgProfileId`, so an individual
+   sport resolves without a team. The item is **rewritten, not closed**: nothing supplies the flag
+   yet (both callers take the `HEAD_TO_HEAD` default; a division passes its sport's real value from
+   Phase 3), fixture creation still assumes two sides, and `participantType` is still read by
+   nothing. **The sport editor now says as much** rather than offering two settings the app mostly
+   ignores: a notice above both controls, and a per-setting hint naming what reads it today — which
+   retires a line at a time as consumers land, where one blanket disclaimer would go stale as a
+   whole. The values are worth setting correctly ahead of the UI that consumes them; it was the
+   silence that was the bug.
+
+7. **The fixture-side component (U22) is built, and its wording is not in it.**
+   [FixtureSide.tsx](file:///c:/Fred/Coding/SK/expo-app/components/FixtureSide.tsx) renders the three
+   states; the text is derived in
+   [fixtureSide.ts](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts) — `resolveFixtureSide`
+   and `describeParticipantSource` — because the same labels are needed server-side and on anything
+   printed, and because that is where they can be unit tested. Resolution order is deliberate: a
+   known competitor beats everything (so a filled slot is indistinguishable from one that was never a
+   placeholder, even if a stale rule is still on the row), then an entrant, then the rule. A rule
+   degrades rather than breaks without names to hand: "Winner of an earlier fixture", not "Winner
+   undefined".
+
+8. **Verified beyond `tsc`.** `server/` and `expo-app/` both type-check clean, and the two touched
+   client files were bundled through Metro (`FixtureSide` and the event detail screen, both 200), per
+   [expo-app/AGENTS.md](file:///c:/Fred/Coding/SK/expo-app/AGENTS.md) — a Metro bundle is the check
+   `tsc` cannot make.
+
+**One thing was found outside this phase's scope, logged, and then — at the user's request, before
+starting Phase 3 — fixed: `SCORE-14`.**
+`LeagueManager.recalculateSeasonStandings` selected neither `g.status` nor `g.live_state`, so every
+game reached the engine with `status` undefined and was dropped by the "only finished fixtures
+count" guard — **every league season's cached standings were all zeros, and had been since the
+engine was written**. The guard was right and the projection was wrong. Both columns are now in it.
+
+**Verified before and after against the dev database rather than reasoned about**, which is the only
+way to tell a fix from a plausible fix here: a throwaway script built a real three-team season — a
+win, a draw, and one fixture scored through the event screen's quick-score `{ home, away }` path —
+and ran the **old** projection and the new one over the same rows. The old one counted 0 fixtures and
+ranked all three teams first; the new one returns `P2 W2 F44 A21 pts6 rank1` / `pts1 rank2` /
+`pts1 rank3`, and `seasons.cached_standings` persisted with all six sides counted. That third fixture
+counting is what proves both score shapes are read, not just the one the engine prefers. The script
+deleted everything it created and is itself deleted with the phase; per
+[test-org-reuse](file:///c:/Fred/Coding/SK/.agent/skills/test-org-reuse/SKILL.md) it left
+`app-test-org` behind, which the dev database did not previously have.
+
+**This is also the first thing that would justify a `server/` test harness**, which Phase 3's exit
+criterion says to decide on. The script is the shape one would take — real managers, real database,
+plain assertions, cleanup in a `finally` — and it was written and thrown away rather than kept,
+which is exactly the cost the decision is about.
+
+**Deviations from the plan as written, both deliberate:**
+
+- **`okf/api_comms.md` was not updated.** It catalogues communication mechanics and code
+  entrypoints, not shared types, and this phase adds no socket action or room. The plan's own wording
+  made this conditional. The shared package's new modules and its test framework are recorded in
+  [okf/architecture.md](file:///c:/Fred/Coding/SK/okf/architecture.md), the standings engine and the
+  fixture-side derivation in [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md) beside the
+  `cached_standings` columns they write, and the one-component rule in
+  [okf/design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md).
+- **`Array.prototype.flatMap` and `Object.values` are avoided** in `standings.ts`. `shared/`
+  compiles at `target: es6` with no `lib` override, so both are compile errors there. Raising the
+  target for one convenience would change the type envelope of a package the server and the app both
+  consume; the loops are three lines.
+
 ---
 
 ## Phase 3 — Server: divisions, stages, entrants, and the choke point
@@ -1035,8 +1151,9 @@ Named so they are not built by accident, per
 [tournaments-ui.md §15](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md):
 
 - **Ranked / meet-style screens** — the schema and the Phase 2 engine satisfy them (D27); no
-  athletics UI. `SPORT-10` stays open until fixture creation and the scoring screens honour
-  `MatchTopology` too.
+  athletics UI. Confirmed 2026-09-01: wanted, not yet designed. `SPORT-10` stays open until fixture
+  creation and the scoring screens honour `MatchTopology` too; until then the sport editor labels
+  both settings with what actually reads them.
 - **Double elimination and the bracket reset** (D28) — reachable via Phase 8's loser-routing primitive.
 - **Swiss** — the generator interface is "produce the next stage", which Phase 3's stage `status`
   already honours, so the shape is in place; the format is not built.
@@ -1061,7 +1178,7 @@ these are part of the phase, not a follow-up:
 |---|---|
 | 0 | `TODO.md` (`DATA-1`); §0 answers into the data model |
 | 1 | ✅ `docs/database_structure.md` (**incl. the `events` drift fix**), `okf/database.md`, `TODO.md` (`FIX-1`, `FIX-10`; `FIX-11` / `SEED-1` / `SOCK-1` / `DOC-1` logged) |
-| 2 | `okf/api_comms.md` if shared types are catalogued there; `TODO.md` (`SPORT-10`, rewritten not closed) |
+| 2 | ✅ `okf/architecture.md`, `okf/database.md`, `okf/design_system.md` (`api_comms.md` does not catalogue shared types — see the phase note); `TODO.md` (`SPORT-10` rewritten not closed; `SCORE-14` logged, then fixed) |
 | 3 | `docs/api_actions.md`, `okf/api_comms.md` (the batch contract, the new rooms) |
 | 4 | **`okf/auth_control.md`** — required; the permission model changes |
 | 5 | `okf/client_routing.md`, `docs/design_spec.md` (the collapse rule), `TODO.md` |

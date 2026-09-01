@@ -12,7 +12,7 @@ import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { useAuthStore } from '../../../../store/authStore';
-import { SocketAction, Event, Game, Sport, Site, Team, Organization, calculateStandings, LeagueStandingRow } from '@sk/shared';
+import { SocketAction, Event, Game, Sport, Site, Team, Organization, calculateStandings, LeagueStandingRow, ScoringSystem } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import CustomSelect from '../../../../components/CustomSelect';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
@@ -275,7 +275,11 @@ export default function EventDetails() {
         const pOrgId = getTeamOrgId(p.teamId || '');
         return {
           ...p,
-          teamId: pOrgId || p.teamId || '' // Fallback to teamId if org is unresolved
+          teamId: pOrgId || p.teamId || '', // Fallback to teamId if org is unresolved
+          // The engine matches a side by entrant first, then team, then person. This table is
+          // about organisations, so the narrower identities have to go with the mapping.
+          entrantId: undefined,
+          orgProfileId: undefined,
         };
       });
 
@@ -285,13 +289,14 @@ export default function EventDetails() {
       };
     });
 
-    const config = {
+    const scoring: ScoringSystem = {
+      mode: 'byResult',
       pointsPerWin: event.settings?.pointsPerWin ?? 3,
       pointsPerDraw: event.settings?.pointsPerDraw ?? 1,
       pointsPerLoss: 0
     };
 
-    return calculateStandings(mappedGames, orgsList, config);
+    return calculateStandings(mappedGames, orgsList, { scoring });
   };
 
   // Score match handler

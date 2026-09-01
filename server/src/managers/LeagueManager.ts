@@ -1,5 +1,5 @@
 import { BaseManager } from "./BaseManager";
-import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, calculateStandings } from "@sk/shared";
+import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, ScoringSystem, calculateStandings } from "@sk/shared";
 import { v4 as uuidv4 } from "uuid";
 import { imageService } from "../services/ImageService";
 
@@ -319,9 +319,18 @@ export class LeagueManager extends BaseManager {
     );
     const teams = teamsRes.rows;
 
-    // Fetch all finished games associated with this season
+    // Fetch all finished games associated with this season.
+    //
+    // `status` and `live_state` are in the projection because the engine needs both, and leaving
+    // them out is what `SCORE-14` was: the WHERE clause filtered on `g.status` without selecting
+    // it, so every row arrived with `status` undefined and was dropped by the engine's "only
+    // finished fixtures count" guard - every season table was zeros. `live_state` is where a score
+    // actually lives (`liveState.scores[gameParticipantId]`); `final_score_data` is only written by
+    // the event screen's quick-score modal, so without it only quick-scored games would have
+    // counted even once the status was there.
     const gamesRes = await this.query(
-      `SELECT g.id, g.final_score_data as "finalScoreData",
+      `SELECT g.id, g.status, g.final_score_data as "finalScoreData",
+              g.live_state as "liveState",
               COALESCE(
                 (SELECT jsonb_agg(jsonb_build_object(
                   'id', gp.id, 
@@ -339,13 +348,17 @@ export class LeagueManager extends BaseManager {
     );
     const games = gamesRes.rows;
 
-    const config = {
+    // D19 - a season and a tournament division configure scoring the same way and are ranked by
+    // the same engine. A stored season keeps whatever it was created with; 3/1/0 is the default
+    // for new ones (D17), and these fallbacks predate that decision.
+    const scoring: ScoringSystem = {
+      mode: 'byResult',
       pointsPerWin: season.settings.pointsPerWin ?? 4,
       pointsPerDraw: season.settings.pointsPerDraw ?? 2,
       pointsPerLoss: season.settings.pointsPerLoss ?? 0,
     };
 
-    const sortedStandings = calculateStandings(games, teams, config);
+    const sortedStandings = calculateStandings(games, teams, { scoring });
 
     // Save standings to DB
     await this.query(
