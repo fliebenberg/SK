@@ -8,7 +8,7 @@ tags:
   - WebSockets
   - real-time
   - sport-registry
-timestamp: 2026-08-03T07:00:00Z
+timestamp: 2026-09-01T21:30:00Z
 ---
 
 # API & Real-time WebSockets
@@ -45,6 +45,14 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
      join it can read — so `join_room` authorizes before joining, against the identity proven
      by the handshake, and refuses any room name it does not recognise
      ([wss/roomAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/roomAccess.ts)).
+   - **A handler's parameter type is a claim, not a guarantee.** `join_room`, `leave_room`,
+     `unsubscribe`, `get_data` and `action` all declare the shape they expect, but the value
+     arrives over a socket from an unauthenticated client, so each one **checks it at the top and
+     returns**. This is not defensiveness for its own sake: those handlers are `async`, so a throw
+     inside one is an unhandled rejection, and an unhandled rejection ends the Node process. A
+     `join_room` sent as `{ room }` instead of `room` reached `room.split(':')` and took the whole
+     server down (`SOCK-1`). `classifyRoom` refuses a non-string in its own right, since it is the
+     choke point every room check passes through.
    - Full rules: [.agent/skills/live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md).
 4. **Offline Resilience**:
    - Connection statuses are actively monitored on the client to show offline banners when connections drop.

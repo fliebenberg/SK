@@ -41,3 +41,4 @@ SELECT (SELECT count(*) FROM events), (SELECT count(*) FROM organizations),
 | File | Taken | Why | Test-restored |
 |---|---|---|---|
 | `sk-20260901-phase0.dump` | 2026-09-01 | Tournaments Phase 0 pre-flight | Yes — 41 tables, 1/11/1/29 events/orgs/games/profiles, 7 migrations, identical to source |
+| `sk-20260901-phase1-pre.dump` | 2026-09-01 | Immediately before the tournaments migration, which deletes 8 orphaned `game_participants` rows (`FIX-10`) — the one destructive statement in it | Yes — restored into `sk_phase1_migrate`, counts identical to source, and `db:migrate` then run against that copy as Phase 1's exit criterion |

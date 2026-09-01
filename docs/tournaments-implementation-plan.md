@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phase 0 complete and its exit criterion met (2026-09-01)**; Phase 1 is next.
+**Status:** In progress. **Phases 0 and 1 complete, both exit criteria met (2026-09-01)**; Phase 2 is next.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -509,6 +509,102 @@ tables, **and fix the drift the spec §12 already found** (it lists `participati
 `sport_ids` as columns on `events`; they are the `event_sports` and `event_organizations` join
 tables). [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md).
 
+### Done — 2026-09-01
+
+The migration is
+[`server/src/scripts/migrations/20260901_tournaments.ts`](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/20260901_tournaments.ts),
+mirrored into
+[`init-db.ts`](file:///c:/Fred/Coding/SK/server/src/scripts/setup/init-db.ts). Ten steps, in the
+order §9 requires: nine tables, then the `game_participants` and `events` columns, then D1's
+`SportsDay` rewrite and the `format` / `type` backfills, then the `event_facilities` backfill and the
+settings-key drop, and only *then* the `events.type` constraints — which would have rejected the very
+rows the two backfills exist to fix. The `seasons` default and `FIX-10` close it out.
+
+1. **Both exit runs pass, and the schema diff is clean where it matters.** The migration ran against a
+   **restored copy** of a fresh dump (`sk-20260901-phase1-pre.dump`) — the path a deployed environment
+   takes, and the only one never exercised by starting clean. A second database was built with
+   `db:init`, both were `pg_dump --schema-only`'d, and the two diffed. **No Phase 1 object appears in
+   the residual diff**: not one of the nine tables, not a column, not a constraint, not an index.
+
+   Making that true needed one thing the plan did not anticipate. **Column order is part of a
+   `pg_dump` diff**, because `ALTER TABLE ADD COLUMN` appends and `pg_dump` prints in `attnum` order,
+   so `events.cached_standings` and `events.format` — and the four on `game_participants` — are
+   appended in `init-db.ts` in the order the migration adds them, rather than slotted in where they
+   read best. Constraint *names* are in the diff for the same reason, so `init-db.ts` names its
+   `game_participants` foreign keys explicitly instead of leaving them to Postgres.
+
+2. **The residual diff is real, and every line of it predates this phase.** To know that rather than
+   assume it, the same two-database comparison was run against the **pre-Phase-1** code and the two
+   diffs compared. Phase 1 adds nothing to it, and removes one thing: the three `game_participants`
+   foreign keys that `init-db.ts` had always declared and no migration ever added, so a fresh database
+   had them and every migrated one did not. **That is the origin of `FIX-10`**, and the argument for
+   this check in one line — the drift was invisible from either file alone.
+
+   What remains is column ordering on seven older tables, `system_settings.value` (`jsonb` on one path,
+   `text NOT NULL` on the other), and three missing `event_organizations` foreign keys. None of it is
+   this phase's to fix, but it is now measured rather than suspected, and the method is written up in
+   [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md).
+
+3. **Re-runnable, and proven so rather than asserted.** The `ADD CONSTRAINT` statements cannot be
+   `IF NOT EXISTS`, so each is guarded — and the `game_participants` guards check the **column**
+   rather than the constraint name, because a database built from the old `init-db.ts` already had
+   keys there under Postgres' auto-generated names, and a name check would have added a duplicate
+   beside each one. Verified by deleting the row from `schema_migrations` and running the whole file a
+   second time: it completed, reported nothing left to change, and left exactly three foreign keys.
+
+4. **`FIX-10` cleaned 8 rows, and said so before it did.** The count is reported first, and the
+   migration **aborts if it exceeds the 8 Phase 0 measured** — a jump would mean something is deleting
+   games without their participants, which is a bug to find rather than data to tidy. After the run:
+   `0` orphans, and `pg_constraint` lists `game_participants_game_fk` (CASCADE),
+   `game_participants_team_fk` and `game_participants_profile_fk` (both SET NULL) beside the primary
+   key. The 2 legitimate rows survived, which the walk below confirmed by loading the fixture and
+   getting both sides back.
+
+5. **`FIX-1` had nothing to backfill, as the census predicted.** Re-run immediately before the
+   migration rather than trusted from Phase 0: one event, `SingleMatch`, no untyped rows, and the
+   orphan count still 8. So D1's rewrite processed 0 rows, the `format` backfill 0 and the `type`
+   backfill 0, and `SET NOT NULL` plus `events_type_check` went onto clean data.
+
+6. **The app was checked against the migrated database, not asserted to work.** `verify-event-loads.ts`
+   — a throwaway, deleted with the phase — connected a real socket.io client to a running server as a
+   real signed-in user and replayed what the two screens that read an event actually issue: the events
+   list's `org:{orgId}:events` join and its sites and facilities rooms, the event screen's six
+   `get_data` calls, and the game the event contains. **15/15 passed on the restored copy**, with no
+   `[DataAccess] REFUSED` line in the server log — then the working database was migrated and the same
+   15 passed against it.
+
+7. **`init-db.ts` stamps the new migration automatically**, so a fresh database reports 8 applied and
+   `db:migrate` against it is a no-op. Phase 0 §0.3 doing its job on the first migration written after
+   it.
+
+**Four things were found outside this phase's scope. All four were logged, and then — at the user's
+request, before starting Phase 2 — fixed:**
+
+- **`FIX-11`** — the create wizard still wrote `'SportsDay'`, which the new `CHECK` rejects. Both
+  container entry points now write `Tournament` / `Festival`, exactly as D1 does to stored rows.
+  **This pulled one small piece of Phase 2 forward**: `format` was a column with no code behind it,
+  so `Event.format` is now an optional `EventFormat` on the shared model and `EventManager` selects,
+  inserts and updates it. That is the whole of it — nothing *reads* `format` yet, and `EventType`
+  keeps its `'SportsDay'` member for the four client call sites Phase 5 rewrites.
+- **`SEED-1`** — `db:setup`'s seed half could not complete: `existing_orgs.json` is a 2026-02-28
+  snapshot naming `sport-rugby` and friends, which `20260810_migrate_sport_ids` renamed away, so a
+  foreign key violation rolled back the entire seed. Now canonicalised (the same prefix rule the
+  migration used) and checked against the seeded sports, so a stale id is repaired and an unknown
+  one costs a warning rather than the transaction. `db:setup` completes end to end. Distinct from
+  `DATA-3`, which is untouched.
+- **`SOCK-1`** — a `join_room` payload that was not a string crashed the server process, from an
+  anonymous socket. Observed rather than theorised: it killed the test server when the verification
+  script had the payload shape wrong. Five handlers now check their payload at the boundary, and the
+  same defect turned out to sit at two more — `action` read `action.type` before its try block, and
+  `get_data` destructured its request outside both of its own. Verified by attempting the crash
+  eight ways.
+- **`DOC-1`** — `database_structure.md` documented 30 of the schema's 50 tables. All twelve missing
+  ones are written up, checked against `information_schema` rather than against `init-db.ts`, which
+  is what caught a further set of column-level gaps and one more instance of the same `events` drift
+  this phase already owed (`organizations` listing two join tables as array columns).
+
+None of it changed the migration or the schema, so the exit criteria above still stand as measured.
+
 ---
 
 ## Phase 2 — Shared types, the scoring engine, and the fixture-side component
@@ -964,7 +1060,7 @@ these are part of the phase, not a follow-up:
 | Phase | Must update |
 |---|---|
 | 0 | `TODO.md` (`DATA-1`); §0 answers into the data model |
-| 1 | `docs/database_structure.md` (**incl. the `events` drift fix**), `okf/database.md`, `TODO.md` (`FIX-1`) |
+| 1 | ✅ `docs/database_structure.md` (**incl. the `events` drift fix**), `okf/database.md`, `TODO.md` (`FIX-1`, `FIX-10`; `FIX-11` / `SEED-1` / `SOCK-1` / `DOC-1` logged) |
 | 2 | `okf/api_comms.md` if shared types are catalogued there; `TODO.md` (`SPORT-10`, rewritten not closed) |
 | 3 | `docs/api_actions.md`, `okf/api_comms.md` (the batch contract, the new rooms) |
 | 4 | **`okf/auth_control.md`** — required; the permission model changes |

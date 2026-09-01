@@ -72,6 +72,45 @@ const seedDb = async () => {
             ]);
         }
 
+        // 1a. Sport ids: canonicalise, then verify against what was just seeded.
+        //
+        // `SEED-1`. Migration 20260810_migrate_sport_ids renamed every `sport-rugby` to `rugby`,
+        // but `server/data/existing_orgs.json` is a snapshot taken before that and still names the
+        // old ids — as do two of the hardcoded facilities below. `organization_sports.sport_id` is
+        // a foreign key, so those inserts failed and rolled back the **whole** seed transaction,
+        // leaving a correct schema with no data in it at all, sports included.
+        //
+        // Two guards, because they fail differently. `canonicalSportId` applies the same rule the
+        // migration did, so a stale id is repaired rather than rejected — and it keeps working if
+        // the snapshot is regenerated from an older database again. `linkSport` then refuses to
+        // insert an id no sport has, so a genuinely unknown sport costs one warning line instead
+        // of every row the seed was going to write after it.
+        const canonicalSportId = (raw: string): string => raw.replace(/^sport-/, '');
+
+        const knownSportIds = new Set<string>(
+            (await pool.query('SELECT id FROM sports')).rows.map((r: { id: string }) => r.id)
+        );
+
+        const linkSport = async (
+            table: 'organization_sports' | 'facility_sports',
+            parentColumn: 'org_id' | 'facility_id',
+            parentId: string,
+            rawSportId: string
+        ) => {
+            const sportId = canonicalSportId(rawSportId);
+            if (!knownSportIds.has(sportId)) {
+                console.warn(
+                    `  Skipping ${table} ${parentId} -> "${rawSportId}": no such sport. ` +
+                    `Known: ${[...knownSportIds].join(', ')}`
+                );
+                return;
+            }
+            await pool.query(
+                `INSERT INTO ${table} (${parentColumn}, sport_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                [parentId, sportId]
+            );
+        };
+
         // 1b. Seed System Settings
         for (const setting of SYSTEM_SETTINGS_SEEDS) {
             await pool.query(`
@@ -206,11 +245,7 @@ const seedDb = async () => {
                 // Seed organization_sports
                 const sports = org.supported_sport_ids || org.supportedSportIds || [];
                 for (const sportId of sports) {
-                    await pool.query(`
-                        INSERT INTO organization_sports (org_id, sport_id)
-                        VALUES ($1, $2)
-                        ON CONFLICT DO NOTHING
-                    `, [org.id, sportId]);
+                    await linkSport('organization_sports', 'org_id', org.id, sportId);
                 }
 
                 // Seed organization_roles
@@ -247,13 +282,13 @@ const seedDb = async () => {
                   id: "facility-1",
                   name: "Main Field",
                   siteId: "site-1",
-                  primarySportId: "sport-soccer"
+                  primarySportId: "soccer"
                 },
                 {
                   id: "facility-2",
                   name: "Court 1",
                   siteId: "site-1",
-                  primarySportId: "sport-netball"
+                  primarySportId: "netball"
                 },
             ];
 
@@ -265,11 +300,7 @@ const seedDb = async () => {
                 `, [facility.id, facility.name, facility.siteId]);
 
                 if (facility.primarySportId) {
-                    await pool.query(`
-                        INSERT INTO facility_sports (facility_id, sport_id)
-                        VALUES ($1, $2)
-                        ON CONFLICT DO NOTHING
-                    `, [facility.id, facility.primarySportId]);
+                    await linkSport('facility_sports', 'facility_id', facility.id, facility.primarySportId);
                 }
             }
 

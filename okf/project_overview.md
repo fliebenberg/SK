@@ -7,7 +7,7 @@ tags:
   - overview
   - domains
   - glossary
-timestamp: 2026-07-02T14:56:00Z
+timestamp: 2026-09-01T21:30:00Z
 ---
 
 # Project Overview & Core Domains
@@ -31,7 +31,23 @@ For the full details on client page layouts and user authentication, see the OKF
 - **Member (OrgProfile)**: An organization-specific persona. A User can have multiple Memberships across different Organizations.
 - **Role**: Permission levels (Owner, Admin, Manager, Scorekeeper, Coach, Player) assigned to an `OrgMembership` or `TeamMembership`, rather than directly to a User.
 - **Organization**: The top-level administrative container representing a league, school, club, or pub tournament.
-- **Event**: A league, season, or tournament container that houses multiple games.
+- **Event**: One of exactly two things — a **SingleMatch** wrapping one game, or a **Tournament**
+  containing many. `events.type` admits nothing else. A "sports day" is a Tournament whose `format`
+  is `Festival`; it is not a third kind (D1).
+- **League / Season**: A *separate* entity from an Event, and a common thing to confuse with one. A
+  League is a recurring competition an organisation runs; a Season is one running of it, with a
+  table and a fixture list. A game can belong to a Season **and** a Tournament at once — that is an
+  ordinary row in `game_seasons`.
+- **Division**: A competition within a Tournament — the netball, the U14 rugby. Has its own
+  entrants, stages and standings.
+- **Stage**: A phase of a Division — pools, then a knockout. Every Division has at least one, and
+  the UI says nothing about staging when it has exactly one.
+- **Entrant**: Who is competing in a Division: a Team, an individual Member, or an unresolved slot
+  that carries only a label until someone fills it in.
 - **Game**: A single fixture between participants (teams or individuals).
 - **Site**: A physical location/address (e.g., "City Sports Hub").
 - **Facility**: A specific field, court, table, or track situated within a Site (e.g., "Field 2").
+
+The tournament nouns are defined in full in
+[docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) and mapped to storage in
+[okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md).

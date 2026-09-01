@@ -413,9 +413,22 @@ export default function CreateEvent() {
       eventTitle = `${selectedHomeOrg?.shortName || selectedHomeOrg?.name || 'Home'} ${homeTeamName} vs ${selectedAwayOrg?.shortName || selectedAwayOrg?.name || 'Away'} ${awayTeamName}`;
     }
 
+    // A sports day is a Tournament whose format is 'Festival' (D1) — there is no 'SportsDay' type
+    // any more, and `events.type` carries a CHECK that rejects one. This mirrors exactly what the
+    // tournaments migration did to the rows that already existed.
+    //
+    // The route still has a `sportsday` entry point, and the wizard still says "New Sports Day",
+    // because that is the word an organiser uses. Phase 5 replaces both container entry points with
+    // a format picker (Festival / RoundRobin / Knockout / PoolsKnockout) and this ternary goes.
+    //
+    // Until then **both** containers get 'Festival', for the same reason the migration gave every
+    // legacy Tournament row that value: it is the format that assumes least about structure. The
+    // alternative — leaving it null on the tournament path so the picker can tell "never chosen"
+    // from "chose Festival" — reintroduces exactly the unknown-value problem U39 argued against.
     const eventPayload = {
       name: eventTitle.trim(),
-      type: type === 'game' ? 'SingleMatch' : type === 'sportsday' ? 'SportsDay' : 'Tournament',
+      type: type === 'game' ? 'SingleMatch' : 'Tournament',
+      format: type === 'game' ? undefined : 'Festival',
       startDate: formattedStartDate,
       endDate: formattedEndDate,
       siteId: selectedSiteId || undefined,

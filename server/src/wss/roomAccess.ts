@@ -32,7 +32,13 @@ export interface RoomPolicy {
  * Classify a room name. Returns null when the shape is not one we publish to,
  * which the caller must treat as a refusal rather than as "no restriction".
  */
-export function classifyRoom(room: string): RoomPolicy | null {
+export function classifyRoom(room: unknown): RoomPolicy | null {
+  // `room` arrives over a socket, so its declared type at the call site is a claim rather than a
+  // guarantee. This is the choke point every room check goes through, so it is the right place to
+  // stop a non-string: an object here used to reach `.split` and throw, and a throw inside an async
+  // socket handler is an unhandled rejection, which ends the process (`SOCK-1`).
+  if (typeof room !== 'string' || room.length === 0) return null;
+
   const parts = room.split(':');
   const [kind, id, sub] = parts;
   if (!kind || !id || parts.length > 3) return null;
@@ -168,7 +174,12 @@ export function invalidateMembership(userId: string) {
  * a socket is already in a room keeps delivering until it disconnects; see
  * `LIVE-5` in TODO.md.
  */
-export async function canJoinRoom(userId: string, room: string): Promise<boolean> {
+export async function canJoinRoom(userId: string, room: unknown): Promise<boolean> {
+  // `unknown` rather than `string` because the value comes off a socket. `classifyRoom` refuses a
+  // non-string on its own, but this function goes on to re-split `room` below, so it needs the
+  // narrowing in its own right rather than inferring it from a non-null policy.
+  if (typeof room !== 'string') return false;
+
   const policy = classifyRoom(room);
   if (!policy) return false;
 

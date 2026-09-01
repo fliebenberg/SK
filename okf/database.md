@@ -8,7 +8,7 @@ tags:
   - PostgreSQL
   - migrations
   - persistence
-timestamp: 2026-08-14T08:10:00Z
+timestamp: 2026-09-01T21:00:00Z
 ---
 
 # Database & Data Persistence
@@ -35,6 +35,37 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260711_rename_invite_cooldown_hours.ts`: Sets up default invite cooldown periods (2 weeks) and configures referral settings.
     - `20260808_create_system_admin_org.ts`: Creates the System Administration Organization (`org-system-admins`) and provisions admin org profiles and memberships.
     - `20260814_derive_org_counts.ts`: Drops the denormalized `team_count` / `site_count` / `member_count` columns (now computed live) and `org_memberships.expiry_processed`; adds org-scoped foreign key indexes.
+    - `20260901_tournaments.ts`: The tournaments schema (Phase 1). Nine new tables, four columns on `game_participants`, two on `events`; the `SportsDay` rewrite; `events.type` made `NOT NULL` with a `CHECK`; the `seasons.settings` default moved to 3/1/0; and `game_participants`' three missing foreign keys, which needed 8 orphaned rows deleted first. See below.
+
+## The tournaments schema
+
+A tournament is four levels deep, and each level is named for its parent so that a table name tells
+you what deletes it:
+
+    events (type='Tournament', format='Festival'|…)
+      └─ tournament_divisions        the netball, the U14 rugby
+           ├─ division_stages        pools, then the knockout
+           │    └─ stage_entrants    who is in this stage, and in which pool
+           ├─ division_entrants      the roster: a team, a person, or an unresolved label
+           ├─ division_facilities    a narrowing of event_facilities
+           └─ division_adjustments   a deduction or a walkover, recorded as an override
+
+Plus `event_facilities` (the facilities in play) and `event_organizers` / `division_organizers` (the
+two grant scopes — full rights over the tournament, or one division's fixtures and results).
+
+Three things about it are worth knowing before touching it:
+
+*   **A game has no `stage_id`.** It reaches its stage through its participants' entrants. If that
+    indirection proves awkward in queries, a denormalised column is cheap to add later — but adding
+    it now would create a second answer to "which stage is this fixture in?".
+*   **An unknown competitor is a `game_participants` row with `team_id` null** and a `source_rule`
+    beside a `source_game_id` or `source_stage_id`. Resolving it writes `team_id`, so the scoring
+    screens and `calculateStandings` never learn that progression exists.
+*   **`tournament_divisions` is the one table not named for its parent.** `event_divisions` would sit
+    beside `event_sports` and read as another join table, which it is not.
+
+Full reasoning: [docs/tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md).
+Column-by-column: [docs/database_structure.md](file:///c:/Fred/Coding/SK/docs/database_structure.md) §11d–11k.
 
 ## Migrations vs a clean install
 
@@ -48,6 +79,22 @@ freshly created database is correctly "already migrated" and `db:migrate` agains
 Without that a clean install believed no migration had ever run and replayed all of them — harmless
 only for as long as every migration happens to be written defensively, and it made the two paths
 impossible to compare. **A new table therefore goes in both files**, `IF NOT EXISTS` in each.
+
+**Diff the two paths rather than trusting the rule.** Restore a dump into a scratch database and
+migrate it, build another with `db:init`, then `pg_dump --schema-only --no-owner --no-privileges`
+both and compare. Two things this catches that reading the diff of your own change never will:
+
+*   **A missed `init-db.ts` mirror is otherwise invisible** until a new environment is built months
+    later. The 2026-09-01 diff found the reverse case as well — three `game_participants` foreign
+    keys that `init-db.ts` had and no migration ever added, so every existing database was missing
+    them (`FIX-10`).
+*   **Column order is part of the diff**, because `pg_dump` prints columns in `attnum` order and
+    `ALTER TABLE ADD COLUMN` appends. New columns must be appended in `init-db.ts` in the same order
+    the migration adds them, not slotted in where they read best.
+
+`ADD CONSTRAINT` is the one statement with no `IF NOT EXISTS`, so guard each on `pg_constraint` or a
+re-run fails. Guard on the *column* rather than the constraint name when a database might already
+have one under Postgres' auto-generated name — a name check will happily add a duplicate beside it.
 
 ## Derived vs Stored Values
 

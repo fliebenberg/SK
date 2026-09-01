@@ -22,7 +22,7 @@ Below are the key concept files in this bundle. AI agents should read these to g
 - **[Client Routing & Pages](file:///c:/Fred/Coding/SK/okf/client_routing.md)** (`type: concept`): Map of public and admin routes, layout structures, and navigation guard requirements.
 - **[Authentication & Roles](file:///c:/Fred/Coding/SK/okf/auth_control.md)** (`type: concept`): Authentication strategy, JWT tokens, membership roles, and permission hierarchies.
 - **[Design System](file:///c:/Fred/Coding/SK/okf/design_system.md)** (`type: concept`): Visual/styling rules, colors, typography, and Light Mode AAA accessibility requirements.
-- **[Database & Persistence](file:///c:/Fred/Coding/SK/okf/database.md)**: Persistence engines, PostgreSQL configurations, schema details, and migration steps.
+- **[Database & Persistence](file:///c:/Fred/Coding/SK/okf/database.md)** (`type: concept`): Persistence engines, PostgreSQL configurations, schema details, and migration steps.
 - **[API & WebSockets](file:///c:/Fred/Coding/SK/okf/api_comms.md)** (`type: concept`): Real-time communications framework, subscription models, REST fallbacks, and sport scoring registries.
 - **[Git Workflow](file:///c:/Fred/Coding/SK/okf/git_workflow.md)** (`type: concept`): Git branching rules and development workflows.
 - **[Agentic Skills Index](file:///c:/Fred/Coding/SK/okf/skills_index.md)** (`type: concept`): Catalog of workspace-specific agent guidelines under `.agent/skills/`.

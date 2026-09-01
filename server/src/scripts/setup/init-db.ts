@@ -232,14 +232,23 @@ const createTables = async () => {
             CREATE TABLE IF NOT EXISTS events (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
-                type TEXT,
+                -- U39 / FIX-1: an event without a type should not exist, so it is refused rather
+                -- than defaulted. 'SportsDay' is gone (D1) — a sports day is a Tournament whose
+                -- format is 'Festival'.
+                type TEXT NOT NULL,
                 start_date TIMESTAMPTZ,
                 end_date TIMESTAMPTZ,
                 site_id TEXT REFERENCES sites(id),
                 facility_id TEXT REFERENCES facilities(id),
                 org_id TEXT REFERENCES organizations(id),
                 settings JSONB,
-                status TEXT
+                status TEXT,
+                -- Appended, in the order the tournaments migration adds them, so that a database
+                -- built here and one brought forward by 20260901_tournaments.ts produce the same
+                -- pg_dump. "format" is a column rather than a settings key (plan §0.2).
+                cached_standings JSONB DEFAULT '[]'::jsonb,
+                format TEXT,
+                CONSTRAINT events_type_check CHECK (type IN ('SingleMatch', 'Tournament'))
             );
         `);
 
@@ -258,6 +267,147 @@ const createTables = async () => {
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
                 org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
                 PRIMARY KEY (event_id, org_id)
+            );
+        `);
+
+        // ---------------------------------------------------------------------------------
+        // Tournaments (docs/tournaments-data-model.md §3).
+        //
+        // Mirrored from migrations/20260901_tournaments.ts per migrations/README.md. They sit
+        // here, above `games`, because `game_participants` takes foreign keys onto
+        // `division_entrants` and `division_stages`.
+        //
+        // Naming follows §3.0: a table is named for its parent, so its name tells you what
+        // deletes it. `tournament_divisions` is the deliberate exception — `event_divisions`
+        // would read as another join table beside `event_sports`, which it is not.
+        // ---------------------------------------------------------------------------------
+
+        // Divisions: the netball, the U14 rugby. A substantial entity, not a join row.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS tournament_divisions (
+                id TEXT PRIMARY KEY,
+                event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                sport_id TEXT REFERENCES sports(id),
+                age_group TEXT,
+                scoring_subject TEXT,           -- 'Team' | 'Organisation'; NULL inherits the event
+                weighting NUMERIC(6,3) NOT NULL DEFAULT 1.0,
+                settings JSONB DEFAULT '{}'::jsonb,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        // Stages: pools then knockout. Every division has at least one (D11); the UI stays
+        // silent about staging when it has exactly one.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS division_stages (
+                id TEXT PRIMARY KEY,
+                division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                format TEXT NOT NULL,           -- 'Festival' | 'RoundRobin' | 'Knockout' | 'Plate' | 'Swiss'
+                sequence INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'Pending',
+                                                -- 'Pending' | 'Ready' | 'InProgress' | 'Complete'
+                earliest_start TIMESTAMPTZ,     -- D15: the knockout may not start before day 2
+                settings JSONB DEFAULT '{}'::jsonb,
+                cached_standings JSONB DEFAULT '[]'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE (division_id, sequence)
+            );
+        `);
+
+        // Entrants: a team, an individual, or an unresolved slot carrying only a label. The
+        // CHECK forbids the first two at once; it does not require either.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS division_entrants (
+                id TEXT PRIMARY KEY,
+                division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+                team_id TEXT REFERENCES teams(id) ON DELETE SET NULL,
+                org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+                org_id TEXT REFERENCES organizations(id),
+                label TEXT,
+                seed INTEGER,
+                status TEXT NOT NULL DEFAULT 'active',   -- 'active' | 'withdrawn'
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                CONSTRAINT entrant_is_team_or_person CHECK (team_id IS NULL OR org_profile_id IS NULL)
+            );
+        `);
+
+        // Who takes part in each stage, and where they sit in it. Pool membership lives on the
+        // membership row rather than in the stage's JSON, so "which pool is Northcliff in?" is
+        // a query rather than a scan.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS stage_entrants (
+                stage_id TEXT REFERENCES division_stages(id) ON DELETE CASCADE,
+                entrant_id TEXT REFERENCES division_entrants(id) ON DELETE CASCADE,
+                pool_key TEXT,                  -- 'A', 'B'; NULL when the stage has no pools
+                seed INTEGER,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (stage_id, entrant_id)
+            );
+        `);
+
+        // The facility cascade: the event names what is in play, a division may narrow it to a
+        // subset, a division with no rows may use any of the event's. `events.facility_id`
+        // stays as it is for SingleMatch, where one facility is the whole story.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS event_facilities (
+                event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+                facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
+                PRIMARY KEY (event_id, facility_id)
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS division_facilities (
+                division_id TEXT REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+                facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
+                PRIMARY KEY (division_id, facility_id)
+            );
+        `);
+
+        // D29's standings half: a deduction or a walkover becomes a row with a reason and an
+        // author, rather than a quiet edit to a game that never happened.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS division_adjustments (
+                id TEXT PRIMARY KEY,
+                division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+                entrant_id TEXT NOT NULL REFERENCES division_entrants(id) ON DELETE CASCADE,
+                points_delta NUMERIC(6,2) NOT NULL DEFAULT 0,
+                reason TEXT NOT NULL,
+                created_by_user_id TEXT REFERENCES users(id),
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `);
+
+        // D33's two grant scopes. Two tables rather than one with a nullable division_id: a
+        // composite primary key is then the uniqueness rule (Postgres treats NULLs as distinct
+        // in a unique index), and each foreign key points at exactly one parent, so a grant
+        // cannot pair event A with a division of event B.
+        //
+        // Grants reference `org_profiles`, never `users` — `AccessManager` resolves a user into
+        // a set of profile ids, so someone with no account yet can still be appointed.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS event_organizers (
+                event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+                org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE CASCADE,
+                granted_by_org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (event_id, org_profile_id)
+            );
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS division_organizers (
+                division_id TEXT REFERENCES tournament_divisions(id) ON DELETE CASCADE,
+                org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE CASCADE,
+                granted_by_org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (division_id, org_profile_id)
             );
         `);
 
@@ -359,11 +509,30 @@ const createTables = async () => {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS game_participants (
                 id TEXT PRIMARY KEY,
-                game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
-                team_id TEXT REFERENCES teams(id),
-                org_profile_id TEXT REFERENCES org_profiles(id),
+                game_id TEXT,
+                team_id TEXT,
+                org_profile_id TEXT,
                 status TEXT DEFAULT 'active', -- 'active', 'withdrawn', 'disqualified', 'did_not_start'
-                sort_order INTEGER DEFAULT 0
+                sort_order INTEGER DEFAULT 0,
+                -- Where this side came from, when it is not a team someone picked (data model
+                -- §4.1). All null for every single match, so nothing reading this table today
+                -- changes behaviour. Appended in the order the tournaments migration adds them,
+                -- so both schema paths produce the same pg_dump.
+                entrant_id TEXT REFERENCES division_entrants(id) ON DELETE SET NULL,
+                source_game_id TEXT REFERENCES games(id) ON DELETE SET NULL,
+                source_stage_id TEXT REFERENCES division_stages(id) ON DELETE SET NULL,
+                source_rule JSONB,
+                -- FIX-10. Named explicitly rather than left to Postgres' auto-naming, because
+                -- the migration adds them by these names and the two schemas are diffed.
+                -- Cascade only where the row is meaningless without its parent: deleting a team
+                -- must not delete the fixtures it played, and "team_id" is already nullable
+                -- because a tournament side can be an unresolved rule.
+                CONSTRAINT game_participants_game_fk
+                    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+                CONSTRAINT game_participants_team_fk
+                    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
+                CONSTRAINT game_participants_profile_fk
+                    FOREIGN KEY (org_profile_id) REFERENCES org_profiles(id) ON DELETE SET NULL
             );
         `);
 
@@ -518,7 +687,9 @@ const createTables = async () => {
                 start_date TIMESTAMPTZ NOT NULL,
                 end_date TIMESTAMPTZ NOT NULL,
                 status TEXT NOT NULL DEFAULT 'UPCOMING',
-                settings JSONB DEFAULT '{"pointsPerWin": 4, "pointsPerDraw": 2, "pointsPerLoss": 0}'::jsonb,
+                -- D17: 3/1/0, the same ScoringSystem shape a tournament uses (D19). Existing
+                -- seasons store their values explicitly, so changing this moved no league's table.
+                settings JSONB DEFAULT '{"pointsPerWin": 3, "pointsPerDraw": 1, "pointsPerLoss": 0}'::jsonb,
                 cached_standings JSONB DEFAULT '[]'::jsonb,
                 logo TEXT DEFAULT NULL,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -553,6 +724,21 @@ const createTables = async () => {
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_leagues_org ON leagues(org_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_seasons_league ON seasons(league_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_seasons_season ON game_seasons(season_id);`);
+
+        // Tournaments (mirrored from migrations/20260901_tournaments.ts). Each one backs a
+        // lookup that is on the read path of a division screen: children by parent, and the two
+        // that answer "what is this person or org involved in?".
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_divisions_event ON tournament_divisions(event_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_stages_division ON division_stages(division_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_entrants_division ON division_entrants(division_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_entrants_org ON division_entrants(org_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_stage_entrants_stage ON stage_entrants(stage_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_facilities_division ON division_facilities(division_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_adjustments_division ON division_adjustments(division_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_event_organizers_profile ON event_organizers(org_profile_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_organizers_profile ON division_organizers(org_profile_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_participants_entrant ON game_participants(entrant_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_participants_source_game ON game_participants(source_game_id);`);
 
         // System Settings
         await pool.query(`

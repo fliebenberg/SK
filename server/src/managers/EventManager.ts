@@ -5,7 +5,7 @@ import { organizationManager } from "./OrganizationManager";
 import { sportManager } from "./SportManager";
 
 export class EventManager extends BaseManager {
-  private EVENT_COLUMNS = 'id, name, type, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id) as "participatingOrgIds", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
+  private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id) as "participatingOrgIds", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
   private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'name\', t.name, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p LEFT JOIN teams t ON t.id = p.team_id WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
 
   /**
@@ -110,9 +110,9 @@ export class EventManager extends BaseManager {
     await this.query('BEGIN');
     try {
         await this.query(
-            `INSERT INTO events (id, name, type, start_date, end_date, site_id, facility_id, org_id, settings, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-             [id, event.name, event.type, event.startDate, event.endDate, event.siteId, event.facilityId, event.orgId, JSON.stringify(event.settings), event.status]
+            `INSERT INTO events (id, name, type, format, start_date, end_date, site_id, facility_id, org_id, settings, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+             [id, event.name, event.type, event.format ?? null, event.startDate, event.endDate, event.siteId, event.facilityId, event.orgId, JSON.stringify(event.settings), event.status]
         );
 
         for (const sportId of sportIds) {
@@ -145,7 +145,7 @@ export class EventManager extends BaseManager {
          delete data.participatingOrgIds;
 
          const map: Record<string, string> = {
-             name: 'name', type: 'type', startDate: 'start_date', endDate: 'end_date', siteId: 'site_id', facilityId: 'facility_id', orgId: 'org_id',
+             name: 'name', type: 'type', format: 'format', startDate: 'start_date', endDate: 'end_date', siteId: 'site_id', facilityId: 'facility_id', orgId: 'org_id',
              settings: 'settings', status: 'status'
          };
 

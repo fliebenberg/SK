@@ -1047,6 +1047,15 @@ io.on('connection', (socket) => {
     });
 
     socket.on('get_data', async (request, callback) => {
+      // The destructure below throws on a null or non-object payload, and it sits outside the
+      // try blocks that follow — so an emit with no request ended the process. Same defect as
+      // `SOCK-1`, checked here for the same reason.
+      if (!request || typeof request !== 'object') {
+        console.warn(`[Socket] Malformed get_data payload from ${socket.id}: ${JSON.stringify(request)}`);
+        if (callback) callback({ status: 'error', error: 'BadRequest', message: 'Malformed request.' });
+        return;
+      }
+
       const { type, orgId, id, teamId } = request;
       console.log(`Server: get_data requested: ${JSON.stringify(request)}`);
 
@@ -1294,7 +1303,18 @@ io.on('connection', (socket) => {
       }
     });
 
-  socket.on('join_room', async (room: string) => {
+  socket.on('join_room', async (incoming: unknown) => {
+    // The payload is whatever the client sent, so it is `unknown` until checked. A non-string used
+    // to reach `room.split(':')` and throw, and a throw in an async socket handler is an unhandled
+    // rejection, which ends the process — from an anonymous socket (`SOCK-1`). `canJoinRoom` now
+    // refuses a non-string on its own; the narrowing here is what lets the rest of this handler go
+    // on treating `room` as the string it declares.
+    if (typeof incoming !== 'string' || incoming.length === 0) {
+      console.warn(`[Socket] Malformed join_room payload from ${socket.id}: ${JSON.stringify(incoming)}`);
+      return;
+    }
+    const room = incoming;
+
     // Rooms are the read boundary: a broadcast carries its data, so whatever a
     // socket may join, it may read. Refuse before joining, never after.
     const joiningUserId = (socket as any).userId || 'anonymous';
@@ -1380,8 +1400,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('leave_room', (room: string) => {
-    // console.log(`Socket ${socket.id} leaving room ${room}`);
+  socket.on('leave_room', (room: unknown) => {
+    // Same reasoning as `join_room`: the payload is unchecked until it is checked. Leaving is not
+    // an access decision, so a bad one is simply ignored rather than reported.
+    if (typeof room !== 'string' || room.length === 0) return;
     socket.leave(room);
   });
 
@@ -1396,12 +1418,23 @@ io.on('connection', (socket) => {
         }
     });
 
-  socket.on('unsubscribe', (topic: string) => {
+  socket.on('unsubscribe', (topic: unknown) => {
+    if (typeof topic !== 'string' || topic.length === 0) return;
     console.log(`Socket ${socket.id} unsubscribed from ${topic}`);
     socket.leave(topic);
   });
 
   socket.on('action', async (action: { type: SocketAction, payload: any }, callback) => {
+    // Same class of defect as `SOCK-1`, at the other unchecked boundary: this preamble reads
+    // `action.type` *before* the try block below, so an emit with no payload — or a non-object one —
+    // threw here and ended the process. The declared parameter type is a claim about a value that
+    // arrived over the network, not a guarantee about it.
+    if (!action || typeof action !== 'object' || typeof (action as any).type !== 'string') {
+      console.warn(`[Socket] Malformed action payload from ${socket.id}: ${JSON.stringify(action)}`);
+      if (callback) callback({ status: 'error', message: 'Malformed action' });
+      return;
+    }
+
     console.log(`[Socket] Action received: ${action.type} from ${socket.id}`, action.payload);
     console.log(`[Socket] Entering switch for action type: "${action.type}"`);
     
