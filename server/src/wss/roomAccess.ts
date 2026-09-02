@@ -109,6 +109,34 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
     case 'season':
       return sub === 'standings' ? { access: 'public' } : null;
 
+    // A tournament division. Rooms follow the screen's data needs, never the viewer's role (U33):
+    // a convenor looking at the whole event needs its data exactly as the host does, so the split
+    // below is by *what is in the room*, not by who is allowed to organise.
+    case 'division':
+      switch (sub) {
+        // Fixtures and results are public information, exactly as `org:*:events` and
+        // `season:*:standings` already are — a spectator may legitimately read the draw and the
+        // table. These two carry the division and its stages as well, because a fixture list has
+        // to be able to name the stage a fixture is in.
+        case 'fixtures':
+        case 'standings':
+          return { access: 'public' };
+        // The base room is the organiser's tier: the roster, pool membership, and the manual
+        // points adjustments — which carry a reason written by a person ("ineligible player") and
+        // the author's id. An entrant may also *be* a person rather than a team, so a roster here
+        // is the same kind of data as `team:{id}`, and gets the same level.
+        case undefined:
+          return {
+            access: 'member',
+            orgsFor: async () => {
+              const orgIds = await accessManager.getDivisionOrgIds(id);
+              return orgIds.length ? orgIds : null;
+            },
+          };
+        default:
+          return null;
+      }
+
     default:
       return null;
   }

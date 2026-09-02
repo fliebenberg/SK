@@ -404,4 +404,119 @@ export enum SocketAction {
      * Expects payload: { gameId: string, sinBinId: string }
      */
     REMOVE_SIN_BIN = 'REMOVE_SIN_BIN',
+
+    // --- Tournaments: divisions, stages, entrants ---
+    //
+    // Every action below is authorized as *the event* — one gate in `index.ts` resolves each
+    // payload to its event and its `orgId` and runs `canEditEventOrGame`, rather than fourteen
+    // handlers each remembering to check. See docs/api_actions.md, "Tournament writes".
+    //
+    // Which of them batch is settled by D13 and by nothing else: batch where N > 1 is genuinely
+    // the case, single elsewhere. A batch obeys the shared contract in
+    // [wss/batch.ts](file:///c:/Fred/Coding/SK/server/src/wss/batch.ts) — one transaction, a
+    // per-item error report, one permission scope, one broadcast, an idempotency key.
+
+    /**
+     * Action to create a division on a tournament.
+     * Expects payload: `AddDivisionPayload`
+     */
+    ADD_DIVISION = 'ADD_DIVISION',
+    /**
+     * Action to update a division.
+     * Expects payload: `{ id, data }`
+     */
+    UPDATE_DIVISION = 'UPDATE_DIVISION',
+    /**
+     * Action to delete a division and everything under it.
+     * Expects payload: `{ id }`
+     */
+    DELETE_DIVISION = 'DELETE_DIVISION',
+
+    /**
+     * Action to add a stage to a division.
+     * Expects payload: `AddStagePayload`
+     */
+    ADD_STAGE = 'ADD_STAGE',
+    /**
+     * Action to update a stage.
+     * Expects payload: `{ id, data }`
+     */
+    UPDATE_STAGE = 'UPDATE_STAGE',
+    /**
+     * Action to delete a stage. Its fixtures survive with a null `stageId`.
+     */
+    DELETE_STAGE = 'DELETE_STAGE',
+
+    /**
+     * Action to replace a division's whole roster.
+     * Expects payload: `{ divisionId, entrants: [...], idempotencyKey? }`
+     *
+     * Batch: a roster arrives at once, not one competitor at a time.
+     */
+    SET_DIVISION_ENTRANTS = 'SET_DIVISION_ENTRANTS',
+    /**
+     * Action to replace which entrants take part in a stage, and where they sit in it.
+     * Expects payload: `{ stageId, entrants: [...], idempotencyKey? }`
+     *
+     * Batch, for the same reason. This is where pool membership lives.
+     */
+    SET_STAGE_ENTRANTS = 'SET_STAGE_ENTRANTS',
+
+    /**
+     * Action to generate a stage's fixtures from its entrants.
+     * Expects payload: `{ stageId, mode: 'create' | 'regenerate' }`
+     *
+     * One action that writes many rows in one transaction, rather than the client sending ninety
+     * `ADD_GAME` calls.
+     */
+    GENERATE_STAGE_FIXTURES = 'GENERATE_STAGE_FIXTURES',
+    /**
+     * Action to allocate a stage's fixtures to times and facilities.
+     * Expects payload: `ScheduleStagePayload`
+     */
+    SCHEDULE_STAGE = 'SCHEDULE_STAGE',
+
+    /**
+     * Action to create several fixtures at once.
+     * Expects payload: `{ games: [...], idempotencyKey? }`
+     *
+     * Batch: the ninety-fixture case. `ADD_GAME` remains for the organiser hand-adding one.
+     */
+    ADD_GAMES = 'ADD_GAMES',
+    /**
+     * Action to update several fixtures at once — rescheduling a day moves many together.
+     * Expects payload: `{ games: [...], idempotencyKey? }`
+     */
+    UPDATE_GAMES = 'UPDATE_GAMES',
+
+    /**
+     * Action to fill an unresolved fixture side by hand (D26, D29).
+     * Expects payload: `{ gameParticipantId, teamId?, orgProfileId?, entrantId? }`
+     *
+     * The same edit whether the slot was awaiting a person or awaiting a result, which is what
+     * one placeholder entity rather than two bought us.
+     */
+    RESOLVE_PARTICIPANT = 'RESOLVE_PARTICIPANT',
+
+    /**
+     * Action to record a manual points correction on a division's table (D29).
+     * Expects payload: `AddAdjustmentPayload`
+     */
+    ADD_ADJUSTMENT = 'ADD_ADJUSTMENT',
+    /**
+     * Action to withdraw a manual points correction.
+     * Expects payload: `{ id }`
+     */
+    DELETE_ADJUSTMENT = 'DELETE_ADJUSTMENT',
+
+    /**
+     * Action to set which facilities an event has in play.
+     * Expects payload: `{ eventId, facilityIds }`
+     */
+    SET_EVENT_FACILITIES = 'SET_EVENT_FACILITIES',
+    /**
+     * Action to narrow a division to a subset of the event's facilities.
+     * Expects payload: `{ divisionId, facilityIds }`. An empty list means "any of the event's".
+     */
+    SET_DIVISION_FACILITIES = 'SET_DIVISION_FACILITIES',
 }

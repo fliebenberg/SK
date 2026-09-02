@@ -501,9 +501,18 @@ const createTables = async () => {
                 custom_settings JSONB DEFAULT '{}'::jsonb,
                 live_state JSONB DEFAULT '{}'::jsonb,
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
-                finish_time TIMESTAMPTZ
+                finish_time TIMESTAMPTZ,
+                -- The stage this fixture belongs to (tournaments Phase 3). Null for every single
+                -- match and for any tournament fixture added outside a stage. Not derivable from
+                -- the participants: an entrant belongs to the division, and stage_entrants puts
+                -- the same entrant in the pool stage and the knockout, so the indirection the data
+                -- model's §4.4 proposed returns both. SET NULL rather than CASCADE, matching
+                -- game_participants.source_stage_id -- deleting a stage must not delete the
+                -- fixtures played in it.
+                stage_id TEXT REFERENCES division_stages(id) ON DELETE SET NULL
             );
         `);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_games_stage ON games(stage_id);`);
 
         // Game Participants
         await pool.query(`

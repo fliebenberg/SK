@@ -18,6 +18,16 @@ import { OrgClaimReferral } from "../models/referral/OrgClaimReferral";
 import { Report } from "../models/Report";
 import { Notification } from "../models/notification/Notification";
 import { League, Season, SeasonTeam, LeagueSettings, LeagueStandingRow } from "../models/league/League";
+import { GameSummary } from "../models/event/GameSummary";
+import {
+    ScoringSubject,
+    StageEntrant,
+    TournamentAdjustment,
+    TournamentDivision,
+    TournamentEntrant,
+    TournamentFormat,
+    TournamentStage,
+} from "../models/event/Tournament";
 // --- Shared Response Type ---
 /**
  * Standard response wrapper for all socket actions.
@@ -377,6 +387,217 @@ export interface RemoveGameFromSeasonPayload {
 
 export interface GetSystemSettingsPayload {}
 
+// --- Tournaments ------------------------------------------------------------------------------
+
+/**
+ * The batch contract (D13), as it appears on the wire.
+ *
+ * Written once and obeyed by every batch action, because the second action to need it would
+ * otherwise copy the first. Four rules, enforced server-side in
+ * [wss/batch.ts](file:///c:/Fred/Coding/SK/server/src/wss/batch.ts):
+ *
+ * 1. **One transaction.** All of it applies or none of it does. A per-item report says which items
+ *    were the problem, but a batch with any failed item writes nothing — a half-applied roster is
+ *    not a state the organiser asked for and not one the UI can render honestly.
+ * 2. **One permission scope.** Every item must belong to the same event; a batch spanning two is
+ *    refused before any work, rather than authorized against whichever item happened to be first.
+ * 3. **One broadcast.** Ninety fixtures publish one batched message, not ninety — otherwise the
+ *    cost this contract removes on the server is simply relocated to the client.
+ * 4. **One idempotency key.** A retried batch of ninety does not double-write.
+ */
+export interface BatchPayload {
+  /**
+   * Client-generated, stable across retries of the *same* batch and different for a new one — a
+   * uuid per user gesture. Omitting it is allowed and means "no replay protection".
+   */
+  idempotencyKey?: string;
+}
+
+/** Why one item of a batch could not be applied. Reported per item; the batch still wrote nothing. */
+export interface BatchItemError {
+  /** Position in the submitted array, so the client can point at the row. */
+  index: number;
+  /** The item's id where it had one. */
+  id?: string;
+  message: string;
+}
+
+export interface BatchResponse<T> {
+  applied: T[];
+  errors: BatchItemError[];
+  /**
+   * True when this `idempotencyKey` had already been applied and this is the stored result rather
+   * than a second write. The client should treat it exactly as a success.
+   */
+  replayed?: boolean;
+}
+
+export interface AddDivisionPayload {
+    eventId: string;
+    /** The workspace the caller is acting from. Authorization, not data — never stored. */
+    orgId: string;
+    name: string;
+    sportId?: string;
+    ageGroup?: string;
+    scoringSubject?: ScoringSubject;
+    weighting?: number;
+    settings?: TournamentDivision['settings'];
+    sortOrder?: number;
+    /**
+     * Created with the division when given. A division must end up with at least one stage (D11),
+     * so the caller that knows the format says so here rather than making a second round trip.
+     */
+    stage?: Omit<AddStagePayload, 'divisionId' | 'orgId'>;
+}
+
+export interface UpdateDivisionPayload {
+    id: string;
+    orgId: string;
+    data: Partial<Omit<TournamentDivision, 'id' | 'eventId' | 'stages' | 'entrants'>>;
+}
+
+export interface DeleteDivisionPayload {
+    id: string;
+    orgId: string;
+}
+
+export interface AddStagePayload {
+    divisionId: string;
+    orgId: string;
+    name: string;
+    format: TournamentFormat;
+    /** Appended after the division's last stage when omitted. */
+    sequence?: number;
+    status?: TournamentStage['status'];
+    earliestStart?: string;
+    settings?: TournamentStage['settings'];
+}
+
+export interface UpdateStagePayload {
+    id: string;
+    orgId: string;
+    data: Partial<Omit<TournamentStage, 'id' | 'divisionId' | 'cachedStandings'>>;
+}
+
+export interface DeleteStagePayload {
+    id: string;
+    orgId: string;
+}
+
+/** One competitor in a submitted roster. All three identity fields absent is the "TBC" entrant. */
+export interface DivisionEntrantInput {
+    /** Preserved across a roster replace, so an entrant keeps its fixtures. */
+    id?: string;
+    teamId?: string;
+    orgProfileId?: string;
+    label?: string;
+    seed?: number;
+    status?: TournamentEntrant['status'];
+}
+
+export interface SetDivisionEntrantsPayload extends BatchPayload {
+    divisionId: string;
+    orgId: string;
+    entrants: DivisionEntrantInput[];
+}
+
+export interface StageEntrantInput {
+    entrantId: string;
+    poolKey?: string;
+    seed?: number;
+    sortOrder?: number;
+}
+
+export interface SetStageEntrantsPayload extends BatchPayload {
+    stageId: string;
+    orgId: string;
+    entrants: StageEntrantInput[];
+}
+
+export interface GenerateStageFixturesPayload {
+    stageId: string;
+    orgId: string;
+    /**
+     * `create` refuses to touch a stage that already has fixtures; `regenerate` deletes them first
+     * (D9 — two paths, no silent top-up). The client is expected to have stated the concrete cost
+     * before sending `regenerate`; `deleteResults` is the second confirmation, without which a
+     * regeneration that would destroy a recorded result is refused.
+     */
+    mode: 'create' | 'regenerate';
+    deleteResults?: boolean;
+    idempotencyKey?: string;
+}
+
+export interface ScheduleStagePayload {
+    stageId: string;
+    orgId: string;
+    /** ISO. The stage's own `earliestStart` wins when it is later. */
+    startAt: string;
+    /** How long a fixture occupies its facility, including the turnaround. */
+    slotMinutes: number;
+    /**
+     * Facilities to allocate across. Falls back to the division's allocation, then the event's
+     * (data model §3.5). A stage with none available is refused rather than scheduled nowhere.
+     */
+    facilityIds?: string[];
+    /** Leave already-scheduled fixtures where they are. Default false. */
+    keepScheduled?: boolean;
+    idempotencyKey?: string;
+}
+
+export interface AddGamesPayload extends BatchPayload {
+    games: AddGamePayload[];
+}
+
+export interface UpdateGamesPayload extends BatchPayload {
+    games: UpdateGamePayload[];
+}
+
+export interface ResolveParticipantPayload {
+    gameParticipantId: string;
+    orgId: string;
+    teamId?: string;
+    orgProfileId?: string;
+    entrantId?: string;
+}
+
+export interface AddAdjustmentPayload {
+    divisionId: string;
+    orgId: string;
+    entrantId: string;
+    pointsDelta: number;
+    reason: string;
+}
+
+export interface DeleteAdjustmentPayload {
+    id: string;
+    orgId: string;
+}
+
+export interface SetEventFacilitiesPayload {
+    eventId: string;
+    orgId: string;
+    facilityIds: string[];
+}
+
+export interface SetDivisionFacilitiesPayload {
+    divisionId: string;
+    orgId: string;
+    facilityIds: string[];
+}
+
+/** What a generation or scheduling run actually did, so the client can say so. */
+export interface StageFixturesResult {
+    stageId: string;
+    divisionId: string;
+    eventId: string;
+    /** The stage's fixtures after the run, as summaries — the one batched broadcast's payload. */
+    games: GameSummary[];
+    created: number;
+    updated: number;
+    deleted: number;
+}
+
 // --- Protocol Map ---
 /**
  * Mapping of SocketActions to their Request Payload and Response Data types.
@@ -458,6 +679,24 @@ export interface ProtocolMap {
     [SocketAction.SAVE_GAME_ROSTER]: { payload: SaveGameRosterPayload; response: void };
     [SocketAction.UNDO_GAME_EVENT]: { payload: UndoGameEventPayload; response: { success: boolean, error?: string } };
     [SocketAction.GET_SYSTEM_SETTINGS]: { payload: GetSystemSettingsPayload; response: Record<string, any> };
+
+    [SocketAction.ADD_DIVISION]: { payload: AddDivisionPayload; response: TournamentDivision };
+    [SocketAction.UPDATE_DIVISION]: { payload: UpdateDivisionPayload; response: TournamentDivision };
+    [SocketAction.DELETE_DIVISION]: { payload: DeleteDivisionPayload; response: { id: string } };
+    [SocketAction.ADD_STAGE]: { payload: AddStagePayload; response: TournamentStage };
+    [SocketAction.UPDATE_STAGE]: { payload: UpdateStagePayload; response: TournamentStage };
+    [SocketAction.DELETE_STAGE]: { payload: DeleteStagePayload; response: { id: string } };
+    [SocketAction.SET_DIVISION_ENTRANTS]: { payload: SetDivisionEntrantsPayload; response: BatchResponse<TournamentEntrant> };
+    [SocketAction.SET_STAGE_ENTRANTS]: { payload: SetStageEntrantsPayload; response: BatchResponse<StageEntrant> };
+    [SocketAction.GENERATE_STAGE_FIXTURES]: { payload: GenerateStageFixturesPayload; response: StageFixturesResult };
+    [SocketAction.SCHEDULE_STAGE]: { payload: ScheduleStagePayload; response: StageFixturesResult };
+    [SocketAction.ADD_GAMES]: { payload: AddGamesPayload; response: BatchResponse<GameSummary> };
+    [SocketAction.UPDATE_GAMES]: { payload: UpdateGamesPayload; response: BatchResponse<GameSummary> };
+    [SocketAction.RESOLVE_PARTICIPANT]: { payload: ResolveParticipantPayload; response: GameSummary };
+    [SocketAction.ADD_ADJUSTMENT]: { payload: AddAdjustmentPayload; response: TournamentAdjustment };
+    [SocketAction.DELETE_ADJUSTMENT]: { payload: DeleteAdjustmentPayload; response: { id: string } };
+    [SocketAction.SET_EVENT_FACILITIES]: { payload: SetEventFacilitiesPayload; response: { eventId: string; facilityIds: string[] } };
+    [SocketAction.SET_DIVISION_FACILITIES]: { payload: SetDivisionFacilitiesPayload; response: { divisionId: string; facilityIds: string[] } };
 }
 
 /**
@@ -471,5 +710,12 @@ export type GetDataRequest =
   | { type: 'seasons'; leagueId: string }
   | { type: 'facilities'; siteId?: string; id?: string }
   | { type: 'season_teams' | 'season_games'; seasonId: string }
-  | { type: 'sports' | 'roles' | 'org_profiles' | 'team_memberships' | 'org_memberships' };
+  | { type: 'sports' | 'roles' | 'org_profiles' | 'team_memberships' | 'org_memberships' }
+  // Tournaments. Each is classified in `wss/dataAccess.ts` against the room that owns it; under
+  // `GET_DATA_ENFORCE` an unclassified type is refused, so a new one cannot be born unauthenticated.
+  | { type: 'divisions' | 'event_facilities'; eventId: string }
+  | { type: 'division' | 'division_stages' | 'division_entrants' | 'division_adjustments'
+        | 'division_standings' | 'division_games' | 'division_facilities'; divisionId: string }
+  | { type: 'stage' | 'stage_entrants' | 'stage_games'; stageId: string }
+  | { type: 'event_standings'; eventId: string };
 

@@ -1,4 +1,5 @@
 import { GameClockState } from "./Game";
+import { ParticipantSourceRule } from "./Tournament";
 
 /**
  * A participant as a list needs it: who is playing, and under whose badge.
@@ -17,6 +18,24 @@ export interface GameSummaryParticipant {
   orgShortName?: string;
   status?: 'active' | 'withdrawn' | 'disqualified' | 'did_not_start';
   sortOrder?: number;
+
+  // --- A tournament side that nobody is playing yet (data model §2.0) --------------------------
+  //
+  // Carried for the same reason `orgShortName` is: `resolveFixtureSide` has to be able to print
+  // "TBC — awaiting confirmation" or "Winner QF1" from the broadcast alone. Without these a
+  // fixtures list would have to fetch the entrant and the source game per unfilled slot, which is
+  // N round trips on exactly the screen — a freshly generated knockout — where every slot is
+  // unfilled. All are absent on a single match and on any fixture whose sides are known.
+
+  /** The division entrant this side is. */
+  entrantId?: string;
+  /** `division_entrants.label` — what prints while the entrant has no competitor attached. */
+  entrantLabel?: string;
+  /** The fixture that decides this side, for a `winnerOf` / `loserOf` rule. */
+  sourceGameId?: string;
+  /** The stage whose table decides this side, for a `standing` rule. */
+  sourceStageId?: string;
+  sourceRule?: ParticipantSourceRule;
 }
 
 /**

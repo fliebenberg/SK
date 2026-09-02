@@ -25,6 +25,15 @@ export interface Game {
   id: string;
   eventId: string;
   sportId: string;
+  /**
+   * The tournament stage this fixture belongs to. Null for a single match, and for any fixture
+   * an organiser added outside a stage.
+   *
+   * A real column rather than something derived from the participants: an entrant belongs to the
+   * *division*, and `stage_entrants` puts the same entrant in the pool stage and the knockout, so
+   * "which stage is this?" resolved through participants returns both.
+   */
+  stageId?: string;
   startTime?: string;
   scheduledStartTime?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';

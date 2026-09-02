@@ -148,6 +148,32 @@ export interface TournamentEntrant {
   label?: string;
   seed?: number;
   status: 'active' | 'withdrawn';
+  /**
+   * Derived, never stored: the team's or the person's name, falling back to `label`.
+   *
+   * Carried on the row for the same reason `GameSummary` carries `orgShortName` — a roster, a
+   * standings table and a draw all print competitor names, and resolving them client-side means a
+   * teams lookup per entrant that goes stale the moment a team is renamed.
+   */
+  name?: string;
+  /** Derived, never stored. Prefixed to `name` the way `participantLabel` does it. */
+  orgShortName?: string;
+}
+
+/**
+ * Who takes part in one stage, and where they sit in it.
+ *
+ * For a single-stage division this is a copy of the roster and the UI never mentions it. For pools
+ * it is where pool membership lives — on the membership row rather than in the stage's JSON, so
+ * "which pool is Northcliff in?" is a query rather than a scan.
+ */
+export interface StageEntrant {
+  stageId: string;
+  entrantId: string;
+  /** 'A', 'B'; absent when the stage has no pools. */
+  poolKey?: string;
+  seed?: number;
+  sortOrder: number;
 }
 
 /**

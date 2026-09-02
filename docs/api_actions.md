@@ -61,6 +61,68 @@ to be playing in that game, so it cannot be used to reach an unrelated roster.
 There is **no** `org:{orgId}:games` room — nothing ever published to one; game changes reach
 a fixtures list on `org:{orgId}:events`.
 
+### Division rooms
+
+Added by tournaments Phase 3. Rooms follow **the screen's data needs, never the viewer's role**
+(U33): a convenor looking at a whole event needs its data exactly as the host does, so the split
+below is by what is *in* each room, not by who is entitled to organise.
+
+| Room | Access | Pushes on join | Carries |
+| --- | --- | --- | --- |
+| `division:{id}:fixtures` | public | `DIVISION_UPDATED`, `STAGES_SYNC`, `DIVISION_GAMES_SYNC`, `DIVISION_FACILITIES_SYNC` | the division, its stages, its draw |
+| `division:{id}:standings` | public | `DIVISION_STANDINGS_UPDATED` | each stage's table, `poolKey` per row |
+| `division:{id}` | member | `DIVISION_ENTRANTS_SYNC`, `DIVISION_ADJUSTMENTS_SYNC`, `STAGE_ENTRANTS_SYNC` | the roster, pool membership, manual adjustments |
+
+The draw and the table are `public` for the same reason `org:*:events` and `season:*:standings`
+already are — a spectator may legitimately read who is playing whom and who is winning. The base
+room is `member` because it carries the things a spectator may not: an entrant can be **a person**
+rather than a team, and a `division_adjustments` row carries a reason written by an organiser
+("ineligible player") and the id of whoever wrote it. Membership resolves through
+`getDivisionOrgIds` — the hosting org, every org registered on the event, **and** every org whose
+team is entered in the division, that third source being the same one `getGameOrgIds` needs and for
+the same reason (`FIX-5`).
+
+The event room also pushes `DIVISIONS_SYNC` and `EVENT_STANDINGS_UPDATED` on join, so the event
+screen learns what its divisions are without joining every one of their rooms.
+
+Every publish goes through [wss/tournaments.ts](file:///c:/Fred/Coding/SK/server/src/wss/tournaments.ts),
+which owns the audience the way `wss/fixtures.ts` owns a fixture's.
+
+## The batch contract (D13)
+
+Written once, here, and obeyed by every batch action — because the moment the second action copies
+the first, a contract stops being one. Enforced in
+[wss/batch.ts](file:///c:/Fred/Coding/SK/server/src/wss/batch.ts).
+
+**1. One transaction.** All of it applies or none of it does. A batch whose report carries any
+error wrote **nothing**: a half-applied roster is not a state the organiser asked for and not one a
+screen can render honestly, so the per-item report says which rows to fix, never which rows
+survived. Every item is validated before anything is written.
+
+**2. One permission scope.** Every item must belong to the same event, and a batch spanning two is
+refused *before* any work rather than authorized against whichever item sorted first. `singleScope`
+also refuses an item that names no event at all, since "no scope" is the shape an item takes when
+it points at a row that is not there.
+
+**3. One broadcast.** The whole batch publishes once. Ninety fixtures published one at a time would
+put back on the client exactly the cost this contract removes on the server — which is why
+`useLiveRoom` gains an `upsertMany` reduce kind alongside these actions (U32), not after them.
+
+**4. One idempotency key.** `idempotencyKey` on the payload is client-generated, stable across
+retries of the *same* batch and different for a new one. A repeat within ten minutes returns the
+first attempt's result with `replayed: true` instead of writing again; a retry that lands while the
+original is still in flight awaits it rather than racing a second transaction against it. Omitting
+the key is allowed and means "no replay protection". A **failed** attempt is not cached — retrying
+something that errored is the one case where the caller does want it to run again.
+
+The cache is in memory, per process, and deliberately so: it is sized to the failure it exists for
+— a client whose acknowledgement was lost sending the same batch again, seconds later, to the same
+process. It is **not durable**, and a second server process would need a table instead. Stated
+rather than left to be discovered.
+
+The response shape is `BatchResponse<T>`: `{ applied, errors, replayed? }`. A refused batch comes
+back as `{ status: 'error' }` with the per-item report on the error.
+
 A `GameSummary` ([shared](file:///c:/Fred/Coding/SK/shared/src/models/event/GameSummary.ts)) is
 status, scores, clock, times, venue ids and participants **with team name and org short name** —
 so a client renders "SBHS 1st XV vs PBHS 1st XV 12 - 7" from the broadcast alone, with no teams
@@ -296,3 +358,73 @@ See [reports.md](reports.md) for the feature overview (producers, consumers, and
 #### `DELETE_NOTIFICATION`
 *   **Payload**: `{ id }`
 *   **Logic**: Deletes a specific notification.
+
+### 10. Tournaments
+
+Added by Phase 3. **Every action below is authorized as its event**, through the same
+`canEditEventOrGame` that already guards an event or game edit — one gate in
+[index.ts](file:///c:/Fred/Coding/SK/server/src/index.ts) (`TOURNAMENT_ACTION_EVENT`) resolves each
+payload to its event and checks it, rather than fourteen handlers each remembering to. A division,
+a stage, a roster and an adjustment therefore inherit exactly the rights the event grants, and
+Phase 4's organiser assignments widen **one function** rather than fourteen call sites.
+
+Each payload carries `orgId` — the workspace the caller is acting from — which falls back to the
+event's own org so the check cannot be skipped by omitting it, exactly as `UPDATE_GAME` and
+`DELETE_GAME` already do.
+
+| Action | Payload | Batch? | Broadcasts |
+| --- | --- | --- | --- |
+| `ADD_DIVISION` | `AddDivisionPayload` (optionally with the division's first `stage`) | no | `DIVISION_ADDED` to `division:{id}:fixtures` and `event:{eventId}` |
+| `UPDATE_DIVISION` | `{ id, orgId, data }` | no | `DIVISION_UPDATED`, then `DIVISION_STANDINGS_UPDATED` — `weighting`, `scoring` and `tiebreakers` all change what the tables say |
+| `DELETE_DIVISION` | `{ id, orgId }` | no | `DIVISION_DELETED`, `EVENT_STANDINGS_UPDATED` |
+| `ADD_STAGE` / `UPDATE_STAGE` / `DELETE_STAGE` | a stage | no | `STAGES_SYNC` |
+| `SET_DIVISION_ENTRANTS` | `{ divisionId, orgId, entrants[], idempotencyKey? }` | **yes** | `DIVISION_ENTRANTS_SYNC`, standings, and a `GAME_SUMMARY_UPDATED` per affected fixture |
+| `SET_STAGE_ENTRANTS` | `{ stageId, orgId, entrants[], idempotencyKey? }` | **yes** | `STAGE_ENTRANTS_SYNC`, `STAGES_SYNC` |
+| `GENERATE_STAGE_FIXTURES` | `{ stageId, orgId, mode, deleteResults? }` | server-side fan-out | `STAGE_FIXTURES_SYNC` (one message), `STAGES_SYNC`, standings |
+| `SCHEDULE_STAGE` | `ScheduleStagePayload` | server-side fan-out | `STAGE_FIXTURES_SYNC`, plus a summary per fixture |
+| `ADD_GAMES` / `UPDATE_GAMES` | `{ games[], idempotencyKey? }` | **yes** | a summary per fixture |
+| `RESOLVE_PARTICIPANT` | `{ gameParticipantId, orgId, teamId? \| orgProfileId? \| entrantId? }` | no | `GAME_SUMMARY_UPDATED`, standings |
+| `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no | `DIVISION_ADJUSTMENTS_SYNC`, standings |
+| `SET_EVENT_FACILITIES` / `SET_DIVISION_FACILITIES` | `{ …Id, orgId, facilityIds }` | no | `EVENT_FACILITIES_SYNC` / `DIVISION_FACILITIES_SYNC` |
+
+Three behaviours are worth stating because they are refusals rather than features:
+
+- **`GENERATE_STAGE_FIXTURES` never tops up a draw (D9).** `create` refuses a stage that already
+  has fixtures; `regenerate` deletes them first. A regeneration that would destroy a recorded result
+  needs `deleteResults`, and the refusal names the counts so the client can state the concrete cost
+  ("this deletes 14 fixtures, 3 of which have results") rather than warning in the abstract.
+- **`UPDATE_GAMES` cannot carry a score.** Its updatable set is when and where, plus status and
+  stage. A result goes through the scoring path so the choke point runs and the undo and dispute
+  rules apply; a bulk reschedule that could also write `finalScoreData` would be a second,
+  unguarded way to change a match's outcome.
+- **`RESOLVE_PARTICIPANT` clears `source_rule`**, and that clearing *is* the override (D29). Once
+  the rule is gone the choke point will not touch the slot again, so an organiser's decision
+  survives the source fixture being re-scored. Filling a "TBC — awaiting confirmation" slot and
+  promoting a beaten semi-finalist are deliberately the same edit and the same code path.
+
+### The choke point
+
+`recalculateForGame(gameId)` in
+[TournamentManager](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts) is the only
+thing that rewrites a standings table (D30):
+
+```
+recalculateForGame(gameId)
+  -> the stage that owns the game    -> rewrite division_stages.cached_standings
+  -> the event that owns the stage   -> rewrite events.cached_standings
+  -> every season in game_seasons    -> existing recalculateSeasonStandings   (D21)
+  -> the fixtures this game fills    -> winnerOf / loserOf                    (D26)
+  -> if the stage just completed     -> resolve the next stage's entrants     (D23)
+```
+
+Callers reach it through `EventManager.recalculateStandingsForGame`, which recalculates **and
+publishes** — one door in, one audience out, because leaving publication to each caller is exactly
+how `FIX-3` and `FIX-6` happened. The paths that route through it: a game finishing, the
+final-score override, dispute resolution, an undo, a reset, game deletion, an entrant substitution,
+a manual slot fill, and a new adjustment row.
+
+Two paths deliberately do **not**, and the reasons are worth keeping. Attaching or detaching a game
+from a season changes a season's membership rather than a result, and detaching *cannot* use it —
+the choke point resolves seasons from `game_seasons`, and by then the row is gone. Deleting an
+event and regenerating a stage both delete fixtures wholesale, so they capture the affected season
+ids **before** the delete and rebuild those tables themselves.

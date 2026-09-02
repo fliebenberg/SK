@@ -5,6 +5,7 @@ import { DisputeResolutionHandler, DisputeConfig } from "../sports/core/SportDis
 import { sportManager } from "./SportManager";
 import { broadcast } from "../wss/broadcast";
 import { publishGameSummary } from "../wss/fixtures";
+import { eventManager } from "./EventManager";
 import {
   EventTemplate,
   DEFAULT_UNDO_DELAY_MS,
@@ -557,6 +558,10 @@ export class GameEventManager extends BaseManager {
             }
             // A corrected score changes what every fixture list shows.
             await publishGameSummary(gameId);
+            // A corrected score is a changed result, so it goes through the choke point (D30):
+            // a dispute resolved after the final whistle used to change the score and leave
+            // every table that had counted it standing.
+            await eventManager.recalculateStandingsForGame(gameId);
         }
 
         return allModified.find(e => e.id === eventId) || mainEvent;
@@ -892,6 +897,8 @@ export class GameEventManager extends BaseManager {
                               broadcast(`game:${dispute.gameId}:detail`, 'GAME_UPDATED', updatedGame);
                           }
                           await publishGameSummary(dispute.gameId);
+                          // Dispute resolution is one of the paths data model §7 names.
+                          await eventManager.recalculateStandingsForGame(dispute.gameId);
                       }
                   }
              } catch (err: any) {
@@ -1350,6 +1357,8 @@ export class GameEventManager extends BaseManager {
                     broadcast(`game:${gameId}:detail`, 'GAME_UPDATED', updatedGame);
                 }
                 await publishGameSummary(gameId);
+                // An undo that removed points is a changed result like any other.
+                await eventManager.recalculateStandingsForGame(gameId);
             }
         }
         return { success: true };

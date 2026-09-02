@@ -14,6 +14,7 @@ import { reportManager } from "./managers/ReportManager";
 import { feedManager } from "./managers/FeedManager";
 import { gameEventManager } from "./managers/GameEventManager";
 import { LeagueManager } from "./managers/LeagueManager";
+import { tournamentManager } from "./managers/TournamentManager";
 
 const leagueManager = new LeagueManager();
 import { 
@@ -269,6 +270,51 @@ export class DataManager {
   getSeasonGames = (seasonId: string) => leagueManager.getSeasonGames(seasonId);
   getGameSeasons = (gameId: string) => leagueManager.getGameSeasons(gameId);
   recalculateSeasonStandings = (seasonId: string) => leagueManager.recalculateSeasonStandings(seasonId);
+
+  // Tournaments
+  getDivisions = (eventId: string) => tournamentManager.getDivisions(eventId);
+  getDivision = (id: string) => tournamentManager.getDivision(id);
+  getDivisionDetail = (id: string) => tournamentManager.getDivisionDetail(id);
+  getDivisionEventId = (id: string) => tournamentManager.getDivisionEventId(id);
+  addDivision = (data: any) => tournamentManager.addDivision(data);
+  updateDivision = (id: string, data: any) => tournamentManager.updateDivision(id, data);
+  deleteDivision = (id: string) => tournamentManager.deleteDivision(id);
+
+  getStages = (divisionId: string) => tournamentManager.getStages(divisionId);
+  getStage = (id: string) => tournamentManager.getStage(id);
+  getStageEventId = (id: string) => tournamentManager.getStageEventId(id);
+  addStage = (data: any) => tournamentManager.addStage(data);
+  updateStage = (id: string, data: any) => tournamentManager.updateStage(id, data);
+  deleteStage = (id: string) => tournamentManager.deleteStage(id);
+
+  getDivisionEntrants = (divisionId: string) => tournamentManager.getEntrants(divisionId);
+  setDivisionEntrants = (divisionId: string, entrants: any[]) => tournamentManager.setDivisionEntrants(divisionId, entrants);
+  getStageEntrants = (stageId: string) => tournamentManager.getStageEntrants(stageId);
+  setStageEntrants = (stageId: string, entrants: any[]) => tournamentManager.setStageEntrants(stageId, entrants);
+
+  generateStageFixtures = (stageId: string, mode: 'create' | 'regenerate', deleteResults?: boolean) =>
+    tournamentManager.generateStageFixtures(stageId, mode, deleteResults);
+  scheduleStage = (payload: any) => tournamentManager.scheduleStage(payload);
+  getStageGames = (stageId: string) => tournamentManager.getStageGames(stageId);
+  getDivisionGames = (divisionId: string) => tournamentManager.getDivisionGames(divisionId);
+
+  getDivisionAdjustments = (divisionId: string) => tournamentManager.getAdjustments(divisionId);
+  addAdjustment = (data: any) => tournamentManager.addAdjustment(data);
+  deleteAdjustment = (id: string) => tournamentManager.deleteAdjustment(id);
+
+  getEventFacilities = (eventId: string) => tournamentManager.getEventFacilities(eventId);
+  setEventFacilities = (eventId: string, facilityIds: string[]) => tournamentManager.setEventFacilities(eventId, facilityIds);
+  getDivisionFacilities = (divisionId: string) => tournamentManager.getDivisionFacilities(divisionId);
+  setDivisionFacilities = (divisionId: string, facilityIds: string[]) =>
+    tournamentManager.setDivisionFacilities(divisionId, facilityIds);
+
+  /** The choke point (D30). Every path that changes a result goes through this one function. */
+  recalculateForGame = (gameId: string, context?: { stageId?: string | null; eventId?: string | null }) =>
+    tournamentManager.recalculateForGame(gameId, context);
+  recalculateStandingsForGame = (gameId: string, context?: { stageId?: string | null; eventId?: string | null }) =>
+    eventManager.recalculateStandingsForGame(gameId, context);
+  getGameStageContext = (gameId: string) => eventManager.getGameStageContext(gameId);
+  getDivisionOrgIds = (divisionId: string) => accessManager.getDivisionOrgIds(divisionId);
 }
 
 export const dataManager = new DataManager();

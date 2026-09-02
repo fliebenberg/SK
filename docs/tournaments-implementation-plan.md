@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0, 1 and 2 complete, every exit criterion met (2026-09-01)**; Phase 3 is next.
+**Status:** In progress. **Phases 0–3 complete and closed, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02). **Phase 4 is next** — organiser assignments and capability flags; its storage (`event_organizers` / `division_organizers`) already exists from Phase 1, and the one gate it has to widen is `canEditEventOrGame`.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -289,18 +289,18 @@ fresh database is mislabelled.
 
 ## The phases at a glance
 
-| # | Phase | Size | Ships something a user can see? |
-|---|---|---|---|
-| 0 | Pre-flight and guardrails | S | No |
-| 1 | Schema and migration | M | No |
-| 2 | Shared types, scoring engine, the fixture-side component | M | No (a component, not a screen) |
-| 3 | Server: divisions, stages, entrants, and the recalculation choke point | L | No |
-| 4 | Permissions: organiser assignments and capability flags | M | Yes — role chips on the events list |
-| 5 | Client foundations: routes, screens, the collapse rule | L | Yes — a tournament you can navigate |
-| 6 | `Festival` and `RoundRobin`: entrants, generation, standings | L | **Yes — the first genuinely usable tournament** |
-| 7 | Scheduling: facilities, day windows, the greedy pass, the grid | L | Yes |
-| 8 | `Knockout` and `PoolsKnockout` on the round list | L | Yes |
-| 9 | The bracket graphic, and copy-a-tournament | M | Yes |
+| # | Phase | Size | Status | Ships something a user can see? |
+|---|---|---|---|---|
+| 0 | Pre-flight and guardrails | S | ✅ done | No |
+| 1 | Schema and migration | M | ✅ done | No |
+| 2 | Shared types, scoring engine, the fixture-side component | M | ✅ done | No (a component, not a screen) |
+| 3 | Server: divisions, stages, entrants, and the recalculation choke point | L | ✅ done | No |
+| 4 | Permissions: organiser assignments and capability flags | M | ← next | Yes — role chips on the events list |
+| 5 | Client foundations: routes, screens, the collapse rule | L | | Yes — a tournament you can navigate |
+| 6 | `Festival` and `RoundRobin`: entrants, generation, standings | L | | **Yes — the first genuinely usable tournament** |
+| 7 | Scheduling: facilities, day windows, the greedy pass, the grid | L | | Yes |
+| 8 | `Knockout` and `PoolsKnockout` on the round list | L | | Yes |
+| 9 | The bracket graphic, and copy-a-tournament | M | | Yes |
 
 Phases 0–3 build nothing visible. That is four phases of foundation before the first screen, which is
 worth naming up front rather than discovering in week three — it follows directly from D12 ("model
@@ -843,6 +843,165 @@ it done.
 **Docs:** [api_actions.md](file:///c:/Fred/Coding/SK/docs/api_actions.md),
 [okf/api_comms.md](file:///c:/Fred/Coding/SK/okf/api_comms.md) (the batch contract and the new rooms).
 
+### Done — 2026-09-01
+
+**Exit criterion met: a two-stage division runs end to end headlessly.**
+[phase3-progression.ts](file:///c:/Fred/Coding/SK/server/src/scripts/phase3-progression.ts) builds a
+division, four entrants, a pool stage and a knockout **generated before the pool is played**, plays
+the six pool fixtures through the ordinary scoring path, and then asserts what progression did —
+**44 assertions, twice, with the database left clean between runs**. It is written as plain
+assertions with no interactive output, so it can graduate into an integration test unchanged.
+
+The assertions that matter are the ones about who ended up where. The pool finishes 9 / 6 / 3 / 0,
+every rank separated on points alone; the knockout's `stage_entrants` are then written in that
+order, the two semi-finals are 1st-v-4th and 2nd-v-3rd, and **the final is still "Winner SF1 v
+Winner SF2"** — because a pool completing decides the semis and not the final. Playing the semis
+fills the final. `events.cached_standings` moves to `22.5` and `4.5` for the two organisations,
+which is 15 and 3 raw points at the division's `weighting` of 1.5 — so D18 is asserted rather than
+assumed.
+
+1. **The choke point is one function, and the audit the phase asked for found two paths that were
+   not routed through it.** `recalculateForGame` does the stage table, the event roll-up, the league
+   seasons, then progression, and every writer reaches it through
+   `EventManager.recalculateStandingsForGame`, which **also publishes** — one door in, one audience
+   out, because leaving publication to each caller is how `FIX-3` and `FIX-6` happened. Grepping
+   every writer of `finalScoreData` and every `DELETE FROM games`, as the risk note says to, turned
+   up:
+
+   - **`deleteGame` recalculated nothing at all.** Deleting a finished fixture left every table that
+     had counted it standing. It now captures the stage and event *before* the row goes — the same
+     trap `captureFixtureRooms` exists for — and routes through the choke point.
+   - **`deleteEvent` deletes every fixture under an event and told no league season.** A tournament
+     fixture can also count toward a season (D21), and `game_seasons` cascades with the game, so the
+     seasons have to be captured first. Same fix applied to a stage regeneration, which deletes
+     fixtures for the same reason and had the same hole.
+
+   Two paths deliberately stay outside it, and the reasons are recorded beside them: season
+   attach/detach changes membership rather than a result, and *detach cannot use it* — the choke
+   point resolves seasons from `game_seasons`, and by then the row is gone.
+
+2. **A stage's status is derived, never asserted.** `Complete` is "every fixture has a result",
+   `Ready` is "entrants but no fixtures", and both are recomputed from the rows rather than set by
+   whichever writer remembered. That is what makes progression fire reliably: the last pool fixture
+   finishing is the *only* thing that triggers it, and it does so because the status is recalculated
+   rather than because a caller said so.
+
+3. **`rank` is read, and a shared rank resolves to nobody.** `{ type: 'standing', poolKey: 'A',
+   position: 1 }` matches on the engine's `rank`, not on array order, and if two entrants share a
+   rank the slot **stays a placeholder**. Picking whichever sorted first would look decisive and put
+   the wrong team in a semi-final; a visible placeholder is the engine saying a human has to decide,
+   which is what D29's manual override is for.
+
+4. **A manual fill clears `source_rule`, and that clearing *is* the override.** Once the rule is
+   gone the choke point will not touch the slot again, so an organiser's decision survives the
+   source fixture being re-scored — asserted in the script. Filling a "TBC — awaiting confirmation"
+   slot and promoting a beaten semi-finalist are deliberately the same edit and the same code path,
+   which was the deciding argument for one placeholder entity rather than two.
+
+5. **The batch contract is written down once and enforced in code**
+   ([wss/batch.ts](file:///c:/Fred/Coding/SK/server/src/wss/batch.ts),
+   [api_actions.md](file:///c:/Fred/Coding/SK/docs/api_actions.md)): one transaction, one permission
+   scope, one broadcast, one idempotency key. Two things about it were decided rather than assumed.
+   **"One transaction" and "a per-item report" are not in tension** — a batch with any failed item
+   writes *nothing*, and the report says which rows to fix rather than which survived, because a
+   half-applied roster is not a state anybody asked for. And the **idempotency cache is in memory,
+   per process, with a ten-minute TTL**, sized to the failure it exists for (a lost acknowledgement,
+   seconds later, to the same process); it is not durable, a second server process would need a
+   table, and that is written down rather than left to be discovered. The in-flight map matters as
+   much as the completed one, since a retry usually arrives *because* the first attempt is slow.
+
+6. **`ADD_GAMES` and `UPDATE_GAMES` do not loop over `EventManager.addGame`, and that is the reason
+   `TX-1` exists.** `BaseManager.query` goes through the pool, so the existing
+   `this.query('BEGIN')` … `this.query('COMMIT')` blocks can run each statement on a different
+   backend — they are not transactions, and their `ROLLBACK` undoes nothing. Looping over one would
+   have made the contract's headline rule false in the very action it exists for. `BaseManager` now
+   has a real `transaction(fn)` that checks out one client; `TournamentManager` uses it throughout.
+   The existing call sites are logged as **`TX-1`** rather than swept up here — they are the hottest
+   write paths in the app and want their own change.
+
+7. **`UPDATE_GAMES` refuses to carry a score.** Its updatable set is when and where, plus status and
+   stage. A result goes through the scoring path so the choke point runs and the undo and dispute
+   rules apply; a bulk reschedule that could also write `finalScoreData` would be a second,
+   unguarded way to change a match's outcome.
+
+8. **One authorization gate, not fourteen.** `TOURNAMENT_ACTION_EVENT` in `index.ts` resolves every
+   tournament action's payload to its event and runs the existing `canEditEventOrGame` — the same
+   shape as `SCORING_ACTION_GAME_ID` beside it. So a division, a stage, a roster and an adjustment
+   inherit exactly the rights the event already grants, and **Phase 4 widens one function rather
+   than fourteen call sites**. `orgId` falls back to the event's own org, so the check cannot be
+   skipped by omitting it.
+
+9. **The read boundary was checked, not reasoned about.**
+   [phase3-access-audit.ts](file:///c:/Fred/Coding/SK/server/src/scripts/phase3-access-audit.ts)
+   replays every new room and every new `get_data` type as an anonymous socket and as a signed-in
+   member: **31 checks, all passing**, and the ones that matter are the negatives. Three rooms per
+   division, split by what is *in* them rather than by who may organise (U33): `:fixtures` and
+   `:standings` are **public**, exactly as `org:*:events` and `season:*:standings` already are,
+   while the base `division:{id}` is **member** — an entrant may be a *person* rather than a team,
+   and a `division_adjustments` row carries a reason an organiser wrote and the id of who wrote it.
+
+10. **A generated draw renders from the broadcast alone.** `GameSummary`'s participants gained
+    `entrantId`, `entrantLabel`, `sourceGameId`, `sourceStageId` and `sourceRule`, for the same
+    reason they already carry `orgShortName` (`FIX-7`): a freshly generated knockout is precisely
+    the screen where *every* slot is unfilled, so resolving placeholders client-side would be a
+    lookup per row on every row. Phase 2's `resolveFixtureSide` now has everything it needs.
+
+11. **Generation refuses rather than guesses.** `create` will not top up an existing draw and
+    `regenerate` states the cost before destroying results (D9 — two paths, no silent top-up); a
+    bye advances its entrant instead of being recorded as a walkover nobody played; a draw does not
+    decide a knockout, so `winnerOf` leaves the placeholder in place; and Swiss raises a named error
+    rather than silently producing nothing, since the format is deliberately carried forward.
+
+**The one schema change, and it is a deviation from a settled document.**
+[data model §4.4](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md) says `games` gains no
+columns and that a fixture reaches its stage "through its participants' entrants", with a
+denormalised column as a cheap addition later. **That indirection is not awkward, it is
+insufficient**, and in the ordinary case rather than an exotic one: an entrant belongs to the
+*division*, and `stage_entrants` deliberately puts the same entrant in the pool stage *and* the
+knockout, so resolving through participants returns **both** stages of every pools-and-knockout
+division. Every part of the choke point needs one answer — rewrite *one* stage's table, ask whether
+*this* stage is complete, delete *this* stage's fixtures on a regeneration, where deleting the
+knockout's alongside the pool's would be data loss rather than a slow query. So
+[20260902_game_stage_id.ts](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/20260902_game_stage_id.ts)
+adds `games.stage_id` (`ON DELETE SET NULL`, matching `source_stage_id` — removing a stage must not
+delete the fixtures played in it) with an index, mirrored into `init-db.ts` per the standing rule,
+and documented in `okf/database.md` and `docs/database_structure.md`. **Raised and agreed before it
+was written**, rather than done quietly.
+
+**`SCHEDULE_STAGE` ships as the server half only, agreed up front.** It honours the two hard
+constraints (an entrant plays once at a time, a facility hosts once at a time) and the stage's
+`earliest_start`, and it walks the facility cascade — request, then division, then event. **Phase 7
+still owns scheduling**: day windows and last start times, turnaround by sport, the grid, moving a
+fixture, and conflicts that warn rather than block. Two limits are stated in the code rather than
+left to be found: an entrant is only checked against *this stage*, so a school playing in two
+divisions at once is not yet detected, and slots run continuously from `startAt` with no notion of
+a day ending.
+
+**Both scripts are kept, which is a departure from how Phase 0's throwaways were handled.**
+The exit criterion already says the progression run "stays a script" while `server/` has no harness,
+so that one was never in question. The access audit was written as a throwaway in the Phase 0 mould
+and is kept for the same reason the harness was deferred: with no test infrastructure, deleting it
+would leave **nothing** checking that the roster and the adjustment reasons stay unreadable to an
+anonymous socket. Both are cheap to run, leave the database as they found it, and are the obvious
+first candidates to graduate when a harness does land.
+
+**No `server/` test harness, decided here as the plan asks.** Both scripts are the shape one would
+take — real managers, a real database, plain assertions, cleanup in a `finally`, and
+[test-org-reuse](file:///c:/Fred/Coding/SK/.agent/skills/test-org-reuse/SKILL.md) honoured
+(`app-test-org` reused and left behind, everything else deleted). But a harness means a disposable
+database, fixture setup and teardown, and `TODO.md`'s "never run in production" guard — test
+*infrastructure*, a piece of work in its own right, and one script does not yet justify bundling it
+into a feature build. Revisit at Phase 6, where the ninety-fixture case has to be repeatable.
+
+**Verified beyond `tsc`.** `shared/`, `server/` and `expo-app/` all type-check clean; Phase 2's 42
+unit tests still pass; the server boots with the whole module graph loaded (the manager cycles are
+lazy `require`s, as `LeagueManager` already was); and both scripts run green twice with the
+tournament tables back to zero rows afterwards.
+
+**One thing not built, deliberately:** `settings.feedsPlate` is read by nothing. Loser routing into
+a parallel bracket is Phase 8, and the `loserOf` primitive the third-place playoff already uses is
+what makes it reachable there.
+
 ---
 
 ## Phase 4 — Permissions: organiser assignments and capability flags
@@ -1179,7 +1338,7 @@ these are part of the phase, not a follow-up:
 | 0 | `TODO.md` (`DATA-1`); §0 answers into the data model |
 | 1 | ✅ `docs/database_structure.md` (**incl. the `events` drift fix**), `okf/database.md`, `TODO.md` (`FIX-1`, `FIX-10`; `FIX-11` / `SEED-1` / `SOCK-1` / `DOC-1` logged) |
 | 2 | ✅ `okf/architecture.md`, `okf/database.md`, `okf/design_system.md` (`api_comms.md` does not catalogue shared types — see the phase note); `TODO.md` (`SPORT-10` rewritten not closed; `SCORE-14` logged, then fixed) |
-| 3 | `docs/api_actions.md`, `okf/api_comms.md` (the batch contract, the new rooms) |
+| 3 | ✅ `docs/api_actions.md`, `okf/api_comms.md` (the batch contract, the new rooms); **plus** `okf/database.md` and `docs/database_structure.md` for the one schema change (`games.stage_id`), and `TODO.md` (`TX-1` logged, `SPORT-10` narrowed) |
 | 4 | **`okf/auth_control.md`** — required; the permission model changes |
 | 5 | `okf/client_routing.md`, `docs/design_spec.md` (the collapse rule), `TODO.md` |
 | 6 | `TODO.md` (`FIX-2`, batch subscriptions), `docs/reports.md` if standings appear there |

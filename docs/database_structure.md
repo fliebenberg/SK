@@ -385,8 +385,18 @@ Generic match entity supporting various topologies and participant types.
 - `site_id` (TEXT): FK to `sites.id`.
 - `facility_id` (TEXT): FK to `facilities.id`.
 - `final_score_data` (JSONB): Flexible summary obj (e.g. {home: 12, away: 5} or {standings: [...]})
-- `custom_settings` (JSONB): Finalized rules copied from sport default.
+- `custom_settings` (JSONB): Finalized rules copied from sport default. For a generated tournament
+  fixture it also carries `tournament: { round, roundName, label, matchIndex, poolKey?, leg? }` —
+  presentation metadata, which is what lets a client print "QF1" and therefore "Winner QF1" — and
+  `timeTbd`, cleared when the fixture is scheduled.
 - `live_state` (JSONB): Running state of the match avoiding fetching entire event log.
+- `stage_id` (TEXT): FK to `division_stages.id` (ON DELETE SET NULL). The tournament stage this
+  fixture belongs to; null for every single match and for a fixture added outside a stage. Added by
+  `20260902_game_stage_id.ts` (Phase 3), indexed as `idx_games_stage`. **Deliberately a column
+  rather than derived**: an entrant belongs to the division, and `stage_entrants` puts the same
+  entrant in the pool stage *and* the knockout, so resolving a fixture's stage through its
+  participants returns both. `SET NULL` matches `game_participants.source_stage_id` — deleting a
+  stage must not delete the fixtures played in it.
 
 ### 18b. `game_participants`
 One side of a fixture: a team, an individual, or — in a tournament — a slot that does not know who

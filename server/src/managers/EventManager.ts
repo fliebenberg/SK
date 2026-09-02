@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from "uuid";
 import { Event, Game, GameParticipant, GameClockState, GameEvent, GameSummary, AddGamePayload, UpdateGamePayload } from "@sk/shared";
 import { getPeriodLabel } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
@@ -6,7 +7,7 @@ import { sportManager } from "./SportManager";
 
 export class EventManager extends BaseManager {
   private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id) as "participatingOrgIds", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
-  private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'name\', t.name, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order) ORDER BY p.sort_order, p.id) FROM game_participants p LEFT JOIN teams t ON t.id = p.team_id WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
+  private GAME_COLUMNS = 'g.id, g.event_id as "eventId", g.sport_id as "sportId", g.stage_id as "stageId", g.start_time as "startTime", g.scheduled_start_time as "scheduledStartTime", g.status, g.site_id as "siteId", g.facility_id as "facilityId", g.final_score_data as "finalScoreData", g.custom_settings as "customSettings", g.live_state as "liveState", g.updated_at as "updatedAt", g.finish_time as "finishTime", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', p.id, \'gameId\', p.game_id, \'teamId\', p.team_id, \'name\', t.name, \'orgProfileId\', p.org_profile_id, \'status\', p.status, \'sortOrder\', p.sort_order, \'entrantId\', p.entrant_id, \'sourceGameId\', p.source_game_id, \'sourceStageId\', p.source_stage_id, \'sourceRule\', p.source_rule) ORDER BY p.sort_order, p.id) FROM game_participants p LEFT JOIN teams t ON t.id = p.team_id WHERE p.game_id = g.id), \'[]\'::jsonb) as participants';
 
   /**
    * The summary projection: what a fixtures list, match card or scoreboard
@@ -30,15 +31,28 @@ export class EventManager extends BaseManager {
         SELECT jsonb_agg(jsonb_build_object(
           'id', p.id,
           'teamId', p.team_id,
-          'name', t.name,
-          'orgId', t.org_id,
+          'name', COALESCE(t.name, op.name),
+          'orgId', COALESCE(t.org_id, e.org_id),
           'orgShortName', o.short_name,
           'status', p.status,
-          'sortOrder', p.sort_order
+          'sortOrder', p.sort_order,
+          -- A tournament side nobody is playing yet (data model §2.0). All null on a single
+          -- match and on any fixture whose sides are known. Carried here for the same reason
+          -- orgShortName is: resolveFixtureSide prints "TBC — awaiting confirmation" or
+          -- "Winner QF1" from the broadcast alone, and a freshly generated knockout is exactly
+          -- the screen where every slot is unfilled — so resolving them client-side would be a
+          -- lookup per row, on every row.
+          'entrantId', p.entrant_id,
+          'entrantLabel', e.label,
+          'sourceGameId', p.source_game_id,
+          'sourceStageId', p.source_stage_id,
+          'sourceRule', p.source_rule
         ) ORDER BY p.sort_order, p.id)
         FROM game_participants p
         LEFT JOIN teams t ON t.id = p.team_id
-        LEFT JOIN organizations o ON o.id = t.org_id
+        LEFT JOIN org_profiles op ON op.id = p.org_profile_id
+        LEFT JOIN division_entrants e ON e.id = p.entrant_id
+        LEFT JOIN organizations o ON o.id = COALESCE(t.org_id, e.org_id)
         WHERE p.game_id = g.id
       ), '[]'::jsonb) as participants`;
 
@@ -75,6 +89,49 @@ export class EventManager extends BaseManager {
   async getGameSummariesByEvent(eventId: string): Promise<GameSummary[]> {
     const res = await this.query(`SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g WHERE g.event_id = $1`, [eventId]);
     return res.rows;
+  }
+
+  /**
+   * One stage's fixtures, in generated order — round, then position in the round.
+   *
+   * Ordering by `custom_settings.tournament` rather than by kick-off, because a bracket is
+   * meaningful before it is scheduled: an unscheduled knockout should still read QF1, QF2, QF3,
+   * QF4 rather than falling back to id order.
+   */
+  async getGameSummariesByStage(stageId: string): Promise<GameSummary[]> {
+    const res = await this.query(
+      `SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g
+        WHERE g.stage_id = $1
+        ORDER BY (g.custom_settings->'tournament'->>'round')::int NULLS LAST,
+                 (g.custom_settings->'tournament'->>'matchIndex')::int NULLS LAST,
+                 g.start_time NULLS LAST, g.id`,
+      [stageId]
+    );
+    return res.rows;
+  }
+
+  /** Every fixture under a division, across all of its stages. */
+  async getGameSummariesByDivision(divisionId: string): Promise<GameSummary[]> {
+    const res = await this.query(
+      `SELECT ${this.GAME_SUMMARY_COLUMNS} FROM games g
+         JOIN division_stages s ON s.id = g.stage_id
+        WHERE s.division_id = $1
+        ORDER BY s.sequence,
+                 (g.custom_settings->'tournament'->>'round')::int NULLS LAST,
+                 (g.custom_settings->'tournament'->>'matchIndex')::int NULLS LAST,
+                 g.start_time NULLS LAST, g.id`,
+      [divisionId]
+    );
+    return res.rows;
+  }
+
+  /** What the choke point needs about a fixture *before* it is deleted. */
+  async getGameStageContext(gameId: string): Promise<{ stageId: string | null; eventId: string | null }> {
+    const res = await this.query(
+      `SELECT stage_id as "stageId", event_id as "eventId" FROM games WHERE id = $1`,
+      [gameId]
+    );
+    return { stageId: res.rows[0]?.stageId ?? null, eventId: res.rows[0]?.eventId ?? null };
   }
 
   async getEvents(orgId?: string): Promise<Event[]> {
@@ -197,7 +254,20 @@ export class EventManager extends BaseManager {
   async deleteEvent(id: string): Promise<Event | null> {
     const event = await this.getEvent(id);
     if (!event) return null;
-    
+
+    // Found by the Phase 3 audit of every `DELETE FROM games`, and it is the older half of what
+    // `deleteGame` was missing: deleting an event removes every fixture under it, and a tournament
+    // fixture can also count toward a **league season** (D21, `game_seasons`). Nothing recalculated
+    // afterwards, so every such season's cached table went on counting matches that no longer
+    // existed. The event's own standings need no rebuilding — they go with the row — but the
+    // seasons do, and they have to be captured before the delete, since `game_seasons` cascades.
+    const affectedSeasons = await this.query(
+      `SELECT DISTINCT gs.season_id AS "seasonId"
+         FROM game_seasons gs JOIN games g ON g.id = gs.game_id
+        WHERE g.event_id = $1`,
+      [id]
+    );
+
     await this.query('BEGIN');
     try {
         await this.query('DELETE FROM games WHERE event_id = $1', [id]);
@@ -209,8 +279,31 @@ export class EventManager extends BaseManager {
         await this.query('ROLLBACK');
         throw error;
     }
+
+    await this.recalculateSeasons(affectedSeasons.rows.map(r => r.seasonId));
     organizationManager.invalidateCache();
     return event;
+  }
+
+  /**
+   * Rebuild these league seasons.
+   *
+   * For the paths that delete fixtures wholesale — an event going, a stage being regenerated —
+   * where the choke point cannot help: it resolves a game's seasons from `game_seasons`, and by
+   * then those rows have cascaded away with the fixtures. So the seasons are captured first and
+   * rebuilt here. Failures are logged rather than thrown; the delete has already happened.
+   */
+  async recalculateSeasons(seasonIds: string[]): Promise<void> {
+    if (!seasonIds.length) return;
+    const { LeagueManager } = require("./LeagueManager");
+    const leagueManager = new LeagueManager();
+    for (const seasonId of seasonIds) {
+      try {
+        await leagueManager.recalculateSeasonStandings(seasonId);
+      } catch (err) {
+        console.error(`EventManager: Season recalculation failed for ${seasonId}:`, err);
+      }
+    }
   }
 
   async getGames(orgId?: string): Promise<Game[]> {
@@ -268,22 +361,31 @@ export class EventManager extends BaseManager {
   }
 
   async addGame(game: AddGamePayload): Promise<Game> {
-      const id = game.id || `game-${Date.now()}`;
+      // `game-${Date.now()}` collides when several fixtures are created in the same millisecond,
+      // which a batch of ninety does routinely — so ids that must be distinct are random, not
+      // timestamped. The timestamp form is kept as the fallback for a single hand-added fixture
+      // only because existing ids are already in that shape.
+      const id = game.id || `game-${uuidv4()}`;
       await this.query('BEGIN');
       try {
           await this.query(
-              `INSERT INTO games (id, event_id, sport_id, start_time, scheduled_start_time, status, site_id, facility_id, custom_settings, live_state)
-               VALUES ($1, $2, $3, $4, $5, 'Scheduled', $6, $7, $8, '{"scores": {}, "sinBins": [], "periodLabel": "1st Period", "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb)`,
-               [id, game.eventId, game.sportId, game.startTime, game.scheduledStartTime || game.startTime, game.siteId, game.facilityId, game.customSettings || {}]
+              `INSERT INTO games (id, event_id, sport_id, stage_id, start_time, scheduled_start_time, status, site_id, facility_id, custom_settings, live_state)
+               VALUES ($1, $2, $3, $4, $5, $6, 'Scheduled', $7, $8, $9, '{"scores": {}, "sinBins": [], "periodLabel": "1st Period", "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb)`,
+               [id, game.eventId, game.sportId, game.stageId || null, game.startTime, game.scheduledStartTime || game.startTime, game.siteId, game.facilityId, game.customSettings || {}]
           );
 
           if (game.participants && game.participants.length > 0) {
               let orderIdx = 0;
               for (const p of game.participants) {
-                  const pid = p.id || `gp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                  const pid = p.id || `gp-${uuidv4()}`;
                   await this.query(
-                      `INSERT INTO game_participants (id, game_id, team_id, org_profile_id, status, sort_order) VALUES ($1, $2, $3, $4, 'active', $5)`,
-                      [pid, id, p.teamId || null, p.orgProfileId || null, p.sortOrder ?? orderIdx++]
+                      `INSERT INTO game_participants (id, game_id, team_id, org_profile_id, status, sort_order, entrant_id, source_game_id, source_stage_id, source_rule)
+                       VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9)`,
+                      [
+                        pid, id, p.teamId || null, p.orgProfileId || null, p.sortOrder ?? orderIdx++,
+                        p.entrantId || null, p.sourceGameId || null, p.sourceStageId || null,
+                        p.sourceRule ? JSON.stringify(p.sourceRule) : null,
+                      ]
                   );
               }
           }
@@ -315,7 +417,7 @@ export class EventManager extends BaseManager {
       } else {
           await this.query(`UPDATE games SET status = $1, updated_at = NOW() WHERE id = $2`, [status, id]);
       }
-      await this.triggerLeagueRecalculations(id);
+      await this.recalculateStandingsForGame(id);
       return (await this.getGame(id)) || null;
   }
 
@@ -339,7 +441,7 @@ export class EventManager extends BaseManager {
           await this.query(`DELETE FROM game_events WHERE game_id = $1`, [id]);
           
           await this.query('COMMIT');
-          await this.triggerLeagueRecalculations(id);
+          await this.recalculateStandingsForGame(id);
           return (await this.getGame(id)) || null;
       } catch (e) {
           await this.query('ROLLBACK');
@@ -464,7 +566,7 @@ export class EventManager extends BaseManager {
       try {
           if (keys.length > 0) {
               const fullMap: Record<string, string> = {
-                    sportId: 'sport_id', startTime: 'start_time', scheduledStartTime: 'scheduled_start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', finalScoreData: 'final_score_data', customSettings: 'custom_settings', liveState: 'live_state'
+                    sportId: 'sport_id', stageId: 'stage_id', startTime: 'start_time', scheduledStartTime: 'scheduled_start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', finalScoreData: 'final_score_data', customSettings: 'custom_settings', liveState: 'live_state'
               };
 
               const setClauses: string[] = [];
@@ -537,7 +639,7 @@ export class EventManager extends BaseManager {
           }
 
           await this.query('COMMIT');
-          await this.triggerLeagueRecalculations(id);
+          await this.recalculateStandingsForGame(id);
           console.log(`EventManager: updateGame successful for ${id}`);
           return (await this.getGame(id)) || null;
       } catch (e) {
@@ -551,7 +653,15 @@ export class EventManager extends BaseManager {
       const game = await this.getGame(id);
       if (!game) return null;
 
+      // The stage and event have to be captured *before* the row goes, because afterwards there
+      // is nothing left to resolve them from — the same reasoning as `captureFixtureRooms`. This
+      // path recalculated nothing at all before Phase 3: deleting a finished fixture left every
+      // table that had counted it standing, which is exactly the kind of invalidation path the
+      // choke point exists to stop anybody forgetting.
+      const context = await this.getGameStageContext(id);
+
       await this.query('DELETE FROM games WHERE id = $1', [id]);
+      await this.recalculateStandingsForGame(id, context);
       return game;
   }
 
@@ -598,20 +708,41 @@ export class EventManager extends BaseManager {
     }
   }
 
-  private async triggerLeagueRecalculations(gameId: string) {
+  /**
+   * Route a changed result through the one function that rewrites a standings table (D30).
+   *
+   * This used to be `triggerLeagueRecalculations`, which knew about seasons and nothing else. It
+   * now defers to `TournamentManager.recalculateForGame`, which does the seasons *and* the stage
+   * table, the event roll-up and progression — because a cache is only as good as the paths that
+   * invalidate it, and having two of them was how a tournament table would have gone stale while
+   * a league table did not.
+   *
+   * `require` rather than `import` for the same reason the season recalculation always did:
+   * `TournamentManager` imports this module for its fixture projections, so a static import here
+   * would close the cycle.
+   *
+   * It **publishes** as well as recalculating, and deliberately so. Every caller of this — a game
+   * finishing, a score override, dispute resolution, an undo, a deletion — has to tell the same
+   * rooms the same thing, and leaving that to each of them is precisely how `FIX-3` and `FIX-6`
+   * happened: three actions that changed a fixture and told nobody's list. One door in, one
+   * audience out.
+   *
+   * Errors are logged, never thrown: a standings cache failing to rebuild must not roll back the
+   * result that was just recorded.
+   */
+  async recalculateStandingsForGame(
+    gameId: string,
+    context?: { stageId?: string | null; eventId?: string | null }
+  ): Promise<{ divisionId: string | null; eventId: string | null; changedGameIds: string[] }> {
     try {
-      const res = await this.query(`SELECT season_id as "seasonId" FROM game_seasons WHERE game_id = $1`, [gameId]);
-      const seasonIds = res.rows.map(r => r.seasonId);
-      if (seasonIds.length > 0) {
-        console.log(`EventManager: Triggering standings recalculation for seasons: ${seasonIds.join(', ')}`);
-        const { LeagueManager } = require("./LeagueManager");
-        const leagueMgr = new LeagueManager();
-        for (const seasonId of seasonIds) {
-          await leagueMgr.recalculateSeasonStandings(seasonId);
-        }
-      }
+      const { tournamentManager } = require("./TournamentManager");
+      const outcome = await tournamentManager.recalculateForGame(gameId, context);
+      const { publishRecalculation } = require("../wss/tournaments");
+      await publishRecalculation(outcome);
+      return outcome;
     } catch (err) {
-      console.error(`EventManager: Error in triggerLeagueRecalculations for game ${gameId}:`, err);
+      console.error(`EventManager: Error recalculating standings for game ${gameId}:`, err);
+      return { divisionId: null, eventId: null, changedGameIds: [] };
     }
   }
 

@@ -8,7 +8,7 @@ tags:
   - WebSockets
   - real-time
   - sport-registry
-timestamp: 2026-09-01T21:30:00Z
+timestamp: 2026-09-01T23:30:00Z
 ---
 
 # API & Real-time WebSockets
@@ -53,6 +53,15 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
      `join_room` sent as `{ room }` instead of `room` reached `room.split(':')` and took the whole
      server down (`SOCK-1`). `classifyRoom` refuses a non-string in its own right, since it is the
      choke point every room check passes through.
+   - **A batch writes once, reports per item, and can be retried.** Every batch action obeys one
+     contract (D13), written down in [api_actions.md](file:///c:/Fred/Coding/SK/docs/api_actions.md)
+     and enforced in [wss/batch.ts](file:///c:/Fred/Coding/SK/server/src/wss/batch.ts): **one
+     transaction** (a batch with any failed item writes nothing — the per-item report says which
+     rows to fix, never which survived), **one permission scope** (a batch spanning two events is
+     refused before any work), **one broadcast** (ninety fixtures are one message, or the cost
+     removed on the server simply moves to the client), and **one idempotency key** (a retried
+     batch does not double-write; the cache is in-memory, per process, and would need a table if
+     this ever ran on two).
    - Full rules: [.agent/skills/live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md).
 4. **Offline Resilience**:
    - Connection statuses are actively monitored on the client to show offline banners when connections drop.
@@ -73,6 +82,16 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
 *   **Sport Admin Writes**: `/api/admin/sports` (list, create, update) is the only path that writes a sport's rules, positions and event templates. Bodies are validated by [server/src/utils/sportValidation.ts](file:///c:/Fred/Coding/SK/server/src/utils/sportValidation.ts) before they reach `SportManager` — templates drive live scoring, so an invalid one is rejected rather than stored.
 *   **WebSocket Handler**: Socket wiring lives in [server/src/index.ts](file:///c:/Fred/Coding/SK/server/src/index.ts);
     [server/src/wss/](file:///c:/Fred/Coding/SK/server/src/wss/) holds the publishing and access
-    rules — `broadcast.ts` (the one exit for every update), `roomAccess.ts` (who may join what)
-    and `fixtures.ts` (who hears about a fixture change).
+    rules — `broadcast.ts` (the one exit for every update), `roomAccess.ts` (who may join what),
+    `fixtures.ts` (who hears about a fixture change), `tournaments.ts` (who hears about a division
+    change) and `batch.ts` (the batch contract).
+*   **Tournament writes**: [TournamentManager](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts)
+    owns divisions, stages, entrants, generation, scheduling — and `recalculateForGame`, **the one
+    function that rewrites a standings table**. Every path that changes a result routes through
+    `EventManager.recalculateStandingsForGame`, which calls it and publishes the outcome. There is
+    no second recalculation path, deliberately: a cache is only as good as the writes that
+    invalidate it, and two of them is how one goes stale.
+*   **Division rooms**: `division:{id}:fixtures` and `division:{id}:standings` are public (a draw
+    and a table are spectator information); `division:{id}` is `member`, because an entrant may be
+    a person and an adjustment carries an organiser's reason and author.
 *   **Expo Services**: [expo-app/services/](file:///c:/Fred/Coding/SK/expo-app/services/) holds the WebSocket connection manager.

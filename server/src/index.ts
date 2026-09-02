@@ -20,6 +20,18 @@ import { sportManager } from './managers/SportManager';
 import { canJoinRoom } from './wss/roomAccess';
 import { broadcast, pushToSocket, setBroadcastIo } from './wss/broadcast';
 import { publishGameSummary, publishGameRemoved, captureFixtureRooms, publishEventToOrgs } from './wss/fixtures';
+import { tournamentManager } from './managers/TournamentManager';
+import { runIdempotent, singleScope, BatchRefused, BatchFailed } from './wss/batch';
+import {
+  publishAdjustments,
+  publishDivision,
+  publishEntrants,
+  publishStageEntrants,
+  publishStageFixtures,
+  publishStages,
+  publishStandings,
+  divisionFixturesRoom,
+} from './wss/tournaments';
 import { canReadData } from './wss/dataAccess';
 
 dotenv.config();
@@ -990,6 +1002,62 @@ const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => str
 };
 
 /**
+ * Tournament writes, mapped to the event they act on.
+ *
+ * The same shape as `SCORING_ACTION_GAME_ID` above and for the same reason: one gate, checked
+ * against the identity proven by the handshake, rather than fourteen handlers each remembering to
+ * check. Every one of these actions is authorized **as its event** — `canEditEventOrGame` — so a
+ * division, a stage, an entrant and an adjustment all inherit exactly the rights the event already
+ * grants, and Phase 4 widens that one function rather than fourteen call sites.
+ *
+ * A resolver returns the event id, or null when the payload names nothing that exists — which is a
+ * refusal, not a free pass, because "no event" is the shape a payload takes when it points at a row
+ * that is not there.
+ */
+const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any) => Promise<string | null>>> = {
+  [SocketAction.ADD_DIVISION]: async (p) => p?.eventId ?? null,
+  [SocketAction.UPDATE_DIVISION]: async (p) => (p?.id ? dataManager.getDivisionEventId(p.id) : null),
+  [SocketAction.DELETE_DIVISION]: async (p) => (p?.id ? dataManager.getDivisionEventId(p.id) : null),
+  [SocketAction.ADD_STAGE]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
+  [SocketAction.UPDATE_STAGE]: async (p) => (p?.id ? dataManager.getStageEventId(p.id) : null),
+  [SocketAction.DELETE_STAGE]: async (p) => (p?.id ? dataManager.getStageEventId(p.id) : null),
+  [SocketAction.SET_DIVISION_ENTRANTS]: async (p) =>
+    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
+  [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
+  [SocketAction.GENERATE_STAGE_FIXTURES]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
+  [SocketAction.SCHEDULE_STAGE]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
+  [SocketAction.ADD_ADJUSTMENT]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
+  [SocketAction.DELETE_ADJUSTMENT]: async (p) => {
+    if (!p?.id) return null;
+    const res = await pool.query('SELECT division_id FROM division_adjustments WHERE id = $1', [p.id]);
+    const divisionId = res.rows[0]?.division_id;
+    return divisionId ? dataManager.getDivisionEventId(divisionId) : null;
+  },
+  [SocketAction.SET_EVENT_FACILITIES]: async (p) => p?.eventId ?? null,
+  [SocketAction.SET_DIVISION_FACILITIES]: async (p) =>
+    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
+  [SocketAction.RESOLVE_PARTICIPANT]: async (p) => {
+    if (!p?.gameParticipantId) return null;
+    const gameId = await dataManager.getGameIdForParticipant(p.gameParticipantId);
+    return gameId ? (await dataManager.getGameStageContext(gameId)).eventId : null;
+  },
+  // Rule 2 of the batch contract: one permission scope per batch. `singleScope` refuses a batch
+  // spanning two events *before* any work, rather than authorizing it against whichever item
+  // happened to sort first.
+  [SocketAction.ADD_GAMES]: async (p) =>
+    singleScope(p?.games || [], (game: any) => game?.eventId || null),
+  [SocketAction.UPDATE_GAMES]: async (p) => {
+    const games = p?.games || [];
+    const eventIds = await Promise.all(
+      games.map(async (game: any) =>
+        game?.id ? (await dataManager.getGameStageContext(game.id)).eventId : null
+      )
+    );
+    return singleScope(eventIds, (eventId: string | null) => eventId);
+  },
+};
+
+/**
  * Payload fields naming the org profile the caller claims to be acting as.
  * Attributing an action to somebody else's profile would let a client forge who
  * scored an event or who cast a consensus vote, so each is checked for
@@ -1284,6 +1352,59 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+            // --- Tournaments (Phase 3) -----------------------------------------------
+            // Every one of these is classified in `wss/dataAccess.ts` against the room that owns
+            // it. Under `GET_DATA_ENFORCE` an unmapped type is refused, so adding a case here
+            // without a rule there simply fails on its first call — which is the safety net
+            // working, not an obstacle.
+            case 'divisions':
+                callback(request.eventId ? await dataManager.getDivisions(request.eventId) : []);
+                break;
+            case 'division':
+                callback(request.divisionId ? await dataManager.getDivisionDetail(request.divisionId) : null);
+                break;
+            case 'division_stages':
+                callback(request.divisionId ? await dataManager.getStages(request.divisionId) : []);
+                break;
+            case 'division_entrants':
+                callback(request.divisionId ? await dataManager.getDivisionEntrants(request.divisionId) : []);
+                break;
+            case 'division_adjustments':
+                callback(request.divisionId ? await dataManager.getDivisionAdjustments(request.divisionId) : []);
+                break;
+            case 'division_games':
+                callback(request.divisionId ? await dataManager.getDivisionGames(request.divisionId) : []);
+                break;
+            case 'division_facilities':
+                callback(request.divisionId ? await dataManager.getDivisionFacilities(request.divisionId) : []);
+                break;
+            case 'division_standings': {
+                const standingsStages = request.divisionId ? await dataManager.getStages(request.divisionId) : [];
+                callback(standingsStages.map(stage => ({
+                    stageId: stage.id,
+                    name: stage.name,
+                    status: stage.status,
+                    rows: stage.cachedStandings || [],
+                })));
+                break;
+            }
+            case 'stage':
+                callback(request.stageId ? await dataManager.getStage(request.stageId) : null);
+                break;
+            case 'stage_entrants':
+                callback(request.stageId ? await dataManager.getStageEntrants(request.stageId) : []);
+                break;
+            case 'stage_games':
+                callback(request.stageId ? await dataManager.getStageGames(request.stageId) : []);
+                break;
+            case 'event_facilities':
+                callback(request.eventId ? await dataManager.getEventFacilities(request.eventId) : []);
+                break;
+            case 'event_standings': {
+                const standingsEvent = request.eventId ? await dataManager.getEvent(request.eventId) : null;
+                callback((standingsEvent as any)?.cachedStandings || []);
+                break;
+            }
             case 'system_settings':
                 const sysSettingsRes = await pool.query('SELECT key, value FROM system_settings');
                 const settingsObj: Record<string, any> = {};
@@ -1368,6 +1489,58 @@ io.on('connection', (socket) => {
             const event = await dataManager.getEvent(id);
             if (event) pushToSocket(socket, room, 'EVENT_UPDATED', event);
             pushToSocket(socket, room, 'GAME_SUMMARIES_SYNC', await dataManager.getGameSummariesByEvent(id));
+            // The event screen lists its divisions, so the event room hands them over — a screen
+            // cannot be expected to join every division's room just to learn they exist. Empty
+            // for a single match, which is the collapse rule (U15) having nothing to collapse.
+            pushToSocket(socket, room, 'DIVISIONS_SYNC', await dataManager.getDivisions(id));
+            pushToSocket(socket, room, 'EVENT_STANDINGS_UPDATED', {
+                eventId: id,
+                rows: (event as any)?.cachedStandings || [],
+            });
+
+        } else if (kind === 'division') {
+            // Each room hands over its own tier and nothing beyond it — the `LIVE-4` rule applied
+            // to a new set of entities. The fixtures and standings rooms are public, so neither
+            // may push the roster or the adjustment reasons the base room carries.
+            if (sub === 'fixtures') {
+                const division = await dataManager.getDivision(id);
+                if (division) pushToSocket(socket, room, 'DIVISION_UPDATED', division);
+                pushToSocket(socket, room, 'STAGES_SYNC', {
+                    divisionId: id,
+                    stages: await dataManager.getStages(id),
+                });
+                pushToSocket(socket, room, 'DIVISION_GAMES_SYNC', await dataManager.getDivisionGames(id));
+                pushToSocket(socket, room, 'DIVISION_FACILITIES_SYNC', {
+                    divisionId: id,
+                    facilityIds: await dataManager.getDivisionFacilities(id),
+                });
+            } else if (sub === 'standings') {
+                const standingsStages = await dataManager.getStages(id);
+                pushToSocket(socket, room, 'DIVISION_STANDINGS_UPDATED', {
+                    divisionId: id,
+                    stages: standingsStages.map(stage => ({
+                        stageId: stage.id,
+                        name: stage.name,
+                        status: stage.status,
+                        rows: stage.cachedStandings || [],
+                    })),
+                });
+            } else {
+                pushToSocket(socket, room, 'DIVISION_ENTRANTS_SYNC', {
+                    divisionId: id,
+                    entrants: await dataManager.getDivisionEntrants(id),
+                });
+                pushToSocket(socket, room, 'DIVISION_ADJUSTMENTS_SYNC', {
+                    divisionId: id,
+                    adjustments: await dataManager.getDivisionAdjustments(id),
+                });
+                for (const stage of await dataManager.getStages(id)) {
+                    pushToSocket(socket, room, 'STAGE_ENTRANTS_SYNC', {
+                        stageId: stage.id,
+                        entrants: await dataManager.getStageEntrants(stage.id),
+                    });
+                }
+            }
 
         } else if (kind === 'site') {
             const site = await dataManager.getSite(id);
@@ -1481,6 +1654,32 @@ io.on('connection', (socket) => {
             }
             if (!(await dataManager.canScoreGame(authUserId, targetGameId))) {
                 throw new Error('Unauthorized: You do not have permission to score this match.');
+            }
+        }
+
+        // --- Authorization gate for tournament mutations ---
+        //
+        // Authorized as the *event*, through the same `canEditEventOrGame` every other event and
+        // game edit already uses — so a division, a stage, a roster and an adjustment inherit
+        // exactly the rights the event grants, and Phase 4 widens one function rather than
+        // fourteen call sites.
+        //
+        // `orgId` in the payload is the workspace the caller is acting from, and it falls back to
+        // the event's own org so the check cannot be skipped by simply omitting it — the same
+        // fallback `UPDATE_GAME` and `DELETE_GAME` already use.
+        const tournamentEventFor = TOURNAMENT_ACTION_EVENT[action.type];
+        if (tournamentEventFor) {
+            if (!authUserId) {
+                throw new Error('Unauthorized: You must be signed in to organise a tournament.');
+            }
+            const targetEventId = await tournamentEventFor(action.payload);
+            if (!targetEventId) {
+                throw new Error(`Bad request: ${action.type} does not name a tournament that exists.`);
+            }
+            const eventOrg = await pool.query('SELECT org_id FROM events WHERE id = $1', [targetEventId]);
+            const requestingOrgId = action.payload?.orgId || eventOrg.rows[0]?.org_id;
+            if (!requestingOrgId || !(await dataManager.canEditEventOrGame(authUserId, requestingOrgId, targetEventId))) {
+                throw new Error('Unauthorized: You do not have permission to organise this tournament.');
             }
         }
 
@@ -2302,6 +2501,243 @@ io.on('connection', (socket) => {
                 io.emit('update', { type: 'GLOBAL_CACHE_REFRESH', data: {} });
                 result = { message: 'Cache invalidated and refresh signal sent' };
                 break;
+
+            // --- Tournaments: divisions, stages, entrants (Phase 3) ---------------------
+            //
+            // Every case below is already authorized by the gate above, so none of them repeats
+            // the check. What each one does repeat is publishing: a broadcast carries the data,
+            // never a nudge to refetch, and the audience is decided in `wss/tournaments.ts`
+            // rather than open-coded here.
+
+            case SocketAction.ADD_DIVISION: {
+                const { stage, orgId: _actingOrgId, ...divisionData } = action.payload;
+                const division = await dataManager.addDivision(divisionData);
+                // D11: every division has at least one stage. The caller that knows the format
+                // says so in the same call rather than making a second round trip, and a division
+                // with one stage is what the collapse rule (U15) renders with no stage tabs.
+                if (stage) await dataManager.addStage({ ...stage, divisionId: division.id });
+                result = await dataManager.getDivisionDetail(division.id);
+                await publishDivision(division.id, 'DIVISION_ADDED', result, division.eventId);
+                break;
+            }
+
+            case SocketAction.UPDATE_DIVISION: {
+                const updated = await dataManager.updateDivision(action.payload.id, action.payload.data);
+                if (!updated) throw new Error('Division not found.');
+                result = await dataManager.getDivisionDetail(updated.id);
+                await publishDivision(updated.id, 'DIVISION_UPDATED', result, updated.eventId);
+                // `weighting`, `scoring` and `tiebreakers` all change what the tables say, so this
+                // is a standings-changing edit even though no result moved.
+                await tournamentManager.recalculateDivision(updated.id);
+                await publishStandings(updated.id, updated.eventId);
+                break;
+            }
+
+            case SocketAction.DELETE_DIVISION: {
+                // Captured first: afterwards there is no row left to resolve the event from.
+                const divisionEventId = await dataManager.getDivisionEventId(action.payload.id);
+                const removedDivision = await dataManager.deleteDivision(action.payload.id);
+                if (!removedDivision) throw new Error('Division not found.');
+                result = { id: action.payload.id };
+                await publishDivision(action.payload.id, 'DIVISION_DELETED', result, divisionEventId || undefined);
+                if (divisionEventId) {
+                    await tournamentManager.recalculateEventStandings(divisionEventId);
+                    await publishStandings(null, divisionEventId);
+                }
+                break;
+            }
+
+            case SocketAction.ADD_STAGE: {
+                result = await dataManager.addStage(action.payload);
+                publishStages(action.payload.divisionId, await dataManager.getStages(action.payload.divisionId));
+                break;
+            }
+
+            case SocketAction.UPDATE_STAGE: {
+                result = await dataManager.updateStage(action.payload.id, action.payload.data);
+                if (!result) throw new Error('Stage not found.');
+                publishStages(result.divisionId, await dataManager.getStages(result.divisionId));
+                break;
+            }
+
+            case SocketAction.DELETE_STAGE: {
+                const stageToDelete = await dataManager.getStage(action.payload.id);
+                if (!stageToDelete) throw new Error('Stage not found.');
+                await dataManager.deleteStage(action.payload.id);
+                result = { id: action.payload.id };
+                publishStages(stageToDelete.divisionId, await dataManager.getStages(stageToDelete.divisionId));
+                await tournamentManager.recalculateDivision(stageToDelete.divisionId);
+                await publishStandings(
+                    stageToDelete.divisionId,
+                    await dataManager.getDivisionEventId(stageToDelete.divisionId)
+                );
+                break;
+            }
+
+            case SocketAction.SET_DIVISION_ENTRANTS: {
+                const entrantDivisionId = action.payload.divisionId;
+                result = await runIdempotent(action.payload.idempotencyKey, async () => {
+                    const outcome = await dataManager.setDivisionEntrants(entrantDivisionId, action.payload.entrants || []);
+                    // A roster edit can be a substitution (D10), which changes who every fixture
+                    // pointing at that entrant was played by — so the tables are rebuilt whether
+                    // or not a result moved. D10 is explicit that a substitution does not touch
+                    // the draw: the fixtures stay exactly where they are.
+                    await tournamentManager.recalculateDivision(entrantDivisionId);
+                    return { applied: outcome.entrants, errors: [] };
+                });
+                publishEntrants(entrantDivisionId, result.applied);
+                await publishStandings(entrantDivisionId, await dataManager.getDivisionEventId(entrantDivisionId));
+                // Resolving an entrant fills in every fixture that names it at once, so those
+                // summaries go out too — that is the whole point of the placeholder model.
+                for (const game of await dataManager.getDivisionGames(entrantDivisionId)) {
+                    await publishGameSummary(game.id);
+                }
+                break;
+            }
+
+            case SocketAction.SET_STAGE_ENTRANTS: {
+                const entrantStage = await dataManager.getStage(action.payload.stageId);
+                if (!entrantStage) throw new Error('Stage not found.');
+                result = await runIdempotent(action.payload.idempotencyKey, async () => ({
+                    applied: await dataManager.setStageEntrants(action.payload.stageId, action.payload.entrants || []),
+                    errors: [],
+                }));
+                publishStageEntrants(entrantStage.divisionId, entrantStage.id, result.applied);
+                publishStages(entrantStage.divisionId, await dataManager.getStages(entrantStage.divisionId));
+                break;
+            }
+
+            case SocketAction.GENERATE_STAGE_FIXTURES: {
+                result = await runIdempotent(action.payload.idempotencyKey, async () => {
+                    const outcome = await dataManager.generateStageFixtures(
+                        action.payload.stageId,
+                        action.payload.mode,
+                        action.payload.deleteResults
+                    );
+                    return { ...outcome, updated: 0, games: await dataManager.getStageGames(action.payload.stageId) };
+                });
+                // Rule 3: one broadcast for the whole batch. Ninety fixtures published one at a
+                // time would put back on the client exactly the cost the contract removed.
+                publishStageFixtures(result.divisionId, result.stageId, result.games);
+                publishStages(result.divisionId, await dataManager.getStages(result.divisionId));
+                await publishStandings(result.divisionId, result.eventId);
+                break;
+            }
+
+            case SocketAction.SCHEDULE_STAGE: {
+                result = await runIdempotent(action.payload.idempotencyKey, async () => {
+                    const outcome = await dataManager.scheduleStage(action.payload);
+                    return {
+                        ...outcome,
+                        created: 0,
+                        deleted: 0,
+                        updated: outcome.scheduled,
+                        games: await dataManager.getStageGames(action.payload.stageId),
+                    };
+                });
+                publishStageFixtures(result.divisionId, result.stageId, result.games);
+                // A rescheduled fixture changes what every org's list shows, not only the division
+                // screen's — so each publishes a summary through the ordinary fixture path.
+                for (const game of result.games) await publishGameSummary(game.id);
+                break;
+            }
+
+            case SocketAction.ADD_GAMES: {
+                result = await runIdempotent(action.payload.idempotencyKey, async () => {
+                    const outcome = await tournamentManager.addGamesBatch(action.payload.games || []);
+                    if (outcome.errors.length) throw new BatchFailed(outcome.errors);
+                    const applied = [];
+                    for (const id of outcome.ids) {
+                        const summary = await dataManager.getGameSummary(id);
+                        if (summary) applied.push(summary);
+                    }
+                    return { applied, errors: [] };
+                });
+                for (const game of result.applied) await publishGameSummary(game.id);
+                break;
+            }
+
+            case SocketAction.UPDATE_GAMES: {
+                result = await runIdempotent(action.payload.idempotencyKey, async () => {
+                    const outcome = await tournamentManager.updateGamesBatch(action.payload.games || []);
+                    if (outcome.errors.length) throw new BatchFailed(outcome.errors);
+                    const applied = [];
+                    for (const id of outcome.ids) {
+                        const summary = await dataManager.getGameSummary(id);
+                        if (summary) applied.push(summary);
+                    }
+                    return { applied, errors: [] };
+                });
+                for (const game of result.applied) await publishGameSummary(game.id);
+                break;
+            }
+
+            case SocketAction.RESOLVE_PARTICIPANT: {
+                const resolvedGameId = await tournamentManager.resolveParticipant(
+                    action.payload.gameParticipantId,
+                    action.payload
+                );
+                if (!resolvedGameId) throw new Error('That fixture side does not exist.');
+                await publishGameSummary(resolvedGameId);
+                // Filling a slot by hand is a result-affecting change: the fixture is now between
+                // two known competitors, and the table has to count it as such.
+                await dataManager.recalculateStandingsForGame(resolvedGameId);
+                result = await dataManager.getGameSummary(resolvedGameId);
+                break;
+            }
+
+            case SocketAction.ADD_ADJUSTMENT: {
+                result = await dataManager.addAdjustment({
+                    ...action.payload,
+                    createdByUserId: authUserId || undefined,
+                });
+                await tournamentManager.recalculateDivision(action.payload.divisionId);
+                publishAdjustments(
+                    action.payload.divisionId,
+                    await dataManager.getDivisionAdjustments(action.payload.divisionId)
+                );
+                await publishStandings(
+                    action.payload.divisionId,
+                    await dataManager.getDivisionEventId(action.payload.divisionId)
+                );
+                break;
+            }
+
+            case SocketAction.DELETE_ADJUSTMENT: {
+                const removedAdjustment = await dataManager.deleteAdjustment(action.payload.id);
+                if (!removedAdjustment) throw new Error('Adjustment not found.');
+                result = { id: removedAdjustment.id };
+                await tournamentManager.recalculateDivision(removedAdjustment.divisionId);
+                publishAdjustments(
+                    removedAdjustment.divisionId,
+                    await dataManager.getDivisionAdjustments(removedAdjustment.divisionId)
+                );
+                await publishStandings(
+                    removedAdjustment.divisionId,
+                    await dataManager.getDivisionEventId(removedAdjustment.divisionId)
+                );
+                break;
+            }
+
+            case SocketAction.SET_EVENT_FACILITIES: {
+                const eventFacilityIds = await dataManager.setEventFacilities(
+                    action.payload.eventId,
+                    action.payload.facilityIds || []
+                );
+                result = { eventId: action.payload.eventId, facilityIds: eventFacilityIds };
+                broadcast(`event:${action.payload.eventId}`, 'EVENT_FACILITIES_SYNC', result);
+                break;
+            }
+
+            case SocketAction.SET_DIVISION_FACILITIES: {
+                const divisionFacilityIds = await dataManager.setDivisionFacilities(
+                    action.payload.divisionId,
+                    action.payload.facilityIds || []
+                );
+                result = { divisionId: action.payload.divisionId, facilityIds: divisionFacilityIds };
+                broadcast(divisionFixturesRoom(action.payload.divisionId), 'DIVISION_FACILITIES_SYNC', result);
+                break;
+            }
 
             default:
                 console.warn('Unknown action type:', action.type);

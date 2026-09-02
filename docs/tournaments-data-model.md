@@ -1,6 +1,6 @@
 # Tournaments — Data Model
 
-**Status:** Settled. Nothing is built. Updated 2026-09-01 from the implementation-plan review —
+**Status:** Settled, and **being built** — phases 0–3 of the implementation plan are complete (the schema, the shared types and engine, and the server). One paragraph of §4.4 is superseded by Phase 3; the supersession is recorded in place rather than by editing it away. Updated 2026-09-01 from the implementation-plan review —
 §3.7 (organiser storage, which D33 needed and this document lacked), §4.2 (`format` becomes a
 column; `events.type` becomes `NOT NULL`), §9 (migration step order), §10 (both open items answered).
 **Implements:** the decisions in [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md).
@@ -571,9 +571,32 @@ same thing in both places.
 
 ### 4.4 What deliberately does not change
 
-- **`games`** — no new columns. A fixture already knows its event, sport, facility and scheduled
+- ~~**`games`** — no new columns. A fixture already knows its event, sport, facility and scheduled
   time. Its stage is reached through its participants' entrants, and if that indirection proves
-  awkward in queries a `stage_id` column is a cheap denormalisation to add later.
+  awkward in queries a `stage_id` column is a cheap denormalisation to add later.~~
+
+  > **Superseded 2026-09-02 (Phase 3) — `games` gains `stage_id` after all, and for a different
+  > reason than this paragraph anticipated.** The indirection is not *awkward*, it is
+  > **insufficient**, in the most ordinary case there is. An entrant belongs to the **division**,
+  > not to a stage, and §3.4 deliberately puts the same entrant in the pool stage *and* the
+  > knockout that follows — so "which stage is this fixture in?" resolved through participants
+  > returns **both** stages of every pools-and-knockout division. The information simply is not in
+  > the chain.
+  >
+  > This paragraph foresaw a *performance* reason to add the column later. The real one is
+  > correctness, and each of the three things §7's choke point does needs a single answer: rewrite
+  > **one** stage's `cached_standings`; ask whether **this** stage is complete (unplayable
+  > otherwise — the knockout's unplayed fixtures would count against the pool, so a pool could
+  > never complete and progression could never fire); and delete **this** stage's fixtures on a
+  > regeneration, where deleting the knockout's alongside the pool's is data loss rather than a
+  > slow query.
+  >
+  > `ALTER TABLE games ADD COLUMN stage_id TEXT REFERENCES division_stages(id) ON DELETE SET NULL`
+  > plus `idx_games_stage`, in
+  > [20260902_game_stage_id.ts](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/20260902_game_stage_id.ts).
+  > `SET NULL` matches `game_participants.source_stage_id` (§4.1) and for the same reason: removing
+  > a stage must not delete the fixtures played in it. Null for every single match and for any
+  > fixture an organiser adds outside a stage, so nothing that reads `games` today changes.
 - **`game_seasons`** — already the many-to-many D21 needs. A tournament fixture counting toward a
   league season is an existing row in an existing table; only the UI to create it from the
   tournament side is missing.

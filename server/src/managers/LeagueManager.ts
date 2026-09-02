@@ -274,6 +274,13 @@ export class LeagueManager extends BaseManager {
   }
 
   // --- Game Seasons Linkage ---
+  //
+  // Data model §7 lists "a game being attached to or detached from a season" among the paths that
+  // must invalidate a cache, and these two deliberately do **not** go through
+  // `TournamentManager.recalculateForGame`. Attaching changes a season's membership, not a result:
+  // no stage table and no event roll-up moves, so the season is the only thing to rebuild. And
+  // detaching *cannot* use the choke point — it resolves its seasons from `game_seasons`, and by
+  // then the row is gone, so the season it just left would never be recalculated at all.
   async addGameToSeason(gameId: string, seasonId: string): Promise<boolean> {
     await this.query(
       `INSERT INTO game_seasons (game_id, season_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,

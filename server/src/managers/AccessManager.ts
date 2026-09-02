@@ -102,6 +102,29 @@ export class AccessManager extends BaseManager {
     return res.rows.map((r: any) => r.orgId).filter(Boolean);
   }
 
+  /**
+   * Orgs with a stake in a division: the hosting org, every org registered on the event, and
+   * every org whose team is entered in the division.
+   *
+   * The third source is there for the same reason it is on `getGameOrgIds` — a school's teams can
+   * be entered in a division that never made it into `event_organizations` (`FIX-5`), and its
+   * staff must still be able to read the roster their own teams are in.
+   */
+  async getDivisionOrgIds(divisionId: string): Promise<string[]> {
+    const res = await this.query(`
+      SELECT e.org_id AS "orgId"
+        FROM tournament_divisions d JOIN events e ON e.id = d.event_id
+       WHERE d.id = $1
+      UNION
+      SELECT eo.org_id
+        FROM tournament_divisions d JOIN event_organizations eo ON eo.event_id = d.event_id
+       WHERE d.id = $1
+      UNION
+      SELECT de.org_id FROM division_entrants de WHERE de.division_id = $1
+    `, [divisionId]);
+    return res.rows.map((r: any) => r.orgId).filter(Boolean);
+  }
+
   /** True when the user belongs to any org with a stake in the game. */
   async canViewGameInternals(userId: string, gameId: string): Promise<boolean> {
     if (await this.isAppAdmin(userId)) return true;

@@ -42,6 +42,20 @@ export interface DataAccessRule {
 const orgRoom = (suffix: string) => (req: any) =>
   req.orgId ? `org:${req.orgId}:${suffix}` : null;
 
+/**
+ * The division room that owns a stage's data.
+ *
+ * A stage is addressed by its own id, so the division has to be resolved before the request can be
+ * authorized — the same shape as `game_roster`, which is addressed by participant id.
+ */
+async function stageRoom(stageId?: string, suffix?: string): Promise<string | null> {
+  if (!stageId) return null;
+  const { tournamentManager } = require('../managers/TournamentManager');
+  const stage = await tournamentManager.getStage(stageId);
+  if (!stage) return null;
+  return suffix ? `division:${stage.divisionId}:${suffix}` : `division:${stage.divisionId}`;
+}
+
 /** The org that owns a season, via its league. */
 async function seasonOrgRoom(seasonId?: string): Promise<string | null> {
   if (!seasonId) return null;
@@ -138,6 +152,32 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   season_standings:     { room: (req: any) => (req.id ? `season:${req.id}:standings` : null) },
   season_teams:         { room: (req: any) => seasonOrgRoom(req.seasonId || req.id) },
   season_games:         { room: (req: any) => seasonOrgRoom(req.seasonId || req.id) },
+
+  // --- Tournaments ---------------------------------------------------------
+  // Each resolves to the division room that owns the data, so there is one rulebook rather than
+  // two — and the split between them is the same one `roomAccess` makes: the draw and the table
+  // are public, the roster and the manual adjustments are not.
+  //
+  // `division` itself resolves to the *fixtures* room rather than the base one: a division's name,
+  // sport and age group are what a public fixture list prints above the draw, so gating them at
+  // `member` would blank the heading of a page whose contents are public.
+  divisions:            { room: (req: any) => (req.eventId ? `event:${req.eventId}` : null) },
+  event_facilities:     { room: (req: any) => (req.eventId ? `event:${req.eventId}` : null) },
+  event_standings:      { room: (req: any) => (req.eventId ? `event:${req.eventId}` : null) },
+  division:             { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:fixtures` : null) },
+  division_stages:      { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:fixtures` : null) },
+  division_games:       { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:fixtures` : null) },
+  division_facilities:  { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:fixtures` : null) },
+  division_standings:   { room: (req: any) => (req.divisionId ? `division:${req.divisionId}:standings` : null) },
+  // The roster and the adjustments are the organiser's tier.
+  division_entrants:    { room: (req: any) => (req.divisionId ? `division:${req.divisionId}` : null) },
+  division_adjustments: { room: (req: any) => (req.divisionId ? `division:${req.divisionId}` : null) },
+  // Addressed by stage, so resolve its division first — the same shape as `game_roster`, which is
+  // addressed by participant.
+  stage:                { room: (req: any) => stageRoom(req.stageId, 'fixtures') },
+  stage_games:          { room: (req: any) => stageRoom(req.stageId, 'fixtures') },
+  // Pool membership is roster data: it names which competitors are in the division at all.
+  stage_entrants:       { room: (req: any) => stageRoom(req.stageId) },
 
   // --- Reference data, no subject -----------------------------------------
   sports:               { standalone: 'public' },
