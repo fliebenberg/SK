@@ -8,7 +8,7 @@ tags:
   - WebSockets
   - real-time
   - sport-registry
-timestamp: 2026-09-01T23:30:00Z
+timestamp: 2026-09-03T00:00:00Z
 ---
 
 # API & Real-time WebSockets
@@ -84,7 +84,8 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     [server/src/wss/](file:///c:/Fred/Coding/SK/server/src/wss/) holds the publishing and access
     rules — `broadcast.ts` (the one exit for every update), `roomAccess.ts` (who may join what),
     `fixtures.ts` (who hears about a fixture change), `tournaments.ts` (who hears about a division
-    change) and `batch.ts` (the batch contract).
+    change), `tournamentGate.ts` (the one authorization gate every tournament write passes) and
+    `batch.ts` (the batch contract).
 *   **Tournament writes**: [TournamentManager](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts)
     owns divisions, stages, entrants, generation, scheduling — and `recalculateForGame`, **the one
     function that rewrites a standings table**. Every path that changes a result routes through
@@ -93,5 +94,13 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     invalidate it, and two of them is how one goes stale.
 *   **Division rooms**: `division:{id}:fixtures` and `division:{id}:standings` are public (a draw
     and a table are spectator information); `division:{id}` is `member`, because an entrant may be
-    a person and an adjustment carries an organiser's reason and author.
+    a person and an adjustment carries an organiser's reason and author. An **appointed convenor**
+    also gets in, without any membership at all — otherwise they would be given a division to run
+    and refused its roster.
+*   **Permissions are per-user, so they are not broadcast** (Phase 4). A room broadcast reaches
+    everyone in the room, so `{ canEditEvent, convenesDivisionIds }` is read per socket through
+    `get_data { type: 'event_capabilities', eventId }` rather than stamped onto the event or the
+    division. A grant change pushes `EVENT_CAPABILITIES_UPDATED` to that person's `user:{id}` room,
+    which `broadcast()` also treats as an identity change — dropping their cached access and
+    revalidating the rooms their sockets already hold.
 *   **Expo Services**: [expo-app/services/](file:///c:/Fred/Coding/SK/expo-app/services/) holds the WebSocket connection manager.

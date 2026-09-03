@@ -25,6 +25,14 @@ export type StandaloneAccess =
   | 'public-directory'
   /** Requires a signed-in user, but no particular membership. */
   | 'authenticated'
+  /**
+   * May organise the tournament this request names (D33).
+   *
+   * The one level that is neither a room nor a membership: the organiser list and the picker's
+   * search belong to whoever runs the event, which now includes people who belong to none of the
+   * organisations in it. `organiserScope` says which event or division to ask about.
+   */
+  | 'tournament-organiser'
   /** The `id` in the request must be the caller. */
   | 'self'
   /** App admins only. */
@@ -37,6 +45,8 @@ export interface DataAccessRule {
   standalone?: StandaloneAccess;
   /** The request field naming the subject, for `self`. */
   selfField?: string;
+  /** The event or division to authorize against, for `tournament-organiser`. */
+  organiserScope?: (req: any) => { eventId?: string | null; divisionId?: string | null };
 }
 
 const orgRoom = (suffix: string) => (req: any) =>
@@ -175,6 +185,18 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // Addressed by stage, so resolve its division first — the same shape as `game_roster`, which is
   // addressed by participant.
   stage:                { room: (req: any) => stageRoom(req.stageId, 'fixtures') },
+  // --- Permissions (Phase 4) ----------------------------------------------
+  // `event_capabilities` answers about the caller and nobody else: the identity comes from the
+  // handshake and the request carries no user field, so "authenticated" is the whole rule — there
+  // is no way to ask it about somebody else.
+  event_capabilities:   { standalone: 'authenticated' },
+  // Who runs this tournament is not spectator information: it is a list of named people, and
+  // `event:{id}` is a public room, so it cannot defer to one.
+  event_organizers:     { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ eventId: req.eventId }) },
+  division_organizers:  { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ divisionId: req.divisionId }) },
+  // The picker. Gated at the same level as the appointment it feeds, so browsing people is never
+  // easier than the action it exists for.
+  organizer_candidates: { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ eventId: req.eventId }) },
   stage_games:          { room: (req: any) => stageRoom(req.stageId, 'fixtures') },
   // Pool membership is roster data: it names which competitors are in the division at all.
   stage_entrants:       { room: (req: any) => stageRoom(req.stageId) },
@@ -238,6 +260,21 @@ export async function canReadData(userId: string, request: any): Promise<DataAcc
         return isAuthenticated && (await accessManager.isAppAdmin(userId))
           ? { allowed: true, reason: 'app admin' }
           : { allowed: false, reason: 'app admins only' };
+      case 'tournament-organiser': {
+        if (!isAuthenticated) return { allowed: false, reason: 'requires a signed-in user' };
+        const scope = rule.organiserScope ? rule.organiserScope(request) : null;
+        if (scope?.divisionId) {
+          return (await accessManager.canOrganizeDivision(userId, scope.divisionId))
+            ? { allowed: true, reason: `organises division ${scope.divisionId}` }
+            : { allowed: false, reason: 'not an organiser of that division' };
+        }
+        if (scope?.eventId) {
+          return (await accessManager.canOrganizeEvent(userId, scope.eventId))
+            ? { allowed: true, reason: `organises event ${scope.eventId}` }
+            : { allowed: false, reason: 'not an organiser of that tournament' };
+        }
+        return { allowed: false, reason: 'request names no tournament to authorize against' };
+      }
     }
   }
 

@@ -90,7 +90,7 @@ Recorded in place in the section each belongs to.
 | **D28** | **Double elimination is deferred.** Plate / consolation is the v1 loser-routing format. |
 | **D29** | Tiebreak factors as listed, ordered by the organiser — and **any result can be manually overridden**. |
 | **D30** | Standings are **persisted**, recalculated when a result is finalised. |
-| **D31** | A division organiser edits fixtures and enters results. Nothing else, for now. |
+| **D31** | A division convenor **runs their whole division** — entrants, stages, fixtures, results. Widened 2026-09-03. |
 | **D32** | The unread sport flags are logged as `SPORT-10` rather than fixed here. |
 | **D33** | An organiser is a **named person, not an org role** — assignable at event or division scope. |
 
@@ -751,6 +751,29 @@ per-game permission rules and is not changed here.
 > settings, or move fixtures onto facilities shared with other divisions — those stay with the
 > event's admins, because they are the decisions that affect somebody else's division. The list
 > can grow once we see what convenors actually get stuck on.
+
+> **Widened 2026-09-03, in Phase 4 — a convenor runs the whole division.** The narrow list above
+> was drawn before it was clear what handing a division over actually means. The point of appointing
+> a netball convenor is that the event organiser stops thinking about netball: if the convenor then
+> has to ask somebody else to enter a late team, the delegation has not happened. So the scope is
+> now **everything inside the division** — entrants, stages, fixtures, scheduling, results and
+> adjustments.
+>
+> The line moved but it did not disappear, and where it now sits is the useful part:
+>
+> - **Not the division's own record.** Its name, sport, age group and especially its `weighting`
+>   describe how the division sits in the event and how its points roll up into the organisation
+>   table (D18). Changing those is an event-level decision.
+> - **Not the event.** Another division, the event's facilities, the tournament itself: all refused.
+> - **Not appointing anybody.** Delegation stops here deliberately. The hosting org's admins and the
+>   event organisers can withdraw a convenor at any time; a convenor who could appoint others could
+>   build a position they cannot be removed from, which is the one asymmetry D33 relies on not
+>   existing.
+>
+> `SET_DIVISION_FACILITIES` moved with the rest: it narrows a division to a subset of the facilities
+> the event has already put in play, which is scheduling inside the division rather than a claim on
+> somebody else's pitch. `SET_EVENT_FACILITIES` — deciding what the event has in play at all — did
+> not.
 
 ---
 

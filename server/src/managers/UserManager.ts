@@ -470,31 +470,82 @@ export class UserManager extends BaseManager {
 
   // --- Search & Matching ---
 
-  async searchProfiles(searchTerm: string, orgId?: string, orgDomain?: string): Promise<OrgProfile[]> {
+  /**
+   * Find a person, by name, email or phone.
+   *
+   * **Two projections, and which one you get is an authorization decision** (`PEOPLE-1`). The org
+   * filter here has always been optional — `op.org_id = $2 OR $2 IS NULL` — so an unscoped call
+   * searches every profile in the system, which is legitimately what "find somebody to invite"
+   * needs. What was wrong was that it answered with `cellphone`, `birthdate` and `national_id`
+   * for arbitrary people in organisations the caller has nothing to do with.
+   *
+   * So: contact and identity fields come back only when the search is scoped to an org **and the
+   * caller belongs to it** — the caller decides that and passes `lean: false`; every other search
+   * gets name, organisation and image, which is all a picker needs to tell two people apart. The
+   * `LIMIT 10` was never a defence against this: it caps one response, not repeated probing.
+   *
+   * Matching is unchanged in both modes, including matching on an email or a phone number the
+   * lean projection will not return — searching by a value you already know is how you confirm you
+   * have the right person, and it discloses nothing you did not type.
+   */
+  async searchProfiles(
+    searchTerm: string,
+    orgId?: string,
+    orgDomain?: string,
+    options?: { lean?: boolean; orgIds?: string[] }
+  ): Promise<OrgProfile[]> {
     if (!searchTerm || searchTerm.trim().length < 2) return [];
+
+    const lean = options?.lean !== false;
+    const orgIds = options?.orgIds && options.orgIds.length ? options.orgIds : null;
+
+    // `$5` narrows to a *set* of orgs — the organiser picker's first tier is "the host and the
+    // participating orgs", which is several. Null means the filter does not apply, exactly as
+    // null `$2` already means for the single-org case.
+    const projection = lean
+      ? `id, "orgId", name, image, "orgName", "orgShortName"`
+      : `id, "orgId", "userId", name, email, cellphone, birthdate, "nationalId", identifier, image, "primaryRoleId", "orgName", "orgShortName"`;
 
     const queryStr = `
       WITH search_results AS (
-        SELECT 
+        SELECT
           op.id, op.org_id as "orgId", op.user_id as "userId", op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId", op.identifier, op.image, op.primary_role_id as "primaryRoleId",
+          o.name as "orgName", o.short_name as "orgShortName",
           similarity(op.name, $1) as name_sim,
           similarity(op.email, $1) as email_sim,
           EXISTS(SELECT 1 FROM org_memberships om WHERE om.org_profile_id = op.id AND om.org_id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())) as is_member,
           (CASE WHEN op.email ILIKE $4 THEN 1 ELSE 0 END) as domain_match
         FROM org_profiles op
+        LEFT JOIN organizations o ON o.id = op.org_id
         WHERE (op.name % $1 OR op.email % $1 OR op.name ILIKE $3 OR op.email ILIKE $3 OR op.cellphone ILIKE $3)
           AND (op.org_id = $2 OR $2 IS NULL)
+          AND ($5::text[] IS NULL OR op.org_id = ANY($5))
       )
-      SELECT id, "orgId", "userId", name, email, cellphone, birthdate, "nationalId", identifier, image, "primaryRoleId",
+      SELECT ${projection},
         (GREATEST(name_sim, email_sim) + (CASE WHEN is_member THEN 0.5 ELSE 0 END) + (CASE WHEN domain_match = 1 THEN 0.3 ELSE 0 END)) as final_score
       FROM search_results
       ORDER BY final_score DESC
       LIMIT 10
     `;
 
-    const domainPattern = orgDomain ? `%@${orgDomain}%` : '%@no-domain.com%';
-    const res = await this.query(queryStr, [searchTerm, orgId || null, `%${searchTerm}%`, domainPattern]);
+    const domainPattern = orgDomain ? `%@${orgDomain}%` : `%@no-domain.com%`;
+    const res = await this.query(queryStr, [searchTerm, orgId || null, `%${searchTerm}%`, domainPattern, orgIds]);
     return res.rows;
+  }
+
+  /**
+   * The organiser picker's search (implementation plan §0.1), in two tiers.
+   *
+   * Tier 1 — `orgIds` set to the host and the participating organisations — covers the ordinary
+   * case in one search. Tier 2 passes none, which searches everybody: available, because a
+   * specialist official may be on the app under an org that is not here, but never the default,
+   * since a global list of people is a privacy surface rather than a convenience. Tier 3, creating
+   * a person who is on the app at all, is `ADD_ORG_PROFILE` and not a search.
+   *
+   * Lean in both tiers. Nothing about appointing a convenor needs their date of birth.
+   */
+  async searchOrganizerCandidates(searchTerm: string, orgIds?: string[]): Promise<OrgProfile[]> {
+    return this.searchProfiles(searchTerm, undefined, undefined, { lean: true, orgIds });
   }
 
   searchPeople = this.searchProfiles;

@@ -52,7 +52,9 @@ you what deletes it:
            └─ division_adjustments   a deduction or a walkover, recorded as an override
 
 Plus `event_facilities` (the facilities in play) and `event_organizers` / `division_organizers` (the
-two grant scopes — full rights over the tournament, or one division's fixtures and results).
+two grant scopes — full rights over the tournament, or the whole of one division). Both are keyed on
+`org_profiles`, never `users`, so a convenor can be appointed before they have an account; see
+[okf/auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) for what each scope carries.
 
 Four things about it are worth knowing before touching it:
 

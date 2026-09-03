@@ -40,6 +40,13 @@ export class DataManager {
   canManageTeam = (userId: string, teamId: string) => accessManager.canManageTeam(userId, teamId);
   canEditEventOrGame = (userId: string, requestingOrgId: string, eventId?: string, gameId?: string) => accessManager.canEditEventOrGame(userId, requestingOrgId, eventId, gameId);
   canScoreGame = (userId: string, gameId: string) => accessManager.canScoreGame(userId, gameId);
+  isOrgMember = (userId: string, orgId: string) => accessManager.isOrgMember(userId, orgId);
+  canOrganizeDivision = (userId: string, divisionId: string) => accessManager.canOrganizeDivision(userId, divisionId);
+  getEventCapabilities = (userId: string, eventId: string) => accessManager.getEventCapabilities(userId, eventId);
+  getEventGrants = (userId: string, eventId: string) => accessManager.getEventGrants(userId, eventId);
+  getUserIdsForOrgProfile = (orgProfileId: string) => accessManager.getUserIdsForOrgProfile(orgProfileId);
+  getEventOrgIds = (eventId: string) => accessManager.getEventOrgIds(eventId);
+  resolveGrantingProfile = (userId: string, eventId: string) => accessManager.resolveGrantingProfile(userId, eventId);
   ownsOrgProfile = (userId: string, orgProfileId: string) => accessManager.ownsOrgProfile(userId, orgProfileId);
   getGameOrgId = (gameId: string) => accessManager.getGameOrgId(gameId);
 
@@ -165,7 +172,12 @@ export class DataManager {
   saveGameRoster = (gameId: string, participantId: string, items: Array<{ orgProfileId: string, position?: string, isReserve: boolean }>) => eventManager.saveGameRoster(gameId, participantId, items);
 
   // Search
-  searchProfiles = async (query: string, orgId?: string) => {
+  /**
+   * `lean` defaults to true, and the caller has to *decide* to pass false — the projection is an
+   * authorization decision, not a formatting one (`PEOPLE-1`). The socket handler passes false
+   * only when the search is scoped to an org the caller belongs to.
+   */
+  searchProfiles = async (query: string, orgId?: string, options?: { lean?: boolean }) => {
     let orgDomain = "";
     if (orgId) {
       const org = await organizationManager.getOrganization(orgId);
@@ -173,8 +185,11 @@ export class DataManager {
         orgDomain = org.shortName || org.name.split(" ")[0].toLowerCase();
       }
     }
-    return userManager.searchProfiles(query, orgId, orgDomain);
+    return userManager.searchProfiles(query, orgId, orgDomain, { lean: options?.lean !== false });
   };
+
+  searchOrganizerCandidates = (query: string, orgIds?: string[]) =>
+    userManager.searchOrganizerCandidates(query, orgIds);
   
   searchPeople = this.searchProfiles;
   findMatchingUser = (email?: string, name?: string, birthdate?: string) => 
@@ -305,6 +320,11 @@ export class DataManager {
   getEventFacilities = (eventId: string) => tournamentManager.getEventFacilities(eventId);
   setEventFacilities = (eventId: string, facilityIds: string[]) => tournamentManager.setEventFacilities(eventId, facilityIds);
   getDivisionFacilities = (divisionId: string) => tournamentManager.getDivisionFacilities(divisionId);
+  getEventOrganizers = (eventId: string) => tournamentManager.getEventOrganizers(eventId);
+  getDivisionOrganizers = (divisionId: string) => tournamentManager.getDivisionOrganizers(divisionId);
+  getEventDivisionOrganizers = (eventId: string) => tournamentManager.getEventDivisionOrganizers(eventId);
+  appointOrganizer = (data: any) => tournamentManager.appointOrganizer(data);
+  withdrawOrganizer = (data: any) => tournamentManager.withdrawOrganizer(data);
   setDivisionFacilities = (divisionId: string, facilityIds: string[]) =>
     tournamentManager.setDivisionFacilities(divisionId, facilityIds);
 

@@ -26,6 +26,7 @@ import {
     TournamentDivision,
     TournamentEntrant,
     TournamentFormat,
+    TournamentOrganizer,
     TournamentStage,
 } from "../models/event/Tournament";
 // --- Shared Response Type ---
@@ -164,6 +165,14 @@ export interface DeleteGamePayload {
 
 export interface AddOrgProfilePayload extends Omit<OrgProfile, "id"> {
     id?: string;
+    /**
+     * The event whose organiser is creating this person, when that is what authorizes the write.
+     *
+     * Creating a person record is otherwise an org admin's job (`PEOPLE-2`). The organiser picker's
+     * third tier is the exception — appointing a convenor who is not on the app at all — so it names
+     * the event, which must be hosted by `orgId`. Authorization only; never stored on the profile.
+     */
+    eventId?: string;
 }
 
 export interface UpdateOrgProfilePayload {
@@ -586,6 +595,52 @@ export interface SetDivisionFacilitiesPayload {
     facilityIds: string[];
 }
 
+/**
+ * Appoint an organiser, at exactly one of the two scopes (D33).
+ *
+ * `orgProfileId` is a *profile*, not a user: a convenor can be appointed before they have an
+ * account, and the grant needs no rewrite when they claim one, because `AccessManager` already
+ * resolves a user into a set of profile ids by `user_id` or verified email.
+ *
+ * `orgId` is the workspace the caller is acting from, as on every other tournament write.
+ */
+export interface AppointOrganizerPayload {
+    /** Set for an event-scope grant. Exactly one of this and `divisionId`. */
+    eventId?: string;
+    /** Set for a division-scope grant. */
+    divisionId?: string;
+    orgProfileId: string;
+    /**
+     * The workspace the caller is acting from, when there is one.
+     *
+     * Optional, unlike every other tournament payload's: an appointed organiser may hold no
+     * membership anywhere and so act from no workspace at all. The gate falls back to the event's
+     * own org, which is also what §1 of the UI doc asks for — the answer is computed from the user
+     * and the event, never from the `orgId` in the route.
+     */
+    orgId?: string;
+}
+
+export interface WithdrawOrganizerPayload {
+    eventId?: string;
+    divisionId?: string;
+    orgProfileId: string;
+    orgId?: string;
+}
+
+/**
+ * What an appointment or a withdrawal returns: the scope's whole list, not the row that changed.
+ *
+ * Sending the list means the caller replaces rather than patches, which is the same reasoning rule
+ * 1 of the live-data contract gives for broadcasts. The list is *not* broadcast: `event:{id}` is a
+ * public room and this names people.
+ */
+export interface OrganizersResult {
+    eventId?: string;
+    divisionId?: string;
+    organizers: TournamentOrganizer[];
+}
+
 /** What a generation or scheduling run actually did, so the client can say so. */
 export interface StageFixturesResult {
     stageId: string;
@@ -697,6 +752,8 @@ export interface ProtocolMap {
     [SocketAction.DELETE_ADJUSTMENT]: { payload: DeleteAdjustmentPayload; response: { id: string } };
     [SocketAction.SET_EVENT_FACILITIES]: { payload: SetEventFacilitiesPayload; response: { eventId: string; facilityIds: string[] } };
     [SocketAction.SET_DIVISION_FACILITIES]: { payload: SetDivisionFacilitiesPayload; response: { divisionId: string; facilityIds: string[] } };
+    [SocketAction.APPOINT_ORGANIZER]: { payload: AppointOrganizerPayload; response: OrganizersResult };
+    [SocketAction.WITHDRAW_ORGANIZER]: { payload: WithdrawOrganizerPayload; response: OrganizersResult };
 }
 
 /**
@@ -717,5 +774,13 @@ export type GetDataRequest =
   | { type: 'division' | 'division_stages' | 'division_entrants' | 'division_adjustments'
         | 'division_standings' | 'division_games' | 'division_facilities'; divisionId: string }
   | { type: 'stage' | 'stage_entrants' | 'stage_games'; stageId: string }
-  | { type: 'event_standings'; eventId: string };
+  | { type: 'event_standings'; eventId: string }
+  // Permissions (Phase 4). `event_capabilities` answers for the **caller** and nobody else — the
+  // identity comes from the handshake, so the request names no user and one cannot be asked for.
+  | { type: 'event_capabilities' | 'event_organizers'; eventId: string }
+  | { type: 'division_organizers'; divisionId: string }
+  // The organiser picker's search. Tiered rather than global by default: `eventId` scopes tier 1
+  // to the host and participating orgs, and `global: true` is the explicit control that widens it.
+  // Either way the projection is name, org and image — never contact or identity fields.
+  | { type: 'organizer_candidates'; eventId: string; query: string; global?: boolean };
 

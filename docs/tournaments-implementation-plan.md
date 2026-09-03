@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0–3 complete and closed, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02). **Phase 4 is next** — organiser assignments and capability flags; its storage (`event_organizers` / `division_organizers`) already exists from Phase 1, and the one gate it has to widen is `canEditEventOrGame`.
+**Status:** In progress. **Phases 0–4 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 on 2026-09-03). **Phase 5 is next** — client foundations: routes, screens and the collapse rule. This is where the tournament work becomes visible: everything before it is schema, engine, server and permissions.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -295,8 +295,8 @@ fresh database is mislabelled.
 | 1 | Schema and migration | M | ✅ done | No |
 | 2 | Shared types, scoring engine, the fixture-side component | M | ✅ done | No (a component, not a screen) |
 | 3 | Server: divisions, stages, entrants, and the recalculation choke point | L | ✅ done | No |
-| 4 | Permissions: organiser assignments and capability flags | M | ← next | Yes — role chips on the events list |
-| 5 | Client foundations: routes, screens, the collapse rule | L | | Yes — a tournament you can navigate |
+| 4 | Permissions: organiser assignments and capability flags | M | ✅ done | A component, not yet a screen |
+| 5 | Client foundations: routes, screens, the collapse rule | L | ← next | Yes — a tournament you can navigate |
 | 6 | `Festival` and `RoundRobin`: entrants, generation, standings | L | | **Yes — the first genuinely usable tournament** |
 | 7 | Scheduling: facilities, day windows, the greedy pass, the grid | L | | Yes |
 | 8 | `Knockout` and `PoolsKnockout` on the round list | L | | Yes |
@@ -1059,6 +1059,105 @@ absent from both. An organisation that appears in the table having played nothin
 **Docs:** [okf/auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) — this phase changes the
 permission model, so it is a required update, not an optional one.
 
+### Done — 2026-09-03
+
+**The confirmation this phase opens with came back clean, and that is worth stating rather than
+skipping.** [okf/auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) described three
+sources of authority — membership role in an org, app admin via `org-system-admins`, and the
+public / authenticated tiers — and **no concept of a grant scoped to one event**. So the feature
+spec's §10 does not contradict it; it adds a fourth tier. Nothing in the document had to change, and
+it gained a section describing the grant, what each scope carries, and the one place the workspace
+constraint deliberately does not apply.
+
+**Exit criterion met, and asserted rather than clicked through.**
+[phase4-permissions.ts](file:///c:/Fred/Coding/SK/server/src/scripts/phase4-permissions.ts) — kept,
+in the Phase 3 mould — runs **66 checks** against a real database with four actors: a non-admin
+member of the hosting org, an external specialist with no membership anywhere, an unclaimed profile
+that later claims an account, and a stranger who is refused throughout so the positives are not
+vacuous. All three cases the phase asks for pass:
+
+- **The appointed non-admin can edit the tournament and nothing else in the org.** Falsified
+  properly: a *second* event in the same organisation is refused, `isOrganizationAdmin` stays false,
+  and they still cannot manage the org's teams.
+- **The grant and the account claim are decoupled.** A convenor with no user account is appointed,
+  an account is then created against that profile's email and verified, the rights appear — and the
+  grant row is asserted **byte-identical** afterwards (`created_at` and `granted_by` unchanged).
+- **Appointing an outsider adds nothing to `event_organizations`,** and their organisation is absent
+  from the standings roll-up. Both asserted, because an org in the table having played nothing is
+  how this bug would first be noticed.
+
+**The refusals are checked on the wire, not by hiding a button** — which needed one structural
+change. The gate was inline in `index.ts`, where nothing could call it, so both scope maps and the
+decision moved to
+[wss/tournamentGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/tournamentGate.ts) and the audit
+exercises `enforceTournamentAction` itself. A gate nobody can call is a gate nobody can test.
+
+**Four things came out differently from the plan above, three of them decisions and one of them a
+gap in the plan.**
+
+1. **The convenor's scope was widened, at the user's direction (D31).** The plan carried D31's
+   "fixtures and results only". A convenor now runs the whole of their division — entrants included
+   — so that an event organiser can hand netball over and stop thinking about netball. The line that
+   remains is: not the division's own record (its `weighting` decides how its points roll up into
+   the event, so it is an event-level decision), not the event, and **not appointing anybody**. That
+   last one is what keeps an appointee from ever building a position they cannot be removed from,
+   which is the asymmetry D33 relies on.
+2. **The capability flags are their own read, not a field on the event.** `{ canEditEvent,
+   convenesDivisionIds }` is exactly what the plan asks for; where it arrives is different. A
+   `canEdit` on a division object would be published to `division:{id}` and `event:{id}` like
+   everything else — and those are *rooms*, so one viewer's answer would be delivered to every other
+   viewer, and any later broadcast of that division would silently overwrite the flags client-side.
+   So: `get_data { type: 'event_capabilities', eventId }`, answered per socket from the identity the
+   handshake proved, plus a push to `user:{id}` when a grant changes. The client derives a
+   division's `canEdit` as `canEditEvent || convenesDivisionIds.includes(id)` — one field fewer on
+   the wire, and no per-user data on a shared object.
+3. **`PEOPLE-1` was closed rather than worked around.** The plan expected the picker to ship a lean
+   projection while the permissive handler stayed. The user chose to close it: `search_people` now
+   returns contact and identity fields **only** when the search is scoped to an org the caller
+   belongs to, and the lean projection everywhere else. Matching is unchanged in both modes —
+   searching by an email you already know is how you confirm you have the right person.
+4. **The plan's build list had no read path, and the exit criterion cannot pass without one.** An
+   external convenor holds no membership, so `division:{id}` and `division_entrants` refused them:
+   they would have been appointed to run a division and then denied its roster. Grants now reach
+   `roomAccess` and `dataAccess` — on the read path only, cached beside the membership snapshot
+   under the same 30-second TTL, and never consulted by a mutation check (`LIVE-1`).
+
+**Withdrawal closes what the grant opened, at once.** A grant change publishes
+`EVENT_CAPABILITIES_UPDATED` to the affected person's `user:{id}` room, and `broadcast()` hooks that
+message the way it already hooks `USER_MEMBERSHIPS_UPDATED`: drop the cached identity, then
+`revalidateUserRooms`. A withdrawn convenor stops receiving a division's roster immediately rather
+than at their next reconnect.
+
+**The picker is built but not mounted**, following the Phase 2 precedent —
+[FixtureSide](file:///c:/Fred/Coding/SK/expo-app/components/FixtureSide.tsx) was written before any
+screen existed too. [OrganizerPicker](file:///c:/Fred/Coding/SK/expo-app/components/OrganizerPicker.tsx)
+implements all three tiers; Phase 5 mounts it.
+
+**`PEOPLE-2` was found here and fixed here, and it was worse than it first looked.** Wiring the
+picker's third tier turned up that `ADD_ORG_PROFILE` had no permission check; pulling on that showed
+`LINK_USER_PROFILE` and `UPDATE_ORG_PROFILE` were an **org-admin takeover available to any signed-in
+user** — a profile's email and `user_id` are both matching rules `AccessManager` uses to resolve a
+user into their memberships, and `search_people` hands out the profile ids. Parked at first, then
+fixed the same day once the chain was clear: all four writes now go through
+[wss/profileGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/profileGate.ts), gated on admin or
+staff of the holding org, with one creation-only exception for an event's organiser so the picker's
+third tier still works. The audit script grew to **82 checks** covering it.
+
+**Two decisions were recorded rather than built**, because they are identity-model work rather than
+tournament work: `MEMBER-1` (invite / apply membership, where applying is not joining until an admin
+approves) and `MEMBER-2` (a reserved, membership-free home for people affiliated to no organisation,
+plus "External" as a derived label rather than a stored role).
+
+**One issue logged rather than fixed:**
+
+- **`PEOPLE-3` — a fixture with no stage belongs to no division,** so a convenor can neither read nor
+  score it while the event's organisers can. Correct for the model as it stands, but a state a
+  screen can create; Phase 5/6 will decide whether a fixture may sit in a division without a stage.
+
+**Verified beyond the audit.** `shared/`, `server/` and `expo-app/` all type-check clean, Phase 2's
+Vitest suite still passes, and Phase 3's access audit was re-run — 31 checks, still green — because
+this phase changed `roomAccess.ts`, which is exactly what that script exists to protect.
+
 ---
 
 ## Phase 5 — Client foundations: routes, screens, the collapse rule
@@ -1087,6 +1186,14 @@ permission model, so it is a required update, not an optional one.
    presentation split over data the screen already receives, with no new fetch.
 6. **Role chips on the event card (U4, U5)** — Hosting / Convening / Attending as a **set**, from
    Phase 4's flags, with multi-select filter chips beside the existing `Upcoming / Past` toggle.
+   Read them with `get_data { type: 'event_capabilities', eventId }` and refresh on
+   `EVENT_CAPABILITIES_UPDATED` from the `user:{id}` room; a division's `canEdit` is
+   `canEditEvent || convenesDivisionIds.includes(divisionId)`, derived rather than sent.
+   **And this phase owes `matchPermissions.ts` the same widening**: it computes `canEdit` and
+   `canScore` client-side from org memberships alone, so today it would hide the edit and scoring
+   controls from an appointed organiser the server would happily let through. The server is already
+   right; the screen is not. Mount [OrganizerPicker](file:///c:/Fred/Coding/SK/expo-app/components/OrganizerPicker.tsx)
+   here too — Phase 4 built it, unmounted, the way Phase 2 built `FixtureSide`.
 7. **`useLiveRoom` gains `upsertMany` (U32)** — it reduces one message at a time today, so a batch of
    ninety would produce ninety renders, relocating to the client exactly the cost D13 removed on the
    server. It lands **with** the batch actions rather than after them.

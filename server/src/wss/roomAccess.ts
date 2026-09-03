@@ -24,6 +24,16 @@ export interface RoomPolicy {
   access: RoomAccess;
   /** Orgs whose membership grants access, for `member` rooms. */
   orgsFor?: (id: string) => Promise<string[] | null>;
+  /**
+   * The tournament grants that also open this `member` room (D33).
+   *
+   * A membership is not the only way to have business here. An appointed convenor may hold no
+   * membership anywhere — that is the whole point of being able to appoint an external specialist
+   * — and without this they would be given a division to run and then refused its roster. So a
+   * room that belongs to a tournament names the event and division whose organisers may read it,
+   * and the check below admits a grant on either.
+   */
+  grantsFor?: (id: string) => Promise<{ eventId?: string | null; divisionId?: string | null } | null>;
   /** The user id that must match the socket, for `self` rooms. */
   selfId?: string;
 }
@@ -93,6 +103,13 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
               const orgIds = await accessManager.getGameOrgIds(id);
               return orgIds.length ? orgIds : null;
             },
+            // Entering a result means reading the fixture first. A fixture with no stage resolves
+            // to no division, which is the right answer rather than a missing one: it belongs to
+            // no convenor.
+            grantsFor: async () => ({
+              eventId: await accessManager.getGameEventId(id),
+              divisionId: await accessManager.getGameDivisionId(id),
+            }),
           };
         default:
           return null;
@@ -132,6 +149,10 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
               const orgIds = await accessManager.getDivisionOrgIds(id);
               return orgIds.length ? orgIds : null;
             },
+            grantsFor: async () => ({
+              eventId: await accessManager.getDivisionEventId(id),
+              divisionId: id,
+            }),
           };
         default:
           return null;
@@ -143,7 +164,7 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
 }
 
 /**
- * Short-lived cache of "which orgs is this user in".
+ * Short-lived cache of "which orgs is this user in, and what has this user been granted".
  *
  * A screen typically joins several rooms at once, and resolving the identity
  * per room meant two queries per room. Resolving it once per user covers the
@@ -165,6 +186,9 @@ const MEMBERSHIP_TTL_MS = 30_000;
 interface CachedMembership {
   orgIds: Set<string>;
   isAppAdmin: boolean;
+  /** Tournament grants, resolved in the same burst and under the same TTL. */
+  grantedEventIds: Set<string>;
+  grantedDivisionIds: Set<string>;
   expiresAt: number;
 }
 
@@ -175,8 +199,18 @@ async function getMembership(userId: string): Promise<CachedMembership> {
   const cached = membershipCache.get(userId);
   if (cached && cached.expiresAt > now) return cached;
 
-  const snapshot = await accessManager.getMembershipSnapshot(userId);
-  const entry: CachedMembership = { ...snapshot, expiresAt: now + MEMBERSHIP_TTL_MS };
+  // Both halves of the identity in one burst: a screen joining several rooms asks about the same
+  // user each time, and a grant lookup per room is the cost this cache exists to remove.
+  const [snapshot, grants] = await Promise.all([
+    accessManager.getMembershipSnapshot(userId),
+    accessManager.getGrantSnapshot(userId),
+  ]);
+  const entry: CachedMembership = {
+    ...snapshot,
+    grantedEventIds: grants.eventIds,
+    grantedDivisionIds: grants.divisionIds,
+    expiresAt: now + MEMBERSHIP_TTL_MS,
+  };
   membershipCache.set(userId, entry);
 
   // The map is only ever added to, so evict what has aged out while we are here.
@@ -223,8 +257,17 @@ export async function canJoinRoom(userId: string, room: unknown): Promise<boolea
 
   // Only now resolve which orgs the *resource* belongs to — an app admin never
   // needs the lookup, and a stranger is rejected without it either way.
-  const orgIds = policy.orgsFor ? await policy.orgsFor(room.split(':')[1]) : null;
-  if (!orgIds || orgIds.length === 0) return false;
+  const subjectId = room.split(':')[1];
+  const orgIds = policy.orgsFor ? await policy.orgsFor(subjectId) : null;
+  if (orgIds && orgIds.some(orgId => membership.orgIds.has(orgId))) return true;
 
-  return orgIds.some(orgId => membership.orgIds.has(orgId));
+  // A grant is the other way in, and it is checked second because membership is the ordinary case
+  // and costs nothing extra. Someone with neither is refused exactly as before.
+  if (policy.grantsFor && (membership.grantedEventIds.size || membership.grantedDivisionIds.size)) {
+    const scope = await policy.grantsFor(subjectId);
+    if (scope?.eventId && membership.grantedEventIds.has(scope.eventId)) return true;
+    if (scope?.divisionId && membership.grantedDivisionIds.has(scope.divisionId)) return true;
+  }
+
+  return false;
 }

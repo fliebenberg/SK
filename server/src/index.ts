@@ -21,7 +21,9 @@ import { canJoinRoom } from './wss/roomAccess';
 import { broadcast, pushToSocket, setBroadcastIo } from './wss/broadcast';
 import { publishGameSummary, publishGameRemoved, captureFixtureRooms, publishEventToOrgs } from './wss/fixtures';
 import { tournamentManager } from './managers/TournamentManager';
-import { runIdempotent, singleScope, BatchRefused, BatchFailed } from './wss/batch';
+import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
+import { enforceTournamentAction } from './wss/tournamentGate';
+import { enforceProfileAction } from './wss/profileGate';
 import {
   publishAdjustments,
   publishDivision,
@@ -30,6 +32,7 @@ import {
   publishStageFixtures,
   publishStages,
   publishStandings,
+  publishOrganizerChange,
   divisionFixturesRoom,
 } from './wss/tournaments';
 import { canReadData } from './wss/dataAccess';
@@ -1002,60 +1005,12 @@ const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => str
 };
 
 /**
- * Tournament writes, mapped to the event they act on.
+ * Tournament writes are gated in [wss/tournamentGate.ts](./wss/tournamentGate.ts).
  *
- * The same shape as `SCORING_ACTION_GAME_ID` above and for the same reason: one gate, checked
- * against the identity proven by the handshake, rather than fourteen handlers each remembering to
- * check. Every one of these actions is authorized **as its event** — `canEditEventOrGame` — so a
- * division, a stage, an entrant and an adjustment all inherit exactly the rights the event already
- * grants, and Phase 4 widens that one function rather than fourteen call sites.
- *
- * A resolver returns the event id, or null when the payload names nothing that exists — which is a
- * refusal, not a free pass, because "no event" is the shape a payload takes when it points at a row
- * that is not there.
+ * Both scope maps and the decision moved there in Phase 4, for the reason the module explains: a
+ * gate nobody can call is a gate nobody can test, and the exit criterion for organiser permissions
+ * is a list of refusals that have to be checked against the code the socket actually runs.
  */
-const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any) => Promise<string | null>>> = {
-  [SocketAction.ADD_DIVISION]: async (p) => p?.eventId ?? null,
-  [SocketAction.UPDATE_DIVISION]: async (p) => (p?.id ? dataManager.getDivisionEventId(p.id) : null),
-  [SocketAction.DELETE_DIVISION]: async (p) => (p?.id ? dataManager.getDivisionEventId(p.id) : null),
-  [SocketAction.ADD_STAGE]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
-  [SocketAction.UPDATE_STAGE]: async (p) => (p?.id ? dataManager.getStageEventId(p.id) : null),
-  [SocketAction.DELETE_STAGE]: async (p) => (p?.id ? dataManager.getStageEventId(p.id) : null),
-  [SocketAction.SET_DIVISION_ENTRANTS]: async (p) =>
-    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
-  [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
-  [SocketAction.GENERATE_STAGE_FIXTURES]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
-  [SocketAction.SCHEDULE_STAGE]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
-  [SocketAction.ADD_ADJUSTMENT]: async (p) => (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
-  [SocketAction.DELETE_ADJUSTMENT]: async (p) => {
-    if (!p?.id) return null;
-    const res = await pool.query('SELECT division_id FROM division_adjustments WHERE id = $1', [p.id]);
-    const divisionId = res.rows[0]?.division_id;
-    return divisionId ? dataManager.getDivisionEventId(divisionId) : null;
-  },
-  [SocketAction.SET_EVENT_FACILITIES]: async (p) => p?.eventId ?? null,
-  [SocketAction.SET_DIVISION_FACILITIES]: async (p) =>
-    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
-  [SocketAction.RESOLVE_PARTICIPANT]: async (p) => {
-    if (!p?.gameParticipantId) return null;
-    const gameId = await dataManager.getGameIdForParticipant(p.gameParticipantId);
-    return gameId ? (await dataManager.getGameStageContext(gameId)).eventId : null;
-  },
-  // Rule 2 of the batch contract: one permission scope per batch. `singleScope` refuses a batch
-  // spanning two events *before* any work, rather than authorizing it against whichever item
-  // happened to sort first.
-  [SocketAction.ADD_GAMES]: async (p) =>
-    singleScope(p?.games || [], (game: any) => game?.eventId || null),
-  [SocketAction.UPDATE_GAMES]: async (p) => {
-    const games = p?.games || [];
-    const eventIds = await Promise.all(
-      games.map(async (game: any) =>
-        game?.id ? (await dataManager.getGameStageContext(game.id)).eventId : null
-      )
-    );
-    return singleScope(eventIds, (eventId: string | null) => eventId);
-  },
-};
 
 /**
  * Payload fields naming the org profile the caller claims to be acting as.
@@ -1310,7 +1265,16 @@ io.on('connection', (socket) => {
                 break;
             case 'search_people':
                 if (request.query) {
-                    callback(await dataManager.searchPeople(request.query, request.orgId));
+                    // `PEOPLE-1`. Contact and identity fields come back only when the search is
+                    // scoped to an org **and the caller belongs to it** — which is what the three
+                    // screens using this are doing when they pre-fill a member form from an
+                    // existing profile. Every other search, including the unscoped one that finds
+                    // a person to invite, gets name, organisation and image.
+                    const searchScopeOrgId = request.orgId;
+                    const searchLean =
+                        !searchScopeOrgId ||
+                        !(await dataManager.isOrgMember(socket.data?.userId, searchScopeOrgId));
+                    callback(await dataManager.searchPeople(request.query, searchScopeOrgId, { lean: searchLean }));
                 } else {
                     callback([]);
                 }
@@ -1403,6 +1367,37 @@ io.on('connection', (socket) => {
             case 'event_standings': {
                 const standingsEvent = request.eventId ? await dataManager.getEvent(request.eventId) : null;
                 callback((standingsEvent as any)?.cachedStandings || []);
+                break;
+            }
+            // --- Permissions (Phase 4) ---------------------------------------------
+            // The identity is the socket's, never anything in the request: there is no way to ask
+            // what somebody else may do, which is why this needs no gate beyond being signed in.
+            case 'event_capabilities':
+                callback(
+                    request.eventId
+                        ? await dataManager.getEventCapabilities(socket.data?.userId, request.eventId)
+                        : null
+                );
+                break;
+            case 'event_organizers':
+                callback(request.eventId ? await dataManager.getEventOrganizers(request.eventId) : []);
+                break;
+            case 'division_organizers':
+                callback(request.divisionId ? await dataManager.getDivisionOrganizers(request.divisionId) : []);
+                break;
+            case 'organizer_candidates': {
+                // Tier 1 is the host and the participating orgs; `global` is the explicit control
+                // that widens it to everybody. Both projections are lean — a picker needs a name,
+                // an organisation and a face, and nothing about appointing a convenor needs their
+                // date of birth (`PEOPLE-1`).
+                if (!request.eventId || !request.query) {
+                    callback([]);
+                    break;
+                }
+                const candidateOrgIds = request.global
+                    ? undefined
+                    : await dataManager.getEventOrgIds(request.eventId);
+                callback(await dataManager.searchOrganizerCandidates(request.query, candidateOrgIds));
                 break;
             }
             case 'system_settings':
@@ -1658,30 +1653,15 @@ io.on('connection', (socket) => {
         }
 
         // --- Authorization gate for tournament mutations ---
-        //
-        // Authorized as the *event*, through the same `canEditEventOrGame` every other event and
-        // game edit already uses — so a division, a stage, a roster and an adjustment inherit
-        // exactly the rights the event grants, and Phase 4 widens one function rather than
-        // fourteen call sites.
-        //
-        // `orgId` in the payload is the workspace the caller is acting from, and it falls back to
-        // the event's own org so the check cannot be skipped by simply omitting it — the same
-        // fallback `UPDATE_GAME` and `DELETE_GAME` already use.
-        const tournamentEventFor = TOURNAMENT_ACTION_EVENT[action.type];
-        if (tournamentEventFor) {
-            if (!authUserId) {
-                throw new Error('Unauthorized: You must be signed in to organise a tournament.');
-            }
-            const targetEventId = await tournamentEventFor(action.payload);
-            if (!targetEventId) {
-                throw new Error(`Bad request: ${action.type} does not name a tournament that exists.`);
-            }
-            const eventOrg = await pool.query('SELECT org_id FROM events WHERE id = $1', [targetEventId]);
-            const requestingOrgId = action.payload?.orgId || eventOrg.rows[0]?.org_id;
-            if (!requestingOrgId || !(await dataManager.canEditEventOrGame(authUserId, requestingOrgId, targetEventId))) {
-                throw new Error('Unauthorized: You do not have permission to organise this tournament.');
-            }
-        }
+        // Event scope first, then the division a convenor holds. Both live in `tournamentGate.ts`,
+        // which throws the refusal the client sees; a non-tournament action passes straight through.
+        await enforceTournamentAction(authUserId, action.type, action.payload);
+
+        // --- Authorization gate for person records ---
+        // A profile is the identity the permission layer resolves users into, so writing one is
+        // writing identity. Admins of the holding org, plus an event organiser creating a person to
+        // appoint. See `profileGate.ts` for what was open before this (`PEOPLE-2`).
+        await enforceProfileAction(authUserId, action.type, action.payload);
 
         // A caller may only act as one of its own org profiles.
         if (authUserId) {
@@ -2383,7 +2363,9 @@ io.on('connection', (socket) => {
                 break;
             }
             case SocketAction.ADD_ORG_PROFILE: {
-                const addPayload = { ...action.payload };
+                // `eventId` authorizes the write (an organiser creating a person to appoint); it is
+                // not a column on the profile.
+                const { eventId: _appointingEventId, ...addPayload } = { ...action.payload };
                 // If a base64 image was provided, process and save it as a server file
                 if (addPayload.image && addPayload.image.startsWith('data:')) {
                     const { imageService } = await import('./services/ImageService');
@@ -2393,7 +2375,12 @@ io.on('connection', (socket) => {
                 break;
             }
             case SocketAction.UPDATE_ORG_PROFILE: {
-                const updateData = { ...action.payload.data };
+                // `userId` is dropped, always. Re-pointing a profile at a user account is an
+                // identity operation rather than a profile edit — it hands over every membership
+                // that profile holds — and exactly one caller has business doing it:
+                // `UserManager.ensureProfileForUserInOrg`, server-side, when an account claims
+                // its profile. No client sends it (`PEOPLE-2`).
+                const { userId: _rejectedUserId, ...updateData } = { ...action.payload.data };
                 // If a base64 image was provided, process and save it as a server file
                 if (updateData.image && updateData.image.startsWith('data:')) {
                     const { imageService } = await import('./services/ImageService');
@@ -2726,6 +2713,46 @@ io.on('connection', (socket) => {
                 );
                 result = { eventId: action.payload.eventId, facilityIds: eventFacilityIds };
                 broadcast(`event:${action.payload.eventId}`, 'EVENT_FACILITIES_SYNC', result);
+                break;
+            }
+
+            case SocketAction.APPOINT_ORGANIZER: {
+                const { eventId: appointEventId, divisionId: appointDivisionId, orgProfileId } = action.payload;
+                const appointScopeEventId =
+                    appointEventId || (appointDivisionId ? await dataManager.getDivisionEventId(appointDivisionId) : null);
+                if (!appointScopeEventId) throw new Error('That tournament no longer exists.');
+
+                // Recorded as the profile the appointer's own permission came through, so the audit
+                // line names a person as their organisation knows them. Null for an app admin who
+                // holds no profile in any org involved, which the column allows for.
+                const grantedBy = await dataManager.resolveGrantingProfile(authUserId!, appointScopeEventId);
+                const appointed = await dataManager.appointOrganizer({
+                    eventId: appointEventId,
+                    divisionId: appointDivisionId,
+                    orgProfileId,
+                    grantedByOrgProfileId: grantedBy,
+                });
+                result = { eventId: appointEventId, divisionId: appointDivisionId, organizers: appointed };
+                await publishOrganizerChange(orgProfileId, appointScopeEventId);
+                break;
+            }
+
+            case SocketAction.WITHDRAW_ORGANIZER: {
+                const { eventId: withdrawEventId, divisionId: withdrawDivisionId, orgProfileId: withdrawnProfileId } = action.payload;
+                const withdrawScopeEventId =
+                    withdrawEventId || (withdrawDivisionId ? await dataManager.getDivisionEventId(withdrawDivisionId) : null);
+                if (!withdrawScopeEventId) throw new Error('That tournament no longer exists.');
+
+                const remaining = await dataManager.withdrawOrganizer({
+                    eventId: withdrawEventId,
+                    divisionId: withdrawDivisionId,
+                    orgProfileId: withdrawnProfileId,
+                });
+                result = { eventId: withdrawEventId, divisionId: withdrawDivisionId, organizers: remaining };
+                // Published *after* the delete, so the recomputed capabilities are the ones the
+                // withdrawal leaves behind — and so the room revalidation it triggers closes the
+                // rooms the grant was holding open.
+                await publishOrganizerChange(withdrawnProfileId, withdrawScopeEventId);
                 break;
             }
 

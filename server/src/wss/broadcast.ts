@@ -38,7 +38,13 @@ export function broadcast(topic: string, type: string, data: any) {
   // revalidation is deliberately not awaited — a broadcast must not block on it
   // — but it runs before the next tick, so a revoked member's feed stops
   // effectively at once rather than at their next reconnect.
-  if (type === 'USER_MEMBERSHIPS_UPDATED' && topic.startsWith('user:')) {
+  //
+  // `EVENT_CAPABILITIES_UPDATED` joins it for the same reason: an organiser grant is part of the
+  // identity the read path caches, and withdrawing one has to close the rooms it opened.
+  if (
+    (type === 'USER_MEMBERSHIPS_UPDATED' || type === 'EVENT_CAPABILITIES_UPDATED') &&
+    topic.startsWith('user:')
+  ) {
     const changedUserId = topic.split(':')[1];
     invalidateMembership(changedUserId);
     revalidateUserRooms(changedUserId).catch(err =>

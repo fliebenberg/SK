@@ -219,3 +219,68 @@ export interface TournamentStandingRow extends LeagueStandingRow {
    */
   rank?: number;
 }
+
+/**
+ * A person granted edit rights over a tournament or one of its divisions (D33).
+ *
+ * Two scopes, two tables — `event_organizers` and `division_organizers` — and this one shape for
+ * both: exactly one of `eventId` and `divisionId` is set. The grant is keyed on the **profile**,
+ * not the user account, which is what makes "appoint the netball convenor, who will get an invite"
+ * possible and what lets a grant survive the person later claiming their account untouched
+ * (implementation plan §0.1).
+ *
+ * The person's own organisation is on the row for display only. Appointing someone says nothing
+ * about who is competing: an org is in the tournament because it entered a team, and an
+ * appointment must never write a row into `event_organizations`.
+ */
+export interface TournamentOrganizer {
+  /** Set on an event-scope grant, absent on a division-scope one. */
+  eventId?: string;
+  /** Set on a division-scope grant, absent on an event-scope one. */
+  divisionId?: string;
+  orgProfileId: string;
+  /**
+   * Derived, never stored — the same reasoning as `TournamentEntrant.name`. A chip, an audit line
+   * and the picker all print a person rather than an id, and resolving them client-side means a
+   * profile lookup that goes stale the moment somebody is renamed.
+   */
+  name?: string;
+  /** The org the profile belongs to. Display only — it is not a participating org. */
+  orgId?: string;
+  orgShortName?: string;
+  image?: string;
+  /**
+   * The profile through which the appointer's own permission was derived, kept to be *read* on an
+   * audit line — a person is shown as who they are known as in the organisation. Null when an app
+   * admin acting globally holds no profile in any org involved.
+   */
+  grantedByOrgProfileId?: string;
+  grantedByName?: string;
+  createdAt?: string;
+}
+
+/**
+ * What *this user* may do in *this tournament* — the question `canEdit = event.orgId === orgId`
+ * cannot ask (UI doc §4).
+ *
+ * Computed from the user and the event, never from the `orgId` in the route: the personal
+ * cross-org framing is later work and must not have to compute the same answer a second way.
+ *
+ * Delivered as its own per-user read rather than stamped onto the event or the division, because a
+ * broadcast carries data to a whole room — a `canEdit` on a shared division object would be one
+ * viewer's answer shown to every other viewer of the same room.
+ *
+ * `participatesAsOrgIds` is deliberately absent: the event already carries its participating orgs
+ * and the client already knows the user's own, so the client intersects the two itself.
+ */
+export interface EventCapabilities {
+  eventId: string;
+  /** Full rights over the tournament: the hosting org's admins and staff, and appointed organisers. */
+  canEditEvent: boolean;
+  /**
+   * Divisions this user convenes. An event organiser's rights already contain a convenor's, so a
+   * person holding both scopes has this populated even though it grants them nothing further —
+   * what it carries is intent ("this person is the netball convenor"), which drives the role chips.
+   */
+  convenesDivisionIds: string[];
+}

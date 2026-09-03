@@ -14,6 +14,7 @@ import {
   TournamentAdjustment,
   TournamentDivision,
   TournamentEntrant,
+  TournamentOrganizer,
   TournamentStage,
   TournamentStandingRow,
   calculateStandings,
@@ -1875,6 +1876,136 @@ export class TournamentManager extends BaseManager {
     if (matches.length !== 1) return undefined;
     return matches[0].entrantId;
   }
+  // --- Organiser assignments (D33) -------------------------------------------------------------
+  //
+  // One mechanism, two scopes, two tables. The rights each scope confers are `AccessManager`'s
+  // business; what lives here is the storage and the list a screen prints.
+  //
+  // **An appointment writes exactly one row.** It must never add the appointee's organisation to
+  // `event_organizations`: participation is determined by the teams taking part and by nothing
+  // else, so an org that appears there having played nothing is a bug — and it is the one this
+  // design is most likely to produce, because adding it looks helpful. The precedent is
+  // `GameOfficial`, a person attached to a fixture with no organisation on the record at all.
+
+  /** The columns every organiser list selects, parameterised by the grant table's alias. */
+  private organizerColumns(alias: string, scopeColumn: string): string {
+    return `${alias}.${scopeColumn} AS "${scopeColumn === 'event_id' ? 'eventId' : 'divisionId'}",
+            ${alias}.org_profile_id AS "orgProfileId",
+            op.name, op.org_id AS "orgId", o.short_name AS "orgShortName", op.image,
+            ${alias}.granted_by_org_profile_id AS "grantedByOrgProfileId",
+            gb.name AS "grantedByName",
+            ${alias}.created_at AS "createdAt"`;
+  }
+
+  async getEventOrganizers(eventId: string): Promise<TournamentOrganizer[]> {
+    const res = await this.query(
+      `SELECT ${this.organizerColumns('eo', 'event_id')}
+         FROM event_organizers eo
+         JOIN org_profiles op ON op.id = eo.org_profile_id
+         LEFT JOIN organizations o ON o.id = op.org_id
+         LEFT JOIN org_profiles gb ON gb.id = eo.granted_by_org_profile_id
+        WHERE eo.event_id = $1
+        ORDER BY op.name`,
+      [eventId]
+    );
+    return res.rows;
+  }
+
+  async getDivisionOrganizers(divisionId: string): Promise<TournamentOrganizer[]> {
+    const res = await this.query(
+      `SELECT ${this.organizerColumns('dorg', 'division_id')}
+         FROM division_organizers dorg
+         JOIN org_profiles op ON op.id = dorg.org_profile_id
+         LEFT JOIN organizations o ON o.id = op.org_id
+         LEFT JOIN org_profiles gb ON gb.id = dorg.granted_by_org_profile_id
+        WHERE dorg.division_id = $1
+        ORDER BY op.name`,
+      [divisionId]
+    );
+    return res.rows;
+  }
+
+  /** Every organiser of an event *and* of its divisions, for the event screen's role chips. */
+  async getEventDivisionOrganizers(eventId: string): Promise<TournamentOrganizer[]> {
+    const res = await this.query(
+      `SELECT ${this.organizerColumns('dorg', 'division_id')}
+         FROM division_organizers dorg
+         JOIN tournament_divisions d ON d.id = dorg.division_id
+         JOIN org_profiles op ON op.id = dorg.org_profile_id
+         LEFT JOIN organizations o ON o.id = op.org_id
+         LEFT JOIN org_profiles gb ON gb.id = dorg.granted_by_org_profile_id
+        WHERE d.event_id = $1
+        ORDER BY op.name`,
+      [eventId]
+    );
+    return res.rows;
+  }
+
+  /**
+   * Appoint an organiser at exactly one scope.
+   *
+   * Idempotent: appointing somebody who already holds the grant is not an error, it is a screen
+   * that was open twice. `ON CONFLICT DO NOTHING` leaves the original `granted_by` and timestamp
+   * alone, which is the honest answer — the first appointment is the one that happened.
+   */
+  async appointOrganizer(data: {
+    eventId?: string;
+    divisionId?: string;
+    orgProfileId: string;
+    grantedByOrgProfileId?: string | null;
+  }): Promise<TournamentOrganizer[]> {
+    const { eventId, divisionId, orgProfileId } = data;
+    if (!!eventId === !!divisionId) {
+      throw new Error('An appointment names either an event or a division, not both and not neither.');
+    }
+    if (!orgProfileId) throw new Error('An appointment names the person it appoints.');
+
+    const profile = await this.query('SELECT 1 FROM org_profiles WHERE id = $1', [orgProfileId]);
+    if (!profile.rows[0]) throw new Error('That person no longer exists.');
+
+    if (eventId) {
+      await this.query(
+        `INSERT INTO event_organizers (event_id, org_profile_id, granted_by_org_profile_id)
+         VALUES ($1, $2, $3) ON CONFLICT (event_id, org_profile_id) DO NOTHING`,
+        [eventId, orgProfileId, data.grantedByOrgProfileId || null]
+      );
+      return this.getEventOrganizers(eventId);
+    }
+
+    await this.query(
+      `INSERT INTO division_organizers (division_id, org_profile_id, granted_by_org_profile_id)
+       VALUES ($1, $2, $3) ON CONFLICT (division_id, org_profile_id) DO NOTHING`,
+      [divisionId, orgProfileId, data.grantedByOrgProfileId || null]
+    );
+    return this.getDivisionOrganizers(divisionId!);
+  }
+
+  /** Withdraw a grant. Also idempotent — withdrawing twice leaves the same absence. */
+  async withdrawOrganizer(data: {
+    eventId?: string;
+    divisionId?: string;
+    orgProfileId: string;
+  }): Promise<TournamentOrganizer[]> {
+    const { eventId, divisionId, orgProfileId } = data;
+    if (!!eventId === !!divisionId) {
+      throw new Error('A withdrawal names either an event or a division, not both and not neither.');
+    }
+
+    if (eventId) {
+      await this.query('DELETE FROM event_organizers WHERE event_id = $1 AND org_profile_id = $2', [
+        eventId,
+        orgProfileId,
+      ]);
+      return this.getEventOrganizers(eventId);
+    }
+
+    await this.query('DELETE FROM division_organizers WHERE division_id = $1 AND org_profile_id = $2', [
+      divisionId,
+      orgProfileId,
+    ]);
+    return this.getDivisionOrganizers(divisionId!);
+  }
+
 }
 
 export const tournamentManager = new TournamentManager();

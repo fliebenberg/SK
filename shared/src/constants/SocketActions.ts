@@ -519,4 +519,25 @@ export enum SocketAction {
      * Expects payload: `{ divisionId, facilityIds }`. An empty list means "any of the event's".
      */
     SET_DIVISION_FACILITIES = 'SET_DIVISION_FACILITIES',
+
+    // --- Tournaments: organiser assignments (D33) ---
+    //
+    // One mechanism, two scopes: naming `eventId` appoints an organiser of the whole tournament,
+    // naming `divisionId` appoints a convenor of that division. The grant is keyed on the person's
+    // **profile**, so it can be made before they have an account and needs no rewrite when they
+    // claim one.
+    //
+    // Neither action is in `TOURNAMENT_ACTION_EVENT`'s ordinary gate: appointing is the one
+    // tournament write a convenor may not do, so it is checked against event-scope rights alone.
+
+    /**
+     * Action to appoint an organiser at event or division scope.
+     * Expects payload: `AppointOrganizerPayload`
+     */
+    APPOINT_ORGANIZER = 'APPOINT_ORGANIZER',
+    /**
+     * Action to withdraw an organiser's grant.
+     * Expects payload: `WithdrawOrganizerPayload`
+     */
+    WITHDRAW_ORGANIZER = 'WITHDRAW_ORGANIZER',
 }

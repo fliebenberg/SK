@@ -222,7 +222,7 @@ several of them at once:
 | Role | Scope of edit | What they came to do |
 |---|---|---|
 | **Hosting** | The whole tournament | Build it: divisions, entrants, fixtures, schedule, scoring |
-| **Convening** | One division's fixtures and results (D31) | Run their sport |
+| **Convening** | The whole of one division (D31, widened 2026-09-03) | Run their sport |
 | **Attending** | Their own teams and selections | Find out when we play, and pick the side |
 | *(Following)* | Nothing | Watch. Not built — reserved in the vocabulary (§1) |
 
@@ -275,6 +275,22 @@ assignments are new data that appears on no payload the client holds.
 > rather than inside the new tournament managers, so there is one rulebook. The feature spec's §10
 > still needs confirming against
 > [okf/auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) before either is built.
+
+> **Built 2026-09-03 (Phase 4), with one change to the shape above: the flags are their own read,
+> not a field on the event.** `{ canEditEvent, convenesDivisionIds }` is what the client gets and
+> what this section asks for; where it arrives is different. A `canEdit` sitting on a division
+> object would be published to `division:{id}` and `event:{id}` like everything else — and those are
+> rooms, so one viewer's answer would be delivered to every other viewer of the same room, and any
+> broadcast of that division would silently overwrite the flags in the client store.
+>
+> So: `get_data { type: 'event_capabilities', eventId }`, answered per socket from the identity the
+> handshake proved, and a push to `user:{id}` when a grant changes. The client derives a division's
+> `canEdit` as `canEditEvent || convenesDivisionIds.includes(divisionId)` — one field fewer on the
+> wire than the draft, and no per-user data on a shared object.
+>
+> The confirmation this section asked for was done first, and it came back clean:
+> `okf/auth_control.md` described three sources of authority (membership role, app admin, public
+> tiers) and no event-scoped grant. Nothing in it had to change; it gained a fourth tier.
 
 ### The organiser need not be an admin
 

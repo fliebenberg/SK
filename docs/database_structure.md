@@ -292,8 +292,9 @@ with a reason and an author, rather than as a quiet edit to a game that never ha
 
 ### 11k. `event_organizers` and `division_organizers`
 The two grant scopes: a row in the first is an event organiser with full rights over the tournament,
-a row in the second is the narrow convenor of one division. Both cascade away with their parent — a
-grant is meaningless without the thing it grants access to.
+a row in the second is the convenor of one division — who, since 2026-09-03, runs the whole of that
+division (entrants, stages, fixtures, results, adjustments) but nothing above or beside it. Both
+cascade away with their parent — a grant is meaningless without the thing it grants access to.
 - `event_id` / `division_id` (TEXT): FK to the parent (ON DELETE CASCADE).
 - `org_profile_id` (TEXT): FK to `org_profiles.id` (ON DELETE CASCADE).
 - `granted_by_org_profile_id` (TEXT): FK to `org_profiles.id` (ON DELETE SET NULL). Nullable — an
@@ -314,6 +315,13 @@ Three things about this shape were decided rather than assumed:
 - **Holding both rows is not a third state.** An event organiser's rights strictly contain a
   convenor's, so the access check stops at `event_organizers` and never consults divisions. The
   division row carries *intent* — "this person is the netball convenor" — which drives the role chips.
+
+Written by `APPOINT_ORGANIZER` / `WITHDRAW_ORGANIZER`, both idempotent (`ON CONFLICT DO NOTHING`,
+and a delete that matches nothing). An appointment writes **exactly one row**: it must never add the
+appointee's organisation to `event_organizations`, because participation is determined by the teams
+taking part and by nothing else. `phase4-permissions.ts` asserts that, and asserts the organisation
+stays out of the standings roll-up, since an org in the table having played nothing is how the bug
+would first be noticed.
 
 ### 12. `user_emails`
 Support for multiple emails per user.

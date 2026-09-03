@@ -284,6 +284,31 @@ All state-changing operations are sent via the `action` event.
     *   **Event**: `ORGANIZATION_UPDATED`
     *   **Data**: The updated `Organization` object.
 
+#### Person records — `ADD_ORG_PROFILE`, `UPDATE_ORG_PROFILE`, `DELETE_ORG_PROFILE`, `LINK_USER_PROFILE`
+
+All four go through [wss/profileGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/profileGate.ts),
+added 2026-09-03 (`PEOPLE-2`). **Before that they had no permission check at all**, and two of them
+handed over an admin membership to anybody signed in: `LINK_USER_PROFILE` sets a profile's email,
+and `getOrganizationRole` matches a user to a profile by verified email, so pointing an admin's
+profile at your own address inherited their membership. `UPDATE_ORG_PROFILE` could write `user_id`
+for the same effect by the other matching rule. Profile ids are not secret — `search_people` returns
+them to any signed-in user.
+
+*   **Rule**: an **admin or staff member of the organisation holding the profile**
+    (`AccessManager.canManageOrgPeople`) — the same pair every other "manage this org's things"
+    check uses. The org is taken from `payload.orgId` on the create and resolved from the profile row
+    on the other three, which carry only an id.
+*   **One exception, on creation only**: someone who may organise an event may create a profile in
+    the org **hosting that event**, by naming `eventId` in the payload. That is the organiser
+    picker's third tier — appointing a convenor who is not on the app — and follows U12. The event
+    must be hosted by the org the profile is going into, or organising any event anywhere would let
+    you write into any organisation's people list.
+*   **`userId` is stripped from `UPDATE_ORG_PROFILE`, always.** Re-pointing a profile at a user
+    account hands over every membership it holds; the one legitimate caller
+    (`UserManager.ensureProfileForUserInOrg`) is server-side, and no client sends it.
+*   The gate is on the **action**, not in `UserManager`, so the server's own writes — the invite
+    flow's `lastInviteSentAt`, the claim flow's link — keep working. They are not requests.
+
 #### `ADD_ORG_MEMBER`
 *   **Payload**: `{ orgProfileId, organizationId, roleId }`
 *   **Logic**: Adds a member to an organization.
@@ -361,16 +386,21 @@ See [reports.md](reports.md) for the feature overview (producers, consumers, and
 
 ### 10. Tournaments
 
-Added by Phase 3. **Every action below is authorized as its event**, through the same
-`canEditEventOrGame` that already guards an event or game edit — one gate in
-[index.ts](file:///c:/Fred/Coding/SK/server/src/index.ts) (`TOURNAMENT_ACTION_EVENT`) resolves each
-payload to its event and checks it, rather than fourteen handlers each remembering to. A division,
-a stage, a roster and an adjustment therefore inherit exactly the rights the event grants, and
-Phase 4's organiser assignments widen **one function** rather than fourteen call sites.
+Added by Phase 3. **Every action below goes through one gate**,
+[wss/tournamentGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/tournamentGate.ts), rather than
+twenty handlers each remembering to check. The gate asks two questions, in this order:
+
+1. **Event scope** — `canEditEventOrGame`, the same function that already guards an event or game
+   edit, so a division, a stage, a roster and an adjustment inherit exactly the rights the event
+   grants. Since Phase 4 it also admits an **appointed event organiser**, which is why the
+   assignments widened one function rather than fourteen call sites.
+2. **Division scope** — only for actions that name a division (`TOURNAMENT_ACTION_DIVISION`). A
+   convenor's grant covers the whole of their division and nothing above or beside it.
 
 Each payload carries `orgId` — the workspace the caller is acting from — which falls back to the
 event's own org so the check cannot be skipped by omitting it, exactly as `UPDATE_GAME` and
-`DELETE_GAME` already do.
+`DELETE_GAME` already do. The two assignment actions take it as **optional**, because an appointee
+may hold no membership anywhere and so act from no workspace at all.
 
 | Action | Payload | Batch? | Broadcasts |
 | --- | --- | --- | --- |
@@ -386,6 +416,16 @@ event's own org so the check cannot be skipped by omitting it, exactly as `UPDAT
 | `RESOLVE_PARTICIPANT` | `{ gameParticipantId, orgId, teamId? \| orgProfileId? \| entrantId? }` | no | `GAME_SUMMARY_UPDATED`, standings |
 | `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no | `DIVISION_ADJUSTMENTS_SYNC`, standings |
 | `SET_EVENT_FACILITIES` / `SET_DIVISION_FACILITIES` | `{ …Id, orgId, facilityIds }` | no | `EVENT_FACILITIES_SYNC` / `DIVISION_FACILITIES_SYNC` |
+| `APPOINT_ORGANIZER` / `WITHDRAW_ORGANIZER` | `{ eventId \| divisionId, orgProfileId, orgId? }` | no | `EVENT_CAPABILITIES_UPDATED` to `user:{id}` — **not** to a division room |
+
+**Which of these a division convenor may send** (Phase 4, widened from D31 on 2026-09-03): every
+action that names their division — entrants, stages, fixtures, scheduling, results and adjustments —
+so that an event organiser can hand a division over and stop thinking about it. **Not**
+`ADD_DIVISION`, `UPDATE_DIVISION`, `DELETE_DIVISION`, `SET_EVENT_FACILITIES`, or either assignment
+action: the division's own record and the shape of the event belong to whoever runs the event, and
+not being able to appoint anybody is what keeps an appointee from locking out the people who
+appointed them. An attempt on another division resolves to a division they do not hold and is
+refused **on the wire**, not by a hidden button.
 
 Three behaviours are worth stating because they are refusals rather than features:
 
@@ -401,6 +441,36 @@ Three behaviours are worth stating because they are refusals rather than feature
   the rule is gone the choke point will not touch the slot again, so an organiser's decision
   survives the source fixture being re-scored. Filling a "TBC — awaiting confirmation" slot and
   promoting a beaten semi-finalist are deliberately the same edit and the same code path.
+
+### Organiser assignments and capability flags (Phase 4)
+
+Both assignment actions are **idempotent** and answer with the scope's **whole list**
+(`OrganizersResult`), so a caller replaces rather than patches — the same reasoning rule 1 of the
+broadcast strategy gives. An appointment writes exactly one row: it never adds the appointee's
+organisation to `event_organizations`.
+
+The list is deliberately **not** broadcast. `event:{id}` is a public room and an organiser list
+names people, so it is read through `get_data` at the organiser tier instead:
+
+| Request | Who may read it |
+| --- | --- |
+| `{ type: 'event_capabilities', eventId }` | any signed-in user — it answers about **the caller** and there is no way to ask about anybody else |
+| `{ type: 'event_organizers', eventId }` | whoever may organise that event |
+| `{ type: 'division_organizers', divisionId }` | whoever may organise that division |
+| `{ type: 'organizer_candidates', eventId, query, global? }` | whoever may organise that event |
+
+`organizer_candidates` is the picker's search, in tiers: by default the host and participating
+organisations, and `global: true` is the explicit control that widens it to everybody. **Both tiers
+return name, organisation and image only** — never `cellphone`, `birthdate` or `national_id`. That
+projection rule now applies to `search_people` as well, which returns contact and identity fields
+only when the search is scoped to an org the caller belongs to (`PEOPLE-1`, closed 2026-09-03).
+
+A grant change publishes `EVENT_CAPABILITIES_UPDATED` to the affected person's `user:{id}` room,
+carrying their freshly computed `{ canEditEvent, convenesDivisionIds }`. `broadcast()` hooks that
+message the way it hooks `USER_MEMBERSHIPS_UPDATED`: it drops their cached identity and revalidates
+the rooms their sockets already hold, so a withdrawn convenor stops receiving a division's roster at
+once rather than at their next reconnect. Nobody to notify is a normal outcome — the grant may name
+a profile with no account yet.
 
 ### The choke point
 

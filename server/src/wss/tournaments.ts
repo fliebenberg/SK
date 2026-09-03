@@ -1,5 +1,6 @@
 import { GameSummary } from '@sk/shared';
 import { tournamentManager } from '../managers/TournamentManager';
+import { accessManager } from '../managers/AccessManager';
 import { eventManager } from '../managers/EventManager';
 import { broadcast } from './broadcast';
 import { publishGameSummary } from './fixtures';
@@ -103,5 +104,29 @@ export async function publishRecalculation(outcome: {
   await publishStandings(outcome.divisionId, outcome.eventId);
   for (const gameId of outcome.changedGameIds) {
     await publishGameSummary(gameId);
+  }
+}
+
+/**
+ * An organiser was appointed or withdrawn.
+ *
+ * This is the one tournament change that cannot be broadcast to a division room, and the reason is
+ * the same one that keeps `canEdit` off the division object: a room broadcast reaches everybody in
+ * it, and what changed here is one person's rights. So it goes to `user:{id}` — the `self` tier —
+ * carrying that person's freshly computed capabilities for the event.
+ *
+ * Nobody to notify is a normal outcome, not a failure: a grant may name a profile that has no
+ * account yet, which is exactly the "appoint the convenor, who will get an invite" case. When they
+ * later claim it, `AccessManager`'s email match picks the grant up with no row being touched.
+ *
+ * `EVENT_CAPABILITIES_UPDATED` is hooked in `broadcast()` the way `USER_MEMBERSHIPS_UPDATED` is:
+ * it drops the cached identity and revalidates the rooms that socket already holds, so a withdrawn
+ * convenor stops receiving a division's roster at once rather than at their next reconnect.
+ */
+export async function publishOrganizerChange(orgProfileId: string, eventId: string): Promise<void> {
+  const userIds = await accessManager.getUserIdsForOrgProfile(orgProfileId);
+  for (const userId of userIds) {
+    const capabilities = await accessManager.getEventCapabilities(userId, eventId);
+    broadcast(`user:${userId}`, 'EVENT_CAPABILITIES_UPDATED', capabilities);
   }
 }
