@@ -3,6 +3,7 @@ import {
   DEFAULT_SCORING_SYSTEM,
   DEFAULT_TIEBREAKERS,
   EntrantSourceRule,
+  EventFormat,
   GameSummary,
   MatchTopology,
   ParticipantSourceRule,
@@ -17,6 +18,7 @@ import {
   TournamentOrganizer,
   TournamentStage,
   TournamentStandingRow,
+  stagePlanForFormat,
   calculateStandings,
   rollUpByOrganisation,
 } from "@sk/shared";
@@ -216,6 +218,45 @@ export class TournamentManager extends BaseManager {
       ]
     );
     return (await this.getDivision(id))!;
+  }
+
+  /**
+   * The division a tournament is born with (U16), and the stages that division is born with (D11).
+   *
+   * Created **with the tournament, not lazily on the first fixture**. An empty division row beside
+   * an empty tournament row costs nothing, and it is the simpler rule everywhere downstream: every
+   * screen below the event can assume a division exists, and every fixture has a stage to belong
+   * to rather than resolving to no division at all (`PEOPLE-3`).
+   *
+   * **The name matters even though nobody sees it yet.** Under the collapse rule the word
+   * "Division" never appears while there is only one — but the moment a second is added, the first
+   * one's name is suddenly on screen. So it is named the way an organiser would have named it: after
+   * the sport when the tournament has exactly one, and after the event otherwise. Renamable either
+   * way (D3), and the screen that adds the second division offers the rename in the same breath.
+   */
+  async createImplicitDivision(event: {
+    id: string;
+    name: string;
+    format?: EventFormat | null;
+    sportIds?: string[];
+  }): Promise<TournamentDivision> {
+    const sportIds = event.sportIds || [];
+    const onlySportId = sportIds.length === 1 ? sportIds[0] : undefined;
+    const sportName = onlySportId
+      ? (await this.query(`SELECT name FROM sports WHERE id = $1`, [onlySportId])).rows[0]?.name
+      : null;
+
+    const division = await this.addDivision({
+      eventId: event.id,
+      name: sportName || event.name,
+      sportId: onlySportId,
+    });
+
+    for (const stage of stagePlanForFormat(event.format)) {
+      await this.addStage({ divisionId: division.id, ...stage });
+    }
+
+    return (await this.getDivision(division.id))!;
   }
 
   async updateDivision(id: string, data: Partial<TournamentDivision>): Promise<TournamentDivision | null> {

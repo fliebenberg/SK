@@ -472,6 +472,38 @@ the rooms their sockets already hold, so a withdrawn convenor stops receiving a 
 once rather than at their next reconnect. Nobody to notify is a normal outcome — the grant may name
 a profile with no account yet.
 
+
+### What a screen reads instead of fetching (Phase 5)
+
+Three payloads gained fields in Phase 5, all of them for the same reason: a screen that has to look
+something up is a screen that makes N round trips and then renders a stale answer.
+
+| Payload | Field | Why it travels rather than being resolved |
+| --- | --- | --- |
+| `Event` | `participatingOrgs` — `{ id, name, shortName }[]` | `FIX-2`. The event screen used to read *every organisation in the system* to name a handful, and kept the answer only `if (Array.isArray(res))`, which a paginated response never satisfies, so it named none of them. Displaying orgs already in an event is data a room owns. |
+| `GameSummary` / `Game` | `stageId`, `divisionId` | A division's fixture list has to say which stage a fixture is in, and a client-side permission check has to know which division it belongs to — a convenor's grant is scoped to exactly that id, so without it the screen hides the scoring control from somebody the server would let through. `divisionId` is derived through `division_stages`, never stored twice. |
+| `Event.settings` | `dismissedSetupSteps` | Which setup-checklist steps the organiser has put away (U17). On the event rather than per viewer: a step that does not apply does not apply for anybody organising it. |
+
+And one new read:
+
+| Request | Who may read it | Answers |
+| --- | --- | --- |
+| `{ type: 'my_event_grants' }` | any signed-in user — like `event_capabilities`, it answers about **the caller** and no one else | `{ eventIds, divisions: [{ divisionId, eventId }] }` |
+
+`event_capabilities` is the authoritative answer for **one** event and the event screen asks it. A
+fixtures list cannot: role chips on thirty cards would be thirty round trips, which is the
+"notify, then everybody refetches" cost the whole design exists to remove, relocated to a screen
+load. So a list reads `my_event_grants` once and derives the rest — hosting and attending follow
+from the user's memberships, the event's own org and its participating orgs, and only convening
+follows from nothing the client holds. It is display only; every write is gated server-side
+regardless of what a chip says. Both are refreshed by `EVENT_CAPABILITIES_UPDATED`.
+
+**The fixture audience gained two rooms**, and this was a latent bug rather than a new feature:
+`join_room` pushes `GAME_SUMMARIES_SYNC` to `event:{id}` and `DIVISION_GAMES_SYNC` to
+`division:{id}:fixtures`, but `fixtureRooms` published to neither — so both handed over data on join
+and then never updated it. A room that hands data over and never republishes it is `FIX-4`'s shape.
+Both are now in the audience of every `publishGameSummary` and every removal.
+
 ### The choke point
 
 `recalculateForGame(gameId)` in

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { resolveEventType } from '@sk/shared';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../../../../components/GlassCard';
@@ -15,6 +16,7 @@ import MatchForm, { MatchFormData } from '../../../../../../../components/MatchF
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useUnsavedChanges } from '../../../../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChangesStore';
+import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 
@@ -22,6 +24,7 @@ export default function EditGame() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string, eventId: string, gameId: string }>();
+  const { capabilities } = useEventCapabilities(eventId);
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
 
@@ -211,7 +214,7 @@ export default function EditGame() {
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_GAME, payload }, (res: any) => {
-      if (res && event.type === 'SingleMatch') {
+      if (res && isSingleMatchEvent()) {
         // Resolve event name based on updated orgs and teams
         const homeOrg = orgsList.find(o => o.id === formData.homeOrgId);
         const awayOrg = orgsList.find(o => o.id === formData.awayOrgId);
@@ -263,7 +266,7 @@ export default function EditGame() {
     };
 
     wsService.emit('action', { type: SocketAction.UPDATE_GAME, payload }, (res: any) => {
-      if (res && event?.type === 'SingleMatch') {
+      if (res && isSingleMatchEvent()) {
         const eventPayload = {
           id: eventId,
           data: { status: 'Cancelled' }
@@ -293,11 +296,21 @@ export default function EditGame() {
     });
   };
 
+  /**
+   * Whether this game *is* its event, rather than one fixture inside a container.
+   *
+   * Routed through `resolveEventType` rather than testing the string, because U39 makes the type
+   * an explicit three-way answer: an event whose type we cannot name is not silently treated as a
+   * single match here, which is the safe direction — deleting this game would otherwise delete a
+   * whole tournament.
+   */
+  const isSingleMatchEvent = () => resolveEventType(event).kind === 'SingleMatch';
+
   // Delete Game Handler
   const handleDeleteGame = () => {
     setIsProcessing(true);
     const userId = useAuthStore.getState().user?.id;
-    if (event?.type === 'SingleMatch') {
+    if (isSingleMatchEvent()) {
       wsService.emit('action', { 
         type: SocketAction.DELETE_EVENT, 
         payload: { id: eventId, userId, orgId } 
@@ -340,6 +353,9 @@ export default function EditGame() {
     user,
     orgMemberships,
     teamMemberships,
+    // Without this the screen would hide the controls from an appointed organiser or a
+    // division convenor, neither of whom holds an org membership that says so (D33).
+    capabilities,
   });
 
   const handleSwitchView = (targetView: 'view' | 'selection' | 'edit' | 'score') => {
@@ -478,7 +494,7 @@ export default function EditGame() {
         isOpen={isDeleting}
         title="Delete Match?"
         description={
-          event?.type === 'SingleMatch'
+          isSingleMatchEvent()
             ? 'Deleting this game will also permanently delete the entire Single Match event record. This cannot be undone.'
             : 'Are you sure you want to permanently delete this game matchup? This will remove all database records for this match and cannot be undone.'
         }

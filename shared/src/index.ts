@@ -42,4 +42,7 @@ export * from './utils/socketActionUtils';
 export * from './utils/templateSteps';
 export * from './utils/sportSections';
 export * from './utils/capturedEvent';
+export * from './utils/eventType';
+export * from './utils/eventRoles';
+export * from './utils/collapseRule';
 export * from './constants/TestConstants';

@@ -34,6 +34,16 @@ export interface Game {
    * "which stage is this?" resolved through participants returns both.
    */
   stageId?: string;
+  /**
+   * The division this fixture is in, resolved through its stage.
+   *
+   * Derived, never stored — `division_stages` already holds the relationship, and duplicating it
+   * on the fixture would be a second copy to keep in step. It travels on the payload because a
+   * screen has to answer "may this person score this?" without a lookup: a division convenor's
+   * rights are scoped to exactly this id, and the client-side permission check would otherwise
+   * hide the scoring control from somebody the server would let through.
+   */
+  divisionId?: string;
   startTime?: string;
   scheduledStartTime?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';

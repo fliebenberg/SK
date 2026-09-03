@@ -102,5 +102,13 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     `get_data { type: 'event_capabilities', eventId }` rather than stamped onto the event or the
     division. A grant change pushes `EVENT_CAPABILITIES_UPDATED` to that person's `user:{id}` room,
     which `broadcast()` also treats as an identity change — dropping their cached access and
-    revalidating the rooms their sockets already hold.
+    revalidating the rooms their sockets already hold. A **list** of events cannot afford that read
+    per card, so it asks `get_data { type: 'my_event_grants' }` once — the grants this caller holds,
+    with each division grant carrying its event id — and derives hosting and attending from data it
+    already has. Display only; every write is still gated server-side.
+*   **A fixture's audience includes its event and division rooms** (Phase 5). `join_room` hands
+    fixtures over to `event:{id}` and `division:{id}:fixtures`, so both must also receive
+    `GAME_SUMMARY_UPDATED` — a room that hands data over on join and never republishes it goes
+    stale the moment anything happens. See
+    [wss/fixtures.ts](file:///c:/Fred/Coding/SK/server/src/wss/fixtures.ts).
 *   **Expo Services**: [expo-app/services/](file:///c:/Fred/Coding/SK/expo-app/services/) holds the WebSocket connection manager.

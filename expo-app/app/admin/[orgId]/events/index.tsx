@@ -14,6 +14,11 @@ import { SocketAction, Event, Site, Facility, GameSummary, participantLabel, has
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
+import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
+import { deriveEventRoles, EventRole } from '@sk/shared';
+import { EventRoleChips, EventRoleFilter } from '../../../../components/EventRoleChips';
+import { resolveEventType, unknownEventTypeMessage } from '@sk/shared';
+import { Tabs } from '../../../../components/Tabs';
 
 class EventsErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -64,6 +69,17 @@ export default function OrgEventsList() {
   // UI States
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'upcoming' | 'past'>('upcoming');
+  /**
+   * Events and games are two altitudes of one list, not two subjects (U2).
+   *
+   * The events tab asks what we are involved in and in what capacity; the games tab drills to the
+   * actual fixtures. Both are already delivered by the one room below — `EVENTS_SYNC` and
+   * `GAME_SUMMARIES_SYNC` both arrive on join — so this is a presentation split over data the
+   * screen already has, with no new fetch. Named after the entities (U36).
+   */
+  const [listTab, setListTab] = useState<'events' | 'games'>('events');
+  /** Multi-select, because a viewer can hold several roles in one event at once (U5). */
+  const [roleFilter, setRoleFilter] = useState<EventRole[]>([]);
   const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -145,6 +161,25 @@ export default function OrgEventsList() {
       }
     },
   });
+
+  /**
+   * The one thing about a viewer's relationship to an event that the client cannot work out.
+   *
+   * Hosting and attending are derived from what this screen already holds — the user's
+   * memberships, each event's own org, its participating orgs, and the fixtures themselves. A
+   * division-organiser assignment appears on no payload the client holds, so it is read once for
+   * every event rather than per card (UI doc §4).
+   */
+  const grants = useMyEventGrants();
+
+  const rolesFor = (event: Event): EventRole[] =>
+    deriveEventRoles({
+      event,
+      grants,
+      orgMemberships,
+      teamMemberships,
+      games: (gameSummaries || []).filter(g => g && g.eventId === event.id),
+    });
 
   // Handle Deleting an Event
   const handleDeleteEvent = async () => {
@@ -241,6 +276,13 @@ export default function OrgEventsList() {
       const matchesSearch = searchQuery ? haystack.includes(searchQuery.toLowerCase()) : true;
       if (!matchesSearch) return false;
 
+      // Nothing selected means no narrowing. Selecting several widens rather than narrows, because
+      // the chips are alternatives — "show me the ones I host **or** convene" (U5).
+      if (roleFilter.length > 0) {
+        const roles = rolesFor(e);
+        if (!roleFilter.some(role => roles.includes(role))) return false;
+      }
+
       if (!e.startDate) {
         console.warn('[OrgEventsList] Event missing startDate:', e);
         return false;
@@ -266,6 +308,48 @@ export default function OrgEventsList() {
       const dateB = b?.startDate ? new Date(b.startDate).getTime() : 0;
       return viewMode === 'upcoming' ? dateA - dateB : dateB - dateA;
     });
+
+  const eventsById: Record<string, Event> = (events || []).reduce((acc, e) => {
+    if (e?.id) acc[e.id] = e;
+    return acc;
+  }, {} as Record<string, Event>);
+
+  /**
+   * The games tab, over the same room and the same two controls.
+   *
+   * A fixture's date is its own where it has one and its event's otherwise, so a game with no
+   * kick-off yet still sorts and filters with the day it belongs to rather than falling out of
+   * both halves of the Upcoming / Past split.
+   */
+  const gameWhen = (game: GameSummary): number => {
+    const iso = game.scheduledStartTime || game.startTime || eventsById[game.eventId || '']?.startDate;
+    const parsed = iso ? new Date(iso).getTime() : NaN;
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const filteredGames = (gameSummaries || [])
+    .filter(game => {
+      if (!game) return false;
+      const parentEvent = eventsById[game.eventId || ''];
+
+      const haystack = `${getMatchupLabel(game) || ''} ${parentEvent ? getEventName(parentEvent) : ''}`.toLowerCase();
+      if (searchQuery && !haystack.includes(searchQuery.toLowerCase())) return false;
+
+      // A fixture inherits its event's roles: you convene the netball, so the netball fixtures are
+      // yours. Deriving it per game would ask the same question sixty times for one answer.
+      if (roleFilter.length > 0) {
+        if (!parentEvent) return false;
+        const roles = rolesFor(parentEvent);
+        if (!roleFilter.some(role => roles.includes(role))) return false;
+      }
+
+      const when = gameWhen(game);
+      if (!when) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return viewMode === 'upcoming' ? when >= today.getTime() : when < today.getTime();
+    })
+    .sort((a, b) => (viewMode === 'upcoming' ? gameWhen(a) - gameWhen(b) : gameWhen(b) - gameWhen(a)));
 
   console.log('[OrgEventsList] viewMode:', viewMode, 'Total events:', events.length, 'Filtered count:', filteredEvents.length);
 
@@ -359,6 +443,22 @@ export default function OrgEventsList() {
           </TouchableOpacity>
         </View>
 
+        {/* EVENTS / GAMES — two altitudes of one list, over one room (U2, U36) */}
+        <Tabs
+          items={[
+            { key: 'events', label: 'Events', icon: 'calendar-outline' },
+            { key: 'games', label: 'Games', icon: 'football-outline' },
+          ]}
+          activeKey={listTab}
+          onChange={(key) => setListTab(key as 'events' | 'games')}
+          className="mb-4"
+        />
+
+        {/* SCOPE CHIPS — beside the Upcoming / Past toggle rather than competing with it (U5) */}
+        <View className="mb-6">
+          <EventRoleFilter selected={roleFilter} onChange={setRoleFilter} />
+        </View>
+
         {isLoading ? (
           <View className="items-center justify-center py-20">
             <ActivityIndicator size="large" color={COLORS.brand.orange} />
@@ -369,16 +469,48 @@ export default function OrgEventsList() {
         ) : (
           <EventsErrorBoundary>
             <View className="space-y-3">
-              {filteredEvents.map(event => {
+              {listTab === 'events' && filteredEvents.map(event => {
                 const eventGames = (gameSummaries || []).filter(g => g && g.eventId === event.id);
-                const isSportsDay = event.type === 'SportsDay';
-                const isTournament = event.type === 'Tournament';
-                const isContainer = isSportsDay || isTournament;
+
+                /**
+                 * `FIX-1` / U39 — three branches, and the third is an error rather than a guess.
+                 *
+                 * Every consumer used to test `=== 'SingleMatch'` and fall through to Tournament,
+                 * so an event with no type quietly got the Tournament badge, Tournament navigation
+                 * and the wrong actions. The schema half was closed in Phase 1; this is the client
+                 * half, and it fails loudly instead of falling back.
+                 */
+                const resolved = resolveEventType(event);
+                const roles = rolesFor(event);
+
+                if (resolved.kind === 'Unknown') {
+                  return (
+                    <GlassCard
+                      key={event.id}
+                      className="border border-red-500/25 bg-red-500/5 p-4"
+                    >
+                      <View className="flex-row items-center gap-2 mb-1">
+                        <Ionicons name="alert-circle-outline" size={16} color={COLORS.brand.red} />
+                        <Text className="font-inter-bold text-[9px] text-brand-red uppercase tracking-widest">
+                          Cannot display
+                        </Text>
+                      </View>
+                      <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
+                        {event.name || 'Unnamed Event'}
+                      </Text>
+                      <Text className="font-inter text-[11px] text-slate-600 dark:text-slate-400 mt-1">
+                        {unknownEventTypeMessage(resolved)}
+                      </Text>
+                    </GlassCard>
+                  );
+                }
+
+                const isSingleMatch = resolved.kind === 'SingleMatch';
                 const isEventOwner = event.orgId === orgId;
 
                 // An event fully described by one game borrows that game's kick-off time and
                 // venue, and needs no separate details block repeating them below the card.
-                const primaryGame = !isContainer && eventGames.length === 1 ? eventGames[0] : undefined;
+                const primaryGame = isSingleMatch && eventGames.length === 1 ? eventGames[0] : undefined;
                 const whenLabel = getWhenLabel(event, primaryGame);
                 const scoreLabel = getScoreLabel(primaryGame);
                 const isLive = primaryGame?.status === 'Live';
@@ -391,7 +523,7 @@ export default function OrgEventsList() {
                 <TouchableOpacity
                   key={event.id}
                   onPress={() => {
-                    if (event.type === 'SingleMatch' && eventGames.length > 0) {
+                    if (isSingleMatch && eventGames.length > 0) {
                       router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/${isEventOwner ? 'edit' : 'view'}`);
                     } else {
                       router.push(`/admin/${orgId}/events/${event.id}`);
@@ -410,7 +542,7 @@ export default function OrgEventsList() {
                       </Text>
                       <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-md flex-shrink-0">
                         <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">
-                          {event.type === 'SingleMatch' ? 'Single Match' : event.type === 'SportsDay' ? 'Sports Day' : 'Tournament'}
+                          {resolved.label}
                         </Text>
                       </View>
                       {isLive && (
@@ -429,7 +561,7 @@ export default function OrgEventsList() {
                       )}
                       <View className="flex-1" />
                       <View className="flex-row items-center gap-1.5 flex-shrink-0">
-                      {event.type === 'SingleMatch' && eventGames.length > 0 ? (() => {
+                      {isSingleMatch && eventGames.length > 0 ? (() => {
                         const singleGame = eventGames[0];
                         const perms = getMatchPermissions({
                           game: singleGame,
@@ -527,6 +659,13 @@ export default function OrgEventsList() {
                       ) : null}
                     </View>
 
+                    {/* Every role this viewer holds here, not the most senior one (U4). */}
+                    {roles.length > 0 && (
+                      <View className="mt-2">
+                        <EventRoleChips roles={roles} />
+                      </View>
+                    )}
+
                     {/* Nested game summaries - only where the header line does not already say it all */}
                     {!primaryGame && eventGames.length > 0 && (
                       <View className="mt-3 pt-3 border-t border-slate-100 dark:border-white/5 space-y-2">
@@ -554,6 +693,129 @@ export default function OrgEventsList() {
                 </TouchableOpacity>
               );
               })}
+              {/* GAMES TAB — the lower altitude: the fixtures themselves, across every event */}
+              {listTab === 'games' && filteredGames.map(game => {
+                const parentEvent = eventsById[game.eventId || ''];
+                const perms = getMatchPermissions({
+                  game,
+                  event: parentEvent || null,
+                  currentOrgId: orgId,
+                  user,
+                  orgMemberships,
+                  teamMemberships,
+                });
+                const isLive = game.status === 'Live';
+                const venueLabel = getVenueLabel(game.siteId, game.facilityId);
+                const scoreLabel = getScoreLabel(game);
+
+                return (
+                  <TouchableOpacity
+                    key={game.id}
+                    onPress={() =>
+                      router.push(
+                        `/admin/${orgId}/events/${game.eventId}/games/${game.id}/${perms.canEdit ? 'edit' : 'view'}`
+                      )
+                    }
+                    activeOpacity={0.85}
+                  >
+                    <GlassCard className="border border-slate-200 dark:border-white/5 p-4">
+                      <View className="flex-row items-center gap-2 mb-2">
+                        <Text
+                          numberOfLines={1}
+                          className="font-inter-bold text-[11px] text-slate-600 dark:text-slate-400 flex-shrink"
+                        >
+                          {parentEvent ? getWhenLabel(parentEvent, game) : 'Date TBD'}
+                        </Text>
+                        {isLive && (
+                          <View className="bg-brand-orange/15 px-2 py-0.5 rounded-md flex-shrink-0">
+                            <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-widest">
+                              Live
+                            </Text>
+                          </View>
+                        )}
+                        <View className="flex-1" />
+                        <View className="flex-row items-center gap-1.5 flex-shrink-0">
+                          <TouchableOpacity
+                            onPress={(e: any) => {
+                              if (e && e.stopPropagation) e.stopPropagation();
+                              router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/view`);
+                            }}
+                            className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                          >
+                            <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
+                          </TouchableOpacity>
+                          {perms.canSelectLineup && (
+                            <TouchableOpacity
+                              onPress={(e: any) => {
+                                if (e && e.stopPropagation) e.stopPropagation();
+                                router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/selection`);
+                              }}
+                              className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-80"
+                            >
+                              <Ionicons name="people-outline" size={13} color={COLORS.brand.orange} />
+                            </TouchableOpacity>
+                          )}
+                          {perms.canScore && (
+                            <TouchableOpacity
+                              onPress={(e: any) => {
+                                if (e && e.stopPropagation) e.stopPropagation();
+                                router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/score`);
+                              }}
+                              className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-80"
+                            >
+                              <Ionicons name="trophy-outline" size={13} color={COLORS.brand.orange} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+
+                      <View className="flex-row items-center justify-between gap-3">
+                        <Text
+                          numberOfLines={1}
+                          className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight flex-1"
+                        >
+                          {getMatchupLabel(game) || 'TBD vs TBD'}
+                        </Text>
+                        {scoreLabel ? (
+                          <Text
+                            className={`font-orbitron-bold text-sm flex-shrink-0 ${
+                              isLive ? 'text-brand-orange' : 'text-slate-800 dark:text-white'
+                            }`}
+                          >
+                            {scoreLabel}
+                          </Text>
+                        ) : (
+                          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 flex-shrink-0 uppercase tracking-wider">
+                            {game.status}
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Which event this fixture belongs to, and where it is played. A game row has
+                          to name its parent, or a flat list of sixty fixtures is unreadable. */}
+                      <View className="flex-row items-center gap-2 mt-1">
+                        <Text
+                          numberOfLines={1}
+                          className="font-inter text-[10px] text-slate-500 dark:text-slate-400 flex-1"
+                        >
+                          {parentEvent ? getEventName(parentEvent) : 'Unknown event'}
+                        </Text>
+                        {venueLabel ? (
+                          <View className="flex-row items-center gap-1 flex-shrink-0 max-w-[45%]">
+                            <Ionicons name="location-outline" size={11} color={COLORS.dark.textSecondary} />
+                            <Text
+                              numberOfLines={1}
+                              className="font-inter text-[10px] text-slate-600 dark:text-slate-400 flex-shrink"
+                            >
+                              {venueLabel}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </GlassCard>
+                  </TouchableOpacity>
+                );
+              })}
 
               {/* An empty list and no permission to see one are different answers. */}
               {accessDenied ? (
@@ -566,14 +828,16 @@ export default function OrgEventsList() {
                     You do not have permission to view this organization's fixtures.
                   </Text>
                 </View>
-              ) : filteredEvents.length === 0 && (
+              ) : (listTab === 'events' ? filteredEvents.length === 0 : filteredGames.length === 0) && (
                 <View className="items-center justify-center py-16">
                   <Ionicons name="calendar-outline" size={48} color={COLORS.dark.textSecondary} style={{ opacity: 0.3, marginBottom: 12 }} />
                   <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
-                    No {viewMode} Events
+                    No {viewMode} {listTab === 'events' ? 'Events' : 'Games'}
                   </Text>
                   <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
-                    Click the plus icon in the header to schedule a single match, sports day, or tournament.
+                    {roleFilter.length > 0
+                      ? 'Nothing matches the roles you have selected. Clear them to see everything.'
+                      : 'Click the plus icon in the header to schedule a single match or create a tournament.'}
                   </Text>
                 </View>
               )}
@@ -629,26 +893,6 @@ export default function OrgEventsList() {
                 className="flex-row items-center p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-white/10"
                 onPress={() => {
                   setIsAddMenuVisible(false);
-                  router.push(`/admin/${orgId}/events/create?type=sportsday`);
-                }}
-              >
-                <View className="w-10 h-10 rounded-full bg-brand-blue/15 items-center justify-center mr-4">
-                  <Ionicons name="analytics" size={20} color={COLORS.brand.blue} />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">
-                    Create Sports Day
-                  </Text>
-                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Multi-organization, multi-sport event
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="flex-row items-center p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-white/10"
-                onPress={() => {
-                  setIsAddMenuVisible(false);
                   router.push(`/admin/${orgId}/events/create?type=tournament`);
                 }}
               >
@@ -660,7 +904,7 @@ export default function OrgEventsList() {
                     Create Tournament
                   </Text>
                   <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Bracket or pool-based competition
+                    A sports day, a league round or a knockout — you pick the format next
                   </Text>
                 </View>
               </TouchableOpacity>

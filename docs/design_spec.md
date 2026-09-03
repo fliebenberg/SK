@@ -76,6 +76,36 @@ To maintain a clear visual hierarchy across screens, the application distinguish
 
 ---
 
+### 2.5 The Collapse Rule (degenerate containers)
+
+**A level with exactly one child renders that child inline and shows no picker for it.** The concept
+appears at the moment a second child does.
+
+Written down as a general rule because the failure mode is asymmetric and easy to miss in review:
+forgetting it *adds* a concept the user did not need — a list of one, a tab bar with one tab, or a
+piece of vocabulary in front of somebody who should never have met it. Nobody notices a missing
+container; everybody notices being asked to pick from a list of one.
+
+It arrived with tournaments, where a single-sport tournament has one division and the organiser must
+never be shown the word "Division" — the event screen simply *is* the division screen — and a
+division with one stage shows no stage tabs. But nothing about it is tournament-specific, and the
+same shape recurs wherever a container usually holds one child and occasionally holds several.
+
+Two obligations come with it:
+
+- **One rendering, not two.** The inline case and the routed case must be the same component, or they
+  drift. `DivisionPanel` is mounted by both the event screen and the division route for exactly this
+  reason.
+- **Announce the appearance.** Adding the second child restructures the screen, so say what will
+  happen *before* it happens — naming the existing child, since its name is about to become visible
+  having never been seen. A structural change is never a surprise.
+
+The rule and its announcement copy live in
+[shared/src/utils/collapseRule.ts](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.ts), with
+tests.
+
+---
+
 ## 3. The Live Viewer Experience
 
 The viewer interface must handle high-density data without feeling cluttered, combining Flashscore's compactness with FotMob's readability.
@@ -137,7 +167,8 @@ Managing complex hierarchies (Users, Memberships, Organizations, Events) require
 - The UI should instantly pivot to reflect the context of the newly selected scope, reinforcing the multi-tenant architecture.
 
 ### 5.2 Creation Wizards
-- For complex data entry (e.g., creating a new tournament or onboarding a new organization), use **multi-step wizards** instead of long, single-page scrolling forms. Break data validation into digestible chunks.
+- For complex data entry (e.g., onboarding a new organization), use **multi-step wizards** instead of long, single-page scrolling forms. Break data validation into digestible chunks.
+- **Except where the work does not happen in one sitting.** A tournament's name and dates are known in March, its entrants confirm through April, its fixtures follow, and its schedule is done the week before — so a wizard that must be completed before it produces anything is the wrong container. There, the wizard creates the *shell* and the screen carries a **setup checklist**: a resumable state that says what is outstanding and puts each remaining action in context. Steps that do not apply must be dismissible, or somebody who genuinely wants no points system is nagged about it forever.
 
 ### 5.3 Data Submission UX (Auto-Save vs Explicit Save)
 To prevent confusion, the app uses a hybrid data submission approach:

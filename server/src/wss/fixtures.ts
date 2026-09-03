@@ -17,11 +17,25 @@ import { broadcast } from './broadcast';
  * a game in that org's list, so it must hear about changes to it too.
  */
 
-/** Rooms that should hear about this game, as a fixture rather than as a match. */
+/**
+ * Rooms that should hear about this game, as a fixture rather than as a match.
+ *
+ * The event and division rooms are here for the reason `FIX-4` gave: a room that hands data over
+ * on join and never republishes it is a room whose contents go stale the moment anything happens.
+ * `join_room` pushes `GAME_SUMMARIES_SYNC` to `event:{id}` and `DIVISION_GAMES_SYNC` to
+ * `division:{id}:fixtures`, so both must also receive the updates — otherwise an event screen shows
+ * the score as it was when it opened. Added in Phase 5, when the event screen moved onto the room.
+ */
 async function fixtureRooms(gameId: string): Promise<string[]> {
-  const orgIds = await accessManager.getGameOrgIds(gameId);
+  const [orgIds, eventId, divisionId] = await Promise.all([
+    accessManager.getGameOrgIds(gameId),
+    accessManager.getGameEventId(gameId),
+    accessManager.getGameDivisionId(gameId),
+  ]);
   const rooms = orgIds.map(orgId => `org:${orgId}:events`);
   rooms.push(`game:${gameId}:summary`);
+  if (eventId) rooms.push(`event:${eventId}`);
+  if (divisionId) rooms.push(`division:${divisionId}:fixtures`);
   return rooms;
 }
 

@@ -367,14 +367,32 @@ applies to a `Festival` division with a single stage.
 > first fixture. It is the simpler rule everywhere downstream, and an empty division row beside an
 > empty tournament row costs nothing.
 
+
+> **Built 2026-09-03 (Phase 5), with one deliberate widening.** The rule is
+> [`isCollapsed`](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.ts), with tests, and it
+> collapses **nothing as well as one** — a tournament with no divisions yet must not render a picker
+> over an empty list either. The inline case and the routed case mount the *same* component
+> ([DivisionPanel](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionPanel.tsx)), which
+> is what stops "the event screen *is* the division screen" from becoming two renderings that drift.
+>
+> The announcement is a confirmation before the write, and it **names the existing child** —
+> "the existing division is called *u14 Rugby*; you can rename it once both are visible" — because
+> that name is about to appear on screen having never been seen. Adding a division routes straight to
+> the new one, so the restructure is followed rather than merely announced.
+>
+> The implicit division is created **with its stages too** (D11), derived from the format:
+> `PoolsKnockout` is the one format that is genuinely two stages, and so the one that shows tabs on
+> the day it is created. That also narrows `PEOPLE-3` — a division that is never stageless is a
+> division whose fixtures always have a stage to belong to.
+
 ---
 
 ## 7. Setup is a checklist, not a wizard
 
 [design_spec §5.2](file:///c:/Fred/Coding/SK/docs/design_spec.md) prescribes multi-step wizards for
 complex creation, and the current
-[create.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/create.tsx) is a 945-line
-screen doing that for all three event types.
+[create.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/create.tsx) was a 945-line
+screen doing that for all three event types — two of which are now one (D1).
 
 A tournament does not fit that shape, because it is not built in one sitting. The name and dates are
 known in March; entrants confirm through April; fixtures follow; the schedule is done the week
@@ -391,6 +409,14 @@ that spans weeks.
 >
 > Steps that do not apply must be dismissible, or an organiser who genuinely wants no points system
 > is nagged forever.
+
+> **Built 2026-09-03 (Phase 5) as a scaffold with real steps, two of which act.** The container, its
+> progress count and its dismissal are done; structure and organisers are live; entrants, generation
+> and scheduling say what they are waiting for rather than offering a button that does nothing, and
+> fill in over Phases 6-8. Dismissal is stored on the **event**, in
+> `settings.dismissedSetupSteps`, not per viewer — a step that does not apply does not apply for
+> anybody organising it, and the alternative nags every co-organiser separately. Dismissed steps are
+> counted and restorable, so putting one away is not the same as losing it.
 
 > **Decided — copy first, and choose what comes across.** "Start from scratch / copy an existing
 > tournament" is the first question in the create wizard, since last year's sports day is the best
@@ -574,7 +600,10 @@ The rules for adding to this are set out in
 ## 13. What things are called
 
 > **Decided — the UI says `Festival`.** The stored value and the label match, and the create screen's
-> "Sports Day" goes. Once the organiser is choosing from a list of formats, every entry should name a
+> "Sports Day" goes. **Built 2026-09-03 (Phase 5):** `EVENT_FORMATS` in the shared model is the single
+> list the picker renders and `eventFormatLabel` the single place a stored value becomes a label, so
+> the two cannot drift. The create menu now has one container entry rather than two, and the format
+> is the first structural choice inside it. Once the organiser is choosing from a list of formats, every entry should name a
 > structure; "Sports Day" named an occasion and read oddly beside "Round Robin" and "Knockout".
 
 > **Decided — the word "Division" is used everywhere.** All four slots the question named: the list
@@ -660,6 +689,14 @@ destination of the `SportsDay` migration — so the fall-through gets *more* wro
 > `CHECK` constraint admitting exactly `SingleMatch` and `Tournament` once `SportsDay` has been
 > rewritten (D1). On the client, the `=== 'SingleMatch' ? … : Tournament` fall-through at each of the
 > four call sites becomes an explicit branch whose default case is an error state, not a Tournament.
+
+> **Built 2026-09-03 (Phase 5), and it became a rule rather than four fixed call sites.**
+> [`resolveEventType`](file:///c:/Fred/Coding/SK/shared/src/utils/eventType.ts) returns one of three
+> kinds and deliberately exposes **no `isSingleMatch` boolean** — a boolean has two branches, and the
+> entire point is that there are three. `Unknown` renders an error state that names the value it met,
+> on the card and on the event screen alike. `'SportsDay'` is gone from `EventType`, so a stale value
+> now fails to type-check rather than falling through. Asserted in
+> [collapseRule.test.ts](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.test.ts).
 
 ### `FIX-2` — `allOrgs` is never populated on the event detail screen
 

@@ -43,6 +43,7 @@ export class DataManager {
   isOrgMember = (userId: string, orgId: string) => accessManager.isOrgMember(userId, orgId);
   canOrganizeDivision = (userId: string, divisionId: string) => accessManager.canOrganizeDivision(userId, divisionId);
   getEventCapabilities = (userId: string, eventId: string) => accessManager.getEventCapabilities(userId, eventId);
+  getMyGrants = (userId: string) => accessManager.getMyGrants(userId);
   getEventGrants = (userId: string, eventId: string) => accessManager.getEventGrants(userId, eventId);
   getUserIdsForOrgProfile = (orgProfileId: string) => accessManager.getUserIdsForOrgProfile(orgProfileId);
   getEventOrgIds = (eventId: string) => accessManager.getEventOrgIds(eventId);

@@ -12,6 +12,7 @@ import { Event, Game, Sport, Site, Team, Organization } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
 
 import { useAuthStore } from '../../../../../../../store/authStore';
+import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { EventLogFeed } from '../../../../../../../components/sports/shared/EventLogFeed';
@@ -21,6 +22,7 @@ export default function ViewGame() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string, eventId: string, gameId: string }>();
+  const { capabilities } = useEventCapabilities(eventId);
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
 
@@ -157,6 +159,9 @@ export default function ViewGame() {
     user,
     orgMemberships,
     teamMemberships,
+    // Without this the screen would hide the controls from an appointed organiser or a
+    // division convenor, neither of whom holds an org membership that says so (D33).
+    capabilities,
   });
 
   return (

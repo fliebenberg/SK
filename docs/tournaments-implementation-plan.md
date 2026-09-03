@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0–4 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 on 2026-09-03). **Phase 5 is next** — client foundations: routes, screens and the collapse rule. This is where the tournament work becomes visible: everything before it is schema, engine, server and permissions.
+**Status:** In progress. **Phases 0–5 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03). The tournament work is now visible in the app: a tournament can be created with a format, navigated, and restructured, and every level with one child is collapsed away. **Phase 6 is next** — the first phase that delivers a *usable* tournament: entrants, generation and standings.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -1211,6 +1211,111 @@ host and coach in shows **two** chips, not one.
 **Docs:** [okf/client_routing.md](file:///c:/Fred/Coding/SK/okf/client_routing.md) — new routes;
 [design_spec.md](file:///c:/Fred/Coding/SK/docs/design_spec.md) if the collapse rule generalises
 beyond tournaments, which it probably should.
+
+---
+
+### Done — 2026-09-03
+
+**Exit criterion met, and most of it is asserted rather than clicked through.** The criterion is
+written as things to look at, and two of the three turned out to be pure functions once they were
+written down properly — so they became tests rather than a walkthrough:
+
+- **The collapse rule and the type resolution are tested**, in `shared/` where Vitest already runs.
+  [collapseRule.test.ts](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.test.ts) asserts
+  that nothing *and* one child both collapse, that the second child un-collapses, that the
+  announcement names the existing child, and that `resolveEventType` returns `Unknown` for an
+  untyped row, a null event and the retired `'SportsDay'` — never `Tournament`.
+- **"Two chips, not one" is a test.**
+  [eventRoles.test.ts](file:///c:/Fred/Coding/SK/shared/src/utils/eventRoles.test.ts) asserts the
+  exit criterion's own sentence directly: an event you host and coach in yields `['Hosting',
+  'Attending']`, and three roles when you convene a division of it too. It also asserts the
+  negatives that make those meaningful — a grant on another event does not leak, and a plain
+  membership of the hosting org is neither hosting nor attending.
+- **What only exists once a row is written** is
+  [phase5-structure.ts](file:///c:/Fred/Coding/SK/server/src/scripts/phase5-structure.ts), kept in
+  the Phase 3 and 4 mould: **39 checks** against a real database covering all four formats.
+
+The suite went from 42 tests to **66**; the three server audits now stand at 31 + 82 + 39.
+
+**Six things came out differently from the build list above.**
+
+1. **The implicit division is created with its stages, not just by itself — and server-side.** The
+   plan said "created silently with the tournament (U16), not lazily". Two choices inside that were
+   the user's: the tournament's **first stage or stages are created with it too** (D11), derived
+   from the format by `stagePlanForFormat` — `PoolsKnockout` is the one format that is genuinely
+   two, which is also what makes it the format that exercises the stage tabs. And it happens in the
+   `ADD_EVENT` handler rather than in the wizard, so the invariant holds for every caller rather
+   than for the one screen that remembered.
+
+   This is also a partial answer to **`PEOPLE-3`**: a division that is never stageless is a division
+   whose fixtures always have a stage to belong to, so the orphan state a convenor cannot read
+   becomes much harder to reach. The final call is still Phase 6's, when the fixture-creation
+   screens land — and until then the division panel deliberately *shows* stageless fixtures, since
+   that is the only way anybody would discover one existed.
+
+2. **The list reads grants, not capabilities per card.** The plan says to read role chips with
+   `get_data { type: 'event_capabilities', eventId }`. On a list of thirty events that is thirty
+   round trips on a screen load — the "notify, then everybody refetches" cost the live-data design
+   exists to remove, relocated to the client. So the list asks the one thing it genuinely cannot
+   derive: `my_event_grants`, one read, with each division grant carrying its event id. UI doc §4
+   already says hosting and attending *are* client-derivable and convening is not, so this is that
+   sentence implemented rather than a departure from it. The **event screen still asks
+   `event_capabilities`** and drives its controls from that, which is the authoritative answer.
+
+3. **The event screen moved onto its room, and that exposed a real defect.** `join_room` pushes
+   `GAME_SUMMARIES_SYNC` to `event:{id}` and `DIVISION_GAMES_SYNC` to `division:{id}:fixtures`, but
+   `fixtureRooms` published to neither — so both rooms handed data over on join and then never
+   updated it. That is `FIX-4`'s shape exactly, and it would have made every screen this phase
+   built go stale on the first score. Both rooms are now in the audience of `publishGameSummary`
+   and of every removal.
+
+4. **`FIX-2` was closed, at the user's direction, and closed the way the decision described rather
+   than by fixing the `Array.isArray` test.** Display names now travel: `Event.participatingOrgs`
+   carries `{ id, name, shortName }` and a fixture's team and org names were already on its
+   summary, so the screen holds no organisations at all. The invite picker stays a search, which it
+   already was. The bulk read is gone rather than repaired.
+
+5. **Two fields were added to fixtures because a permission check needed them.** `GameSummary` and
+   `Game` now carry `stageId` and a derived `divisionId`. Without the second, `matchPermissions`
+   cannot tell whether a convenor's grant covers *this* fixture, so it would hide the edit and
+   scoring controls from somebody the server would let through — the server being right and the
+   screen being wrong, which is the worse failure because it is invisible. The four game screens
+   pass capabilities in for the same reason.
+
+6. **The pure logic moved to `shared/`.** `resolveEventType`, `deriveEventRoles` and the collapse
+   rule started in `expo-app/utils/` and were moved, because Phase 0's decision put Vitest in
+   `shared/` only and these are exactly the kind of rule that decision was about — no React, no
+   sockets, no database, and a rule that must hold forever. `EventGrants` went with them, beside
+   `EventCapabilities`, since it is a wire shape rather than a client type.
+
+**Two things in the build list were done differently in a smaller way**, and both are worth saying
+so they are not discovered as surprises:
+
+- **The event screen's `Group: time / sport / site` control is gone.** The old screen grouped a flat
+  list of every fixture in the event; the new one renders fixtures inside their stage, where
+  grouping by sport makes no sense (a division has one) and grouping by venue is the schedule
+  grid's job. Fixtures are grouped by kick-off, with `Time TBD` last. If grouping by venue is
+  wanted before Phase 7, say so — it is a small addition to `DivisionPanel`, not a rebuild.
+- **The setup checklist is a scaffold with real steps, but only two of them act.** Structure and
+  organisers are live; entrants, generation and scheduling say what they are waiting for rather
+  than offering a button that does nothing. They fill in over Phases 6-8, as the plan intends.
+
+**The event table still calculates client-side when the server has no rows.** The choke point only
+writes `cached_standings` for a fixture that sits in a stage, and a tournament whose fixtures were
+added by hand has none — so the screen prefers the server's roll-up and falls back to the local
+calculation rather than showing an empty table. That fallback should disappear in Phase 6, when
+generated fixtures land in stages.
+
+**One issue logged rather than fixed:** `FIX-12` — `ADD_GAME` from the fixture-creation screen still
+writes no `stage_id`, so a fixture added by hand on a tournament lands outside every stage. Phase 5
+made that visible rather than silent (the panel shows such fixtures, and `PEOPLE-3` explains why a
+convenor cannot touch them); Phase 6 owns the fix, because it owns the screen that creates them.
+
+**Verified beyond the assertions.** `shared/`, `server/` and `expo-app/` all type-check clean, the
+66-test Vitest suite passes, Phase 3's access audit and Phase 4's permission audit were both re-run
+green — this phase changed `AccessManager` and the fixture publish path, which is what those scripts
+exist to protect — and every new or changed screen was bundled through Metro (`200` on all twelve),
+per [expo-app/AGENTS.md](file:///c:/Fred/Coding/SK/expo-app/AGENTS.md).
 
 ---
 

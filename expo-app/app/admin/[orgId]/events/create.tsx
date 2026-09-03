@@ -10,7 +10,7 @@ import DatePicker from '../../../../components/DatePicker';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Event, Sport, Site, Team, Organization, Facility } from '@sk/shared';
+import { SocketAction, Event, EVENT_FORMATS, EventFormat, Sport, Site, Team, Organization, Facility } from '@sk/shared';
 import { useAuthStore } from '../../../../store/authStore';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { NominationModal } from '@/components/NominationModal';
@@ -20,7 +20,7 @@ import MatchForm from '../../../../components/MatchForm';
 export default function CreateEvent() {
   const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId, type } = useLocalSearchParams<{ orgId: string, type: 'game' | 'sportsday' | 'tournament' }>();
+  const { orgId, type } = useLocalSearchParams<{ orgId: string, type: 'game' | 'tournament' }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
 
@@ -52,7 +52,11 @@ export default function CreateEvent() {
 
   const [pendingReferrals, setPendingReferrals] = useState<Record<string, string | string[]>>({});
 
-  // Sports Day / Tournament Fields
+  // Tournament fields
+  //
+  // `Festival` is the default because it assumes least about structure — the same reason the
+  // tournaments migration gave it to every container event that already existed (D1).
+  const [selectedFormat, setSelectedFormat] = useState<EventFormat>('Festival');
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
   const [participatingOrgs, setParticipatingOrgs] = useState<Organization[]>([]);
   const [orgSearchText, setOrgSearchText] = useState('');
@@ -163,7 +167,7 @@ export default function CreateEvent() {
     return 'Venue';
   };
 
-  // Debounced search for organizations (Sports Day / Tournament / Away Org / Home Org)
+  // Debounced search for organizations (Tournament / Away Org / Home Org)
   useEffect(() => {
     const query = type === 'game' 
       ? (homeOrgSearchText.trim() || awayOrgSearchText.trim()) 
@@ -413,22 +417,14 @@ export default function CreateEvent() {
       eventTitle = `${selectedHomeOrg?.shortName || selectedHomeOrg?.name || 'Home'} ${homeTeamName} vs ${selectedAwayOrg?.shortName || selectedAwayOrg?.name || 'Away'} ${awayTeamName}`;
     }
 
-    // A sports day is a Tournament whose format is 'Festival' (D1) — there is no 'SportsDay' type
-    // any more, and `events.type` carries a CHECK that rejects one. This mirrors exactly what the
-    // tournaments migration did to the rows that already existed.
-    //
-    // The route still has a `sportsday` entry point, and the wizard still says "New Sports Day",
-    // because that is the word an organiser uses. Phase 5 replaces both container entry points with
-    // a format picker (Festival / RoundRobin / Knockout / PoolsKnockout) and this ternary goes.
-    //
-    // Until then **both** containers get 'Festival', for the same reason the migration gave every
-    // legacy Tournament row that value: it is the format that assumes least about structure. The
-    // alternative — leaving it null on the tournament path so the picker can tell "never chosen"
-    // from "chose Festival" — reintroduces exactly the unknown-value problem U39 argued against.
+    // There is one container type and it is `Tournament`; a sports day is one whose format is
+    // `Festival` (D1). The format is now chosen rather than assumed, and it is what the event
+    // screen keys its tabs and setup steps off — and what the first division's stages are derived
+    // from, server-side, when the tournament is created (U16).
     const eventPayload = {
       name: eventTitle.trim(),
       type: type === 'game' ? 'SingleMatch' : 'Tournament',
-      format: type === 'game' ? undefined : 'Festival',
+      format: type === 'game' ? undefined : selectedFormat,
       startDate: formattedStartDate,
       endDate: formattedEndDate,
       siteId: selectedSiteId || undefined,
@@ -504,7 +500,7 @@ export default function CreateEvent() {
           </Text>
         </TouchableOpacity>
         <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
-          {type === 'game' ? 'Schedule Match' : type === 'sportsday' ? 'New Sports Day' : 'New Tournament'}
+          {type === 'game' ? 'Schedule Match' : 'New Tournament'}
         </Text>
         <TouchableOpacity 
           className={`active:opacity-85 ${!isFormValid() ? 'opacity-40' : ''}`}
@@ -651,7 +647,53 @@ export default function CreateEvent() {
               </View>
             )}
 
-            {/* SPORTS DAY / TOURNAMENT MULTI-SELECT SPORT FIELDS */}
+            {/* FORMAT PICKER — the first structural choice a tournament makes (U17, U34).
+                "Sports Day" is gone from here: it named an occasion rather than a structure, and
+                read oddly beside "Round Robin" and "Knockout". A sports day is a Festival (D1). */}
+            <View className="space-y-1.5 pt-4 border-t border-slate-100 dark:border-white/5">
+              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Format
+              </Text>
+              <View className="space-y-2">
+                {EVENT_FORMATS.map(option => {
+                  const isSelected = selectedFormat === option.value;
+                  return (
+                    <TouchableOpacity
+                      key={option.value}
+                      onPress={() => setSelectedFormat(option.value)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: isSelected }}
+                      className={`flex-row items-start gap-3 p-3 rounded-xl border active:opacity-85 ${
+                        isSelected
+                          ? 'bg-brand-orange/5 border-brand-orange/40'
+                          : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
+                      }`}
+                    >
+                      <Ionicons
+                        name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                        size={18}
+                        color={isSelected ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+                        style={{ marginTop: 1 }}
+                      />
+                      <View className="flex-1">
+                        <Text
+                          className={`font-inter-bold text-sm ${
+                            isSelected ? 'text-brand-orange' : 'text-slate-800 dark:text-white'
+                          }`}
+                        >
+                          {option.label}
+                        </Text>
+                        <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          {option.description}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* TOURNAMENT SPORTS AND PARTICIPANTS */}
             <View className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/5">
               {/* Render Selected Orgs Claim Prompts */}
               {participatingOrgs.filter(o => o.isClaimed === false).map(orgItem => (

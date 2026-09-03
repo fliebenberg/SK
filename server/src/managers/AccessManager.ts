@@ -375,6 +375,52 @@ export class AccessManager extends BaseManager {
   }
 
   /**
+   * Every grant this user holds, shaped for a *list* of events rather than one of them.
+   *
+   * `getEventCapabilities` answers the authoritative question for one event, and the event screen
+   * asks it. A fixtures list cannot: role chips on thirty cards would be thirty round trips, which
+   * is exactly the "notify, then everybody refetches" cost the live-data design exists to remove —
+   * relocated to a screen load.
+   *
+   * So the list gets the one thing it genuinely cannot derive. UI doc §4 is explicit that hosting
+   * and attending *are* client-derivable — the client already holds the user's memberships, each
+   * event's own org and its participating orgs — and that convening is not, because division
+   * grants appear on no payload the client holds. This is that gap and nothing else: one query, no
+   * per-event cost, and no permission decision, since every write is gated server-side regardless
+   * of what a chip says.
+   *
+   * Division grants carry their event id because that is the join the client would otherwise have
+   * to make by fetching every event's divisions.
+   */
+  async getMyGrants(userId: string): Promise<{
+    eventIds: string[];
+    divisions: Array<{ divisionId: string; eventId: string }>;
+  }> {
+    if (!userId) return { eventIds: [], divisions: [] };
+
+    const [events, divisions] = await Promise.all([
+      this.query(
+        `SELECT event_id AS "eventId"
+           FROM event_organizers
+          WHERE org_profile_id IN (${this.PROFILE_IDS_FOR_USER})`,
+        [userId]
+      ),
+      this.query(
+        `SELECT dorg.division_id AS "divisionId", d.event_id AS "eventId"
+           FROM division_organizers dorg
+           JOIN tournament_divisions d ON d.id = dorg.division_id
+          WHERE dorg.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})`,
+        [userId]
+      ),
+    ]);
+
+    return {
+      eventIds: events.rows.map((r: any) => r.eventId),
+      divisions: divisions.rows.map((r: any) => ({ divisionId: r.divisionId, eventId: r.eventId })),
+    };
+  }
+
+  /**
    * What *this user* may do in *this tournament* (UI doc §4).
    *
    * Computed from the user and the event, never from the `orgId` in the route: `canEditEvent` is

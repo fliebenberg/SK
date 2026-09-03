@@ -1021,6 +1021,28 @@ const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => str
  */
 const CALLER_PROFILE_FIELDS = ['initiatorOrgProfileId', 'initiatorId', 'officialId'] as const;
 
+/**
+ * The division a new tournament is created with, and the broadcast that announces it.
+ *
+ * Kept beside the `ADD_EVENT` handler rather than inside `addEvent` because it is composition of
+ * two writes that already exist, and a failure here must not lose the event: a tournament with no
+ * division is recoverable and would be reported, whereas an event that vanished because its
+ * division insert failed is not.
+ */
+async function createImplicitDivision(event: any): Promise<void> {
+  try {
+    const division = await tournamentManager.createImplicitDivision(event);
+    await publishDivision(
+      division.id,
+      'DIVISION_ADDED',
+      await dataManager.getDivisionDetail(division.id),
+      event.id
+    );
+  } catch (error) {
+    console.error(`[Tournaments] Could not create the implicit division for event ${event.id}:`, error);
+  }
+}
+
 io.on('connection', (socket) => {
   // Intercept socket events/calls
   socket.use(([event, ...args], next) => {
@@ -1372,6 +1394,12 @@ io.on('connection', (socket) => {
             // --- Permissions (Phase 4) ---------------------------------------------
             // The identity is the socket's, never anything in the request: there is no way to ask
             // what somebody else may do, which is why this needs no gate beyond being signed in.
+            // The same identity rule as `event_capabilities`, asked across every event at once: a
+            // fixtures list needs its role chips without a round trip per card. Answers about the
+            // caller and nobody else, so there is nothing here to authorize beyond being signed in.
+            case 'my_event_grants':
+                callback(await dataManager.getMyGrants(socket.data?.userId));
+                break;
             case 'event_capabilities':
                 callback(
                     request.eventId
@@ -2092,6 +2120,14 @@ io.on('connection', (socket) => {
                 result = await dataManager.addEvent(action.payload);
                 if (result) {
                     console.log("Server: Event Added, processing broadcasts. Participating:", result.participatingOrgIds);
+                    // A tournament is created with its first division already in it (U16), and that
+                    // division with its stages (D11) — silently, and here rather than in the wizard,
+                    // so the invariant holds for every caller rather than for the one screen that
+                    // remembered. The organiser never meets either concept: one division collapses
+                    // into the event screen and one stage shows no tabs (U15).
+                    if (result.type === 'Tournament') {
+                        await createImplicitDivision(result);
+                    }
                     publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_ADDED', result);
                     additionalBroadcasts.push({ topic: `event:${result.id}`, type: 'EVENT_ADDED', data: result });
                     await broadcastOrgSummaries([result.orgId, ...(result.participatingOrgIds || [])]);

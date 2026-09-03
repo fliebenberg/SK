@@ -1,4 +1,5 @@
 import { LeagueStandingRow } from "../league/League";
+import { EventFormat } from "./Event";
 
 /**
  * How a *stage* of a division is structured.
@@ -273,6 +274,26 @@ export interface TournamentOrganizer {
  * `participatesAsOrgIds` is deliberately absent: the event already carries its participating orgs
  * and the client already knows the user's own, so the client intersects the two itself.
  */
+/**
+ * Every tournament grant one user holds, across every event — the list-shaped counterpart to
+ * {@link EventCapabilities}.
+ *
+ * `EventCapabilities` answers the authoritative question for *one* event, and the event screen
+ * asks it. A fixtures list cannot: role chips on thirty cards would be thirty round trips. So the
+ * list reads this once and derives the rest, which UI doc §4 says it can — hosting and attending
+ * follow from the user's memberships, the event's own org and its participating orgs, while
+ * convening follows from nothing the client holds.
+ *
+ * Division grants carry their event id because that is the join the client would otherwise have to
+ * make by fetching every event's divisions.
+ */
+export interface EventGrants {
+  /** Events this user is an appointed organiser of. */
+  eventIds: string[];
+  /** Divisions this user convenes, each with the event it belongs to. */
+  divisions: Array<{ divisionId: string; eventId: string }>;
+}
+
 export interface EventCapabilities {
   eventId: string;
   /** Full rights over the tournament: the hosting org's admins and staff, and appointed organisers. */
@@ -283,4 +304,44 @@ export interface EventCapabilities {
    * what it carries is intent ("this person is the netball convenor"), which drives the role chips.
    */
   convenesDivisionIds: string[];
+}
+
+/**
+ * The stages a division starts life with, given the format its tournament was created under.
+ *
+ * D11 says every division has at least one stage, and Phase 5 makes that true from the moment a
+ * tournament is created rather than from the moment somebody generates fixtures. Two things follow
+ * from doing it here rather than lazily:
+ *
+ * - **A fixture always has a stage to belong to.** `PEOPLE-3` is the shape of the alternative: a
+ *   fixture created outside any stage resolves to no division, so a convenor can neither read nor
+ *   score it while the event's organisers can. A division that is never stageless is a division
+ *   whose fixtures are never orphaned.
+ * - **The collapse rule has something definite to collapse** (U15). One stage renders inline with
+ *   no tabs; `PoolsKnockout` is the one format that genuinely *is* two stages, so it is the one
+ *   that shows them — which is the concept appearing exactly when a second child does.
+ *
+ * The names are the organiser's words rather than the format's: a `PoolsKnockout` division shows
+ * "Pools" and "Knockout", not "RoundRobin" and "Knockout". Every one of them is renamable (D3).
+ */
+export function stagePlanForFormat(
+  format?: EventFormat | null
+): Array<{ name: string; format: TournamentFormat; sequence: number }> {
+  switch (format) {
+    case 'PoolsKnockout':
+      return [
+        { name: 'Pools', format: 'RoundRobin', sequence: 1 },
+        { name: 'Knockout', format: 'Knockout', sequence: 2 },
+      ];
+    case 'RoundRobin':
+      return [{ name: 'Round Robin', format: 'RoundRobin', sequence: 1 }];
+    case 'Knockout':
+      return [{ name: 'Knockout', format: 'Knockout', sequence: 1 }];
+    // A `Festival` is the degenerate case and so is the fall-through: an unset format means an
+    // event created before formats existed, and `Festival` is what the migration gave those rows
+    // for the same reason — it assumes least about structure.
+    case 'Festival':
+    default:
+      return [{ name: 'Fixtures', format: 'Festival', sequence: 1 }];
+  }
 }

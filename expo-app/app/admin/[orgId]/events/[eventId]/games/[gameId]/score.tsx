@@ -8,6 +8,7 @@ import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game } from '@sk/shared';
 import { COLORS } from '../../../../../../../constants/Colors';
 import { useAuthStore } from '../../../../../../../store/authStore';
+import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
@@ -27,6 +28,7 @@ export default function ScoreGameScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string }>();
+  const { capabilities } = useEventCapabilities(eventId);
   const isConnected = useWsStore((state: any) => state.isConnected);
 
   const user = useAuthStore((state: any) => state.user);
@@ -102,6 +104,9 @@ export default function ScoreGameScreen() {
     user,
     orgMemberships,
     teamMemberships,
+    // Without this the screen would hide the controls from an appointed organiser or a
+    // division convenor, neither of whom holds an org membership that says so (D33).
+    capabilities,
   });
 
   // Being signed into the workspace is not enough to score: the control room is

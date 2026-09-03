@@ -1,4 +1,4 @@
-import { Event, OrgMembership, TeamMembership } from '@sk/shared';
+import { Event, EventCapabilities, OrgMembership, TeamMembership } from '@sk/shared';
 import { User } from '../store/authStore';
 
 /**
@@ -8,6 +8,8 @@ import { User } from '../store/authStore';
  */
 export type MatchPermissionsGame = {
   participants?: { teamId?: string; orgId?: string }[];
+  /** Which division's fixture this is, where the screen knows. Null on a single match. */
+  divisionId?: string;
 };
 
 export interface MatchPermissions {
@@ -27,11 +29,49 @@ export function getMatchPermissions(params: {
   orgMemberships: OrgMembership[];
   teamMemberships: TeamMembership[];
   teamsMap?: Record<string, any>;
+  /**
+   * What the **server** says this user may do in this tournament, from
+   * `get_data { type: 'event_capabilities', eventId }`.
+   *
+   * Optional, because most callers are single matches where org membership is the whole answer.
+   * Where it is present it can only *widen* what follows: an appointed organiser and a division
+   * convenor hold rights that no org membership expresses, so without this the screen would hide
+   * the edit and scoring controls from somebody the server would happily let through — the server
+   * being right and the screen being wrong, which is the worse of the two failures because it is
+   * invisible.
+   */
+  capabilities?: EventCapabilities | null;
 }): MatchPermissions {
-  const { game, event, currentOrgId, user, orgMemberships, teamMemberships, teamsMap } = params;
+  const {
+    game,
+    event,
+    currentOrgId,
+    user,
+    orgMemberships,
+    teamMemberships,
+    teamsMap,
+    capabilities,
+  } = params;
 
   // View is accessible to everyone
   const canView = true;
+
+  /**
+   * Tournament grants (D33), which are *not* org memberships and do not behave like them.
+   *
+   * Deliberately not subject to the workspace constraint below. A grant is computed from the user
+   * and the event, never from the `orgId` in the route (UI doc §1) — an external convenor holds no
+   * membership anywhere, so "are you standing in the event's own workspace" is a question with no
+   * meaningful answer for them. Where the grant applies, this matches exactly what the server will
+   * permit when the write arrives.
+   */
+  const organisesEvent = !!capabilities?.canEditEvent && capabilities.eventId === event?.id;
+  const convenesThisDivision = !!(
+    game?.divisionId &&
+    capabilities?.eventId === event?.id &&
+    capabilities?.convenesDivisionIds?.includes(game.divisionId)
+  );
+  const hasTournamentGrant = organisesEvent || convenesThisDivision;
 
   // Editing event/match details belongs to the organization the event was
   // created under, acting from that organization's own workspace — a
@@ -72,11 +112,11 @@ export function getMatchPermissions(params: {
 
   const isEventOwner = isAdminOfCurrentOrg || isAdminOfEventOrg;
 
-  const canEdit = isEventOrgWorkspace && isAdminOfEventOrg;
-  let canScore = isEventOwner;
+  const canEdit = (isEventOrgWorkspace && isAdminOfEventOrg) || hasTournamentGrant;
+  let canScore = isEventOwner || hasTournamentGrant;
 
-  let canEditTeam1Lineup = isEventOwner;
-  let canEditTeam2Lineup = isEventOwner;
+  let canEditTeam1Lineup = isEventOwner || hasTournamentGrant;
+  let canEditTeam2Lineup = isEventOwner || hasTournamentGrant;
 
   if (game) {
     const homeTeamId = game.participants?.[0]?.teamId;

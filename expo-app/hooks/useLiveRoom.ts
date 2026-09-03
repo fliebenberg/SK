@@ -26,6 +26,16 @@ export interface LiveMessage<T = any> {
 export type LiveAction<T> =
   | { kind: 'replace'; items: T[] }
   | { kind: 'upsert'; item: T }
+  /**
+   * Many items, merged in **one** state update (U32).
+   *
+   * Generating a stage's fixtures produces ninety of them, and the server publishes them as a
+   * single `STAGE_FIXTURES_SYNC` for exactly that reason (D13). Reducing them one at a time here
+   * would relocate to the client the cost the batch contract removed on the server — ninety
+   * upserts, ninety renders — which is why this kind lands with the batch messages rather than
+   * after them.
+   */
+  | { kind: 'upsertMany'; items: T[] }
   | { kind: 'remove'; id: string }
   | { kind: 'ignore' };
 
@@ -90,14 +100,22 @@ export function useLiveRoom<T = any>(
         return;
       }
 
-      if (action.kind === 'upsert') {
-        const id = getIdRef.current(action.item);
+      if (action.kind === 'upsert' || action.kind === 'upsertMany') {
+        const incoming = action.kind === 'upsert' ? [action.item] : action.items || [];
+        if (!incoming.length) return;
         setItems(prev => {
-          const idx = prev.findIndex(existing => getIdRef.current(existing) === id);
-          if (idx === -1) return [...prev, action.item];
-          const next = prev.slice();
-          next[idx] = action.item;
-          return next;
+          // One pass over the existing rows, then one append of whatever was new — rather than a
+          // findIndex per incoming item, which is what makes a ninety-fixture batch quadratic.
+          const byId = new Map<string, T>();
+          for (const item of incoming) byId.set(getIdRef.current(item), item);
+          const next = prev.map(existing => {
+            const id = getIdRef.current(existing);
+            const replacement = byId.get(id);
+            if (!replacement) return existing;
+            byId.delete(id);
+            return replacement;
+          });
+          return byId.size ? [...next, ...byId.values()] : next;
         });
         return;
       }

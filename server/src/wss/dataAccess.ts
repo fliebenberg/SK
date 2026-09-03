@@ -190,6 +190,7 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // handshake and the request carries no user field, so "authenticated" is the whole rule — there
   // is no way to ask it about somebody else.
   event_capabilities:   { standalone: 'authenticated' },
+  my_event_grants:      { standalone: 'authenticated' },
   // Who runs this tournament is not spectator information: it is a list of named people, and
   // `event:{id}` is a public room, so it cannot defer to one.
   event_organizers:     { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ eventId: req.eventId }) },

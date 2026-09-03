@@ -51,6 +51,17 @@ export interface GameSummary {
   id: string;
   eventId: string;
   sportId: string;
+  /**
+   * The stage this fixture belongs to, and through it the division.
+   *
+   * Absent on a single match, and absent on a tournament fixture created outside any stage —
+   * which is a state a screen can still create and `PEOPLE-3` is about. A division's fixture list
+   * has to be able to say which stage a fixture is in, so it is on the summary rather than looked
+   * up per fixture.
+   */
+  stageId?: string;
+  /** The division that stage belongs to. Derived, and carried for the same reason. */
+  divisionId?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
   scheduledStartTime?: string;
   startTime?: string;

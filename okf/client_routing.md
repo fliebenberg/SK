@@ -7,7 +7,7 @@ tags:
   - routing
   - pages
   - navigation-guards
-timestamp: 2026-08-14T07:20:00Z
+timestamp: 2026-09-03T00:00:00Z
 ---
 
 # Client Pages & Routing Maps
@@ -47,12 +47,45 @@ Admin workflows are restricted to authenticated managers/owners:
 *   `/admin/organizations`: List of organizations managed by the user.
 *   `/admin/organizations/new`: Org creation wizard.
 *   `/admin/organizations/[id]`: Specific organization console.
-*   `/admin/organizations/[id]/events`: Create and manage seasons/tournaments.
-*   `/admin/organizations/[id]/teams`: Create and manage organization teams.
-*   `/admin/organizations/[id]/people`: Manage organization rosters, staff roles, and memberships.
-*   `/admin/organizations/[id]/sites`: Manage organization venues/courts.
-*   `/admin/games/[id]`: General edit panel for scheduling fixtures.
-*   `/admin/games/[id]/score`: **Active Scorekeeper Console** for real-time play-by-play event entry.
+
+### The organisation workspace (`/admin/[orgId]/*`)
+
+Every screen below is behind [AuthGuard](file:///c:/Fred/Coding/SK/expo-app/components/AuthGuard.tsx),
+applied at the layout so an unauthorized visitor never mounts the workspace or its subscriptions.
+
+*   `/admin/[orgId]`: Organization console.
+*   `/admin/[orgId]/teams`, `/teams/new`, `/teams/[teamId]`, `/teams/[teamId]/view`: Teams.
+*   `/admin/[orgId]/people`, `/people/[membershipId]`, `/people/[membershipId]/view`: Rosters, staff roles and memberships.
+*   `/admin/[orgId]/sites`, `/sites/[siteId]`, `/sites/[siteId]/facilities/[facilityId]`: Venues and courts.
+*   `/admin/[orgId]/leagues`, `/leagues/[leagueId]`, `/leagues/[leagueId]/seasons/[seasonId]`: Leagues and seasons.
+*   `/admin/[orgId]/settings`: Organization settings.
+
+#### Fixtures, events and tournaments
+
+*   `/admin/[orgId]/events`: The fixture list, split into **Events** and **Games** tabs (U2/U36) over
+    one room, with multi-select role chips — Hosting / Convening / Attending — beside the
+    `Upcoming / Past` toggle (U4/U5).
+*   `/admin/[orgId]/events/create?type=game|tournament`: Creation wizard. The tournament path picks a
+    **format** (`Festival` / `RoundRobin` / `Knockout` / `PoolsKnockout`); "Sports Day" is gone, since
+    a sports day is a `Tournament` whose format is `Festival` (D1/U34).
+*   `/admin/[orgId]/events/[eventId]`: One event. A `SingleMatch` shows its game; a `Tournament` shows
+    its structure with a setup checklist (U17); an event whose `type` cannot be recognised shows an
+    **error state rather than a Tournament** (U39 / `FIX-1`).
+*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: One division — its stages as navigation
+    tabs (U13/U14), and its convenors.
+*   `/admin/[orgId]/events/[eventId]/games/new`, `/games/[gameId]/edit`, `/view`, `/selection`,
+    `/score`: One fixture. `/score` is the **Scorekeeper Console** for real-time event entry.
+
+> **The collapse rule (U15) decides whether a route is ever reached.** A level with exactly one child
+> renders that child inline and shows no picker — so a tournament with one division *is* its division
+> screen and never links to `/divisions/[divisionId]`, and a division with one stage shows no stage
+> tabs. The rule lives in
+> [shared/src/utils/collapseRule.ts](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.ts) and
+> the shared rendering is
+> [DivisionPanel](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionPanel.tsx), so the
+> inline case and the routed case cannot drift apart. Adding a second child restructures the screen,
+> which is **announced before it happens** rather than sprung on the organiser.
+
 *   `/admin/reports`: User moderation reports (Global Admins only). Not analytics — see [docs/reports.md](file:///c:/Fred/Coding/SK/docs/reports.md). The `expo-app` screen is still a mockup on hardcoded data.
 *   `/admin/settings`: Management configurations.
 *   `/admin/users`: User management interface (restricted to Global Admins).

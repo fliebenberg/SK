@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
+import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useUnsavedChanges } from '../../../../../../../hooks/useUnsavedChanges';
@@ -38,6 +39,7 @@ export default function GameSelectionScreen() {
     gameId: string;
     teamId?: string;
   }>();
+  const { capabilities } = useEventCapabilities(eventId);
   const router = useRouter();
   const safeBack = useSafeBack();
   const { width, height } = useWindowDimensions();
@@ -221,9 +223,12 @@ export default function GameSelectionScreen() {
       user,
       orgMemberships,
       teamMemberships,
+      // Without this the screen would hide the controls from an appointed organiser or a
+      // division convenor, neither of whom holds an org membership that says so (D33).
+      capabilities,
       teamsMap,
     });
-  }, [game, event, orgId, user, orgMemberships, teamMemberships, teamsMap]);
+  }, [game, event, orgId, user, orgMemberships, teamMemberships, teamsMap, capabilities]);
 
   const canEditCurrentTeam =
     selectedParticipantIdx === 0
