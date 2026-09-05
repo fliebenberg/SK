@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SocketAction, TournamentDivision, TournamentOrganizer } from '@sk/shared';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { DivisionPanel } from '../../../../../../components/tournament/DivisionPanel';
+import { DivisionStandings } from '../../../../../../components/tournament/DivisionStandings';
 import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
 import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { useEventCapabilities } from '../../../../../../hooks/useEventCapabilities';
@@ -195,17 +196,19 @@ export default function DivisionScreen() {
               canEdit={canEdit}
             />
 
-            {/* Entrants and the division table are Phase 6; saying so is better than an empty
-                section the organiser reads as broken. */}
-            <GlassCard className="border border-dashed border-slate-200 dark:border-white/10 p-5">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
-                Entrants and standings
+            {/*
+              This division's table, ranking its **entrants** (U29) — so a school that entered u14A
+              and u14B is two rows here, and one line in the event's roll-up. The same component
+              the standings tab mounts when its scope selector names a division, so the two cannot
+              drift. Entering teams and generating the draw are inside the panel above, where the
+              fixtures they produce are.
+            */}
+            <View className="space-y-2">
+              <Text className="font-orbitron-bold text-[10px] text-slate-500 uppercase tracking-widest pl-1">
+                Standings
               </Text>
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-                Entering teams, generating fixtures and this division's table arrive in the next
-                release. Fixtures added by hand already appear above.
-              </Text>
-            </GlassCard>
+              <DivisionStandings divisionId={divisionId} canEdit={canEdit} />
+            </View>
 
             {canAppoint && (
               <GlassCard className="border border-slate-200 dark:border-white/5 p-5">

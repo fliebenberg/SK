@@ -30,6 +30,17 @@ export const divisionFixturesRoom = (divisionId: string) => `division:${division
 export const divisionStandingsRoom = (divisionId: string) => `division:${divisionId}:standings`;
 export const divisionRoom = (divisionId: string) => `division:${divisionId}`;
 
+/**
+ * The whole tournament's roster, in one room (U21).
+ *
+ * The entry screens work on two axes — by division and by organisation — over **one** dataset, and
+ * the org axis is a division x org grid, so it needs every division's roster at once. Fifteen
+ * `division:{id}` joins on one screen open is the cost live data exists to remove, so the roster
+ * gets an event-level room beside the per-division one. Same tier as the per-division room, for
+ * the same reason: an entrant may be a person rather than a team.
+ */
+export const eventEntrantsRoom = (eventId: string) => `event:${eventId}:entrants`;
+
 /** The division itself changed — name, weighting, scoring, or it appeared or went away. */
 export async function publishDivision(divisionId: string, type: string, data: any, eventId?: string): Promise<void> {
   const resolvedEventId = eventId || (await tournamentManager.getDivisionEventId(divisionId));
@@ -42,9 +53,20 @@ export function publishStages(divisionId: string, stages: any[]): void {
   broadcast(divisionFixturesRoom(divisionId), 'STAGES_SYNC', { divisionId, stages });
 }
 
-/** The roster changed. Organiser tier only — it may name people rather than teams. */
-export function publishEntrants(divisionId: string, entrants: any[]): void {
+/**
+ * The roster changed. Organiser tier only — it may name people rather than teams.
+ *
+ * Two rooms, because two screens hold this data at two altitudes: the division panel holds one
+ * division's roster, and the entry screens hold the whole event's. Both get the same message shape
+ * so the reducer is the same in both places — `DIVISION_ENTRANTS_SYNC` names its division either
+ * way, and the event-level listener merges by it.
+ */
+export async function publishEntrants(divisionId: string, entrants: any[], eventId?: string): Promise<void> {
   broadcast(divisionRoom(divisionId), 'DIVISION_ENTRANTS_SYNC', { divisionId, entrants });
+  const resolvedEventId = eventId || (await tournamentManager.getDivisionEventId(divisionId));
+  if (resolvedEventId) {
+    broadcast(eventEntrantsRoom(resolvedEventId), 'DIVISION_ENTRANTS_SYNC', { divisionId, entrants });
+  }
 }
 
 /** Pool membership changed. */
@@ -102,6 +124,14 @@ export async function publishRecalculation(outcome: {
   changedGameIds: string[];
 }): Promise<void> {
   await publishStandings(outcome.divisionId, outcome.eventId);
+  // The choke point calls `refreshStageStatus`, so a stage may have moved from `Ready` to
+  // `InProgress` or to `Complete` — and the stage tabs put that status in their sublabel (U14).
+  // Without this the table updates and the tab beside it still says "4 of 7 played" until the
+  // next join, which is the same class of defect as `FIX-4`: the room hands data over on join
+  // and then never updates it.
+  if (outcome.divisionId) {
+    publishStages(outcome.divisionId, await tournamentManager.getStages(outcome.divisionId));
+  }
   for (const gameId of outcome.changedGameIds) {
     await publishGameSummary(gameId);
   }

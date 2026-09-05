@@ -19,6 +19,11 @@ scorer needs it (coach §6.4 / scorer §3.3). **Contradictions between two accou
 handover are the most valuable thing this research can produce**, so each guide's closing block
 asks you to note them.
 
+## Before you start
+
+[recruiting.md](recruiting.md) — how to ask someone for an interview without describing the
+product, outreach templates, the opening two minutes, and what to say when it goes sideways.
+
 ## Conventions
 
 - Questions are cited as **section.question** — `4.3` is the third question in §4 of that guide.

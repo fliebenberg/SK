@@ -36,6 +36,18 @@ export type LiveAction<T> =
    * after them.
    */
   | { kind: 'upsertMany'; items: T[] }
+  /**
+   * Replace one *slice* of the collection — the rows matching `where` go, and `items` take their
+   * place.
+   *
+   * An event-level room can carry a message about one of its parts: `event:{id}:entrants` holds
+   * every division's roster, and a roster edit publishes `DIVISION_ENTRANTS_SYNC` for the one
+   * division that changed. That is neither a `replace` (it would blank the other fourteen
+   * divisions) nor an `upsertMany` (it would keep entrants the edit removed). Both of those
+   * mistakes are silent, which is why this is a kind of its own rather than something each screen
+   * open-codes with `setItems`.
+   */
+  | { kind: 'replaceWhere'; items: T[]; where: (item: T) => boolean }
   | { kind: 'remove'; id: string }
   | { kind: 'ignore' };
 
@@ -117,6 +129,12 @@ export function useLiveRoom<T = any>(
           });
           return byId.size ? [...next, ...byId.values()] : next;
         });
+        return;
+      }
+
+      if (action.kind === 'replaceWhere') {
+        setItems(prev => [...prev.filter(existing => !action.where(existing)), ...(action.items || [])]);
+        setIsLoading(false);
         return;
       }
 

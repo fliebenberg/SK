@@ -116,6 +116,25 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       }
 
     case 'event':
+      // The event itself is public — fixtures, results and the divisions they sit in.
+      if (!sub) return { access: 'public' };
+      // The tournament's whole roster, at the same tier as one division's (U21). An entrant may be
+      // a person rather than a team, and an unresolved one carries a label somebody wrote about a
+      // school that has not confirmed yet; neither is spectator information. A convenor holds no
+      // membership of the hosting org, so the grant is the other way in — exactly as it is for
+      // `division:{id}`.
+      if (sub === 'entrants') {
+        return {
+          access: 'member',
+          orgsFor: async () => {
+            const orgIds = await accessManager.getEventOrgIds(id);
+            return orgIds.length ? orgIds : null;
+          },
+          grantsFor: async () => ({ eventId: id, divisionId: null }),
+        };
+      }
+      return null;
+
     case 'site':
     case 'facility':
       return sub ? null : { access: 'public' };

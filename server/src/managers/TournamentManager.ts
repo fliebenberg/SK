@@ -6,6 +6,7 @@ import {
   EventFormat,
   GameSummary,
   MatchTopology,
+  CandidateTeam,
   ParticipantSourceRule,
   ScoringSubject,
   ScoringSystem,
@@ -393,6 +394,55 @@ export class TournamentManager extends BaseManager {
   // Entrants
   // ============================================================================================
 
+  /**
+   * Every entrant in a tournament, across every division — the dataset both entry axes share (U21).
+   *
+   * The org axis ("what is Northcliff entering?") is a division x org grid, so it needs fifteen
+   * divisions' rosters at once. Reading them one division at a time would be fifteen round trips
+   * and fifteen room joins on one screen open, which is the "notify, then everybody refetches"
+   * cost the live-data design exists to remove, relocated to the client. One read, one room
+   * (`event:{id}:entrants`), and the two axes are two renderings of it rather than two loads.
+   */
+  async getEventEntrants(eventId: string): Promise<TournamentEntrant[]> {
+    const res = await this.query(
+      `SELECT ${this.ENTRANT_COLUMNS} ${this.ENTRANT_JOINS}
+        JOIN tournament_divisions d ON d.id = e.division_id
+        WHERE d.event_id = $1
+        ORDER BY d.sort_order, d.created_at, e.seed NULLS LAST, e.created_at`,
+      [eventId]
+    );
+    return res.rows;
+  }
+
+  /**
+   * The teams that could be entered: every team belonging to the host or a participating org.
+   *
+   * A one-shot read rather than a room, because no room owns "teams that could enter" — the same
+   * reasoning that keeps the invite picker a search (`FIX-2`). It is deliberately **not** filtered
+   * by sport or age group on the server: the org axis shows one org against every division at
+   * once, so a per-division filter would be a query per division. The projection is lean enough
+   * that the client filters it locally against each division's `sportId` and `ageGroup`, which is
+   * one read for the whole grid.
+   */
+  async getEventCandidateTeams(eventId: string): Promise<CandidateTeam[]> {
+    const res = await this.query(
+      `SELECT t.id, t.name, t.short_name as "shortName", t.org_id as "orgId",
+              o.name as "orgName", o.short_name as "orgShortName",
+              t.sport_id as "sportId", t.age_group as "ageGroup"
+         FROM teams t
+         JOIN organizations o ON o.id = t.org_id
+        WHERE t.is_active IS NOT FALSE
+          AND t.org_id IN (
+                SELECT ev.org_id FROM events ev WHERE ev.id = $1
+                UNION
+                SELECT eo.org_id FROM event_organizations eo WHERE eo.event_id = $1
+              )
+        ORDER BY o.name, t.age_group NULLS LAST, t.name`,
+      [eventId]
+    );
+    return res.rows;
+  }
+
   async getEntrants(divisionId: string): Promise<TournamentEntrant[]> {
     const res = await this.query(
       `SELECT ${this.ENTRANT_COLUMNS} ${this.ENTRANT_JOINS}
@@ -426,7 +476,12 @@ export class TournamentManager extends BaseManager {
       seed?: number;
       status?: 'active' | 'withdrawn';
     }>
-  ): Promise<{ entrants: TournamentEntrant[]; removedIds: string[]; changedIdentityIds: string[] }> {
+  ): Promise<{
+    entrants: TournamentEntrant[];
+    removedIds: string[];
+    changedIdentityIds: string[];
+    syncedStageIds: string[];
+  }> {
     const result = await this.transaction(async (tx) => {
       const existing = await tx(
         `SELECT id, team_id, org_profile_id FROM division_entrants WHERE division_id = $1`,
@@ -495,7 +550,73 @@ export class TournamentManager extends BaseManager {
       return { removedIds: removed.rows.map((r: any) => r.id), changedIdentityIds };
     });
 
-    return { entrants: await this.getEntrants(divisionId), ...result };
+    // The roster is the thing an organiser edits; stage membership is machinery. Keeping the two
+    // in step here is what makes generation work on the ordinary collapsed division — see
+    // {@link syncOpenStageEntrants}.
+    const syncedStageIds = await this.syncOpenStageEntrants(divisionId);
+
+    return { entrants: await this.getEntrants(divisionId), ...result, syncedStageIds };
+  }
+
+  /**
+   * Mirror the roster into the stages that simply take it.
+   *
+   * `planFixtures` reads `stage_entrants`, never the roster — pool membership has to live
+   * somewhere, and a knockout's field is filled by progression rather than by the organiser. But
+   * for the ordinary collapsed division, "who is in this stage" and "who is in this division" are
+   * the same list, and the data model says so: for a single-stage division `stage_entrants` is *a
+   * copy of the roster and the UI never mentions it*. Without this, entering ten teams and
+   * pressing Generate would find an empty stage and refuse.
+   *
+   * A stage is **open** — it takes the roster — when it is the first stage and draws from no
+   * earlier one. A stage with an `entrantSource` is filled by {@link resolveDownstreamStages}
+   * instead, and anything after the first is somebody else's output, so neither is touched here.
+   *
+   * Existing rows are preserved rather than rewritten, which is the whole reason this is not a
+   * `setStageEntrants` call: an organiser who has drawn pools has put information into
+   * `pool_key` and `seed` that the roster does not contain, and adding an eleventh team must not
+   * throw it away. Only genuine additions and removals move.
+   */
+  private async syncOpenStageEntrants(divisionId: string): Promise<string[]> {
+    const stages = await this.getStages(divisionId);
+    const first = [...stages].sort((a, b) => (a.sequence || 0) - (b.sequence || 0))[0];
+    if (!first || first.settings?.entrantSource?.length) return [];
+
+    const changed = await this.transaction(async (tx) => {
+      const roster = await tx(
+        `SELECT id FROM division_entrants WHERE division_id = $1 AND status = 'active'
+          ORDER BY seed NULLS LAST, created_at`,
+        [divisionId]
+      );
+      const rosterIds: string[] = roster.rows.map((r: any) => r.id);
+
+      const present = await tx(`SELECT entrant_id, sort_order FROM stage_entrants WHERE stage_id = $1`, [first.id]);
+      const presentIds = new Set<string>(present.rows.map((r: any) => r.entrant_id));
+
+      const removed = await tx(
+        rosterIds.length
+          ? `DELETE FROM stage_entrants WHERE stage_id = $1 AND entrant_id <> ALL($2::text[]) RETURNING entrant_id`
+          : `DELETE FROM stage_entrants WHERE stage_id = $1 RETURNING entrant_id`,
+        rosterIds.length ? [first.id, rosterIds] : [first.id]
+      );
+
+      let nextOrder = present.rows.reduce((max: number, r: any) => Math.max(max, (r.sort_order ?? 0) + 1), 0);
+      let added = 0;
+      for (const entrantId of rosterIds) {
+        if (presentIds.has(entrantId)) continue;
+        await tx(
+          `INSERT INTO stage_entrants (stage_id, entrant_id, sort_order) VALUES ($1, $2, $3)
+           ON CONFLICT DO NOTHING`,
+          [first.id, entrantId, nextOrder++]
+        );
+        added++;
+      }
+      return added > 0 || removed.rows.length > 0;
+    });
+
+    if (!changed) return [];
+    await this.refreshStageStatus(first.id);
+    return [first.id];
   }
 
   /**

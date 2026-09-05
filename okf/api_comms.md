@@ -96,7 +96,13 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     and a table are spectator information); `division:{id}` is `member`, because an entrant may be
     a person and an adjustment carries an organiser's reason and author. An **appointed convenor**
     also gets in, without any membership at all — otherwise they would be given a division to run
-    and refused its roster.
+    and refused its roster. `event:{id}:entrants` is the event-level counterpart of the third one,
+    at the same tier; `event:{id}` itself stays public.
+*   **Every recalculation republishes the stages** (Phase 6). The choke point calls
+    `refreshStageStatus`, so a result can move a stage from `Ready` to `InProgress` or to
+    `Complete` — and the stage tabs put that status in their sublabel. `publishRecalculation` now
+    sends `STAGES_SYNC` alongside the tables, because a room that hands data over on join and never
+    republishes it is `FIX-4` again.
 *   **Permissions are per-user, so they are not broadcast** (Phase 4). A room broadcast reaches
     everyone in the room, so `{ canEditEvent, convenesDivisionIds }` is read per socket through
     `get_data { type: 'event_capabilities', eventId }` rather than stamped onto the event or the
@@ -106,6 +112,26 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     per card, so it asks `get_data { type: 'my_event_grants' }` once — the grants this caller holds,
     with each division grant carrying its event id — and derives hosting and attending from data it
     already has. Display only; every write is still gated server-side.
+*   **The roster has an event-level room too** (Phase 6). `event:{id}:entrants` carries **every**
+    division's roster in one push, because the entry screens work two axes — by division and by
+    organisation — over one dataset, and the organisation axis is a division x org grid that would
+    otherwise need fifteen room joins on one screen open. Same `member` tier as `division:{id}`,
+    and for the same reason. A roster edit publishes `DIVISION_ENTRANTS_SYNC` to **both** rooms
+    with the same payload, so the reducer is the same in each; the event-level listener merges it
+    with `useLiveRoom`'s `replaceWhere`, which replaces one division's slice rather than the whole
+    collection.
+*   **Entering a roster mirrors it into the stage that takes it** (Phase 6). `planFixtures` reads
+    `stage_entrants`, never the roster — pool membership has to live somewhere and a knockout's
+    field is filled by progression — but for an ordinary single-stage division the two are the same
+    list. `setDivisionEntrants` therefore syncs the **first** stage when it draws from no earlier
+    one, preserving any `pool_key` and `seed` already there. Without it, entering ten teams and
+    pressing Generate would find an empty stage.
+*   **Two reads that no room owns** (Phase 6): `event_entrants` defers to the room above, and
+    `event_candidate_teams` — "teams that could be entered" — is a standalone
+    `tournament-organiser` read scoped by **either** an `eventId` (the entry screen) or a
+    `divisionId` (a convenor reaching the same editor through their division). It is deliberately
+    unfiltered by sport and age group: the organisation axis shows one school against every
+    division at once, so a per-division filter would be a query per division.
 *   **A fixture's audience includes its event and division rooms** (Phase 5). `join_room` hands
     fixtures over to `event:{id}` and `division:{id}:fixtures`, so both must also receive
     `GAME_SUMMARY_UPDATED` — a room that hands data over on join and never republishes it goes

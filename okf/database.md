@@ -37,6 +37,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260814_derive_org_counts.ts`: Drops the denormalized `team_count` / `site_count` / `member_count` columns (now computed live) and `org_memberships.expiry_processed`; adds org-scoped foreign key indexes.
     - `20260901_tournaments.ts`: The tournaments schema (Phase 1). Nine new tables, four columns on `game_participants`, two on `events`; the `SportsDay` rewrite; `events.type` made `NOT NULL` with a `CHECK`; the `seasons.settings` default moved to 3/1/0; and `game_participants`' three missing foreign keys, which needed 8 orphaned rows deleted first. See below.
     - `20260902_game_stage_id.ts`: Adds `games.stage_id` and its index (Phase 3). One column, and the one place this build deviated from the settled data model — see below.
+    - `20260903_backfill_stages.ts`: **Data only, no schema change** (Phase 6), so nothing to mirror into `init-db.ts` — a database built from scratch has no rows to fix. Gives the stages their format implies to divisions created before Phase 5, and attaches orphaned tournament fixtures to their division's first stage where the answer is unambiguous (an event with exactly one division). Fixtures on multi-division events are **reported and left alone**: nothing in the row says which division they belonged to, and guessing would put a fixture in a table it never counted toward. Closes `PEOPLE-3` for existing rows, the way `FIX-12` closes it for new ones.
 
 ## The tournaments schema
 

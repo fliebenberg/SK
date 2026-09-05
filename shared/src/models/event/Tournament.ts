@@ -162,6 +162,24 @@ export interface TournamentEntrant {
 }
 
 /**
+ * A team that could be entered, in the lean shape the entry screens read (U21).
+ *
+ * Not a `Team`: the entry grid shows one organisation against every division at once, so what it
+ * needs per row is the name, the org behind it, and the two fields that decide which divisions it
+ * qualifies for. Everything else on a team is a lookup the grid would pay for and never print.
+ */
+export interface CandidateTeam {
+  id: string;
+  name: string;
+  shortName?: string;
+  orgId: string;
+  orgName: string;
+  orgShortName?: string;
+  sportId?: string;
+  ageGroup?: string;
+}
+
+/**
  * Who takes part in one stage, and where they sit in it.
  *
  * For a single-stage division this is a copy of the roster and the UI never mentions it. For pools

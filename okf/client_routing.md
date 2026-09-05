@@ -72,9 +72,17 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     its structure with a setup checklist (U17); an event whose `type` cannot be recognised shows an
     **error state rather than a Tournament** (U39 / `FIX-1`).
 *   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: One division — its stages as navigation
-    tabs (U13/U14), and its convenors.
+    tabs (U13/U14), its roster and generation controls, its own table, and its convenors.
+*   `/admin/[orgId]/events/[eventId]/entrants`: Getting teams in, on **both axes over one dataset**
+    (U21) — *by division* ("who is in the u14 rugby?") and *by organisation* ("what is Northcliff
+    entering?"). The organisation axis is where **inline team creation** lives, because that is the
+    moment you discover a school has no u16 netball team. Event organisers only; a convenor reaches
+    the same per-division editor through their division's screen, since both mount
+    [DivisionEntrantsEditor](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionEntrantsEditor.tsx).
 *   `/admin/[orgId]/events/[eventId]/games/new`, `/games/[gameId]/edit`, `/view`, `/selection`,
     `/score`: One fixture. `/score` is the **Scorekeeper Console** for real-time event entry.
+    `new` picks the division and stage a tournament fixture belongs to — silently where the
+    collapse rule means there is only one of each (`FIX-12`).
 
 > **The collapse rule (U15) decides whether a route is ever reached.** A level with exactly one child
 > renders that child inline and shows no picker — so a tournament with one division *is* its division
@@ -84,7 +92,16 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 > the shared rendering is
 > [DivisionPanel](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionPanel.tsx), so the
 > inline case and the routed case cannot drift apart. Adding a second child restructures the screen,
-> which is **announced before it happens** rather than sprung on the organiser.
+> which is **announced before it happens** rather than sprung on the organiser. It applies to the
+> pickers too: the entry screen shows no division picker when there is one division, and
+> `games/new` shows no division or stage picker in that case either.
+
+> **The standings tab is one table with a division scope selector (U28), and the scope decides the
+> row rather than the filter (U29).** *All divisions* ranks the tournament's `scoringSubject` — for
+> a `Festival` that is the organisation, so the default is the day's leaderboard by school. *One
+> division* ranks its **entrants**, so a school entering u14A and u14B is two rows there and one
+> line in the roll-up. The client reads what the server computed and never calculates a table of
+> its own (D30).
 
 *   `/admin/reports`: User moderation reports (Global Admins only). Not analytics — see [docs/reports.md](file:///c:/Fred/Coding/SK/docs/reports.md). The `expo-app` screen is still a mockup on hardcoded data.
 *   `/admin/settings`: Management configurations.

@@ -11,7 +11,18 @@ import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../store/authStore';
-import { SocketAction, Event, Game, Sport, Site, Team, Organization } from '@sk/shared';
+import {
+  SocketAction,
+  Event,
+  Game,
+  Sport,
+  Site,
+  Team,
+  Organization,
+  TournamentDivision,
+  TournamentStage,
+  isCollapsed,
+} from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
 import DatePicker from '../../../../../../components/DatePicker';
 import CustomSelect from '../../../../../../components/CustomSelect';
@@ -60,8 +71,52 @@ export default function ScheduleGame() {
 
   const [pendingReferrals, setPendingReferrals] = useState<Record<string, string>>({});
 
+  /**
+   * Where this fixture belongs, on a tournament (`FIX-12`).
+   *
+   * A fixture added by hand used to name no stage, and so no division — which meant a convenor
+   * could neither read nor score it, the choke point skipped it entirely so it counted toward no
+   * table, and the only reason it was visible at all was that Phase 5 chose to show orphans rather
+   * than hide them. `PEOPLE-3` settled the design question: **a fixture should always have a
+   * stage**, and since Phase 5 every division is created with at least one, so there is always one
+   * to default to.
+   *
+   * The pickers below follow the collapse rule (U15): with one division and one stage — the
+   * ordinary case — nothing is shown and the choice is made silently. The concept appears exactly
+   * when there is a second one to choose between.
+   */
+  const [divisions, setDivisions] = useState<TournamentDivision[]>([]);
+  const [stages, setStages] = useState<TournamentStage[]>([]);
+  const [selectedDivisionId, setSelectedDivisionId] = useState('');
+  const [selectedStageId, setSelectedStageId] = useState('');
+
   // Modal alert
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+
+  /**
+   * The chosen division's stages.
+   *
+   * Loaded per division rather than for the whole event: with fifteen divisions, fetching every
+   * division's stages to render a picker that shows one of them is fourteen reads nobody looks at.
+   */
+  useEffect(() => {
+    if (!isConnected || !selectedDivisionId) {
+      setStages([]);
+      setSelectedStageId('');
+      return;
+    }
+    let active = true;
+    wsService.emit('get_data', { type: 'division_stages', divisionId: selectedDivisionId }, (res: any) => {
+      if (!active) return;
+      const list: TournamentStage[] = Array.isArray(res) ? res : [];
+      const ordered = [...list].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+      setStages(ordered);
+      setSelectedStageId(ordered[0]?.id || '');
+    });
+    return () => {
+      active = false;
+    };
+  }, [isConnected, selectedDivisionId]);
 
   // Load Metadata
   useEffect(() => {
@@ -81,6 +136,14 @@ export default function ScheduleGame() {
 
     wsService.emit('get_data', { type: 'games', orgId }, (res: any) => {
       if (Array.isArray(res)) setGames(res);
+    });
+
+    // Empty for a single match, which is the collapse rule having nothing to collapse.
+    wsService.emit('get_data', { type: 'divisions', eventId }, (res: any) => {
+      const list: TournamentDivision[] = Array.isArray(res) ? res : [];
+      const ordered = [...list].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      setDivisions(ordered);
+      if (ordered.length) setSelectedDivisionId(ordered[0].id);
     });
 
     wsService.emit('get_data', { type: 'sports' }, (resSports: any) => {
@@ -317,6 +380,9 @@ export default function ScheduleGame() {
     const gamePayload = {
       eventId: eventId,
       sportId: selectedSportId,
+      // `FIX-12`: a tournament fixture names its stage, and through it its division. Undefined on a
+      // single match, which has neither and correctly belongs to no stage.
+      stageId: selectedStageId || undefined,
       participants: [{ teamId: selectedHomeTeamId }, { teamId: selectedAwayTeamId }],
       scheduledStartTime: scheduledTime,
       startTime: scheduledTime,
@@ -393,6 +459,75 @@ export default function ScheduleGame() {
           <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
             Game Setup for: {event.name}
           </Text>
+
+          {/*
+            Where the fixture belongs. Shown only when there is something to choose between — one
+            division and one stage is the ordinary case and picks itself silently (U15, `FIX-12`).
+          */}
+          {!isCollapsed(divisions.length) && (
+            <View className="space-y-1.5">
+              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Division
+              </Text>
+              <View className="flex-row flex-wrap gap-2">
+                {divisions.map(division => {
+                  const isSelected = selectedDivisionId === division.id;
+                  return (
+                    <TouchableOpacity
+                      key={division.id}
+                      onPress={() => {
+                        setSelectedDivisionId(division.id);
+                        // A division has one sport, so choosing one settles it — and stops a
+                        // fixture being created under a sport its division does not play.
+                        if (division.sportId) {
+                          setSelectedSportId(division.sportId);
+                          setSelectedHomeTeamId('');
+                          setSelectedAwayTeamId('');
+                        }
+                      }}
+                      className={`px-3 py-2 rounded-lg border ${
+                        isSelected
+                          ? 'bg-brand-orange/10 border-brand-orange'
+                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                      }`}
+                    >
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {division.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {!isCollapsed(stages.length) && (
+            <View className="space-y-1.5">
+              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Stage
+              </Text>
+              <View className="flex-row flex-wrap gap-2">
+                {stages.map(stage => {
+                  const isSelected = selectedStageId === stage.id;
+                  return (
+                    <TouchableOpacity
+                      key={stage.id}
+                      onPress={() => setSelectedStageId(stage.id)}
+                      className={`px-3 py-2 rounded-lg border ${
+                        isSelected
+                          ? 'bg-brand-orange/10 border-brand-orange'
+                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                      }`}
+                    >
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {stage.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           {/* Select Sport */}
           <View className="space-y-1.5">

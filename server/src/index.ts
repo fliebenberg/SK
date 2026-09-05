@@ -1386,6 +1386,20 @@ io.on('connection', (socket) => {
             case 'event_facilities':
                 callback(request.eventId ? await dataManager.getEventFacilities(request.eventId) : []);
                 break;
+            // --- Entry (Phase 6) ---------------------------------------------------
+            case 'event_entrants':
+                callback(request.eventId ? await dataManager.getEventEntrants(request.eventId) : []);
+                break;
+            case 'event_candidate_teams': {
+                // A convenor addresses it by their division; an organiser by the event. Either way
+                // the answer is the whole event's teams — the client filters by the division's
+                // sport and age group, because the org axis shows every division at once.
+                const candidateEventId =
+                    request.eventId ||
+                    (request.divisionId ? await dataManager.getDivisionEventId(request.divisionId) : null);
+                callback(candidateEventId ? await dataManager.getEventCandidateTeams(candidateEventId) : []);
+                break;
+            }
             case 'event_standings': {
                 const standingsEvent = request.eventId ? await dataManager.getEvent(request.eventId) : null;
                 callback((standingsEvent as any)?.cachedStandings || []);
@@ -1507,6 +1521,15 @@ io.on('connection', (socket) => {
             const team = await dataManager.getTeam(id);
             if (team) pushToSocket(socket, room, 'TEAM_UPDATED', team);
             pushToSocket(socket, room, 'TEAM_MEMBERS_SYNC', await dataManager.getTeamMembers(id));
+
+        } else if (kind === 'event' && sub === 'entrants') {
+            // The whole tournament's roster, as one push (U21). The entry screens work both axes
+            // over this one dataset, so the join push *is* the load — there is no `get_data` here
+            // and there should not be one.
+            pushToSocket(socket, room, 'EVENT_ENTRANTS_SYNC', {
+                eventId: id,
+                entrants: await dataManager.getEventEntrants(id),
+            });
 
         } else if (kind === 'event') {
             const event = await dataManager.getEvent(id);
@@ -1904,6 +1927,12 @@ io.on('connection', (socket) => {
                 if (result) {
                     additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_ADDED', data: result });
                     await publishGameSummary(result.id);
+                    // A hand-added fixture now names its stage (`FIX-12`), which means it is part
+                    // of that stage's completeness: a stage that had read `Complete` has an
+                    // unplayed fixture in it again. The choke point is what knows that, and going
+                    // through it here is the same rule as everywhere else — one function rewrites
+                    // a table, and every path that changes what it counts calls it.
+                    if (result.stageId) await dataManager.recalculateStandingsForGame(result.id);
                 }
                 break;
             case SocketAction.UPDATE_GAME_STATUS:
@@ -2606,10 +2635,24 @@ io.on('connection', (socket) => {
                     // or not a result moved. D10 is explicit that a substitution does not touch
                     // the draw: the fixtures stay exactly where they are.
                     await tournamentManager.recalculateDivision(entrantDivisionId);
-                    return { applied: outcome.entrants, errors: [] };
+                    return { applied: outcome.entrants, errors: [], syncedStageIds: outcome.syncedStageIds };
                 });
-                publishEntrants(entrantDivisionId, result.applied);
-                await publishStandings(entrantDivisionId, await dataManager.getDivisionEventId(entrantDivisionId));
+                const entrantEventId = await dataManager.getDivisionEventId(entrantDivisionId);
+                await publishEntrants(entrantDivisionId, result.applied, entrantEventId || undefined);
+                // The roster mirrored itself into the stage that simply takes it, so the division
+                // panel's pool membership moved too — say so rather than letting it go stale until
+                // the next join.
+                for (const syncedStageId of result.syncedStageIds || []) {
+                    publishStageEntrants(
+                        entrantDivisionId,
+                        syncedStageId,
+                        await dataManager.getStageEntrants(syncedStageId)
+                    );
+                }
+                if (result.syncedStageIds?.length) {
+                    publishStages(entrantDivisionId, await dataManager.getStages(entrantDivisionId));
+                }
+                await publishStandings(entrantDivisionId, entrantEventId);
                 // Resolving an entrant fills in every fixture that names it at once, so those
                 // summaries go out too — that is the whole point of the placeholder model.
                 for (const game of await dataManager.getDivisionGames(entrantDivisionId)) {

@@ -23,8 +23,6 @@ import {
   TournamentDivision,
   TournamentOrganizer,
   LeagueStandingRow,
-  ScoringSystem,
-  calculateStandings,
   participantLabel,
   hasLiveScore,
 } from '@sk/shared';
@@ -33,10 +31,13 @@ import CustomSelect from '../../../../components/CustomSelect';
 import { Tabs } from '../../../../components/Tabs';
 import { OrganizerPicker } from '../../../../components/OrganizerPicker';
 import { SetupChecklist, SetupStep } from '../../../../components/SetupChecklist';
+import { StandingsTable } from '../../../../components/tournament/StandingsTable';
+import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
 import { DivisionPanel } from '../../../../components/tournament/DivisionPanel';
 import { EventRoleChips } from '../../../../components/EventRoleChips';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { useEventCapabilities, useMyEventGrants } from '../../../../hooks/useEventCapabilities';
+import { useEventEntrants } from '../../../../hooks/useEventEntrants';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import { deriveEventRoles } from '@sk/shared';
 import { resolveEventType, tournamentFormatLabel, unknownEventTypeMessage } from '@sk/shared';
@@ -59,6 +60,15 @@ import { isCollapsed, structureAnnouncement } from '@sk/shared';
  * a fixture's team and org names travel on its summary; and choosing an org to *invite* — a set no
  * room owns — is still a search.
  */
+/**
+ * The standings scope, remembered per event for the life of the session (U28).
+ *
+ * Module state rather than a store: it is a view preference with no consequence outside this
+ * screen, it must not survive a reload, and putting it in the global store would make every screen
+ * reading that store re-render when a tab changes.
+ */
+const rememberedScope = new Map<string, string>();
+
 export default function EventDetails() {
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -195,6 +205,15 @@ export default function EventDetails() {
    */
   const canEdit = !!capabilities?.canEditEvent;
 
+  /**
+   * How many competitors have been entered, for the checklist.
+   *
+   * Joined only for a viewer who may edit, because the roster is the organiser's tier — and only
+   * a viewer who may edit sees the checklist at all, so there is nothing to load for anybody else.
+   */
+  const { entrants } = useEventEntrants(eventId, canEdit);
+  const entrantCount = entrants.filter(entrant => entrant.status !== 'withdrawn').length;
+
   const roles = useMemo(
     () =>
       event
@@ -208,6 +227,20 @@ export default function EventDetails() {
   // ------------------------------------------------------------------------------------------
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings' | 'settings'>('schedule');
+  /**
+   * Which subject the table ranks (U28) — `all`, or a division id.
+   *
+   * Seeded from {@link rememberedScope} so the choice survives leaving the screen and coming back,
+   * which is what "remembered for the session" means: an organiser checking the u14 table between
+   * fixtures should not have to re-select it every time.
+   */
+  const [standingsScope, setStandingsScopeState] = useState<string>(
+    () => rememberedScope.get(eventId) || 'all'
+  );
+  const setStandingsScope = (scope: string) => {
+    rememberedScope.set(eventId, scope);
+    setStandingsScopeState(scope);
+  };
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -300,50 +333,17 @@ export default function EventDetails() {
   };
 
   /**
-   * The event-level table.
+   * The event-level table — **the server's, and only the server's** (D30).
    *
-   * The server's roll-up is authoritative and arrives on the room — but it is written by the
-   * choke point, which only runs for a fixture that sits in a stage. A tournament whose fixtures
-   * were added by hand has none yet, so the client-side calculation stays as the fallback rather
-   * than the table going blank. Phase 6 puts generated fixtures in stages and this falls away.
+   * Phase 5 kept a client-side `calculateStandings` fallback here, because the choke point only
+   * writes a table for a fixture that sits in a stage and a tournament whose fixtures were added
+   * by hand had none. Phase 6 closes both halves of that: generated fixtures land in a stage by
+   * construction, `FIX-12` makes a hand-added one name its stage, and the Phase 6 migration
+   * attaches the rows that already existed. So the fallback goes, and with it the possibility of
+   * this screen and the standings tab disagreeing about who won — which is what a second
+   * implementation of a ranking always eventually does.
    */
-  const standingsRows: LeagueStandingRow[] = useMemo(() => {
-    if (serverStandings.length > 0) return serverStandings;
-    if (!event) return [];
-
-    // Every org named on a fixture, from the summaries themselves — no organisations lookup.
-    const orgsById = new Map<string, string>();
-    (event.participatingOrgs || []).forEach(o => orgsById.set(o.id, o.name));
-    games.forEach(game =>
-      (game.participants || []).forEach(p => {
-        if (p.orgId && !orgsById.has(p.orgId)) orgsById.set(p.orgId, p.orgShortName || p.orgId);
-      })
-    );
-
-    // The table ranks organisations, so each side is mapped from its team to the org behind it.
-    const mappedGames = games.map(game => ({
-      ...game,
-      participants: (game.participants || []).map(p => ({
-        ...p,
-        teamId: p.orgId || p.teamId || '',
-        entrantId: undefined,
-        orgProfileId: undefined,
-      })),
-    }));
-
-    const scoring: ScoringSystem = {
-      mode: 'byResult',
-      pointsPerWin: event.settings?.pointsPerWin ?? 3,
-      pointsPerDraw: event.settings?.pointsPerDraw ?? 1,
-      pointsPerLoss: 0,
-    };
-
-    return calculateStandings(
-      mappedGames as any,
-      [...orgsById.entries()].map(([id, name]) => ({ id, name })),
-      { scoring }
-    );
-  }, [serverStandings, games, event]);
+  const standingsRows: LeagueStandingRow[] = serverStandings;
 
   const dismissedSteps = event?.settings?.dismissedSetupSteps || [];
 
@@ -364,8 +364,11 @@ export default function EventDetails() {
    * The checklist's steps for Phase 5.
    *
    * Only the steps whose work exists are actionable; the rest say so plainly rather than offering
-   * a button that does nothing. They fill in over Phases 6-8 as entrants, generation and
-   * scheduling arrive.
+   * a button that does nothing. Entrants and fixtures became actionable in Phase 6; the schedule
+   * grid is Phase 7 and still says what it is waiting for.
+   *
+   * The entrant count comes from the roster room this screen already holds, not from a count
+   * query: a checklist that fetched to render a number would fetch on every broadcast.
    */
   const setupSteps: SetupStep[] = useMemo(() => {
     const fixtureCount = games.length;
@@ -393,15 +396,26 @@ export default function EventDetails() {
       {
         key: 'entrants',
         label: 'Entrants',
-        status: 'todo',
-        hint: 'Entering teams by division and by organisation arrives in the next release.',
+        status: entrantCount > 0 ? 'done' : 'todo',
+        detail: entrantCount > 0 ? `${entrantCount} entered` : undefined,
+        hint:
+          entrantCount > 0
+            ? undefined
+            : 'Enter teams by division, or a school at a time — both work on the same screen.',
+        actionLabel: 'Enter teams',
+        onAction: () => router.push(`/admin/${orgId}/events/${eventId}/entrants`),
       },
       {
         key: 'fixtures',
         label: 'Fixtures',
         status: fixtureCount > 0 ? 'done' : 'todo',
         detail: fixtureCount > 0 ? `${fixtureCount} added` : undefined,
-        hint: fixtureCount > 0 ? undefined : 'Add them by hand for now; generation follows entrants.',
+        hint:
+          fixtureCount > 0
+            ? undefined
+            : entrantCount >= 2
+            ? 'A draw can be generated for you, or add fixtures by hand.'
+            : 'Fixtures follow entrants — or add them by hand at any time.',
         actionLabel: 'Add',
         onAction: () => router.push(`/admin/${orgId}/events/${eventId}/games/new`),
       },
@@ -421,7 +435,15 @@ export default function EventDetails() {
             : 'Using the default 3 / 1 / 0',
       },
     ];
-  }, [orderedDivisions.length, organizers.length, games.length, event?.settings, orgId, eventId]);
+  }, [
+    orderedDivisions.length,
+    organizers.length,
+    games.length,
+    entrantCount,
+    event?.settings,
+    orgId,
+    eventId,
+  ]);
 
   // ------------------------------------------------------------------------------------------
   // Actions
@@ -445,7 +467,8 @@ export default function EventDetails() {
       (res: any) => {
         setIsProcessing(false);
         setIsAddingDivision(false);
-        if (res?.id) router.push(`/admin/${orgId}/events/${eventId}/divisions/${res.id}`);
+        const addedId = res?.data?.id;
+        if (addedId) router.push(`/admin/${orgId}/events/${eventId}/divisions/${addedId}`);
       }
     );
   };
@@ -938,63 +961,42 @@ export default function EventDetails() {
 
         {activeTab === 'standings' && (
           <View className="space-y-4">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 uppercase tracking-widest pl-1 mb-2">
-              Event Leaderboard
-            </Text>
-
-            <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm">
-              <View className="flex-row bg-slate-100 dark:bg-slate-800 px-4 py-3">
-                <Text className="flex-1 font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  Organization
-                </Text>
-                <Text className="w-10 text-center font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  P
-                </Text>
-                <Text className="w-10 text-center font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  W
-                </Text>
-                <Text className="w-10 text-center font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  D
-                </Text>
-                <Text className="w-12 text-center font-orbitron-bold text-[9px] text-brand-orange uppercase tracking-wider">
-                  Pts
-                </Text>
+            {/*
+              One table with a division scope selector (U28), rather than a `By division / By
+              organisation` toggle. **The scope decides the row, not just the filter** (U29): all
+              divisions ranks the tournament's scoring subject — for a Festival that is the
+              organisation, so the default view is the day's leaderboard by school — while one
+              division ranks its entrants, so a school that entered u14A and u14B is two rows.
+              The two still sum into one school line above, which is right for the day's total.
+            */}
+            {orderedDivisions.length > 1 && (
+              <View className="mb-1">
+                <Tabs
+                  items={[
+                    { key: 'all', label: 'All divisions' },
+                    ...orderedDivisions.map(division => ({ key: division.id, label: division.name })),
+                  ]}
+                  activeKey={standingsScope}
+                  onChange={setStandingsScope}
+                  scrollable={orderedDivisions.length > 2}
+                />
               </View>
+            )}
 
-              {standingsRows.map((row, idx) => (
-                <View
-                  key={row.teamId}
-                  className="flex-row items-center px-4 py-3.5 border-b border-slate-100 dark:border-white/5"
-                >
-                  <Text
-                    className="flex-1 font-inter-bold text-sm text-slate-800 dark:text-white pr-2"
-                    numberOfLines={1}
-                  >
-                    {idx + 1}. {row.teamName}
-                  </Text>
-                  <Text className="w-10 text-center font-inter text-sm text-slate-600 dark:text-slate-400">
-                    {row.played}
-                  </Text>
-                  <Text className="w-10 text-center font-inter text-sm text-slate-600 dark:text-slate-400">
-                    {row.wins}
-                  </Text>
-                  <Text className="w-10 text-center font-inter text-sm text-slate-600 dark:text-slate-400">
-                    {row.draws}
-                  </Text>
-                  <Text className="w-12 text-center font-orbitron-bold text-sm text-brand-orange">
-                    {row.points}
-                  </Text>
-                </View>
-              ))}
-
-              {standingsRows.length === 0 && (
-                <View className="p-8 items-center justify-center">
-                  <Text className="font-inter text-xs text-slate-400 italic text-center">
-                    Nothing to rank yet. Add fixtures and record results.
-                  </Text>
-                </View>
-              )}
-            </View>
+            {standingsScope === 'all' ? (
+              <View className="space-y-2">
+                <Text className="font-orbitron-bold text-[10px] text-slate-500 uppercase tracking-widest pl-1">
+                  Event Leaderboard
+                </Text>
+                <StandingsTable
+                  rows={standingsRows as any}
+                  subjectLabel="Organisation"
+                  emptyMessage="Nothing to rank yet. Add fixtures and record results."
+                />
+              </View>
+            ) : (
+              <DivisionStandings divisionId={standingsScope} canEdit={canEdit} />
+            )}
           </View>
         )}
 

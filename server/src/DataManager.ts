@@ -304,6 +304,8 @@ export class DataManager {
   deleteStage = (id: string) => tournamentManager.deleteStage(id);
 
   getDivisionEntrants = (divisionId: string) => tournamentManager.getEntrants(divisionId);
+  getEventEntrants = (eventId: string) => tournamentManager.getEventEntrants(eventId);
+  getEventCandidateTeams = (eventId: string) => tournamentManager.getEventCandidateTeams(eventId);
   setDivisionEntrants = (divisionId: string, entrants: any[]) => tournamentManager.setDivisionEntrants(divisionId, entrants);
   getStageEntrants = (stageId: string) => tournamentManager.getStageEntrants(stageId);
   setStageEntrants = (stageId: string, entrants: any[]) => tournamentManager.setStageEntrants(stageId, entrants);

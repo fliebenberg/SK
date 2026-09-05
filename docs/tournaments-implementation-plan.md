@@ -1,6 +1,6 @@
 # Tournaments — Phased Implementation Plan
 
-**Status:** In progress. **Phases 0–5 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03). The tournament work is now visible in the app: a tournament can be created with a format, navigated, and restructured, and every level with one child is collapsed away. **Phase 6 is next** — the first phase that delivers a *usable* tournament: entrants, generation and standings.
+**Status:** In progress. **Phases 0–6 complete, every exit criterion met** (0–2 on 2026-09-01, 3 on 2026-09-01 and signed off 2026-09-02, 4 and 5 on 2026-09-03, 6 on 2026-09-04). The tournament is now **usable**: teams can be entered on both axes, a draw generated from them, results recorded, and the day ranked — by school across the whole tournament or by entrant within a division. **Phase 7 is next** — scheduling: where and when.
 **Implements:** [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) (D1–D33),
 [tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md),
 [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) (U1–U42).
@@ -296,9 +296,9 @@ fresh database is mislabelled.
 | 2 | Shared types, scoring engine, the fixture-side component | M | ✅ done | No (a component, not a screen) |
 | 3 | Server: divisions, stages, entrants, and the recalculation choke point | L | ✅ done | No |
 | 4 | Permissions: organiser assignments and capability flags | M | ✅ done | A component, not yet a screen |
-| 5 | Client foundations: routes, screens, the collapse rule | L | ← next | Yes — a tournament you can navigate |
-| 6 | `Festival` and `RoundRobin`: entrants, generation, standings | L | | **Yes — the first genuinely usable tournament** |
-| 7 | Scheduling: facilities, day windows, the greedy pass, the grid | L | | Yes |
+| 5 | Client foundations: routes, screens, the collapse rule | L | ✅ done | Yes — a tournament you can navigate |
+| 6 | `Festival` and `RoundRobin`: entrants, generation, standings | L | ✅ done | **Yes — the first genuinely usable tournament** |
+| 7 | Scheduling: facilities, day windows, the greedy pass, the grid | L | ← next | Yes |
 | 8 | `Knockout` and `PoolsKnockout` on the round list | L | | Yes |
 | 9 | The bracket graphic, and copy-a-tournament | M | | Yes |
 
@@ -1374,6 +1374,113 @@ confirm the org roll-up matches a hand-computed answer with a non-1.0 weighting 
 the generation: ninety fixtures should be one round trip and one render, not ninety of each.
 
 **Docs:** [reports.md](file:///c:/Fred/Coding/SK/docs/reports.md) if standings appear there; `TODO.md`.
+
+---
+
+### Done — 2026-09-04
+
+**Exit criterion met, and executed rather than clicked through.** The criterion is a four-school,
+three-sport, five-age-group `Festival` — ninety fixtures — generated, scored, and rolled up against
+a hand-computed answer with a non-1.0 weighting. That is now
+[phase6-entrants.ts](file:///c:/Fred/Coding/SK/server/src/scripts/phase6-entrants.ts): **45 checks**
+against a real database, in the Phase 3/4/5 mould. It builds the fifteen divisions, enters sixty
+teams, generates **90 fixtures in ~1.1 seconds**, scores two divisions in full and compares the
+roll-up to a table worked out by hand.
+
+**The hand-computed answer is the part that makes the roll-up check mean something**, so it is worth
+writing down here too. Two divisions are scored fully and in *opposite* orders, one weighted 2.5:
+
+| | Division X (×1.0) | Division W (×2.5) | Roll-up |
+|---|---|---|---|
+| School A | 9 | 0 | **9** |
+| School B | 6 | 7.5 | **13.5** |
+| School C | 3 | 15 | **18** |
+| School D | 0 | 22.5 | **22.5** |
+
+The order reverses between the two tables, so a roll-up that ignored the weighting would produce
+four equal totals — obviously wrong rather than plausibly wrong. Appearances sum unweighted (six
+fixtures each, not fifteen), because weighting a fixture somebody turned up to makes no sense.
+
+**"One round trip and one render" is checked, not asserted.** The script installs a fake `io` and
+counts what `broadcast()` actually emits: a stage's six fixtures leave as **one**
+`STAGE_FIXTURES_SYNC` carrying all six, which is what `useLiveRoom`'s `upsertMany` exists to
+receive.
+
+**Six things came out differently from the build list above.**
+
+1. **The roster has to mirror itself into the stage, and nothing said so.** `planFixtures` reads
+   `stage_entrants`; `setDivisionEntrants` wrote `division_entrants`. Nothing joined them, so on
+   the ordinary collapsed division an organiser could enter ten teams, press Generate, and be told
+   the stage was empty. The data model already implied the answer — for a single-stage division
+   `stage_entrants` is *"a copy of the roster and the UI never mentions it"* — so
+   `syncOpenStageEntrants` makes that true: the **first** stage takes the roster when it draws from
+   no earlier one, and existing `pool_key` and `seed` values survive, because an organiser who has
+   drawn pools has put information there that the roster does not contain. This is the single
+   change without which the phase delivers nothing.
+
+2. **The roster got an event-level room.** "Both axes over one dataset" (U21) is not a phrase about
+   screens, it is a constraint on loading: the organisation axis is a division × org grid, so
+   reading a division at a time would be fifteen round trips and fifteen room joins on one screen
+   open — the exact cost the live-data design exists to remove. So `event:{id}:entrants` carries
+   every division's roster, at the same `member` tier as `division:{id}` and for the same reason.
+   A roster edit publishes `DIVISION_ENTRANTS_SYNC` to both rooms with the same payload.
+
+3. **`useLiveRoom` gained `replaceWhere`**, and it is a genuinely new shape rather than a
+   convenience. An event-level room can carry a message about one of its parts, and merging that as
+   `replace` blanks the other fourteen divisions while merging it as `upsertMany` keeps entrants the
+   edit removed. Both mistakes are silent, which is why it is a reduce kind rather than something
+   each screen open-codes with `setItems`.
+
+4. **Build item 8 was already done.** `FIX-2` was closed in Phase 5, and the `search_organizations`
+   type this phase was going to add turned out to be unnecessary — `search_similar_orgs` already
+   existed and already did scored matching under a bound. Nothing was built for item 8.
+
+5. **Item 9 removed its own window.** The plan expected the first *windowed* list here, and
+   designing entrants as an event-level room means there isn't one: both axes are rule-2 cases where
+   the room's contents *are* the screen's contents. The distinction was applied rather than
+   exercised, and the backlog entry has been rewritten to say that the remaining windowed case is
+   the pre-existing `org:{id}:events` firehose, not anything tournaments added.
+
+6. **The regeneration dialog needs no server call.** D9 says it states the concrete cost — *"this
+   deletes 14 fixtures, 3 of which have results"* — and `division:{id}:fixtures` is already the
+   source of truth for what is there, so the numbers are derived from the room the panel is holding.
+   The server's refusal stays as the backstop and its sentence is shown verbatim when it fires,
+   because it is more specific than anything the screen could compose.
+
+**Three defects were found and fixed on the way**, all logged in `TODO.md`:
+
+- **`LIVE-8`** — `publishRecalculation` published the tables and never the stages, so a stage tab's
+  "4 of 7 played" sublabel went stale the moment a result was recorded. `FIX-4`'s shape again.
+- **`FIX-13`** — `ADD_STAGE` and `ADD_DIVISION` read `res?.id` off an ack shaped `{ status, data }`,
+  so "select the stage you just added" and "go to the division you just created" both silently did
+  nothing.
+- **`ADD_GAME` skipped the choke point.** A hand-added fixture now has a stage (`FIX-12`), which
+  means it is part of that stage's completeness — a stage that read `Complete` has an unplayed
+  fixture in it again. It goes through `recalculateStandingsForGame` like every other path that
+  changes what a table counts.
+
+**`PEOPLE-3` and `FIX-12` are both closed**, at the user's direction — the second half of `PEOPLE-3`
+needed a data migration
+([20260903_backfill_stages.ts](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/20260903_backfill_stages.ts)),
+which gives pre-Phase-5 divisions their stages and attaches orphaned fixtures **only where the
+answer is unambiguous**. On an event with several divisions nothing in the row says which one a
+fixture belonged to, so those are reported and left visible rather than guessed at. `TX-1` was
+raised and deliberately left out: its own entry says to convert the six `EventManager` call sites as
+their own change with the scoring flows re-checked afterwards.
+
+**And the client stopped calculating standings (D30).** Phase 5 kept a client-side fallback on the
+event screen because a hand-built tournament had no stages and so no server table. All three ways of
+reaching that state are now closed — generation writes into a stage, `FIX-12` makes a hand-added
+fixture name one, and the migration fixes the rows that already existed — so the fallback is gone,
+and with it the possibility of two surfaces disagreeing about who won.
+
+**Verified beyond the assertions.** `shared/`, `server/` and `expo-app/` all type-check clean, the
+66-test Vitest suite passes, the Phase 3, 4 and 5 audits were all re-run green (31 + 82 + 39 — this
+phase changed `roomAccess`, `dataAccess` and the publish path, which is what those exist to
+protect), the migration ran clean against the dev database, and all eleven new or changed modules
+were bundled through Metro (`200` on all of them), per
+[expo-app/AGENTS.md](file:///c:/Fred/Coding/SK/expo-app/AGENTS.md). The four server audits now stand
+at 31 + 82 + 39 + 45.
 
 ---
 

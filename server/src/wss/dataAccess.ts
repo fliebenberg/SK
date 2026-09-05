@@ -202,6 +202,22 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // Pool membership is roster data: it names which competitors are in the division at all.
   stage_entrants:       { room: (req: any) => stageRoom(req.stageId) },
 
+  // --- Entry (Phase 6) -----------------------------------------------------
+  // The whole tournament's roster defers to the room that owns it, which is the ordinary case: one
+  // rulebook rather than two. It exists as a `get_data` at all only for a caller that wants the
+  // rows without holding the room — the entry screens themselves take the join push.
+  event_entrants:       { room: (req: any) => (req.eventId ? `event:${req.eventId}:entrants` : null) },
+  // "Teams that could be entered" is a set no room owns — the same shape as the invite picker
+  // (`FIX-2`), and gated like the appointment screens: browsing an org's teams through this must
+  // never be easier than the entry it exists to feed.
+  // Either scope answers it: the event-level entry screen asks with an `eventId`, and a convenor
+  // reaching the same editor through their division's screen asks with a `divisionId` — which is
+  // the narrower check, and the one that runs when both are present.
+  event_candidate_teams:{
+    standalone: 'tournament-organiser',
+    organiserScope: (req: any) => ({ eventId: req.eventId, divisionId: req.divisionId }),
+  },
+
   // --- Reference data, no subject -----------------------------------------
   sports:               { standalone: 'public' },
   sport:                { standalone: 'public' },
