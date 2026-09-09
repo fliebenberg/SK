@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Animated, Platform } from 'react-native';
+import { AnimatedBox } from '../../AnimatedBox';
 
 interface GameStatusIndicatorProps {
   isRunning?: boolean;
@@ -49,7 +50,7 @@ export function GameStatusIndicator({
           ) : null}
           <View className="flex-row items-center gap-1">
             <View style={{ width: 12, height: 12, alignItems: 'center', justifyContent: 'center' }}>
-              <Animated.View
+              <AnimatedBox
                 style={{
                   width: 8,
                   height: 8,

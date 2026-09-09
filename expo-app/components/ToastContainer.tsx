@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useToastStore, ToastMessage } from '../store/toastStore';
 import { useActiveTheme } from '../store/settingsStore';
 import { COLORS } from '../constants/Colors';
+import { AnimatedBox } from './AnimatedBox';
 
 interface SingleToastProps {
   toast: ToastMessage;
@@ -95,14 +96,16 @@ const SingleToast: React.FC<SingleToastProps> = ({ toast, onDismiss, isDark }) =
   const config = getToastConfig();
 
   return (
-    <Animated.View
+    <AnimatedBox
       style={{
         opacity: fadeAnim,
         transform: [{ translateY: translateYAnim }],
+      }}
+      className="w-full max-w-md border-l-4 rounded-lg p-3.5 shadow-md flex-row items-center gap-3 self-center"
+      innerStyle={{
         backgroundColor: config.bgStyle,
         borderColor: config.borderColor,
       }}
-      className="w-full max-w-md border-l-4 rounded-lg p-3.5 shadow-md flex-row items-center gap-3 self-center"
     >
       <Ionicons name={config.icon} size={22} color={config.iconColor} />
 
@@ -132,7 +135,7 @@ const SingleToast: React.FC<SingleToastProps> = ({ toast, onDismiss, isDark }) =
           color={isDark ? COLORS.dark.textSecondary : COLORS.light.textSecondary}
         />
       </TouchableOpacity>
-    </Animated.View>
+    </AnimatedBox>
   );
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Platform, Image } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Platform, Image, Animated, Easing } from 'react-native';
 import { useRouter, useSegments, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme, useSettingsStore } from '../store/settingsStore';
@@ -9,6 +9,15 @@ import { OrgLogo } from './OrgLogo';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
+import { AnimatedBox } from './AnimatedBox';
+
+// Rail geometry. These are the `w-16` / `w-64` classes as numbers, because the
+// hover animation interpolates between them and a class cannot be interpolated.
+const RAIL_WIDTH = 64;
+const PANEL_WIDTH = 256;
+
+const HOVER_OPEN_MS = 220;
+const HOVER_CLOSE_MS = 170;
 
 export function LeftNavigationRail() {
   const router = useRouter();
@@ -22,6 +31,40 @@ export function LeftNavigationRail() {
   const isSidebarMinimized = useSettingsStore((state) => state.getEffectivePreference('sidebarMinimized') ?? false);
   const setLocalOverride = useSettingsStore((state) => state.setLocalOverride);
   const [isHovered, setIsHovered] = useState(false);
+  const hoverAnim = useRef(new Animated.Value(0)).current;
+
+  // The fly-out is built from <AnimatedBox> rather than Animated.View, and styled with
+  // inline styles rather than classes — an animated node cannot carry a className, and
+  // these three need their children positioned against the animated node itself, so
+  // none of them passes one. AnimatedBox's doc comment has the why.
+  useEffect(() => {
+    const animation = Animated.timing(hoverAnim, {
+      toValue: isHovered ? 1 : 0,
+      duration: isHovered ? HOVER_OPEN_MS : HOVER_CLOSE_MS,
+      easing: isHovered ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+      // Width drives layout, which the native driver cannot touch.
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [isHovered, hoverAnim]);
+
+  // The rail occupies real layout width, so growing it pushes the page across
+  // instead of covering it.
+  const railWidth = hoverAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [RAIL_WIDTH, PANEL_WIDTH],
+  });
+
+  // Cross-fade the two trees, with a slight overlap so neither edge is ever bare.
+  const iconRailOpacity = hoverAnim.interpolate({
+    inputRange: [0, 0.45, 1],
+    outputRange: [1, 0, 0],
+  });
+  const panelOpacity = hoverAnim.interpolate({
+    inputRange: [0, 0.35, 1],
+    outputRange: [0, 0, 1],
+  });
 
   const toggleMinimized = useCallback(() => {
     setLocalOverride('sidebarMinimized', !isSidebarMinimized);
@@ -464,28 +507,58 @@ export function LeftNavigationRail() {
   } : {};
 
   if (isSidebarMinimized) {
-    return (
-      <View className="relative h-full z-40" {...webHoverHandlers}>
-        {/* Minimized Static Icon Rail */}
-        <View className="w-16 h-full border-r bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5">
-          {renderMinimizedRail()}
-        </View>
+    // `bg-white dark:bg-slate-900` and `border-slate-200 dark:border-white/5` as
+    // literals, since this container cannot use classes (see the note above).
+    const surfaceColor = isDark ? '#0F172A' : '#FFFFFF';
+    const edgeColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#E2E8F0';
 
-        {/* Hover Floating Overlay Modal with CSS transition */}
-        <View 
+    return (
+      <AnimatedBox
+        {...webHoverHandlers}
+        style={{
+          width: railWidth,
+          height: '100%',
+          zIndex: 40,
+          backgroundColor: surfaceColor,
+          borderRightWidth: 1,
+          borderRightColor: edgeColor,
+          // Clip the panel so widening the rail wipes it into view.
+          overflow: 'hidden',
+        }}
+      >
+        {/* Resting icon rail */}
+        <AnimatedBox
+          pointerEvents={isHovered ? 'none' : 'auto'}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            height: '100%',
+            width: RAIL_WIDTH,
+            opacity: iconRailOpacity,
+          }}
+        >
+          {renderMinimizedRail()}
+        </AnimatedBox>
+
+        {/* Full panel, revealed as the rail widens */}
+        <AnimatedBox
           pointerEvents={isHovered ? 'auto' : 'none'}
-          className="absolute top-0 left-0 bottom-0 w-64 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-white/10 shadow-lg z-50 py-6 px-4 flex flex-col justify-between"
-          style={Platform.OS === 'web' ? ({
-            transition: 'opacity 200ms cubic-bezier(0.16, 1, 0.3, 1), transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
-            opacity: isHovered ? 1 : 0,
-            transform: isHovered ? 'translateX(0px)' : 'translateX(-12px)',
-          } as any) : {
-            opacity: isHovered ? 1 : 0,
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            height: '100%',
+            width: PANEL_WIDTH,
+            paddingVertical: 24,
+            paddingHorizontal: 16,
+            justifyContent: 'space-between',
+            opacity: panelOpacity,
           }}
         >
           {renderExpandedContent()}
-        </View>
-      </View>
+        </AnimatedBox>
+      </AnimatedBox>
     );
   }
 
