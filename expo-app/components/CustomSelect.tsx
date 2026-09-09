@@ -7,6 +7,8 @@ import { getThemeColor } from '../constants/Colors';
 interface Option {
   value: string;
   label: string;
+  /** Shown under the label in the list only; the closed control shows the label alone. */
+  description?: string;
 }
 
 interface CustomSelectProps {
@@ -132,9 +134,16 @@ export default function CustomSelect({
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-white/5'
                     }`}
                   >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-inter-bold' : 'text-slate-855 dark:text-white'}`}>
-                      {opt.label}
-                    </Text>
+                    <View className="flex-1 pr-2">
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-inter-bold' : 'text-slate-855 dark:text-white'}`}>
+                        {opt.label}
+                      </Text>
+                      {!!opt.description && (
+                        <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          {opt.description}
+                        </Text>
+                      )}
+                    </View>
                     {isSelected && (
                       <Ionicons name="checkmark-circle" size={16} color="#FF3E00" />
                     )}

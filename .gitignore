@@ -19,3 +19,6 @@ server/logs/
 
 # Database dumps (contain real personal data — never committed)
 server/backups/*.dump
+
+# Generated interview sheets (npm run interviews:pdf)
+docs/interviews/print/

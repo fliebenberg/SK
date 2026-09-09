@@ -86,8 +86,6 @@ export function useLiveRoom<T = any>(
     setIsLoading(true);
     setAccessDenied(false);
 
-    const unsubscribe = wsService.subscribeToRoom(room);
-
     const handleUpdate = (message: LiveMessage) => {
       if (!active || !message) return;
       // Older server builds send no topic; treating that as "not mine" would
@@ -115,6 +113,11 @@ export function useLiveRoom<T = any>(
       if (action.kind === 'upsert' || action.kind === 'upsertMany') {
         const incoming = action.kind === 'upsert' ? [action.item] : action.items || [];
         if (!incoming.length) return;
+        // A room that carries one entity has nothing to "replace": `event:{id}` hands its event
+        // over as `EVENT_UPDATED`, and a division room its division as `DIVISION_UPDATED`. That
+        // push is the initial load as much as a `*_SYNC` is, so it ends loading too — otherwise a
+        // screen that waits on this flag spins forever with the entity already in hand.
+        setIsLoading(false);
         setItems(prev => {
           // One pass over the existing rows, then one append of whatever was new — rather than a
           // findIndex per incoming item, which is what makes a ninety-fixture batch quadratic.
@@ -141,7 +144,12 @@ export function useLiveRoom<T = any>(
       setItems(prev => prev.filter(existing => getIdRef.current(existing) !== action.id));
     };
 
+    // Listen first, then hold the room. If another screen already holds it, the join push went
+    // to that screen and will not come again; the service replays what the room has delivered
+    // so far into this same handler, so a late subscriber starts from the same state as the
+    // first one (`LIVE-9`).
     wsService.on('update', handleUpdate);
+    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
 
     return () => {
       active = false;

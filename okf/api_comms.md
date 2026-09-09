@@ -37,6 +37,13 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
      to the joining socket, so a screen that subscribes does not also query.
      [`useLiveRoom`](file:///c:/Fred/Coding/SK/expo-app/hooks/useLiveRoom.ts) is the client
      primitive; `useSocketQuery` remains correct only for one-shot reads no room owns.
+   - **A late subscriber is replayed, not re-joined.** The join push reaches only the socket
+     that joined, once, and screens hold room state locally rather than in a shared store — so a
+     screen subscribing to a room a still-mounted parent already holds would otherwise start
+     empty. [`roomLedger.ts`](file:///c:/Fred/Coding/SK/expo-app/services/roomLedger.ts) logs
+     what each held room has delivered, and `subscribeToRoom(room, onReplay)` feeds that log to
+     the newcomer. Screens using `useLiveRoom` get this without doing anything; a screen that
+     calls `subscribeToRoom` directly does not, and should move to the hook (`LIVE-9`).
    - **Every message carries its `topic`.** Socket.io does not tell a receiver which room
      delivered a message, so the server stamps the room on
      ([wss/broadcast.ts](file:///c:/Fred/Coding/SK/server/src/wss/broadcast.ts)) and listeners

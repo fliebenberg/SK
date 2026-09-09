@@ -475,6 +475,19 @@ Invites sent to organizations to claim their profile.
 - `created_at` (TIMESTAMPTZ)
 - `claimed_at` (TIMESTAMPTZ)
 - `notified_referrer_at` (TIMESTAMPTZ)
+- `last_sent_at` (TIMESTAMPTZ): when the invitation email last went out. Re-nominating the same
+  address resends only once `org_admin_invite_cooldown_hours` has passed since this; `created_at`
+  is never rewritten. NULL on older rows reads as `created_at`.
+
+### 19a. `org_claim_referral_nominators`
+Everyone who has nominated a given address for a given org. `referred_by_user_id` on the referral
+names only the nominator credited for the current email; this table is how a second person who
+enters an address someone else already invited is shown "you have referred this org" without a
+second email. Backfilled from `referred_by_user_id` by `init-db`.
+- `referral_id` (TEXT): FK to `org_claim_referrals.id`, ON DELETE CASCADE.
+- `user_id` (TEXT): FK to `users.id`, ON DELETE CASCADE.
+- `created_at` (TIMESTAMPTZ)
+- PRIMARY KEY (`referral_id`, `user_id`)
 
 ### 19b. `leagues`
 A recurring competition an organisation runs: "Northern Districts U16 Rugby". A league is the

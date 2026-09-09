@@ -44,6 +44,16 @@ which never issues a query.
 `useSocketQuery` remains correct for genuine one-shot reads (a form's dropdown options,
 a report) — data that no room owns.
 
+**The push reaches only the socket that joined, once.** The client reference-counts room
+holders and sends `join_room` for the first one only, and each screen reduces a room's messages
+into its own state — there is no shared store. A screen that subscribes to a room another
+still-mounted screen already holds would therefore start empty (`LIVE-9`). The socket service
+covers this by logging what each held room has delivered
+([roomLedger.ts](file:///c:/Fred/Coding/SK/expo-app/services/roomLedger.ts)) and replaying the log
+into a late subscriber's handler: `subscribeToRoom(room, onReplay)`. `useLiveRoom` does this for
+you. **Do not call `subscribeToRoom` directly in new code** — without a replay handler a screen
+still inherits the gap.
+
 ## 3. Rooms are the read boundary, and every room is declared.
 
 Because a broadcast carries data, whatever a socket can join, it can read. Room access is

@@ -16,7 +16,7 @@ The `.agent/skills/` directory contains rules and instructions for coding agents
 1. **[client-rendering](file:///c:/Fred/Coding/SK/.agent/skills/client-rendering/SKILL.md)**: Enforces purely client-side rendering for dynamic components and bypasses Next.js server actions.
 2. **[deprecated-client](file:///c:/Fred/Coding/SK/.agent/skills/deprecated-client/SKILL.md)**: Rules enforcing that the root-level `/client/` directory is read-only and reference-only.
 3. **[explicit-approval](file:///c:/Fred/Coding/SK/.agent/skills/explicit-approval/SKILL.md)**: Instructs agents to wait for explicit approval before running plans.
-4. **[git-workflow](file:///c:/Fred/Coding/SK/.agent/skills/git-workflow/SKILL.md)**: Enforces the Git branching strategy (branch checks on start, merge directions on finish).
+4. **[git-workflow](file:///c:/Fred/Coding/SK/.agent/skills/git-workflow/SKILL.md)**: Agents must never create a branch without explicit permission; working on `main` is the default during development, with merge guidance only when a branch was approved.
 5. **[no-browser-verification](file:///c:/Fred/Coding/SK/.agent/skills/no-browser-verification/SKILL.md)**: Warns agents to avoid manual web browser testing/verification in plans.
 6. **[efficiency](file:///c:/Fred/Coding/SK/.agent/skills/efficiency/SKILL.md)**: Guidelines to avoid infinite rendering loops, redundant requests, and store spamming.
 7. **[project-file-maps](file:///c:/Fred/Coding/SK/.agent/skills/project-file-maps/SKILL.md)**: Maps terms like "future ideas file" and "todo list" to specific files in the workspace root.

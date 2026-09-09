@@ -1327,6 +1327,13 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+            case 'org_claim_status':
+                if (orgId) {
+                    callback(await dataManager.getOrgClaimStatus(orgId, socket.data?.userId));
+                } else {
+                    callback(null);
+                }
+                break;
             case 'org_referrals':
                 console.log(`Server: Processing org_referrals for ${orgId}`);
                 if (orgId) {
@@ -2194,6 +2201,31 @@ io.on('connection', (socket) => {
                     publishEventToOrgs(oldOrgIds.filter(id => !newOrgIds.includes(id)), 'EVENT_DELETED', { id: result.id });
 
                     await broadcastOrgSummaries(allAffectedOrgs);
+
+                    // `FIX-14`. The three settings keys below are what every division without a
+                    // system of its own is scored by, so changing one changes every table under
+                    // the event — and a cached table nobody rebuilt is a table that is simply
+                    // wrong. `UPDATE_DIVISION` has always done this for a division's own
+                    // overrides; this is the event-level twin of it.
+                    //
+                    // No cost dialog (U31): that exists because regenerating fixtures *destroys*
+                    // results. Nothing is destroyed here — the tables are derived, and rebuilding
+                    // them from the same fixtures is what makes them agree with the points the
+                    // organiser just set.
+                    const scoringKeys = ['scoring', 'tiebreakers', 'scoringSubject'];
+                    const scoringSettingsChanged =
+                        action.payload.data?.settings !== undefined &&
+                        scoringKeys.some(key =>
+                            JSON.stringify((oldEvent as any)?.settings?.[key] ?? null) !==
+                            JSON.stringify((result as any)?.settings?.[key] ?? null)
+                        );
+                    if (scoringSettingsChanged) {
+                        const recalculatedDivisionIds = await tournamentManager.recalculateEvent(result.id);
+                        for (const divisionId of recalculatedDivisionIds) {
+                            await publishStandings(divisionId, null);
+                        }
+                        if (recalculatedDivisionIds.length) await publishStandings(null, result.id);
+                    }
                 }
                 break;
             case SocketAction.DELETE_EVENT:

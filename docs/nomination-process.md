@@ -95,9 +95,12 @@ CREATE TABLE org_claim_referrals (
 * **Single Active Claim Rule (Conflict Resolution)**: Once an organization is successfully claimed by *any* nominee, all other remaining `pending` nominations for that organization must automatically have their status updated to `voided`.
 * **Invitation Cooldown (`org_admin_invite_cooldown_hours`)**: 
   * This setting (configured in the `system_settings` table, currently `336` hours / 2 weeks) prevents sending duplicate invitations to the same person in short succession.
-  * If a user tries to nominate an email that already has a `pending` nomination for the same organization:
-    * **Within Cooldown**: The invite request is ignored, and no new email is sent.
-    * **Outside Cooldown**: A new token is generated. The existing database record is updated with the new `claim_token`, the new `referred_by_user_id` (so the new nominator gets credit), and the `created_at` timestamp is reset to `NOW()`. A new invitation email is then sent.
+  * If a user tries to nominate an email that already has a `pending` nomination for the same organization (**implemented 2026-09-05** in `ReferralManager.createReferrals`; before this, an existing address was skipped outright and never resent):
+    * **Either way**: the caller is recorded in `org_claim_referral_nominators`, so their own screens show the org as referred by them (see `org_claim_status` below).
+    * **Within Cooldown**: no new email is sent. The result row carries `emailSent: false`.
+    * **Outside Cooldown** (measured from `last_sent_at`, falling back to `created_at`): a new token is generated, `referred_by_user_id` moves to the new nominator (so they get credit), `last_sent_at` is set to `NOW()` and a new invitation email is sent. `created_at` is never rewritten.
+  * An address whose nominee has already `claimed`, `declined` or passed the invitation on (`referred`) is left alone and comes back with `emailSent: false`.
+  * The result of `REFER_ORG_CONTACT` never includes `claim_token`: it is the credential the email carries, and a caller re-nominating someone else's address must not receive it.
 
 ---
 
@@ -154,6 +157,39 @@ To ensure the nomination flow is consistent and easy to access, a single **Reusa
        > **Prompt:** *"Help us get this organization claimed! If you know who manages **{orgName}**, add their email below. We'll send them an invite to claim it."*
 
 ---
+
+#### Nominating from an organisation chip (`UnclaimedOrgBadge`)
+
+Wherever a screen lets a user add organisations they do not belong to — the tournament create
+screen's participating-organisation chips are the first — the appeal to nominate an administrator
+lives behind a small icon on the chip, not inline on the form. Rationale and behaviour (decided
+2026-09-05):
+
+* **Not inline.** A card per unclaimed organisation dominated the tournament form and distracted
+  from its purpose. The chip shows a **yellow** alert icon for an unclaimed org the caller has not
+  yet referred anyone for, and a **green** mail icon once they have. Hovering explains either
+  state; clicking opens a modal with the appeal and an email field.
+* **Prompted on add, not only on click.** With `autoPrompt` (the create screen sets it), a chip
+  the user has just added opens the modal itself as soon as its status comes back yellow, so the
+  appeal does not depend on them wondering what the icon means. Once per org; they can cancel. A
+  chip that comes back green is simply shown green. Screens that render chips which were already
+  there when they opened should leave `autoPrompt` off.
+* **An address that has already answered is said so.** If the nominee has `declined`, the modal
+  says so by name and offers "Nominate a different contact", which returns to the empty field; the
+  org stays yellow. The same for an address that passed the invitation on (`referred`). An address
+  that has `claimed` the org is reported as needing no invitation.
+* **Sent immediately.** Submitting the email emits `REFER_ORG_CONTACT` there and then. The
+  nomination is not part of whatever process the org is being added to, so it must not wait for
+  that form to save (or be lost when it is cancelled). The match form's older inline prompt still
+  batches its emails until save — see the TODO entry `ORG-6`.
+* **Asked once per person.** The badge reads `get_data { type: "org_claim_status", orgId }` on
+  mount (classified `authenticated` in `dataAccess.ts`) and returns `OrgClaimStatus`: whether the
+  org is claimed and the caller's **own** pending nominations. Another user's nomination is not
+  reported at all — the org stays yellow for this caller until they name a contact themselves. If
+  they name the address someone else already used, they become a nominator of it (green for them)
+  and the cooldown above decides whether the email goes again. Nominations do not expire, so a
+  pending one is current, and an organiser setting up several events in one day sees green rather
+  than being asked about the same school each time. They may still invite a further contact.
 
 ### Phase B: Receiving & Processing (Invitee Side)
 1. **Landing/Claim Screen (`/claim?token=<token>`)**

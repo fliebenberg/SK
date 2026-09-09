@@ -1,10 +1,10 @@
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import pool from '../db';
 import { randomBytes } from 'crypto';
 import { mailManager } from './MailManager';
 import { userManager } from './UserManager';
 import { organizationManager } from './OrganizationManager';
-import { OrgClaimReferral, UserBadge } from '@sk/shared';
+import { OrgClaimReferral, OrgClaimStatus, UserBadge } from '@sk/shared';
 
 export class ReferralManager {
   private pool: Pool;
@@ -17,70 +17,104 @@ export class ReferralManager {
     return randomBytes(32).toString('hex');
   }
 
+  /** `org_admin_invite_cooldown_hours` from `system_settings`; two weeks if unset. */
+  private async getInviteCooldownHours(client: PoolClient): Promise<number> {
+    const res = await client.query(
+      "SELECT value FROM system_settings WHERE key = 'org_admin_invite_cooldown_hours'"
+    );
+    const hours = res.rows[0] ? parseInt(res.rows[0].value, 10) : NaN;
+    return Number.isFinite(hours) ? hours : 336;
+  }
+
+  /**
+   * Nominate one or more contacts to claim an org.
+   *
+   * One row per (org, email), whoever nominated it. A fresh address gets a row and an email. An
+   * address already pending gets the caller added as a nominator — so their own screens show it
+   * as referred — and is emailed again only once `org_admin_invite_cooldown_hours` has passed
+   * since the last send, with a new token and the credit moved to the caller. An address whose
+   * nominee has already claimed, declined or passed the invitation on is left alone. Every
+   * address comes back with `emailSent` saying which of those happened; the claim token never
+   * does, since it is the credential the email carries and the caller has no use for it.
+   */
   async createReferrals(orgId: string, contactEmails: string[], referredByUserId: string): Promise<OrgClaimReferral[]> {
     const client = await this.pool.connect();
-    const createdReferrals: OrgClaimReferral[] = [];
+    const results: OrgClaimReferral[] = [];
+    const toSend: Array<{ email: string; token: string }> = [];
+    let orgName = 'Organization';
+
+    const COLUMNS = `id, org_id as "orgId", referred_email as "referredEmail",
+                     referred_by_user_id as "referredByUserId", status,
+                     claimed_by_user_id as "claimedByUserId", created_at as "createdAt",
+                     claimed_at as "claimedAt", last_sent_at as "lastSentAt"`;
 
     try {
       await client.query('BEGIN');
 
       const orgRes = await client.query('SELECT name FROM organizations WHERE id = $1', [orgId]);
-      const orgName = orgRes.rows[0]?.name || 'Organization';
+      orgName = orgRes.rows[0]?.name || orgName;
+      const cooldownHours = await this.getInviteCooldownHours(client);
 
       for (const email of contactEmails) {
-        // lower case email
         const normalizedEmail = email.toLowerCase().trim();
+        if (!normalizedEmail) continue;
 
-        // Check if referral already exists for this org and email
         const existingRes = await client.query(
-          `SELECT id FROM org_claim_referrals WHERE org_id = $1 AND referred_email = $2`,
+          `SELECT ${COLUMNS} FROM org_claim_referrals
+           WHERE org_id = $1 AND referred_email = $2
+           ORDER BY created_at DESC LIMIT 1`,
           [orgId, normalizedEmail]
         );
+        const existing = existingRes.rows[0];
 
-        if (existingRes.rows.length === 0) {
-          const id = `ref-${randomBytes(8).toString('hex')}`; // Simple ID generation
+        if (!existing) {
+          const id = `ref-${randomBytes(8).toString('hex')}`;
           const token = this.generateToken();
-
           const insertRes = await client.query(
-            `INSERT INTO org_claim_referrals 
-            (id, org_id, referred_email, referred_by_user_id, claim_token, status)
-            VALUES ($1, $2, $3, $4, $5, 'pending')
-            RETURNING id, org_id as "orgId", referred_email as "referredEmail", 
-                      referred_by_user_id as "referredByUserId", claim_token as "claimToken", 
-                      status, created_at as "createdAt"`,
+            `INSERT INTO org_claim_referrals
+               (id, org_id, referred_email, referred_by_user_id, claim_token, status, last_sent_at)
+             VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+             RETURNING ${COLUMNS}`,
             [id, orgId, normalizedEmail, referredByUserId, token]
           );
-
-          const referral = insertRes.rows[0];
-          createdReferrals.push(referral);
-
-          // Send Invitation Email
-          try {
-            const claimUrl = `${process.env.APP_URL}/claim?token=${token}`;
-            await mailManager.sendClaimInvitation(normalizedEmail, orgName, claimUrl);
-            
-            // Notification logic
-            const userRes = await client.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
-            if (userRes.rows.length > 0) {
-                const userId = userRes.rows[0].id;
-                const notifId = `notif-${randomBytes(8).toString('hex')}`;
-                await client.query(
-                    `INSERT INTO notifications (id, user_id, title, message, type, link)
-                     VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [
-                        notifId, 
-                        userId, 
-                        'Organization Claim Invitation', 
-                        `You have been invited to manage ${orgName}.`, 
-                        'claim_invitation', 
-                        `/claim?token=${token}`
-                    ]
-                );
-            }
-          } catch (mailError) {
-             console.error(`ReferralManager: Error in post-insertion logic for ${normalizedEmail}:`, mailError);
-          }
+          await client.query(
+            `INSERT INTO org_claim_referral_nominators (referral_id, user_id) VALUES ($1, $2)
+             ON CONFLICT DO NOTHING`,
+            [id, referredByUserId]
+          );
+          results.push({ ...insertRes.rows[0], emailSent: true });
+          toSend.push({ email: normalizedEmail, token });
+          continue;
         }
+
+        if (existing.status !== 'pending') {
+          results.push({ ...existing, emailSent: false });
+          continue;
+        }
+
+        await client.query(
+          `INSERT INTO org_claim_referral_nominators (referral_id, user_id) VALUES ($1, $2)
+           ON CONFLICT DO NOTHING`,
+          [existing.id, referredByUserId]
+        );
+
+        const lastSent = new Date(existing.lastSentAt || existing.createdAt).getTime();
+        const hoursSince = (Date.now() - lastSent) / (1000 * 60 * 60);
+        if (hoursSince < cooldownHours) {
+          results.push({ ...existing, emailSent: false });
+          continue;
+        }
+
+        const token = this.generateToken();
+        const resendRes = await client.query(
+          `UPDATE org_claim_referrals
+           SET claim_token = $1, referred_by_user_id = $2, last_sent_at = NOW()
+           WHERE id = $3
+           RETURNING ${COLUMNS}`,
+          [token, referredByUserId, existing.id]
+        );
+        results.push({ ...resendRes.rows[0], emailSent: true });
+        toSend.push({ email: normalizedEmail, token });
       }
 
       await client.query('COMMIT');
@@ -91,7 +125,59 @@ export class ReferralManager {
       client.release();
     }
 
-    return createdReferrals;
+    // Mail and in-app notification after the rows are committed, so a mail failure never undoes
+    // the nomination it reports.
+    for (const { email, token } of toSend) {
+      try {
+        const claimUrl = `${process.env.APP_URL}/claim?token=${token}`;
+        await mailManager.sendClaimInvitation(email, orgName, claimUrl);
+
+        const userRes = await this.pool.query('SELECT id FROM users WHERE email = $1', [email]);
+        if (userRes.rows.length > 0) {
+          await this.pool.query(
+            `INSERT INTO notifications (id, user_id, title, message, type, link)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              `notif-${randomBytes(8).toString('hex')}`,
+              userRes.rows[0].id,
+              'Organization Claim Invitation',
+              `You have been invited to manage ${orgName}.`,
+              'claim_invitation',
+              `/claim?token=${token}`,
+            ]
+          );
+        }
+      } catch (mailError) {
+        console.error(`ReferralManager: Error sending claim invitation to ${email}:`, mailError);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * The claim state a nominator sees before being asked to nominate: strictly their own
+   * nominations. Another user's pending invitation is not reported, so the org still asks this
+   * caller — unless they enter the same address, which makes them a nominator of it too.
+   */
+  async getClaimStatus(orgId: string, userId: string): Promise<OrgClaimStatus | null> {
+    const orgRes = await this.pool.query('SELECT is_claimed FROM organizations WHERE id = $1', [orgId]);
+    if (orgRes.rows.length === 0) return null;
+    const mineRes = await this.pool.query(
+      `SELECT r.referred_email as "referredEmail"
+       FROM org_claim_referrals r
+       WHERE r.org_id = $1 AND r.status = 'pending'
+         AND (r.referred_by_user_id = $2
+              OR EXISTS (SELECT 1 FROM org_claim_referral_nominators n
+                         WHERE n.referral_id = r.id AND n.user_id = $2))
+       ORDER BY r.created_at`,
+      [orgId, userId]
+    );
+    return {
+      orgId,
+      isClaimed: !!orgRes.rows[0].is_claimed,
+      myPendingEmails: mineRes.rows.map((r: any) => r.referredEmail),
+    };
   }
 
   async getReferralsForOrg(orgId: string): Promise<OrgClaimReferral[]> {

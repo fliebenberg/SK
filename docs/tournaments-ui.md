@@ -117,6 +117,8 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U40** | A screen batch-subscribes to what it displays; the join push stays the load where the room *is* the screen. | 16 |
 | **U41** | The invite picker is a debounced typeahead over a bounded search, not a list of every organisation. | 16 |
 | **U42** | `GET_DATA_ENFORCE=true` is set **before** tournaments add their request types. | 16 |
+| **U43** | The Setup tab saves as one form, through the app's floating save bar, not per section. | 7 |
+| **U44** | Each setup step *is* a collapsible section, its heading pinned while it is open. No separate checklist. | 7 |
 
 ### Constraints carried in from the feature spec
 
@@ -418,6 +420,148 @@ that spans weeks.
 > anybody organising it, and the alternative nags every co-organiser separately. Dismissed steps are
 > counted and restorable, so putting one away is not the same as losing it.
 
+> **Revised 2026-09-07 — the checklist gets its own tab, and every step is a link.** The first
+> real use found the checklist saying what was outstanding without saying *where*: three of six
+> steps had no action at all (Structure, Schedule, Scoring), the details form sat under a tab
+> called Settings that nobody looking for "where do I fill this in" would open, and the whole thing
+> sat above the schedule where a convenor or a visiting school had to scroll past it. Three changes:
+>
+> - **A `Setup` tab** holds one section per step in the same order — Structure, Entrants,
+>   Fixtures, Schedule, Scoring — each showing what is already there and offering the input. The
+>   `Settings` tab is gone: its contents were setup, and the danger zone sits at the bottom of
+>   Setup, which is the last place you go for a tournament.
+> - **The checklist is a sticky stepper, not a card.** The first cut put the steps in a card at the
+>   top of the tab, each with its status and a line of detail — and reaching the next step meant
+>   scrolling back up every time. So the steps are one compact row pinned under the tabs
+>   ([SetupStepper.tsx](file:///c:/Fred/Coding/SK/expo-app/components/SetupStepper.tsx)): a
+>   done / to-do mark and a label per step, a `2/5` count, the current section highlighted from
+>   the scroll position, and a tap that scrolls to the section. The detail that used to sit in the
+>   card ("3 divisions · 2 organisers", "Using the default 3 / 1 / 0") now heads the section it
+>   describes, beside the "Doesn't apply" control that dismisses the step. Dismissing hides the
+>   section too, and a restore list at the bottom of the tab brings it back. This is still U17 —
+>   the order is natural, nothing enforces it, and a step is done by the state of the data, never
+>   by having been visited.
+> - **"People running it" is no longer its own step.** Organisers are part of the structure, so the
+>   Structure section holds the details form, the division list with "Add a division", and the
+>   organiser picker, and the step's detail reads `3 divisions · 2 organisers`. Per-division
+>   convenors stay on the division screen.
+> - **Scoring is a real input.** The step used to test a `pointsPerWin` key that nothing wrote and
+>   the server never read. It now edits `settings.scoring` — the key
+>   [TournamentManager.resolveScoringConfig](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts)
+>   actually reads, with the 3 / 1 / 0 default (D17) shown until the organiser saves their own.
+>   A change now rebuilds every table under the event immediately (`FIX-14`, closed 2026-09-08);
+>   it used to take effect only on the next recorded result, so a morning of results kept showing
+>   the old points.
+>
+> The Schedule tab keeps the division list and fixtures and nothing else, which is what the people
+> who are not organising want from it.
+
+> **Revised 2026-09-08 — one save for the tab, not one per section (U43).** Setup shipped with a
+> `Save Changes` button under Details and a `Save Scoring` button under Scoring, which made it the
+> only admin screen in the app that does not use the floating save bar every other edit screen has
+> — and it warned about unsaved changes on the way out while offering no way to discard them. Both
+> buttons are gone. The sections are cards in one form, dirtiness is the whole form's, and
+> [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx) carries
+> the Save and the Cancel — the same reset that `useUnsavedChanges` now runs when the leave dialog
+> is answered with "discard". Three consequences worth naming:
+>
+> - **One write, not two.** Details and scoring go in a single `UPDATE_EVENT`. Two buttons meant
+>   two writes to the same row whenever both had changed, ordered by the connection pool.
+> - **The bar is not scoped to the tab.** The form lives on Setup but the edits belong to the
+>   tournament, so switching to Schedule with changes pending leaves the bar up rather than hiding
+>   the only control that can save or discard them.
+> - **Confirming the defaults needed its own affordance.** The Scoring step is done once
+>   `settings.scoring` exists, but an untouched 3 / 1 / 0 form is not *dirty* — it already matches
+>   what the server would use — so a purely dirtiness-driven bar could never complete the step. A
+>   **Use These Defaults** button in the scoring card marks the form dirty and the bar writes it,
+>   which keeps one save path rather than reintroducing a second one.
+
+> **Revised 2026-09-08 — the steps are the sections (U44).** With one save bar, what was left was
+> a tab that read as an undifferentiated column of inputs: the seam between one step's work and
+> the next was a line of small caps, and Structure's seven fields sat directly against Entrants'
+> single sentence. Each step is now a collapsible section
+> ([`<AccordionHeader>`](file:///c:/Fred/Coding/SK/expo-app/components/Accordion.tsx)) — collapsed,
+> the rows *are* the checklist; expanded, the row is the heading of the work.
+>
+> **This is not the checklist card returning.** The card (the first cut, revised a day later) put
+> the summary and the content in two places and made you travel between them; the sticky stepper
+> fixed the travelling by pinning the summary. An accordion removes the second place altogether,
+> so there is nothing to travel to. Which is why the stepper goes: five chips with done/todo ticks
+> above five rows with done/todo ticks is the same checklist twice. All that survives it is
+> `<SetupProgress>` — the `2 of 5 done` count, the one thing the rows do not say.
+>
+> - **The open section's heading is sticky.** Structure expanded is taller than a phone screen, and
+>   closing it should never mean scrolling back up to find its row. This is why the component is a
+>   *header* rather than a wrapper around its content: `stickyHeaderIndices` pins a `ScrollView`'s
+>   direct children, so the heading and its panel must be siblings, and the Setup tab gets its own
+>   scroll so the indices address the sections and nothing else.
+> - **Several sections may be open at once.** One-at-a-time would close Structure — unsaved edits
+>   and all — the moment you opened Scoring to confirm the defaults. The first unfinished section
+>   is opened on arrival, once; a step completing under an organiser must not reshuffle what is
+>   open beneath their hands, the same rule the default tab follows.
+> - **A collapsed section with unsaved edits carries a dot.** With one bar for the whole form,
+>   "You have modified this tournament's setup" would otherwise point at something you cannot see.
+> - **The prose moved inside.** Every section used to spend three lines — label, state, and a
+>   static sentence describing it — before the first input, five times over. The row keeps the
+>   label and the state; the description and the "Doesn't apply" control are read inside the open
+>   section, where they are of use.
+>
+> Two columns on a wide screen is the obvious next move and is deliberately not in this change —
+> `UI-4`.
+
+> **Corrected 2026-09-09 — the row says its state in a word, and the pinned row stays on top.**
+> Three things the accordion got wrong on first use, all of them in the header row:
+>
+> - **The completion mark read as a radio button.** A leading `checkmark-circle` / `ellipse-outline`
+>   pair meant four of five rows opened with an empty circle in the leading slot — which is the
+>   universal shape of *pick one of these*, an invitation to choose between the five sections
+>   rather than a report on them. The circle is gone. State is now a word next to the chevron —
+>   `✓ Done` or `To do` — which cannot be mistaken for a control, and does not carry its meaning
+>   in colour alone.
+> - **The detail line was green when done**, at 1.67:1 on a light surface — failing
+>   [§6.3](file:///c:/Fred/Coding/SK/docs/design_spec.md) twice over, once as contrast and once as
+>   colour doing a word's job. It is information ("3 divisions · 2 organisers"), so it is now
+>   neutral in both states, and §1.1 gains the light-mode green swap the cyan rule always had.
+> - **Rows appeared above the pinned header.** `py-6` sat on the `ScrollView` rather than on its
+>   content, and a sticky row pins to the top of the *padding* box — leaving a 24px band that is
+>   still inside the clip region, where passing content showed above the header it was supposed to
+>   disappear under. The padding moved to `contentContainerStyle`, so the gap scrolls away with the
+>   content and the header docks flush beneath the tabs.
+> - **And then the headers piled up on one another.** With the band closed, the next fault was
+>   visible: Entrants' row slid *over* Structure's and sat on top of it, so the pinned line was
+>   whichever header had arrived last. A pinned row has to be **pushed off** by the row below it.
+>   Native already did that — `stickyHeaderIndices` translates a header out of the way as the next
+>   one approaches — but `react-native-web` implements the same prop as `position: sticky; top: 0`
+>   on siblings of a single container, where every header pins to the same line and the later one
+>   simply paints over the earlier. There is no prop that fixes this; the two platforms need
+>   different trees, and the Setup tab now builds one. **Web** wraps each header *with* its panel
+>   and makes the header `position: sticky` inside that wrapper, so the containing block — the
+>   section's own bottom edge — shoves the header out exactly as the next arrives, with descending
+>   z-indices on the wrappers because every `react-native-web` `View` is a stacking context of its
+>   own. **Native** keeps the flat siblings and the indices. The rule is recorded on
+>   [`<AccordionHeader>`](file:///c:/Fred/Coding/SK/expo-app/components/Accordion.tsx) and in
+>   [okf/design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md), since it binds every
+>   future accordion and not just this screen.
+
+> **Corrected 2026-09-09 — an open section is one card, and the descriptions are gone.** Two
+> faults, one cause: the row and its content were separate objects on the page.
+>
+> - **The section descriptions are removed.** "The prose moved inside" (2026-09-08) kept the
+>   sentence and only changed where it was read — but a static line under every heading, five
+>   times over, describes to an organiser who is already in the section the thing they can see.
+>   The `setupSectionDescriptions` map is gone; the row's `detail` still reports where the section
+>   *stands* ("One division · only your organisation runs it"), which is a fact about this
+>   tournament rather than a description of the form. The "Doesn't apply" control stays inside the
+>   open section, at its top right.
+> - **The panel is the rest of the header's card.** The header was `rounded-2xl` on its own
+>   surface, and the panel below it was a stack of `<GlassCard>`s on the same surface, separated by
+>   a gap — two floating objects with nothing but proximity to say the content belonged to the
+>   heading. An expanded row now drops its bottom radius and bottom border, and the panel repeats
+>   the surface and closes it with `rounded-b-2xl`, so the section is a single card from heading to
+>   last field. The groups inside it (**Details**, **Divisions**, the organiser picker) lost their
+>   own card chrome and divide with a hairline `border-t` instead — a card inside a card was the
+>   other half of the same mistake. Collapsed rows are unchanged: still a rounded card each.
+
 > **Decided — copy first, and choose what comes across.** "Start from scratch / copy an existing
 > tournament" is the first question in the create wizard, since last year's sports day is the best
 > template for this year's. Copying then asks **what** to bring — structure, divisions, entrants,
@@ -456,6 +600,12 @@ which field is free, one tap to score.
 > **Decided — one layout for v1.** The tab *order and default tab* key off phase (setup → live →
 > complete), which is cheap and reversible; a genuine day-of mode is a bigger piece and is better
 > designed after organisers have run one.
+
+> **Built 2026-09-07.** The tabs are `Setup / Schedule / Standings` for an organiser and
+> `Schedule / Standings` for everyone else. The default tab is Setup while any visible checklist
+> step is outstanding and Schedule once none is — decided once, when the screen first learns the
+> viewer may edit, so a step completing underneath them does not yank the tab. The Setup tab shows
+> a badge with the number of steps still to do.
 
 > **Decided — what survives a dropped connection.** A school sports day is close to the worst
 > connectivity the app will meet, and it is where failure costs most, because the schedule is the
@@ -605,6 +755,12 @@ The rules for adding to this are set out in
 > the two cannot drift. The create menu now has one container entry rather than two, and the format
 > is the first structural choice inside it. Once the organiser is choosing from a list of formats, every entry should name a
 > structure; "Sports Day" named an occasion and read oddly beside "Round Robin" and "Knockout".
+> **Revised 2026-09-05:** the format is chosen from a dropdown (`CustomSelect`, which now takes an
+> optional description per option) rather than a radio list. The open list still shows every format
+> with its one-line description; the closed control shows only the chosen name, so the form does not
+> grow by a card for every format added. In the same pass the tournament name moved to the top of the
+> form and lost its "(Optional)" suffix — it was always required by the Save validation, and the
+> label said otherwise.
 
 > **Decided — the word "Division" is used everywhere.** All four slots the question named: the list
 > on the event screen, the setup checklist step, the person assignment ("Division organiser", not

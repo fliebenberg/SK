@@ -158,6 +158,11 @@ stable. Indented bullets are probes — prompts for the interviewer, not questio
    minors?
    - Where do those rules come from — your own policy, the school, the association, law?
    - Has that ever stopped you using something?
+1. How many participants are there across the organisation, and would you know that number without
+   looking it up?
+   - Does it hold steady through the year, or move with the season?
+   - Where does the real number live — a list, a system, someone's head?
+   - Is anyone counted twice, or missed, because of the way it is kept?
 
 ## 9. Communication
 

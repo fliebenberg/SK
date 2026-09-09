@@ -999,6 +999,34 @@ export class TournamentManager extends BaseManager {
     if (eventId) await this.recalculateEventStandings(eventId);
   }
 
+  /**
+   * Rebuild every table under an *event*.
+   *
+   * The same reasoning as `recalculateDivision`, one level up: an event's `settings.scoring`,
+   * `settings.tiebreakers` and `settings.scoringSubject` are what every division without a system
+   * of its own is scored by (§6), so editing them moves every table at once and none of them is
+   * about a fixture. `UPDATE_DIVISION` has always done this for a division's own overrides;
+   * `UPDATE_EVENT` did not, which is what `FIX-14` was — change 3 / 1 / 0 to 4 / 2 / 0 after a
+   * morning of results and every table went on showing the old points until the next fixture was
+   * scored.
+   *
+   * Not routed through `recalculateDivision` per division: that would rewrite the event roll-up
+   * once for each of them, and the roll-up reads all of them. Returns the division ids it
+   * touched, because the caller has to publish a table per division room.
+   */
+  async recalculateEvent(eventId: string): Promise<string[]> {
+    const divisions = await this.getDivisions(eventId);
+    for (const division of divisions) {
+      const stages = await this.getStages(division.id);
+      for (const stage of stages) {
+        await this.recalculateStageStandings(stage.id);
+      }
+    }
+    // A non-tournament event has no divisions and no roll-up to rewrite.
+    if (divisions.length) await this.recalculateEventStandings(eventId);
+    return divisions.map(division => division.id);
+  }
+
   // ============================================================================================
   // Generation
   // ============================================================================================

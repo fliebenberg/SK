@@ -2,6 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import { useWsStore } from '../store/wsStore';
 import { useToastStore } from '../store/toastStore';
+import { RoomLedger, RoomMessage } from './roomLedger';
 
 import { SocketAction, SocketActionPayload, SocketActionResponse, createSocketAction } from '@sk/shared';
 
@@ -79,18 +80,24 @@ class WebSocketService {
         },
       });
 
+      // Registered before anything else listens, so the ledger has recorded a message by the
+      // time any screen reduces it.
+      this.socket.on('update', (message: RoomMessage) => this.rooms.record(message));
+
       this.socket.on('connect', () => {
         console.log(`[WS] Connected to Socket.io server at ${this.url}`);
         useWsStore.getState().setConnected(true);
         this.syncTime();
 
-        // Re-subscribe to all active rooms upon connect/reconnect
-        this.roomSubscriptions.forEach((subscribers, room) => {
-          if (subscribers.size > 0 && this.socket && this.socket.connected) {
+        // Re-subscribe to all active rooms upon connect/reconnect. Each re-join pushes the
+        // room's state afresh, so whatever was logged on the old connection is superseded.
+        this.rooms.resetLogs();
+        for (const room of this.rooms.heldRooms()) {
+          if (this.socket && this.socket.connected) {
             console.log(`[WS] Re-joining room on connect: ${room}`);
             this.socket.emit('join_room', room);
           }
-        });
+        }
       });
 
       // Coarse seed the server pushes at connection time. We cannot know when it
@@ -142,33 +149,42 @@ class WebSocketService {
     }
   }
 
-  private roomSubscriptions = new Map<string, Set<string>>();
+  /**
+   * Who holds which room, and what each room has delivered so far. See `roomLedger.ts` for why
+   * the second half exists: the join push reaches only the socket that joined, once, so a
+   * subscriber arriving while the room is already held has to be caught up from here.
+   */
+  private rooms = new RoomLedger();
 
-  subscribeToRoom(room: string): () => void {
-    const token = Math.random().toString(36).substring(2);
-    let subscribers = this.roomSubscriptions.get(room);
-    
-    if (!subscribers) {
-      subscribers = new Set();
-      this.roomSubscriptions.set(room, subscribers);
-    }
-    
-    if (subscribers.size === 0) {
+  /**
+   * Hold a room. The first holder makes the socket join it; the last one to let go makes it
+   * leave. Pages call this and the returned release function and need not care which they are.
+   *
+   * `onReplay` receives what the room has already delivered when the room was held before this
+   * call — the same messages the caller's `'update'` listener would have seen had it been there
+   * for the join push. A caller that passes no handler gets the old behaviour and, if it arrives
+   * late, no initial state. `useLiveRoom` passes its reducer; direct callers should move to it.
+   */
+  subscribeToRoom(room: string, onReplay?: (message: RoomMessage) => void): () => void {
+    const { token, isFirst, replay } = this.rooms.subscribe(room);
+
+    if (isFirst) {
       console.log(`[WS] Subscribing to room: ${room}`);
       this.send('join_room', room);
+    } else if (replay === 'overflow') {
+      // The log grew past what is worth replaying. Socket.io's join is idempotent, so asking
+      // again costs one re-push of the room's state, which every holder absorbs as a replace.
+      console.log(`[WS] Re-joining room for a late subscriber (replay log overflowed): ${room}`);
+      this.send('join_room', room);
+    } else if (replay && onReplay) {
+      if (replay.length) console.log(`[WS] Replaying ${replay.length} message(s) to a late subscriber: ${room}`);
+      for (const message of replay) onReplay(message);
     }
-    
-    subscribers.add(token);
 
     return () => {
-      const currentSubscribers = this.roomSubscriptions.get(room);
-      if (currentSubscribers) {
-        currentSubscribers.delete(token);
-        if (currentSubscribers.size === 0) {
-          this.roomSubscriptions.delete(room);
-          console.log(`[WS] Unsubscribing from room: ${room}`);
-          this.send('leave_room', room);
-        }
+      if (this.rooms.unsubscribe(room, token)) {
+        console.log(`[WS] Unsubscribing from room: ${room}`);
+        this.send('leave_room', room);
       }
     };
   }

@@ -1,26 +1,34 @@
 ---
 name: Git Branching Reminder
-description: Instructs agents to enforce the project's Git branching strategy by asking to create feature branches at the start of a task and reminding the user to merge PRs at the end.
+description: Agents must never create a Git branch without the user's explicit permission. Working directly on `main` is the normal mode during development; feature branches are opt-in.
 ---
 
-# Git Branching Strategy Enforcement
+# Git Branching Rule
 
-When you are assisting a user in this repository, you must actively enforce the project's branching strategy outlined in `docs/git-branching-strategy.md`.
+The project's full branching strategy lives in `docs/git-branching-strategy.md`. While the app is in
+development, the user usually works directly on `main`, and feature branches are used only when the
+user asks for one. Agents must not decide this on their own.
 
-## Start of Conversation / New Task
+## Never create a branch without asking
 
-When a user gives you a request to build a new feature, fix a bug, or make any code changes, **BEFORE YOU WRITE ANY CODE OR MAKE ANY EDITS:**
+**Before running `git checkout -b`, `git switch -c`, or any other command that creates a branch:**
 
-1.  Check the current Git branch using the `run_command` tool (e.g., `git branch --show-current`).
-2.  If the current branch is `main` or `dev`, **STOP** and ask the user if you should create a new `feature/*` (or `bugfix/*`, `experiment/*`) branch for this work.
-3.  Wait for the user's explicit permission to create the branch.
-4.  Once permission is granted, use the `run_command` tool to create and checkout the new branch (e.g., `git checkout -b feature/name-of-task`).
+1. Ask the user whether they want a new branch for this work, and wait for an explicit yes.
+2. If the user says no, or does not answer (for example in a non-interactive or autonomous session),
+   stay on the current branch, including `main`, and make the changes there.
+3. Being on `main` is **not** by itself a reason to branch. Do not create a branch "to be safe", and
+   do not treat this rule as satisfied by mentioning the branch after the fact.
 
-## End of Task / Conversation Conclusion
+When the user does approve a branch, use the naming prefixes from the strategy document
+(`feature/*`, `bugfix/*`, `experiment/*`, `hotfix/*`).
 
-When a task or feature has been fully implemented, tested, and you are wrapping up the conversation with the user:
+## End of task
 
-1.  Proactively remind the user that they are currently on a feature branch.
-2.  Ask the user if they would like you to help them merge this branch back into `main` (if following the Solo Pre-production process) or `dev` (if following the standard process).
-3.  Suggest that they review the changes and run any final tests before merging.
-4.  Provide the exact Git commands they would need to run (e.g., `git checkout main`, `git merge --squash feature/branch-name`, or push and open a PR). Do not auto-run the merge commands unless explicitly instructed by the user.
+If, and only if, the work was done on a branch other than `main`:
+
+1. Remind the user that they are on that branch.
+2. Offer the commands to merge it back (`git checkout main`, `git merge --squash <branch>`, then a
+   commit), or to push and open a PR. Do not run the merge unless the user explicitly asks.
+
+Commits themselves follow the repo's Conventional Commits rule in `README.md`, and are only made when
+the user asks.

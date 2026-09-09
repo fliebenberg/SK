@@ -34,6 +34,28 @@ product, outreach templates, the opening two minutes, and what to say when it go
 - Nothing about ScoreKeeper is described until the reactions section near the end of each guide.
 - Each guide ends with an "After the interview" block. Fill it in within the hour.
 
+## Printing a guide
+
+`npm run interviews:pdf` renders every guide to A4 PDFs in `print/`, ready to take to an
+interview — [scripts/interview-pdf.js](file:///c:/Fred/Coding/SK/scripts/interview-pdf.js).
+
+```
+npm run interviews:pdf                 # all guides
+npm run interviews:pdf -- scorer       # just the ones whose filename matches
+npm run interviews:pdf -- --compact    # drop the writing space, fewer pages
+npm run interviews:pdf -- --space 12   # 12mm of writing space under each question
+npm run interviews:pdf -- --help
+```
+
+The printed sheet numbers questions the way this README cites them — `4.3` against the third
+question of §4 — so what you write on the page matches what you type into your notes. Probes are
+set smaller and greyer because they are not read aloud, `**Label:**` lines become ruled lines you
+can write on, and "After the interview" starts on its own page.
+
+It drives an installed Chrome or Edge (set `CHROME_PATH` if it is somewhere unusual) and needs no
+dependencies. The PDFs are generated output and are not committed — rerun the command after
+editing a guide.
+
 ## Notes files
 
 Name interview notes `YYYY-MM-DD-<org>-<initials>.md` and reference questions by number

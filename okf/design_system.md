@@ -8,7 +8,7 @@ tags:
   - styling
   - theme
   - accessibility
-timestamp: 2026-07-02T14:56:00Z
+timestamp: 2026-09-09T00:00:00Z
 ---
 
 # Design System & Styling Rules
@@ -42,6 +42,8 @@ All theme colors must be referenced using the centralized [Colors.ts](file:///c:
 
 Because `#00E5FF` has a low contrast ratio (1.25:1) on white/light backgrounds, all ghost buttons, text links, and role badges must adaptively swap to **Deep Slate** (`text-slate-700` / `#334155`) or **Deep Ocean Cyan** (`text-cyan-800` / `#155e75`) when Light Mode is active, ensuring a **7.6:1+ contrast ratio** (AAA compliance).
 
+The same rule binds the success green: `#00E676` scores **1.67:1** on white, so text, functional icons and meaningful fills swap to **Deep Emerald** (`text-emerald-800` / `#065F46`, **7.7:1**) in Light Mode — the `success` token in [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts). A bare `text-brand-green` is a light-mode contrast bug wherever it carries meaning; see [design_spec §1.1](file:///c:/Fred/Coding/SK/docs/design_spec.md).
+
 ## Custom Overlays & Dialogs (No Native Popups)
 
 To maintain a consistent, premium live-sports aesthetic and prevent silent failures across multiple targets:
@@ -57,6 +59,10 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 ## One Component Per Repeated Concept
 
 *   **A side of a fixture**: Render it with [`<FixtureSide>`](file:///c:/Fred/Coding/SK/expo-app/components/FixtureSide.tsx), never with ad-hoc text. A side is in one of three states — a known competitor, an entrant awaiting confirmation ("TBC — awaiting confirmation"), or a slot awaiting a result ("Winner QF1") — and the fixtures list, the schedule, the bracket, the game screen, the standings and anything printed all show them. Five independent renderings of "TBC" is a guaranteed inconsistency. The wording itself is derived in [`shared/src/utils/fixtureSide.ts`](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts), so the server and print paths say the same thing the screen does; a placeholder is drawn in secondary text (AAA in Light Mode) rather than at a lower opacity, so it stays legible.
+
+*   **Saving an edited record**: Every admin screen that edits a record in place saves through [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx) — a card pinned to the bottom of the screen once the form is dirty, naming what changed and carrying Cancel and Save. Never a save button under a section: a screen with two of them is a screen with two writes to one row. Three things go together and the component's doc comment says so — the bar, `useUnsavedChanges(isDirty, onCancel)` so that leaving warns and *discarding* runs the same reset Cancel does, and `paddingBottom: isDirty ? FLOATING_SAVE_BAR_PADDING : 60` on the scroll container so the bar never covers the last field. Extracted 2026-09-08 from nine screens that had each copy-pasted it; `UI-3` tracks moving those nine onto it.
+
+*   **A section that opens and closes**: Use [`<AccordionHeader>`](file:///c:/Fred/Coding/SK/expo-app/components/Accordion.tsx), with open/closed state owned by the screen rather than the component. **Pinning the heading takes a different tree on each platform**, because a pinned row must be *pushed off* by the next section's row and never covered by it. On **native**, render the panel as the header's **sibling** and name the header's index in `stickyHeaderIndices`, which can pin only a direct child of the scroll and whose implementation does the push by watching the next header's offset; the scroll's children must then be built as a **flat array with no `false` or `null` entries** (native indexes through `React.Children.toArray`, which strips falsy children and re-indexes, while `react-native-web` uses `React.Children.map`, which does not, so a conditional sibling pins a different row on each platform). On **web**, pass `sticky` and wrap each header **with** its panel in one container: `position: sticky` is bounded by its containing block, so the section's own bottom edge shoves the header out. Give those wrappers **descending z-indices** — every `react-native-web` `View` is its own stacking context (`position: relative; z-index: 0`), so without them a later section's content paints over the pinned header it should slide under. Do **not** use `stickyHeaderIndices` on web: it is implemented there as `top: 0` on siblings of one container, which pins every header to the same line and lets the later one paint over the earlier. **An open section is one card, heading included**: an expanded row drops its bottom radius and bottom border (the component does this off `expanded`) and the panel repeats the row's surface and closes it with `rounded-b-2xl`, so nothing floats below an unrelated-looking heading. Groups inside the panel divide with a hairline `border-t` — do not put them in `<GlassCard>`s, which nests a card in a card. Added 2026-09-08 for the tournament Setup tab, corrected 2026-09-09; `UI-5` covers the sports editor's older `Collapsible`.
 
 ## NativeWind v4 & React Native Styling Constraints
 

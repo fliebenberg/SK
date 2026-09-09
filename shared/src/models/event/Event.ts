@@ -10,6 +10,8 @@
  */
 export type EventType = 'SingleMatch' | 'Tournament';
 
+import type { ScoringSystem } from './Tournament';
+
 /**
  * How a tournament is structured — what the event screen keys its tabs and setup steps off.
  * Null on a `SingleMatch`, which has no structure to describe.
@@ -83,6 +85,12 @@ export interface Event {
   participatingOrgs?: Array<{ id: string; name: string; shortName?: string }>;
   sportIds?: string[];
   settings?: {
+    /**
+     * The tournament's points system (D17), which every division inherits unless it carries its
+     * own. `TournamentManager.resolveScoringConfig` reads exactly this key, falling back to
+     * `DEFAULT_SCORING_SYSTEM`; the Scoring step of the setup checklist writes it.
+     */
+    scoring?: ScoringSystem;
     pointSystem?: 'standard' | 'weighted';
     pointsPerWin?: number;
     pointsPerDraw?: number;

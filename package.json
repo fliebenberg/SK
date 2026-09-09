@@ -5,7 +5,8 @@
   "scripts": {
     "release": "commit-and-tag-version",
     "release:push": "npm run release && git push --follow-tags",
-    "review:rugby": "node scripts/rugby-review.js"
+    "review:rugby": "node scripts/rugby-review.js",
+    "interviews:pdf": "node scripts/interview-pdf.js"
   },
   "devDependencies": {
     "commit-and-tag-version": "^12.6.1"

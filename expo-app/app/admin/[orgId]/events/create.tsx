@@ -14,6 +14,7 @@ import { SocketAction, Event, EVENT_FORMATS, EventFormat, Sport, Site, Team, Org
 import { useAuthStore } from '../../../../store/authStore';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { NominationModal } from '@/components/NominationModal';
+import { UnclaimedOrgBadge } from '@/components/UnclaimedOrgBadge';
 import CustomSelect from '../../../../components/CustomSelect';
 import MatchForm from '../../../../components/MatchForm';
 
@@ -51,6 +52,10 @@ export default function CreateEvent() {
   const [targetOrgIdForTeam, setTargetOrgIdForTeam] = useState('');
 
   const [pendingReferrals, setPendingReferrals] = useState<Record<string, string | string[]>>({});
+  // `pendingReferrals` is the match path's: `MatchForm` collects them and they go out on save.
+  // The tournament path's unclaimed orgs use `UnclaimedOrgBadge` on the chip instead, which sends
+  // the invitation itself. The hovered chip is tracked so its hint can sit above its neighbours.
+  const [hoveredClaimOrgId, setHoveredClaimOrgId] = useState<string | null>(null);
 
   // Tournament fields
   //
@@ -486,6 +491,9 @@ export default function CreateEvent() {
     }
   };
 
+  // Matches not already added to the event; the search can return one that is.
+  const availableOrgs = searchedOrgs.filter(o => !participatingOrgs.some(po => po.id === o.id));
+
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
@@ -536,7 +544,22 @@ export default function CreateEvent() {
           />
         ) : (
           <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5">
-            {/* SPORT SELECTOR (FIRST FIELD) */}
+            {/* TOURNAMENT NAME — required, and the first thing asked for. It is what the events
+                list and every checklist step will call this tournament. */}
+            <View className="space-y-1.5">
+              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Tournament Name
+              </Text>
+              <TextInput
+                placeholder="e.g. Winter Sevens 2026"
+                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                value={eventName}
+                onChangeText={setEventName}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+              />
+            </View>
+
+            {/* SPORT SELECTOR */}
             <View className="space-y-1.5">
               <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Featured Sports
@@ -567,20 +590,6 @@ export default function CreateEvent() {
                   );
                 })}
               </View>
-            </View>
-
-            {/* EVENT NAME (OPTIONAL) */}
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Event Name (Optional)
-              </Text>
-              <TextInput
-                placeholder="e.g. Local Derby"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={eventName}
-                onChangeText={setEventName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
             </View>
 
             {/* DATE */}
@@ -649,76 +658,24 @@ export default function CreateEvent() {
 
             {/* FORMAT PICKER — the first structural choice a tournament makes (U17, U34).
                 "Sports Day" is gone from here: it named an occasion rather than a structure, and
-                read oddly beside "Round Robin" and "Knockout". A sports day is a Festival (D1). */}
+                read oddly beside "Round Robin" and "Knockout". A sports day is a Festival (D1).
+                A dropdown rather than a radio list: the list still shows every format with its
+                description, but the closed control shows only the chosen name, so the form does
+                not grow a card's worth of height for every format added. */}
             <View className="space-y-1.5 pt-4 border-t border-slate-100 dark:border-white/5">
               <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Format
               </Text>
-              <View className="space-y-2">
-                {EVENT_FORMATS.map(option => {
-                  const isSelected = selectedFormat === option.value;
-                  return (
-                    <TouchableOpacity
-                      key={option.value}
-                      onPress={() => setSelectedFormat(option.value)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: isSelected }}
-                      className={`flex-row items-start gap-3 p-3 rounded-xl border active:opacity-85 ${
-                        isSelected
-                          ? 'bg-brand-orange/5 border-brand-orange/40'
-                          : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
-                      }`}
-                    >
-                      <Ionicons
-                        name={isSelected ? 'radio-button-on' : 'radio-button-off'}
-                        size={18}
-                        color={isSelected ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
-                        style={{ marginTop: 1 }}
-                      />
-                      <View className="flex-1">
-                        <Text
-                          className={`font-inter-bold text-sm ${
-                            isSelected ? 'text-brand-orange' : 'text-slate-800 dark:text-white'
-                          }`}
-                        >
-                          {option.label}
-                        </Text>
-                        <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          {option.description}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <CustomSelect
+                value={selectedFormat}
+                onChange={(val: string) => setSelectedFormat(val as EventFormat)}
+                options={EVENT_FORMATS.map(f => ({ value: f.value, label: f.label, description: f.description }))}
+                placeholder="Select format..."
+              />
             </View>
 
             {/* TOURNAMENT SPORTS AND PARTICIPANTS */}
             <View className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/5">
-              {/* Render Selected Orgs Claim Prompts */}
-              {participatingOrgs.filter(o => o.isClaimed === false).map(orgItem => (
-                <View key={`claim-${orgItem.id}`} className="bg-brand-orange/5 border border-brand-orange/20 rounded-xl p-4 mt-2 space-y-2">
-                  <Text className="font-orbitron-bold text-[9px] text-brand-orange uppercase tracking-wider">
-                    Invite Administrator for {orgItem.name}
-                  </Text>
-                  <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                    {orgItem.name} doesn't have an administrator on Scorekeeper yet. Help bring this organization to life by nominating a contact email—we'll invite them to claim it, manage their teams, and keep schedules up to date.
-                  </Text>
-                  <TextInput
-                    placeholder="contact@school.edu"
-                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    value={(() => {
-                      const val = pendingReferrals[orgItem.id];
-                      return Array.isArray(val) ? val.join(', ') : (val || '');
-                    })()}
-                    onChangeText={(email) => setPendingReferrals(prev => ({ ...prev, [orgItem.id]: email }))}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2 font-inter text-sm text-slate-850 dark:text-white"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-              ))}
-
               {/* Participating Organizations (Multi-select) */}
               <View className="space-y-1.5" style={{ zIndex: 20 }}>
                 <View className="flex-row justify-between items-center">
@@ -731,10 +688,16 @@ export default function CreateEvent() {
                 {participatingOrgs.length > 0 && (
                   <View className="flex-row flex-wrap gap-2 mb-2">
                     {participatingOrgs.map(orgItem => (
-                      <View key={orgItem.id} className="flex-row items-center bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200/50 dark:border-white/5">
+                      <View key={orgItem.id} className="flex-row items-center bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200/50 dark:border-white/5" style={{ zIndex: hoveredClaimOrgId === orgItem.id ? 30 : undefined }}>
                         <Text className="font-inter text-xs text-slate-700 dark:text-slate-300 mr-1.5">
                           {orgItem.name}
                         </Text>
+                        <UnclaimedOrgBadge
+                          org={orgItem}
+                          className="mr-1.5"
+                          autoPrompt
+                          onHoverChange={h => setHoveredClaimOrgId(h ? orgItem.id : null)}
+                        />
                         <TouchableOpacity onPress={() => setParticipatingOrgs(prev => prev.filter(o => o.id !== orgItem.id))}>
                           <Ionicons name="close-circle" size={14} color={COLORS.brand.red} />
                         </TouchableOpacity>
@@ -743,61 +706,58 @@ export default function CreateEvent() {
                   </View>
                 )}
 
-                <View className="relative z-20">
-                  <TextInput
-                    placeholder="Search and add organizations..."
-                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    value={orgSearchText}
-                    onChangeText={setOrgSearchText}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-                  />
-                  {isSearchingOrgs && (
-                    <ActivityIndicator size="small" color={COLORS.brand.orange} className="absolute right-4 top-3.5" />
-                  )}
+                {/*
+                  Results render in flow, not as an absolute overlay. `GlassCard` clips overflow
+                  and this input is the card's last child, so an overlay hung below it was cut
+                  off entirely — the search worked, the list was simply never visible. Same
+                  shape as the invite picker on the event edit screen.
+                */}
+                <View>
+                  <View className="relative">
+                    <TextInput
+                      placeholder="Search and add organizations..."
+                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                      value={orgSearchText}
+                      onChangeText={setOrgSearchText}
+                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                    />
+                    {isSearchingOrgs && (
+                      <ActivityIndicator size="small" color={COLORS.brand.orange} className="absolute right-4 top-3.5" />
+                    )}
+                  </View>
 
-                  {(searchedOrgs.filter(o => !participatingOrgs.some(po => po.id === o.id)).length > 0 || orgSearchText.trim().length >= 3) && (
-                    <View 
-                      className="absolute left-0 right-0 border border-slate-200 dark:border-white/5 rounded-xl shadow-lg"
-                      style={{
-                        top: 50,
-                        maxHeight: 220,
-                        zIndex: 50,
-                        backgroundColor: getThemeColor(isDark, 'background'),
-                      }}
+                  {(availableOrgs.length > 0 || orgSearchText.trim().length >= 3) && (
+                    <View
+                      className="mt-2 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden"
+                      style={{ backgroundColor: getThemeColor(isDark, 'background') }}
                     >
-                      {searchedOrgs.filter(o => !participatingOrgs.some(po => po.id === o.id)).length > 0 ? (
-                        <ScrollView 
-                          style={{ flex: 1, maxHeight: 150 }}
-                          nestedScrollEnabled={true}
-                          keyboardShouldPersistTaps="handled"
-                        >
+                      {availableOrgs.length > 0 && (
+                        <View>
                           <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
                             <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                               Existing Organizations
                             </Text>
                           </View>
-                          {searchedOrgs
-                            .filter(o => !participatingOrgs.some(po => po.id === o.id))
-                            .map(orgItem => (
-                              <TouchableOpacity
-                                key={orgItem.id}
-                                onPress={() => {
-                                  setParticipatingOrgs(prev => [...prev, orgItem]);
-                                  setOrgSearchText('');
-                                  setSearchedOrgs([]);
-                                }}
-                                className="p-3 border-b border-slate-100 dark:border-white/5 hover:bg-slate-50"
-                              >
-                                <Text className="font-inter text-xs text-slate-850 dark:text-white">
-                                  {orgItem.name}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                      ) : null}
+                          {availableOrgs.map(orgItem => (
+                            <TouchableOpacity
+                              key={orgItem.id}
+                              onPress={() => {
+                                setParticipatingOrgs(prev => [...prev, orgItem]);
+                                setOrgSearchText('');
+                                setSearchedOrgs([]);
+                              }}
+                              className="p-3 border-b border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-slate-800"
+                            >
+                              <Text className="font-inter text-xs text-slate-850 dark:text-white">
+                                {orgItem.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
 
                       {orgSearchText.trim().length >= 3 && (
-                        <View className="border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900" style={{ backgroundColor: getThemeColor(isDark, 'background') }}>
+                        <View>
                           <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
                             <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                               Register New Organization

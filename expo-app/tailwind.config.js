@@ -14,6 +14,7 @@ module.exports = {
           blue: "#00E5FF",
           red: "#FF003C",
           green: "#00E676",
+          yellow: "#FFC400",
         },
         background: "#0F172A",
         surface: "rgba(255, 255, 255, 0.05)",

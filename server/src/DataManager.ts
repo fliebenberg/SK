@@ -201,6 +201,7 @@ export class DataManager {
   referOrgContact = (orgId: string, contactEmails: string[], referredByUserId: string) => 
     referralManager.createReferrals(orgId, contactEmails, referredByUserId);
   getReferralsForOrg = (orgId: string) => referralManager.getReferralsForOrg(orgId);
+  getOrgClaimStatus = (orgId: string, userId: string) => referralManager.getClaimStatus(orgId, userId);
   getReferralsByUser = (userId: string) => referralManager.getReferralsByUser(userId);
   getPendingClaimForUser = (email: string) => referralManager.getPendingClaimForUser(email);
   getClaimInfo = (token: string) => referralManager.getClaimInfo(token);

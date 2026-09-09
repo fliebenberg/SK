@@ -87,6 +87,10 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // People. The reason this whole module exists.
   org_members:          { room: orgRoom('members') },
   org_referrals:        { room: orgRoom('referrals') },
+  // The nominator's view of an org they do not belong to: "is an invitation already pending?"
+  // Any signed-in user may add an org to an event, so any signed-in user may ask; what comes back
+  // is a boolean plus the caller's own nominations, never another nominator's email.
+  org_claim_status:     { standalone: 'authenticated' },
   // Returns [] today, but classify by what it is, not by what it currently does,
   // or filling it in later silently reopens the hole.
   org_profiles:         { room: orgRoom('members') },

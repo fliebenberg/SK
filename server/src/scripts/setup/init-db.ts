@@ -631,6 +631,31 @@ const createTables = async () => {
             );
         `);
 
+        // When the invitation email last went out. Re-nominating the same address resends only
+        // once `org_admin_invite_cooldown_hours` has passed since this, so the original
+        // `created_at` is never rewritten. NULL on rows from before the column existed reads as
+        // `created_at`.
+        await pool.query(`
+            ALTER TABLE org_claim_referrals ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMPTZ;
+        `);
+
+        // Everyone who has nominated this address for this org. `referred_by_user_id` names only
+        // the nominator credited for the current email; this is how a second person who enters an
+        // address someone else already invited sees "you have referred this org" without a second
+        // email being sent. Backfilled from `referred_by_user_id` so existing rows count.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS org_claim_referral_nominators (
+                referral_id TEXT REFERENCES org_claim_referrals(id) ON DELETE CASCADE,
+                user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (referral_id, user_id)
+            );
+            INSERT INTO org_claim_referral_nominators (referral_id, user_id, created_at)
+                SELECT id, referred_by_user_id, created_at FROM org_claim_referrals
+                WHERE referred_by_user_id IS NOT NULL
+            ON CONFLICT DO NOTHING;
+        `);
+
         // Reports
         await pool.query(`
             CREATE TABLE IF NOT EXISTS reports (
