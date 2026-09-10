@@ -516,7 +516,7 @@ export default function PublicOrgDetail() {
                       <Text className="font-inter-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                         {sportsMap[league.sportId] || 'Sport'}
                       </Text>
-                      {league.ageGroup && (
+                      {!!league.ageGroup && (
                         <>
                           <Text className="text-slate-350 dark:text-slate-650">•</Text>
                           <Text className="font-inter-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">

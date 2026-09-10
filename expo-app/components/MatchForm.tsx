@@ -913,7 +913,7 @@ export default function MatchForm({
               </View>
 
               {/* Facility Selection */}
-              {selectedSiteId && (
+              {selectedSiteId ? (
                 <View className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
                   <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Select {getFacilityLabel()}
@@ -926,7 +926,7 @@ export default function MatchForm({
                     clearable={true}
                   />
                 </View>
-              )}
+              ) : null}
 
               {/* Match Date & Time */}
               <View className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">

@@ -125,7 +125,7 @@ export function PersonnelAutocomplete({
                     <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
                       {item.name}
                     </Text>
-                    {item.email && (
+                    {!!item.email && (
                       <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">
                         {item.email}
                       </Text>
