@@ -93,6 +93,7 @@ Recorded in place in the section each belongs to.
 | **D31** | A division convenor **runs their whole division** — entrants, stages, fixtures, results. Widened 2026-09-03. |
 | **D32** | The unread sport flags are logged as `SPORT-10` rather than fixed here. |
 | **D33** | An organiser is a **named person, not an org role** — assignable at event or division scope. |
+| **D34** | Facilities declare which other facilities they **physically conflict with**; conflicting facilities cannot hold fixtures in the same slot. |
 
 ---
 
@@ -460,6 +461,17 @@ Per division and stage, given N entrants and a format, produce the games.
 | `Swiss` | One round at a time, from the standings after the previous round. |
 | `Festival` | **No automatic bracket.** Fixtures are arranged, not derived. |
 
+> **Field evidence, 2026-09-09 — this is the pain, and the bar is lower than expected.** First
+> user interview with a club admin who runs a youth tournament (Tableview FC; notes in
+> `docs/interviews/records/`, untracked). Building the fixtures by hand in Excel **took him a
+> week**, and what made it a week was not the initial draw — it was *"so many variables, teams
+> pulling out, refixturing everything, updating spreadsheets"*. He now uses a third-party app and
+> rates fixture generation as a bigger win than live scoring or reporting. Two things follow:
+> **the entrant-withdrawal path below is the highest-value path in this section**, not the
+> first-draw path; and the app he is delighted with generates *random* fixtures with no optimisation
+> at all, which is independent support for **D14 (no scheduling optimiser in v1)** in
+> [§7](#7-scheduling). One interview, so treat as a signal, not a mandate.
+
 `Festival` is the interesting one, because a sports day's fixtures are not a mathematical
 consequence of its entrants. When four schools meet, the u14A teams may play a full round robin,
 while the u16s play only two of the three possible fixtures because one school's u16s are away.
@@ -523,6 +535,35 @@ rugby fixture cannot go on a netball court.
 `Facility` already carries `supportedSportIds` and `primarySportId`
 ([Facility.ts](file:///c:/Fred/Coding/SK/shared/src/models/venue/Facility.ts)), and `Game` already
 carries `siteId`, `facilityId` and `scheduledStartTime`. So the constraint data mostly exists.
+
+### Facilities that are the same ground
+
+One constraint the data does *not* yet carry: **two facilities can be the same physical space.** A
+club running a mini tournament subdivides one full-size field into four mini pitches and holds all
+five as ordinary facilities on the site — `Field A` alongside `Field A1`–`A4` — picking the
+full-size one for a senior fixture and a mini one for a youth fixture. The same thing happens
+without any subdivision: a cricket outfield overlapping a soccer pitch, or one marked court that is
+netball in winter and tennis in summer. It is rare for both to be wanted on the same day, which is
+exactly why it will be missed when it happens.
+
+> **Decided (D34) — a facility declares what it conflicts with.** `Facility` carries a list of other
+> facility ids it physically overlaps. The scheduler treats a fixture on any of them as occupying
+> the slot for all of them, so `Field A1` and `Field A` cannot both be assigned at the same time.
+> Two properties matter and are easy to get wrong:
+>
+> - **Symmetric.** Declaring the conflict on one side is enough; the scheduler enforces it in both
+>   directions. Otherwise the constraint fires only when placing a fixture on whichever facility
+>   happened to be edited, which is the kind of bug that shows up on the day.
+> - **Not transitive.** `A1` conflicts with `A`, and `A2` conflicts with `A`, but **`A1` does not
+>   conflict with `A2`** — the four mini pitches run simultaneously, which is the entire point of
+>   subdividing the field. Do not close the conflict graph transitively.
+>
+> Rejected alternatives: a parent/child facility hierarchy (more model than the problem needs, and
+> it cannot express a cricket/soccer overlap where neither contains the other), and event-scoped
+> temporary facilities (the facilities are real and permanent — only their *use* is per event).
+>
+> Per **U26**, this warns rather than blocks, like every other scheduling conflict. An organiser who
+> knows the mini pitches are lifted for the day should be able to overrule it.
 
 ### Venues cascade down
 

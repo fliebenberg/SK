@@ -107,6 +107,11 @@ stable. Indented bullets are probes — prompts for the interviewer, not questio
    - How do people find out then?
 1. Have you ever run something where teams progressed — pools into a knockout, quarters into
    semis? How did you handle who plays whom next?
+   - How long between the last pool game and the first knockout match? Who worked the bracket
+     out, and on what?
+   - Who was standing around waiting for it, and how did they find out?
+   - *If they have never run one — ask whether that is because nobody wants it, or because it
+     is too much work to organise. Those are opposite answers for us.*
 1. What do you do when you have to plan around a team whose identity you do not know yet
    ("winner of pool B", "whoever the third school sends")?
 
@@ -163,6 +168,10 @@ stable. Indented bullets are probes — prompts for the interviewer, not questio
    - Does it hold steady through the year, or move with the season?
    - Where does the real number live — a list, a system, someone's head?
    - Is anyone counted twice, or missed, because of the way it is kept?
+1. And the adults — how many people are involved in running the sport here?
+   - Coaches, team managers, officials, admin staff, regular volunteers?
+   - How many of those would need to be *in* a system like this, rather than just told things?
+   - Does that number move much between seasons?
 
 ## 9. Communication
 
@@ -173,6 +182,13 @@ stable. Indented bullets are probes — prompts for the interviewer, not questio
 1. What question do you get asked over and over that you wish people could just look up?
 1. Do parents or supporters ever ask for scores while a game is still going?
 1. Do people outside your organisation ever need to see your fixtures or results?
+1. How do supporters find out fixtures and results — parents who are not at the match, family,
+   old boys and girls, the opposition's supporters?
+   - What is public, and what only reaches people already on a list?
+   - Who posts it, and how long after the event?
+   - Do you hear from people who went looking and could not find it?
+1. Is there anyone who wants your fixtures or results that you have no good way of reaching?
+   - Do you have any idea how many people are actually looking?
 
 ## 10. What you use today
 
@@ -180,6 +196,9 @@ stable. Indented bullets are probes — prompts for the interviewer, not questio
    - Walk me through where each thing actually lives.
 1. Which of those works well? What would you not want to give up?
 1. What have you tried and stopped using? Why did it not stick?
+   - How long did it last, and was there a moment you knew it was over?
+   - Did you drop it, or did everyone else quietly stop and you gave up chasing them?
+   - Is it still technically in use by somebody, or still being paid for?
 1. Is there anything you are required to use that you would not choose?
 1. What lives only in one person's head, or one person's laptop?
 1. If you had to hand the whole job over tomorrow, what would be hardest for the next person to
@@ -190,10 +209,17 @@ stable. Indented bullets are probes — prompts for the interviewer, not questio
 
 1. If someone else could do part of this, what would you hand over first?
 1. What would you never hand over?
-1. Would you be comfortable letting the netball convenor edit only the netball, without giving
-   them the run of the whole event?
+1. Would you be comfortable letting the person who runs one sport edit only that sport, without
+   giving them the run of the whole event?
+   - *Use a sport they actually run and, if they have named one, a real person. This lands very
+     differently as "the netball convenor" than as "a convenor".*
    - Is that person usually staff, a volunteer, or from another organisation?
 1. Has anyone ever changed something they should not have? What happened?
+   - What did they change — and were they supposed to have access at all, or was it someone who
+     legitimately could and should not have?
+   - How did you find out? Did anything tell you, or did somebody just notice?
+   - How long was it wrong for, and did anyone act on the wrong version before it was caught?
+   - What changed afterwards — a rule, an access change, a conversation, or nothing?
 1. How do people get access to your current systems, and what happens when they leave?
 1. If a fixture or result changes, does anyone need to know *who* changed it?
 
@@ -231,13 +257,22 @@ stable. Indented bullets are probes — prompts for the interviewer, not questio
 1. *(Delegation)* An event has an organiser — a named person, not a job title — who can run that
    event and nothing else, and who can hand one sport to a convenor. Does that match how
    responsibility works here?
+   - *Put the name of whoever they said they would hand something over to back to them. Would
+     you give it to that person?*
 1. *(Weighting)* If the app let you say a 1st team result counts for more than a junior result,
    would you use that, or is it more argument than it is worth?
+   - *Anchor it to how they told you their last event was actually scored — or to the argument
+     they described about how it should have been.*
 1. *(Unscored days)* For a day with no agreed points system, would a plain summary — games played,
    won, drawn, lost per organisation — be useful, or is that noise?
+   - *If they described a day that was never scored overall, ask about that day specifically.*
 1. *(Provisional entrants)* How useful is being able to build a draw before you know who is
    coming, using placeholders you fill in later?
+   - *Use their own story — the confirmations that came in late, or the team that said yes and
+     then never arrived.*
 1. *(Reuse)* How much of last year's event would you want to copy into this year's?
+   - *They already told you what gets copied from last year's calendar and what always has to be
+     redone. Read it back and ask whether that is the right split.*
 1. What would you have to see before you would trust this with a real event rather than a practice
    run?
 1. If this existed and worked exactly as described, what would you stop doing?

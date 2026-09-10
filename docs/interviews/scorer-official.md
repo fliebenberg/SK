@@ -49,8 +49,11 @@ questions to read aloud.
    - Volunteered, asked, part of a job, nobody else would?
 1. How many matches do you do in a season, roughly?
 1. Were you trained or shown how, or did you work it out?
-   - Is there a qualification or accreditation for this in your sport?
+   - Is there a qualification or accreditation for this kind of scoring?
 1. Do you have a scoresheet or scorebook from a recent match you could show me?
+1. How big is the organisation you score for?
+   - Roughly how many teams and players, and how many adults involved?
+   - A rough number is fine. If you do not know, who would?
 
 ## 2. The sport and what counts
 
@@ -116,6 +119,11 @@ questions to read aloud.
 1. Does anyone sign off the result at the end?
 1. Who is the official record — your sheet, or something else?
 1. Have you ever been put under pressure to record something a particular way?
+   - Who from — a coach, a parent, an official, someone from your own club?
+   - What did they actually want, and what did you do?
+   - Would anyone have been able to tell afterwards that it had been changed?
+   - *If they say no, try it in the third person — do you know it happening to anyone else?
+     People will tell you about a colleague long before they tell you about themselves.*
 
 ## 7. More than one person scoring
 
@@ -170,18 +178,29 @@ questions to read aloud.
 1. Having heard that — where would that fit, and where would it fall apart for you?
 1. What would have to be true for you to leave the paper at home?
 1. *(Speed)* How many taps is too many for one score?
+   - *They described the passage of play where the game gets ahead of them. Ask about that one,
+     not about a typical score.*
 1. *(Detail)* If the app asked you for more than the score — who scored it, why a penalty was
    given, which player was carded — would you have time for that? Would you want to?
    - Is there a level of detail where you would just stop?
 1. *(Undo)* If you made a mistake and had to ask the other scorer to approve undoing it, with a
    short time limit — sensible, or infuriating?
+   - *Compare it directly with how they told you they fix a mistake on paper today, and how long
+     that takes them.*
 1. *(Offline)* If you had no signal for a whole match and the app saved everything until you did,
    would you trust that?
+   - *Use their own answer about signal where they score. If it is fine there, ask about the
+     worst venue they go to.*
 1. *(Live)* If everything you entered appeared instantly to parents and spectators watching from
    elsewhere — how does that change how you would work?
    - Would you feel watched? Would you slow down to be sure?
+   - *If they described being leaned on to record something a particular way, this is where to
+     bring it back — an audience makes that pressure worse, not better.*
 1. What would you still want on paper regardless?
 1. Would you rather do this alongside a paper sheet for a season, or switch outright?
+   - If alongside — what would you be checking the app against, and would you really compare the
+     two after every match?
+   - What would have to happen before you stopped double-writing?
 
 ## 12. Wrap-up
 

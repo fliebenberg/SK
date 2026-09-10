@@ -1502,6 +1502,13 @@ organiser produces a good one.
 3. **The greedy pass (D14)** — fixtures into slots in order, respecting two hard constraints: an
    entrant plays once at a time, a facility hosts once at a time. **No optimiser** — deferred on
    sequencing, not ruled out.
+   - **Facility conflicts (D34)** — a facility declares the facilities it physically overlaps
+     (`Field A1` and `Field A` are the same grass; so are a cricket outfield and the soccer pitch on
+     it). The scheduler treats a fixture on any of them as occupying the slot for all of them.
+     Needs a column on `Facility` plus the check in the greedy pass. **Symmetric** — declare once,
+     enforce both ways — and **not transitive**: `A1` and `A2` both conflict with `A` but not with
+     each other, or the four mini pitches can never run at once, which defeats the purpose. Warns
+     rather than blocks, per U26.
 4. **The schedule view (U24)** — a day-and-facility filtered list on narrow screens, a time × facility
    grid on wide, over the same data.
 5. **Moving a fixture (U23)** — reuse the proven pattern in
@@ -1528,7 +1535,10 @@ it off or rewrite it to describe the non-tournament remainder.
 **Exit criterion:** auto-schedule the Phase 6 festival across two days and eight facilities; confirm no
 team is double-booked, no facility hosts two fixtures at once, no fixture starts after the day's last
 start time, and a stage with an `earliest_start` respects it. Then drag one fixture into a conflict and
-confirm it warns, does not block, and appears in the day panel.
+confirm it warns, does not block, and appears in the day panel. **For D34:** declare `Field A1`
+conflicting with `Field A`, confirm the scheduler will not place fixtures on both in one slot —
+**in either direction**, whichever side the conflict was declared on — and confirm `A1` and `A2`
+*can* still run simultaneously.
 
 ---
 

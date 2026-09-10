@@ -51,19 +51,34 @@ questions to read aloud.
 1. Do you have any other connection to the organisation?
    - Parent of a player, former player, teacher, club member?
 1. Are you involved with more than one team, or more than one sport?
+1. How big is the organisation as a whole?
+   - Roughly how many players across all the teams, and how many adults involved — coaches,
+     managers, officials, admin staff?
+   - A rough number is fine. If you do not know, who would?
 
 ## 2. Your team
 
 1. Tell me about the team — sport, age group, level.
 1. How many players are in the squad, and how many can play at once?
 1. How did the squad get picked in the first place, and by whom?
-1. How much does the squad change over a season?
+1. How much does the squad change over a season, and what causes those changes?
    - Injuries, players joining late, players quitting, players moving up or down a team?
+   - Which of those happens most often, and which creates the most work for you?
 1. Do any of your players also play for another team here?
    - How is that handled when both teams play on the same day?
 1. Does anyone play up or down an age group?
-1. Who else is around the team — assistant coach, physio, parent helpers, a captain who
-   organises things?
+1. Who else is involved with the team, and what is each of them responsible for?
+   - Assistant coach, team manager, physio or first aider, parent helpers, transport, whoever
+     scores, a captain who organises things?
+   - Which of them are volunteers, and how reliably are they actually there?
+1. How do the people around the team keep each other up to date?
+   - Where does that happen — a group chat, in person at training, one person phoning everyone?
+   - When a fixture changes, who tells whom, and in what order?
+   - What has fallen through the gap between two of you? Tell me about the last time.
+1. Which of them needs to see or change the team's information — fixtures, team list,
+   attendance, results?
+   - What can each of them get at today, and what do they have to come to you for?
+   - Is there anything you would not want them to be able to change?
 
 ## 3. A week in season
 
@@ -102,7 +117,13 @@ questions to read aloud.
 1. What happens when a fixture changes — time, venue, opposition, cancellation?
    - How do you find out? How quickly?
    - Tell me about the last time that happened.
-1. Have you ever turned up somewhere wrong, or at the wrong time?
+1. Have you ever turned up somewhere wrong, or at the wrong time? What happened?
+   - Where did it break down — never sent, sent to someone else, sent too late, changed after
+     you already had it, or you were working off an old copy?
+   - Who noticed first, and what did it cost — a forfeit, a rearranged match, parents who had
+     driven an hour?
+   - What do you do differently now because of it? Do you check with anyone before you set off?
+   - And the near misses — when have you *nearly* got it wrong, and what caught it in time?
 1. What do you have to pass on to your players and parents once you have it?
    - How much re-typing is involved?
 1. What information do you need that you routinely have to go and ask someone for?
@@ -116,8 +137,13 @@ questions to read aloud.
 1. What are you carrying, and what do you have to have with you?
 1. Who do you have to deal with when you arrive — opposition coach, official, host?
 1. Is a team sheet exchanged or handed in? To whom, in what form?
-1. Who keeps the score?
-   - Is that you, or someone else? How is it decided?
+1. Who keeps the score, and who keeps the time?
+   - Is that you, or someone else? One person doing both, or two? How is it decided?
+   - Whose clock is the official one — the referee's watch, a pitch-side clock, someone's
+     phone? Can anyone else see it?
+   - Who stops it, and for what — half time, an injury, a delay? Does anyone actually bother?
+   - Does the clock decide when it ends, or is it overs, sets, races, or the referee deciding
+     it has gone on long enough?
 1. What is actually written down during the game, and on what?
 1. Do you record anything beyond the score — scorers, cards, times, substitutions,
    individual performances?
@@ -156,6 +182,14 @@ questions to read aloud.
    - Where do those live? Who gave them to you?
 1. Are there rules about photographs, names or results being shared publicly, especially for
    minors?
+1. How do fixtures and results reach people who are not at the match — parents who could not
+   come, family further away, anyone else following the team?
+   - Do you post the score anywhere? How long after the final whistle?
+   - Do people message you during a game to ask what it is?
+   - Does any of that reach them from the organisation, or is it all from you?
+1. Is there anyone who follows this team that you have no good way of reaching?
+   - Grandparents, a parent who is not in the chat, former players, people at the club with no
+     child in the team?
 
 ## 9. What you keep and where
 
@@ -167,6 +201,9 @@ questions to read aloud.
 1. If you stopped coaching tomorrow, what would the next person get from you, and what would be
    lost?
 1. Has anything ever been lost — a team list, a set of results, a phone?
+   - What was it, and how did you notice it was gone?
+   - Could you put it back together? What did that take, and who did you have to ask?
+   - What do you do differently now — or do you just live with it?
 
 ## 10. Tools you use today
 
@@ -175,6 +212,10 @@ questions to read aloud.
 1. Which of them do you actually use, and which do you ignore?
 1. What works well enough that you would not want it changed?
 1. What have you tried and given up on? Why?
+   - How long did you last, and was there a moment you stopped?
+   - Was it you, or did the parents and players drift back to the group chat and take you with
+     them?
+   - Is anybody still expecting you to be using it?
 1. Do you ever get given a system by a league or association that you have no say over?
 1. What would make you not bother with a new app?
    - Having to log in? Another password? Another notification stream?
@@ -198,14 +239,24 @@ questions to read aloud.
 1. What would you need on day one for it to be worth opening at all?
 1. *(Selection)* If you could pick your matchday team from your squad in the app, and the
    organisation could see it, would you use that — or is your current way faster?
+   - *Anchor it to how they actually picked their last team, and to wherever they said that list
+     really lives.*
 1. *(Availability)* Would you want players or parents to mark their own availability, or would
    you rather that stayed your job?
+   - *They told you earlier whether players come to them or have to be chased. Put this against
+     that answer, not against the idea in general.*
 1. *(Training and roll call)* Would you use something that let you set up training sessions and
    mark who attended? Or is that admin you do not want?
+   - *If they said somebody asks them for attendance, start there. If they said nobody ever
+     asks, say so out loud and see whether they still want it.*
 1. *(Live scores)* Would you want parents watching the score from elsewhere? Is there any downside
    to that at your age group?
+   - *They already told you whether parents message them mid-game asking for the score. Start
+     from that.*
 1. *(Fixture changes)* If a change to a fixture reached your team automatically, without you
    forwarding it — what would that save you, realistically?
+   - *If they told you about a time they turned up at the wrong place or the wrong time, put it
+     back to them: would this have caught that one?*
 1. Which of those would you actually never touch?
 1. Who would have to tell you to use this before you would?
 

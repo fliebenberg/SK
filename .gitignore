@@ -22,3 +22,6 @@ server/backups/*.dump
 
 # Generated interview sheets (npm run interviews:pdf)
 docs/interviews/print/
+
+# Completed interview records (contain real personal data — never committed)
+docs/interviews/records/

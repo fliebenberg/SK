@@ -7,9 +7,79 @@ This document is a space to jot down brilliant ideas for the application while w
 - [ ] Add the ability to set up an ongoing "ladder" tournament where players can challenge each other to move up teh ladder. It could have rules like how many places above you you can challenge and how often a peson can be challenged (you dont want one player being challenged by several different players in a short period of time). It could facilitate the scheduling of matches etc.
 - [ ] Add venue scheduling functionality to avoid multiple games being scheduled at the same venue at the same time. It could also allow for venues to be booked for private events etc.
 - [ ] Add functionality to merge organizations and teams, to handle duplicates created as placeholders during event setup.
+- [ ] **Allocate a pool of referees / officials to a tournament or division, then assign them to
+  fixtures as part of fixture planning.** The organiser nominates the officials available for the
+  event (or for one division), and assignment becomes part of laying out the schedule rather than a
+  separate WhatsApp exercise. Raised by a club admin who is also head of referees (Tableview FC,
+  2026-09-09) — his club runs a real officials operation: U16 players paid R80 a game to referee
+  mini matches, all mini coaches put through a mandatory LFA referee course, and a standing split
+  where the LFA supplies officials for promotional games and clubs supply them for non-promotional
+  ones. Note that **officials assignment is explicitly out of scope for v1** in
+  [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) §11; this entry does not
+  reopen that, it records that a real user asked for it.
+    - Worth designing against the same constraint the scheduler already has — an official cannot be
+      in two places at once — so it likely belongs beside the greedy scheduling pass (§7) rather
+      than bolted on after.
+    - An official is not necessarily a user of the app, and at this club is often a **minor** (a
+      U16 player). Whatever holds them cannot assume an account, and consent/minors rules apply.
+- [ ] **Grade referees, and use the grade when assigning them.** So a stronger official lands on the
+  fixture that needs one — a promotional game, a final, an older age group. Extends the entry above.
+  **Low priority** — flagged as such when raised, and only one club has asked. Records the idea so
+  it is not re-derived from scratch.
+- [ ] **A tournament-scoped site map.** Show only the venues that are actually in play for *this*
+  tournament. A map carrying every facility on the site is worse than no map, because a parent
+  cannot tell which pitch is theirs.
+    - **The subdivision needs no new model.** A club that splits one full-size field into four mini
+      pitches for a youth tournament (Tableview FC, 2026-09-09) simply creates them all as
+      facilities on the same site — `Field A` alongside `Field A1`…`A4`, each with its own location.
+      The organiser then picks `Field A` for a senior fixture or `Field A1` for a mini one. This is
+      what [Facility](file:///c:/Fred/Coding/SK/shared/src/models/venue/Facility.ts) already
+      supports.
+    - **Which makes the map scoping the actual requirement**, not a nicety: because all five
+      facilities are permanent and coexist on the site, an unscoped map shows `Field A` at a
+      tournament played entirely on the mini fields. The data to scope it largely exists —
+      [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) §7 "Venues cascade down"
+      already has the event holding a *set* of facilities, narrowed from the venue and allocatable
+      down to a division or pool. **What is missing is the map rendering of that set.**
+    - **Overlapping facilities are settled, and moved out of this list.** `Field A` and
+      `Field A1`–`A4` are the same grass, so the scheduler needs to know. Decided as **D34** in
+      [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) §7 and scheduled into
+      Phase 7 — a facility declares what it conflicts with, symmetric but not transitive. Not a
+      future idea any more; noted here only because it came out of the same conversation.
+    - Pairs naturally with the tournament public/spectator view (§11, out of scope for v1) and the
+      shareable-output task in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md) — "which field am I on"
+      is exactly what a parent opens a shared link to find out.
+    - *Source note: the field-subdivision detail is the interviewer's recollection from the room and
+      does not appear in the machine transcript — worth confirming with Malcolm.*
+
 - [ ] Add the ability to create sub-rooms for specific regions (e.g., `games-za`, `games-usa`) to further optimize data usage.
 
 - [ ] Build a user notification system for in-app notifications (e.g., claim invitations, report updates, org activity). This would replace the need for custom per-feature notification handling and provide a unified notification inbox.
+- [ ] **In-app communication — a major feature, deliberately parked.** User research (Tableview FC,
+  2026-09-09) put this higher than expected: **running a club is mostly communication**, and
+  essentially all of it happens in WhatsApp groups — committee to committee, coordinator to coaches,
+  coaches to parents, club to supporters. The fixtures coordinator posts the week's opponent, time
+  and venue to a group chat; results reach parents through a whiteboard at the ground and a message
+  in the same chat. If ScoreKeeper holds the fixtures and the results, it is already holding the
+  substance of most of those messages.
+    - **The incumbent is strong and should be respected.** WhatsApp Communities already solve the
+      structural problem — the club's minis run all age-group chats under one umbrella with a
+      broadcast announcement channel, and the interviewee's stated goal was to extend that to every
+      age group. We would be displacing something that works and that everyone already has. The
+      near-term move is therefore to **feed** WhatsApp rather than replace it — see the shareable
+      output task in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md).
+    - **Where in-app comms could beat a group chat:** messages that are *addressed by role and
+      context* rather than by whoever is in the group — this team's parents, this event's coaches,
+      this division's entrants — and that carry the fixture or result as structured data, so a
+      change to a kick-off time updates the schedule instead of scrolling away as text. Also an
+      audit trail, which a group chat has none of.
+    - **What it drags in:** moderation (a club chat that goes wrong is the `REP-*` workflow that
+      does not exist), consent and minors' data, notification delivery and preferences, and
+      retention. It would also overlap the unified notification inbox above — decide whether that
+      is the foundation for this or a separate thing.
+    - **Not committed.** Recorded so the research does not evaporate. Revisit once more interviews
+      confirm it generalises beyond one club — the interviews README lists this as untested.
+
 - [ ] Set up a dedicated ScoreKeeper mail service for production email sending (transactional emails, notifications, password resets, etc.)
 - [ ] Optimize organization caching and search:
     - Limit the number of organizations cached on the client (e.g., closest 1000).

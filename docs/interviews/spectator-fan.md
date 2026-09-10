@@ -1,7 +1,8 @@
 # Interview Guide — Spectator / Fan
 
 **Participant:**
-**Follows:**
+**Sports followed:**
+**Team / child this interview is about:**
 **Relationship:** ☐ Parent ☐ Family ☐ Alum / old boy or girl ☐ Club supporter ☐ Friend of a player ☐ Other
 **Date:**
 **Interviewer:**
@@ -25,10 +26,19 @@ chat "sounds nice" is telling you nothing.
 occasion. "Do you check scores?" gets a yes from everyone. "When did you last check a score you
 weren't at?" gets you the truth.
 
-**Establish the relationship first (§1.2).** A parent of an under-12, an old boy who watches the
-first team, and a partner dragged along on Saturdays want almost nothing in common.
+**§1 opens wide, then narrows.** It asks about sport in their life generally — including the
+professional team they follow — before it gets to the child or club side this interview is
+actually about. That is deliberate. How somebody follows a pro team is *observed behaviour*, and
+it is the standard they will unconsciously measure school and club sport against. But it is
+context, not a requirement — nobody is building SuperSport for an under-14 netball fixture. Move
+through it briskly and do not let the interview settle there.
 
-**Time budget:** §1–2, 5 min. §3–5, 10 min. §6–7 the core, 12 min. §8–9, 6 min. §10–11, 5 min.
+**Establish the relationship before §2 (§1.6).** A parent of an under-12, an old boy who watches
+the first team, and a partner dragged along on Saturdays want almost nothing in common. §1.6 is
+the pivot: everything from §2 onwards is about whoever they name there, so make sure both of you
+know who that is.
+
+**Time budget:** §1–2, 7 min. §3–5, 10 min. §6–7 the core, 12 min. §8–9, 6 min. §10–11, 5 min.
 
 **Referencing:** questions are cited as *section.question* — `4.3` is the third question in §4.
 Every list item is written as `1.` in the source; the renderer numbers them. Add new questions at
@@ -40,14 +50,26 @@ questions to read aloud.
 ## 1. Background
 
 1. What is your name?
-1. What is your connection to the sport — how did you come to be watching?
-   - Parent, family, former player, alum, supporter, friend?
-1. Who or what do you follow?
-   - A child, a team, a school or club, a sport in general?
-1. How long has that been going on?
+1. Where does sport sit in your life — do you play it, watch it, follow it, or is it mostly
+   through other people?
+1. Which sports do you follow, and is there one you would call yours?
+   - Professional, national, local, school or club?
+   - Is the one you most enjoy watching the same one you follow most closely?
+1. Which team is *your* team?
+   - How do you keep up with them — where did their last result actually reach you?
+   - An app, a broadcaster, social media, a group chat, someone telling you?
+1. Were you ever a player, coach, official or organiser yourself?
+   - Which sport, how far did you go, and how long ago?
+1. And closer to home — whose matches do you actually turn up to?
+   - A child, a partner, a club side, a school, an old team of your own?
+   - *Everything from here on is about whoever they name. Say so, and write it at the top.*
+1. How did that start, and how long has it been going on?
 1. Are you following more than one team or child at once?
    - Do they ever clash?
-1. Were you ever a player, coach or organiser yourself?
+1. How big is the club or school you follow?
+   - Roughly how many players or pupils? Does it feel like a big place or a small one?
+   - An estimate is fine — I am after the size of the world you are following, not the exact
+     figure.
 
 ## 2. How much of it you actually see
 
@@ -89,7 +111,11 @@ questions to read aloud.
 1. How do you find out about upcoming fixtures?
    - What arrives, from whom?
 1. Do you always know the time and place, or do you have to ask?
-1. Have you ever gone to the wrong place, or the wrong time?
+1. Have you ever gone to the wrong place, or the wrong time? What happened?
+   - Where did it break down — nobody told you, you were told too late, you were reading an old
+     message, or you assumed it was the same as last time?
+   - Who did you try to ask once you realised? Did you get hold of them?
+   - What do you check now that you did not check before?
 1. What happens when something is moved or cancelled?
    - How do you find out? Tell me about the last time.
 1. Is there anything you would like to know in advance that you never get told?
@@ -161,8 +187,11 @@ questions to read aloud.
 1. What would make you open it on a Saturday morning?
 1. *(Live)* If you could watch the score update live from a match you were not at, when would you
    actually have used that this season?
+   - *They described a match they could not get to and how they eventually found out. Use that
+     one rather than letting them answer in general.*
 1. *(Following)* Would you want to follow a team and be told when they play and how they did?
    - How often is too often to hear from it?
+   - *They already told you what makes them turn notifications off. Hold them to it.*
 1. *(Detail)* Beyond the score, would you want the detail — who scored, when, how the game went?
    - Or is that more than you need?
 1. *(Community)* If there were a place in the app to talk with other supporters of the team — what
@@ -173,6 +202,8 @@ questions to read aloud.
    - What would need to happen when someone says something out of line?
 1. *(History)* Would a record of your child's season — matches played, results — be something you
    would want at the end of the year?
+   - *If they named something about the season they wished they had a record of, offer that back
+     specifically instead of asking in general.*
 1. Which part of all that would you never touch?
 1. What would make you stop using it after a week?
 
