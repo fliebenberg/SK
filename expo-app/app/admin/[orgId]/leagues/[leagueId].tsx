@@ -190,26 +190,26 @@ export default function LeagueDetails() {
       }
     });
 
-    // Fetch Seasons
-    wsService.emit('get_data', { type: 'seasons', leagueId }, (res: any) => {
-      if (active) {
-        if (Array.isArray(res)) setSeasons(res);
-        setIsLoading(false);
-      }
-    });
-
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
       if (active && Array.isArray(res)) setSports(res);
     });
 
-    // Real-Time Room Subscriptions
+    // Real-Time Room Subscriptions. The room hands the seasons over on join (`LIVE-14`), so there
+    // is no `get_data seasons` here — joining *is* the load, live-data rule 2.
     const room = `league:${leagueId}:seasons`;
-    const unsubscribe = wsService.subscribeToRoom(room);
 
     const handleUpdate = (event: any) => {
       if (!active) return;
       if (event) {
-        if (event.type === 'SEASON_ADDED') {
+        if (event.type === 'SEASONS_SYNC') {
+          if (Array.isArray(event.data)) setSeasons(event.data);
+          setIsLoading(false);
+        } else if (event.type === 'ROOM_ACCESS_DENIED' || event.type === 'ROOM_ACCESS_REVOKED') {
+          // A room push has no ack and no timeout, so a refused join has to clear the spinner
+          // explicitly or the screen waits forever for a message that is never coming.
+          setSeasons([]);
+          setIsLoading(false);
+        } else if (event.type === 'SEASON_ADDED') {
           setSeasons(prev => {
             if (prev.some(s => s.id === event.data.id)) {
               return prev.map(s => s.id === event.data.id ? event.data : s);
@@ -225,6 +225,7 @@ export default function LeagueDetails() {
     };
 
     wsService.on('update', handleUpdate);
+    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
 
     return () => {
       active = false;

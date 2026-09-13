@@ -1,6 +1,13 @@
 import { eventManager } from '../managers/EventManager';
 import { accessManager } from '../managers/AccessManager';
 import { broadcast } from './broadcast';
+import {
+  divisionFixturesRoom,
+  eventFixturesRoom,
+  gameSummaryRoom,
+  orgEventsRoom,
+  orgFixturesRoom,
+} from './rooms';
 
 /**
  * Publishing a fixture change.
@@ -22,7 +29,7 @@ import { broadcast } from './broadcast';
  *
  * The event and division rooms are here for the reason `FIX-4` gave: a room that hands data over
  * on join and never republishes it is a room whose contents go stale the moment anything happens.
- * `join_room` pushes `GAME_SUMMARIES_SYNC` to `event:{id}` and `DIVISION_GAMES_SYNC` to
+ * `join_room` pushes `GAME_SUMMARIES_SYNC` to `event:{id}:fixtures` and `DIVISION_GAMES_SYNC` to
  * `division:{id}:fixtures`, so both must also receive the updates — otherwise an event screen shows
  * the score as it was when it opened. Added in Phase 5, when the event screen moved onto the room.
  */
@@ -32,10 +39,12 @@ async function fixtureRooms(gameId: string): Promise<string[]> {
     accessManager.getGameEventId(gameId),
     accessManager.getGameDivisionId(gameId),
   ]);
-  const rooms = orgIds.map(orgId => `org:${orgId}:events`);
-  rooms.push(`game:${gameId}:summary`);
-  if (eventId) rooms.push(`event:${eventId}`);
-  if (divisionId) rooms.push(`division:${divisionId}:fixtures`);
+  // Every one of these is the *fixtures* room of its scope, never the events or record room —
+  // rule 4. `org:{id}:events` used to receive game summaries because it carried both datasets.
+  const rooms = orgIds.map(orgId => orgFixturesRoom(orgId));
+  rooms.push(gameSummaryRoom(gameId));
+  if (eventId) rooms.push(eventFixturesRoom(eventId));
+  if (divisionId) rooms.push(divisionFixturesRoom(divisionId));
   return rooms;
 }
 
@@ -71,6 +80,6 @@ export function publishEventToOrgs(orgIds: string[], type: string, data: any): v
   orgIds.filter(Boolean).forEach(orgId => {
     if (seen.has(orgId)) return;
     seen.add(orgId);
-    broadcast(`org:${orgId}:events`, type, data);
+    broadcast(orgEventsRoom(orgId), type, data);
   });
 }

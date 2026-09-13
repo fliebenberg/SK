@@ -7,7 +7,7 @@ tags:
   - routing
   - pages
   - navigation-guards
-timestamp: 2026-09-03T00:00:00Z
+timestamp: 2026-09-13T00:00:00Z
 ---
 
 # Client Pages & Routing Maps
@@ -65,18 +65,33 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 *   `/admin/[orgId]/events`: The fixture list, split into **Events** and **Games** tabs (U2/U36) over
     one room, with multi-select role chips — Hosting / Convening / Attending — beside the
     `Upcoming / Past` toggle (U4/U5).
-*   `/admin/[orgId]/events/create?type=game|tournament`: Creation wizard. The tournament path picks a
-    **format** (`Festival` / `RoundRobin` / `Knockout` / `PoolsKnockout`); "Sports Day" is gone, since
-    a sports day is a `Tournament` whose format is `Festival` (D1/U34).
+*   `/admin/[orgId]/events/create`: Scheduling **one match**, and nothing else. A tournament has no
+    creation screen: it is named and dated in a prompt on the events list, written as a `Festival`
+    (D1/U34) and opened on its own Setup tab, where the format and everything else is edited
+    (U45). The route no longer takes a `type`.
 *   `/admin/[orgId]/events/[eventId]`: One event. A `SingleMatch` shows its game; a `Tournament` shows
-    its structure with a setup checklist (U17); an event whose `type` cannot be recognised shows an
-    **error state rather than a Tournament** (U39 / `FIX-1`).
+    its structure over `Setup / Schedule / Standings`, where **Setup is the setup checklist and
+    nothing else** (U17/U48); an event whose `type` cannot be recognised shows an **error state
+    rather than a Tournament** (U39 / `FIX-1`). Takes an optional `?tab=` so a step screen can
+    return to the checklist after a refresh or a deep link.
+*   `/admin/[orgId]/events/[eventId]/setup/basics`, `/setup/playing`, `/setup/scoring`,
+    `/setup/fixtures`: **One setup step each** (U48). Basics is the identity, dates, base site,
+    fields and organisers; playing is the sports and the division list; scoring is the points per
+    result; fixtures is a status and the ways to add one. Each **saves itself** — its own dirty
+    state, its own [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx),
+    and only its own fields in the write. Back always goes to the checklist, never to the previous
+    step. The frame they share is
+    [useSetupStepScreen](file:///c:/Fred/Coding/SK/expo-app/hooks/useSetupStepScreen.ts); the order
+    and the routes are
+    [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts).
 *   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: One division — its stages as navigation
     tabs (U13/U14), its roster and generation controls, its own table, and its convenors.
 *   `/admin/[orgId]/events/[eventId]/entrants`: Getting teams in, on **both axes over one dataset**
     (U21) — *by division* ("who is in the u14 rugby?") and *by organisation* ("what is Northcliff
     entering?"). The organisation axis is where **inline team creation** lives, because that is the
-    moment you discover a school has no u16 netball team. Event organisers only; a convenor reaches
+    moment you discover a school has no u16 netball team. Also the **Entrants step** of the setup
+    checklist (U48), so it carries the invite list — which writes on press rather than through a
+    save bar, because every other control on the screen does. Event organisers only; a convenor reaches
     the same per-division editor through their division's screen, since both mount
     [DivisionEntrantsEditor](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionEntrantsEditor.tsx).
 *   `/admin/[orgId]/events/[eventId]/games/new`, `/games/[gameId]/edit`, `/view`, `/selection`,
@@ -110,4 +125,9 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 ## Critical UI Rule: Navigation Guards
 
 To prevent accidental data loss when editing rosters or logging game scores, all administrative editing forms must implement navigation guards to warn users before they navigate away with unsaved changes.
+
+Splitting one form across several screens multiplies the guards rather than removing them: each of
+the tournament setup step screens (U48) computes its own dirty state and calls `useUnsavedChanges`
+itself, and each **clears the store on a successful save** — without that the screen stays dirty
+and the next navigation raises a discard dialog over changes already written.
 - Refer to [.agent/skills/unsaved-changes-warning/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/unsaved-changes-warning/SKILL.md) for enforcement.

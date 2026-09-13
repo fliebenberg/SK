@@ -36,6 +36,19 @@ import {
   divisionFixturesRoom,
 } from './wss/tournaments';
 import { canReadData } from './wss/dataAccess';
+import { publishUserMemberships } from './wss/memberships';
+import { attachSocketLogging } from './wss/socketLog';
+import {
+  divisionFacilitiesRoom,
+  divisionRoom,
+  eventDivisionsRoom,
+  eventFacilitiesRoom,
+  eventFixturesRoom,
+  eventRoom,
+  gameDisputesRoom,
+  teamMembersRoom,
+  userNotificationsRoom,
+} from './wss/rooms';
 
 dotenv.config();
 
@@ -1044,31 +1057,10 @@ async function createImplicitDivision(event: any): Promise<void> {
 }
 
 io.on('connection', (socket) => {
-  // Intercept socket events/calls
-  socket.use(([event, ...args], next) => {
-    const clientIp = (socket as any).clientIp || socket.handshake.address || 'unknown';
-    const userId = (socket as any).userId || 'anonymous';
-    
-    let details = '';
-    if (event === 'action') {
-      const action = args[0];
-      details = `action.type=${action?.type || 'unknown'}`;
-    } else if (event === 'get_data') {
-      const request = args[0];
-      details = `get_data.type=${request?.type || 'unknown'}`;
-    } else if (event === 'join_room' || event === 'leave_room') {
-      details = `room=${args[0] || 'unknown'}`;
-    } else {
-      try {
-        details = args.length > 0 ? JSON.stringify(args[0]) : '';
-      } catch {
-        details = String(args[0]);
-      }
-    }
-
-    console.log(`[Socket] EVENT received: "${event}" - Details: [${details}] - Socket: ${socket.id} - IP: ${clientIp} - User: ${userId}`);
-    next();
-  });
+  // Every incoming event, every ack and every message pushed to this socket. Broadcasts are logged
+  // in `broadcast()` instead, since a room fan-out never touches one socket's `emit`. Off in
+  // production by default - see `SOCKET_LOG` in wss/socketLog.ts.
+  attachSocketLogging(socket);
 
   console.log('Client connected [v2]:', socket.id);
 
@@ -1508,11 +1500,10 @@ io.on('connection', (socket) => {
             } else if (sub === 'facilities') {
                 pushToSocket(socket, room, 'FACILITIES_SYNC', await dataManager.getFacilitiesByOrg(id));
             } else if (sub === 'events') {
-                // The fixtures room owns both halves of a fixture list: the events
-                // and the summary of each game under them. There is no separate
-                // games room - nothing ever published to one.
+                // The `Event` records only. The game summaries under them are `org:{id}:fixtures`
+                // (rule 4) - this room carried both until 2026-09-11, so an events list paid for
+                // every game in the org on join.
                 pushToSocket(socket, room, 'EVENTS_SYNC', await dataManager.getEvents(id));
-                pushToSocket(socket, room, 'GAME_SUMMARIES_SYNC', await dataManager.getGameSummaries(id));
             } else if (sub === 'summary') {
                 const org = await dataManager.getOrganization(id);
                 if (org) {
@@ -1522,12 +1513,23 @@ io.on('connection', (socket) => {
                 }
             } else if (sub === 'referrals') {
                 pushToSocket(socket, room, 'ORG_REFERRALS_SYNC', await dataManager.getReferralsForOrg(id));
+            } else if (sub === 'fixtures') {
+                // The other half of what `org:{id}:events` used to push (rule 4). A fixtures list
+                // wants these and not the event records; the events list wants the reverse.
+                pushToSocket(socket, room, 'GAME_SUMMARIES_SYNC', await dataManager.getGameSummaries(id));
+            } else if (sub === 'leagues') {
+                // `LIVE-14`: the room was joinable and published to (`LEAGUE_*`, `SEASON_*`) but
+                // handed over nothing, so a leagues list started empty and only filled in if
+                // somebody edited a league while it was open.
+                pushToSocket(socket, room, 'LEAGUES_SYNC', await dataManager.getLeagues(id));
             }
+
+        } else if (kind === 'team' && sub === 'members') {
+            pushToSocket(socket, room, 'TEAM_MEMBERS_SYNC', await dataManager.getTeamMembers(id));
 
         } else if (kind === 'team') {
             const team = await dataManager.getTeam(id);
             if (team) pushToSocket(socket, room, 'TEAM_UPDATED', team);
-            pushToSocket(socket, room, 'TEAM_MEMBERS_SYNC', await dataManager.getTeamMembers(id));
 
         } else if (kind === 'event' && sub === 'entrants') {
             // The whole tournament's roster, as one push (U21). The entry screens work both axes
@@ -1538,35 +1540,76 @@ io.on('connection', (socket) => {
                 entrants: await dataManager.getEventEntrants(id),
             });
 
-        } else if (kind === 'event') {
-            const event = await dataManager.getEvent(id);
-            if (event) pushToSocket(socket, room, 'EVENT_UPDATED', event);
+        } else if (kind === 'event' && sub === 'fixtures') {
             pushToSocket(socket, room, 'GAME_SUMMARIES_SYNC', await dataManager.getGameSummariesByEvent(id));
-            // The event screen lists its divisions, so the event room hands them over — a screen
-            // cannot be expected to join every division's room just to learn they exist. Empty
-            // for a single match, which is the collapse rule (U15) having nothing to collapse.
+
+        } else if (kind === 'event' && sub === 'divisions') {
             pushToSocket(socket, room, 'DIVISIONS_SYNC', await dataManager.getDivisions(id));
+
+        } else if (kind === 'event' && sub === 'facilities') {
+            pushToSocket(socket, room, 'EVENT_FACILITIES_SYNC', {
+                eventId: id,
+                facilityIds: await dataManager.getEventFacilities(id),
+            });
+
+        } else if (kind === 'event' && sub === 'standings') {
+            const standingsEvent = await dataManager.getEvent(id);
             pushToSocket(socket, room, 'EVENT_STANDINGS_UPDATED', {
                 eventId: id,
-                rows: (event as any)?.cachedStandings || [],
+                rows: (standingsEvent as any)?.cachedStandings || [],
             });
+
+        } else if (kind === 'event') {
+            // The `Event` record only. Its fixtures, divisions, facilities and standings table are
+            // four rooms of their own (rule 4); this one carried all five until 2026-09-11, so the
+            // entrants screen - which wants the event and its divisions - ran three extra queries
+            // per join for data it discards.
+            const event = await dataManager.getEvent(id);
+            if (event) pushToSocket(socket, room, 'EVENT_UPDATED', event);
+
+        } else if (kind === 'division' && sub === 'stages') {
+            pushToSocket(socket, room, 'STAGES_SYNC', {
+                divisionId: id,
+                stages: await dataManager.getStages(id),
+            });
+
+        } else if (kind === 'division' && sub === 'facilities') {
+            pushToSocket(socket, room, 'DIVISION_FACILITIES_SYNC', {
+                divisionId: id,
+                facilityIds: await dataManager.getDivisionFacilities(id),
+            });
+
+        } else if (kind === 'division' && sub === 'entrants') {
+            pushToSocket(socket, room, 'DIVISION_ENTRANTS_SYNC', {
+                divisionId: id,
+                entrants: await dataManager.getDivisionEntrants(id),
+            });
+
+        } else if (kind === 'division' && sub === 'adjustments') {
+            pushToSocket(socket, room, 'DIVISION_ADJUSTMENTS_SYNC', {
+                divisionId: id,
+                adjustments: await dataManager.getDivisionAdjustments(id),
+            });
+
+        } else if (kind === 'division' && sub === 'stage_entrants') {
+            // One message per stage, each a scoped snapshot keyed by `stageId`. Division-scoped
+            // rather than `stage:{id}:entrants` because the screen reads every stage at once, which
+            // is the scope clause of rule 4.
+            for (const stage of await dataManager.getStages(id)) {
+                pushToSocket(socket, room, 'STAGE_ENTRANTS_SYNC', {
+                    stageId: stage.id,
+                    entrants: await dataManager.getStageEntrants(stage.id),
+                });
+            }
 
         } else if (kind === 'division') {
             // Each room hands over its own tier and nothing beyond it — the `LIVE-4` rule applied
             // to a new set of entities. The fixtures and standings rooms are public, so neither
             // may push the roster or the adjustment reasons the base room carries.
             if (sub === 'fixtures') {
-                const division = await dataManager.getDivision(id);
-                if (division) pushToSocket(socket, room, 'DIVISION_UPDATED', division);
-                pushToSocket(socket, room, 'STAGES_SYNC', {
-                    divisionId: id,
-                    stages: await dataManager.getStages(id),
-                });
+                // The fixtures. The division record, its stages and its venues each have a room
+                // now (rule 4) - this one carried four datasets.
                 pushToSocket(socket, room, 'DIVISION_GAMES_SYNC', await dataManager.getDivisionGames(id));
-                pushToSocket(socket, room, 'DIVISION_FACILITIES_SYNC', {
-                    divisionId: id,
-                    facilityIds: await dataManager.getDivisionFacilities(id),
-                });
             } else if (sub === 'standings') {
                 const standingsStages = await dataManager.getStages(id);
                 pushToSocket(socket, room, 'DIVISION_STANDINGS_UPDATED', {
@@ -1579,21 +1622,23 @@ io.on('connection', (socket) => {
                     })),
                 });
             } else {
-                pushToSocket(socket, room, 'DIVISION_ENTRANTS_SYNC', {
-                    divisionId: id,
-                    entrants: await dataManager.getDivisionEntrants(id),
-                });
-                pushToSocket(socket, room, 'DIVISION_ADJUSTMENTS_SYNC', {
-                    divisionId: id,
-                    adjustments: await dataManager.getDivisionAdjustments(id),
-                });
-                for (const stage of await dataManager.getStages(id)) {
-                    pushToSocket(socket, room, 'STAGE_ENTRANTS_SYNC', {
-                        stageId: stage.id,
-                        entrants: await dataManager.getStageEntrants(stage.id),
-                    });
-                }
+                // The division record. The roster, pool membership and adjustments that used to
+                // share this room are `:entrants`, `:stage_entrants` and `:adjustments` (rule 4).
+                const division = await dataManager.getDivision(id);
+                if (division) pushToSocket(socket, room, 'DIVISION_UPDATED', division);
             }
+
+        } else if (kind === 'league' && sub === 'seasons') {
+            // `LIVE-14`, same shape as `org:{id}:leagues` above. Only the seasons: a league rename
+            // is published to `org:{id}:leagues`, not here, so handing the league over from this
+            // room would hand over something nothing republishes - the `FIX-4` trap.
+            pushToSocket(socket, room, 'SEASONS_SYNC', await dataManager.getSeasons(id));
+
+        } else if (kind === 'season' && sub === 'standings') {
+            // `LIVE-14`. `STANDINGS_UPDATED` is exactly what this room republishes on every
+            // recalculation, so the join push and the update are the same message.
+            const season = await dataManager.getSeason(id);
+            pushToSocket(socket, room, 'STANDINGS_UPDATED', season?.cachedStandings || []);
 
         } else if (kind === 'site') {
             const site = await dataManager.getSite(id);
@@ -1608,17 +1653,34 @@ io.on('connection', (socket) => {
                 // Spectator tier: score, clock, status, teams. No event feed.
                 const summary = await dataManager.getGameSummary(id);
                 if (summary) pushToSocket(socket, room, 'GAME_SUMMARY_UPDATED', summary);
-            } else if (sub === 'events') {
-                // The scoring feed and anything under dispute - nothing else.
-                pushToSocket(socket, room, 'GAME_EVENTS_SYNC', await dataManager.getGameEvents(id));
+            } else if (sub === 'disputes') {
+                // Open disputes only. Split out of `:events`, which carried the scoring feed too.
                 pushToSocket(socket, room, 'ACTIVE_DISPUTES_SYNC', await gameEventManager.getActiveDisputes(id));
+            } else if (sub === 'events') {
+                // The scoring feed only; open disputes are `game:{id}:disputes` (rule 4).
+                pushToSocket(socket, room, 'GAME_EVENTS_SYNC', await dataManager.getGameEvents(id));
             } else {
-                // `game:{id}` and `game:{id}:detail`: the full game record.
+                // The full game record.
                 const game = await dataManager.getGame(id);
                 if (game) pushToSocket(socket, room, 'GAME_UPDATED', game);
             }
 
-        } else if (kind === 'user') {
+        } else if (kind === 'user' && sub === 'memberships') {
+            // Joining is the load, so the root layout need not query for this at all (rule 2). Same
+            // `{ orgs, teams }` shape the `user_memberships` query and the broadcast both use.
+            pushToSocket(socket, room, 'USER_MEMBERSHIPS_UPDATED', {
+                orgs: await userManager.getUserOrgMemberships(id),
+                teams: await userManager.getUserTeamMemberships(id),
+            });
+
+        } else if (kind === 'user' && sub === 'capabilities') {
+            // What this user may do, across every event they hold a grant on. Its own room rather
+            // than a field on the event, because a room broadcast reaches everyone in it and this
+            // is one person's rights (Phase 4). The join push is the load, so `useMyEventGrants`
+            // issues no query.
+            pushToSocket(socket, room, 'EVENT_GRANTS_SYNC', await dataManager.getMyGrants(id));
+
+        } else if (kind === 'user' && sub === 'notifications') {
             pushToSocket(socket, room, 'NOTIFICATIONS_SYNC', await dataManager.getNotifications(id));
         }
     } catch (error) {
@@ -1902,7 +1964,6 @@ io.on('connection', (socket) => {
                     if (parentSite) {
                         additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_ADDED', data: result });
                     }
-                    additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_ADDED', data: result });
                     additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_ADDED', data: result });
                 }
                 break;
@@ -1913,7 +1974,6 @@ io.on('connection', (socket) => {
                     if (parentSite) {
                         additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_UPDATED', data: result });
                     }
-                    additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_UPDATED', data: result });
                     additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_UPDATED', data: result });
                 }
                 break;
@@ -1924,15 +1984,14 @@ io.on('connection', (socket) => {
                      if (parentSite) {
                          additionalBroadcasts.push({ topic: `org:${parentSite.orgId}:facilities`, type: 'FACILITY_DELETED', data: { id: result.id } });
                      }
-                     additionalBroadcasts.push({ topic: `site:${result.siteId}:facilities`, type: 'FACILITY_DELETED', data: { id: result.id } });
-                     additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_DELETED', data: { id: result.id } });
+                      additionalBroadcasts.push({ topic: `facility:${result.id}`, type: 'FACILITY_DELETED', data: { id: result.id } });
                 }
                 break;
 
             case SocketAction.ADD_GAME:
                 result = await dataManager.addGame(action.payload);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: eventFixturesRoom(result.eventId), type: 'GAME_ADDED', data: result });
                     await publishGameSummary(result.id);
                     // A hand-added fixture now names its stage (`FIX-12`), which means it is part
                     // of that stage's completeness: a stage that had read `Complete` has an
@@ -1946,21 +2005,25 @@ io.on('connection', (socket) => {
                 result = await dataManager.updateGameStatus(action.payload.id, action.payload.status);
                 if (result) {
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
-                    additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: eventFixturesRoom(result.eventId), type: 'GAME_UPDATED', data: result });
                     await publishGameSummary(result.id);
                 }
                 break;
             case SocketAction.UPDATE_GAME_CLOCK:
                 result = await dataManager.updateGameClock(action.payload.id, action.payload.action);
                 if (result) {
-                    const clockDelta = { 
-                        id: result.id, 
-                        eventId: result.eventId, 
-                        status: result.status, 
-                        startTime: result.startTime, 
-                        liveState: { clock: result.liveState?.clock, periodLabel: result.liveState?.periodLabel } 
-                    };
-                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: clockDelta });
+                    // The whole game, exactly as `UPDATE_GAME_STATUS` above publishes it (`LIVE-16`).
+                    // This used to send a hand-built `{ id, eventId, status, startTime, liveState }`
+                    // delta under the same `GAME_UPDATED` type name that elsewhere carries a full
+                    // `Game` - so a receiver could not tell the two apart, and the client had to
+                    // shallow-merge every `GAME_UPDATED` with a special case for `liveState`. That
+                    // made this the only non-idempotent merge in the system, and so the only reason
+                    // the client needed a replay log rather than stored state. A clock action is a
+                    // button press, not a tick: the clock runs locally off `lastStartedAt` (see
+                    // `useGameTimer`), so this fires a handful of times per match and the few extra
+                    // KB buys consistency cheaply. The compact tier is `publishGameSummary` below,
+                    // which is what every fixture list reads.
+                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
                     await publishGameSummary(result.id);
                 }
                 break;
@@ -1975,7 +2038,6 @@ io.on('connection', (socket) => {
                     const updatedGame = await dataManager.getGame(action.payload.gameId);
                     if (updatedGame) {
                         broadcast(`game:${action.payload.gameId}`, 'GAME_UPDATED', updatedGame);
-                        broadcast(`game:${action.payload.gameId}:detail`, 'GAME_UPDATED', updatedGame);
                     }
                     // A recorded score changes what every fixture list shows.
                     await publishGameSummary(action.payload.gameId);
@@ -2003,7 +2065,7 @@ io.on('connection', (socket) => {
                 const undoVoteRes = await gameEventManager.initiateUndoVote(action.payload.gameId, action.payload.eventIdToUndo, action.payload.initiatorId);
                 if (undoVoteRes.success) {
                     console.log(`Server: Broadcasting DISPUTE_STARTED (UNDO) for game ${action.payload.gameId}, dispute: ${undoVoteRes.dispute?.id}`);
-                    broadcast(`game:${action.payload.gameId}:events`, 'DISPUTE_STARTED', { eventId: action.payload.eventIdToUndo, gameId: action.payload.gameId, dispute: undoVoteRes.dispute });
+                    broadcast(gameDisputesRoom(action.payload.gameId), 'DISPUTE_STARTED', { eventId: action.payload.eventIdToUndo, gameId: action.payload.gameId, dispute: undoVoteRes.dispute });
                     result = undoVoteRes.dispute;
                 }
                 break;
@@ -2011,7 +2073,7 @@ io.on('connection', (socket) => {
                 const updateVoteRes = await gameEventManager.initiateUpdateVote(action.payload.gameId, action.payload.eventId, action.payload.initiatorId, action.payload.updateData);
                 if (updateVoteRes.success) {
                     console.log(`Server: Broadcasting DISPUTE_STARTED (UPDATE) for game ${action.payload.gameId}, dispute: ${updateVoteRes.dispute?.id}`);
-                    broadcast(`game:${action.payload.gameId}:events`, 'DISPUTE_STARTED', { eventId: action.payload.eventId, gameId: action.payload.gameId, dispute: updateVoteRes.dispute });
+                    broadcast(gameDisputesRoom(action.payload.gameId), 'DISPUTE_STARTED', { eventId: action.payload.eventId, gameId: action.payload.gameId, dispute: updateVoteRes.dispute });
                     result = updateVoteRes.dispute;
                 } else {
                     console.error(`Server: INITIATE_UPDATE_VOTE failed:`, updateVoteRes.error);
@@ -2021,7 +2083,7 @@ io.on('connection', (socket) => {
             case SocketAction.CAST_UPDATE_VOTE:
                 const castRes = await gameEventManager.castUpdateVote(action.payload.gameId, action.payload.disputeId, action.payload.officialId, action.payload.vote);
                 if (castRes.success) {
-                    broadcast(`game:${action.payload.gameId}:events`, 'DISPUTE_VOTE_UPDATED', { dispute: castRes.dispute });
+                    broadcast(gameDisputesRoom(action.payload.gameId), 'DISPUTE_VOTE_UPDATED', { dispute: castRes.dispute });
                 }
                 break;
             case SocketAction.UPDATE_GAME: {
@@ -2053,7 +2115,7 @@ io.on('connection', (socket) => {
                 result = await dataManager.updateGame(action.payload.id, action.payload.data);
                 if (result) {
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
-                    additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: eventFixturesRoom(result.eventId), type: 'GAME_UPDATED', data: result });
                     await publishGameSummary(result.id);
                 }
                 break;
@@ -2066,7 +2128,6 @@ io.on('connection', (socket) => {
                     if (result) {
                         const scoreDelta = { id: result.id, eventId: result.eventId, liveState: { scores: action.payload.scores } };
                         broadcast(`game:${result.id}`, 'GAME_UPDATED', scoreDelta);
-                        broadcast(`game:${result.id}:detail`, 'GAME_UPDATED', scoreDelta);
                         await publishGameSummary(result.id);
                     }
                 }
@@ -2077,7 +2138,6 @@ io.on('connection', (socket) => {
                     const updatedGame = await dataManager.getGame(action.payload.gameId);
                     if (updatedGame) {
                         broadcast(`game:${action.payload.gameId}`, 'GAME_UPDATED', updatedGame);
-                        broadcast(`game:${action.payload.gameId}:detail`, 'GAME_UPDATED', updatedGame);
                         await publishGameSummary(action.payload.gameId);
                     }
                 }
@@ -2092,7 +2152,7 @@ io.on('connection', (socket) => {
                     additionalBroadcasts.push({ topic: `game:${result.id}:events`, type: 'GAME_RESET', data: { gameId: result.id } });
                     additionalBroadcasts.push({ topic: `game:${result.id}:events`, type: 'GAME_EVENTS_SYNC', data: [] });
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
-                    additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: eventFixturesRoom(result.eventId), type: 'GAME_UPDATED', data: result });
                     await publishGameSummary(result.id);
                 }
                 break;
@@ -2126,7 +2186,7 @@ io.on('connection', (socket) => {
                 result = await dataManager.deleteGame(action.payload.id);
                 if (result) {
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_DELETED', data: { id: result.id } });
-                    additionalBroadcasts.push({ topic: `event:${result.eventId}`, type: 'GAME_DELETED', data: { id: result.id } });
+                    additionalBroadcasts.push({ topic: eventFixturesRoom(result.eventId), type: 'GAME_DELETED', data: { id: result.id } });
                     publishGameRemoved(result.id, deletedGameRooms);
                 }
                 break;
@@ -2165,7 +2225,7 @@ io.on('connection', (socket) => {
                         await createImplicitDivision(result);
                     }
                     publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_ADDED', result);
-                    additionalBroadcasts.push({ topic: `event:${result.id}`, type: 'EVENT_ADDED', data: result });
+                    additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_ADDED', data: result });
                     await broadcastOrgSummaries([result.orgId, ...(result.participatingOrgIds || [])]);
                 }
                 break;
@@ -2195,7 +2255,7 @@ io.on('connection', (socket) => {
                     const allAffectedOrgs = [...new Set([...oldOrgIds, ...newOrgIds])];
 
                     publishEventToOrgs(newOrgIds, 'EVENT_UPDATED', result);
-                    additionalBroadcasts.push({ topic: `event:${result.id}`, type: 'EVENT_UPDATED', data: result });
+                    additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_UPDATED', data: result });
 
                     // Also notify removed orgs that the event is gone for them
                     publishEventToOrgs(oldOrgIds.filter(id => !newOrgIds.includes(id)), 'EVENT_DELETED', { id: result.id });
@@ -2256,7 +2316,7 @@ io.on('connection', (socket) => {
                 result = await dataManager.addOrganization(action.payload);
                 if (result) {
                     if (action.payload.creatorId) {
-                        additionalBroadcasts.push({ topic: `user:${action.payload.creatorId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                        await publishUserMemberships(action.payload.creatorId);
                     }
                     await broadcastOrgSummaries([result.id]);
                 }
@@ -2270,9 +2330,19 @@ io.on('connection', (socket) => {
 
             case SocketAction.ADD_TEAM_MEMBER:
                 result = await dataManager.addTeamMember(action.payload);
-                // Broadcast ONLY to the team room
-                updateTopic = `team:${result.teamId}`;
-                updateType = 'TEAM_MEMBER_UPDATED';
+                // The whole roster, not the bare membership row. `addTeamMember` returns a
+                // `TeamMembership` - ids and dates - while a roster row is a `TeamMember`, joined
+                // to `org_profiles` for the name, image and contact details the screen renders.
+                // Publishing the narrow shape is what left the client re-reading `team_members` on
+                // every change, which is the nudge live-data rule 1 exists to remove.
+                // Published through `additionalBroadcasts` rather than `updateTopic`, because
+                // `result` must stay the membership row for the org-count logic below — and the
+                // generic publisher sends `result`, which is the wrong shape for this type.
+                additionalBroadcasts.push({
+                    topic: teamMembersRoom(result.teamId),
+                    type: 'TEAM_MEMBERS_SYNC',
+                    data: await dataManager.getTeamMembers(result.teamId),
+                });
                 
                 // ALSO Broadcast to the Org Team List (to update counts)
                 // We need to fetch the team to get the orgId.
@@ -2298,7 +2368,7 @@ io.on('connection', (socket) => {
                     
                     // Refresh memberships for the affected user
                     if (richMemberAdd.userId) {
-                        additionalBroadcasts.push({ topic: `user:${richMemberAdd.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                        await publishUserMemberships(richMemberAdd.userId);
                     }
                 }
                 if (teamForAdd) {
@@ -2308,19 +2378,24 @@ io.on('connection', (socket) => {
             case SocketAction.UPDATE_TEAM_MEMBER:
                 result = await dataManager.updateTeamMember(action.payload.id, action.payload.data);
                 if (result) {
-                    updateTopic = `team:${result.teamId}`;
-                    updateType = 'TEAM_MEMBER_UPDATED';
-                    // Re-fetch rich member data for broadcast
-                    const richMemberUpd = (await dataManager.getTeamMembers(result.teamId)).find((m: any) => m.membershipId === result.id);
-                    if (richMemberUpd) result = richMemberUpd;
+                    // Same reasoning as `ADD_TEAM_MEMBER`: the roster is the dataset this room
+                    // carries, so the whole roster is what it publishes.
+                    updateTopic = teamMembersRoom(result.teamId);
+                    updateType = 'TEAM_MEMBERS_SYNC';
+                    result = await dataManager.getTeamMembers(result.teamId);
                 }
                 break;
             case SocketAction.REMOVE_TEAM_MEMBER:
                 result = await dataManager.removeTeamMember(action.payload.id); 
                 if (result) {
-                    updateTopic = `team:${result.teamId}`;
-                    updateType = 'TEAM_MEMBER_UPDATED';
-                    
+                    // As in `ADD_TEAM_MEMBER`: the roster goes out here so `result` can stay the
+                    // membership row the org-count logic below reads.
+                    additionalBroadcasts.push({
+                        topic: teamMembersRoom(result.teamId),
+                        type: 'TEAM_MEMBERS_SYNC',
+                        data: await dataManager.getTeamMembers(result.teamId),
+                    });
+
                     // ALSO Broadcast to the Org Team List (to update counts)
                     const teamForRem = await dataManager.getTeam(result.teamId);
                     if (teamForRem) {
@@ -2353,7 +2428,7 @@ io.on('connection', (socket) => {
                         
                         // Broadcast to user room if linked to an account
                         if (richMember.userId) {
-                            additionalBroadcasts.push({ topic: `user:${richMember.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                            await publishUserMemberships(richMember.userId);
                             
                             // Send notification
                             const org = await dataManager.getOrganization(action.payload.orgId);
@@ -2367,7 +2442,7 @@ io.on('connection', (socket) => {
                                     `/admin/organizations/${org.id}`
                                 );
                                 if (notification) {
-                                    broadcast(`user:${richMember.userId}`, 'NOTIFICATION_ADDED', notification);
+                                    broadcast(userNotificationsRoom(richMember.userId), 'NOTIFICATION_ADDED', notification);
                                 }
                             }
                         }
@@ -2397,7 +2472,7 @@ io.on('connection', (socket) => {
                     // Refresh memberships for the affected user
                     const profile = await dataManager.getOrgProfile(orgMembershipToRem.orgProfileId);
                     if (profile && profile.userId) {
-                        additionalBroadcasts.push({ topic: `user:${profile.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                        await publishUserMemberships(profile.userId);
                     }
 
                     updateTopic = `org:${orgMembershipToRem.orgId}:members`;
@@ -2513,7 +2588,7 @@ io.on('connection', (socket) => {
             case SocketAction.CLAIM_ORG:
                 result = await dataManager.claimOrganization(action.payload.id, action.payload.userId);
                  if (result) {
-                    additionalBroadcasts.push({ topic: `user:${action.payload.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                    await publishUserMemberships(action.payload.userId);
                     
                     const role = await dataManager.getOrganizationRole('role-org-admin');
                     const notification = await dataManager.createNotification(
@@ -2524,7 +2599,7 @@ io.on('connection', (socket) => {
                         `/admin/organizations/${result.id}`
                     );
                     if (notification) {
-                        broadcast(`user:${action.payload.userId}`, 'NOTIFICATION_ADDED', notification);
+                        broadcast(userNotificationsRoom(action.payload.userId), 'NOTIFICATION_ADDED', notification);
                     }
 
                     await broadcastOrgSummaries([result.id]);
@@ -2533,7 +2608,7 @@ io.on('connection', (socket) => {
             case SocketAction.CLAIM_ORG_VIA_TOKEN:
                 result = await dataManager.claimOrgViaToken(action.payload.token, action.payload.userId);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `user:${action.payload.userId}`, type: 'USER_MEMBERSHIPS_UPDATED', data: {} });
+                    await publishUserMemberships(action.payload.userId);
                     
                     const role = await dataManager.getOrganizationRole('role-org-admin');
                     const notification = await dataManager.createNotification(
@@ -2544,7 +2619,7 @@ io.on('connection', (socket) => {
                         `/admin/organizations/${result.id}`
                     );
                     if (notification) {
-                        broadcast(`user:${action.payload.userId}`, 'NOTIFICATION_ADDED', notification);
+                        broadcast(userNotificationsRoom(action.payload.userId), 'NOTIFICATION_ADDED', notification);
                     }
 
                     await broadcastOrgSummaries([result.id]);
@@ -2823,7 +2898,7 @@ io.on('connection', (socket) => {
                     action.payload.facilityIds || []
                 );
                 result = { eventId: action.payload.eventId, facilityIds: eventFacilityIds };
-                broadcast(`event:${action.payload.eventId}`, 'EVENT_FACILITIES_SYNC', result);
+                broadcast(eventFacilitiesRoom(action.payload.eventId), 'EVENT_FACILITIES_SYNC', result);
                 break;
             }
 
@@ -2873,7 +2948,19 @@ io.on('connection', (socket) => {
                     action.payload.facilityIds || []
                 );
                 result = { divisionId: action.payload.divisionId, facilityIds: divisionFacilityIds };
-                broadcast(divisionFixturesRoom(action.payload.divisionId), 'DIVISION_FACILITIES_SYNC', result);
+                broadcast(divisionFacilitiesRoom(action.payload.divisionId), 'DIVISION_FACILITIES_SYNC', result);
+
+                // The division itself carries `facilityIds` now, and the event screen lists every
+                // division with the fields it uses — so the event room has to hear about this too,
+                // or that list goes stale the moment a convenor narrows their own division
+                // (`LIVE-8`, again). Republishing the division serves both rooms with one shape.
+                const facilitiesDivision = await dataManager.getDivision(action.payload.divisionId);
+                if (facilitiesDivision) {
+                    broadcast(divisionRoom(action.payload.divisionId), 'DIVISION_UPDATED', facilitiesDivision);
+                    if (facilitiesDivision.eventId) {
+                        broadcast(eventDivisionsRoom(facilitiesDivision.eventId), 'DIVISION_UPDATED', facilitiesDivision);
+                    }
+                }
                 break;
             }
 
@@ -2909,10 +2996,8 @@ io.on('connection', (socket) => {
             }
         }
 
-        additionalBroadcasts.forEach(b => {
-             broadcast(b.topic, b.type, b.data);
-             console.log(`Broadcasted ${b.type} to ${b.topic}`);
-        });
+        // `broadcast()` logs each publish itself (wss/socketLog.ts), so there is no line here.
+        additionalBroadcasts.forEach(b => broadcast(b.topic, b.type, b.data));
 
         if (callback) callback({ status: 'ok', data: result });
 

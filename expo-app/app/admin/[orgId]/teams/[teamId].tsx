@@ -194,27 +194,23 @@ export default function TeamDetailsScreen() {
 
     loadWorkspaceData();
 
-    // Rooms Subscriptions
+    // Rooms Subscriptions — one per dataset (rule 4).
     const teamRoom = `team:${teamId}`;
+    const rosterRoom = `team:${teamId}:members`;
     const teamsRoom = `org:${orgId}:teams`;
-    // Games arrive on the org's fixtures room - there is no separate games
-    // room, and nothing ever published to the one that used to be joined here.
-    const fixturesRoom = `org:${orgId}:events`;
-
-    const unsubscribeTeam = wsService.subscribeToRoom(teamRoom);
-    const unsubscribeTeams = wsService.subscribeToRoom(teamsRoom);
-    const unsubscribeGames = wsService.subscribeToRoom(fixturesRoom);
+    // Game summaries are `org:{id}:fixtures`; `org:{id}:events` is the `Event` records only.
+    const fixturesRoom = `org:${orgId}:fixtures`;
 
     const handleUpdate = (event: any) => {
       if (!active) return;
       if (!event) return;
 
-      // Realtime team details or roster membership update
-      if (event.type === 'TEAM_MEMBER_UPDATED' || event.type === 'TEAM_MEMBERS_SYNC' || event.topic === teamRoom) {
-        wsService.emit('get_data', { type: 'team_members', teamId }, (res: any) => {
-          if (!active) return;
-          if (Array.isArray(res)) setRoster(res);
-        });
+      // The roster arrives whole, on join and on every change, so this is a merge rather than a
+      // nudge to re-read it (live-data rule 1). The server used to publish `TEAM_MEMBER_UPDATED`
+      // carrying a bare `TeamMembership`, which could not be merged into a list of `TeamMember`
+      // rows — hence the `get_data team_members` that used to sit here.
+      if (event.topic === rosterRoom && event.type === 'TEAM_MEMBERS_SYNC' && Array.isArray(event.data)) {
+        setRoster(event.data);
       }
 
       if (event.type === 'TEAM_UPDATED' && event.data?.id === teamId) {
@@ -255,11 +251,17 @@ export default function TeamDetailsScreen() {
       }
     };
 
+    // Listen first, then hold each room with the reducer as its replay handler (`LIVE-9`).
     wsService.on('update', handleUpdate);
+    const unsubscribeTeam = wsService.subscribeToRoom(teamRoom, handleUpdate);
+    const unsubscribeRoster = wsService.subscribeToRoom(rosterRoom, handleUpdate);
+    const unsubscribeTeams = wsService.subscribeToRoom(teamsRoom, handleUpdate);
+    const unsubscribeGames = wsService.subscribeToRoom(fixturesRoom, handleUpdate);
 
     return () => {
       active = false;
       unsubscribeTeam();
+      unsubscribeRoster();
       unsubscribeTeams();
       unsubscribeGames();
       wsService.off('update', handleUpdate);

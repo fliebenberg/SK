@@ -7,6 +7,7 @@ import { GlassCard } from '../../../../components/GlassCard';
 import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
+import DatePicker from '../../../../components/DatePicker';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
 import { useAuthStore } from '../../../../store/authStore';
@@ -82,20 +83,83 @@ export default function OrgEventsList() {
   const [roleFilter, setRoleFilter] = useState<EventRole[]>([]);
   const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  /*
+    Creating a tournament (U45).
+
+    There is no wizard. A tournament is not built in one sitting — the name and the date are known
+    in March and everything else lands over the following weeks — so the only thing asked here is
+    what the list has to show, and the Setup screen is the form for the rest. The old create screen
+    demanded a venue, a facility and a sport before it would write anything, which is more than an
+    organiser knows on the day they decide to run it.
+  */
+  const [isNamingTournament, setIsNamingTournament] = useState(false);
+  const [newTournamentName, setNewTournamentName] = useState('');
+  const [newTournamentDate, setNewTournamentDate] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  /**
-   * One room holds an org's whole fixture list: the events, and a summary of
-   * every game under them. Joining it pushes both, so there is no `get_data`
-   * here at all - the subscription IS the load, and every later change arrives
-   * carrying its own data rather than as a nudge to re-read the list.
-   *
-   * The room's audience is the hosting org plus every org playing in it, so a
-   * visiting school sees the same live fixture the host does.
-   */
-  const fixturesRoom = orgId ? `org:${orgId}:events` : null;
+  const openTournamentPrompt = () => {
+    const today = new Date();
+    setNewTournamentName('');
+    setNewTournamentDate(
+      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
+        today.getDate()
+      ).padStart(2, '0')}`
+    );
+    setIsNamingTournament(true);
+  };
 
-  const { items: events, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(fixturesRoom, {
+  /**
+   * Write the shell and go straight to it.
+   *
+   * `Festival` is the format that assumes least about structure (D1) and the Setup screen changes
+   * it; the server creates the first division and its stages from it (U16), so a tournament is
+   * never in a state where a fixture has nowhere to live. Landing on the new tournament rather
+   * than back on this list is half the point of the change — the old screen made you find what
+   * you had just created.
+   */
+  const handleCreateTournament = () => {
+    const name = newTournamentName.trim();
+    if (!name || !newTournamentDate) return;
+    setIsProcessing(true);
+    wsService.emit(
+      'action',
+      {
+        type: SocketAction.ADD_EVENT,
+        payload: {
+          name,
+          type: 'Tournament',
+          format: 'Festival',
+          startDate: `${newTournamentDate}T12:00:00.000Z`,
+          orgId,
+          status: 'Scheduled',
+        },
+      },
+      (res: any) => {
+        setIsProcessing(false);
+        // The `action` ack is `{ status, data }` and `emit` passes it through unchanged, so
+        // `res.id` is always undefined and always quiet about it (`FIX-13`).
+        const newId = res?.data?.id;
+        if (!newId) return;
+        setIsNamingTournament(false);
+        router.push(`/admin/${orgId}/events/${newId}`);
+      }
+    );
+  };
+
+  /**
+   * Two rooms, because they are two datasets (rule 4): `org:{id}:events` holds the `Event` records
+   * and `org:{id}:fixtures` the `GameSummary` of every game under them. They were one room until
+   * 2026-09-11, which meant an events list that never rendered a score still paid for every game
+   * in the org on join. Joining either IS the load - there is no `get_data` here at all, and every
+   * later change arrives carrying its own data rather than as a nudge to re-read.
+   *
+   * The audience is the hosting org plus every org playing in it, so a visiting school sees the
+   * same live fixture the host does.
+   */
+  const eventsRoom = orgId ? `org:${orgId}:events` : null;
+  const fixturesRoom = orgId ? `org:${orgId}:fixtures` : null;
+
+  const { items: events, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(eventsRoom, {
     reduce: (message) => {
       switch (message.type) {
         case 'EVENTS_SYNC':
@@ -873,7 +937,7 @@ export default function OrgEventsList() {
                 className="flex-row items-center p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-white/10"
                 onPress={() => {
                   setIsAddMenuVisible(false);
-                  router.push(`/admin/${orgId}/events/create?type=game`);
+                  router.push(`/admin/${orgId}/events/create`);
                 }}
               >
                 <View className="w-10 h-10 rounded-full bg-brand-orange/15 items-center justify-center mr-4">
@@ -893,7 +957,7 @@ export default function OrgEventsList() {
                 className="flex-row items-center p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-white/10"
                 onPress={() => {
                   setIsAddMenuVisible(false);
-                  router.push(`/admin/${orgId}/events/create?type=tournament`);
+                  openTournamentPrompt();
                 }}
               >
                 <View className="w-10 h-10 rounded-full bg-brand-green/15 items-center justify-center mr-4">
@@ -904,13 +968,79 @@ export default function OrgEventsList() {
                     Create Tournament
                   </Text>
                   <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    A sports day, a league round or a knockout — you pick the format next
+                    Name it and pick a date — everything else is set up on the tournament itself
                   </Text>
                 </View>
               </TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* NAME A NEW TOURNAMENT (U45) — the whole of creation. */}
+      <Modal
+        visible={isNamingTournament}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsNamingTournament(false)}
+      >
+        <View className="flex-1 bg-black/60 justify-center px-6">
+          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl space-y-4">
+            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider">
+              New Tournament
+            </Text>
+
+            <View className="space-y-1.5">
+              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Name
+              </Text>
+              <TextInput
+                value={newTournamentName}
+                onChangeText={setNewTournamentName}
+                autoFocus
+                placeholder="e.g. Winter Sevens 2026"
+                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+              />
+            </View>
+
+            <View className="space-y-1.5">
+              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Starts
+              </Text>
+              <DatePicker value={newTournamentDate} onChange={setNewTournamentDate} />
+            </View>
+
+            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+              Venues, sports, divisions and entrants are all set up on the tournament itself, in
+              whatever order they are settled.
+            </Text>
+
+            <View className="flex-row gap-2">
+              <TouchableOpacity
+                onPress={() => setIsNamingTournament(false)}
+                className="flex-1 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 items-center active:opacity-80"
+              >
+                <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase">
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleCreateTournament}
+                disabled={!newTournamentName.trim() || !newTournamentDate || isProcessing}
+                className={`flex-1 py-2.5 rounded-lg bg-brand-orange items-center active:opacity-85 ${
+                  !newTournamentName.trim() || !newTournamentDate || isProcessing ? 'opacity-40' : ''
+                }`}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text className="font-inter-bold text-xs text-white uppercase">Create</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Confirmation Modal for Deleting Events */}

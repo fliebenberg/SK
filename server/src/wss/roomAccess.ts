@@ -55,7 +55,10 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
 
   switch (kind) {
     case 'user':
-      if (sub) return null;
+      // Rule 4: the user room was three datasets in one — notifications, memberships and event
+      // capabilities. Each is its own room now, and the bare name is no longer joinable, so a
+      // screen cannot accidentally subscribe to all three by asking for none of them.
+      if (sub !== 'notifications' && sub !== 'memberships' && sub !== 'capabilities') return null;
       return { access: 'self', selfId: id };
 
     case 'org':
@@ -67,6 +70,9 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // Fixtures, venues, teams and competitions are public information.
         case 'summary':
         case 'events':
+        // The game summaries under those events — `org:{id}:events` used to carry both, which is
+        // the rule 4 violation a fixtures list pays for: it wants this half and not the other.
+        case 'fixtures':
         case 'teams':
         case 'sites':
         case 'facilities':
@@ -77,8 +83,9 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       }
 
     case 'team':
-      // The roster is personal data, and often a minor's.
-      if (sub) return null;
+      // The roster is personal data, and often a minor's — so it is `member` like the team record,
+      // but a separate room (rule 4), because a team picker wants the name and not the children.
+      if (sub && sub !== 'members') return null;
       return {
         access: 'member',
         orgsFor: async () => {
@@ -92,11 +99,14 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // The summary tier is the spectator view: score, clock, status, teams.
         case 'summary':
           return { access: 'public' };
-        // The base room carries rosters; `:events` and `:detail` carry the
-        // granular scoring feed and open disputes. All three are internal.
+        // The base room carries the full game; `:events` the scoring feed and `:disputes` the
+        // open disputes. All three are internal. `:detail` was a second name for the base room and
+        // was removed 2026-09-11 under rule 4 — one dataset, one room, one name.
         case undefined:
-        case 'detail':
         case 'events':
+        // Open disputes were pushed to `game:{id}:events` alongside the scoring feed — two datasets,
+        // one room. Same tier: a dispute names who raised it.
+        case 'disputes':
           return {
             access: 'member',
             orgsFor: async () => {
@@ -123,6 +133,11 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
       // school that has not confirmed yet; neither is spectator information. A convenor holds no
       // membership of the hosting org, so the grant is the other way in — exactly as it is for
       // `division:{id}`.
+      // The event room used to carry five datasets. These four are the public ones, split out by
+      // rule 4; the roster below is `member` and was already separate.
+      if (sub === 'fixtures' || sub === 'divisions' || sub === 'facilities' || sub === 'standings') {
+        return { access: 'public' };
+      }
       if (sub === 'entrants') {
         return {
           access: 'member',
@@ -156,12 +171,30 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // to be able to name the stage a fixture is in.
         case 'fixtures':
         case 'standings':
+        // Split out of `division:{id}:fixtures`, which carried four datasets. A draw and a table are
+        // spectator information, and so are the stages they sit in and the venues they use.
+        case 'stages':
+        case 'facilities':
           return { access: 'public' };
         // The base room is the organiser's tier: the roster, pool membership, and the manual
         // points adjustments — which carry a reason written by a person ("ineligible player") and
         // the author's id. An entrant may also *be* a person rather than a team, so a roster here
         // is the same kind of data as `team:{id}`, and gets the same level.
+        // **Tier change, 2026-09-11, and it is a restoration rather than a widening.** The base
+        // room is now the division *record*, and that record was already public: it was pushed to
+        // the public `division:{id}:fixtures` room as `DIVISION_UPDATED` before the split. Leaving
+        // it at `member` would have taken the division's name away from the spectator reading its
+        // draw.
         case undefined:
+          return { access: 'public' };
+        // The roster, the pool membership and the manual adjustments: three datasets that shared the
+        // base room, now one room each (rule 4). All `member` for the reason the base room was — an
+        // entrant may be a person, and an adjustment carries a reason somebody wrote and their id.
+        // `stage_entrants` keeps the division scope rather than becoming `stage:{id}:entrants`,
+        // because the screen reads every stage at once.
+        case 'entrants':
+        case 'adjustments':
+        case 'stage_entrants':
           return {
             access: 'member',
             orgsFor: async () => {

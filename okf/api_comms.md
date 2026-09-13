@@ -93,6 +93,10 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     `fixtures.ts` (who hears about a fixture change), `tournaments.ts` (who hears about a division
     change), `tournamentGate.ts` (the one authorization gate every tournament write passes) and
     `batch.ts` (the batch contract).
+*   **Room inventory**: [okf/live_rooms.md](file:///c:/Fred/Coding/SK/okf/live_rooms.md) lists all
+    23 joinable rooms in one table — access tier, join push, what is published afterwards, and the
+    merge class of every message type. Consult it before adding a room, a broadcast or a reducer;
+    the notes below cover the reasoning behind particular rooms, not the full set.
 *   **Tournament writes**: [TournamentManager](file:///c:/Fred/Coding/SK/server/src/managers/TournamentManager.ts)
     owns divisions, stages, entrants, generation, scheduling — and `recalculateForGame`, **the one
     function that rewrites a standings table**. Every path that changes a result routes through
@@ -105,6 +109,13 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     also gets in, without any membership at all — otherwise they would be given a division to run
     and refused its roster. `event:{id}:entrants` is the event-level counterpart of the third one,
     at the same tier; `event:{id}` itself stays public.
+*   **The event room hands over its facilities too** (U47). `event:{id}` pushes
+    `EVENT_FACILITIES_SYNC` on join beside the event, its fixture summaries and its divisions
+    — the set of fields the tournament may use, which `SET_EVENT_FACILITIES` had always published
+    there on change without anything pushing it on join. A division's own subset travels **on the
+    division** (`facilityIds`), so `SET_DIVISION_FACILITIES` republishes the division to the event
+    room as well as its own: the event screen lists every division with the fields it uses, and a
+    convenor narrowing their division must not leave that list stale (`LIVE-8`).
 *   **Every recalculation republishes the stages** (Phase 6). The choke point calls
     `refreshStageStatus`, so a result can move a stage from `Ready` to `InProgress` or to
     `Complete` — and the stage tabs put that status in their sublabel. `publishRecalculation` now

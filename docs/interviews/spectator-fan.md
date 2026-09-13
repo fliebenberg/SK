@@ -166,6 +166,14 @@ questions to read aloud.
 1. Is there anything you would not want visible to people outside the school or club?
 1. Have you ever been asked to give or withhold permission for any of this?
 1. Would you want to control who can see what, or would you rather the school just decided?
+1. Are the **name and the photograph** two different answers for you, or the same one?
+   - *They were asked about each separately above. This asks whether they would actually decide them
+     differently — the product treats them as separate permissions and nothing has tested that.*
+1. If the school allowed it, would you want to be able to say no **just for your child**?
+   - And the other way round — if the school did not allow it, would you want to be able to opt in?
+   - Who should have the final say if you and the school disagree?
+1. Would your answer be the same at the school and at a club they play for?
+   - *Consent is held per organisation. This asks whether that matches how they think about it.*
 
 ## 9. Apps and attention
 

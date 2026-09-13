@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EventCapabilities, EventGrants } from '@sk/shared';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
@@ -17,9 +17,10 @@ import { useAuthStore } from '../store/authStore';
  * - **The identity is the socket's**, proven by the handshake. There is no way to ask what somebody
  *   else may do, which is why the request carries no user id.
  *
- * Refreshed on `EVENT_CAPABILITIES_UPDATED`, which the server pushes to `user:{id}` when a grant
- * changes — the room the root layout already joined. A withdrawn convenor's controls disappear at
- * once rather than at their next reconnect.
+ * Refreshed on `EVENT_CAPABILITIES_UPDATED`, which the server pushes to `user:{id}:capabilities`
+ * when a grant changes. That room is held here rather than by the root layout: it is one dataset
+ * of its own (rule 4), and the hook that depends on it is the honest place to hold it. A withdrawn
+ * convenor's controls disappear at once rather than at their next reconnect.
  */
 export function useEventCapabilities(eventId?: string | null) {
   const isConnected = useWsStore((state: any) => state.isConnected);
@@ -58,8 +59,10 @@ export function useEventCapabilities(eventId?: string | null) {
     };
 
     wsService.on('update', handleUpdate);
+    const unsubscribe = wsService.subscribeToRoom(`user:${userId}:capabilities`, handleUpdate);
     return () => {
       active = false;
+      unsubscribe();
       wsService.off('update', handleUpdate);
     };
   }, [isConnected, eventId, userId]);
@@ -81,17 +84,16 @@ const EMPTY_GRANTS: EventGrants = { eventIds: [], divisions: [] };
  * This is display only. Every write is gated server-side regardless of what a chip says, and the
  * event screen still asks `event_capabilities` for the authoritative answer before showing a
  * control.
+ *
+ * `user:{id}:capabilities` hands the grants over on join and republishes them whenever one changes,
+ * so this issues no query at all (rule 2) and never re-reads on a notification (rule 1). It used to
+ * do both: a `get_data my_event_grants` per mounted consumer, repeated on every
+ * `EVENT_CAPABILITIES_UPDATED` — two reads on a single screen open, and more as consumers mounted.
  */
 export function useMyEventGrants() {
   const isConnected = useWsStore((state: any) => state.isConnected);
   const userId = useAuthStore((state: any) => state.user?.id);
   const [grants, setGrants] = useState<EventGrants>(EMPTY_GRANTS);
-
-  const load = useCallback(() => {
-    wsService.emit('get_data', { type: 'my_event_grants' }, (res: any) => {
-      setGrants(res && Array.isArray(res.eventIds) ? res : EMPTY_GRANTS);
-    });
-  }, []);
 
   useEffect(() => {
     if (!isConnected || !userId) {
@@ -100,23 +102,25 @@ export function useMyEventGrants() {
     }
 
     let active = true;
-    const refresh = () => {
-      if (active) load();
-    };
-    refresh();
+    const room = `user:${userId}:capabilities`;
 
-    // The push carries capabilities for *one* event, and this holds grants across all of them, so
-    // the whole set is re-read rather than patched. One query, only when a grant actually changes.
     const handleUpdate = (message: any) => {
-      if (message?.type === 'EVENT_CAPABILITIES_UPDATED') refresh();
+      if (!active || message?.topic !== room) return;
+      if (message.type === 'EVENT_GRANTS_SYNC') {
+        setGrants(message.data && Array.isArray(message.data.eventIds) ? message.data : EMPTY_GRANTS);
+      } else if (message.type === 'ROOM_ACCESS_DENIED' || message.type === 'ROOM_ACCESS_REVOKED') {
+        setGrants(EMPTY_GRANTS);
+      }
     };
 
     wsService.on('update', handleUpdate);
+    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
     return () => {
       active = false;
+      unsubscribe();
       wsService.off('update', handleUpdate);
     };
-  }, [isConnected, userId, load]);
+  }, [isConnected, userId]);
 
   return grants;
 }

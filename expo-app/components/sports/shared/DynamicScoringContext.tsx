@@ -119,15 +119,19 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   const homeTeamId = game.participants?.[0]?.teamId;
   const awayTeamId = game.participants?.[1]?.teamId;
 
-  // 1. WebSocket room subscriptions
+  // 1. WebSocket room subscriptions — three datasets, three rooms (rule 4). Open disputes left
+  // `game:{id}:events` on 2026-09-11; a screen wanting only the scoring feed no longer receives
+  // them, and this one wants both so it holds both.
   useEffect(() => {
     if (!game.id) return;
     const unsubscribeRoom = wsService.subscribeToRoom(`game:${game.id}`);
     const unsubscribeEventsRoom = wsService.subscribeToRoom(`game:${game.id}:events`);
+    const unsubscribeDisputesRoom = wsService.subscribeToRoom(`game:${game.id}:disputes`);
 
     return () => {
       unsubscribeRoom();
       unsubscribeEventsRoom();
+      unsubscribeDisputesRoom();
     };
   }, [game.id]);
 

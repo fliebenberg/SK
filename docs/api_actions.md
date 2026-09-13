@@ -482,7 +482,7 @@ something up is a screen that makes N round trips and then renders a stale answe
 | --- | --- | --- |
 | `Event` | `participatingOrgs` — `{ id, name, shortName }[]` | `FIX-2`. The event screen used to read *every organisation in the system* to name a handful, and kept the answer only `if (Array.isArray(res))`, which a paginated response never satisfies, so it named none of them. Displaying orgs already in an event is data a room owns. |
 | `GameSummary` / `Game` | `stageId`, `divisionId` | A division's fixture list has to say which stage a fixture is in, and a client-side permission check has to know which division it belongs to — a convenor's grant is scoped to exactly that id, so without it the screen hides the scoring control from somebody the server would let through. `divisionId` is derived through `division_stages`, never stored twice. |
-| `Event.settings` | `dismissedSetupSteps` | Which setup-checklist steps the organiser has put away (U17). On the event rather than per viewer: a step that does not apply does not apply for anybody organising it. |
+| `Event.settings` | `dismissedSetupSteps` | Which setup-checklist steps the organiser has put away (U17), written from the step's own screen (U48). On the event rather than per viewer: a step that does not apply does not apply for anybody organising it. A key here that matches no current step is ignored, not an error — `schedule` was dropped in U48 and events that dismissed it still carry it. Any write must **spread the existing `settings`**, because `UPDATE_EVENT` replaces the column. |
 
 And one new read:
 

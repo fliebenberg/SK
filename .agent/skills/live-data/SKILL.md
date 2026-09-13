@@ -5,7 +5,7 @@ description: How real-time data reaches a client — rooms as the read boundary,
 
 # Live Data & Subscriptions
 
-Three rules. All three are load-bearing; breaking any one of them has already caused a
+Four rules. All four are load-bearing; breaking any one of them has already caused a
 bug in this repo.
 
 ## 1. A broadcast carries the data. It is never a nudge to refetch.
@@ -30,8 +30,13 @@ if (msg.type === 'GAME_SUMMARY_UPDATED') {
 }
 ```
 
-**Send the whole object, not a patch.** The one deliberate exception is the game clock
-delta, which predates this rule.
+**Send the whole object, not a patch.** There are no exceptions left. The game clock used to be
+one — `UPDATE_GAME_CLOCK` published a hand-built partial under the `GAME_UPDATED` type name that
+elsewhere carries a whole `Game`, so no receiver could tell them apart — and it was the only
+non-idempotent merge in the system, which is what forced the client to replay a message log instead
+of keeping state. It now sends the whole game (`LIVE-16`). A clock action is a button press, not a
+tick: the clock runs locally off `lastStartedAt` (`useGameTimer`), so the server hears from it a
+handful of times per match.
 
 ## 2. Joining a room *is* the initial load.
 
@@ -87,6 +92,65 @@ membership gets this for free, as long as it publishes that message.
 A membership that lapses purely on the clock (a future-dated `end_date` passing) executes no code
 and so is *not* caught at that instant; it is picked up at the socket's next reconnect, since every
 reconnect re-joins every room through this same check. That is deliberate — see `LIVE-5`.
+
+## 4. One room, one dataset.
+
+A room is a **subscription unit**: one collection, or one record, at one scope, at one access
+tier. If a screen would want half of what a room carries, it is two rooms.
+
+The naming grammar follows from that, and every room name obeys it:
+
+| Shape | Means | Examples |
+| --- | --- | --- |
+| `{entity}:{id}` | the record itself | `site:{id}`, `event:{id}`, `division:{id}` |
+| `{entity}:{id}:{collection}` | one collection belonging to it | `org:{id}:teams`, `event:{id}:fixtures`, `user:{id}:notifications` |
+
+`classifyRoom` refuses anything with more than three segments, so a collection of a collection is
+named with an underscore (`division:{id}:stage_entrants`) rather than a fourth segment.
+
+**Why, concretely.** `event:{id}` used to carry five datasets — the event, its fixtures, its
+divisions, its facilities and its standings table. The entrants screen joins it wanting two of
+them and was handed all five, so three server queries ran per join for data nothing read. Worse,
+the room name told you nothing about what you had subscribed to: five `useLiveRoom` calls on one
+string, each reducer claiming its own types and ignoring the rest, and no way to see from the
+outside which screen depended on which half.
+
+### Scope is a design decision, not a mechanical one
+
+"One dataset" fixes what a room carries. It does **not** tell you how widely to scope it, and
+getting that wrong is the opposite failure — a room per row means a join per row.
+
+`event:{id}:entrants` is the worked example. It carries the whole tournament's roster, every
+division at once, because the entry screens work two axes over it (*who is in the u14 rugby?* and
+*what is Northcliff entering?*). Scoping it per division would be correct by the letter of the rule
+and fifteen joins on one screen open. Same reasoning keeps `division:{id}:stage_entrants` at the
+division rather than at the stage.
+
+So: **scope a collection at the level screens read it as a unit.** One dataset, at the widest scope
+any screen wants whole.
+
+### A different access tier is always a different room
+
+Implied by rule 3 but worth stating, because it is the one split you cannot defer: if part of a
+collection is spectator-visible and part is not, they are two rooms. `game:{id}:summary` is
+`public` and `game:{id}` is `member` for exactly this reason (`LIVE-4`). A room cannot hand over
+"most of" its dataset to a viewer with a lower tier — the push is all or nothing.
+
+This is also the forward-looking argument for splitting early. Everything in an event was `public`
+when it was one room; the moment one slice needs a tier of its own, it has to become a room, and
+doing it then means changing publishers and screens under pressure.
+
+### Adding a room
+
+1. Declare it in `classifyRoom` with its access tier — an undeclared name is refused.
+2. Give it a join push in the `join_room` handler. A joinable room that pushes nothing starts every
+   screen empty (`LIVE-14`).
+3. Give it a publisher. A room that hands data over on join and never republishes goes stale the
+   moment anything changes (`FIX-4`, `LIVE-8`).
+4. Add it to [okf/live_rooms.md](file:///c:/Fred/Coding/SK/okf/live_rooms.md), which is the one
+   place all three of those are listed together.
+
+Steps 2 and 3 are the ones that get forgotten, and both fail silently.
 
 ## `get_data` is the other half of the read boundary
 

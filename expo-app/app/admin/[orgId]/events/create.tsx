@@ -1,502 +1,148 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, Switch } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../components/GlassCard';
-import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import DatePicker from '../../../../components/DatePicker';
-import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
-import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Event, EVENT_FORMATS, EventFormat, Sport, Site, Team, Organization, Facility } from '@sk/shared';
+import { SocketAction } from '@sk/shared';
 import { useAuthStore } from '../../../../store/authStore';
-import { COLORS, getThemeColor } from '../../../../constants/Colors';
-import { NominationModal } from '@/components/NominationModal';
-import { UnclaimedOrgBadge } from '@/components/UnclaimedOrgBadge';
-import CustomSelect from '../../../../components/CustomSelect';
-import MatchForm from '../../../../components/MatchForm';
+import { COLORS } from '../../../../constants/Colors';
+import MatchForm, { MatchFormData } from '../../../../components/MatchForm';
 
+/**
+ * Scheduling **one match** — which is now the only thing this screen does (U45).
+ *
+ * It used to serve tournaments as well, and for them it was a mistake: a tournament is not built
+ * in one sitting, so a form that refused to write anything until it had a name, a venue, a
+ * facility and a sport asked for more than an organiser knows in March, and then dropped them back
+ * on the events list to go and find what they had just made. Creating a tournament is now a name
+ * and a date on that list, and the Setup screen is the form.
+ *
+ * A single match is the opposite case and keeps its form: two teams and a kickoff time are settled
+ * in one sitting, and the thing is complete the moment it is saved. Everything it asks lives in
+ * [`<MatchForm>`](file:///c:/Fred/Coding/SK/expo-app/components/MatchForm.tsx), which the edit
+ * screen mounts too — so what is left here is the save: a `SingleMatch` event, the one game inside
+ * it, and any referrals the form collected on the way.
+ */
 export default function CreateEvent() {
-  const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId, type } = useLocalSearchParams<{ orgId: string, type: 'game' | 'tournament' }>();
-  const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore((state: any) => state.isConnected);
+  const { orgId } = useLocalSearchParams<{ orgId: string }>();
 
-  // Form Loading States
   const [isProcessing, setIsProcessing] = useState(false);
-  const [org, setOrg] = useState<Organization | null>(null);
-  const [sports, setSports] = useState<Sport[]>([]);
-  const [sites, setSites] = useState<Site[]>([]);
-  const [homeTeams, setHomeTeams] = useState<Team[]>([]);
+  const [form, setForm] = useState<MatchFormData | null>(null);
 
-  // Base Form Fields
-  const [eventName, setEventName] = useState('');
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  });
-  const [isMultiDay, setIsMultiDay] = useState(false);
-  const [endDate, setEndDate] = useState('');
-  const [selectedSiteId, setSelectedSiteId] = useState('');
-  const [facilities, setFacilities] = useState<Facility[]>([]);
-  const [selectedFacilityId, setSelectedFacilityId] = useState('');
-  const [newOrgContactEmail, setNewOrgContactEmail] = useState('');
+  const isFormValid = () =>
+    !!form?.homeTeamId && !!form?.awayTeamId && !!form?.sportId && !!form?.siteId;
 
-  const [isCreatingTeam, setIsCreatingTeam] = useState(false);
-  const [newTeamName, setNewTeamName] = useState('');
-  const [newTeamShortName, setNewTeamShortName] = useState('');
-  const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('Open');
-  const [targetOrgIdForTeam, setTargetOrgIdForTeam] = useState('');
-
-  const [pendingReferrals, setPendingReferrals] = useState<Record<string, string | string[]>>({});
-  // `pendingReferrals` is the match path's: `MatchForm` collects them and they go out on save.
-  // The tournament path's unclaimed orgs use `UnclaimedOrgBadge` on the chip instead, which sends
-  // the invitation itself. The hovered chip is tracked so its hint can sit above its neighbours.
-  const [hoveredClaimOrgId, setHoveredClaimOrgId] = useState<string | null>(null);
-
-  // Tournament fields
-  //
-  // `Festival` is the default because it assumes least about structure — the same reason the
-  // tournaments migration gave it to every container event that already existed (D1).
-  const [selectedFormat, setSelectedFormat] = useState<EventFormat>('Festival');
-  const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
-  const [participatingOrgs, setParticipatingOrgs] = useState<Organization[]>([]);
-  const [orgSearchText, setOrgSearchText] = useState('');
-  const [searchedOrgs, setSearchedOrgs] = useState<Organization[]>([]);
-  const [isSearchingOrgs, setIsSearchingOrgs] = useState(false);
-
-  // Single Game Fields
-  const [selectedSportId, setSelectedSportId] = useState('');
-  const [selectedHomeOrg, setSelectedHomeOrg] = useState<Organization | null>(null);
-  const [homeOrgSearchText, setHomeOrgSearchText] = useState('');
-  const [selectedHomeTeamId, setSelectedHomeTeamId] = useState('');
-  const [awayOrgSearchText, setAwayOrgSearchText] = useState('');
-  const [selectedAwayOrg, setSelectedAwayOrg] = useState<Organization | null>(null);
-  const [awayTeams, setAwayTeams] = useState<Team[]>([]);
-  const [selectedAwayTeamId, setSelectedAwayTeamId] = useState('');
-  const [startTime, setStartTime] = useState('09:00');
-  const [isTbd, setIsTbd] = useState(false);
-  const [isCreatingHomeOrg, setIsCreatingHomeOrg] = useState(false);
-
-  // Quick Create Modals
-  const [isCreatingOrg, setIsCreatingOrg] = useState(false);
-  const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgShortName, setNewOrgShortName] = useState('');
-  const [isNominationModalVisible, setIsNominationModalVisible] = useState(false);
-
-  const [isCreatingSite, setIsCreatingSite] = useState(false);
-  const [newSiteName, setNewSiteName] = useState('');
-
-  // Load Initial Metadata
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
-
-    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (res) {
-        setOrg(res);
-        setSelectedHomeOrg(res);
-      }
+  /**
+   * A match names itself after the teams playing it.
+   *
+   * The names are read at save time rather than tracked while the form is open: `MatchForm` owns
+   * every list it offers and reports its answers as ids, and mirroring its team lists here just to
+   * build one string is how the two would drift. Two reads, once, on a button press.
+   */
+  const resolveTeamName = (teamId: string): Promise<string> =>
+    new Promise(resolve => {
+      wsService.emit('get_data', { type: 'team', id: teamId }, (res: any) =>
+        resolve(res?.name || 'Team')
+      );
     });
 
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (Array.isArray(res)) {
-        setSports(res);
-      }
-    });
-
-    wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
-      if (Array.isArray(res)) {
-        setSites(res);
-        if (res.length > 0) setSelectedSiteId(res[0].id);
-      }
-    });
-  }, [isConnected, orgId]);
-
-  // Load facilities for the selected site
-  useEffect(() => {
-    if (!selectedSiteId) {
-      setFacilities([]);
-      setSelectedFacilityId('');
-      return;
-    }
-    wsService.emit('get_data', { type: 'facilities', siteId: selectedSiteId }, (res: any) => {
-      if (Array.isArray(res)) {
-        setFacilities(res);
-      } else {
-        setFacilities([]);
-      }
-    });
-  }, [selectedSiteId]);
-
-  // Filter sports showing only sports available to the org of the user setting up the event
-  const filteredSports = sports.filter(sport => !org?.supportedSportIds || org.supportedSportIds.length === 0 || org.supportedSportIds.includes(sport.id));
-
-  // Automatically select first sport once filtered list is populated
-  useEffect(() => {
-    if (filteredSports.length > 0 && !selectedSportId) {
-      setSelectedSportId(filteredSports[0].id);
-    }
-  }, [filteredSports, selectedSportId]);
-
-  // Filter facilities by the selected sport
-  const filteredFacilities = facilities.filter(f => {
-    const activeSportId = type === 'game' ? selectedSportId : (selectedSportIds[0] || '');
-    if (!activeSportId) return true;
-    if (!f.supportedSportIds || f.supportedSportIds.length === 0) return true;
-    return f.supportedSportIds.includes(activeSportId) || f.primarySportId === activeSportId;
-  });
-
-  // Automatically select first compatible facility
-  useEffect(() => {
-    if (filteredFacilities.length > 0) {
-      if (!filteredFacilities.some(f => f.id === selectedFacilityId)) {
-        setSelectedFacilityId(filteredFacilities[0].id);
-      }
-    } else {
-      setSelectedFacilityId('');
-    }
-  }, [filteredFacilities, selectedFacilityId]);
-
-  // Resolve Sport-Specific Facility Term (like Court, Pitch, Field, Venue)
-  const getFacilityLabel = () => {
-    const activeSportIds = type === 'game'
-      ? (selectedSportId ? [selectedSportId] : [])
-      : selectedSportIds;
-    if (activeSportIds.length === 1) {
-      const sport = sports.find(s => s.id === activeSportIds[0]);
-      return sport?.facilityTerm || 'Venue';
-    }
-    return 'Venue';
-  };
-
-  // Debounced search for organizations (Tournament / Away Org / Home Org)
-  useEffect(() => {
-    const query = type === 'game' 
-      ? (homeOrgSearchText.trim() || awayOrgSearchText.trim()) 
-      : orgSearchText.trim();
-    if (!query) {
-      setSearchedOrgs([]);
-      setIsSearchingOrgs(false);
-      return;
-    }
-
-    setIsSearchingOrgs(true);
-    const timer = setTimeout(() => {
-      wsService.emit('get_data', { type: 'search_similar_orgs', name: query }, (res: any) => {
-        setIsSearchingOrgs(false);
-        if (Array.isArray(res)) {
-          setSearchedOrgs(res);
-        }
-      });
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [orgSearchText, awayOrgSearchText, homeOrgSearchText, type, orgId]);
-
-  // Fetch Home Org Teams once selected
-  useEffect(() => {
-    if (!selectedHomeOrg) {
-      setHomeTeams([]);
-      setSelectedHomeTeamId('');
-      return;
-    }
-
-    wsService.emit('get_data', { type: 'teams', orgId: selectedHomeOrg.id }, (res: any) => {
-      if (Array.isArray(res)) {
-        setHomeTeams(res.filter(t => !selectedSportId || t.sportId === selectedSportId));
-      }
-    });
-  }, [selectedHomeOrg, selectedSportId]);
-
-  // Fetch Away Org Teams once selected
-  useEffect(() => {
-    if (!selectedAwayOrg) {
-      setAwayTeams([]);
-      setSelectedAwayTeamId('');
-      return;
-    }
-
-    wsService.emit('get_data', { type: 'teams', orgId: selectedAwayOrg.id }, (res: any) => {
-      if (Array.isArray(res)) {
-        // Filter by currently selected sport if any
-        setAwayTeams(res.filter(t => !selectedSportId || t.sportId === selectedSportId));
-      }
-    });
-  }, [selectedAwayOrg, selectedSportId]);
-
-  // Filter home teams by sport
-  const filteredHomeTeams = homeTeams.filter(t => !selectedSportId || t.sportId === selectedSportId);
-
-  // Quick Create Org Handler
-  const handleQuickCreateOrg = () => {
-    if (!newOrgName.trim()) return;
+  const handleSubmit = async () => {
+    if (!form || !isFormValid()) return;
     setIsProcessing(true);
 
-    const payload = {
-      name: newOrgName.trim(),
-      shortName: newOrgShortName.trim() || undefined,
-      joinPolicy: 'request',
-      supportedSportIds: selectedSportId ? [selectedSportId] : [],
-      isClaimed: false
-    };
-
-    wsService.emit('action', { type: SocketAction.ADD_ORG, payload }, (res: any) => {
-      const org = res?.data || res;
-      if (org && org.id) {
-        // If a contact email was specified, also refer the org contact
-        const email = newOrgContactEmail.trim();
-        const currentUserId = useAuthStore.getState().user?.id;
-        if (email && currentUserId) {
-          wsService.emit('action', {
-            type: SocketAction.REFER_ORG_CONTACT,
-            payload: {
-              orgId: org.id,
-              contactEmails: [email],
-              referredByUserId: currentUserId
-            }
-          });
-        }
-
-        if (type === 'game') {
-          if (isCreatingHomeOrg) {
-            setSelectedHomeOrg(org);
-            setHomeOrgSearchText('');
-            setIsCreatingHomeOrg(false);
-          } else {
-            setSelectedAwayOrg(org);
-            setAwayOrgSearchText('');
-          }
-        } else {
-          setParticipatingOrgs(prev => [...prev, org]);
-          setOrgSearchText('');
-        }
-        setIsCreatingOrg(false);
-        setNewOrgName('');
-        setNewOrgShortName('');
-        setNewOrgContactEmail('');
-      }
-      setIsProcessing(false);
-    });
-  };
-
-  // Quick Create Site Handler
-  const handleQuickCreateSite = () => {
-    if (!newSiteName.trim()) return;
-    setIsProcessing(true);
-
-    const payload = {
-      site: {
-        name: newSiteName.trim(),
-        orgId: orgId,
-        address: { fullAddress: 'TBD' }
-      }
-    };
-
-    wsService.emit('action', { type: SocketAction.ADD_SITE, payload }, (res: any) => {
-      setIsProcessing(false);
-      const site = res?.data || res;
-      if (site && site.id) {
-        setSites(prev => [...prev, site]);
-        setSelectedSiteId(site.id);
-        setIsCreatingSite(false);
-        setNewSiteName('');
-      }
-    });
-  };
-
-  // Team Quick-Create Trigger
-  const handleCreateTeamTrigger = (targetOrgId: string) => {
-    setTargetOrgIdForTeam(targetOrgId);
-    
-    // Default the age group to the other team's age group (if available)
-    let defaultedAgeGroup = 'Open';
-    if (targetOrgId === orgId) {
-      if (selectedAwayTeamId) {
-        const otherTeam = awayTeams.find(t => t.id === selectedAwayTeamId);
-        if (otherTeam?.ageGroup) defaultedAgeGroup = otherTeam.ageGroup;
-      }
-    } else {
-      if (selectedHomeTeamId) {
-        const otherTeam = homeTeams.find(t => t.id === selectedHomeTeamId);
-        if (otherTeam?.ageGroup) defaultedAgeGroup = otherTeam.ageGroup;
-      }
-    }
-    
-    setNewTeamAgeGroup(defaultedAgeGroup);
-    setNewTeamName('');
-    setNewTeamShortName('');
-    setIsCreatingTeam(true);
-  };
-
-  // Team Quick-Create Handler
-  const handleQuickCreateTeam = () => {
-    if (!newTeamName.trim() || !newTeamShortName.trim() || !selectedSportId || !targetOrgIdForTeam) return;
-    setIsProcessing(true);
-
-    const payload = {
-      name: newTeamName.trim(),
-      shortName: newTeamShortName.trim(),
-      orgId: targetOrgIdForTeam,
-      sportId: selectedSportId,
-      ageGroup: newTeamAgeGroup.trim() || 'Open',
-      isActive: true
-    };
-
-    wsService.emit('action', { type: SocketAction.ADD_TEAM, payload }, (res: any) => {
-      setIsProcessing(false);
-      const team = res?.data || res;
-      if (team && team.id) {
-        if (targetOrgIdForTeam === orgId) {
-          setHomeTeams(prev => [...prev, team]);
-          setSelectedHomeTeamId(team.id);
-        } else {
-          setAwayTeams(prev => [...prev, team]);
-          setSelectedAwayTeamId(team.id);
-        }
-        setIsCreatingTeam(false);
-        setNewTeamName('');
-        setNewTeamShortName('');
-        setNewTeamAgeGroup('Open');
-      }
-    });
-  };
-
-  // Form Submit Handler
-  const handleSubmit = () => {
-    if (type !== 'game' && !eventName.trim()) return;
-    if (type === 'game' && (!selectedHomeTeamId || !selectedAwayTeamId || !selectedSportId)) return;
-
-    setIsProcessing(true);
-
-    // Emit pending referrals if any exist and the user is authenticated
+    // Referrals the form collected against unclaimed organisations, sent before the event so an
+    // invitation is not lost if the save that follows fails.
     const currentUserId = useAuthStore.getState().user?.id;
-    if (currentUserId) {
-      Object.entries(pendingReferrals).forEach(([rOrgId, val]) => {
-        const emails = Array.isArray(val) ? val : [val];
+    if (currentUserId && form.referrals) {
+      Object.entries(form.referrals).forEach(([referredOrgId, value]) => {
+        const emails = Array.isArray(value) ? value : [value];
         emails.forEach(email => {
-          const trimmedEmail = email.trim();
-          if (trimmedEmail && trimmedEmail.includes('@')) {
+          const trimmed = (email || '').trim();
+          if (trimmed && trimmed.includes('@')) {
             wsService.emit('action', {
               type: SocketAction.REFER_ORG_CONTACT,
               payload: {
-                orgId: rOrgId,
-                contactEmails: [trimmedEmail],
-                referredByUserId: currentUserId
-              }
+                orgId: referredOrgId,
+                contactEmails: [trimmed],
+                referredByUserId: currentUserId,
+              },
             });
           }
         });
       });
     }
 
-    // Anchor date at midday UTC
-    const formattedStartDate = `${startDate}T12:00:00.000Z`;
-    const formattedEndDate = isMultiDay && endDate ? `${endDate}T12:00:00.000Z` : undefined;
+    const [homeName, awayName] = await Promise.all([
+      resolveTeamName(form.homeTeamId),
+      resolveTeamName(form.awayTeamId),
+    ]);
 
-    // Get sport IDs and participating org IDs
-    const sportIds = type === 'game' 
-      ? (selectedSportId ? [selectedSportId] : []) 
-      : selectedSportIds;
+    // Midday UTC when the time is not known yet, so the fixture cannot slide onto the day before
+    // in a timezone west of here.
+    const scheduled = new Date(
+      form.isTbd ? `${form.gameDate}T12:00:00` : `${form.gameDate}T${form.startTime}:00`
+    );
+    const scheduledStartTime = isNaN(scheduled.getTime())
+      ? `${form.gameDate}T12:00:00`
+      : scheduled.toISOString();
 
-    const rawParticipatingOrgIds: string[] = [];
-    if (type === 'game') {
-      if (selectedHomeOrg && selectedHomeOrg.id !== orgId) {
-        rawParticipatingOrgIds.push(selectedHomeOrg.id);
-      }
-      if (selectedAwayOrg && selectedAwayOrg.id !== orgId) {
-        rawParticipatingOrgIds.push(selectedAwayOrg.id);
-      }
-    } else {
-      participatingOrgs.forEach(o => rawParticipatingOrgIds.push(o.id));
-    }
-    const participatingOrgIds = [...new Set(rawParticipatingOrgIds)];
+    wsService.emit(
+      'action',
+      {
+        type: SocketAction.ADD_EVENT,
+        payload: {
+          name: `${homeName} vs ${awayName}`,
+          type: 'SingleMatch',
+          startDate: `${form.gameDate}T12:00:00.000Z`,
+          siteId: form.siteId || undefined,
+          facilityId: form.facilityId || undefined,
+          orgId,
+          sportIds: form.sportId ? [form.sportId] : [],
+          participatingOrgIds: [form.homeOrgId, form.awayOrgId].filter(
+            id => id && id !== orgId
+          ) as string[],
+          status: 'Scheduled',
+        },
+      },
+      (res: any) => {
+        // `{ status, data }`, passed through unchanged by `emit` — `res.id` is never set
+        // (`FIX-13`).
+        const newEvent = res?.data;
+        if (!newEvent?.id) {
+          setIsProcessing(false);
+          return;
+        }
 
-    // Default Name for Single Match if empty
-    let eventTitle = eventName;
-    if (type === 'game' && !eventTitle.trim()) {
-      const homeTeamName = homeTeams.find(t => t.id === selectedHomeTeamId)?.name || 'Home';
-      const awayTeamName = awayTeams.find(t => t.id === selectedAwayTeamId)?.name || 'Away';
-      eventTitle = `${selectedHomeOrg?.shortName || selectedHomeOrg?.name || 'Home'} ${homeTeamName} vs ${selectedAwayOrg?.shortName || selectedAwayOrg?.name || 'Away'} ${awayTeamName}`;
-    }
-
-    // There is one container type and it is `Tournament`; a sports day is one whose format is
-    // `Festival` (D1). The format is now chosen rather than assumed, and it is what the event
-    // screen keys its tabs and setup steps off — and what the first division's stages are derived
-    // from, server-side, when the tournament is created (U16).
-    const eventPayload = {
-      name: eventTitle.trim(),
-      type: type === 'game' ? 'SingleMatch' : 'Tournament',
-      format: type === 'game' ? undefined : selectedFormat,
-      startDate: formattedStartDate,
-      endDate: formattedEndDate,
-      siteId: selectedSiteId || undefined,
-      facilityId: selectedFacilityId || undefined,
-      orgId,
-      sportIds,
-      participatingOrgIds,
-      status: 'Scheduled'
-    };
-
-    wsService.emit('action', { type: SocketAction.ADD_EVENT, payload: eventPayload }, (newEventResponse: any) => {
-      const newEvent = newEventResponse?.data || newEventResponse;
-      if (newEvent && newEvent.id) {
-        if (type === 'game') {
-          let scheduledTime: string | undefined = undefined;
-          if (isTbd) {
-            const dateObj = new Date(`${startDate}T12:00:00`);
-            scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${startDate}T12:00:00`;
-          } else {
-            const dateObj = new Date(`${startDate}T${startTime}:00`);
-            scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${startDate}T${startTime}:00`;
-          }
-
-          const gamePayload = {
-            eventId: newEvent.id,
-            sportId: selectedSportId,
-            participants: [{ teamId: selectedHomeTeamId }, { teamId: selectedAwayTeamId }],
-            scheduledStartTime: scheduledTime,
-            startTime: scheduledTime,
-            siteId: selectedSiteId || undefined,
-            facilityId: selectedFacilityId || undefined,
-            status: 'Scheduled',
-            customSettings: {
-              timeTbd: isTbd
-            }
-          };
-
-          wsService.emit('action', { type: SocketAction.ADD_GAME, payload: gamePayload }, (newGame: any) => {
+        wsService.emit(
+          'action',
+          {
+            type: SocketAction.ADD_GAME,
+            payload: {
+              eventId: newEvent.id,
+              sportId: form.sportId,
+              participants: [{ teamId: form.homeTeamId }, { teamId: form.awayTeamId }],
+              scheduledStartTime,
+              startTime: scheduledStartTime,
+              siteId: form.siteId || undefined,
+              facilityId: form.facilityId || undefined,
+              status: 'Scheduled',
+              customSettings: { timeTbd: form.isTbd },
+            },
+          },
+          () => {
             setIsProcessing(false);
             safeBack(`/admin/${orgId}/events`);
-          });
-        } else {
-          setIsProcessing(false);
-          safeBack(`/admin/${orgId}/events`);
-        }
-      } else {
-        setIsProcessing(false);
+          }
+        );
       }
-    });
+    );
   };
-
-  const isFormValid = () => {
-    const siteHasFacilities = filteredFacilities.length > 0;
-    const facilityValid = !siteHasFacilities || !!selectedFacilityId;
-    if (type === 'game') {
-      return !!selectedHomeTeamId && !!selectedAwayTeamId && !!selectedSiteId && facilityValid;
-    } else {
-      return !!eventName.trim() && !!selectedSiteId && facilityValid && selectedSportIds.length > 0;
-    }
-  };
-
-  // Matches not already added to the event; the search can return one that is.
-  const availableOrgs = searchedOrgs.filter(o => !participatingOrgs.some(po => po.id === o.id));
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      {/* HEADER BAR */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
         <TouchableOpacity
           onPress={() => safeBack(`/admin/${orgId}/events`)}
@@ -508,9 +154,9 @@ export default function CreateEvent() {
           </Text>
         </TouchableOpacity>
         <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
-          {type === 'game' ? 'Schedule Match' : 'New Tournament'}
+          Schedule Match
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           className={`active:opacity-85 ${!isFormValid() ? 'opacity-40' : ''}`}
           disabled={!isFormValid() || isProcessing}
           onPress={handleSubmit}
@@ -526,435 +172,8 @@ export default function CreateEvent() {
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-        {type === 'game' ? (
-          <MatchForm
-            orgId={orgId}
-            onChange={(data) => {
-              setSelectedSportId(data.sportId);
-              setSelectedHomeOrg(data.homeOrgId ? { id: data.homeOrgId, name: '' } as any : null);
-              setSelectedHomeTeamId(data.homeTeamId);
-              setSelectedAwayOrg(data.awayOrgId ? { id: data.awayOrgId, name: '' } as any : null);
-              setSelectedAwayTeamId(data.awayTeamId);
-              setSelectedSiteId(data.siteId);
-              setStartDate(data.gameDate);
-              setStartTime(data.startTime);
-              setIsTbd(data.isTbd);
-              setPendingReferrals(data.referrals || {});
-            }}
-          />
-        ) : (
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5">
-            {/* TOURNAMENT NAME — required, and the first thing asked for. It is what the events
-                list and every checklist step will call this tournament. */}
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Tournament Name
-              </Text>
-              <TextInput
-                placeholder="e.g. Winter Sevens 2026"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={eventName}
-                onChangeText={setEventName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            </View>
-
-            {/* SPORT SELECTOR */}
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Featured Sports
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {filteredSports.map(sport => {
-                  const isSelected = selectedSportIds.includes(sport.id);
-                  return (
-                    <TouchableOpacity
-                      key={sport.id}
-                      onPress={() => {
-                        if (isSelected) {
-                          setSelectedSportIds(prev => prev.filter(id => id !== sport.id));
-                        } else {
-                          setSelectedSportIds(prev => [...prev, sport.id]);
-                        }
-                      }}
-                      className={`px-3 py-2 rounded-lg border ${
-                        isSelected 
-                          ? 'bg-brand-orange/10 border-brand-orange' 
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
-                      }`}
-                    >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {sport.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* DATE */}
-            <View className="space-y-3">
-              <View className="flex-row justify-between items-center">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Date
-                </Text>
-                <View className="flex-row items-center gap-2">
-                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Multi-day event</Text>
-                  <Switch
-                    value={isMultiDay}
-                    onValueChange={setIsMultiDay}
-                    trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
-                  />
-                </View>
-              </View>
-              <DatePicker value={startDate} onChange={setStartDate} placeholder="Select Date" />
-
-              {isMultiDay && (
-                <View className="space-y-1.5">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    End Date
-                  </Text>
-                  <DatePicker value={endDate} onChange={setEndDate} placeholder="Select End Date" />
-                </View>
-              )}
-            </View>
-
-            {/* SITE VENUE SELECTOR */}
-            <View className="space-y-1.5">
-              <View className="flex-row justify-between items-center">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Site
-                </Text>
-                <TouchableOpacity onPress={() => setIsCreatingSite(true)}>
-                  <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
-                    + Create Site
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <CustomSelect
-                value={selectedSiteId}
-                onChange={(val: string) => setSelectedSiteId(val)}
-                options={sites.map(s => ({ label: s.name, value: s.id }))}
-                placeholder="Select site..."
-                clearable={true}
-              />
-            </View>
-
-            {/* FACILITY/VENUE SELECTOR */}
-            {!!selectedSiteId && (
-              <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Select {getFacilityLabel()}
-                </Text>
-                <CustomSelect
-                  value={selectedFacilityId}
-                  onChange={(val: string) => setSelectedFacilityId(val)}
-                  options={filteredFacilities.map(f => ({ label: f.name, value: f.id }))}
-                  placeholder={`Select ${getFacilityLabel().toLowerCase()}...`}
-                  clearable={true}
-                />
-              </View>
-            )}
-
-            {/* FORMAT PICKER — the first structural choice a tournament makes (U17, U34).
-                "Sports Day" is gone from here: it named an occasion rather than a structure, and
-                read oddly beside "Round Robin" and "Knockout". A sports day is a Festival (D1).
-                A dropdown rather than a radio list: the list still shows every format with its
-                description, but the closed control shows only the chosen name, so the form does
-                not grow a card's worth of height for every format added. */}
-            <View className="space-y-1.5 pt-4 border-t border-slate-100 dark:border-white/5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Format
-              </Text>
-              <CustomSelect
-                value={selectedFormat}
-                onChange={(val: string) => setSelectedFormat(val as EventFormat)}
-                options={EVENT_FORMATS.map(f => ({ value: f.value, label: f.label, description: f.description }))}
-                placeholder="Select format..."
-              />
-            </View>
-
-            {/* TOURNAMENT SPORTS AND PARTICIPANTS */}
-            <View className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/5">
-              {/* Participating Organizations (Multi-select) */}
-              <View className="space-y-1.5" style={{ zIndex: 20 }}>
-                <View className="flex-row justify-between items-center">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Participating Organizations
-                  </Text>
-                </View>
-
-                {/* Render Selected Orgs */}
-                {participatingOrgs.length > 0 && (
-                  <View className="flex-row flex-wrap gap-2 mb-2">
-                    {participatingOrgs.map(orgItem => (
-                      <View key={orgItem.id} className="flex-row items-center bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200/50 dark:border-white/5" style={{ zIndex: hoveredClaimOrgId === orgItem.id ? 30 : undefined }}>
-                        <Text className="font-inter text-xs text-slate-700 dark:text-slate-300 mr-1.5">
-                          {orgItem.name}
-                        </Text>
-                        <UnclaimedOrgBadge
-                          org={orgItem}
-                          className="mr-1.5"
-                          autoPrompt
-                          onHoverChange={h => setHoveredClaimOrgId(h ? orgItem.id : null)}
-                        />
-                        <TouchableOpacity onPress={() => setParticipatingOrgs(prev => prev.filter(o => o.id !== orgItem.id))}>
-                          <Ionicons name="close-circle" size={14} color={COLORS.brand.red} />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/*
-                  Results render in flow, not as an absolute overlay. `GlassCard` clips overflow
-                  and this input is the card's last child, so an overlay hung below it was cut
-                  off entirely — the search worked, the list was simply never visible. Same
-                  shape as the invite picker on the event edit screen.
-                */}
-                <View>
-                  <View className="relative">
-                    <TextInput
-                      placeholder="Search and add organizations..."
-                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                      value={orgSearchText}
-                      onChangeText={setOrgSearchText}
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-                    />
-                    {isSearchingOrgs && (
-                      <ActivityIndicator size="small" color={COLORS.brand.orange} className="absolute right-4 top-3.5" />
-                    )}
-                  </View>
-
-                  {(availableOrgs.length > 0 || orgSearchText.trim().length >= 3) && (
-                    <View
-                      className="mt-2 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden"
-                      style={{ backgroundColor: getThemeColor(isDark, 'background') }}
-                    >
-                      {availableOrgs.length > 0 && (
-                        <View>
-                          <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                            <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                              Existing Organizations
-                            </Text>
-                          </View>
-                          {availableOrgs.map(orgItem => (
-                            <TouchableOpacity
-                              key={orgItem.id}
-                              onPress={() => {
-                                setParticipatingOrgs(prev => [...prev, orgItem]);
-                                setOrgSearchText('');
-                                setSearchedOrgs([]);
-                              }}
-                              className="p-3 border-b border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-slate-800"
-                            >
-                              <Text className="font-inter text-xs text-slate-850 dark:text-white">
-                                {orgItem.name}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-
-                      {orgSearchText.trim().length >= 3 && (
-                        <View>
-                          <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                            <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                              Register New Organization
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => {
-                              setNewOrgName(orgSearchText);
-                              setIsCreatingOrg(true);
-                              setOrgSearchText('');
-                              setSearchedOrgs([]);
-                            }}
-                            className="flex-row items-center px-4 py-2.5 active:bg-slate-100 dark:active:bg-slate-800"
-                          >
-                            <Ionicons name="add-circle" size={16} color={COLORS.brand.orange} className="mr-2" />
-                            <Text className="font-inter text-xs text-brand-orange font-bold">
-                              Register "{orgSearchText}"
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
-              </View>
-            </View>
-          </GlassCard>
-        )}
+        <MatchForm orgId={orgId} onChange={setForm} />
       </ScrollView>
-
-      {/* QUICK CREATE SITE MODAL */}
-      <Modal
-        visible={isCreatingSite}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsCreatingSite(false)}
-      >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl">
-            <Text className="font-orbitron-bold text-base text-slate-850 dark:text-white mb-4 uppercase tracking-wider">
-              Create Site Venue
-            </Text>
-            <TextInput
-              placeholder="e.g. West Fields"
-              placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-              value={newSiteName}
-              onChangeText={setNewSiteName}
-              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white mb-6"
-            />
-            <View className="flex-row gap-3">
-              <Button
-                title="Cancel"
-                variant="secondary"
-                onPress={() => setIsCreatingSite(false)}
-                className="flex-1 py-2.5 rounded-lg"
-              />
-              <Button
-                title="Save Site"
-                onPress={handleQuickCreateSite}
-                disabled={!newSiteName.trim()}
-                className="flex-1 py-2.5 rounded-lg"
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* QUICK CREATE ORGANIZATION MODAL */}
-      <Modal
-        visible={isCreatingOrg}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsCreatingOrg(false)}
-      >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl space-y-4">
-            <Text className="font-orbitron-bold text-base text-slate-850 dark:text-white uppercase tracking-wider">
-              Register Organization
-            </Text>
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Full Name</Text>
-              <TextInput
-                placeholder="e.g. St John's College"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newOrgName}
-                onChangeText={setNewOrgName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            </View>
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Short Code / Initials</Text>
-              <TextInput
-                placeholder="e.g. SJC"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newOrgShortName}
-                onChangeText={setNewOrgShortName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            </View>
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Contact Person Email (Optional)</Text>
-              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mb-1 leading-4">
-                Help us get this organization claimed! If you know who manages this school or club (e.g. head of sports or club secretary), add their email below so we can invite them to take control of their teams and schedules.
-              </Text>
-              <TextInput
-                placeholder="contact@school.edu"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newOrgContactEmail}
-                onChangeText={setNewOrgContactEmail}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-            <View className="flex-row gap-3 pt-4">
-              <Button
-                title="Cancel"
-                variant="secondary"
-                onPress={() => setIsCreatingOrg(false)}
-                className="flex-1 py-2.5 rounded-lg"
-              />
-              <Button
-                title="Register"
-                onPress={handleQuickCreateOrg}
-                disabled={!newOrgName.trim()}
-                className="flex-1 py-2.5 rounded-lg"
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-      {/* QUICK CREATE TEAM MODAL */}
-      <Modal
-        visible={isCreatingTeam}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsCreatingTeam(false)}
-      >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl space-y-4">
-            <Text className="font-orbitron-bold text-base text-slate-850 dark:text-white uppercase tracking-wider">
-              Register Team
-            </Text>
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Team Name</Text>
-              <TextInput
-                placeholder="e.g. 1st Team"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newTeamName}
-                onChangeText={setNewTeamName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            </View>
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Short Code / Abbreviation</Text>
-              <TextInput
-                placeholder="e.g. 1ST"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newTeamShortName}
-                onChangeText={setNewTeamShortName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            </View>
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Age Group</Text>
-              <TextInput
-                placeholder="e.g. Open"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newTeamAgeGroup}
-                onChangeText={setNewTeamAgeGroup}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            </View>
-            <View className="flex-row gap-3 pt-4">
-              <Button
-                title="Cancel"
-                variant="secondary"
-                onPress={() => setIsCreatingTeam(false)}
-                className="flex-1 py-2.5 rounded-lg"
-              />
-              <Button
-                title="Register"
-                onPress={handleQuickCreateTeam}
-                disabled={!newTeamName.trim() || !newTeamShortName.trim()}
-                className="flex-1 py-2.5 rounded-lg"
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <NominationModal
-        visible={isNominationModalVisible}
-        onClose={() => setIsNominationModalVisible(false)}
-        orgId={selectedAwayOrg?.id || ''}
-        orgName={selectedAwayOrg?.name || ''}
-      />
     </SafeAreaView>
   );
 }

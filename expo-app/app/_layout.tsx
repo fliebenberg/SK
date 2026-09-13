@@ -64,35 +64,45 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded && isConnected && isAuthenticated && user?.id) {
-      console.log(`[RootLayout] User authenticated and WS connected. Joining room user:${user.id}`);
-      const room = `user:${user.id}`;
-      const unsubscribe = wsService.subscribeToRoom(room);
+      // `user:{id}:memberships` — one room, one dataset (rule 4). It used to be `user:{id}`,
+      // which also carried notifications and event capabilities, and the memberships themselves
+      // were read with a `get_data` because the broadcast carried `{}` (`LIVE-15`). The join push
+      // is the load now, so there is no query here at all.
+      const room = `user:${user.id}:memberships`;
+      console.log(`[RootLayout] User authenticated and WS connected. Joining room ${room}`);
 
-      const fetchMemberships = () => {
-        wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (res: any) => {
-          if (res) {
-            console.log(`[RootLayout] Fetched memberships:`, res);
-            setMemberships(res.orgs, res.teams);
-          } else {
-            console.warn(`[RootLayout] Failed to fetch memberships`);
-            // Unblock route guards that are waiting on this fetch.
-            markMembershipsResolved();
-          }
-        });
-      };
-
-      fetchMemberships();
+      /**
+       * Route guards block until memberships resolve, and a room push has no ack and no timeout —
+       * so unlike a query there is nothing to fail. A refused join has to release them explicitly,
+       * and so does a push that simply never arrives, or the app sits on its splash screen forever.
+       */
+      const releaseGuards = setTimeout(() => {
+        console.warn('[RootLayout] No membership push within 10s. Releasing route guards.');
+        markMembershipsResolved();
+      }, 10000);
 
       const handleUpdate = (update: any) => {
-        if (update && update.type === 'USER_MEMBERSHIPS_UPDATED') {
-          console.log(`[RootLayout] Live memberships update received. Re-fetching...`);
-          fetchMemberships();
+        if (!update || update.topic !== room) return;
+        if (update.type === 'ROOM_ACCESS_DENIED' || update.type === 'ROOM_ACCESS_REVOKED') {
+          clearTimeout(releaseGuards);
+          markMembershipsResolved();
+          return;
+        }
+        if (update.type !== 'USER_MEMBERSHIPS_UPDATED') return;
+        clearTimeout(releaseGuards);
+        if (Array.isArray(update.data?.orgs)) {
+          console.log(`[RootLayout] Memberships received.`);
+          setMemberships(update.data.orgs, update.data.teams || []);
+        } else {
+          markMembershipsResolved();
         }
       };
 
       wsService.on('update', handleUpdate);
+      const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
 
       return () => {
+        clearTimeout(releaseGuards);
         unsubscribe();
         wsService.off('update', handleUpdate);
       };

@@ -3,11 +3,12 @@ import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { SocketAction, TournamentDivision, TournamentOrganizer } from '@sk/shared';
+import { Facility, Site, SocketAction, TournamentDivision, TournamentOrganizer } from '@sk/shared';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { DivisionPanel } from '../../../../../../components/tournament/DivisionPanel';
 import { DivisionStandings } from '../../../../../../components/tournament/DivisionStandings';
 import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
+import { FacilityPicker } from '../../../../../../components/tournament/FacilityPicker';
 import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { useEventCapabilities } from '../../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../../hooks/useSafeBack';
@@ -56,8 +57,11 @@ export default function DivisionScreen() {
    */
   const canAppoint = !!capabilities?.canEditEvent;
 
+  // The division record, which is `division:{id}` now rather than a passenger on the fixtures room
+  // (rule 4). The record is public — a spectator reading a draw needs the division's name — which
+  // is why the tier moved with it.
   const { items: divisions, accessDenied } = useLiveRoom<TournamentDivision>(
-    divisionId ? `division:${divisionId}:fixtures` : null,
+    divisionId ? `division:${divisionId}` : null,
     {
       reduce: (message) => {
         switch (message.type) {
@@ -78,6 +82,86 @@ export default function DivisionScreen() {
   const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftName, setDraftName] = useState('');
+
+  /*
+    Where this division is played (U47).
+
+    A division narrows the tournament's facilities to its own subset, or names none and inherits
+    them — "u14 rugby is on Fields 3 and 4" against "wherever there is room". The event's set is the
+    ceiling, so it is read here to bound the picker; the names come from the organisation's own
+    rooms, which is where every other screen gets them.
+  */
+  const { items: sites } = useLiveRoom<Site>(orgId ? `org:${orgId}:sites` : null, {
+    reduce: (message) => {
+      switch (message.type) {
+        case 'SITES_SYNC':
+          return { kind: 'replace', items: message.data || [] };
+        case 'SITE_ADDED':
+        case 'SITE_UPDATED':
+          return { kind: 'upsert', item: message.data };
+        case 'SITE_DELETED':
+          return { kind: 'remove', id: message.data?.id };
+        default:
+          return { kind: 'ignore' };
+      }
+    },
+  });
+
+  const { items: facilities } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
+    reduce: (message) => {
+      switch (message.type) {
+        case 'FACILITIES_SYNC':
+          return { kind: 'replace', items: message.data || [] };
+        case 'FACILITY_ADDED':
+        case 'FACILITY_UPDATED':
+          return { kind: 'upsert', item: message.data };
+        case 'FACILITY_DELETED':
+          return { kind: 'remove', id: message.data?.id };
+        default:
+          return { kind: 'ignore' };
+      }
+    },
+  });
+
+  /**
+   * The event's facilities — a one-shot read, not a room.
+   *
+   * This screen has no reason to join the event room: it would then hold the whole tournament's
+   * fixtures and divisions to render one ceiling. What it needs is a list that only an organiser
+   * changes, on a screen a convenor opens for one division at a time.
+   */
+  const [eventFacilityIds, setEventFacilityIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isConnected || !eventId) return;
+    let active = true;
+    wsService.emit('get_data', { type: 'event_facilities', eventId }, (res: any) => {
+      if (active && Array.isArray(res)) setEventFacilityIds(res);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isConnected, eventId]);
+
+  const [draftFacilityIds, setDraftFacilityIds] = useState<string[]>([]);
+  const [isSavingFacilities, setIsSavingFacilities] = useState(false);
+  const savedFacilityKey = [...(division?.facilityIds || [])].sort().join();
+  useEffect(() => {
+    setDraftFacilityIds(division?.facilityIds || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [divisionId, savedFacilityKey]);
+  const facilitiesDirty = [...draftFacilityIds].sort().join() !== savedFacilityKey;
+
+  const handleSaveFacilities = () => {
+    setIsSavingFacilities(true);
+    wsService.emit(
+      'action',
+      {
+        type: SocketAction.SET_DIVISION_FACILITIES,
+        payload: { divisionId, orgId, facilityIds: draftFacilityIds },
+      },
+      () => setIsSavingFacilities(false)
+    );
+  };
 
   useEffect(() => {
     if (!isConnected || !divisionId || !canEdit) return;
@@ -195,6 +279,46 @@ export default function DivisionScreen() {
               divisionId={divisionId}
               canEdit={canEdit}
             />
+
+            <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-3">
+              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                Fields in play
+              </Text>
+              <FacilityPicker
+                sites={sites}
+                facilities={facilities}
+                value={draftFacilityIds}
+                onChange={setDraftFacilityIds}
+                allowedFacilityIds={eventFacilityIds}
+                disabled={!canEdit}
+                emptyLabel={
+                  eventFacilityIds.length > 0
+                    ? "Any of the tournament's fields. Choose some to keep this division on them."
+                    : 'The tournament has no fields in play yet.'
+                }
+              />
+              {canEdit && facilitiesDirty && (
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    onPress={() => setDraftFacilityIds(division.facilityIds || [])}
+                    className="flex-1 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 items-center active:opacity-80"
+                  >
+                    <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase">
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSaveFacilities}
+                    disabled={isSavingFacilities}
+                    className={`flex-1 py-2.5 rounded-lg bg-brand-orange items-center active:opacity-85 ${
+                      isSavingFacilities ? 'opacity-50' : ''
+                    }`}
+                  >
+                    <Text className="font-inter-bold text-xs text-white uppercase">Save fields</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </GlassCard>
 
             {/*
               This division's table, ranking its **entrants** (U29) — so a school that entered u14A

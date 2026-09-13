@@ -395,7 +395,6 @@ export default function FacilityDetails() {
     if (!isConnected || !orgId) return;
 
     const facilitiesRoom = `org:${orgId}:facilities`;
-    const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom);
 
     const handleUpdate = (event: any) => {
       if (!event) return;
@@ -412,8 +411,12 @@ export default function FacilityDetails() {
       }
     };
 
+    // Listen first, then hold the room, and hand the reducer in as the replay handler: if the
+    // parent site screen already holds it, the join push went there and will not come again
+    // (`LIVE-9`). This used to be covered by a second raw `join_room` forcing a re-push, which
+    // worked but was invisible to the ledger's reference count (`LIVE-17`).
     wsService.on('update', handleUpdate);
-    wsService.emit('join_room', `org:${orgId}:facilities`);
+    const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom, handleUpdate);
 
     return () => {
       unsubscribeFacilities();

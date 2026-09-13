@@ -141,7 +141,11 @@ class WebSocketService {
     }
   }
 
-  send(event: string, data: any) {
+  /**
+   * Fire-and-forget emit. Private because the room events are the only thing that ever used it
+   * and they must not be reachable from a screen — see `emit`.
+   */
+  private send(event: string, data: any) {
     if (this.socket && this.socket.connected) {
       this.socket.emit(event, data);
     } else {
@@ -196,6 +200,20 @@ class WebSocketService {
     timeoutMs: number = 7000,
     options?: EmitOptions
   ) {
+    // `subscribeToRoom` is the only way in or out of a room. The ledger's reference count is only
+    // authoritative if every join and leave passes through it, and a screen that emitted these
+    // directly broke that invariant invisibly: `score.tsx` raw-left `game:{id}` on unmount and
+    // removed the socket from a room another mounted screen still held, with nothing to re-join it
+    // because the count never saw either call (`LIVE-17`). Refused rather than forwarded, because
+    // forwarding is what made it look like it worked.
+    if (event === 'join_room' || event === 'leave_room') {
+      console.error(
+        `[WS] Refusing a direct '${event}' for ${JSON.stringify(data)}. ` +
+        `Use subscribeToRoom() / the returned release function, or the useLiveRoom hook.`
+      );
+      return;
+    }
+
     if (this.socket && this.socket.connected) {
       if (!callback) {
         this.socket.emit(event, data);

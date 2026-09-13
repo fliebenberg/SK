@@ -82,10 +82,14 @@ export default function PublicOrgDetail() {
     let active = true;
     setIsLoading(true);
     let loadedCount = 0;
+    // Five queries, not six: the leagues list is no longer read, it arrives on the
+    // `org:{id}:leagues` join push (`LIVE-14`). It is deliberately not counted here — a room push
+    // has no ack and no timeout, so gating the whole screen on one would hang it outright if the
+    // join were ever refused. The list fills in a moment later, as every room-backed list does.
     const checkDone = () => {
       if (!active) return;
       loadedCount++;
-      if (loadedCount === 6) setIsLoading(false);
+      if (loadedCount === 5) setIsLoading(false);
     };
 
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
@@ -120,23 +124,17 @@ export default function PublicOrgDetail() {
       checkDone();
     });
 
-    wsService.emit('get_data', { type: 'leagues', orgId }, (res: any) => {
-      if (!active) return;
-      setLeagues(Array.isArray(res) ? res : []);
-      checkDone();
-    });
 
     const room = `org:${orgId}:summary`;
-    const unsubscribe = wsService.subscribeToRoom(room);
-
     const leagueRoom = `org:${orgId}:leagues`;
-    const unsubscribeLeagues = wsService.subscribeToRoom(leagueRoom);
 
     const handleUpdate = (event: any) => {
       if (!active) return;
       if (event) {
         if (event.type === 'ORGANIZATION_UPDATED' && event.data && event.data.id === orgId) {
           setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
+        } else if (event.type === 'LEAGUES_SYNC') {
+          if (Array.isArray(event.data)) setLeagues(event.data);
         } else if (event.type === 'LEAGUE_ADDED') {
           setLeagues(prev => {
             if (prev.some(l => l.id === event.data.id)) {
@@ -153,6 +151,8 @@ export default function PublicOrgDetail() {
     };
 
     wsService.on('update', handleUpdate);
+    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
+    const unsubscribeLeagues = wsService.subscribeToRoom(leagueRoom, handleUpdate);
 
     return () => {
       active = false;

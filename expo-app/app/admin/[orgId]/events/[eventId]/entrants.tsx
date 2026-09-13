@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   CandidateTeam,
   Event,
+  Organization,
   SocketAction,
   Sport,
   Team,
@@ -14,6 +15,9 @@ import {
   isCollapsed,
 } from '@sk/shared';
 import { GlassCard } from '../../../../../components/GlassCard';
+import { ScreenHeader } from '../../../../../components/ScreenHeader';
+import { SetupStepFooter } from '../../../../../components/tournament/SetupStepFooter';
+import { nextStepAfter } from '../../../../../components/tournament/setupSteps';
 import { SegmentedControl } from '../../../../../components/SegmentedControl';
 import { Tabs, TabItem } from '../../../../../components/Tabs';
 import { AccessDenied } from '../../../../../components/AccessDenied';
@@ -23,6 +27,7 @@ import { useLiveRoom } from '../../../../../hooks/useLiveRoom';
 import { useEventEntrants, teamQualifies } from '../../../../../hooks/useEventEntrants';
 import { useEventCapabilities } from '../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
+import { useAuthStore } from '../../../../../store/authStore';
 import { wsService } from '../../../../../services/websocket';
 import { useWsStore } from '../../../../../store/wsStore';
 import { useActiveTheme } from '../../../../../store/settingsStore';
@@ -46,6 +51,19 @@ import { COLORS, getThemeColor } from '../../../../../constants/Colors';
  * A **placeholder** (D7) is an entrant with no team and a label — schedulable and printable like
  * any other, and resolved later by naming the team, at which point every fixture generated against
  * it updates at once because they all point at this one row.
+ *
+ * **This screen is the Entrants step of the setup checklist (U48)**, which is why it carries the
+ * invite list and a `Next` footer. The invite list moved here from the event screen's accordion:
+ * an organisation in `event_organizations` is one that is *competing*, which is an entrants
+ * question, and keeping it beside the roster makes the gap between the two visible — eight invited
+ * and five entered is the number an organiser chases in April. An organisation *running* the
+ * tournament is a different thing entirely and is appointed in Basics.
+ *
+ * **The invite list writes immediately, and deliberately has no save bar** — the one place the
+ * save-per-step rule (U48) does not apply. Every other control on this screen writes on press, and
+ * inviting or uninviting an organisation is a discrete act rather than a form: a save bar here
+ * would arm itself for one control out of a dozen and leave the organiser wondering why entering a
+ * team did not need saving but ticking a school did.
  */
 
 type Axis = 'division' | 'organisation';
@@ -65,7 +83,11 @@ export default function EntrantsScreen() {
   // Data
   // ------------------------------------------------------------------------------------------
 
+  // Two rooms, and this screen is the reason the split was worth doing (rule 4): it wants the event
+  // record and the division list, and `event:{id}` used to hand it the fixture list, the facilities
+  // and the standings table as well — three server queries per join for data nothing here reads.
   const eventRoom = eventId ? `event:${eventId}` : null;
+  const eventDivisionsRoom = eventId ? `event:${eventId}:divisions` : null;
 
   const { items: eventRecords } = useLiveRoom<Event>(eventRoom, {
     reduce: (message) =>
@@ -73,7 +95,7 @@ export default function EntrantsScreen() {
   });
   const event = eventRecords.find(e => e.id === eventId);
 
-  const { items: divisions } = useLiveRoom<TournamentDivision>(eventRoom, {
+  const { items: divisions } = useLiveRoom<TournamentDivision>(eventDivisionsRoom, {
     reduce: (message) => {
       switch (message.type) {
         case 'DIVISIONS_SYNC':
@@ -138,6 +160,69 @@ export default function EntrantsScreen() {
   }, [candidateTeams, event?.participatingOrgs]);
 
   const sportName = (sportId?: string) => sports.find(s => s.id === sportId)?.name;
+
+  // ------------------------------------------------------------------------------------------
+  // The invite list (U48)
+  // ------------------------------------------------------------------------------------------
+
+  const user = useAuthStore((state: any) => state.user);
+  const [orgSearchText, setOrgSearchText] = useState('');
+  const [searchedOrgs, setSearchedOrgs] = useState<Organization[]>([]);
+  const [isSearchingOrgs, setIsSearchingOrgs] = useState(false);
+
+  const invitedOrgs = event?.participatingOrgs || [];
+
+  /**
+   * The invite picker: a search, not a list of every organisation.
+   *
+   * "Orgs not yet related to this event" is a set no room owns, so this is a legitimate one-shot
+   * read — the other half of `FIX-2`, and the same shape as `PersonnelAutocomplete`.
+   */
+  useEffect(() => {
+    const query = orgSearchText.trim();
+    if (!query) {
+      setSearchedOrgs([]);
+      return;
+    }
+
+    setIsSearchingOrgs(true);
+    const timer = setTimeout(() => {
+      wsService.emit('get_data', { type: 'search_similar_orgs', name: query }, (res: any) => {
+        setIsSearchingOrgs(false);
+        if (Array.isArray(res)) {
+          setSearchedOrgs(
+            res.filter(o => o.id !== orgId && !invitedOrgs.some(p => p.id === o.id))
+          );
+        }
+      });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [orgSearchText, invitedOrgs, orgId]);
+
+  /**
+   * Write the list straight out. `participatingOrgIds` is the whole set every time, because that
+   * is what `UPDATE_EVENT` expects — there is no add-one action.
+   */
+  const saveInvites = (next: Array<{ id: string; name: string; shortName?: string }>) => {
+    if (!event) return;
+    wsService.emit('action', {
+      type: SocketAction.UPDATE_EVENT,
+      payload: {
+        id: eventId,
+        userId: user?.id,
+        orgId,
+        data: { participatingOrgIds: next.map(o => o.id) },
+      },
+    });
+  };
+
+  const nextStep = nextStepAfter('entrants', event?.settings?.dismissedSetupSteps || []);
+
+  /** Back is the checklist, never the previous step (U48). */
+  const goBackToChecklist = () =>
+    safeBack(`/admin/${orgId}/events/${eventId}?tab=setup`);
+
 
   const divisionLabel = (division: TournamentDivision) =>
     division.name || [division.ageGroup, sportName(division.sportId)].filter(Boolean).join(' ');
@@ -431,24 +516,7 @@ export default function EntrantsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Back
-          </Text>
-        </TouchableOpacity>
-        <Text
-          className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase flex-1 text-center px-4"
-          numberOfLines={1}
-        >
-          Entrants
-        </Text>
-        <View className="w-8" />
-      </View>
+      <ScreenHeader title="Entrants" onBack={goBackToChecklist} />
 
       {isLoadingEntrants ? (
         <View className="flex-1 items-center justify-center">
@@ -457,6 +525,63 @@ export default function EntrantsScreen() {
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="space-y-5">
+            {/* Who was asked, before which of their teams are in. Writes on press — see the note
+                at the top of this file for why this one list has no save bar. */}
+            {canEdit && (
+              <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-1.5">
+                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Organisations invited
+                </Text>
+                {invitedOrgs.length > 0 && (
+                  <View className="flex-row flex-wrap gap-2 mb-2">
+                    {invitedOrgs.map(o => (
+                      <View
+                        key={o.id}
+                        className="flex-row items-center bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200/50 dark:border-white/5"
+                      >
+                        <Text className="font-inter text-xs text-slate-700 dark:text-slate-300 mr-1.5">
+                          {o.name}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => saveInvites(invitedOrgs.filter(p => p.id !== o.id))}
+                          accessibilityLabel={`Remove ${o.name}`}
+                        >
+                          <Ionicons name="close-circle" size={14} color={COLORS.brand.red} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                <TextInput
+                  value={orgSearchText}
+                  onChangeText={setOrgSearchText}
+                  placeholder="Search for an organization to invite..."
+                  placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+                />
+                {isSearchingOrgs && (
+                  <Text className="font-inter text-[10px] text-slate-400 mt-1">Searching...</Text>
+                )}
+                {searchedOrgs.map(o => (
+                  <TouchableOpacity
+                    key={o.id}
+                    onPress={() => {
+                      saveInvites([
+                        ...invitedOrgs,
+                        { id: o.id, name: o.name, shortName: o.shortName },
+                      ]);
+                      setOrgSearchText('');
+                    }}
+                    className="px-4 py-2.5 border-b border-slate-100 dark:border-white/5 active:opacity-80"
+                  >
+                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                      {o.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </GlassCard>
+            )}
+
             {/* Two views of one dataset, not two screens — which is what makes switching free. */}
             <SegmentedControl<Axis>
               options={[
@@ -469,15 +594,16 @@ export default function EntrantsScreen() {
 
             {axis === 'division' ? renderDivisionAxis() : renderOrganisationAxis()}
 
-            <TouchableOpacity
-              onPress={() => router.push(`/admin/${orgId}/events/${eventId}`)}
-              className="flex-row items-center justify-center gap-2 py-3 active:opacity-80"
-            >
-              <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
-                Done — back to the tournament
-              </Text>
-              <Ionicons name="arrow-forward" size={14} color={COLORS.brand.orange} />
-            </TouchableOpacity>
+            <SetupStepFooter
+              label="Entrants"
+              nextStep={nextStep}
+              onNext={() =>
+                nextStep
+                  ? router.replace(nextStep.href(orgId, eventId) as any)
+                  : goBackToChecklist()
+              }
+              onBackToChecklist={goBackToChecklist}
+            />
           </View>
         </ScrollView>
       )}

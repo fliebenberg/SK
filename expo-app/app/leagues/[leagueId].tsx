@@ -97,7 +97,6 @@ export default function PublicLeagueStandings() {
 
     // Subscribe to standings updates in real-time
     const room = `season:${selectedSeasonId}:standings`;
-    const unsubscribe = wsService.subscribeToRoom(room);
 
     // Merge directly on update: strictly NO server refetch!
     const handleUpdate = (event: any) => {
@@ -108,6 +107,9 @@ export default function PublicLeagueStandings() {
     };
 
     wsService.on('update', handleUpdate);
+    // Replay handler, so arriving second at a room a sibling screen already holds still
+    // yields the standings (`LIVE-9`).
+    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
 
     return () => {
       active = false;

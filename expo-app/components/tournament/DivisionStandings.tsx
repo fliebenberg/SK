@@ -47,7 +47,7 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
   );
 
   const { items: adjustments } = useLiveRoom<TournamentAdjustment>(
-    divisionId ? `division:${divisionId}` : null,
+    divisionId ? `division:${divisionId}:adjustments` : null,
     {
       enabled: canEdit,
       reduce: (message) =>

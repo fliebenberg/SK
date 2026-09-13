@@ -172,6 +172,15 @@ stable. Indented bullets are probes — prompts for the interviewer, not questio
    - Coaches, team managers, officials, admin staff, regular volunteers?
    - How many of those would need to be *in* a system like this, rather than just told things?
    - Does that number move much between seasons?
+1. When a name or a photograph goes out beyond the organisation, who decides — you, or the family?
+   - Do you set one rule for everybody, or does each family answer for their own child?
+   - Has a family ever asked you to treat their child differently? What did you do?
+1. If you set the rule and a family disagreed, whose answer should win?
+   - Should they be able to refuse something you allow? To allow something you do not?
+1. Are a **name** and a **photograph** the same decision for you, or two different ones?
+1. If someone asked what permission you had to publish a particular photograph, what could you show
+   them?
+   - Where does that record live now, and how far back does it go?
 
 ## 9. Communication
 

@@ -92,6 +92,15 @@ export interface TournamentDivision {
     tiebreakers?: TiebreakFactor[];
   };
   sortOrder: number;
+  /**
+   * The facilities this division may use — a **subset** of the event's, or empty (U47).
+   *
+   * Empty means inherit: the division may use any of the event's facilities that support its
+   * sport. That is a state and not an absence, so a screen renders it as "any of the tournament's
+   * fields" rather than as a blank. Written through `SET_DIVISION_FACILITIES`; read here so a
+   * division list can say where each one is played without a query per row.
+   */
+  facilityIds?: string[];
   stages?: TournamentStage[];
   entrants?: TournamentEntrant[];
 }

@@ -577,6 +577,13 @@ The event holds a **set** of facilities in play, not the single `facilityId` it 
 Allocation at the lower levels is optional. A division with no allocation may use any of the
 event's facilities that support its sport.
 
+> **Clarified 2026-09-10 (U47) — the event keeps a *base site* alongside that set, and the two say
+> different things.** `events.site_id` is where the tournament **is** — what the listing shows, what
+> a visiting school reads, and the default the facility picker opens on. It bounds nothing: the
+> facilities in play may sit at other sites, because a host borrowing the fields next door is normal
+> rather than exceptional. A base site that quietly filtered the picker would make the common case
+> impossible to express. See [tournaments-ui.md §7](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md).
+
 > **Decided — show venue and facility together.** Wherever more than one venue is in play, the
 > fixture list, the schedule grid and the game screen all name the venue as well as the field or
 > court. "Field A" is ambiguous the moment two sites are involved, and a tournament makes that the

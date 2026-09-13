@@ -2,7 +2,8 @@
 
 **Status:** Settled — nothing open. Four review rounds: round 1 on 2026-08-30 (34 comments, 29
 questions), then rounds 2, 3 and 4 on 2026-08-31 closing the remainder and the parked work in §16.
-Forty-two decisions recorded. Ready to build.
+Forty-eight decisions recorded — `U45`-`U47` were added on 2026-09-10 and `U48` on 2026-09-13,
+from the first sustained use of the Setup tab (§7). Ready to build.
 **Implements the surfaces for:** [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md)
 and [docs/tournaments-data-model.md](file:///c:/Fred/Coding/SK/docs/tournaments-data-model.md).
 Ids `D1…D33` refer to the feature spec's decision table; `U1…` are decisions about the interface.
@@ -119,6 +120,10 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U42** | `GET_DATA_ENFORCE=true` is set **before** tournaments add their request types. | 16 |
 | **U43** | The Setup tab saves as one form, through the app's floating save bar, not per section. | 7 |
 | **U44** | Each setup step *is* a collapsible section, its heading pinned while it is open. No separate checklist. | 7 |
+| **U45** | A tournament is created by naming it. No wizard — the Setup screen is the form. | 7 |
+| **U46** | The setup sections follow the setup process. `Structure` is dissolved into Basics and What's being played. | 7 |
+| **U47** | A tournament has a **base site** and a **set of facilities**. The base site is where it is, not what it may use. | 7 |
+| **U48** | The Setup tab is the checklist; every step is its own screen, saving itself. No accordion. | 7 |
 
 ### Constraints carried in from the feature spec
 
@@ -589,6 +594,208 @@ that spans weeks.
 >   only and defaulted off — settled in §17, since a hand-arranged draw is real work a generator
 >   cannot reproduce.
 
+> **Decided 2026-09-10 — a tournament is created by naming it, not by a wizard (U45).** This section
+> argues that a tournament is not built in one sitting, and then left a seven-field form standing in
+> front of it. [create.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/create.tsx)
+> refuses to write anything until it has a name, a venue, a facility **and** at least one sport
+> (`isFormValid`) — more than an organiser knows in March, the very month the argument above rests
+> on. It then routes back to the **events list** on success, so the reward for finishing the form is
+> to be put somewhere else and have to find the tournament again. The wizard was never the first
+> stage of setup; it was a detour in front of it.
+>
+> Creating a tournament is now one prompt — **a name and a start date** — writing `name`,
+> `type: 'Tournament'`, `format` (`Festival` by default, D1), `startDate` and `orgId`, and landing
+> the organiser on the new tournament's Setup checklist. (Revised by U48: it landed them on the
+> Setup tab with **Basics** expanded while the steps were accordion sections.) Everything else is entered
+> where it will be edited for the next six weeks anyway.
+>
+> - **Not zero fields.** The row has to exist before a division, an entrant or a facility can point
+>   at it, and the events list has to have something to show. One field, not seven.
+> - **The quick-create modals survive the screen.** New venue, new organisation and new team are
+>   genuinely useful mid-setup, and move into the sections that need them rather than being deleted
+>   along with the form around them.
+> - **Copy becomes its own entry point, not everybody's first question.** The two decisions below
+>   still stand — copying offers and never assumes — but "start from scratch or copy?" is no longer
+>   asked of someone who has already answered it by pressing *New tournament*. *Start from a previous
+>   tournament* is a second action on the events list, and its choose-what-to-copy step is the one
+>   part of setting up that genuinely is a wizard.
+> - **`SingleMatch` keeps its form.** Two teams and a kickoff time is a different thing: entered in
+>   one sitting, complete on save. `create.tsx` stops branching on `type` rather than being deleted.
+> - **A half-built tournament needs no new status.** `Event.status` stays
+>   `Scheduled | Cancelled | Finished`; the events card reads its setup state from the checklist the
+>   Setup tab already computes — *"In setup · 2 of 5 done"* (six until U48 dropped `Schedule`).
+>
+> **Built 2026-09-10.** The prompt is on the events list; `create.tsx` is the match form only, and
+> shrank from 960 lines to under 180 with the tournament path gone — which took three quick-create
+> modals and a nomination modal with it that nothing had been able to open since `MatchForm` was
+> extracted. The events card still shows no setup state; that is the one part of this decision not
+> yet built.
+
+> **Decided 2026-09-10 — the sections are the setup process, and `Structure` is dissolved (U46).**
+> First real use of the accordion found the order arbitrary and the first section doing three jobs at
+> once: `Structure` held the tournament's identity (name, dates, venue, sports), its shape
+> (divisions), and two different kinds of organisation — the ones running it and the ones competing
+> in it. That is why it carried seven fields and two pickers while `Entrants` carried one sentence,
+> and why its `detail` line could only ever report on part of what it contained.
+>
+> Six sections, in the order the work is actually done:
+>
+> | Section | Holds |
+> |---|---|
+> | **Basics** | name, format, dates, base site, the facilities in play, tournament organisers |
+> | **What's being played** | the sports; each division with its sport, age group and facilities |
+> | **Entrants** | the organisations invited, then the teams entered — by division or by organisation |
+> | **Rules & scoring** | points, tiebreakers, `scoringSubject` |
+> | **Fixtures** | the draw |
+> | **Schedule** | times and fields |
+>
+> - **Participating organisations move to Entrants.** Who competes is an entrants question, and
+>   entrants are already entered *by organisation* as one of the two axes (U21), so the invite list
+>   belongs beside them. It also gives that step a `detail` worth reading: *"8 invited · 5 have
+>   entered"* is the number an organiser is chasing in April; *"12 entered"* is not.
+> - **Organisers stay in Basics.** Who runs it is known with the name and the dates, it is a single
+>   picker, and per-division convenors already live on the division screen as division-scoped grants.
+>   The two are separated by what they answer, not by how they are stored.
+> - **Scoring moves ahead of Fixtures.** It is a rule of the competition, settled with the divisions
+>   that may override it, and it binds the moment the first result lands. Leaving it last is how an
+>   organiser scores a morning on the defaults and only then changes them — the same failure `FIX-14`
+>   fixed server-side, which the ordering should stop inviting.
+> - **The divisions section is named for the work, not the entity.** U15 hides the word "division"
+>   entirely when there is only one, so a section called *Divisions* would reintroduce the concept the
+>   collapse rule exists to suppress. **"What's being played"** is true at both sizes: collapsed it
+>   holds the sport and a *Split into divisions* action; expanded it is the list.
+> - **Sports stop being asked twice.** The event carries `sportIds` and every division carries a
+>   `sportId`, entered separately and free to drift — a tournament advertising hockey with no hockey
+>   division in it. With more than one division the event's sports are **derived** from them and shown
+>   as a summary; the picker appears only in the collapsed single-division case, where the chip *is*
+>   that division's sport.
+>
+> **Built 2026-09-10**, with two things settled in the building:
+>
+> - **A derived list does not make the form dirty.** Every tournament created before this change
+>   may already disagree with its own divisions, and a screen that comes up with an unsaved-changes
+>   bar over something the organiser never touched is worse than a field that corrects itself: the
+>   derived sports go into the payload of whatever save happens next, and nothing else.
+> - **Dirtiness is now tracked per section.** One flag over seven fields was enough while they sat
+>   in one section; spread across Basics, What's being played and Entrants it would have put the
+>   unsaved dot on all three whichever one was touched. The form still saves as one (U43) — the
+>   flags only decide which collapsed row is marked.
+
+> **Decided 2026-09-10 — a tournament has a base site *and* a set of facilities, and those are two
+> different questions (U47).** The Setup form still edits one `siteId` on the event, which reads as
+> "the tournament happens here" and quietly implies "and nowhere else". Both halves are wanted, but
+> they are not the same field:
+>
+> - **The base site is where the tournament is.** It is what the listing says, what a visiting school
+>   reads, and the sensible default and first filter when picking facilities. `events.site_id` keeps
+>   that meaning and no other.
+> - **It bounds nothing.** The facilities in play are `event_facilities`, they may sit at other
+>   sites, and a host borrowing the fields next door is normal rather than exceptional. A base site
+>   that silently restricted the facility picker would make the common case impossible to express.
+> - **A division narrows, or inherits.** `division_facilities` names the subset a division may use;
+>   a division naming none may use any of the event's that support its sport — which is the cascade
+>   [tournaments.md §7](file:///c:/Fred/Coding/SK/docs/tournaments.md) already decided and the model
+>   already stores.
+> - **Venue and facility are named together** wherever more than one site is in play (D16). This
+>   decision is what makes that the normal case rather than the exception.
+>
+> **The general rule this settles: a division overrides, else it inherits.** It already holds for
+> scoring (`division.settings.scoring` over the event's), for tiebreakers, and for the two grant
+> scopes; facilities are the same shape, and every resource a division acquires later should be read
+> the same way. It binds the interface as well as the data: a division with no allocation shows
+> *"any of the tournament's fields"*, not an empty box, because inheriting is a state and blank is
+> not.
+>
+> **Built 2026-09-10 — the server side existed and nothing could reach it** (`FIX-15`, closed).
+> `event_facilities`, `division_facilities`, their manager methods, both actions and the permission
+> gates were all in place from Phase 4 with no screen calling any of them. What the build added:
+>
+> - **A picker grouped by site**, base site first and marked as such, every other site the
+>   organisation owns under it — which is the decision above made visible. It is not filtered by
+>   the sport a facility supports: `supportedSportIds` is optional and mostly unset, so filtering on
+>   it would hide real fields, and the sport rule belongs to the scheduler, which warns (U26).
+> - **`facilityIds` on the division itself**, so the event screen can say where each division plays
+>   without a query per row — and an empty list renders as *"any of the tournament's fields"*,
+>   because inheriting is a state and a blank is not.
+> - **A second write on the same Save.** Facilities live in their own table behind their own
+>   action, so they go out beside `UPDATE_EVENT` rather than being folded into it. U43's "one save,
+>   not two" is about two buttons racing over the same row, and this is one press.
+
+> **Parked 2026-09-10 — officials as a schedulable resource.** Raised with U47, because the reason
+> per-division facilities are wanted is that the generator can then place fixtures on them, and
+> officials are the obvious next resource to place. They are not the same problem yet.
+> [`GameOfficial`](file:///c:/Fred/Coding/SK/shared/src/models/event/GameOfficial.ts) is
+> `{ gameId, orgProfileId, role }` — a person attached to a fixture that already exists. There is no
+> pool of officials in play and nothing at division level. Reaching parity with facilities needs a
+> set at event level and an optional narrowing per division, plus one dimension facilities do not
+> have: **availability in time.** A field is there all day; a referee is there from eight until
+> twelve and cannot take two pitches at once. Same shape, one dimension bigger.
+>
+> So the greedy scheduler ships with facilities first, and officials are modelled once organisers
+> have run a real day with one resource type — the same sequencing §7 of the feature spec applies to
+> the optimiser, and for the same reason: which constraints actually matter is not yet known.
+
+
+> **Revised 2026-09-13 — the checklist is a screen, and so is every step (U48).** Setup came back
+> from real use as *too busy*: six accordion sections on one tab, on a phone, with the whole form's
+> worth of inputs behind them. It was also **already half-routed** — four steps expanded in place
+> while `What's being played` and `Entrants` pushed to screens of their own, so the tab was neither
+> one page nor a set of pages, and which it was depended on the row you tapped. The Setup tab is now
+> the checklist and nothing else; every row opens a screen.
+>
+> This reverses U44 rather than refining it, and it is worth being exact about what was wrong with
+> it. U44's argument was that a separate checklist makes you travel between the summary and the
+> work, so the section should *be* the row. That argument holds only while both live on one scroll.
+> Two screens do not make you travel — they navigate, with a back control, a history entry and one
+> thing on screen at a time — and the density the accordion was managing was never fixed by it,
+> only folded up.
+>
+> - **A top step-nav was considered and rejected.** It is the obvious shape and it fails twice: U44
+>   already removed a horizontal chip stepper because five chips above five rows is the same
+>   checklist twice, and six steps do not fit across a phone. The hub *is* the step list.
+> - **`Schedule` is dropped.** Its status was hardcoded `todo`, so it could never complete and the
+>   progress line could never read *Setup complete* unless the organiser dismissed it — a step that
+>   exists to be put away is not a step. Times and fields are still entered on the fixture. It
+>   returns when there is a grid behind it; its key is not reused, so an event that dismissed it
+>   simply carries an entry that matches nothing.
+> - **`Entrants` and `What's being played` route to the screens they already had.** Four new route
+>   files, not six. Giving Entrants a second screen would have rebuilt the split this change exists
+>   to remove, so the invite list moved *onto* it instead — and it writes on press there, with no
+>   save bar, because every other control on that screen does and inviting a school is an act
+>   rather than a form.
+> - **The danger zone stays at the bottom of the checklist**, reached only by scrolling past every
+>   step, which is where it has always been.
+>
+> **This reverses U43 for setup: a save per screen.** One bar for one form was right when the form
+> was one tab; six screens sharing a save bar would mean a bar that follows you between screens
+> writing fields you cannot see. Each screen now computes its own dirtiness, carries its own
+> [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx) and
+> writes only its own fields — `UPDATE_EVENT` is a patch, so this is fewer fields written per save
+> than before, not more. U43's real objection, *two buttons racing over one row*, is untouched:
+> there is still exactly one save per screen. What does need saying is the new version of it —
+> **`settings` must be spread on every write**, because `UPDATE_EVENT` replaces that column, and
+> the scoring screen and the dismissal both live in it.
+>
+> - **`Next` names the step it goes to**, and saves first when the screen is dirty. A bare `Next`
+>   over numbered steps would say the list is ordered and must be walked; naming the destination
+>   makes it an offer. Routing it through the discard dialog instead would ask somebody who has
+>   just filled a step in whether they want to throw it away.
+> - **Back is always the checklist, never the previous step.** There is no `Previous`. An organiser
+>   who came from the checklist to fix one thing is one tap from where they started.
+> - **A step is still done by the state of the data, never by having been visited** — which matters
+>   more now than it did, because a step with its own screen could plausibly have been marked
+>   complete by leaving it. This is still U17.
+>
+> **What this deleted.** `<AccordionHeader>` and every consumer of it; the `stickyHeaderIndices`
+> machinery and its flat-children-array constraint; the `position: sticky` web tree with its
+> descending z-indices; the Setup tab's separate `ScrollView`; and the per-section dirty flags with
+> the dot that marked a collapsed row holding unsaved edits — with a save per screen there is no
+> unsaved state you cannot see. The event screen went from 2003 lines to about 1100. `UI-5`, which
+> asked which of two collapsible components should survive, is closed by there being one.
+>
+> Two columns on a wide screen is still not in this change — `UI-4`, rewritten around the hub.
+
+
 ---
 
 ## 8. Setup, running, and finished
@@ -606,6 +813,11 @@ which field is free, one tap to score.
 > step is outstanding and Schedule once none is — decided once, when the screen first learns the
 > viewer may edit, so a step completing underneath them does not yank the tab. The Setup tab shows
 > a badge with the number of steps still to do.
+>
+> **Revised 2026-09-13 (U48).** The tab now carries the checklist and nothing else, and takes an
+> optional `?tab=` param so a step screen has a back destination that survives a refresh or a deep
+> link. A push keeps the event screen mounted, so `router.back()` restores the tab on its own; the
+> param is only the fallback.
 
 > **Decided — what survives a dropped connection.** A school sports day is close to the worst
 > connectivity the app will meet, and it is where failure costs most, because the schedule is the
@@ -955,7 +1167,7 @@ There is no tournament-specific decision hiding in it. The only question is **or
 
 ## 17. Where this leaves us
 
-Forty-two decisions are recorded above, the four parked items in §16 each have an answer, and the
+Forty-eight decisions are recorded above, the four parked items in §16 each have an answer, and the
 build order below follows from them.
 
 Nothing is open. The question raised on 2026-09-01 by the refinement to U18 in §7 was answered the

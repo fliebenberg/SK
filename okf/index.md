@@ -24,6 +24,7 @@ Below are the key concept files in this bundle. AI agents should read these to g
 - **[Design System](file:///c:/Fred/Coding/SK/okf/design_system.md)** (`type: concept`): Visual/styling rules, colors, typography, and Light Mode AAA accessibility requirements.
 - **[Database & Persistence](file:///c:/Fred/Coding/SK/okf/database.md)** (`type: concept`): Persistence engines, PostgreSQL configurations, schema details, and migration steps.
 - **[API & WebSockets](file:///c:/Fred/Coding/SK/okf/api_comms.md)** (`type: concept`): Real-time communications framework, subscription models, REST fallbacks, and sport scoring registries.
+- **[Live Room Inventory](file:///c:/Fred/Coding/SK/okf/live_rooms.md)** (`type: concept`): Every subscription room, its access tier, what it pushes on join, what it publishes afterwards, and how each message type must be merged.
 - **[Git Workflow](file:///c:/Fred/Coding/SK/okf/git_workflow.md)** (`type: concept`): Git branching rules and development workflows.
 - **[Agentic Skills Index](file:///c:/Fred/Coding/SK/okf/skills_index.md)** (`type: concept`): Catalog of workspace-specific agent guidelines under `.agent/skills/`.
 

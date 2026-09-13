@@ -503,9 +503,6 @@ export default function SiteDetailScreen() {
 
     const sitesRoom = `org:${orgId}:sites`;
     const facilitiesRoom = `org:${orgId}:facilities`;
-    
-    const unsubscribeSites = wsService.subscribeToRoom(sitesRoom);
-    const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom);
 
     const handleUpdate = (event: any) => {
       if (!event) return;
@@ -535,8 +532,12 @@ export default function SiteDetailScreen() {
       }
     };
 
+    // Listen first, then hold both rooms with the reducer as their replay handler — a room either
+    // of them already holds pushed its state to whoever joined first (`LIVE-9`). The raw
+    // `join_room` that used to force a re-push here bypassed the ledger's count (`LIVE-17`).
     wsService.on('update', handleUpdate);
-    wsService.emit('join_room', `org:${orgId}:facilities`);
+    const unsubscribeSites = wsService.subscribeToRoom(sitesRoom, handleUpdate);
+    const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom, handleUpdate);
 
     return () => {
       unsubscribeSites();

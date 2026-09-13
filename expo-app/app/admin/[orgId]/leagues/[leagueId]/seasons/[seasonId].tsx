@@ -188,7 +188,6 @@ export default function SeasonDetails() {
 
     // Subscribe to Room updates
     const room = `season:${seasonId}:standings`;
-    const unsubscribe = wsService.subscribeToRoom(room);
 
     // Dynamic standing merge handler: NO redundant fetches!
     const handleUpdate = (event: any) => {
@@ -201,6 +200,9 @@ export default function SeasonDetails() {
     };
 
     wsService.on('update', handleUpdate);
+    // Replay handler, so arriving second at a room a sibling screen already holds still
+    // yields the standings (`LIVE-9`).
+    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
 
     return () => {
       active = false;

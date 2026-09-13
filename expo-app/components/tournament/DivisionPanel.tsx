@@ -76,11 +76,16 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
 
+  // One room per dataset (rule 4). `division:{id}:fixtures` carried the division record, its
+  // stages, its fixtures and its venues until 2026-09-11; `division:{id}` carried the roster, the
+  // pool membership and the adjustments. Now each is its own.
+  const divisionRoom = divisionId ? `division:${divisionId}` : null;
   const fixturesRoom = divisionId ? `division:${divisionId}:fixtures` : null;
-  /** The organiser's tier: the roster, pool membership and the manual adjustments. */
-  const memberRoom = divisionId ? `division:${divisionId}` : null;
+  const stagesRoom = divisionId ? `division:${divisionId}:stages` : null;
+  /** The organiser's tier: the roster. */
+  const entrantsRoom = divisionId ? `division:${divisionId}:entrants` : null;
 
-  const { items: divisions } = useLiveRoom<TournamentDivision>(fixturesRoom, {
+  const { items: divisions } = useLiveRoom<TournamentDivision>(divisionRoom, {
     reduce: (message) => {
       switch (message.type) {
         case 'DIVISION_ADDED':
@@ -94,7 +99,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
     },
   });
 
-  const { items: stages } = useLiveRoom<TournamentStage>(fixturesRoom, {
+  const { items: stages } = useLiveRoom<TournamentStage>(stagesRoom, {
     reduce: (message) => {
       // Stages always arrive as a set, because their order is part of what changed.
       if (message.type === 'STAGES_SYNC') return { kind: 'replace', items: message.data?.stages || [] };
@@ -127,7 +132,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
    * `enabled` rather than a null room: a spectator's panel must not join the member tier at all,
    * and the same hook has to keep its place in the render either way.
    */
-  const { items: entrants } = useLiveRoom<TournamentEntrant>(memberRoom, {
+  const { items: entrants } = useLiveRoom<TournamentEntrant>(entrantsRoom, {
     enabled: canEdit,
     reduce: (message) =>
       message.type === 'DIVISION_ENTRANTS_SYNC' && message.data?.divisionId === divisionId

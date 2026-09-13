@@ -6,7 +6,7 @@ tags:
   - concept
   - skills
   - agent-rules
-timestamp: 2026-08-14T07:20:00Z
+timestamp: 2026-09-12T00:00:00Z
 ---
 
 # Agentic Skills Catalog
@@ -27,3 +27,4 @@ The `.agent/skills/` directory contains rules and instructions for coding agents
 12. **[live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md)** (NEW): How real-time data reaches a client - rooms as the read boundary, broadcasts that carry data rather than a nudge to refetch, and the game summary tier. Read before adding a room, a broadcast, or a screen showing changing data.
 13. **[todo-checkin](file:///c:/Fred/Coding/SK/.agent/skills/todo-checkin/SKILL.md)** (NEW): Requires consulting the Known Issues & Tech Debt backlog in `TODO.md` before implementing a feature, and logging newly found issues there rather than fixing them opportunistically.
 14. **[review-artifact](file:///c:/Fred/Coding/SK/.agent/skills/review-artifact/SKILL.md)** (NEW): How to build a local review page for a long design document so the user can comment block by block, plus the `Open`/`Decided` blockquote conventions and the comment round-trip. Read before offering to review a spec, data model or catalogue.
+15. **[interview-writeup](file:///c:/Fred/Coding/SK/.agent/skills/interview-writeup/SKILL.md)** (NEW): How a recorded user-research interview becomes its two committed documents — the cleaned speaker-labelled transcript and the 17-section structured summary — plus the folder and filename conventions under `docs/interviews/records/`. Read when asked to write up, summarise or transcribe an interview.

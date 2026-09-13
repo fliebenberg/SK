@@ -4,6 +4,7 @@ import { dataManager } from "../DataManager";
 import { DisputeResolutionHandler, DisputeConfig } from "../sports/core/SportDisputeHandler";
 import { sportManager } from "./SportManager";
 import { broadcast } from "../wss/broadcast";
+import { gameDisputesRoom } from "../wss/rooms";
 import { publishGameSummary } from "../wss/fixtures";
 import { eventManager } from "./EventManager";
 import {
@@ -455,7 +456,7 @@ export class GameEventManager extends BaseManager {
         const result = await this.checkDisputeResolution(disputeId);
         
         if (result.resolved) {
-            broadcast(`game:${result.dispute.gameId}:events`, 'DISPUTE_RESOLVED', { dispute: result.dispute });
+            broadcast(gameDisputesRoom(result.dispute.gameId), 'DISPUTE_RESOLVED', { dispute: result.dispute });
             console.log(`[Dispute] Timer-based resolution broadcasted for ${disputeId}`);
         }
     }, delay);
@@ -586,7 +587,7 @@ export class GameEventManager extends BaseManager {
             console.log(`[Dispute System] Resolving expired dispute ${row.id} found at startup/sweep`);
             const result = await this.checkDisputeResolution(row.id);
             if (result.resolved) {
-                broadcast(`game:${row.gameId}:events`, 'DISPUTE_RESOLVED', { dispute: result.dispute });
+                broadcast(gameDisputesRoom(row.gameId), 'DISPUTE_RESOLVED', { dispute: result.dispute });
                 resolvedCount++;
             }
         } else {
@@ -838,7 +839,7 @@ export class GameEventManager extends BaseManager {
          await this.query(`UPDATE game_disputes SET status = $1, resolved_at = NOW() WHERE id = $2`, [outcome, disputeId]);
          dispute.status = outcome;
 
-         broadcast(`game:${dispute.gameId}:events`, 'DISPUTE_RESOLVED', { disputeId, dispute });
+         broadcast(gameDisputesRoom(dispute.gameId), 'DISPUTE_RESOLVED', { disputeId, dispute });
          console.log(`[Dispute Engine] Broadcasted DISPUTE_RESOLVED for ${disputeId}`);
 
          if (outcome === 'RESOLVED_APPROVED') {

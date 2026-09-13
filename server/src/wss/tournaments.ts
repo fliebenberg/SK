@@ -2,8 +2,22 @@ import { GameSummary } from '@sk/shared';
 import { tournamentManager } from '../managers/TournamentManager';
 import { accessManager } from '../managers/AccessManager';
 import { eventManager } from '../managers/EventManager';
+import { dataManager } from '../DataManager';
 import { broadcast } from './broadcast';
 import { publishGameSummary } from './fixtures';
+import {
+  divisionAdjustmentsRoom,
+  divisionEntrantsRoom,
+  divisionFixturesRoom,
+  divisionRoom,
+  divisionStageEntrantsRoom,
+  divisionStagesRoom,
+  divisionStandingsRoom,
+  eventDivisionsRoom,
+  eventEntrantsRoom,
+  eventStandingsRoom,
+  userCapabilitiesRoom,
+} from './rooms';
 
 /**
  * Publishing a tournament change.
@@ -13,22 +27,30 @@ import { publishGameSummary } from './fixtures';
  * Open-coding an audience per action is how `DELETE_GAME`, `UPDATE_GAME_SCORE` and
  * `ADD_GAME_EVENT` each ended up reaching nobody's fixtures list (`FIX-3`, `FIX-6`).
  *
- * Three rooms per division, and the split is by what is in them rather than by who is allowed to
- * organise (U33):
+ * One room per dataset (rule 4), and the tier follows what is in the room rather than who is
+ * allowed to organise (U33):
  *
  * | Room | Access | Carries |
  * |---|---|---|
- * | `division:{id}:fixtures` | public | the division, its stages, and its fixtures |
+ * | `division:{id}` | public | the division record |
+ * | `division:{id}:fixtures` | public | its fixtures |
+ * | `division:{id}:stages` | public | its stages |
  * | `division:{id}:standings` | public | each stage's table |
- * | `division:{id}` | member | the roster, pool membership, manual adjustments |
+ * | `division:{id}:facilities` | public | the venues in play |
+ * | `division:{id}:entrants` | member | the roster |
+ * | `division:{id}:stage_entrants` | member | pool membership |
+ * | `division:{id}:adjustments` | member | manual points corrections |
  *
- * A division change also reaches `event:{eventId}`, because the event screen lists the divisions
- * and cannot be expected to join every one of their rooms to know they exist.
+ * A division change also reaches `event:{eventId}:divisions`, because the event screen lists the
+ * divisions and cannot be expected to join every one of their rooms to know they exist.
  */
 
-export const divisionFixturesRoom = (divisionId: string) => `division:${divisionId}:fixtures`;
-export const divisionStandingsRoom = (divisionId: string) => `division:${divisionId}:standings`;
-export const divisionRoom = (divisionId: string) => `division:${divisionId}`;
+export {
+  divisionFixturesRoom,
+  divisionStandingsRoom,
+  divisionRoom,
+  eventEntrantsRoom,
+} from './rooms';
 
 /**
  * The whole tournament's roster, in one room (U21).
@@ -39,18 +61,18 @@ export const divisionRoom = (divisionId: string) => `division:${divisionId}`;
  * gets an event-level room beside the per-division one. Same tier as the per-division room, for
  * the same reason: an entrant may be a person rather than a team.
  */
-export const eventEntrantsRoom = (eventId: string) => `event:${eventId}:entrants`;
+
 
 /** The division itself changed — name, weighting, scoring, or it appeared or went away. */
 export async function publishDivision(divisionId: string, type: string, data: any, eventId?: string): Promise<void> {
   const resolvedEventId = eventId || (await tournamentManager.getDivisionEventId(divisionId));
-  broadcast(divisionFixturesRoom(divisionId), type, data);
-  if (resolvedEventId) broadcast(`event:${resolvedEventId}`, type, data);
+  broadcast(divisionRoom(divisionId), type, data);
+  if (resolvedEventId) broadcast(eventDivisionsRoom(resolvedEventId), type, data);
 }
 
 /** A stage was added, renamed, resequenced, or its status moved. */
 export function publishStages(divisionId: string, stages: any[]): void {
-  broadcast(divisionFixturesRoom(divisionId), 'STAGES_SYNC', { divisionId, stages });
+  broadcast(divisionStagesRoom(divisionId), 'STAGES_SYNC', { divisionId, stages });
 }
 
 /**
@@ -62,7 +84,7 @@ export function publishStages(divisionId: string, stages: any[]): void {
  * way, and the event-level listener merges by it.
  */
 export async function publishEntrants(divisionId: string, entrants: any[], eventId?: string): Promise<void> {
-  broadcast(divisionRoom(divisionId), 'DIVISION_ENTRANTS_SYNC', { divisionId, entrants });
+  broadcast(divisionEntrantsRoom(divisionId), 'DIVISION_ENTRANTS_SYNC', { divisionId, entrants });
   const resolvedEventId = eventId || (await tournamentManager.getDivisionEventId(divisionId));
   if (resolvedEventId) {
     broadcast(eventEntrantsRoom(resolvedEventId), 'DIVISION_ENTRANTS_SYNC', { divisionId, entrants });
@@ -71,12 +93,12 @@ export async function publishEntrants(divisionId: string, entrants: any[], event
 
 /** Pool membership changed. */
 export function publishStageEntrants(divisionId: string, stageId: string, entrants: any[]): void {
-  broadcast(divisionRoom(divisionId), 'STAGE_ENTRANTS_SYNC', { stageId, entrants });
+  broadcast(divisionStageEntrantsRoom(divisionId), 'STAGE_ENTRANTS_SYNC', { stageId, entrants });
 }
 
 /** A manual points correction was recorded or withdrawn. */
 export function publishAdjustments(divisionId: string, adjustments: any[]): void {
-  broadcast(divisionRoom(divisionId), 'DIVISION_ADJUSTMENTS_SYNC', { divisionId, adjustments });
+  broadcast(divisionAdjustmentsRoom(divisionId), 'DIVISION_ADJUSTMENTS_SYNC', { divisionId, adjustments });
 }
 
 /**
@@ -107,7 +129,7 @@ export async function publishStandings(divisionId: string | null, eventId: strin
   }
   if (eventId) {
     const res = await eventManager.getEvent(eventId);
-    if (res) broadcast(`event:${eventId}`, 'EVENT_STANDINGS_UPDATED', { eventId, rows: (res as any).cachedStandings || [] });
+    if (res) broadcast(eventStandingsRoom(eventId), 'EVENT_STANDINGS_UPDATED', { eventId, rows: (res as any).cachedStandings || [] });
   }
 }
 
@@ -157,6 +179,12 @@ export async function publishOrganizerChange(orgProfileId: string, eventId: stri
   const userIds = await accessManager.getUserIdsForOrgProfile(orgProfileId);
   for (const userId of userIds) {
     const capabilities = await accessManager.getEventCapabilities(userId, eventId);
-    broadcast(`user:${userId}`, 'EVENT_CAPABILITIES_UPDATED', capabilities);
+    broadcast(userCapabilitiesRoom(userId), 'EVENT_CAPABILITIES_UPDATED', capabilities);
+    // The room hands the whole grant set over on join, so it has to republish it here too —
+    // otherwise a fixtures list's role chips keep the set they were given at join and go stale the
+    // first time somebody is appointed (`FIX-4`, `LIVE-8`). `EVENT_CAPABILITIES_UPDATED` above is
+    // the answer for *one* event; this is the set across all of them, and they are different
+    // datasets sharing a room only because they are the same question at two altitudes.
+    broadcast(userCapabilitiesRoom(userId), 'EVENT_GRANTS_SYNC', await dataManager.getMyGrants(userId));
   }
 }

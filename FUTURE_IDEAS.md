@@ -50,7 +50,8 @@ This document is a space to jot down brilliant ideas for the application while w
       shareable-output task in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md) — "which field am I on"
       is exactly what a parent opens a shared link to find out.
     - *Source note: the field-subdivision detail is the interviewer's recollection from the room and
-      does not appear in the machine transcript — worth confirming with Malcolm.*
+      does not appear in the machine transcript — worth confirming with the Tableview FC club admin
+      (2026-09-09).*
 
 - [ ] Add the ability to create sub-rooms for specific regions (e.g., `games-za`, `games-usa`) to further optimize data usage.
 
@@ -79,6 +80,83 @@ This document is a space to jot down brilliant ideas for the application while w
       is the foundation for this or a separate thing.
     - **Not committed.** Recorded so the research does not evaporate. Revisit once more interviews
       confirm it generalises beyond one club — the interviews README lists this as untested.
+    - **Confirmed 2026-09-11 (Wynberg Boys' Primary), from the opposite end.** It does generalise,
+      and the parent's version of the problem is *worse* than the club's. Communication mattered
+      more to her than scores or stats — as it did to the club admin — which makes this the one
+      theme both interviews put first. Raw material for the workshop is gathered in the entry below.
+
+- [ ] **Communication — pain points and candidate features, gathered for a strategy workshop.**
+  **Not a plan and not a commitment.** Both interviews so far put communication ahead of scoring, so
+  this entry exists to stop the evidence evaporating before we sit down and design a communication
+  strategy and feature plan properly. Pull it together then; do not build from this list piecemeal.
+
+    **The governing constraint — avoid the D6 trap.** D6 is the school communicator at Wynberg. It
+    is installed, sanctioned, carries the newsletter, and the parent **does not open it**: *"I
+    usually don't navigate through D6; I just check the pop-up notification."* It tries to do
+    everything for the whole school, so nothing in it is reliably for you, and the result is an app
+    reduced to a notification glance. **Breadth is what cost it attention.** So our communication
+    must be **specific to what is relevant to the recipient** — scoped by the recipient's actual
+    relationship to the thing (their child, their team, their fixture), which ScoreKeeper can do
+    because it holds rosters and fixtures and a newsletter tool structurally cannot. **That is the
+    advantage over D6 — relevance, not features.** Every candidate below should have to answer
+    *"who specifically is this for, and why would they not mute it?"* A general-purpose broadcast
+    channel fails that test and would make us D6.
+
+    **Pain points observed (all from real accounts, not speculation):**
+    - **There is no single place.** Wynberg runs seven channels in parallel — newsletter by email
+      *and* D6, a linked read-only sheet of all sporting codes, class WhatsApp groups, one teacher's
+      Google Classroom, PDF match-day flyers, festival document packs, and a hard-copy letter sent
+      home with a Grade 2 child. **No standard exists**; each teacher picks what suits them. Parents
+      complain *"it's everywhere"*, and some did not know a hockey group existed while their child
+      played hockey all term.
+    - **It is worse than one organisation.** Children also play at **clubs** outside school — this
+      parent's cricket and golf are run and paid for separately. So even a school that consolidated
+      perfectly leaves a parent assembling from several organisations. **The unit that matters to a
+      parent is the child, not the organisation.**
+    - **Missing a message costs the child selection.** *"If you don't pitch, next time they might
+      not want to pick you."* A letter that never arrived meant she did not attend — and the match
+      turned out to have been cancelled. **Nothing confirms a parent has seen anything.**
+    - **Attendance is unrecorded on both sides.** She cannot tell whether her son attended 07:00
+      cross country; the teacher running it announced attendance was poor while admitting *"we don't
+      know who, when, and what."*
+    - **Away-day logistics fail hardest.** At an unfamiliar venue she checked **parking first, then
+      which field** — neither is a fixture. Food and facilities were carried only by PA
+      announcements: *"we walked all around the fields trying to find food while rushing between
+      match fields."*
+    - **A parent rebuilt the school's festival document with AI** because the school's own was *"all
+      over the place"*, and other parents used hers — groups down the page, each child's name, match
+      times. **Unpaid work to fix an information-architecture failure** is the strongest demand
+      signal in either interview, and it is revealed behaviour rather than a stated wish.
+    - **Nobody knows who is actually in the audience.** Class WhatsApp groups are run by a **class
+      rep — a parent, not staff** — and people join by asking; a parent may add a grandparent or
+      nanny who does the school run. The org holds their number and not their identity.
+
+    **Candidate features (unranked, unvalidated):**
+    - **One view of everything one child plays**, across every school and club involved.
+    - **A day view for a festival or tournament** — groups, each child's name, match times, *plus*
+      parking, the site map and facilities. Overlaps the tournament-scoped site map idea above,
+      which **two interviews have now independently asked for**, from the organiser's end and the
+      parent's.
+    - **Selection acknowledgement** — "your child is selected, are they coming?", with the coach
+      seeing who has answered. Addresses both the parent's risk and the coach's reciprocal problem.
+    - **Attendance marking** — a teacher taps names, the guardian sees it. Cheap, and it serves both
+      ends of a handover that is currently blind at both.
+    - **Uniform / kit requirements per sporting code**, practice vs match day. The **only feature the
+      parent volunteered unprompted**, and a reason to open the app midweek rather than on match day.
+    - **Change and cancellation notices that carry the change**, so a moved kick-off updates the
+      schedule rather than scrolling away as text.
+    - **Guardian-scoped delivery** — messages addressed to the responsible party for a player rather
+      than to whoever is in a group. Depends on `MEMBER-3` /
+      [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.
+    - **Trusted Contacts** — a guardian, or an adult player for themselves, grants a nanny,
+      grandparent, driver or partner the same *view* of one player's schedule without any of their
+      authority ([identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.5).
+      Logged-in users only; only very general information is ever public to a signed-out visitor.
+
+    **Dependencies to settle in the workshop:** this is mostly **public / consumer-side** work and
+    that side of the app has not been started, which is why read access, permissioned sharing and
+    audience identity are all currently unanswered. Also drags in moderation (`REP-*`), consent and
+    minors' data, notification preferences, and the unified notification inbox above.
 
 - [ ] Set up a dedicated ScoreKeeper mail service for production email sending (transactional emails, notifications, password resets, etc.)
 - [ ] Optimize organization caching and search:
@@ -90,6 +168,10 @@ This document is a space to jot down brilliant ideas for the application while w
     - any org can create a league
     - teams can then join a league (league owner can specify if anyone can join or if they need to be approved) and assign specific matches to a league (league owner can choose to approve matches as well)
     - when setting up a league the owner can specify how points and ranking will work
+    - **Reference to look at when we build this:** <https://cttfass.leaguerepublic.com/index.html>
+      (Central Table Tennis on LeagueRepublic) — an example of a public league site: fixtures,
+      results, standings, divisions and club/team pages. Worth reviewing for what a league's public
+      face needs to show and how it is navigated, before designing ours. Noted 2026-09-10.
 - [ ] Add a coach-initiated roll call so a coach can take attendance for a team on demand. Useful for practice attendance, and for ad-hoc headcounts (e.g. confirming everyone who said they'd take the bus is actually on the bus). Coach starts a roll call against a team (optionally tied to a game, practice or trip), marks each player present/absent/excused, and the result is stored for later review.
 - [ ] **Lane-based race timing by consensus start.** Replace the stopwatch-and-shout process at
   non-professional meets: one timekeeper per lane in the app, each pressing start on the gun and stop

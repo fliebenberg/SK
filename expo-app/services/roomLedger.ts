@@ -38,10 +38,16 @@ export interface SubscribeResult {
 }
 
 /**
- * A long-lived room can outgrow any sensible log — a match room takes a `GAME_UPDATED` per
- * clock tick — and replaying thousands of messages into a fresh reducer is worse than one
- * re-push. Past this many messages the log is dropped and a late subscriber falls back to a
- * re-join.
+ * A long-lived room can outgrow any sensible log, and replaying thousands of messages into a fresh
+ * reducer is worse than one re-push. Past this many messages the log is dropped and a late
+ * subscriber falls back to a re-join.
+ *
+ * This used to say "a match room takes a `GAME_UPDATED` per clock tick", which was never true: the
+ * clock runs locally off `lastStartedAt` (see `useGameTimer`) and the server hears from it only on
+ * a button press. The real accumulator is `game:{id}:events`, which takes a `GAME_EVENT_ADDED` per
+ * recorded event — hundreds over a long match, not thousands per minute. So the cap is a safety
+ * valve rather than a routine occurrence, and the fix for the rooms that need it is the stored
+ * state of `LIVE-16`, not a larger number here.
  */
 export const DEFAULT_MAX_REPLAY = 500;
 

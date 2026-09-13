@@ -45,9 +45,6 @@ export default function ScoreGameScreen() {
 
     setIsLoading(true);
 
-    wsService.emit('join_room', `game:${gameId}`);
-    wsService.emit('join_room', `game:${gameId}:events`);
-
     if (eventId) {
       wsService.emit('get_data', { type: 'event', id: eventId }, (resEvent: Event) => {
         if (resEvent) setEvent(resEvent);
@@ -77,11 +74,16 @@ export default function ScoreGameScreen() {
       }
     };
 
+    // Through the ledger, not by raw `join_room` / `leave_room` (`LIVE-17`). The raw leave on
+    // unmount removed the socket from `game:{id}` even when another mounted screen still held it,
+    // and the reference count never saw either call, so nothing re-joined.
     wsService.on('update', handleUpdate);
+    const unsubscribeGame = wsService.subscribeToRoom(`game:${gameId}`, handleUpdate);
+    const unsubscribeEvents = wsService.subscribeToRoom(`game:${gameId}:events`, handleUpdate);
 
     return () => {
-      wsService.emit('leave_room', `game:${gameId}`);
-      wsService.emit('leave_room', `game:${gameId}:events`);
+      unsubscribeGame();
+      unsubscribeEvents();
       wsService.off('update', handleUpdate);
     };
   }, [isConnected, gameId]);

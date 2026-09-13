@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io';
 import { getIo, setIo } from './sockets';
 import { invalidateMembership } from './roomAccess';
 import { revalidateUserRooms } from './revalidate';
+import { logBroadcast } from './socketLog';
 
 /**
  * Every live update leaves the server through here, so that all of them carry
@@ -58,6 +59,11 @@ export function broadcast(topic: string, type: string, data: any) {
     return;
   }
   io.to(topic).emit('update', { topic, type, data } as UpdateMessage);
+  // Logged here because this is the only exit for a room fan-out, and a fan-out never passes
+  // through any one socket's `emit` — so the per-socket wrapper in `attachSocketLogging` cannot
+  // see it. The recipient count is the number this message actually reached, which is the thing
+  // worth knowing when a room looks like it published to nobody (`FIX-4`).
+  logBroadcast(topic, type, data, io.sockets.adapter.rooms.get(topic)?.size ?? 0);
 }
 
 /**

@@ -118,10 +118,19 @@ interface PlannedGame {
 }
 
 export class TournamentManager extends BaseManager {
+  /**
+   * `facilityIds` travels with the division for the reason `FIX-7` established for a fixture's
+   * team names: the event screen lists every division and says which fields each one may use, and
+   * a list that fetched that per row would fetch once per division on every broadcast. An empty
+   * array is a *meaning*, not missing data — it is the division inheriting the event's facilities
+   * (U47), which is why it is coalesced here rather than left null for a caller to interpret.
+   */
   private DIVISION_COLUMNS = `
       d.id, d.event_id as "eventId", d.name, d.sport_id as "sportId", d.age_group as "ageGroup",
       d.scoring_subject as "scoringSubject", d.weighting::float8 as "weighting", d.settings,
-      d.sort_order as "sortOrder"`;
+      d.sort_order as "sortOrder",
+      COALESCE((SELECT json_agg(df.facility_id ORDER BY df.facility_id)
+                  FROM division_facilities df WHERE df.division_id = d.id), '[]'::json) as "facilityIds"`;
 
   private STAGE_COLUMNS = `
       s.id, s.division_id as "divisionId", s.name, s.format, s.sequence, s.status,
