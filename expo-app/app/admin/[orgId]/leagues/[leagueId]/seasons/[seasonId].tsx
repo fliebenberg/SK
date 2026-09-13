@@ -17,6 +17,7 @@ import DatePicker from '../../../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../../../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { formatFixtureWhen } from '../../../../../../utils/dates';
 
 const calculateSeasonStatus = (startDateStr: string, endDateStr: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
   if (!startDateStr || !endDateStr) return 'UPCOMING';
@@ -383,18 +384,11 @@ export default function SeasonDetails() {
   const availableTeams = orgTeams.filter(t => !seasonTeams.some(st => st.teamId === t.id));
   const availableGames = orgGames.filter(g => !seasonGames.some(sg => sg.id === g.id));
 
-  const formatTime = (game: any) => {
-    const isoString = game?.scheduledStartTime || game?.startTime || '';
-    try {
-      const d = new Date(isoString);
-      if (game?.customSettings?.timeTbd) {
-        return `${d.toLocaleDateString()} @ TBD`;
-      }
-      return `${d.toLocaleDateString()} @ ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } catch {
-      return isoString;
-    }
-  };
+  /** Third copy of this, extracted to `utils/dates.ts` in U49. Renders exactly as it always did. */
+  const formatTime = (game: any) =>
+    formatFixtureWhen(game?.scheduledStartTime || game?.startTime, {
+      timeTbd: game?.customSettings?.timeTbd,
+    });
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>

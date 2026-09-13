@@ -10,6 +10,7 @@ import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
 import { League, Season, LeagueStandingRow, Game, Sport } from '@sk/shared';
 import CustomSelect from '../../components/CustomSelect';
+import { formatFixtureWhen } from '../../utils/dates';
 
 export default function PublicLeagueStandings() {
   const router = useRouter();
@@ -123,18 +124,11 @@ export default function PublicLeagueStandings() {
     return s ? s.name : sportId;
   };
 
-  const formatTime = (game: any) => {
-    const isoString = game?.scheduledStartTime || game?.startTime || '';
-    try {
-      const d = new Date(isoString);
-      if (game?.customSettings?.timeTbd) {
-        return `${d.toLocaleDateString()} @ TBD`;
-      }
-      return `${d.toLocaleDateString()} @ ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } catch {
-      return isoString;
-    }
-  };
+  /** Third copy of this, extracted to `utils/dates.ts` in U49. Renders exactly as it always did. */
+  const formatTime = (game: any) =>
+    formatFixtureWhen(game?.scheduledStartTime || game?.startTime, {
+      timeTbd: game?.customSettings?.timeTbd,
+    });
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>

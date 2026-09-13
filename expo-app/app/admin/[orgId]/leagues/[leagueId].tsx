@@ -18,6 +18,7 @@ import { getOrgLogoUrl } from '../../../../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import CustomSelect from '../../../../components/CustomSelect';
+import { formatDateRange } from '../../../../utils/dates';
 
 const calculateSeasonStatus = (startDateStr: string, endDateStr: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
   if (!startDateStr || !endDateStr) return 'UPCOMING';
@@ -357,13 +358,7 @@ export default function LeagueDetails() {
     return s ? s.name : sportId;
   };
 
-  const formatDate = (isoString: string) => {
-    try {
-      return isoString.split('T')[0];
-    } catch {
-      return isoString;
-    }
-  };
+
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
@@ -523,8 +518,11 @@ export default function LeagueDetails() {
                         </View>
                       </View>
                       
+                      {/* Was `startDate.split('T')[0]` on both ends — `2026-09-19 to 2026-12-15`,
+                          an ISO value shown to a user. A season is a calendar-date range like an
+                          event's, so it reads through the shared formatter (U49). */}
                       <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-                        {formatDate(season.startDate)} to {formatDate(season.endDate)}
+                        {formatDateRange(season.startDate, season.endDate) || 'Dates not set'}
                       </Text>
                     </View>
                   </View>

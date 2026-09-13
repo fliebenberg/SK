@@ -27,11 +27,14 @@ import {
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { Tabs } from '../../../../components/Tabs';
 import {
-  SetupProgress,
+  SetupChecklistIntro,
   SetupDismissedSteps,
   SetupChecklistRow,
   SetupStep,
 } from '../../../../components/SetupChecklist';
+import { OverflowMenu } from '../../../../components/OverflowMenu';
+import { ScreenHeader } from '../../../../components/ScreenHeader';
+import { formatDateRange, dateCountdown } from '../../../../utils/dates';
 import { SETUP_STEPS } from '../../../../components/tournament/setupSteps';
 import { StandingsTable } from '../../../../components/tournament/StandingsTable';
 import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
@@ -311,10 +314,10 @@ export default function EventDetails() {
   const [isCancelling, setIsCancelling] = useState(false);
 
   /**
-   * The appointed organisers, for the Basics row's detail line only.
+   * The appointed organisers, for the Basic Info row's detail line only.
    *
    * A one-shot read, because "who is appointed to run this" is a set no room publishes changes
-   * to. The Basics *screen* reads the same thing for its picker — one extra round trip on a screen
+   * to. The Basic Info *screen* reads the same thing for its picker — one extra round trip on a screen
    * that is only reached by an organiser, which is cheaper than teaching a room about it.
    */
   const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
@@ -429,8 +432,9 @@ export default function EventDetails() {
         ? 'Points by finishing position'
         : 'Using the default 3 / 1 / 0';
 
-    const startsOn = event?.startDate?.split('T')[0];
-    const endsOn = event?.endDate?.split('T')[0];
+    // The same formatter the header uses — this row said `2026-09-19` under a header reading
+    // `Sat 19 Sep 2026` until U49, which is the disagreement this consolidation is about.
+    const whenLabel = formatDateRange(event?.startDate, event?.endDate, { compact: true });
     const venueName = sites.find(s => s.id === event?.siteId)?.name;
     const facilityCount = savedFacilityIds.length;
     const invitedCount = (event?.participatingOrgs || []).length;
@@ -440,7 +444,7 @@ export default function EventDetails() {
         status: event?.siteId || facilityCount > 0 ? 'done' : 'todo',
         detail:
           [
-            endsOn && endsOn !== startsOn ? `${startsOn} to ${endsOn}` : startsOn,
+            whenLabel,
             venueName,
             facilityCount > 0
               ? `${facilityCount} field${facilityCount === 1 ? '' : 's'} in play`
@@ -480,9 +484,18 @@ export default function EventDetails() {
             ? undefined
             : 'Invite the organisations coming, then enter teams by division or a school at a time.',
       },
+      /**
+       * `default` rather than `todo` when nothing has been chosen (U49).
+       *
+       * The row used to say "Using the default 3 / 1 / 0" and carry the word **To do** beside it,
+       * which is a contradiction: it reported the competition as already scored and unscored at
+       * once. It is neither — 3 / 1 / 0 is what the server will use (D17), so nothing is blocked,
+       * but nobody has agreed to it, so it is not done either.
+       */
       scoring: {
-        status: scoring ? 'done' : 'todo',
-        detail: scoringDetail,
+        status: scoring ? 'done' : 'default',
+        detail: scoring ? scoringDetail : undefined,
+        hint: 'Points default to 3 / 1 / 0 for a win, draw and loss. Open to confirm or change them.',
       },
       fixtures: {
         status: fixtureCount > 0 ? 'done' : 'todo',
@@ -499,6 +512,8 @@ export default function EventDetails() {
     return SETUP_STEPS.map(step => ({
       key: step.key,
       label: step.label,
+      purpose: step.purpose,
+      icon: step.icon,
       dismissible: step.dismissible,
       ...state[step.key],
     }));
@@ -524,6 +539,10 @@ export default function EventDetails() {
   const visibleSteps = setupSteps.filter(step => !dismissedSteps.includes(step.key));
   const hiddenSteps = setupSteps.filter(step => dismissedSteps.includes(step.key));
   const setupComplete = visibleSteps.every(step => step.status === 'done');
+  const openStep = (key: string) => {
+    const href = SETUP_STEPS.find(s => s.key === key)?.href(orgId, eventId);
+    if (href) router.push(href as any);
+  };
 
   /**
    * Land an organiser on Setup while there is setup to do, once, when we first learn they may
@@ -594,33 +613,79 @@ export default function EventDetails() {
     );
   }
 
+  /**
+   * When it is, said rather than stored (U49).
+   *
+   * This bar used to print `startDate.split('T')[0]` — `2026-09-19`, with nothing beside it to say
+   * which of an event's dates it was, in a format nobody speaks. Three changes: the date is
+   * written out, it is labelled, and it is followed by how far off it is, which is the half of
+   * "when" that a date alone never answers and the reason anybody glances at this bar at all.
+   */
+  const dateLabel = formatDateRange(event.startDate, event.endDate);
+  const countdown = dateCountdown(event.startDate, event.endDate);
+  const isMultiDay = !!dateLabel && dateLabel.includes('–');
+  const subjectNoun = resolved.kind === 'SingleMatch' ? 'match' : 'tournament';
+
   const header = (
     <>
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}/events`)}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Back
-          </Text>
-        </TouchableOpacity>
-        <Text
-          className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase flex-1 text-center px-4"
-          numberOfLines={1}
-        >
-          {event.name}
-        </Text>
-        <View className="w-10" />
-      </View>
+      {/* One of the thirty-four screens `UI-10` is about, converted here because U49 was rewriting
+          this header anyway and the menu it gained is exactly what the `right` prop is for. */}
+      <ScreenHeader
+        title={event.name}
+        onBack={() => safeBack(`/admin/${orgId}/events`)}
+        right={
+          /* The danger zone, relocated here from the bottom of the Setup tab (U49): it belongs to
+             the event rather than to its setup, and ending a set-up checklist on a red box
+             offering to delete the thing you are setting up is a strange note to finish on. It is
+             not offered on the Unknown branch, which renders no confirmation modal for either
+             action to open; `ScreenHeader` supplies the spacer when this is undefined. */
+          canEdit && resolved.kind !== 'Unknown' ? (
+            <OverflowMenu
+              accessibilityLabel="Event actions"
+              title={`This ${subjectNoun}`}
+              items={[
+                {
+                  label: 'Cancel event',
+                  description: `Marks the ${subjectNoun} as cancelled. Nothing is deleted.`,
+                  icon: 'ban-outline',
+                  disabled: event.status === 'Cancelled',
+                  onPress: () => setIsCancelling(true),
+                },
+                {
+                  label: 'Delete event',
+                  description:
+                    resolved.kind === 'SingleMatch'
+                      ? 'Permanently deletes the match and everything recorded against it.'
+                      : 'Permanently deletes the tournament, its divisions and its fixtures.',
+                  icon: 'trash-outline',
+                  destructive: true,
+                  onPress: () => setIsDeleting(true),
+                },
+              ]}
+            />
+          ) : undefined
+        }
+      />
 
-      <View className="bg-white dark:bg-slate-900 px-6 py-3 flex-row justify-between items-center border-b border-slate-100 dark:border-white/5">
-        <View className="flex-row items-center gap-2 flex-1">
-          <Ionicons name="calendar-outline" size={14} color={COLORS.brand.orange} />
-          <Text className="font-inter text-xs text-slate-600 dark:text-slate-400" numberOfLines={1}>
-            {event.startDate?.split('T')[0]} {event.endDate ? `to ${event.endDate.split('T')[0]}` : ''}
-          </Text>
+      <View className="bg-white dark:bg-slate-900 px-6 py-2.5 flex-row justify-between items-center gap-3 border-b border-slate-100 dark:border-white/5">
+        <View className="flex-row items-center gap-2.5 flex-1 min-w-0">
+          <Ionicons name="calendar-outline" size={16} color={COLORS.brand.orange} />
+          <View className="flex-1 min-w-0">
+            <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-slate-400 dark:text-slate-500">
+              {dateLabel ? (isMultiDay ? 'Runs' : 'Takes place') : 'When'}
+            </Text>
+            <Text
+              className="font-inter-bold text-xs text-slate-700 dark:text-slate-200"
+              numberOfLines={1}
+            >
+              {dateLabel || 'No date set yet'}
+              {!!countdown && (
+                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                  {`  ·  ${countdown}`}
+                </Text>
+              )}
+            </Text>
+          </View>
         </View>
         <View className="flex-row items-center gap-2">
           <EventRoleChips roles={roles} />
@@ -771,43 +836,6 @@ export default function EventDetails() {
               </GlassCard>
             )}
 
-            {canEdit && (
-              <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 space-y-4">
-                <Text className="font-orbitron-bold text-xs text-brand-red uppercase tracking-wider">
-                  Danger Zone
-                </Text>
-                <View className="flex-row justify-between items-center">
-                  <View>
-                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Cancel Event</Text>
-                    <Text className="font-inter text-xs text-slate-500 mt-0.5">Marks the match as cancelled.</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setIsCancelling(true)}
-                    disabled={event.status === 'Cancelled'}
-                    className={`px-4 py-2 border border-brand-orange rounded-lg ${
-                      event.status === 'Cancelled' ? 'opacity-40' : ''
-                    }`}
-                  >
-                    <Text className="font-inter-bold text-xs text-brand-orange uppercase">Cancel Match</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View className="flex-row justify-between items-center pt-4 border-t border-slate-100 dark:border-white/5">
-                  <View>
-                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Delete Event</Text>
-                    <Text className="font-inter text-xs text-slate-500 mt-0.5">
-                      Permanently deletes match records.
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setIsDeleting(true)}
-                    className="px-4 py-2 border border-brand-red rounded-lg"
-                  >
-                    <Text className="font-inter-bold text-xs text-brand-red uppercase">Delete Match</Text>
-                  </TouchableOpacity>
-                </View>
-              </GlassCard>
-            )}
           </View>
         </ScrollView>
 
@@ -848,9 +876,15 @@ export default function EventDetails() {
             canEdit
               ? [
                   {
+                    /**
+                     * A dot, not a count (U49). The badge read `2` — outstanding steps, counting
+                     * down — directly above a progress bar counting *done* steps up, and a bare
+                     * number beside a tab label is read as unread items anyway. The dot says
+                     * there is work here; the page behind it says how much, in words.
+                     */
                     key: 'setup',
                     label: 'Setup',
-                    badge: setupComplete ? undefined : visibleSteps.filter(st => st.status !== 'done').length,
+                    dot: !setupComplete,
                   },
                   { key: 'schedule', label: 'Schedule' },
                   { key: 'standings', label: 'Standings' },
@@ -873,20 +907,21 @@ export default function EventDetails() {
         {/* The checklist (U48): where every step stands, and the way in to each one. There is no
             save bar here — a step is saved on its own screen, so this tab can never be dirty. */}
         {activeTab === 'setup' && canEdit && (
-          <View className="space-y-3">
+          <View className="gap-3">
+            {/* What the list is, and how far through it this tournament is. The rows below say
+                where each step stands; nothing but this says what they add up to, or that none of
+                it has to be done today — which is the thing an organiser opening a half-finished
+                tournament in March actually wants to be told. */}
             <View className="pb-1">
-              <SetupProgress steps={visibleSteps} />
+              <SetupChecklistIntro steps={visibleSteps} />
             </View>
 
+            {/* Outstanding steps are tinted, done ones are not, so where the work is left reads
+                off the shape of the list before a word of it is (U49). No separate "next up" card:
+                that put a summary back above the list, which is the shape this page has failed as
+                twice before. */}
             {visibleSteps.map(step => (
-              <SetupChecklistRow
-                key={step.key}
-                step={step}
-                onPress={() => {
-                  const href = SETUP_STEPS.find(s => s.key === step.key)?.href(orgId, eventId);
-                  if (href) router.push(href as any);
-                }}
-              />
+              <SetupChecklistRow key={step.key} step={step} onPress={() => openStep(step.key)} />
             ))}
 
             <View className="pt-2">
@@ -895,58 +930,8 @@ export default function EventDetails() {
                 onRestore={key => saveDismissed(dismissedSteps.filter(k => k !== key))}
               />
             </View>
-
-            {/* --------------------------------------------------------------- danger zone ---
-                Still the last thing on Setup, reached only by scrolling past every step, which
-                is where it has always been and the last place you go for a tournament. */}
-            <View className="pt-4">
-              <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 space-y-4">
-                <Text className="font-orbitron-bold text-xs text-brand-red uppercase tracking-wider">
-                  Danger Zone
-                </Text>
-                <View className="flex-row justify-between items-center">
-                  <View className="flex-1 pr-3">
-                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">
-                      Cancel Event
-                    </Text>
-                    <Text className="font-inter text-xs text-slate-500 mt-0.5">
-                      Marks the tournament as cancelled. Nothing is deleted.
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setIsCancelling(true)}
-                    disabled={event.status === 'Cancelled'}
-                    className={`px-4 py-2 border border-brand-orange rounded-lg ${
-                      event.status === 'Cancelled' ? 'opacity-40' : ''
-                    }`}
-                  >
-                    <Text className="font-inter-bold text-xs text-brand-orange uppercase">
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View className="flex-row justify-between items-center pt-4 border-t border-slate-100 dark:border-white/5">
-                  <View className="flex-1 pr-3">
-                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">
-                      Delete Event
-                    </Text>
-                    <Text className="font-inter text-xs text-slate-500 mt-0.5">
-                      Permanently deletes the tournament, its divisions and its fixtures.
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setIsDeleting(true)}
-                    className="px-4 py-2 border border-brand-red rounded-lg"
-                  >
-                    <Text className="font-inter-bold text-xs text-brand-red uppercase">Delete</Text>
-                  </TouchableOpacity>
-                </View>
-              </GlassCard>
-            </View>
           </View>
         )}
-
         {activeTab === 'schedule' && (
           <View className="space-y-6">
             {/* THE COLLAPSE RULE (U15).

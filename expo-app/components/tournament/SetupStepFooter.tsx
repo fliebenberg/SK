@@ -34,7 +34,7 @@ export interface SetupStepFooterProps {
   isDirty?: boolean;
   isProcessing?: boolean;
   nextDisabled?: boolean;
-  /** Omitted for a step that must always be answered — Basics and What's being played. */
+  /** Omitted for a step that must always be answered — Basic Info and What's being played. */
   onDismiss?: () => void;
 }
 

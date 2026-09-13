@@ -12,6 +12,7 @@ import {
   SetupStepRoute,
   nextStepAfter,
   setupChecklistHref,
+  stepByKey,
 } from '../components/tournament/setupSteps';
 
 /**
@@ -120,6 +121,8 @@ export function useSetupStepScreen(stepKey: SetupStepKey) {
   return {
     orgId,
     eventId,
+    /** What this step is called and where it routes — the one place a step is named. */
+    step: stepByKey(stepKey),
     event,
     eventRoom,
     isLoading,

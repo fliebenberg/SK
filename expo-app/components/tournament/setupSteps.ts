@@ -19,12 +19,31 @@
  * simply no longer matches anything.
  */
 
+import { Ionicons } from '@expo/vector-icons';
+
 export type SetupStepKey = 'basics' | 'divisions' | 'entrants' | 'scoring' | 'fixtures';
 
 export interface SetupStepRoute {
   /** Stable across releases — it is what a dismissal is recorded against. */
   key: SetupStepKey;
   label: string;
+  /**
+   * What the step is *for*, in a few words — "when and where it happens", not "the date field".
+   *
+   * The checklist showed a label and the state of the data and nothing else, so a row an organiser
+   * had not opened yet was a heading with a status next to it and no clue what opening it asked
+   * for. This is the line that makes the list readable before any of it is filled in; it shows
+   * wherever there is no `detail` to show instead.
+   */
+  purpose: string;
+  /**
+   * The step's mark, carried on the row in place of the word "to do".
+   *
+   * A leading icon does two things a status word cannot: it makes the five rows scannable as a set
+   * rather than read one at a time, and it gives the done state somewhere to live — the medallion
+   * turns into a check — which is what let the repeated DONE / TO DO column go.
+   */
+  icon: keyof typeof Ionicons.glyphMap;
   /** False for steps that must always be answered. */
   dismissible: boolean;
   href: (orgId: string, eventId: string) => string;
@@ -33,35 +52,56 @@ export interface SetupStepRoute {
 export const SETUP_STEPS: SetupStepRoute[] = [
   {
     key: 'basics',
-    label: 'Basics',
+    label: 'Basic Info',
+    purpose: 'When it happens and where it is played',
+    icon: 'calendar-outline',
     dismissible: false,
     href: (orgId, eventId) => `/admin/${orgId}/events/${eventId}/setup/basics`,
   },
   {
     key: 'divisions',
     label: "What's being played",
+    purpose: 'The sports on, and the divisions they are split into',
+    icon: 'trophy-outline',
     dismissible: false,
     href: (orgId, eventId) => `/admin/${orgId}/events/${eventId}/setup/playing`,
   },
   {
     key: 'entrants',
     label: 'Entrants',
+    purpose: 'The schools and teams taking part',
+    icon: 'people-outline',
     dismissible: true,
     href: (orgId, eventId) => `/admin/${orgId}/events/${eventId}/entrants`,
   },
   {
     key: 'scoring',
     label: 'Rules & scoring',
+    purpose: 'How points are awarded and tables are ranked',
+    icon: 'calculator-outline',
     dismissible: true,
     href: (orgId, eventId) => `/admin/${orgId}/events/${eventId}/setup/scoring`,
   },
   {
     key: 'fixtures',
     label: 'Fixtures',
+    purpose: 'The matches that will be played',
+    icon: 'git-network-outline',
     dismissible: true,
     href: (orgId, eventId) => `/admin/${orgId}/events/${eventId}/setup/fixtures`,
   },
 ];
+
+/**
+ * The step a screen *is*.
+ *
+ * Every step screen used to hardcode its own label twice — once in its `<ScreenHeader>` and once
+ * on its `<SetupStepFooter>` — so a step's name lived in three files and renaming `Basics` to
+ * `Basic Info` (U49) meant finding all three. The screens take it from here now, through
+ * `useSetupStepScreen`, and this file is the only place a step is named.
+ */
+export const stepByKey = (key: SetupStepKey): SetupStepRoute =>
+  SETUP_STEPS.find(step => step.key === key)!;
 
 /** Where the checklist lives. Also the back destination from every step screen. */
 export const setupChecklistHref = (orgId: string, eventId: string) =>

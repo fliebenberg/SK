@@ -17,7 +17,7 @@ import {
 import { GlassCard } from '../../../../../components/GlassCard';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { SetupStepFooter } from '../../../../../components/tournament/SetupStepFooter';
-import { nextStepAfter } from '../../../../../components/tournament/setupSteps';
+import { nextStepAfter, stepByKey } from '../../../../../components/tournament/setupSteps';
 import { SegmentedControl } from '../../../../../components/SegmentedControl';
 import { Tabs, TabItem } from '../../../../../components/Tabs';
 import { AccessDenied } from '../../../../../components/AccessDenied';
@@ -57,7 +57,7 @@ import { COLORS, getThemeColor } from '../../../../../constants/Colors';
  * an organisation in `event_organizations` is one that is *competing*, which is an entrants
  * question, and keeping it beside the roster makes the gap between the two visible — eight invited
  * and five entered is the number an organiser chases in April. An organisation *running* the
- * tournament is a different thing entirely and is appointed in Basics.
+ * tournament is a different thing entirely and is appointed in Basic Info.
  *
  * **The invite list writes immediately, and deliberately has no save bar** — the one place the
  * save-per-step rule (U48) does not apply. Every other control on this screen writes on press, and
@@ -217,6 +217,9 @@ export default function EntrantsScreen() {
     });
   };
 
+  /* This screen predates `useSetupStepScreen` (it has had its own route since U21), so it reads
+     the step from the source directly rather than through the hook. */
+  const step = stepByKey('entrants');
   const nextStep = nextStepAfter('entrants', event?.settings?.dismissedSetupSteps || []);
 
   /** Back is the checklist, never the previous step (U48). */
@@ -516,7 +519,7 @@ export default function EntrantsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      <ScreenHeader title="Entrants" onBack={goBackToChecklist} />
+      <ScreenHeader context={event?.name} title={step.label} onBack={goBackToChecklist} />
 
       {isLoadingEntrants ? (
         <View className="flex-1 items-center justify-center">
@@ -595,7 +598,7 @@ export default function EntrantsScreen() {
             {axis === 'division' ? renderDivisionAxis() : renderOrganisationAxis()}
 
             <SetupStepFooter
-              label="Entrants"
+              label={step.label}
               nextStep={nextStep}
               onNext={() =>
                 nextStep

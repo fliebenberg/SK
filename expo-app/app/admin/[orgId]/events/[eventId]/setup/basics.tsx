@@ -45,6 +45,7 @@ export default function SetupBasics() {
   const user = useAuthStore((state: any) => state.user);
 
   const {
+    step,
     event,
     eventRoom,
     canEdit,
@@ -253,7 +254,7 @@ export default function SetupBasics() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      <ScreenHeader title="Basics" onBack={handleBack} />
+      <ScreenHeader context={event?.name} title={step.label} onBack={handleBack} />
 
       {!event ? (
         <View className="flex-1 items-center justify-center">
@@ -339,7 +340,7 @@ export default function SetupBasics() {
               </View>
 
               {/* Appointing an organiser (D33). Who runs it is known with the name and the dates,
-                  which is why it sits in Basics; a division's own convenor is appointed on the
+                  which is why it sits in Basic Info; a division's own convenor is appointed on the
                   division screen. */}
               <View className="p-5 border-t border-slate-200 dark:border-white/5">
                 <OrganizerPicker
@@ -355,7 +356,7 @@ export default function SetupBasics() {
             </View>
 
             <SetupStepFooter
-              label="Basics"
+              label={step.label}
               nextStep={nextStep}
               onNext={handleNext}
               onBackToChecklist={handleBack}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/Colors';
 
@@ -22,13 +22,36 @@ import { COLORS } from '../constants/Colors';
  */
 export interface ScreenHeaderProps {
   title: string;
+  /**
+   * What the screen's subject belongs to — a tournament's name in front of `Basic Info`, so the
+   * screen says *whose* basic info it is (U49). Rendered as `{context} - {title}`.
+   *
+   * **Dropped below 768px rather than wrapped or truncated.** One centred line is the right shape
+   * for this, but `Fred's Test Tournament - Basic Info` does not fit a phone, and the end is what
+   * `numberOfLines={1}` clips — which would drop the half that names the screen and keep the half
+   * that does not. So the wide layout gets both and the narrow one gets the title alone, where the
+   * question "which tournament" barely arises: a phone reached this screen by tapping a row on
+   * that tournament's own checklist, one screen back.
+   */
+  context?: string;
   onBack: () => void;
   /** An action on the right. Replaces the spacer, so it should be about as wide as "Back". */
   right?: React.ReactNode;
   backLabel?: string;
 }
 
-export function ScreenHeader({ title, onBack, right, backLabel = 'Back' }: ScreenHeaderProps) {
+export function ScreenHeader({ title, context, onBack, right, backLabel = 'Back' }: ScreenHeaderProps) {
+  /**
+   * 768px, the breakpoint [selection.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/games/%5BgameId%5D/selection.tsx)
+   * already uses and the one `UI-11` names as this repo's precedent.
+   *
+   * Static web export renders at a width of 0 before hydration, so the first paint takes the
+   * narrow branch and the wide one arrives with the real measurement. That is the safe way round:
+   * the title alone is always correct, and the context is an enhancement on top of it.
+   */
+  const { width } = useWindowDimensions();
+  const showContext = !!context && width >= 768;
+
   return (
     <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
       <TouchableOpacity onPress={onBack} className="flex-row items-center gap-1 active:opacity-85">
@@ -41,7 +64,7 @@ export function ScreenHeader({ title, onBack, right, backLabel = 'Back' }: Scree
         className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase flex-1 text-center px-4"
         numberOfLines={1}
       >
-        {title}
+        {showContext ? `${context} - ${title}` : title}
       </Text>
       {right ?? <View className="w-10" />}
     </View>

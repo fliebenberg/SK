@@ -13,6 +13,7 @@ import { wsService } from '../../../../services/websocket';
 import { useAuthStore } from '../../../../store/authStore';
 import { SocketAction, Event, Site, Facility, GameSummary, participantLabel, hasLiveScore } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
+import { formatDateRange, formatFixtureWhen } from '../../../../utils/dates';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
@@ -294,28 +295,26 @@ export default function OrgEventsList() {
     return parts.length ? parts.join(' · ') : undefined;
   };
 
-  // Date (and kick-off time, where the game carries one) shown on the card's top line
+  /**
+   * Date (and kick-off time, where the game carries one) shown on the card's top line.
+   *
+   * The **event** branch goes through the shared formatter (U49) so this card and the event screen
+   * behind it say the same thing — they did not: this built its own range out of
+   * `toLocaleDateString` and read `19 Sep 2026 – 21 Sep 2026` while the detail header one tap away
+   * printed the raw `2026-09-19`. A range now collapses what its ends share, and `compact` drops
+   * the weekday that the detail header shows, because this line already carries a venue and a
+   * status beside it.
+   *
+   * The **game** branch stays an instant with a time of day, which is a different question — hence
+   * `formatFixtureWhen` rather than the range formatter. Its `·` separator is preserved exactly as
+   * it was; `UI-13` covers the app disagreeing with the league screens' `@`.
+   */
   const getWhenLabel = (event: Event, game?: GameSummary): string => {
     const gameTime = game?.scheduledStartTime || game?.startTime;
-    const iso = gameTime || event?.startDate;
-    if (!iso) return 'Date TBD';
-
-    const date = new Date(iso);
-    if (isNaN(date.getTime())) return 'Date TBD';
-
-    const dateLabel = date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
-
-    // Multi-day events (sports days, tournaments) read as a range rather than a kick-off
-    if (!gameTime && event?.endDate) {
-      const endDate = new Date(event.endDate);
-      if (!isNaN(endDate.getTime()) && endDate.toDateString() !== date.toDateString()) {
-        return `${dateLabel} – ${endDate.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}`;
-      }
+    if (gameTime) {
+      return formatFixtureWhen(gameTime, { timeTbd: game?.timeTbd, separator: '·' });
     }
-
-    if (!gameTime) return dateLabel;
-    if (game?.timeTbd) return `${dateLabel} · TBD`;
-    return `${dateLabel} · ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    return formatDateRange(event?.startDate, event?.endDate, { compact: true }) || 'Date TBD';
   };
 
   // Helper to determine display name for event

@@ -15,6 +15,18 @@ export interface TabItem<T extends string = string> {
   sublabel?: string;
   icon?: keyof typeof Ionicons.glyphMap;
   badge?: string | number;
+  /**
+   * "There is something here", without saying how much.
+   *
+   * A `badge` is a count, and a count next to a tab label is read as a count of *new or unread
+   * things* — which is what made the tournament Setup tab's bare "2" unreadable (U49): it was
+   * counting outstanding steps, downward, while the progress bar one row below it counted done
+   * steps upward. A dot asserts nothing a number would have to be labelled to assert, and the
+   * page behind it is free to say "3 of 5 steps done" in full.
+   *
+   * Ignored when `badge` is set — a tab showing both would be saying the same thing twice.
+   */
+  dot?: boolean;
   disabled?: boolean;
 }
 
@@ -84,13 +96,15 @@ export function Tabs<T extends string = string>({
                   </Text>
                 )}
               </View>
-              {tab.badge !== undefined && (
+              {tab.badge !== undefined ? (
                 <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-brand-orange' : 'bg-slate-300 dark:bg-slate-700'}`}>
                   <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                     {tab.badge}
                   </Text>
                 </View>
-              )}
+              ) : tab.dot ? (
+                <View className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+              ) : null}
             </TouchableOpacity>
           );
         }
@@ -131,13 +145,15 @@ export function Tabs<T extends string = string>({
                 </Text>
               )}
             </View>
-            {tab.badge !== undefined && (
+            {tab.badge !== undefined ? (
               <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-brand-orange/20' : 'bg-slate-200 dark:bg-slate-800'}`}>
                 <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'}`}>
                   {tab.badge}
                 </Text>
               </View>
-            )}
+            ) : tab.dot ? (
+              <View className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+            ) : null}
             {/* Active bottom underline indicator */}
             {isActive && (
               <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-brand-orange rounded-full" />

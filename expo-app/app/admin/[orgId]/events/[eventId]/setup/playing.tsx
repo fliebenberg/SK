@@ -51,6 +51,7 @@ export default function SetupPlaying() {
   const user = useAuthStore((state: any) => state.user);
 
   const {
+    step,
     event,
     eventRoom,
     canEdit,
@@ -265,7 +266,7 @@ export default function SetupPlaying() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      <ScreenHeader title="What's being played" onBack={handleBack} />
+      <ScreenHeader context={event?.name} title={step.label} onBack={handleBack} />
 
       {!event ? (
         <View className="flex-1 items-center justify-center">
@@ -422,7 +423,7 @@ export default function SetupPlaying() {
             </View>
 
             <SetupStepFooter
-              label="What's being played"
+              label={step.label}
               nextStep={nextStep}
               onNext={handleNext}
               onBackToChecklist={handleBack}

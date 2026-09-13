@@ -30,6 +30,7 @@ export default function SetupScoring() {
   const user = useAuthStore((state: any) => state.user);
 
   const {
+    step,
     event,
     canEdit,
     isLoadingCapabilities,
@@ -158,7 +159,7 @@ export default function SetupScoring() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      <ScreenHeader title="Rules & scoring" onBack={handleBack} />
+      <ScreenHeader context={event?.name} title={step.label} onBack={handleBack} />
 
       {!event ? (
         <View className="flex-1 items-center justify-center">
@@ -239,7 +240,7 @@ export default function SetupScoring() {
             </View>
 
             <SetupStepFooter
-              label="Rules & scoring"
+              label={step.label}
               nextStep={nextStep}
               onNext={handleNext}
               onBackToChecklist={handleBack}

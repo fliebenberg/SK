@@ -124,6 +124,7 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U46** | The setup sections follow the setup process. `Structure` is dissolved into Basics and What's being played. | 7 |
 | **U47** | A tournament has a **base site** and a **set of facilities**. The base site is where it is, not what it may use. | 7 |
 | **U48** | The Setup tab is the checklist; every step is its own screen, saving itself. No accordion. | 7 |
+| **U49** | The checklist says what it is, what each step is for, and which to do next. The tab carries a dot, not a count. | 7 |
 
 ### Constraints carried in from the feature spec
 
@@ -794,6 +795,90 @@ that spans weeks.
 > asked which of two collapsible components should survive, is closed by there being one.
 >
 > Two columns on a wide screen is still not in this change — `UI-4`, rewritten around the hub.
+
+
+> **Revised 2026-09-13 — the checklist explains itself (U49).** U48 got the *structure* right and
+> left the page mute. Shown five headings under a progress bar, an organiser using it for the first
+> time could not tell what the list was, what any row would ask for before opening it, or which to
+> do next — and the only two numbers on screen disagreed with each other. Everything here is
+> wording and affordance; no route, no room and no write changed.
+>
+> - **The count is said once, in one direction.** The Setup tab's badge read `2` — outstanding
+>   steps, counting down — directly above a bar filling with *done* steps, counting up. Worse, a
+>   bare number beside a tab label is read everywhere else as a count of unread things. The badge
+>   becomes a **dot** (`dot` on [`<Tabs>`](file:///c:/Fred/Coding/SK/expo-app/components/Tabs.tsx)),
+>   which asserts only that there is work here, and the page says *"3 of 5 steps done"* in words.
+> - **The list is introduced.** A heading and one sentence, once, at the top — including the thing
+>   organisers actually want to hear, that none of it has to be finished today. Everything under it
+>   can then stay terse.
+> - **Every step says what it is for, and wears an icon.** A row used to be a label and the state
+>   of its data, so an unopened step was a heading with a status next to it. `purpose` lives beside
+>   the label and route in
+>   [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts) and
+>   shows until there is a `detail` to show instead.
+> - **Every outstanding row is tinted, and the DONE / TO DO column is gone.** Five rows each ending
+>   in a status word is the same word five times: it costs a column, it makes every row equally
+>   loud, and "to do" as a *label* is noise on a list whose whole subject is what is still to do.
+>   State moved onto the row's own surface — an outstanding step is tinted orange with a filled
+>   orange medallion, a done one drops to the plain surface with a quiet green check and muted
+>   text. *What is left* is then answered by the shape of the page before a word of it is read.
+> - **A `Next up` card was built first, and removed.** The first cut put the first outstanding step
+>   in an emphasised card above the list, repeated in its own place below. It worked, and it was one
+>   signal too many: the card said *start here* while the rows under it said nothing, so the page
+>   had a summary and a list again — the shape the checklist card already failed as three revisions
+>   earlier, and the thing U44 removed a chip stepper for. Tinting the rows says the same thing with
+>   no duplication, and says it about *every* outstanding step rather than the first only, which is
+>   what somebody picking up a half-built tournament needs. The order is still not enforced (U17):
+>   the tint marks where work remains, it does not sequence it.
+> - **A third status, `default`.** `Rules & scoring` read *"Using the default 3 / 1 / 0"* and
+>   **To do** at once, which told the organiser it was both handled and outstanding. It is neither:
+>   3 / 1 / 0 is what the server will use (D17), so nothing is blocked, but nobody has chosen it,
+>   so it is not done. It now reads `Defaults` and does not count toward the bar. It *is* tinted
+>   like any other outstanding step — it is somewhere the organiser can still act — and the chip is
+>   what says the competition is already scorable without it.
+> - **The danger zone moves to an overflow menu in the header**, reversing U48's "it stays at the
+>   bottom of the checklist". Two reasons: it belongs to the *event*, not to its setup, so living on
+>   one tab of three made cancelling an event reachable from Setup and nowhere else; and ending a
+>   set-up checklist on a red box offering to delete the thing being set up is a strange note to
+>   finish on. [`<OverflowMenu>`](file:///c:/Fred/Coding/SK/expo-app/components/OverflowMenu.tsx) is
+>   a modal rather than a popover — the header sits inside a tab strip and a scroll view, so a
+>   positioned dropdown would be clipped by whichever ancestor hides overflow on whichever platform.
+>   The confirmation modals that actually protect the record are unchanged.
+> - **The date at the top is now a sentence.** It printed `startDate.split('T')[0]` — an ISO value,
+>   unlabelled, beside nothing that said which date it was. It is written out, labelled `Takes
+>   place` / `Runs`, and followed by how far off it is (`Sat 19 Sep 2026 · in 6 days`), which is the
+>   half of "when" a date alone never answers.
+>   [utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts) holds the formatting; it
+>   parses through `new Date` rather than slicing the string, which is safe because the basics step
+>   stores these at **noon UTC** precisely so no offset can drag them onto the neighbouring day.
+>   **It became the app's one date formatter rather than a fifth.** Checking for an existing helper
+>   turned up four renderings of the same idea, two of them one tap apart and disagreeing — the
+>   events list card built its own range (`19 Sep 2026 – 21 Sep 2026`) while this header printed
+>   raw ISO, the leagues screen showed a season as `2026-09-19 to 2026-12-15`, and three screens
+>   each carried an identical copy of a fixture kick-off formatter. All are converted. The one
+>   thing deliberately *not* unified is the kick-off separator, where the league screens say `@` and
+>   the events list says `·` — that is a design call on five screens, not a refactor, and it is
+>   `UI-13`.
+>
+> - **`Basics` is renamed `Basic Info`, and a step screen names its tournament.** A screen headed
+>   only `Basic Info` does not say *whose*, which matters on a hub whose whole point is that you
+>   arrive at it repeatedly from different tournaments. `<ScreenHeader>` gains a `context` prop and
+>   reads `Fred's Test Tournament - Basic Info` on one line — **dropped to the title alone below
+>   768px**, rather than wrapped to two lines or left to truncate. The full string does not fit a
+>   phone, and `numberOfLines={1}` clips the *end*, which would keep the tournament and lose the
+>   step. A stacked two-line version was built first and rejected as heavier than the problem: on a
+>   phone the question barely arises, because you reached this screen by tapping a row on that
+>   tournament's own checklist one screen back. 768px is the breakpoint
+>   [selection.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/games/%5BgameId%5D/selection.tsx)
+>   already uses and that `UI-11` names as the repo's precedent; the narrow branch is the default
+>   before hydration measures the window, which is the safe way round. The rename also closed a
+>   small trap: every step screen hardcoded its own
+>   label twice — its `<ScreenHeader>` and its `<SetupStepFooter>` — so a step was named in three
+>   files. They take it from `useSetupStepScreen().step` now, and
+>   [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts) is the
+>   only place a step is named. (`entrants.tsx` predates the hook and reads `stepByKey` directly.)
+>
+> Wide-screen layout is still not in this change — that is `UI-11`.
 
 
 ---

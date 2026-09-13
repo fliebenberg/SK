@@ -28,6 +28,7 @@ export default function SetupFixtures() {
   const { orgId, eventId } = useLocalSearchParams<{ orgId: string; eventId: string }>();
 
   const {
+    step,
     event,
     eventRoom,
     canEdit,
@@ -76,7 +77,7 @@ export default function SetupFixtures() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      <ScreenHeader title="Fixtures" onBack={handleBack} />
+      <ScreenHeader context={event?.name} title={step.label} onBack={handleBack} />
 
       {!event ? (
         <View className="flex-1 items-center justify-center">
@@ -118,7 +119,7 @@ export default function SetupFixtures() {
             </View>
 
             <SetupStepFooter
-              label="Fixtures"
+              label={step.label}
               nextStep={nextStep}
               onNext={handleNext}
               onBackToChecklist={handleBack}
