@@ -205,8 +205,8 @@ the same change that introduces the first non-counting role.
 > be shown to anyone. Tracked as `PEOPLE-4`.
 >
 > **Not to be confused with §6.** `allowUserImageUpdates` governs who may *edit* an image; this
-> governs whether a name or image may be *published at all*. Different axis, and §6 is currently
-> only wired up in the deprecated `client/`.
+> governs whether a name or image may be *published at all*. Different axis, and §6 is not yet
+> wired up in `expo-app/`.
 
 Both organisations interviewed already run a consent process on paper — a form at registration with
 an opt-out at one, a marketing-material opt-in at application at the other. This digitises an

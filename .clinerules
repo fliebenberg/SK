@@ -1,16 +1,5 @@
 # AI Agent Rules - SK Project
 
-## Deprecated Folders (Reference Only)
-
-The `client/` directory contains an older, web-only version of the application.
-It is **deprecated** and kept strictly for **reference purposes**.
-It is being replaced by the multi-platform Expo application located in the `expo-app/` directory.
-
-### CRITICAL RULES:
-1. **DO NOT MODIFY** any files under the `client/` directory. No edits, additions, or deletions are allowed there.
-2. All new client-side features, visual changes, components, and logic must be implemented inside the `expo-app/` directory.
-3. You may read the `client/` directory to reference past logic, API calls, or component styles, but any new implementations must be in `expo-app/`.
-
 ## Forbidden / Restructured Dependencies
 
 On 2026-06-09 the app crashed on Android/iOS with an `installTurboModule` argument count mismatch — a native JSI/TurboModule clash from a version-mismatched worklets stack (`react-native-reanimated@4.2.1` and `react-native-worklets-core@^1.6.3` as direct deps, plus the Reanimated babel plugin). Removing all three fixed it. Therefore:
@@ -18,4 +7,4 @@ On 2026-06-09 the app crashed on Android/iOS with an `installTurboModule` argume
 * **DO NOT** add `'react-native-reanimated/plugin'` or similar animation plugins to `babel.config.js`.
 * **DO NOT** use NativeWind animation/transition utility classes (such as `transition-all`, `transition-colors`, etc.) which trigger NativeWind to search for Reanimated at runtime. Animate with React Native's core `Animated` library, via the shared `<AnimatedBox>` component.
 
-Not forbidden, despite this rule's earlier wording: `react-native-worklets@0.7.3` is a **required direct dependency** (re-added 2026-06-16 to fix Android map rendering; a different package from `react-native-worklets-core`), and `react-native-reanimated@4.2.1` is present **transitively** via `expo-router` and `nativewind`, and is configured in `app/_layout.tsx`. Its presence was never the failure mode. Corrected 2026-09-09; see `UI-8` in TODO.md and rule 2 of `okf/architecture.md`.
+Not forbidden, despite this rule's earlier wording: `react-native-worklets@0.7.3` is a **required direct dependency** (re-added 2026-06-16 to fix Android map rendering; a different package from `react-native-worklets-core`), and `react-native-reanimated@4.2.1` is present **transitively** via `expo-router` and `nativewind`, and is configured in `app/_layout.tsx`. Its presence was never the failure mode. Corrected 2026-09-09; see `UI-8` in TODO.md and rule 1 of `okf/architecture.md`.

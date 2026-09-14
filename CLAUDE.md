@@ -8,15 +8,15 @@ workspace rules under [.agent/skills/](file:///c:/Fred/Coding/SK/.agent/skills/)
 [okf/skills_index.md](file:///c:/Fred/Coding/SK/okf/skills_index.md). Those rules apply to all work
 in this repo; read the relevant one before working in its domain.
 
-## `client/` is deprecated
+## The app is `expo-app/`
 
-All client development happens in `expo-app/`. The root `client/` folder is web-only, kept for
-reference, and must not be modified. See
-[.agent/skills/deprecated-client/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/deprecated-client/SKILL.md).
+All client development happens in `expo-app/`. When answering questions about how a feature works,
+check it rather than assuming — parts of `expo-app/` are still UI mockups on hardcoded data.
 
-When answering questions about how a feature works on the client, check `expo-app/` — describing
-`client/` behaviour as current is misleading, since parts of `expo-app/` are still UI mockups on
-hardcoded data.
+There used to be a root `client/` folder: an old Next.js, web-only version of the app, replaced by
+`expo-app/` and deleted on 2026-09-13. **If you find any remaining reference to `client/` or the old
+Next.js client — in code, config, docs, skills or `TODO.md` — highlight it to the user so they can
+decide whether to delete it.** Do not act on it, and do not remove it silently.
 
 ## Always check the to-do list before building a feature
 

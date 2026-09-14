@@ -49,11 +49,9 @@ of a kick-off formatter.
 
 ### Do not import `date-fns`
 
-It is **not** a dependency of `expo-app`. It is a dependency of
-[`client/`](file:///c:/Fred/Coding/SK/client/), which is deprecated and must not be modified — an
-earlier version of this skill mandated `date-fns` because it was written while `client/` was the
-app, and that made the rule unfollowable for every screen written since. Adding the package is a
-decision, not a detail: raise it rather than doing it in passing.
+It is **not** a dependency of `expo-app`. An earlier version of this skill mandated `date-fns`, and
+that made the rule unfollowable for every screen written since. Adding the package is a decision,
+not a detail: raise it rather than doing it in passing.
 
 ### Where the formatter lives, and when it should move
 

@@ -34,7 +34,4 @@ Any component that manages form state or data modification should use the `useUn
 
 ## Technical Details
 
--   The system is managed globally via `NavigationGuardContext` and `NavigationGuard`.
 -   It intercepts tab/window closure, internal links, and browser back/forward buttons.
--   [NavigationGuard.tsx](file:///c:/Fred/Coding/SK/client/src/components/NavigationGuard.tsx)
-- [useUnsavedChanges.ts](file:///c:/Fred/Coding/SK/client/src/hooks/useUnsavedChanges.ts)

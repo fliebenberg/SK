@@ -23,7 +23,6 @@ The list is **read-only**: there is no way to investigate, resolve or dismiss a 
 ## Client status
 
 *   **`expo-app/` (active client)** — [admin/reports.tsx](../expo-app/app/(tabs)/admin/reports.tsx) is a **UI mockup only**. It renders a hardcoded `reportItems` array and never calls the server, so nothing in this document is actually reachable from the shipping app yet. Its filter tabs, metric tiles ("Audit Accuracy", "Avg Resolution") and `impact` field have no backing data.
-*   **`client/` (deprecated, reference only)** — has the real wiring: [admin/reports/page.tsx](../client/src/app/admin/reports/page.tsx) fetching via the store, and [ReportDialog.tsx](../client/src/components/ui/ReportDialog.tsx) for submission, mounted only on the org detail page.
 
 ## Known limitations
 

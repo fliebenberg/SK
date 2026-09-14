@@ -24,8 +24,7 @@ Two rules for running it:
 
 ### How each phase is verified
 
-The repo has **no test framework** in `server/`, `shared/` or `expo-app/` — only the deprecated
-`client/` has Jest.
+The repo has **no test framework** in `server/`, `shared/` or `expo-app/`.
 
 > **Decided 2026-09-01 — bring in Vitest, but only in `shared/`.** Phase 2 adds it and writes
 > permanent unit tests for the standings engine. `server/` and `expo-app/` keep using `ts-node`

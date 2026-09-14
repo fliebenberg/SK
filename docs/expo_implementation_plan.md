@@ -1,6 +1,6 @@
 # Create Expo ScoreKeeper App (V2)
 
-The goal is to build the second version of the ScoreKeeper client using Expo, React Native, and TypeScript. This cross-platform application will replace the existing Next.js `client` and provide a premium, dark-mode-first aesthetic. It relies on a "Light & Fast" architecture, heavily utilizing WebSockets for real-time live score updates and employing a modular UI registry for supporting multiple sports. All implementation and design decisions are derived strictly from `docs/client_functional_spec.md` and `docs/design_spec.md`.
+The goal is to build the second version of the ScoreKeeper client using Expo, React Native, and TypeScript. This cross-platform application provides a premium, dark-mode-first aesthetic. It relies on a "Light & Fast" architecture, heavily utilizing WebSockets for real-time live score updates and employing a modular UI registry for supporting multiple sports. All implementation and design decisions are derived strictly from `docs/client_functional_spec.md` and `docs/design_spec.md`.
 
 ## Design Decisions & Pending Reviews
 > [!IMPORTANT]

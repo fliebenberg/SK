@@ -19,8 +19,6 @@ To maintain a clean database and avoid "test organization spam", follow these ru
    - **All entities** (teams, sites, events, games, etc.) created during a test **MUST** be deleted at the end of the test unless they are explicitly required for subsequent tests.
    - Dependent entities **MUST** be deleted before the parent (e.g., delete games before events) to satisfy foreign key constraints.
 
-3. **Use Helpers**: Use `TestHelper` in `client/src/__tests__/integration/TestHelper.ts` to manage test data consistently.
-
 ## Implementation Details
 
 ### Reusing the App Test Org

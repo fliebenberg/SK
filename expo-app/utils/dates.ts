@@ -32,8 +32,7 @@
  * server could import them and format a kick-off in the *server's* timezone, which is wrong for
  * every user not sitting in it. It moves only when the server genuinely must render a date for a
  * person, and then only the deterministic calendar parts, taking an explicit timezone. `UI-12`
- * records that reasoning and why `date-fns` — a dependency of the deprecated `client/` alone — is
- * not used here.
+ * records that reasoning and why `date-fns` is not used here.
  */
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

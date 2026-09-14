@@ -1,17 +1,14 @@
 # SK Project
 
-## ⚠️ Deprecation Notice: `client` is replaced by `expo-app`
+All multi-platform client development takes place in **`expo-app/`**.
 
-The `client/` folder contains an older, web-only version of the application and is **deprecated**. It is kept strictly for reference purposes.
-All current and future multi-platform client development takes place in **`expo-app/`**.
-
-**AI Agents:** Start by reading the [OKF Index](file:///c:/Fred/Coding/SK/okf/index.md) to understand the codebase architecture, design system requirements, database schema layouts, and active workspace rules before making any changes. Do not modify files in the `client/` directory.
+**AI Agents:** Start by reading the [OKF Index](file:///c:/Fred/Coding/SK/okf/index.md) to understand the codebase architecture, design system requirements, database schema layouts, and active workspace rules before making any changes.
 
 ---
 
 ## Unified Versioning
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) to automatically handle Semantic Versioning (SemVer) across the `client`, `server`, and `shared` packages.
+This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) to automatically handle Semantic Versioning (SemVer) across the `server` and `shared` packages.
 
 ### Commit Prefixes
 
@@ -45,7 +42,7 @@ When committing, use one of the following prefixes based on the Conventional Com
 
 3. This command will:
    - Calculate the next version number.
-   - Update `package.json` files in the root, `client`, `server`, and `shared` directories.
+   - Update `package.json` files in the root, `server`, and `shared` directories.
    - Automatically generate `CHANGELOG.md`.
    - Create a git commit and a tag for the release.
 

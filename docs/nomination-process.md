@@ -148,7 +148,7 @@ To ensure the nomination flow is consistent and easy to access, a single **Reusa
    * **Behavior:** Shows a management dashboard including the active nomination history and a form to invite additional administrators.
 2. **Match or Event Setup Flows (Creation & Editing):**
    * **Where:** When creating/editing a match, game, or event, users can select an existing organization (which may be unmanaged/unclaimed) or create a new one as a placeholder.
-   * **Behavior & Phrasing (Consistent with Old Client):**
+   * **Behavior & Phrasing:**
      * **If an unmanaged organization is selected:** Present a prompt with a helpful, community-driven tone:
        > **Title:** *"Help us get this organization claimed!"*
        > **Prompt:** *"If you know who manages **{orgName}** (e.g. school head of sports, club secretary), add their email below. We'll send them an invitation to claim administrative access so they can manage their own teams, rosters, and schedules."*
