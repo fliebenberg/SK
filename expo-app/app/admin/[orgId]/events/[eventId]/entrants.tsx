@@ -18,6 +18,7 @@ import { GlassCard } from '../../../../../components/GlassCard';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { SetupStepFooter } from '../../../../../components/tournament/SetupStepFooter';
 import { nextStepAfter, stepByKey } from '../../../../../components/tournament/setupSteps';
+import { reportActionError } from '../../../../../utils/actionErrors';
 import { SegmentedControl } from '../../../../../components/SegmentedControl';
 import { Tabs, TabItem } from '../../../../../components/Tabs';
 import { AccessDenied } from '../../../../../components/AccessDenied';
@@ -206,7 +207,9 @@ export default function EntrantsScreen() {
    */
   const saveInvites = (next: Array<{ id: string; name: string; shortName?: string }>) => {
     if (!event) return;
-    wsService.emit('action', {
+    wsService.emit(
+      'action',
+      {
       type: SocketAction.UPDATE_EVENT,
       payload: {
         id: eventId,
@@ -214,7 +217,9 @@ export default function EntrantsScreen() {
         orgId,
         data: { participatingOrgIds: next.map(o => o.id) },
       },
-    });
+    },
+      (response: any) => reportActionError(response, 'The invite list could not be saved.')
+    );
   };
 
   /* This screen predates `useSetupStepScreen` (it has had its own route since U21), so it reads

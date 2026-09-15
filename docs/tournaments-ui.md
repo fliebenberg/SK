@@ -878,6 +878,70 @@ that spans weeks.
 >   [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts) is the
 >   only place a step is named. (`entrants.tsx` predates the hook and reads `stepByKey` directly.)
 >
+> - **Basic Info's three date controls became one.** `Starts`, a full-width `Ends`, and a
+>   `Runs over more than one day` switch *between them* were three sibling rows. They are not three
+>   fields — they are one question with a shape switch, and the switch was in the one place it must
+>   not be: severing the range it governs. At ≥768px the two dates now sit side by side with the
+>   switch at the end of the same row, bottom-aligned to the inputs; below that the row stacks. Two
+>   things worth keeping: a **date field is date-width** (190px), because a field's size is a
+>   promise about its content and a date input spanning a desktop card promises a paragraph; and
+>   fixing that width is also what stops `Ends` halving `Starts` when it appears, which two
+>   `flex-1` fields would do under the cursor of somebody who has just filled `Starts` in.
+>
+> - **An end date is required once the tournament runs over more than one day — which fixed a save
+>   bar that could never be dismissed.** Toggling the switch on made the form dirty
+>   (`isMultiDay !== !!event.endDate`), but with no end date entered the save wrote `endDate: null`
+>   over a column that was already null, so **no field changed**; the effect re-seeding the form is
+>   keyed on the event's fields, so it never re-ran, `isMultiDay` stayed true, and the form stayed
+>   dirty however many times Save was pressed. (`finishSave` clears the unsaved-changes store, but
+>   the bar is `visible={isDirty}`, a computed value, so clearing the store does not hide it.) The
+>   state was meaningless — a promise of a range with no range — *and* impossible to leave, so the
+>   fix makes it unreachable rather than merely recoverable: **Save is blocked** while multi-day has
+>   no valid end, and **the toggle seeds the day after the start**, so the state is almost never
+>   entered. "More than one day" also means the end must be strictly **after** the start, not equal
+>   to it, and that is validated. The general lesson is worth more than the bug: *a dirty flag must
+>   be clearable by the save it triggers* — deriving dirtiness from a field the write does not
+>   change produces a form that can never be put down.
+>
+> - **The site and its facilities became one section, and the vocabulary was settled.** They are one
+>   question — *where does this happen* — but sat on opposite sides of a divider, `Based at` among
+>   the name and dates and the facilities alone below. They now share a **Where** section. Two
+>   naming decisions went with it, both of them restoring what the model already said rather than
+>   inventing anything: the dropdown asked to "Select a venue" for something the glossary, the
+>   table and the admin nav all call a **Site**; and "Fields in play" named a set that is mostly not
+>   fields — the `category` values include shop, parking and restrooms, every facility carries a
+>   `latitude`/`longitude`, and the tournament map is drawn from all of them. It reads **Tournament
+>   Facilities** now, and the guidance lives in the field's `help` and nowhere else: *"Pick every
+>   facility this tournament uses — the courts and fields it plays on, and the tuck shop, parking and
+>   toilets people will look for. These become the pins on the tournament map."* The picker's
+>   `emptyLabel` used to say the same thing a line below it and was dropped. `Sport.facilityTerm`
+>   already existed for a sport that wants to say "pitch" or "lane" — a display override on top of
+>   the general term, which is the shape that confirms Facility is the general term. The other
+>   screens still saying "venue" are `UI-14`.
+>
+> - **Field guidance became dismissible, and that is now a house pattern.** The facilities
+>   explanation is three lines that are necessary the first time and noise on a ninth tournament —
+>   the standing conflict in admin forms, where the copy that makes a field learnable is the copy
+>   that makes the screen unreadable once learned. `<FieldLabel>` keeps the text but folds it away
+>   behind an info icon after the label: **shown by default, dismissible, dismissal remembered per
+>   field key**, filled icon while showing and outline once put away, with hover on web bringing it
+>   back without moving the layout.
+>
+>   **Revised the same day, before it spread.** The first cut remembered a dismissal per field key,
+>   and that was the wrong model: what a reader learns is not "this paragraph is finished with" but
+>   *that the icon holds an explanation* — one fact about the app, not one per field. So the durable
+>   control is a single **Show form field help** setting (on by default) and the per-field icon is
+>   **ephemeral**, lasting while the screen is open. Two discoverability problems came with it and
+>   both are answered in the control itself: a merely *filled* icon never says it can be pressed
+>   again, so while help is showing it reads `ⓘ Hide` and pressing removes only the word, leaving
+>   the icon where it was — the connection is seen rather than inferred; and the global switch is
+>   **offered, not described**, in the space the help just left, the first time anybody hides
+>   anything, which is the one moment "you can have that everywhere" will land. A toast was the
+>   first cut and a modal was considered; the prompt is neither. Telling somebody to go and find a
+>   setting wastes the moment, and a blocking dialog is a heavy answer to a light act — the tell
+>   being that such a dialog needs its own "do not show me this again" checkbox, which this does
+>   not, because answering it either way settles it for good. `UI-16` tracks the rollout.
+>
 > Wide-screen layout is still not in this change — that is `UI-11`.
 
 

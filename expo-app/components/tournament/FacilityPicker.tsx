@@ -3,7 +3,12 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { Facility, Site } from '@sk/shared';
 
 /**
- * Which fields, courts or halls are in play — for a tournament, or for one division of it (U47).
+ * Which facilities a tournament uses — or one division of it (U47).
+ *
+ * **Facility** is the general term and the one the UI says (U49): the categories a facility can
+ * carry are field/court, hall, clubhouse, shop, parking and toilets, so half of what belongs here
+ * is never played on, and "fields" excluded it by name. A sport that wants its own word for a
+ * playing surface has `Sport.facilityTerm` for that.
  *
  * **A base site is not a boundary.** The tournament is *based* somewhere, and that is what the
  * listing shows and what this picker opens on; it does not limit anything, because a host
@@ -89,7 +94,7 @@ export function FacilityPicker({
       <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
         {allowedFacilityIds
           ? 'The tournament has no facilities in play yet, so there is nothing to narrow to.'
-          : 'This organisation has no fields or courts recorded yet. Add them to a venue first.'}
+          : 'This organisation has no facilities recorded yet. Add them to a site first.'}
       </Text>
     );
   }
@@ -108,7 +113,7 @@ export function FacilityPicker({
             </Text>
             {group.isBase && (
               <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">
-                base venue
+                base site
               </Text>
             )}
           </View>
@@ -163,7 +168,7 @@ export function facilitySummary(
   const names = ids
     .map(id => facilities.find(f => f.id === id)?.name)
     .filter(Boolean) as string[];
-  if (names.length === 0) return `${ids.length} field${ids.length === 1 ? '' : 's'}`;
+  if (names.length === 0) return `${ids.length} facilit${ids.length === 1 ? 'y' : 'ies'}`;
   if (names.length <= 3) return names.join(', ');
   return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
 }

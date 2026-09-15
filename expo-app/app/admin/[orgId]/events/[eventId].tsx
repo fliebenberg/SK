@@ -35,6 +35,7 @@ import {
 import { OverflowMenu } from '../../../../components/OverflowMenu';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { formatDateRange, dateCountdown } from '../../../../utils/dates';
+import { reportActionError } from '../../../../utils/actionErrors';
 import { SETUP_STEPS } from '../../../../components/tournament/setupSteps';
 import { StandingsTable } from '../../../../components/tournament/StandingsTable';
 import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
@@ -393,15 +394,19 @@ export default function EventDetails() {
 
   const saveDismissed = (next: string[]) => {
     if (!event) return;
-    wsService.emit('action', {
-      type: SocketAction.UPDATE_EVENT,
-      payload: {
-        id: eventId,
-        userId: user?.id,
-        orgId,
-        data: { settings: { ...(event.settings || {}), dismissedSetupSteps: next } },
+    wsService.emit(
+      'action',
+      {
+        type: SocketAction.UPDATE_EVENT,
+        payload: {
+          id: eventId,
+          userId: user?.id,
+          orgId,
+          data: { settings: { ...(event.settings || {}), dismissedSetupSteps: next } },
+        },
       },
-    });
+      (response: any) => reportActionError(response, 'That step could not be put away.')
+    );
   };
 
   /**
@@ -447,7 +452,7 @@ export default function EventDetails() {
             whenLabel,
             venueName,
             facilityCount > 0
-              ? `${facilityCount} field${facilityCount === 1 ? '' : 's'} in play`
+              ? `${facilityCount} facilit${facilityCount === 1 ? 'y' : 'ies'}`
               : undefined,
             organizers.length > 0
               ? `${organizers.length} organiser${organizers.length === 1 ? '' : 's'}`

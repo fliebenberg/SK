@@ -5,6 +5,7 @@ import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { wsService } from '../../../../services/websocket';
+import { reportActionError } from '../../../../utils/actionErrors';
 import { SocketAction } from '@sk/shared';
 import { useAuthStore } from '../../../../store/authStore';
 import { COLORS } from '../../../../constants/Colors';
@@ -62,14 +63,18 @@ export default function CreateEvent() {
         emails.forEach(email => {
           const trimmed = (email || '').trim();
           if (trimmed && trimmed.includes('@')) {
-            wsService.emit('action', {
+            wsService.emit(
+              'action',
+              {
               type: SocketAction.REFER_ORG_CONTACT,
               payload: {
                 orgId: referredOrgId,
                 contactEmails: [trimmed],
                 referredByUserId: currentUserId,
               },
-            });
+            },
+              (response: any) => reportActionError(response, 'That invitation could not be sent.')
+            );
           }
         });
       });

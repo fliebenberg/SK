@@ -1,12 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ScrollView, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Event, Facility, Site, SocketAction, TournamentOrganizer } from '@sk/shared';
@@ -16,6 +9,9 @@ import DatePicker from '../../../../../../components/DatePicker';
 import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../../../components/FloatingSaveBar';
 import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
+import { FieldLabel } from '../../../../../../components/FieldLabel';
+import { reportActionError } from '../../../../../../utils/actionErrors';
+import { addDaysToDateString, isCompleteDateString } from '../../../../../../utils/dates';
 import { FacilityPicker } from '../../../../../../components/tournament/FacilityPicker';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
 import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
@@ -38,9 +34,24 @@ import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
  * A division's own convenor and its own facilities are set on the division screen; this screen
  * never reaches into one.
  */
+/**
+ * A date field is as wide as a date (U49).
+ *
+ * `DatePicker` is `w-full`, so its width is whatever its parent gives it — which on a desktop card
+ * was the whole card. 190px holds `YYYY-MM-DD` and the calendar button beside it with room to
+ * spare, and lets `Starts` and `Ends` sit on one row without either resizing when the other
+ * appears. `DATE_FIELD_HEIGHT` mirrors the picker's own `FIELD_HEIGHT` so the multi-day switch
+ * bottom-aligns with the inputs rather than floating against their labels.
+ */
+const DATE_FIELD_WIDTH = 190;
+const DATE_FIELD_HEIGHT = 44;
+
 export default function SetupBasics() {
   const { orgId, eventId } = useLocalSearchParams<{ orgId: string; eventId: string }>();
   const isDark = useActiveTheme() === 'dark';
+  /* 768px — the breakpoint `selection.tsx` uses and `UI-11` names as this repo's precedent. */
+  const { width } = useWindowDimensions();
+  const isWideLayout = width >= 768;
   const isConnected = useWsStore((state: any) => state.isConnected);
   const user = useAuthStore((state: any) => state.user);
 
@@ -96,13 +107,24 @@ export default function SetupBasics() {
    *
    * Held as `{ id }` rows because that is the shape `useLiveRoom` addresses items by; the ids are
    * what every consumer wants, which is what `savedFacilityIds` unwraps.
+   *
+   * **`event:{id}:facilities`, not `event:{id}`.** This listened on the event's own room until
+   * 2026-09-15, which is where `EVENT_FACILITIES_SYNC` used to be published — the rooms were split
+   * on 2026-09-11 and this screen was not moved with them. The message therefore never arrived:
+   * saved facilities never loaded, and picking one left the form permanently dirty, because
+   * `facilitiesDirty` compares against a baseline that could never be refreshed. Same shape as the
+   * multi-day bug this screen already had — **a dirty flag must be clearable by the save it
+   * triggers**, and one derived from a room nothing publishes to never is.
    */
-  const { items: eventFacilityRows } = useLiveRoom<{ id: string }>(eventRoom, {
-    reduce: (message) =>
-      message.type === 'EVENT_FACILITIES_SYNC'
-        ? { kind: 'replace', items: (message.data?.facilityIds || []).map((id: string) => ({ id })) }
-        : { kind: 'ignore' },
-  });
+  const { items: eventFacilityRows } = useLiveRoom<{ id: string }>(
+    eventId ? `event:${eventId}:facilities` : null,
+    {
+      reduce: (message) =>
+        message.type === 'EVENT_FACILITIES_SYNC'
+          ? { kind: 'replace', items: (message.data?.facilityIds || []).map((id: string) => ({ id })) }
+          : { kind: 'ignore' },
+    }
+  );
 
   const [editName, setEditName] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
@@ -146,6 +168,45 @@ export default function SetupBasics() {
     };
   }, [isConnected, eventId, canEdit]);
 
+  /**
+   * An end date is **required** once the tournament runs over more than one day, and that is a
+   * correctness rule rather than a preference (U49).
+   *
+   * Multi-day with no end date is a state that cannot be saved, because there is nothing to write:
+   * `handleSave` sends `endDate: null`, the column was already null, so no field changes — and the
+   * effect that re-seeds this form is keyed on the event's fields, so it never re-runs and
+   * `isMultiDay` stays true. `identityDirty` then reports dirty forever and the save bar never goes
+   * away however many times it is pressed. The state is meaningless *and* unreachable-from, so the
+   * fix is to make it unreachable: Save is blocked while it holds, and the toggle seeds a date so
+   * it almost never holds in the first place.
+   *
+   * The end must be strictly **after** the start, because that is what the switch beside it claims.
+   * A zero-padded `YYYY-MM-DD` compares chronologically as a plain string, so no parsing is needed
+   * once both are known to be complete dates.
+   */
+  const dateError = !isMultiDay
+    ? null
+    : !isCompleteDateString(editEndDate)
+    ? 'Pick the day it ends.'
+    : isCompleteDateString(editStartDate) && editEndDate <= editStartDate
+    ? 'The last day must be after the first.'
+    : null;
+
+  /**
+   * Turning the switch on offers a range rather than an empty required field.
+   *
+   * "Runs over more than one day" almost always means "and ends the next one", so the day after the
+   * start is the answer far more often than not, and an organiser who wants a different one is
+   * changing a date rather than finding one. It also means the form is never in the unsaveable
+   * state above by simply having been toggled.
+   */
+  const handleMultiDayChange = (next: boolean) => {
+    setIsMultiDay(next);
+    if (next && (!isCompleteDateString(editEndDate) || editEndDate <= editStartDate)) {
+      setEditEndDate(addDaysToDateString(editStartDate, 1) || '');
+    }
+  };
+
   const identityDirty =
     !!event &&
     (editName !== event.name ||
@@ -179,7 +240,7 @@ export default function SetupBasics() {
    */
   const handleSave = useCallback(
     (onDone?: () => void) => {
-      if (!event || !editName.trim()) return;
+      if (!event || !editName.trim() || dateError) return;
 
       setIsProcessing(true);
       wsService.emit(
@@ -198,14 +259,23 @@ export default function SetupBasics() {
             },
           },
         },
-        () => finishSave(onDone)
+        (response: any) => finishSave(response, onDone)
       );
 
+      /* The second write of this save, and the one that has to report for itself: it had no ack
+         handler at all, so a refused facility change was silent and left the bar up with nothing
+         said. It does not call `finishSave` — the event write owns the dirty state and the
+         navigation — it only speaks up when it fails. */
       if (facilitiesDirty) {
-        wsService.emit('action', {
-          type: SocketAction.SET_EVENT_FACILITIES,
-          payload: { eventId, orgId, facilityIds: editFacilityIds },
-        });
+        wsService.emit(
+          'action',
+          {
+            type: SocketAction.SET_EVENT_FACILITIES,
+            payload: { eventId, orgId, facilityIds: editFacilityIds },
+          },
+          (response: any) =>
+            reportActionError(response, 'Those facilities could not be saved.')
+        );
       }
     },
     [
@@ -214,6 +284,7 @@ export default function SetupBasics() {
       editStartDate,
       isMultiDay,
       editEndDate,
+      dateError,
       editSiteId,
       editFacilityIds,
       facilitiesDirty,
@@ -281,62 +352,114 @@ export default function SetupBasics() {
                   />
                 </View>
 
-                <View className="space-y-1.5">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Starts
-                  </Text>
-                  <DatePicker value={editStartDate} onChange={setEditStartDate} />
-                </View>
+                {/* ------------------------------------------------------------------ when ---
+                    **One question, not three fields** (U49). A date range is a single value, so
+                    its two ends sit side by side, and the switch that decides whether there *is*
+                    a second end governs the pair rather than sitting between them — which is
+                    where it used to be, severing the range it relates.
 
-                <View className="flex-row items-center justify-between">
-                  <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
-                    Runs over more than one day
-                  </Text>
-                  <Switch
-                    value={isMultiDay}
-                    onValueChange={setIsMultiDay}
-                    trackColor={{ true: COLORS.brand.orange }}
-                  />
-                </View>
+                    **The fields are date-width, not container-width.** A field's size is a
+                    promise about its content: a date input stretched across a desktop card
+                    promises a paragraph and takes eight characters. Fixing the width also keeps
+                    `Ends` from resizing `Starts` when it appears — two `flex-1` fields would
+                    halve the one the organiser just filled in.
 
-                {isMultiDay && (
-                  <View className="space-y-1.5">
+                    Below 768px (the breakpoint `UI-11` names as this repo's) the row stacks and
+                    the fields go full width, where thumb targets matter more than proportion. */}
+                <View className={isWideLayout ? 'flex-row items-end gap-4' : 'gap-4'}>
+                  <View className="gap-1.5" style={isWideLayout ? { width: DATE_FIELD_WIDTH } : undefined}>
                     <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Ends
+                      Starts
                     </Text>
-                    <DatePicker value={editEndDate} onChange={setEditEndDate} />
+                    <DatePicker value={editStartDate} onChange={setEditStartDate} />
                   </View>
+
+                  {isMultiDay && (
+                    <View className="gap-1.5" style={isWideLayout ? { width: DATE_FIELD_WIDTH } : undefined}>
+                      <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Ends
+                      </Text>
+                      <DatePicker value={editEndDate} onChange={setEditEndDate} />
+                    </View>
+                  )}
+
+                  {/* `items-end` on the row plus the field height here bottom-aligns the switch
+                      with the inputs rather than with the labels above them. */}
+                  <View
+                    className={`flex-row items-center gap-3 ${
+                      isWideLayout ? 'flex-1 justify-end' : 'justify-between'
+                    }`}
+                    style={isWideLayout ? { height: DATE_FIELD_HEIGHT } : undefined}
+                  >
+                    <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                      Runs over more than one day
+                    </Text>
+                    <Switch
+                      value={isMultiDay}
+                      onValueChange={handleMultiDayChange}
+                      trackColor={{ true: COLORS.brand.orange }}
+                    />
+                  </View>
+                </View>
+
+                {/* Under the row rather than under the field, so showing it cannot disturb the
+                    alignment of the inputs beside it. */}
+                {!!dateError && (
+                  <Text className="font-inter text-[11px] text-brand-red">{dateError}</Text>
                 )}
 
-                {/* The base venue (U47): where the tournament *is*, which is a different question
-                    from which fields it uses. It is what the listing shows and what the facility
-                    picker below opens on, and it restricts nothing. */}
-                <View className="space-y-1.5" style={{ zIndex: 30 }}>
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Based at
-                  </Text>
+              </View>
+
+              {/* --------------------------------------------------------------------- where ---
+                  The site and the facilities are one question — *where does this happen* — so they
+                  share a section (U49). They were split across the divider, with `Based at` sitting
+                  among the name and the dates and the facilities alone below it, which put the
+                  container and its contents in different groups.
+
+                  They remain two **fields**, because they answer different halves: the site is
+                  where the tournament *is* — what the listing shows and what the picker opens on —
+                  and the facilities are what it *uses*, which may include the fields next door
+                  (U47). Choosing a site restricts nothing. */}
+              <View className="p-5 gap-4 border-t border-slate-200 dark:border-white/5">
+                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                  Where
+                </Text>
+
+                {/* No `zIndex` here: it used to lift this field over the one below for an inline
+                    dropdown, and `CustomSelect` has since moved its list into a modal. All the
+                    leftover value did was create a stacking context that trapped neighbouring
+                    overlays — the field help bubble rendered behind this input because of it. */}
+                <View className="gap-1.5">
+                  <FieldLabel
+                    label="Based at"
+                    help="Where the tournament is based — what the listing shows and where the facility picker opens. It does not restrict anything: a tournament based at the school can still use the courts next door."
+                  />
                   <CustomSelect
                     options={sites.map(s => ({ label: s.name, value: s.id }))}
                     value={editSiteId}
                     onChange={setEditSiteId}
-                    placeholder="Select a venue..."
+                    placeholder="Select a site..."
                     clearable
                   />
                 </View>
-              </View>
 
-              <View className="p-5 space-y-3 border-t border-slate-200 dark:border-white/5">
-                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                  Fields in play
-                </Text>
-                <FacilityPicker
-                  sites={sites}
-                  facilities={facilities}
-                  value={editFacilityIds}
-                  onChange={setEditFacilityIds}
-                  baseSiteId={editSiteId || undefined}
-                  emptyLabel="No fields chosen yet. Pick the ones this tournament may use — the generator places fixtures on them, and a division can be narrowed to a few of them later."
-                />
+                <View className="gap-1.5">
+                  {/* Not "fields": a facility is anything at a site worth putting a pin on — the
+                      categories include tuck shops, parking and toilets — so half of what belongs
+                      here is never played on. The guidance lives in `help` and nowhere else; the
+                      picker's `emptyLabel` used to repeat it a line further down. */}
+                  <FieldLabel
+                    label="Tournament Facilities"
+                    help="Pick every facility this tournament uses — the courts and fields it plays on, and the tuck shop, parking and toilets people will look for. These become the pins on the tournament map."
+                  />
+                  <FacilityPicker
+                    sites={sites}
+                    facilities={facilities}
+                    value={editFacilityIds}
+                    onChange={setEditFacilityIds}
+                    baseSiteId={editSiteId || undefined}
+                  />
+                </View>
               </View>
 
               {/* Appointing an organiser (D33). Who runs it is known with the name and the dates,
@@ -374,7 +497,7 @@ export default function SetupBasics() {
         onSave={() => handleSave()}
         onCancel={handleCancel}
         isProcessing={isProcessing}
-        saveDisabled={!editName.trim()}
+        saveDisabled={!editName.trim() || !!dateError}
       />
     </SafeAreaView>
   );

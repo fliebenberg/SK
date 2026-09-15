@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Game, SinBin } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
+import { reportActionError } from '../../../utils/actionErrors';
 import { useGameTimer } from '../../../hooks/useGameTimer';
 import { LiveClockText } from '../shared/LiveClockText';
 import { Ionicons } from '@expo/vector-icons';
@@ -58,10 +59,14 @@ export default function RugbyScoreboard({ game, role }: { game: Game; role?: str
   const awaySinBins = game.liveState?.sinBins?.filter(sb => sb.teamId === awayTeamId) || [];
 
   const handleClearSinBin = (sinBinId: string) => {
-    wsService.emit('action', {
+    wsService.emit(
+      'action',
+      {
       type: 'REMOVE_SIN_BIN',
       payload: { gameId: game.id, sinBinId }
-    });
+    },
+      (response: any) => reportActionError(response, 'That sin bin could not be cleared.')
+    );
   };
 
   const periodLabel = game.liveState?.periodLabel || (game.status === 'Scheduled' ? 'SCHEDULED' : 'LIVE');

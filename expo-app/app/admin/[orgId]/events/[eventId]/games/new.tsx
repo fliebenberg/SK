@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
+import { reportActionError } from '../../../../../../utils/actionErrors';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import {
@@ -239,14 +240,18 @@ export default function ScheduleGame() {
         const email = newOrgContactEmail.trim();
         const currentUserId = useAuthStore.getState().user?.id;
         if (email && currentUserId) {
-          wsService.emit('action', {
-            type: SocketAction.REFER_ORG_CONTACT,
-            payload: {
-              orgId: org.id,
-              contactEmails: [email],
-              referredByUserId: currentUserId
-            }
-          });
+          wsService.emit(
+            'action',
+            {
+              type: SocketAction.REFER_ORG_CONTACT,
+              payload: {
+                orgId: org.id,
+                contactEmails: [email],
+                referredByUserId: currentUserId
+              }
+            },
+            (response: any) => reportActionError(response, 'That invitation could not be sent.')
+          );
         }
 
         // Update list
@@ -331,14 +336,18 @@ export default function ScheduleGame() {
       Object.entries(pendingReferrals).forEach(([rOrgId, email]) => {
         const trimmedEmail = email.trim();
         if (trimmedEmail && trimmedEmail.includes('@')) {
-          wsService.emit('action', {
-            type: SocketAction.REFER_ORG_CONTACT,
-            payload: {
-              orgId: rOrgId,
-              contactEmails: [trimmedEmail],
-              referredByUserId: currentUserId
-            }
-          });
+          wsService.emit(
+            'action',
+            {
+              type: SocketAction.REFER_ORG_CONTACT,
+              payload: {
+                orgId: rOrgId,
+                contactEmails: [trimmedEmail],
+                referredByUserId: currentUserId
+              }
+            },
+            (response: any) => reportActionError(response, 'That invitation could not be sent.')
+          );
         }
       });
     }

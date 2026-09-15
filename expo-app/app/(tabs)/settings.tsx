@@ -46,6 +46,12 @@ export default function SettingsScreen() {
 
   const currentTheme = localOverrides.theme ?? globalTheme;
 
+  const showFieldHelp =
+    useSettingsStore(
+      (state) =>
+        state.localOverrides.showFieldHelp ?? state.globalPreferences.showFieldHelp ?? true
+    );
+
   const hapticFeedbackEnabled =
     useSettingsStore(
       (state) =>
@@ -645,6 +651,28 @@ export default function SettingsScreen() {
                     <Switch
                       value={hapticFeedbackEnabled}
                       onValueChange={(val) => setLocalOverride('hapticFeedbackEnabled', val)}
+                      trackColor={{ false: '#64748B', true: '#FF3E00' }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+
+                  {/* The durable half of the field-help pattern (U49). The info icon beside a
+                      field label toggles that field for as long as the screen is open; this is
+                      what decides whether any of them start out open. */}
+                  <View className="flex-row items-center justify-between pt-5 border-t border-slate-100 dark:border-white/5">
+                    <View className="flex-1 pr-4">
+                      <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-1">
+                        Show Form Field Help
+                      </Text>
+                      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Explain admin form fields underneath their labels. Turn this off once you
+                        know your way around — the info icon beside a label still shows the
+                        explanation whenever you want it. Saved on this device only.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={showFieldHelp}
+                      onValueChange={(val) => setLocalOverride('showFieldHelp', val)}
                       trackColor={{ false: '#64748B', true: '#FF3E00' }}
                       thumbColor="#FFFFFF"
                     />

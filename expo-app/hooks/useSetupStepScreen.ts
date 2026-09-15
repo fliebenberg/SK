@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Event, SocketAction } from '@sk/shared';
+import { ActionResponse, Event, SocketAction } from '@sk/shared';
 import { useLiveRoom } from './useLiveRoom';
 import { useEventCapabilities } from './useEventCapabilities';
 import { useSafeBack } from './useSafeBack';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
+import { useToastStore } from '../store/toastStore';
+import { reportActionError } from '../utils/actionErrors';
 import { wsService } from '../services/websocket';
 import { useAuthStore } from '../store/authStore';
 import {
@@ -86,8 +88,28 @@ export function useSetupStepScreen(stepKey: SetupStepKey) {
    * The `clear()` is not optional: the store keeps the screen's dirty flag until something says
    * otherwise, so without it a save followed by a navigation still raises the discard dialog.
    */
-  const finishSave = useCallback((onDone?: () => void) => {
+  /**
+   * What happens after a write comes back — **including when it did not work**.
+   *
+   * Every action is answered `{ status, message }`, and until 2026-09-15 this ignored the argument
+   * entirely: a rejected write cleared the processing state, cleared the unsaved-changes store and
+   * navigated on exactly as a successful one did. The only trace was the floating save bar staying
+   * up, because `visible={isDirty}` is computed from data the server never changed — so a save that
+   * failed and a screen reading the wrong room looked *identical* from the outside, which is what
+   * made `LIVE-X1`'s sibling bug slow to find.
+   *
+   * On an error the screen therefore keeps its edits, keeps its dirty state, says what went wrong,
+   * and **does not run `onDone`** — the caller passes navigation in there, and walking away from
+   * changes that were not saved is the one thing that must not happen.
+   */
+  const finishSave = useCallback((response?: ActionResponse, onDone?: () => void) => {
     setIsProcessing(false);
+    if (response?.status === 'error') {
+      useToastStore
+        .getState()
+        .showError(response.message || 'That change could not be saved. Please try again.');
+      return;
+    }
     useUnsavedChangesStore.getState().clear();
     onDone?.();
   }, []);
@@ -101,20 +123,26 @@ export function useSetupStepScreen(stepKey: SetupStepKey) {
   const dismissStep = useCallback(() => {
     if (!event) return;
     useUnsavedChangesStore.getState().clear();
-    wsService.emit('action', {
-      type: SocketAction.UPDATE_EVENT,
-      payload: {
-        id: eventId,
-        userId: user?.id,
-        orgId,
-        data: {
-          settings: {
-            ...(event.settings || {}),
-            dismissedSetupSteps: [...dismissedSteps, stepKey],
+    wsService.emit(
+      'action',
+      {
+        type: SocketAction.UPDATE_EVENT,
+        payload: {
+          id: eventId,
+          userId: user?.id,
+          orgId,
+          data: {
+            settings: {
+              ...(event.settings || {}),
+              dismissedSetupSteps: [...dismissedSteps, stepKey],
+            },
           },
         },
       },
-    });
+      /* Navigation happens either way — the organiser asked to leave this step. What the report
+         prevents is the step quietly reappearing on the checklist with no explanation. */
+      (response: any) => reportActionError(response, 'That step could not be put away.')
+    );
     safeBack(checklistHref);
   }, [event, eventId, orgId, user?.id, dismissedSteps, stepKey, safeBack, checklistHref]);
 

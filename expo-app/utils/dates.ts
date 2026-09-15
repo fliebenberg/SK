@@ -47,6 +47,47 @@ export function parseCalendarDate(iso?: string | null): Date | null {
 }
 
 /**
+ * Is this picker value a complete calendar date?
+ *
+ * A `<DatePicker>` is a free-text field on native, so its value passes through every prefix of a
+ * date on the way to one — `2026`, `2026-0`, `2026-09-1`. Anything validating or arithmetic-ing a
+ * picker value has to know the difference between "not finished typing" and "wrong".
+ */
+export function isCompleteDateString(value?: string | null): boolean {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  /* `new Date('2026-02-30T12:00:00')` is a valid Date — it rolls over to 2 March. Reading the
+     components back is what separates a date from a date-shaped string that means another day. */
+  return (
+    parsed.getFullYear() === year && parsed.getMonth() + 1 === month && parsed.getDate() === day
+  );
+}
+
+/**
+ * Shift a `YYYY-MM-DD` picker value by whole days, staying on the local calendar.
+ *
+ * Built at midday for the same reason everything else here is (see the file comment): a date
+ * constructed at midnight and shifted can land on the wrong side of a DST boundary. `null` for a
+ * value that is not a complete date, so a caller cannot silently turn a half-typed one into a real
+ * one.
+ *
+ * Note for anything comparing two of these: a zero-padded `YYYY-MM-DD` sorts chronologically as a
+ * plain string, so `end <= start` is a correct comparison once {@link isCompleteDateString} has
+ * vouched for both — no parsing needed.
+ */
+export function addDaysToDateString(value: string, days: number): string | null {
+  if (!isCompleteDateString(value)) return null;
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * The date, or the range, as it should be read aloud.
  *
  * One day carries its weekday — "Sat 19 Sep 2026" — because a single-day event is a date somebody

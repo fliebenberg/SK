@@ -15,6 +15,7 @@ import { AccessDenied } from '../../../../../../components/AccessDenied';
 import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
 import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../../../components/FloatingSaveBar';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
+import { reportActionError } from '../../../../../../utils/actionErrors';
 import { facilitySummary } from '../../../../../../components/tournament/FacilityPicker';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
 import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
@@ -64,28 +65,36 @@ export default function SetupPlaying() {
     finishSave,
   } = useSetupStepScreen('divisions');
 
-  const { items: divisions } = useLiveRoom<TournamentDivision>(eventRoom, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'DIVISIONS_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'DIVISION_ADDED':
-        case 'DIVISION_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'DIVISION_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
+  /* Split out of `event:{id}` on 2026-09-11; this screen was still listening on the old room until
+     2026-09-15, so the sync never arrived — same defect as the facilities one on `basics.tsx`. */
+  const { items: divisions } = useLiveRoom<TournamentDivision>(
+    eventId ? `event:${eventId}:divisions` : null,
+    {
+      reduce: (message) => {
+        switch (message.type) {
+          case 'DIVISIONS_SYNC':
+            return { kind: 'replace', items: message.data || [] };
+          case 'DIVISION_ADDED':
+          case 'DIVISION_UPDATED':
+            return { kind: 'upsert', item: message.data };
+          case 'DIVISION_DELETED':
+            return { kind: 'remove', id: message.data?.id };
+          default:
+            return { kind: 'ignore' };
+        }
+      },
+    }
+  );
 
-  const { items: eventFacilityRows } = useLiveRoom<{ id: string }>(eventRoom, {
-    reduce: (message) =>
-      message.type === 'EVENT_FACILITIES_SYNC'
-        ? { kind: 'replace', items: (message.data?.facilityIds || []).map((id: string) => ({ id })) }
-        : { kind: 'ignore' },
-  });
+  const { items: eventFacilityRows } = useLiveRoom<{ id: string }>(
+    eventId ? `event:${eventId}:facilities` : null,
+    {
+      reduce: (message) =>
+        message.type === 'EVENT_FACILITIES_SYNC'
+          ? { kind: 'replace', items: (message.data?.facilityIds || []).map((id: string) => ({ id })) }
+          : { kind: 'ignore' },
+    }
+  );
 
   const { items: facilities } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
     reduce: (message) => {
@@ -177,7 +186,7 @@ export default function SetupPlaying() {
             data: { sportIds: effectiveSportIds },
           },
         },
-        () => finishSave(onDone)
+        (response: any) => finishSave(response, onDone)
       );
 
       /*
@@ -192,10 +201,18 @@ export default function SetupPlaying() {
         editSportIds.length === 1 &&
         onlyDivision.sportId !== editSportIds[0]
       ) {
-        wsService.emit('action', {
-          type: SocketAction.UPDATE_DIVISION,
-          payload: { id: onlyDivision.id, orgId, data: { sportId: editSportIds[0] } },
-        });
+        /* The second write of this save. It reports for itself rather than through `finishSave`,
+           which the event write owns — a division whose sport silently failed to change while the
+           event's did is exactly the inconsistency nobody would be told about. */
+        wsService.emit(
+          'action',
+          {
+            type: SocketAction.UPDATE_DIVISION,
+            payload: { id: onlyDivision.id, orgId, data: { sportId: editSportIds[0] } },
+          },
+          (response: any) =>
+            reportActionError(response, "The division's sport could not be saved.")
+        );
       }
     },
     [

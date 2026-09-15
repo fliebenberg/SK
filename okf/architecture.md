@@ -11,7 +11,7 @@ timestamp: 2026-09-13T00:00:00Z
 
 # Codebase Architecture
 
-The ScoreKeeper project is organized as a multi-platform monorepo with clear separation between client, server, and shared interfaces.
+The ScoreKeeper project is organized as a multi-platform monorepo of three packages: [expo-app/](file:///c:/Fred/Coding/SK/expo-app/) (the app, on every platform), [server/](file:///c:/Fred/Coding/SK/server/) (the backend), and [shared/](file:///c:/Fred/Coding/SK/shared/) (what both of them agree on). A fourth, `client/` — an older Next.js web-only app that `expo-app/` replaced — was **deleted on 2026-09-13**; entries in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md) that mention it are closed records of work done while it existed and are left as history.
 
 For details on the extensible multi-sport architecture, see [multi_sport_architecture.md](file:///c:/Fred/Coding/SK/docs/multi_sport_architecture.md).
 

@@ -126,7 +126,7 @@ export default function SetupScoring() {
             data: { settings: { ...(event.settings || {}), scoring } },
           },
         },
-        () => finishSave(onDone)
+        (response: any) => finishSave(response, onDone)
       );
     },
     [event, ptsWin, ptsDraw, ptsLoss, eventId, orgId, user?.id, setIsProcessing, finishSave]

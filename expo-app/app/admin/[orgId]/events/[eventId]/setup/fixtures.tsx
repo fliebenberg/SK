@@ -39,23 +39,28 @@ export default function SetupFixtures() {
     dismissStep,
   } = useSetupStepScreen('fixtures');
 
-  const { items: games } = useLiveRoom<GameSummary>(eventRoom, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'GAME_SUMMARIES_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'STAGE_FIXTURES_SYNC':
-          return { kind: 'upsertMany', items: message.data?.games || [] };
-        case 'GAME_SUMMARY_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'GAME_SUMMARY_REMOVED':
-        case 'GAME_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
+  /* Split out of `event:{id}` on 2026-09-11; this screen was still listening on the old room until
+     2026-09-15, so the sync never arrived — same defect as the facilities one on `basics.tsx`. */
+  const { items: games } = useLiveRoom<GameSummary>(
+    eventId ? `event:${eventId}:fixtures` : null,
+    {
+      reduce: (message) => {
+        switch (message.type) {
+          case 'GAME_SUMMARIES_SYNC':
+            return { kind: 'replace', items: message.data || [] };
+          case 'STAGE_FIXTURES_SYNC':
+            return { kind: 'upsertMany', items: message.data?.games || [] };
+          case 'GAME_SUMMARY_UPDATED':
+            return { kind: 'upsert', item: message.data };
+          case 'GAME_SUMMARY_REMOVED':
+          case 'GAME_DELETED':
+            return { kind: 'remove', id: message.data?.id };
+          default:
+            return { kind: 'ignore' };
+        }
+      },
+    }
+  );
 
   const { entrants } = useEventEntrants(eventId, canEdit);
   const entrantCount = entrants.filter(entrant => entrant.status !== 'withdrawn').length;

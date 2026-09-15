@@ -45,8 +45,17 @@ For the full details on client page layouts and user authentication, see the OKF
 - **Entrant**: Who is competing in a Division: a Team, an individual Member, or an unresolved slot
   that carries only a label until someone fills it in.
 - **Game**: A single fixture between participants (teams or individuals).
-- **Site**: A physical location/address (e.g., "City Sports Hub").
-- **Facility**: A specific field, court, table, or track situated within a Site (e.g., "Field 2").
+- **Site**: A physical location/address (e.g., "City Sports Hub"). **Never called a "venue" in the
+  interface** — that word had drifted onto three different things at once (a Site, a Site + Facility
+  pair, and `venue_hall`, one of the Facility *categories*), which is worse than having no word.
+  `UI-14` tracks the screens still saying it.
+- **Facility**: Anything at a Site worth putting a pin on — a field, court, hall, clubhouse, shop,
+  car park or toilet block (the `category` values), each with its own `latitude`/`longitude`. It is
+  **not** a synonym for a playing surface, and the UI must not call the set of them "fields": half
+  of what an organiser selects for a tournament is never played on, and the tournament map is drawn
+  from all of it. A sport that wants its own word for the surface it plays on has
+  `Sport.facilityTerm` ("pitch", "lane", "court") — a display override on top of the general term,
+  never a replacement for it.
 
 The tournament nouns are defined in full in
 [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) and mapped to storage in

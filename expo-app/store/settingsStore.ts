@@ -34,6 +34,10 @@ export const useSettingsStore = create<SettingsState>()(
         theme: 'system',
         hapticFeedbackEnabled: true,
         sidebarMinimized: false,
+        /* Admin forms explain their fields until the reader says otherwise (U49). One switch for
+           all of them rather than a memory per field — what a reader learns is that the info icon
+           holds an explanation, which is a fact about the app, not about one paragraph. */
+        showFieldHelp: true,
       },
       localOverrides: {},
 
