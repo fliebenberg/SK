@@ -1,6 +1,6 @@
 ---
 name: Unsaved Changes Warning
-description: Enforces the use of the `useUnsavedChanges` hook on all pages that allow data editing to prevent accidental data loss.
+description: Enforces the `useUnsavedChanges` hook on every editing page, and the save rules that go with it — read the acknowledgement, never let a failed save look like a successful one, and keep the dirty flag clearable by the save it triggers.
 ---
 
 # Unsaved Changes Warning
@@ -29,8 +29,36 @@ Any component that manages form state or data modification should use the `useUn
     ```
 
 3.  **Handle Resets**: Ensure that "Cancel", "Discard", or "Save" actions correctly update or reset the dirty state.
-    *   **Save**: On successful save, the `isDirty` state will naturally become false if `initialData` is updated or the component re-renders with new data.
+    *   **Save**: On successful save, `isDirty` becomes false because `initialData` is updated or the component re-renders with new data. **Check that this is actually true of the save you are writing** — see the two rules below, which exist because it silently was not.
     *   **Cancel/Discard**: Explicitly reset the form data to the original state to clear the dirty flag.
+
+## A save that failed must never look like one that worked
+
+Every `action` is answered `{ status: 'ok' | 'error', message }`, and the server calls the ack on **both** branches. An emit with no callback, or one that ignores its argument, cannot tell the two apart — so the screen carries on as though the write landed.
+
+**On `status: 'error'`: report it, keep the edits, keep the dirty state, and do not run the success path.** Above all do not navigate away: callers routinely pass navigation into the "done" callback, and leaving the screen discards work the user believes is saved. [`reportActionError`](file:///c:/Fred/Coding/SK/expo-app/utils/actionErrors.ts) surfaces the server's own message in one line.
+
+```tsx
+wsService.emit('action', { type: SocketAction.UPDATE_THING, payload }, (response) => {
+  setIsProcessing(false);
+  if (reportActionError(response, 'That change could not be saved.')) return; // no clear, no navigate
+  clearDirtyState();
+  onDone?.();
+});
+```
+
+**A screen with two writes needs two handlers.** Only one of them owns the dirty state and the navigation; the other still has to speak up when it fails, or half a save disappears silently.
+
+## The dirty flag must be clearable by the save it triggers
+
+A save bar rendered on `isDirty` computed from server data can only come down if the write actually changes that data. Two ways that quietly fails, both found on one screen in one week:
+
+*   **A term the write does not send.** A "runs over more than one day" switch made the form dirty, but with no end date the save wrote `endDate: null` over a column that was already null. Nothing changed, the re-seed effect never re-ran, and the bar could not be dismissed however many times Save was pressed.
+*   **A baseline from a room the screen is not subscribed to.** The facilities comparison read a room the sync is not published to, so the baseline could never refresh — and because the save genuinely succeeded, it looked exactly like a failing write.
+
+**When you add a term to a dirty check, ask two questions**: which write clears it, and which room refreshes the value it compares against. If either answer is "none", the form can become permanently dirty.
+
+**Prefer a state that cannot go wrong over one that recovers.** The multi-day case was fixed by making the bad state unreachable — an end date is required and seeded — not by detecting it afterwards.
 
 ## Technical Details
 
