@@ -79,3 +79,9 @@
 ## No Silent Fallbacks on Missing Required Data
 - **Avoid Silent Fallbacks**: Never implement hardcoded fallback strings, dummy values, or silent defaults (e.g. `sportId || 'rugby'`, returning empty state or default entities silently) when expected configuration, entity IDs, or required variables are missing.
 - **Surface Errors Explicitly**: If required dynamic variables or data schemas are missing or not found, throw an explicit, descriptive error or surface a visible alert in the application to indicate that something unexpected occurred.
+
+# Repository Architecture Rules
+
+## The App Is `expo-app/`; `client/` Was Removed
+- **All Client Work Goes in `expo-app/`**: There used to be a root `client/` folder — an old Next.js, web-only version of the app. It was replaced by the multi-platform Expo app in `expo-app/` and deleted on 2026-09-13.
+- **Highlight Remaining Relics, Do Not Remove Them**: If you find any remaining reference to `client/` or the old Next.js client — in code, config, docs, skills or `TODO.md` — point it out to the user so they can decide whether to delete it. Do not act on it, and do not remove it silently.

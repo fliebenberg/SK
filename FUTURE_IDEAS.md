@@ -153,10 +153,126 @@ This document is a space to jot down brilliant ideas for the application while w
       authority ([identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.5).
       Logged-in users only; only very general information is ever public to a signed-out visitor.
 
+    - **Polls and structured requests** — a coach or organiser asks a set question of a squad and
+      gets a tally back. Its own entry below; transport is the first case.
+    - **Communication with every participating organisation in a tournament.** Getting information
+      to and from the people at every other school is a named frustration
+      (Van Riebeeckstrand Primary sports office, 2026-09-14): some counterparts answer a voice note
+      at once, some never answer email, some schools have no sports coordinator at all, and an agreed
+      date was disputed months later with no record of what was agreed. **This needs a designated
+      main contact per participating organisation in a tournament** — the person the tournament
+      addresses on that org's behalf.
+        - **"Main contact", deliberately not "organiser".** A main contact **has no permissions over
+          the tournament** — it is an addressing role, not a grant. Someone who is a main contact *and*
+          appears among the tournament's organisers has organiser rights because of the second role,
+          never the first. This keeps the two apart from
+          [docs/tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) §10, where "organiser"
+          (D33) and "convenor" (D22/D31) both mean edit rights.
+        - Today §10 names people only on the **hosting** side; participating orgs have no named person
+          at all. Like D33, the designation belongs to **one event** and should lapse with it.
+        - Open: who designates the main contact (the host, or the participating org itself); whether
+          they must be a user, since many participating orgs are unclaimed and a contact may only have
+          an email address; and whether an org may name more than one.
+
     **Dependencies to settle in the workshop:** this is mostly **public / consumer-side** work and
     that side of the app has not been started, which is why read access, permissioned sharing and
     audience identity are all currently unanswered. Also drags in moderation (`REP-*`), consent and
     minors' data, notification preferences, and the unified notification inbox above.
+
+- [ ] **Polls — a general way for coaches and organisers to get structured answers from players and
+  parents.** Requested repeatedly in interviews. The clearest case is **match transport** (Van
+  Riebeeckstrand Primary sports office, 2026-09-14): coaches build a WhatsApp poll per team every
+  week — *drive self*, *bus there and back*, *bus there only*, *bus back only* — and the sports office
+  books buses off the counts by a Tuesday 11:00 deadline. Buses cost R30,000–R40,000 a trip, and
+  parents changing their answer on match morning leaves 60-seaters half-empty. Building one poll per
+  team by hand is itself named as a time cost.
+    - **Build the service, not the transport form.** The same shape answers "is your child
+      available?", "which practice slot?", "kit size?", "who can help at the tuck shop?" A poll is a
+      question, a set of options, an audience, and a deadline.
+    - **Audience comes from data we hold** — a team, a match squad, an event's entrants — rather than
+      whoever is in a chat group. **For a minor, the guardian answers** (`MEMBER-3`,
+      [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.3); an adult
+      player answers for themselves.
+    - **What the asker needs back:** a live tally, **who has not answered** (to chase them), and
+      **answers changed after the deadline** made visible rather than discovered at the bus.
+    - **Attach a poll to what it is about** — a game, a training session, an event — so the answer
+      travels with the fixture. The transport case pairs naturally with the coach-initiated roll call
+      below (*"confirming everyone who said they'd take the bus is actually on the bus"*).
+    - **Depends on** notification delivery (the unified notification inbox above) and on the consumer
+      side, which is not built. Belongs in the communication workshop, not built piecemeal.
+    - Open: single vs multiple choice, free-text answers, whether respondents see the tally, and
+      whether a poll can be reused week to week for the same team.
+- [ ] **An organisation calendar — its own dates, visible to other organisations.** User research
+  (Van Riebeeckstrand Primary sports office, 2026-09-14): the **biggest pain named, raised unprompted**,
+  is agreeing next year's dates with other schools before the school calendar prints in November.
+  Western Cape primary schools no longer wait on a governing body — they arrange dates bilaterally,
+  by phone, voice note and email. The sports coordinator **cannot see other schools' calendars**, waits
+  on schools whose planning runs on a different cycle, and one requested swap cascades into several
+  more. His own suggestion: see which weekends another school has open, and approach them directly.
+  He pre-empted the privacy objection — the calendar is already printed and sent home to parents.
+    - **Near term: a calendar view per organisation** — fixtures, tournaments and training, plus
+      dates that are not fixtures (sports days, photo days, kit presentations sit on the same board).
+      Useful to the org itself on day one.
+    - **Then: publish it**, including **open / blocked dates**, readable by another org's organiser.
+      Decide what a signed-out visitor sees — only very general information is public elsewhere.
+    - **Later: date proposals between organisations** — propose, accept, request a swap — with a
+      record of what was agreed. The same school had a long-standing event date disputed by the other
+      school mid-year; it was settled only because the other side had no proof of a change.
+    - **Network effect, stated by the interviewee himself** — *"if everyone used the same platform."*
+      Cross-org visibility is worth little until counterparts are on the app, so the per-org calendar
+      has to stand on its own first. Adoption here looks peer-to-peer (coordinators who know each
+      other), not through a league.
+    - Related: venue scheduling (above), the repeating Training event type in
+      [TODO.md](file:///c:/Fred/Coding/SK/TODO.md), the **team event** type below (which is how the
+      non-fixture dates get into the calendar at all), and main contacts per participating
+      organisation in the communication workshop entry.
+- [ ] **A "Team event" type — something a team does that is not a match.** A photo shoot, a team
+  outing, a kit presentation, a team dinner — and training. Prompted by the school calendar (Van Riebeeckstrand
+  Primary sports office, 2026-09-14), where **photo days and kit presentations are locked into the
+  year alongside match days** but have nowhere to live in ScoreKeeper: `EventType` is only
+  `'SingleMatch' | 'Tournament'`
+  ([Event.ts](file:///c:/Fred/Coding/SK/shared/src/models/event/Event.ts)), and both assume an
+  opponent.
+    - **Shape:** one team (or several of the org's own teams), **no opposing team, no score**. A
+      date and time, a venue — optional, since an outing may be off-site — and **the people
+      involved**, selected the way players are selected for a match but **without positions**.
+    - **Decided 2026-09-15:**
+        - **Training is a special case of a team event**, not a separate type. So a team event is
+          either **once-off or recurring** — a photo shoot happens once, Tuesday practice repeats.
+          This absorbs the "Training" event type in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md):
+          selection, attendance and roll call are built once.
+        - **The event belongs to one organisation**, and only its own teams take part as teams. That
+          does **not** stop people from outside the org being involved: anyone from another
+          organisation is **invited as an individual**, not as part of their org.
+        - **People who are not on a team can take part** — a parent helping, a photographer, a
+          driver, a visiting coach. They join the event the way a **match official already joins a
+          game without being on either team** (`game_officials`,
+          [GameOfficial.ts](file:///c:/Fred/Coding/SK/shared/src/models/event/GameOfficial.ts)).
+        - **No label for what a non-team participant is there to do.** The coach or organiser knows.
+          (Note the contrast with officials, whose `role` column is required — a team-event
+          participant would not carry one.)
+        - **No scoring screen.** The type simply has none; nothing to hide or disable.
+    - **General principle, wider than this entry: every event type should admit non-team
+      participants.** Today that exists only at game level, for officials. A team event is the first
+      type where it is the main case rather than an exception, so it is the right place to design it
+      generally — a tournament's photographer or first-aider is the same kind of person.
+    - **Watch the counting rule.** [TeamManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/TeamManager.ts)
+      gives anyone added to a team a `role-org-member` membership, and `MEMBER-3` records the agreed
+      rule that anyone involved with a team holds a counting (priced) role. A parent or photographer
+      added to a team event must **not** become a billable member through that path, so taking part in
+      an event has to be separate from being on the team.
+    - **Outside individuals need a person record.** `game_officials` points at an `org_profile`, which
+      is per organisation. An invited individual from another org has no profile in the host org, and
+      creating one there is the "whichever org touched them first owns them" problem in `MEMBER-2`.
+      Settle with that item rather than around it.
+    - **Transport options** where the event travels, which is the transport poll in the entry above
+      applied to a non-match event — another reason to build polls as a service rather than a match
+      feature.
+    - **What it inherits for free once it exists:** a place on the organisation calendar (above),
+      the same guardian-scoped notifications a match would get, and roll call for who actually came.
+    - **Still open:** how recurrence is expressed (a series with exceptions — a cancelled Tuesday, a
+      moved session — or independent copies), and whether a change to the series updates events
+      already in the past.
 
 - [ ] Set up a dedicated ScoreKeeper mail service for production email sending (transactional emails, notifications, password resets, etc.)
 - [ ] Optimize organization caching and search:
