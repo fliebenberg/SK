@@ -421,10 +421,6 @@ export default function SetupBasics() {
                   and the facilities are what it *uses*, which may include the fields next door
                   (U47). Choosing a site restricts nothing. */}
               <View className="p-5 gap-4 border-t border-slate-200 dark:border-white/5">
-                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                  Where
-                </Text>
-
                 {/* No `zIndex` here: it used to lift this field over the one below for an inline
                     dropdown, and `CustomSelect` has since moved its list into a modal. All the
                     leftover value did was create a stacking context that trapped neighbouring
@@ -474,6 +470,14 @@ export default function SetupBasics() {
                   onChange={setOrganizers}
                   canManage={canEdit}
                   label="Tournament organisers"
+                  help="Other people who will help run this tournament. An organiser can edit it, enter results and manage its divisions — they do not need to be an admin of your organisation, and they can come from any organisation taking part."
+                  /* No organisations are taking part yet if the steps are followed in order —
+                     entrants are invited two steps later — so the picker offers this organisation's
+                     own people and gains the `Taking part` scope only once there is something in
+                     it. `hostOrgName` is deliberately not passed: the event does not carry the host
+                     org's name and fetching it for a chip label is not worth a round trip inside
+                     that org's own workspace. */
+                  hasParticipatingOrgs={((event as Event).participatingOrgs || []).length > 0}
                 />
               </View>
             </View>

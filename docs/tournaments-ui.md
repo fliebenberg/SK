@@ -942,6 +942,26 @@ that spans weeks.
 >   being that such a dialog needs its own "do not show me this again" checkbox, which this does
 >   not, because answering it either way settles it for good. `UI-16` tracks the rollout.
 >
+> - **Appointing an organiser became browsing, not only searching.** The control was an inline
+>   input that returned nothing until you typed a name you already knew — fine when you have
+>   somebody in mind, useless for "who on our staff could run the netball?", which is the question
+>   organisers actually arrive with. `<PersonPickerModal>` opens on a **list** of the organisation's
+>   people and narrows it as you type, so it is a superset: typing still works at the same speed.
+>   Three scopes, because the server supports exactly three — the host org can be *listed*
+>   (`org_members`), while `Taking part` and `Everyone` can only be *searched*
+>   (`organizer_candidates` returns nothing without a query), and offering a browse where there is
+>   no list to give would be a promise the data cannot keep. `Taking part` appears only once the
+>   event has other organisations, which at Basic Info time it does not — entrants are invited two
+>   steps later.
+> - **"Add as a new person" was removed from the picker.** Creating a profile mid-way through
+>   tournament setup is how an org accumulates duplicate people with no role and no email; the
+>   empty state points at People & Roles instead. The server still permits it (`PEOPLE-2`) — it is
+>   simply not offered from here, which is a real capability removal and worth knowing about.
+> - **The autocomplete's stray dropdown was Chrome's, not ours.** The list that sat out of line with
+>   the input and ended in "Manage addresses…" was the browser's saved-addresses autofill, covering
+>   our own results. A bare name field reads as part of an address form; `autoComplete="off"` opts
+>   out, and both this picker and `PersonnelAutocomplete` now set it.
+>
 > Wide-screen layout is still not in this change — that is `UI-11`.
 
 

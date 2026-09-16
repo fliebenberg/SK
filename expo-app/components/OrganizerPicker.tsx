@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { OrgProfile, SocketAction, TournamentOrganizer } from '@sk/shared';
+import { SocketAction, TournamentOrganizer } from '@sk/shared';
 import { useActiveTheme } from '../store/settingsStore';
 import { COLORS, getThemeColor } from '../constants/Colors';
+import { FieldLabel } from './FieldLabel';
+import { PersonPickerModal } from './PersonPickerModal';
 import { wsService } from '../services/websocket';
 
 /**
@@ -47,10 +49,20 @@ export interface OrganizerPickerProps {
   canManage?: boolean;
   /** "Tournament organisers" / "Netball convenors". */
   label?: string;
+  /** Explanation folded behind the label's info icon. Omitted renders no icon. */
+  help?: string;
+  /** Named on the picker's first scope chip, so it reads as a place rather than "this org". */
+  hostOrgName?: string;
+  /**
+   * Whether the event has organisations beyond the host yet.
+   *
+   * At Basic Info time it does not — entrants are invited two steps later — so the picker offers
+   * the host's own people and a deliberate widening, and gains the middle scope only once there is
+   * something in it.
+   */
+  hasParticipatingOrgs?: boolean;
 }
 
-/** What the lean search returns. Deliberately no contact or identity fields. */
-type Candidate = Pick<OrgProfile, 'id' | 'name' | 'image'> & { orgId?: string; orgName?: string };
 
 export function OrganizerPicker({
   eventId,
@@ -61,41 +73,19 @@ export function OrganizerPicker({
   onChange,
   canManage = true,
   label = 'Organisers',
+  help,
+  hostOrgName,
+  hasParticipatingOrgs = false,
 }: OrganizerPickerProps) {
   const isDark = useActiveTheme() === 'dark';
   const secondary = getThemeColor(isDark, 'textSecondary');
 
-  const [term, setTerm] = useState('');
-  const [searchAll, setSearchAll] = useState(false);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  const [isPicking, setIsPicking] = useState(false);
   const [busyProfileId, setBusyProfileId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const scope = divisionId ? { divisionId } : { eventId };
 
-  useEffect(() => {
-    if (term.trim().length < 2) {
-      setCandidates([]);
-      setIsSearching(false);
-      return;
-    }
-
-    // Debounced, so a name being typed is one search rather than one per keystroke.
-    const handle = setTimeout(() => {
-      setIsSearching(true);
-      wsService.emit(
-        'get_data',
-        { type: 'organizer_candidates', eventId, query: term.trim(), global: searchAll },
-        (results: any) => {
-          setIsSearching(false);
-          setCandidates(Array.isArray(results) ? results : []);
-        }
-      );
-    }, 300);
-
-    return () => clearTimeout(handle);
-  }, [term, searchAll, eventId]);
 
   const appoint = useCallback(
     (orgProfileId: string) => {
@@ -112,8 +102,7 @@ export function OrganizerPicker({
           }
           // The action answers with the scope's whole list, so this replaces rather than patches.
           onChange(response?.data?.organizers ?? response?.organizers ?? organizers);
-          setTerm('');
-          setCandidates([]);
+          setIsPicking(false);
         }
       );
     },
@@ -140,36 +129,12 @@ export function OrganizerPicker({
     [actingOrgId, divisionId, eventId, onChange]
   );
 
-  /** Tier 3: a person the app has never heard of. A profile in the host org, and no membership. */
-  const createAndAppoint = useCallback(() => {
-    const name = term.trim();
-    if (!name) return;
-    setBusyProfileId('new');
-    setError(null);
-    wsService.emitAction(
-      SocketAction.ADD_ORG_PROFILE,
-      // `eventId` is what authorizes this: creating a person record is an org admin's job, and an
-      // organiser of this event is the one exception (`PEOPLE-2`). It is not stored on the profile.
-      { orgId: hostOrgId, name, eventId } as any,
-      (response: any) => {
-        const profile = response?.data ?? response;
-        if (response?.error || !profile?.id) {
-          setBusyProfileId(null);
-          setError('Could not create that person.');
-          return;
-        }
-        appoint(profile.id);
-      }
-    );
-  }, [appoint, eventId, hostOrgId, term]);
 
   const alreadyAppointed = (profileId: string) => organizers.some(o => o.orgProfileId === profileId);
 
   return (
     <View className="gap-4">
-      <Text className="font-orbitron-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-        {label}
-      </Text>
+      <FieldLabel label={label} help={help} />
 
       {/* Who holds this scope now. */}
       <View className="gap-2">
@@ -218,104 +183,36 @@ export function OrganizerPicker({
       </View>
 
       {canManage && (
-        <View className="gap-3">
-          <View className="flex-row items-center gap-3 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-100/30 dark:bg-white/5 px-4 py-2.5">
-            <TextInput
-              value={term}
-              onChangeText={setTerm}
-              placeholder="Search for a person..."
-              placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-              className="flex-1 font-inter text-sm text-slate-800 dark:text-white"
-            />
-            {isSearching ? (
-              <ActivityIndicator size="small" color={COLORS.brand.orange} />
-            ) : (
-              <Ionicons name="search-outline" size={16} color={secondary} />
-            )}
-          </View>
-
-          {/* Tier 2, named rather than implied: the wider search is a decision, not a default. */}
+        <>
           <TouchableOpacity
-            onPress={() => setSearchAll(value => !value)}
-            activeOpacity={0.8}
-            className="flex-row items-center gap-2"
+            onPress={() => setIsPicking(true)}
+            activeOpacity={0.85}
             accessibilityRole="button"
+            accessibilityLabel={`Add ${organizers.length ? 'another organiser' : 'an organiser'}`}
+            className="flex-row items-center justify-center gap-2 rounded-xl border border-dashed border-brand-orange/50 px-4 py-3"
           >
-            <Ionicons
-              name={searchAll ? 'checkbox-outline' : 'square-outline'}
-              size={16}
-              color={searchAll ? COLORS.brand.orange : secondary}
-            />
-            <Text className="font-inter text-[11px] text-slate-600 dark:text-slate-300">
-              Search every organisation, not just the ones taking part
+            <Ionicons name="add" size={16} color={COLORS.brand.orange} />
+            <Text className="font-inter-bold text-[11px] uppercase tracking-wider text-brand-orange">
+              {organizers.length ? 'Add another' : 'Add an organiser'}
             </Text>
           </TouchableOpacity>
 
-          {term.trim().length >= 2 && (
-            <View className="rounded-xl border border-slate-200 dark:border-white/5 overflow-hidden">
-              {candidates.map(candidate => {
-                const appointed = alreadyAppointed(candidate.id);
-                return (
-                  <TouchableOpacity
-                    key={candidate.id}
-                    onPress={() => !appointed && appoint(candidate.id)}
-                    disabled={appointed || busyProfileId === candidate.id}
-                    activeOpacity={0.8}
-                    className="flex-row items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-white/5"
-                  >
-                    <View className="flex-1">
-                      <Text numberOfLines={1} className="font-inter-bold text-xs text-slate-800 dark:text-white">
-                        {candidate.name}
-                      </Text>
-                      <Text numberOfLines={1} className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-                        {candidate.orgName || 'No organisation'}
-                      </Text>
-                    </View>
-                    {appointed ? (
-                      <Text className="font-inter text-[10px] text-slate-400">Already appointed</Text>
-                    ) : busyProfileId === candidate.id ? (
-                      <ActivityIndicator size="small" color={COLORS.brand.orange} />
-                    ) : (
-                      <Ionicons name="add-circle-outline" size={18} color={COLORS.brand.orange} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-
-              {!isSearching && candidates.length === 0 && (
-                <View className="px-4 py-3">
-                  <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
-                    {searchAll
-                      ? 'Nobody found. They may not be on the app yet.'
-                      : 'Nobody found here. Try searching every organisation.'}
-                  </Text>
-                </View>
-              )}
-
-              {/* Tier 3. */}
-              <TouchableOpacity
-                onPress={createAndAppoint}
-                disabled={busyProfileId === 'new'}
-                activeOpacity={0.8}
-                className="flex-row items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-white/5"
-              >
-                {busyProfileId === 'new' ? (
-                  <ActivityIndicator size="small" color={COLORS.brand.orange} />
-                ) : (
-                  <Ionicons name="person-add-outline" size={16} color={COLORS.brand.orange} />
-                )}
-                <Text className="font-inter-bold text-[11px] text-brand-orange">
-                  Add "{term.trim()}" as a new person
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {!!error && (
-            <Text className="font-inter text-[11px] text-brand-red">{error}</Text>
-          )}
-        </View>
+          <PersonPickerModal
+            visible={isPicking}
+            onClose={() => setIsPicking(false)}
+            eventId={eventId}
+            hostOrgId={hostOrgId}
+            hostOrgName={hostOrgName}
+            hasParticipatingOrgs={hasParticipatingOrgs}
+            excludeIds={organizers.map(o => o.orgProfileId)}
+            busyId={busyProfileId}
+            title={divisionId ? 'Add a convenor' : 'Add an organiser'}
+            onSelect={person => appoint(person.id)}
+          />
+        </>
       )}
+
+      {!!error && <Text className="font-inter text-[11px] text-brand-red">{error}</Text>}
     </View>
   );
 }

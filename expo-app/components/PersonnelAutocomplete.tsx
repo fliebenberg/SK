@@ -75,6 +75,10 @@ export function PersonnelAutocomplete({
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
           placeholderTextColor="#94A3B8"
+          /* Opts out of Chrome's saved-addresses popup, which otherwise covers these results. */
+          autoComplete="off"
+          autoCorrect={false}
+          spellCheck={false}
           className="flex-1 font-inter text-sm text-slate-800 dark:text-white outline-none"
         />
         {isLoading ? (
