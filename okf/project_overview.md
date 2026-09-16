@@ -29,7 +29,24 @@ For the full details on client page layouts and user authentication, see the OKF
 
 - **User**: The global application user account (handles authentication and global profiles).
 - **Member (OrgProfile)**: An organization-specific persona. A User can have multiple Memberships across different Organizations.
-- **Role**: Permission levels (Owner, Admin, Manager, Scorekeeper, Coach, Player) assigned to an `OrgMembership` or `TeamMembership`, rather than directly to a User.
+- **Role**: Assigned to an `OrgMembership` or a `TeamMembership`, never directly to a User — and the
+  two sets are **different lists that must not be conflated**, because a person's standing in the
+  organisation and their job in a squad are separate facts about them.
+  - **Organisation roles** (`OrganizationManager.organizationRoles`) — exactly three: **Admin**
+    (`role-org-admin`), **Staff** (`role-org-staff`), **Member** (`role-org-member`). There is **no
+    Player org role**; `Member` is the catch-all affiliation every player, parent and helper
+    receives. `AccessManager` treats Staff as admin-equivalent. Roles named in
+    [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.6 —
+    `role-org-guardian`, `role-trusted-contact` — are **designed, not built**, and that document
+    says so.
+  - **Team roles** (`TeamManager.teamRoles`) — seven: **Player**, **Coach**, **Assistant Coach**,
+    **Manager**, **Scorer**, **Staff**, **Medic**.
+  - **A co-opted outsider gets no role at all.** Somebody brought in for one job — an external
+    tournament convenor, a visiting official — is given an `org_profile` with **no
+    `org_memberships` row**. "External" is a derived label, never a stored role: a
+    `role-org-external` membership would be counted like any other by `getMembershipSnapshot` and
+    would open the organisation's member-tier rooms. See
+    [auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) and `MEMBER-2`.
 - **Organization**: The top-level administrative container representing a league, school, club, or pub tournament.
 - **Event**: One of exactly two things — a **SingleMatch** wrapping one game, or a **Tournament**
   containing many. `events.type` admits nothing else. A "sports day" is a Tournament whose `format`
