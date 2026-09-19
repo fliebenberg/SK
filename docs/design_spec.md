@@ -87,9 +87,12 @@ forgetting it *adds* a concept the user did not need — a list of one, a tab ba
 piece of vocabulary in front of somebody who should never have met it. Nobody notices a missing
 container; everybody notices being asked to pick from a list of one.
 
-It arrived with tournaments, where a single-sport tournament has one division and the organiser must
-never be shown the word "Division" — the event screen simply *is* the division screen — and a
-division with one stage shows no stage tabs. But nothing about it is tournament-specific, and the
+It arrived with tournaments, where a division with one stage shows no stage tabs and a tournament
+with one division shows that division's fixtures directly. **It collapses rendering, not
+vocabulary.** The first version also hid the *word* "Division" from a one-division tournament, and
+that half was withdrawn (tournaments-ui U50): an organiser who never met the concept had nothing to
+reason from when they needed a second, and a setup process that differs by size is harder to learn
+than one extra row. Hide the picker of one; do not hide the idea. But nothing about it is tournament-specific, and the
 same shape recurs wherever a container usually holds one child and occasionally holds several.
 
 Two obligations come with it:

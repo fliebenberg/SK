@@ -1100,7 +1100,9 @@ gap in the plan.**
    remains is: not the division's own record (its `weighting` decides how its points roll up into
    the event, so it is an event-level decision), not the event, and **not appointing anybody**. That
    last one is what keeps an appointee from ever building a position they cannot be removed from,
-   which is the asymmetry D33 relies on.
+   which is the asymmetry D33 relies on. *(Revised 2026-09-19: a convenor may now appoint
+   co-convenors to their own division and withdraw only the ones they appointed — see
+   [tournaments.md](file:///c:/Fred/Coding/SK/docs/tournaments.md) under D33.)*
 2. **The capability flags are their own read, not a field on the event.** `{ canEditEvent,
    convenesDivisionIds }` is exactly what the plan asks for; where it arrives is different. A
    `canEdit` on a division object would be published to `division:{id}` and `event:{id}` like

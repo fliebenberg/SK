@@ -45,4 +45,6 @@ export * from './utils/capturedEvent';
 export * from './utils/eventType';
 export * from './utils/eventRoles';
 export * from './utils/collapseRule';
+export * from './utils/divisionName';
+export * from './utils/divisionEntry';
 export * from './constants/TestConstants';

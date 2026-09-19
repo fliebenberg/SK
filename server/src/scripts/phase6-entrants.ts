@@ -151,7 +151,7 @@ async function main() {
 
   // `ADD_EVENT` creates the implicit division; this tournament then gets its real structure, so
   // that one is removed rather than left as a sixteenth nobody entered.
-  await tournamentManager.createImplicitDivision(event as any);
+  await tournamentManager.createDivisionsForSports(event as any, event.sportIds || []);
   for (const implicit of await tournamentManager.getDivisions(event.id)) {
     await tournamentManager.deleteDivision(implicit.id);
   }

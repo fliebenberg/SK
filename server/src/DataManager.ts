@@ -47,7 +47,8 @@ export class DataManager {
   getEventGrants = (userId: string, eventId: string) => accessManager.getEventGrants(userId, eventId);
   getUserIdsForOrgProfile = (orgProfileId: string) => accessManager.getUserIdsForOrgProfile(orgProfileId);
   getEventOrgIds = (eventId: string) => accessManager.getEventOrgIds(eventId);
-  resolveGrantingProfile = (userId: string, eventId: string) => accessManager.resolveGrantingProfile(userId, eventId);
+  resolveGrantingProfile = (userId: string, eventId: string, divisionId?: string) =>
+    accessManager.resolveGrantingProfile(userId, eventId, divisionId);
   ownsOrgProfile = (userId: string, orgProfileId: string) => accessManager.ownsOrgProfile(userId, orgProfileId);
   getGameOrgId = (gameId: string) => accessManager.getGameOrgId(gameId);
 

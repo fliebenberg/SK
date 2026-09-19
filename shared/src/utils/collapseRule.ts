@@ -2,13 +2,17 @@
  * The collapse rule (U15), in one place because it is applied in several.
  *
  * **A level with exactly one child renders that child inline and shows no picker for it.** One
- * division → the event screen *is* the division screen, and the tournament's venues, format and
- * settings are the division's. One stage → no stage tabs. The concept appears at the moment a
- * second child does.
+ * division → the Schedule tab *is* the division's panel. One stage → no stage tabs.
+ *
+ * **Narrowed for divisions by U50 (2026-09-19).** The rule used to hide the *concept* as well as
+ * the picker — "the word Division never appears while there is only one". That is withdrawn for
+ * divisions: tournament setup always lists the division, one included, because an organiser who
+ * never met the idea had nothing to reason from when they needed a second. What survives is the
+ * layout half — no picker over a list of one, and a single division's fixtures shown inline. For
+ * stages the rule stands whole.
  *
  * The rule is worth stating as code rather than as a convention because the failure mode is
- * asymmetric: forgetting it *adds* a concept — a list of one, a tab bar with one tab, the word
- * "Division" in front of somebody running a single-sport tournament who should never meet it.
+ * asymmetric: forgetting it *adds* furniture — a picker with one option, a tab bar with one tab.
  *
  * This generalises past tournaments. Anywhere the app has a container that usually holds one child
  * and occasionally holds several, the same rule applies; see `docs/design_spec.md`.
@@ -36,15 +40,17 @@ export function structureAnnouncement(params: {
   const { level, existingName } = params;
 
   if (level === 'division') {
+    // U50: the word "division" is on screen from the start now, so this no longer introduces the
+    // concept or a name nobody has seen — only the change of layout a second one causes.
     return {
-      title: 'This will restructure the screen',
+      title: 'This will restructure the Schedule tab',
       description:
-        `Until now this tournament has had one division, so it has been shown inline — the word ` +
-        `"division" has not appeared anywhere. Adding a second means both are listed by name, and ` +
-        `fixtures, entrants and standings move onto each division's own screen.` +
-        (existingName
-          ? `\n\nThe existing division is called "${existingName}". You can rename it once both are visible.`
-          : ''),
+        `This tournament has one division, so its fixtures are shown directly on the Schedule tab. ` +
+        `Adding a second means the tab lists the divisions instead, and each one's fixtures, ` +
+        `entrants and standings move onto its own screen.` +
+        (existingName ? `
+
+"${existingName}" keeps everything it has.` : ''),
       confirmText: 'Add a division',
     };
   }

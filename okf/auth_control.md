@@ -49,8 +49,11 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
           get their rights from *being admins*, so an appointee can never lock them out, and any
           admin can withdraw the grant at any time.
         - *Division convenor* — everything within their division: entrants, stages, fixtures,
-          results and adjustments. Not the division's own record (name, sport, weighting), not the
-          event's settings, not another division, and **not the power to appoint anybody**.
+          results and adjustments — and **co-convenors** for that division: they may appoint them,
+          and withdraw only the ones they appointed (revised 2026-09-19; the handler checks
+          `granted_by_org_profile_id`). Not the division's own record (name, sport, age group,
+          weighting), not the event's settings, not another division, and never an event-scope
+          appointment.
     - **The workspace constraint does not apply to a grant.** `canEditEventOrGame` normally requires
       the caller to be acting from the event's own org, which stops a membership-derived right
       leaking across workspaces. An appointee may hold no membership anywhere — that is the point of

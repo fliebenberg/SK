@@ -20,6 +20,7 @@ import {
   TournamentStage,
   TournamentStandingRow,
   stagePlanForFormat,
+  divisionAutoName,
   calculateStandings,
   rollUpByOrganisation,
 } from "@sk/shared";
@@ -231,42 +232,36 @@ export class TournamentManager extends BaseManager {
   }
 
   /**
-   * The division a tournament is born with (U16), and the stages that division is born with (D11).
+   * One division per sport, for sports that have none yet (U52).
    *
-   * Created **with the tournament, not lazily on the first fixture**. An empty division row beside
-   * an empty tournament row costs nothing, and it is the simpler rule everywhere downstream: every
-   * screen below the event can assume a division exists, and every fixture has a stage to belong
-   * to rather than resolving to no division at all (`PEOPLE-3`).
+   * A tournament's divisions follow its sports: choosing a sport — at creation or later on Sports &
+   * Divisions — gives it a division to start from, so the organiser meets the division the moment
+   * the sport exists rather than having to know to add one. Named after the sport, which is the
+   * automatic name for a division with no age group yet (`divisionAutoName`), so it becomes
+   * "Rugby U14" the moment an age group is given.
    *
-   * **The name matters even though nobody sees it yet.** Under the collapse rule the word
-   * "Division" never appears while there is only one — but the moment a second is added, the first
-   * one's name is suddenly on screen. So it is named the way an organiser would have named it: after
-   * the sport when the tournament has exactly one, and after the event otherwise. Renamable either
-   * way (D3), and the screen that adds the second division offers the rename in the same breath.
+   * Created **with its stages** (D11), derived from the format, so every division has somewhere
+   * for its fixtures to belong (`PEOPLE-3`).
    */
-  async createImplicitDivision(event: {
-    id: string;
-    name: string;
-    format?: EventFormat | null;
-    sportIds?: string[];
-  }): Promise<TournamentDivision> {
-    const sportIds = event.sportIds || [];
-    const onlySportId = sportIds.length === 1 ? sportIds[0] : undefined;
-    const sportName = onlySportId
-      ? (await this.query(`SELECT name FROM sports WHERE id = $1`, [onlySportId])).rows[0]?.name
-      : null;
-
-    const division = await this.addDivision({
-      eventId: event.id,
-      name: sportName || event.name,
-      sportId: onlySportId,
-    });
-
-    for (const stage of stagePlanForFormat(event.format)) {
-      await this.addStage({ divisionId: division.id, ...stage });
+  async createDivisionsForSports(
+    event: { id: string; name: string; format?: EventFormat | null },
+    sportIds: string[]
+  ): Promise<TournamentDivision[]> {
+    const created: TournamentDivision[] = [];
+    // Names are unique within a tournament, ignoring case — so a hand-named "rugby" already there
+    // makes the new one "Rugby - 2" rather than a clash the server would otherwise refuse.
+    const takenNames = (await this.getDivisions(event.id)).map(d => d.name);
+    for (const sportId of [...new Set(sportIds)]) {
+      const sportName = (await this.query(`SELECT name FROM sports WHERE id = $1`, [sportId])).rows[0]?.name;
+      const name = divisionAutoName(sportName || event.name, undefined, takenNames);
+      takenNames.push(name);
+      const division = await this.addDivision({ eventId: event.id, name, sportId });
+      for (const stage of stagePlanForFormat(event.format)) {
+        await this.addStage({ divisionId: division.id, ...stage });
+      }
+      created.push((await this.getDivision(division.id))!);
     }
-
-    return (await this.getDivision(division.id))!;
+    return created;
   }
 
   async updateDivision(id: string, data: Partial<TournamentDivision>): Promise<TournamentDivision | null> {

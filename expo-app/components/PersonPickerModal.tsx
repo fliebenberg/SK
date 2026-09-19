@@ -65,6 +65,11 @@ export interface PersonPickerModalProps {
   title?: string;
   /** Offered only when the event has organisations beyond the host. */
   hasParticipatingOrgs?: boolean;
+  /**
+   * Set when appointing a division's convenor. Sent with the searches so a convenor — who may
+   * appoint co-convenors but holds no event-wide rights — is authorized on their division.
+   */
+  divisionId?: string;
 }
 
 export function PersonPickerModal({
@@ -78,6 +83,7 @@ export function PersonPickerModal({
   onSelect,
   title = 'Add an organiser',
   hasParticipatingOrgs = false,
+  divisionId,
 }: PersonPickerModalProps) {
   const isDark = useActiveTheme() === 'dark';
   const secondary = getThemeColor(isDark, 'textSecondary');
@@ -87,6 +93,12 @@ export function PersonPickerModal({
   const [roster, setRoster] = useState<PickablePerson[]>([]);
   const [results, setResults] = useState<PickablePerson[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  /*
+    Whether the host's member list may be read. A convenor from a visiting school is not a member of
+    the host, so the browsable list is refused for them — and an empty list would read as "the host
+    has nobody". Instead the tab is dropped and the picker opens on the search, which covers the host.
+  */
+  const [rosterAvailable, setRosterAvailable] = useState(true);
 
   /* Reopening should not show the last visit's typing or the wrong scope. */
   useEffect(() => {
@@ -102,6 +114,9 @@ export function PersonPickerModal({
     setIsLoading(true);
     wsService.emit('get_data', { type: 'org_members', orgId: hostOrgId }, (members: any) => {
       setIsLoading(false);
+      const available = Array.isArray(members);
+      setRosterAvailable(available);
+      if (!available) setScope(current => (current === 'org' ? 'event' : current));
       setRoster(
         Array.isArray(members)
           ? members.map((m: any) => ({
@@ -127,7 +142,13 @@ export function PersonPickerModal({
     const handle = setTimeout(() => {
       wsService.emit(
         'get_data',
-        { type: 'organizer_candidates', eventId, query: term.trim(), global: scope === 'global' },
+        {
+          type: 'organizer_candidates',
+          eventId,
+          ...(divisionId ? { divisionId } : {}),
+          query: term.trim(),
+          global: scope === 'global',
+        },
         (found: any) => {
           setIsLoading(false);
           setResults(Array.isArray(found) ? found : []);
@@ -135,7 +156,7 @@ export function PersonPickerModal({
       );
     }, 300);
     return () => clearTimeout(handle);
-  }, [visible, scope, term, eventId]);
+  }, [visible, scope, term, eventId, divisionId]);
 
   /* The org scope filters what is already loaded; the others show what came back. */
   const people = useMemo(() => {
@@ -145,11 +166,21 @@ export function PersonPickerModal({
     return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [scope, results, roster, term]);
 
-  const scopes: Array<{ key: ScopeKey; label: string }> = [
-    { key: 'org', label: hostOrgName || 'This organisation' },
-    ...(hasParticipatingOrgs ? [{ key: 'event' as ScopeKey, label: 'Taking part' }] : []),
-    { key: 'global', label: 'Everyone' },
-  ];
+  /* Without the host's list, the "taking part" search stands in for it — it covers the host too —
+     so it is always offered, named for the host when nobody else is taking part yet. */
+  const scopes: Array<{ key: ScopeKey; label: string }> = rosterAvailable
+    ? [
+        { key: 'org', label: hostOrgName || 'This organisation' },
+        ...(hasParticipatingOrgs ? [{ key: 'event' as ScopeKey, label: 'Taking part' }] : []),
+        { key: 'global', label: 'Everyone' },
+      ]
+    : [
+        {
+          key: 'event',
+          label: hasParticipatingOrgs ? 'Taking part' : hostOrgName || 'This tournament',
+        },
+        { key: 'global', label: 'Everyone' },
+      ];
 
   const needsQuery = scope !== 'org' && term.trim().length < 2;
 

@@ -76,16 +76,20 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     return to the checklist after a refresh or a deep link.
 *   `/admin/[orgId]/events/[eventId]/setup/basics`, `/setup/playing`, `/setup/scoring`,
     `/setup/fixtures`: **One setup step each** (U48). Basics is the identity, dates, base site,
-    fields and organisers; playing is the sports and the division list; scoring is the points per
-    result; fixtures is a status and the ways to add one. Each **saves itself** — its own dirty
-    state, its own [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx),
-    and only its own fields in the write. Back always goes to the checklist, never to the previous
+    fields and organisers; playing is **Sports & Divisions** (U50–U52) — the tournament's sports,
+    which save as they are pressed and each create a first division, and the divisions grouped
+    under them; scoring is the points per
+    result; fixtures is a status and the ways to add one. Basics and scoring **save themselves** —
+    their own dirty state, their own [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx),
+    and only their own fields in the write; playing writes on every press, and fixtures holds
+    nothing to save. Back always goes to the checklist, never to the previous
     step. The frame they share is
     [useSetupStepScreen](file:///c:/Fred/Coding/SK/expo-app/hooks/useSetupStepScreen.ts); the order
     and the routes are
     [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts).
-*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: One division — its stages as navigation
-    tabs (U13/U14), its roster and generation controls, its own table, and its convenors.
+*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: One division — its **name, sport and age
+    group** as one form (U50; the only place any of them is edited — the sport from the tournament's
+    own list, U51), deletion (event organisers only, U52), headed `{tournament} - {division}`, its stages as navigation tabs (U13/U14), its roster and generation controls, its own table, and its convenors.
 *   `/admin/[orgId]/events/[eventId]/entrants`: Getting teams in, on **both axes over one dataset**
     (U21) — *by division* ("who is in the u14 rugby?") and *by organisation* ("what is Northcliff
     entering?"). The organisation axis is where **inline team creation** lives, because that is the
@@ -100,9 +104,10 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     collapse rule means there is only one of each (`FIX-12`).
 
 > **The collapse rule (U15) decides whether a route is ever reached.** A level with exactly one child
-> renders that child inline and shows no picker — so a tournament with one division *is* its division
-> screen and never links to `/divisions/[divisionId]`, and a division with one stage shows no stage
-> tabs. The rule lives in
+> renders that child inline and shows no picker — so a tournament with one division shows that
+> division's panel directly on its Schedule tab, and a division with one stage shows no stage
+> tabs. **Since U50 this is layout only for divisions:** setup always lists the division and links
+> to `/divisions/[divisionId]`, one included. The rule lives in
 > [shared/src/utils/collapseRule.ts](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.ts) and
 > the shared rendering is
 > [DivisionPanel](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionPanel.tsx), so the

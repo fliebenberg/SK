@@ -96,7 +96,7 @@ async function main() {
     created.eventIds.push(event.id);
     // The socket handler composes these two, so the script does the same rather than reaching
     // past the code under test.
-    await tournamentManager.createImplicitDivision(event as any);
+    await tournamentManager.createDivisionsForSports(event as any, opts.sportIds || []);
     return event;
   }
 
@@ -123,16 +123,24 @@ async function main() {
     expect(stages.length > 0, true, `${format}: the division has at least one stage`);
   }
 
-  // A multi-sport tournament has no single sport to name itself after, so it takes the event's
-  // name — which is what an organiser would have called it.
-  const multiSport = await makeTournament('Festival', { sportIds: [] });
-  const multiDivisions = await tournamentManager.getDivisions(multiSport.id);
+  // U52: divisions follow sports. No sport, no division; several sports, one division each.
+  const noSport = await makeTournament('Festival', { sportIds: [] });
   expect(
-    multiDivisions[0].name,
-    multiSport.name,
-    'a tournament with no single sport names its division after the event'
+    (await tournamentManager.getDivisions(noSport.id)).length,
+    0,
+    'a tournament with no sport chosen has no division yet'
   );
-  expect(multiDivisions[0].sportId ?? null, null, 'and leaves the division sport unset');
+  const allSports = await query(`SELECT id FROM sports ORDER BY id LIMIT 2`);
+  if (allSports.rows.length === 2) {
+    const twoSportIds = allSports.rows.map((row: any) => row.id);
+    const multiSport = await makeTournament('Festival', { sportIds: twoSportIds });
+    const multiDivisions = await tournamentManager.getDivisions(multiSport.id);
+    expect(
+      multiDivisions.map(d => d.sportId).sort(),
+      [...twoSportIds].sort(),
+      'a tournament with two sports starts with one division for each'
+    );
+  }
 
   // ------------------------------------------------------------------------------------------
   // 2. A single match gets no division at all

@@ -26,6 +26,7 @@ import { DivisionEntrantsEditor } from '../../../../../components/tournament/Div
 import { NewTeamModal } from '../../../../../components/tournament/NewTeamModal';
 import { useLiveRoom } from '../../../../../hooks/useLiveRoom';
 import { useEventEntrants, teamQualifies } from '../../../../../hooks/useEventEntrants';
+import { DivisionTeamChoices } from '../../../../../components/tournament/DivisionTeamChoices';
 import { useEventCapabilities } from '../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../../store/authStore';
@@ -448,46 +449,25 @@ export default function EntrantsScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
-                {qualifying.length ? (
-                  qualifying.map(team => {
-                    const key = `${division.id}:${team.id}`;
-                    const entered = rosterOf(division.id).some(entrant => entrant.teamId === team.id);
-                    const isBusy = !!busyKeys[key];
-                    return (
-                      <TouchableOpacity
-                        key={key}
-                        onPress={() => toggleTeam(division, team)}
-                        disabled={isBusy}
-                        className={`flex-row items-center gap-3 rounded-xl px-3 py-2.5 mb-1.5 border active:opacity-85 ${
-                          entered
-                            ? 'bg-brand-orange/10 border-brand-orange/30'
-                            : 'bg-slate-50 dark:bg-white/5 border-transparent'
-                        }`}
-                      >
-                        {isBusy ? (
-                          <ActivityIndicator size="small" color={COLORS.brand.orange} />
-                        ) : (
-                          <Ionicons
-                            name={entered ? 'checkbox' : 'square-outline'}
-                            size={18}
-                            color={entered ? COLORS.brand.orange : secondary}
-                          />
-                        )}
-                        <Text
-                          className="font-inter-bold text-xs text-slate-800 dark:text-white flex-1"
-                          numberOfLines={1}
-                        >
-                          {team.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })
-                ) : (
-                  <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 italic px-1">
-                    Nothing qualifying — {activeOrg.shortName || activeOrg.name} has no{' '}
-                    {[division.ageGroup, sportName(division.sportId)].filter(Boolean).join(' ')} team.
-                  </Text>
-                )}
+                {/* Qualifying teams, age-group overrides already entered, and the rest of the
+                    sport behind "Other age groups" — the same component the division axis uses. */}
+                <DivisionTeamChoices
+                  teams={candidateTeams.filter(team => team.orgId === activeOrg.id)}
+                  division={division}
+                  enteredTeamIds={
+                    new Set(
+                      rosterOf(division.id).map(entrant => entrant.teamId).filter(Boolean) as string[]
+                    )
+                  }
+                  isBusy={team => !!busyKeys[`${division.id}:${team.id}`]}
+                  onToggle={team => toggleTeam(division, team)}
+                  emptyText={`Nothing qualifying — ${activeOrg.shortName || activeOrg.name} has no ${[
+                    division.ageGroup,
+                    sportName(division.sportId),
+                  ]
+                    .filter(Boolean)
+                    .join(' ')} team.`}
+                />
               </View>
             );
           })}

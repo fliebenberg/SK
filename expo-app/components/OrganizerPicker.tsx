@@ -51,6 +51,8 @@ export interface OrganizerPickerProps {
   label?: string;
   /** Explanation folded behind the label's info icon. Omitted renders no icon. */
   help?: string;
+  /** Marks the label `Optional` (see `FieldLabel`). */
+  optional?: boolean;
   /** Named on the picker's first scope chip, so it reads as a place rather than "this org". */
   hostOrgName?: string;
   /**
@@ -74,6 +76,7 @@ export function OrganizerPicker({
   canManage = true,
   label = 'Organisers',
   help,
+  optional,
   hostOrgName,
   hasParticipatingOrgs = false,
 }: OrganizerPickerProps) {
@@ -134,7 +137,7 @@ export function OrganizerPicker({
 
   return (
     <View className="gap-4">
-      <FieldLabel label={label} help={help} />
+      <FieldLabel label={label} help={help} optional={optional} />
 
       {/* Who holds this scope now. */}
       <View className="gap-2">
@@ -162,8 +165,18 @@ export function OrganizerPicker({
                     {organizer.orgShortName}
                   </Text>
                 )}
+                {/* Who added them — on a division, where convenors add each other, so the
+                    organisers can see how somebody came to have access. */}
+                {!!divisionId && !!organizer.grantedByName && (
+                  <Text numberOfLines={1} className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
+                    Added by {organizer.grantedByName}
+                  </Text>
+                )}
               </View>
-              {canManage && (
+              {/* `canWithdraw` is the server's answer for this viewer; a convenor may remove only
+                  the co-convenors they added (D33, revised 2026-09-19). Absent means no per-row
+                  rule applies, as on the event's own list. */}
+              {canManage && organizer.canWithdraw !== false && (
                 <TouchableOpacity
                   onPress={() => withdraw(organizer.orgProfileId)}
                   disabled={busyProfileId === organizer.orgProfileId}
@@ -207,6 +220,7 @@ export function OrganizerPicker({
             excludeIds={organizers.map(o => o.orgProfileId)}
             busyId={busyProfileId}
             title={divisionId ? 'Add a convenor' : 'Add an organiser'}
+            divisionId={divisionId}
             onSelect={person => appoint(person.id)}
           />
         </>

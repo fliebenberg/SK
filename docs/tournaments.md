@@ -813,7 +813,7 @@ per-game permission rules and is not changed here.
 >   describe how the division sits in the event and how its points roll up into the organisation
 >   table (D18). Changing those is an event-level decision.
 > - **Not the event.** Another division, the event's facilities, the tournament itself: all refused.
-> - **Not appointing anybody.** Delegation stops here deliberately. The hosting org's admins and the
+> - ~~**Not appointing anybody.**~~ *Revised 2026-09-19, below.* Delegation stops here deliberately. The hosting org's admins and the
 >   event organisers can withdraw a convenor at any time; a convenor who could appoint others could
 >   build a position they cannot be removed from, which is the one asymmetry D33 relies on not
 >   existing.
@@ -822,6 +822,33 @@ per-game permission rules and is not changed here.
 > the event has already put in play, which is scheduling inside the division rather than a claim on
 > somebody else's pitch. `SET_EVENT_FACILITIES` — deciding what the event has in play at all — did
 > not.
+
+> **Revised 2026-09-19 — convenors may add co-convenors, and remove only the ones they added.**
+> The "not appointing anybody" line was drawn against a risk that turned out narrower than stated.
+> A division grant cannot reach the event's organisers, and they can always withdraw any convenor,
+> so an appointee could never lock them out. What was real was smaller: a convenor removing a
+> co-convenor the organisers chose, and access lingering unseen when a convenor who had added a
+> helper is themselves removed. So:
+>
+> - **A convenor may appoint to their own division** — `APPOINT_ORGANIZER` with a `divisionId` is
+>   in the gate's division map. Event scope, another division, or a payload naming both an event
+>   and a division are still refused, so a division grant never reaches up.
+> - **A convenor may withdraw only the co-convenors they appointed.** The gate cannot see who
+>   granted a row, so the handler checks `granted_by_org_profile_id` against the caller's profiles.
+>   Event organisers withdraw anybody. The division's list carries a per-viewer `canWithdraw`, sent
+>   only in replies to that viewer, so the remove control shows only where it will work.
+> - **The list says who added each person** (`Added by …`), which is what keeps a helper's access
+>   visible to the organisers after the convenor who added them has gone.
+> - **A convenor's appointment is recorded against their division grant**
+>   (`resolveGrantingProfile` with the division), because a convenor from a visiting school holds no
+>   profile in the host and would otherwise be recorded as nobody.
+> - **Searching for people** (`organizer_candidates`) accepts a `divisionId` as the narrower scope,
+>   as `event_candidate_teams` already did. A convenor who is not a member of the host cannot browse
+>   the host's people, so the picker drops that tab for them and opens on the search, which covers
+>   the host.
+>
+> The division's own record — name, sport, age group, weighting — stays event-level, and the
+> division screen now shows it read-only to convenors; it had been editable and refused on save.
 
 ---
 

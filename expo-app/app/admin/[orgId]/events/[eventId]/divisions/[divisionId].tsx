@@ -1,10 +1,33 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Facility, Site, SocketAction, TournamentDivision, TournamentOrganizer } from '@sk/shared';
+import {
+  Event,
+  Facility,
+  Site,
+  SocketAction,
+  Sport,
+  TournamentDivision,
+  TournamentOrganizer,
+  divisionAutoName,
+  findTakenDivisionName,
+  isAutomaticDivisionName,
+} from '@sk/shared';
+import { FieldLabel } from '../../../../../../components/FieldLabel';
+import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
+import CustomSelect from '../../../../../../components/CustomSelect';
 import { GlassCard } from '../../../../../../components/GlassCard';
+import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { DivisionPanel } from '../../../../../../components/tournament/DivisionPanel';
 import { DivisionStandings } from '../../../../../../components/tournament/DivisionStandings';
 import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
@@ -12,6 +35,8 @@ import { FacilityPicker } from '../../../../../../components/tournament/Facility
 import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { useEventCapabilities } from '../../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../../hooks/useSafeBack';
+import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
+import { reportActionError } from '../../../../../../utils/actionErrors';
 import { wsService } from '../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
@@ -24,10 +49,11 @@ import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
  * table — which on its own justifies a screen. It is also the unit of delegation (D22/D31/D33), so
  * a convenor needs a link that can be sent to them, and this is that link.
  *
- * **It exists only when the tournament has more than one division.** With exactly one, the collapse
- * rule (U15) renders it inline on the event screen and nothing routes here. The screen still works
- * if somebody follows an old link to a since-collapsed division, because the panel it mounts is the
- * same one the event screen mounts.
+ * **Every division has one, the only division included (U50).** It used to exist only for a
+ * tournament with several, because the collapse rule (U15) hid a lone division altogether. Setup now
+ * always lists the division and opens it here, since this is where it is given a sport and an age
+ * group. The Schedule tab still shows a lone division's fixtures inline, through the same panel
+ * this screen mounts, so the two cannot drift.
  */
 export default function DivisionScreen() {
   const router = useRouter();
@@ -39,6 +65,8 @@ export default function DivisionScreen() {
   }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
+  // Sport and age group share a line from 768px, the breakpoint Basic Info pairs its dates at.
+  const isWideLayout = useWindowDimensions().width >= 768;
 
   const { capabilities } = useEventCapabilities(eventId);
   /**
@@ -51,11 +79,21 @@ export default function DivisionScreen() {
     !!capabilities &&
     (capabilities.canEditEvent || capabilities.convenesDivisionIds.includes(divisionId));
   /**
-   * Appointing is the one tournament write a convenor may not do (D33), so the picker below is
-   * mounted for event organisers only — which is also what keeps an appointee from ever building a
-   * position the people who appointed them cannot undo.
+   * Event organisers — who may also change the division's own record and delete it.
+   *
+   * Appointing is no longer theirs alone: since 2026-09-19 a convenor may add co-convenors to their
+   * own division and remove the ones they added (D33, revised). The picker is shown to anyone with
+   * `canEdit`, and the server marks which rows this viewer may remove.
    */
   const canAppoint = !!capabilities?.canEditEvent;
+  /**
+   * The division's own record — name, sport, age group — is an event-level decision (D33, widened
+   * 2026-09-03): a convenor runs what happens inside the division, not how it sits in the event, and
+   * `UPDATE_DIVISION` is authorized as the event for exactly that reason. So the form is editable
+   * for event organisers only; a convenor sees the same values read-only. Until 2026-09-19 the form
+   * was gated on `canEdit`, which includes convenors, and a convenor's save was refused by the server.
+   */
+  const canEditRecord = canAppoint;
 
   // The division record, which is `division:{id}` now rather than a passenger on the fixtures room
   // (rule 4). The record is public — a spectator reading a draw needs the division's name — which
@@ -79,9 +117,27 @@ export default function DivisionScreen() {
 
   const division = divisions.find(d => d.id === divisionId);
 
+  /*
+    The tournament's name, for the header — `Fred's Test Tournament - Rugby U14`, the same shape the
+    setup step screens use (U49). `event:{id}` is the event record and nothing else since the room
+    split, and it is ref-counted, so a screen pushed over the tournament reuses the join it has.
+  */
+  const { items: events } = useLiveRoom<Event>(eventId ? `event:${eventId}` : null, {
+    reduce: (message) => {
+      switch (message.type) {
+        case 'EVENT_ADDED':
+        case 'EVENT_UPDATED':
+          return { kind: 'upsert', item: message.data };
+        case 'EVENT_DELETED':
+          return { kind: 'remove', id: message.data?.id };
+        default:
+          return { kind: 'ignore' };
+      }
+    },
+  });
+  const event = events.find(e => e?.id === eventId);
+
   const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [draftName, setDraftName] = useState('');
 
   /*
     Where this division is played (U47).
@@ -159,9 +215,232 @@ export default function DivisionScreen() {
         type: SocketAction.SET_DIVISION_FACILITIES,
         payload: { divisionId, orgId, facilityIds: draftFacilityIds },
       },
-      () => setIsSavingFacilities(false)
+      (response: any) => {
+        setIsSavingFacilities(false);
+        reportActionError(response, "The division's fields could not be saved.");
+      }
     );
   };
+
+  /*
+    What this division is: its name, its sport and its age group (U50).
+
+    The name used to be edited behind a pencil in the header, on a card that appeared above
+    everything else. It is an ordinary field now, first in the card, the way a tournament's name
+    is the first field of Basic Info — one form, one save, rather than a second editing mode.
+
+    Until 2026-09-19 neither could be set anywhere. The only control was the sport chips on the
+    setup screen, which wrote to the division only while it was the only one — so a second division
+    read "No sport set" with no way to change it. They live here because they are the division's
+    own facts: they decide which teams qualify as entrants, and the tournament's list of sports is
+    read off them (the server keeps `events.sportIds` in step on every save).
+  */
+  // Sports are global reference data that no room owns, so this stays a one-shot read.
+  const [sports, setSports] = useState<Sport[]>([]);
+  useEffect(() => {
+    if (!isConnected) return;
+    let active = true;
+    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
+      if (active && Array.isArray(res)) setSports(res);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isConnected]);
+
+  /*
+    **The name can be left to the app (U50).** Most divisions are called what they are — "Rugby
+    U14" — so a name nobody typed is derived from the sport and age group and follows them as
+    they change. Typing takes it over; emptying the field hands it back, and the derived name then
+    shows as the placeholder and is what gets saved.
+
+    `customName` is `null` while the name is automatic, and the organiser's own text otherwise.
+    Nothing is stored to say which a saved name was: a saved name is treated as automatic when it
+    is what the app would have produced anyway — the derived name, the tournament's name the first
+    division is created with, or the `Division 2` that *Add a division* hands out — and as the
+    organiser's own otherwise. A hand-typed "Rugby U14" is indistinguishable from the automatic
+    one, and that is fine: it is the same name, and it will follow the sport the same way.
+  */
+  const [customName, setCustomName] = useState<string | null>(null);
+  const [draftSportId, setDraftSportId] = useState('');
+  const [draftAgeGroup, setDraftAgeGroup] = useState('');
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+
+  /*
+    The tournament's other divisions, for two questions. Is this the last division of its sport? The
+    server removes a sport when its last division is deleted or moved (U52), and both are warned
+    about before they happen. And does another division already play this sport at this age group?
+    That is allowed, but it is said, and the automatic name is numbered to tell them apart. The room
+    is ref-counted, so a screen opened from Sports & Divisions reuses the join that screen holds.
+  */
+  const { items: eventDivisions } = useLiveRoom<TournamentDivision>(
+    eventId ? `event:${eventId}:divisions` : null,
+    {
+      reduce: (message) => {
+        switch (message.type) {
+          case 'DIVISIONS_SYNC':
+            return { kind: 'replace', items: message.data || [] };
+          case 'DIVISION_ADDED':
+          case 'DIVISION_UPDATED':
+            return { kind: 'upsert', item: message.data };
+          case 'DIVISION_DELETED':
+            return { kind: 'remove', id: message.data?.id };
+          default:
+            return { kind: 'ignore' };
+        }
+      },
+    }
+  );
+  const siblingDivisions = eventDivisions.filter(d => d.id !== divisionId);
+  const siblingNames = siblingDivisions.map(d => d.name);
+
+  /* Numbered when another division already holds the name — `Rugby U14 - 2` — and a numbered name
+     this division already has is kept while it is free (`divisionAutoName`). */
+  const deriveName = useCallback(
+    (sportId?: string, ageGroup?: string) =>
+      divisionAutoName(
+        sports.find(sport => sport.id === sportId)?.name,
+        ageGroup,
+        siblingNames,
+        division?.name
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sports, siblingNames.join('\u0000'), division?.name]
+  );
+
+  const savedCustomName = useMemo(() => {
+    const isAutomatic = isAutomaticDivisionName(division?.name, {
+      sportName: sports.find(sport => sport.id === division?.sportId)?.name,
+      ageGroup: division?.ageGroup,
+      eventName: event?.name,
+    });
+    return isAutomatic ? null : division?.name || '';
+  }, [division?.name, division?.sportId, division?.ageGroup, event?.name, sports]);
+
+  /*
+    The sports this division may play: the tournament's (U51). The server holds the same line, so
+    this is the list it would accept. A division's current sport is kept as a choice even when the
+    tournament no longer lists it — a division from before U51 should show what it plays rather than
+    appear to play nothing — and it is marked so the organiser can see why it is odd.
+  */
+  const eventSportIds = event?.sportIds || [];
+  const sportChoices = sports.filter(
+    sport => eventSportIds.includes(sport.id) || sport.id === division?.sportId
+  );
+  /* With a single sport there is nothing to choose: the server gives every division that sport, and
+     a division that somehow has none is offered it here as the draft, to be saved like any edit. */
+  const onlyEventSportId = eventSportIds.length === 1 ? eventSportIds[0] : undefined;
+
+  useEffect(() => {
+    setCustomName(savedCustomName);
+    setDraftSportId(division?.sportId || onlyEventSportId || '');
+    setDraftAgeGroup(division?.ageGroup || '');
+  }, [divisionId, savedCustomName, division?.sportId, division?.ageGroup, onlyEventSportId]);
+
+  // Compared the way it is stored: teams keep their age group upper-cased, and a division's has to
+  // match one to find the teams that qualify for it.
+  const normalisedAgeGroup = draftAgeGroup.trim().toUpperCase();
+  const derivedName = deriveName(draftSportId, draftAgeGroup);
+  const nameIsAutomatic = !customName?.trim();
+  /* An automatic name with nothing to derive it from keeps what the division is already called,
+     rather than saving a blank. */
+  const effectiveName = customName?.trim() || derivedName || division?.name || '';
+  /*
+    Names are unique within a tournament, ignoring case (`findTakenDivisionName`, the rule the server
+    enforces). Checked as it is typed, against the tournament's other divisions as they are right
+    now, so the clash is shown before Save rather than refused after it. The automatic name is
+    numbered to avoid one, so in practice this only fires on a name somebody typed.
+  */
+  const nameClash = findTakenDivisionName(effectiveName, siblingNames);
+  const detailsDirty =
+    !!division &&
+    (effectiveName !== division.name ||
+      draftSportId !== (division.sportId || '') ||
+      normalisedAgeGroup !== (division.ageGroup || ''));
+
+  const resetDetails = useCallback(() => {
+    setCustomName(savedCustomName);
+    setDraftSportId(division?.sportId || onlyEventSportId || '');
+    setDraftAgeGroup(division?.ageGroup || '');
+  }, [savedCustomName, division?.sportId, division?.ageGroup, onlyEventSportId]);
+
+  const savedSportName = sports.find(sport => sport.id === division?.sportId)?.name;
+  const isLastOfSport =
+    !!division?.sportId &&
+    eventSportIds.includes(division.sportId) &&
+    !eventDivisions.some(d => d.id !== divisionId && d.sportId === division.sportId);
+  const sportChanging = !!draftSportId && draftSportId !== (division?.sportId || '');
+
+  const [isConfirmingSportMove, setIsConfirmingSportMove] = useState(false);
+
+  const writeDetails = () => {
+    setIsSavingDetails(true);
+    wsService.emit(
+      'action',
+      {
+        type: SocketAction.UPDATE_DIVISION,
+        payload: {
+          id: divisionId,
+          orgId,
+          data: {
+            name: effectiveName,
+            // A division always plays a sport (U52); an empty draft means "not chosen yet" on a
+            // division from before that, and is left out rather than sent as a clear.
+            ...(draftSportId ? { sportId: draftSportId } : {}),
+            ageGroup: normalisedAgeGroup,
+          },
+        },
+      },
+      (response: any) => {
+        setIsSavingDetails(false);
+        reportActionError(response, 'The division could not be saved.');
+      }
+    );
+  };
+
+  const handleSaveDetails = () => {
+    if (sportChanging && isLastOfSport) {
+      setIsConfirmingSportMove(true);
+      return;
+    }
+    writeDetails();
+  };
+
+  /*
+    Deleting a division (`FIX-16`). Event organisers only — a convenor runs a division but may not
+    remove it (D33, and the gate says the same). Its fixtures survive (`games.stage_id` is
+    `ON DELETE SET NULL`); its entrants, stages and table do not, and the dialog says so.
+  */
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const handleDelete = () => {
+    setIsDeleting(true);
+    wsService.emit(
+      'action',
+      { type: SocketAction.DELETE_DIVISION, payload: { id: divisionId, orgId } },
+      (response: any) => {
+        setIsDeleting(false);
+        setIsConfirmingDelete(false);
+        if (reportActionError(response, 'The division could not be deleted.')) return;
+        router.replace(`/admin/${orgId}/events/${eventId}/setup/playing`);
+      }
+    );
+  };
+
+  /* Memoised, and it has to be: `useUnsavedChanges` re-registers whenever this function's identity
+     changes, and registering writes to a store this screen subscribes to — an inline arrow here is
+     a render loop ("Maximum update depth exceeded"), which is what the first cut of U50 shipped.
+     `savedFacilityKey` stands in for `division.facilityIds`, which is a new array on every sync. */
+  const handleDiscard = useCallback(() => {
+    resetDetails();
+    setDraftFacilityIds(division?.facilityIds || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetDetails, savedFacilityKey]);
+
+  const { confirmThenNavigate } = useUnsavedChanges(
+    ((canEditRecord && detailsDirty) || (canEdit && facilitiesDirty)) && !isSavingDetails && !isSavingFacilities,
+    handleDiscard
+  );
 
   useEffect(() => {
     if (!isConnected || !divisionId || !canEdit) return;
@@ -173,19 +452,6 @@ export default function DivisionScreen() {
       active = false;
     };
   }, [isConnected, divisionId, canEdit]);
-
-  const handleRename = () => {
-    const name = draftName.trim();
-    if (!name || name === division?.name) {
-      setIsRenaming(false);
-      return;
-    }
-    wsService.emit(
-      'action',
-      { type: SocketAction.UPDATE_DIVISION, payload: { id: divisionId, orgId, data: { name } } },
-      () => setIsRenaming(false)
-    );
-  };
 
   if (accessDenied) {
     return (
@@ -203,36 +469,11 @@ export default function DivisionScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Back
-          </Text>
-        </TouchableOpacity>
-        <Text
-          className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase flex-1 text-center px-4"
-          numberOfLines={1}
-        >
-          {division?.name || 'Division'}
-        </Text>
-        {canEdit ? (
-          <TouchableOpacity
-            onPress={() => {
-              setDraftName(division?.name || '');
-              setIsRenaming(true);
-            }}
-            className="w-8 h-8 items-center justify-center active:opacity-80"
-          >
-            <Ionicons name="pencil-outline" size={16} color={getThemeColor(isDark, 'textSecondary')} />
-          </TouchableOpacity>
-        ) : (
-          <View className="w-8" />
-        )}
-      </View>
+      <ScreenHeader
+        context={event?.name}
+        title={division?.name || 'Division'}
+        onBack={() => confirmThenNavigate(() => safeBack(`/admin/${orgId}/events/${eventId}`))}
+      />
 
       {!division ? (
         <View className="flex-1 items-center justify-center">
@@ -241,22 +482,125 @@ export default function DivisionScreen() {
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="space-y-6">
-            {isRenaming && (
-              <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-3">
-                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                  Rename
-                </Text>
-                <TextInput
-                  value={draftName}
-                  onChangeText={setDraftName}
-                  autoFocus
-                  placeholder="Division name"
-                  placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+            <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-4">
+              {canEditRecord && (
+                <View className="space-y-2">
+                  <FieldLabel
+                    label="Division Name"
+                    help="Leave it to fill itself in from the sport and age group — Rugby U14 — and it follows them if they change. Or type your own, such as Girls' Open; clear it again to go back to the automatic name."
+                  />
+                  <TextInput
+                    value={customName ?? derivedName}
+                    onChangeText={setCustomName}
+                    placeholder={
+                      derivedName
+                        ? `${derivedName} (automatic)`
+                        : 'Filled in from the sport and age group, or type your own'
+                    }
+                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                    className={`bg-slate-50 dark:bg-slate-950 border rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white ${
+                      nameClash ? 'border-red-500' : 'border-slate-200 dark:border-white/5'
+                    }`}
+                  />
+                  {nameClash ? (
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      className="font-inter text-[11px] text-red-600 dark:text-red-400"
+                    >
+                      Another division is already called "{nameClash}". Division names must be
+                      different — capitals do not count as a difference.
+                    </Text>
+                  ) : nameIsAutomatic && !!derivedName && (
+                    <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+                      Automatic — follows the sport and age group.
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* Sport and age group side by side when there is room — the pair that says what the
+                  division *is*, and what its automatic name is made of. `items-end` keeps the two
+                  inputs level when one label's help is open and the other's is not. */}
+              <View className={isWideLayout ? 'flex-row items-end gap-4' : 'gap-4'}>
+                <View className={`space-y-2 ${isWideLayout ? 'flex-1' : ''}`}>
+                  <FieldLabel
+                    label="Sport"
+                    help="The sport played in this division."
+                  />
+                  {canEditRecord && sportChoices.length === 0 ? (
+                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                      The tournament has no sports yet. Choose them under Sports & Divisions, then
+                      come back to pick this division's.
+                    </Text>
+                  ) : canEditRecord ? (
+                    /* A dropdown, not chips: a division plays exactly one sport, chosen when it is
+                       created and almost never changed, so the choices do not need to be on show.
+                       Not clearable — a division always plays a sport (U52). */
+                    <CustomSelect
+                      value={draftSportId}
+                      onChange={setDraftSportId}
+                      placeholder="Choose a sport"
+                      options={sportChoices.map(sport => ({
+                        value: sport.id,
+                        label: eventSportIds.includes(sport.id)
+                          ? sport.name
+                          : `${sport.name} (not in the tournament)`,
+                      }))}
+                    />
+                  ) : (
+                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                      {sports.find(sport => sport.id === division.sportId)?.name || 'No sport set'}
+                    </Text>
+                  )}
+                </View>
+
+                <View className={`space-y-2 ${isWideLayout ? 'flex-1' : ''}`}>
+                  <FieldLabel
+                    label="Age group"
+                    optional
+                    help="The age group for this division. Leave empty if the division is not limited to one age group."
+                  />
+                  {canEditRecord ? (
+                    <TextInput
+                      value={draftAgeGroup}
+                      onChangeText={setDraftAgeGroup}
+                      autoCapitalize="characters"
+                      placeholder="e.g. U14, U19, Open"
+                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-800 dark:text-white"
+                    />
+                  ) : (
+                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                      {division.ageGroup || 'Any age'}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Who runs it (D33) — part of setting a division up, so it sits with what the
+                  division is rather than at the foot of the screen. Event organisers and the
+                  division's own convenors may add people; a convenor removes only whom they added.
+                  It writes as each person is appointed, not through the Save below, which covers
+                  the fields above. */}
+              {canEdit && (
+                <OrganizerPicker
+                  eventId={eventId}
+                  divisionId={divisionId}
+                  hostOrgId={orgId}
+                  actingOrgId={orgId}
+                  organizers={organizers}
+                  onChange={setOrganizers}
+                  canManage={canEdit}
+                  label="Division Organiser(s)"
+                  help="People responsible for organising this division."
+                  optional
                 />
+              )}
+
+              {canEditRecord && detailsDirty && (
                 <View className="flex-row gap-2">
                   <TouchableOpacity
-                    onPress={() => setIsRenaming(false)}
+                    onPress={resetDetails}
                     className="flex-1 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 items-center active:opacity-80"
                   >
                     <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase">
@@ -264,14 +608,17 @@ export default function DivisionScreen() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={handleRename}
-                    className="flex-1 py-2.5 rounded-lg bg-brand-orange items-center active:opacity-85"
+                    onPress={handleSaveDetails}
+                    disabled={isSavingDetails || !effectiveName || !!nameClash}
+                    className={`flex-1 py-2.5 rounded-lg bg-brand-orange items-center active:opacity-85 ${
+                      isSavingDetails || !effectiveName || nameClash ? 'opacity-50' : ''
+                    }`}
                   >
                     <Text className="font-inter-bold text-xs text-white uppercase">Save</Text>
                   </TouchableOpacity>
                 </View>
-              </GlassCard>
-            )}
+              )}
+            </GlassCard>
 
             <DivisionPanel
               orgId={orgId}
@@ -335,22 +682,59 @@ export default function DivisionScreen() {
             </View>
 
             {canAppoint && (
-              <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
-                <OrganizerPicker
-                  eventId={eventId}
-                  divisionId={divisionId}
-                  hostOrgId={orgId}
-                  actingOrgId={orgId}
-                  organizers={organizers}
-                  onChange={setOrganizers}
-                  canManage={canAppoint}
-                  label={`${division.name} organisers`}
-                />
-              </GlassCard>
+              <TouchableOpacity
+                onPress={() => setIsConfirmingDelete(true)}
+                activeOpacity={0.85}
+                className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-red-500/30"
+              >
+                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                <Text className="font-inter-bold text-[10px] text-red-500 uppercase tracking-wider">
+                  Delete division
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
         </ScrollView>
       )}
+
+      <ConfirmationModal
+        isOpen={isConfirmingDelete}
+        title={`Delete ${division?.name || 'this division'}?`}
+        description={
+          'Its entrants, stages and table are deleted. Fixtures already played are kept, but no ' +
+          'longer belong to a division.' +
+          (isLastOfSport
+            ? `\n\nThis is the last ${savedSportName || ''} division, so ${
+                savedSportName || 'its sport'
+              } will also be removed from the tournament.`
+            : '')
+        }
+        confirmText={isLastOfSport ? `Delete and remove ${savedSportName || 'the sport'}` : 'Delete division'}
+        cancelText="Cancel"
+        variant="danger"
+        isProcessing={isDeleting}
+        onConfirm={handleDelete}
+        onClose={() => setIsConfirmingDelete(false)}
+      />
+
+      <ConfirmationModal
+        isOpen={isConfirmingSportMove}
+        title={`Remove ${savedSportName || 'the sport'} from the tournament?`}
+        description={
+          `This is the last ${savedSportName || ''} division. Moving it to ` +
+          `${sports.find(sport => sport.id === draftSportId)?.name || 'another sport'} leaves ` +
+          `${savedSportName || 'that sport'} with no divisions, so it will be removed from the tournament.`
+        }
+        confirmText="Save and remove"
+        cancelText="Cancel"
+        variant="danger"
+        isProcessing={isSavingDetails}
+        onConfirm={() => {
+          setIsConfirmingSportMove(false);
+          writeDetails();
+        }}
+        onClose={() => setIsConfirmingSportMove(false)}
+      />
     </SafeAreaView>
   );
 }

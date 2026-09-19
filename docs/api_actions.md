@@ -421,11 +421,14 @@ may hold no membership anywhere and so act from no workspace at all.
 **Which of these a division convenor may send** (Phase 4, widened from D31 on 2026-09-03): every
 action that names their division — entrants, stages, fixtures, scheduling, results and adjustments —
 so that an event organiser can hand a division over and stop thinking about it. **Not**
-`ADD_DIVISION`, `UPDATE_DIVISION`, `DELETE_DIVISION`, `SET_EVENT_FACILITIES`, or either assignment
-action: the division's own record and the shape of the event belong to whoever runs the event, and
-not being able to appoint anybody is what keeps an appointee from locking out the people who
-appointed them. An attempt on another division resolves to a division they do not hold and is
-refused **on the wire**, not by a hidden button.
+`ADD_DIVISION`, `UPDATE_DIVISION`, `DELETE_DIVISION` or `SET_EVENT_FACILITIES`: the division's own
+record and the shape of the event belong to whoever runs the event. The assignment actions are
+allowed **within their own division only** (revised 2026-09-19): a convenor may appoint
+co-convenors, and may withdraw only the ones they appointed — checked in the handler against
+`granted_by_org_profile_id`, since the gate cannot see who granted a row. Event scope is refused.
+A division's organiser list carries a per-viewer `canWithdraw` in replies to its caller. An attempt
+on another division resolves to a division they do not hold and is refused **on the wire**, not by
+a hidden button.
 
 Three behaviours are worth stating because they are refusals rather than features:
 

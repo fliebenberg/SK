@@ -347,27 +347,24 @@ export default function EventDetails() {
     () => [...divisions].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
     [divisions]
   );
-  // One division renders inline and the word never appears; the concept arrives with the second.
+  // One division renders its fixtures inline on the Schedule tab (U15). Setup names it regardless
+  // (U50) — what collapses is the layout, no longer the concept.
   const divisionsCollapsed = isCollapsed(orderedDivisions.length);
   const onlyDivision = divisionsCollapsed ? orderedDivisions[0] : undefined;
 
   /**
-   * Which sports are played, asked **once** (U46).
+   * Which sports are played: the tournament's own list (U51).
    *
-   * The event carries `sportIds` and every division carries a `sportId`, and entering them
-   * separately is how a tournament ends up advertising hockey with no hockey division in it. So
-   * with more than one division the divisions are the answer and the event's list is derived from
-   * them; collapsed, the event's own list is it.
+   * The organiser chooses these first on Sports & Divisions, and each division plays one of them —
+   * the server refuses anything else. So the event's `sportIds` is the answer here. U46–U50 read it
+   * off the divisions instead; that direction was reversed because it left the division screen
+   * offering every sport in the system.
    *
-   * The checklist only *reads* this, to say whether the step is done and which sports to name. It
-   * is edited — and the derived list written back — on the step's own screen.
+   * The checklist only *reads* this, to say whether the step is done and which sports to name.
    */
-  const divisionSportIds = useMemo(
-    () => [...new Set(orderedDivisions.map(d => d.sportId).filter(Boolean) as string[])],
-    [orderedDivisions]
-  );
-  const sportsAreDerived = orderedDivisions.length > 1;
-  const effectiveSportIds = sportsAreDerived ? divisionSportIds : event?.sportIds || [];
+  const effectiveSportIds = event?.sportIds || [];
+  /** A division with no sport can only happen with several to choose from; the row says so. */
+  const divisionsWithoutSport = orderedDivisions.filter(d => !d.sportId).length;
   const sportName = (sportId?: string) => sports.find(s => s.id === sportId)?.name;
 
   const getVenueLabel = (siteId?: string, facilityId?: string): string | undefined => {
@@ -466,14 +463,17 @@ export default function EventDetails() {
         detail:
           [
             effectiveSportIds.map(id => sportName(id)).filter(Boolean).join(', ') || undefined,
-            divisionsCollapsed ? undefined : `${orderedDivisions.length} divisions`,
+            orderedDivisions.length > 0
+              ? `${orderedDivisions.length} division${orderedDivisions.length === 1 ? '' : 's'}`
+              : undefined,
+            divisionsWithoutSport > 0 ? `${divisionsWithoutSport} without a sport` : undefined,
           ]
             .filter(Boolean)
             .join(' · ') || undefined,
         hint:
           effectiveSportIds.length > 0
             ? undefined
-            : 'Say which sports are played. Split into divisions when there is more than one, or an age group to separate.',
+            : 'Choose the sports being played. Each gets its first division straight away; add more for age groups.',
       },
       entrants: {
         status: entrantCount > 0 ? 'done' : 'todo',
@@ -524,8 +524,8 @@ export default function EventDetails() {
     }));
   }, [
     orderedDivisions,
-    divisionsCollapsed,
     effectiveSportIds,
+    divisionsWithoutSport,
     sports,
     sites,
     organizers.length,
@@ -940,8 +940,9 @@ export default function EventDetails() {
         {activeTab === 'schedule' && (
           <View className="space-y-6">
             {/* THE COLLAPSE RULE (U15).
-                One division and the event screen *is* the division screen — no list, no picker,
-                and the word never appears. Several, and each gets its own screen. */}
+                One division and its panel is shown here directly — no list of one to click through.
+                Several, and each is listed and opens its own screen. Setup names the division
+                either way (U50); this is a shortcut, not a secret. */}
             {onlyDivision ? (
               <DivisionPanel
                 orgId={orgId}
@@ -995,8 +996,8 @@ export default function EventDetails() {
                   Nothing set up yet
                 </Text>
                 <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mt-2">
-                  This tournament has no structure. Newer tournaments get theirs when they are
-                  created.
+                  No divisions yet. Choose the tournament's sports under Setup, Sports & Divisions —
+                  each sport gets its first division as soon as it is chosen.
                 </Text>
               </GlassCard>
             )}

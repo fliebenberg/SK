@@ -471,7 +471,7 @@ export class AccessManager extends BaseManager {
    * *read* on an audit line, so it names a person as their organisation knows them rather than
    * naming a user account.
    */
-  async resolveGrantingProfile(userId: string, eventId: string): Promise<string | null> {
+  async resolveGrantingProfile(userId: string, eventId: string, divisionId?: string): Promise<string | null> {
     if (!userId || !eventId) return null;
 
     const granted = await this.query(
@@ -482,6 +482,20 @@ export class AccessManager extends BaseManager {
       [userId, eventId]
     );
     if (granted.rows[0]) return granted.rows[0].profileId;
+
+    // A convenor appointing a co-convenor (D33, revised 2026-09-19) acts through their division
+    // grant, which may be held by a profile in a school that is not the host — so that grant is the
+    // profile to record, and the one the "withdraw only whom you appointed" check compares against.
+    if (divisionId) {
+      const convened = await this.query(
+        `SELECT dorg.org_profile_id AS "profileId"
+           FROM division_organizers dorg
+          WHERE dorg.division_id = $2 AND dorg.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+          LIMIT 1`,
+        [userId, divisionId]
+      );
+      if (convened.rows[0]) return convened.rows[0].profileId;
+    }
 
     // Otherwise the profile in the hosting org their role comes from. A current membership sorts
     // first, so an old unclaimed duplicate never wins over the profile actually in use.

@@ -58,29 +58,10 @@ export function useEventEntrants(eventId?: string | null, enabled = true) {
   return { entrants: items, byDivision, isLoading, accessDenied };
 }
 
-/**
- * Whether a team is eligible for a division.
- *
- * A division names a sport and an age group; a team names both too. An unset field on the division
- * is deliberately permissive — a `Festival` division created before a sport was chosen should offer
- * every team rather than none, because an organiser who has not said "u14 rugby" yet has not said
- * "nothing qualifies" either.
- *
- * Age groups are compared case- and space-insensitively because they are free text typed by two
- * different people at two different times: "U14" on the team and "u14 " on the division are the
- * same age group, and treating them as different is how a school appears to have no team.
+/*
+ * The eligibility rules — `teamQualifies`, `normaliseAgeGroup` and the age-group override
+ * `divisionTeamOptions` — live in the shared package, where they are tested. Re-exported so the
+ * screens' existing imports keep working.
  */
-export function teamQualifies(
-  team: Pick<CandidateTeam, 'sportId' | 'ageGroup'>,
-  division: { sportId?: string; ageGroup?: string }
-): boolean {
-  if (division.sportId && team.sportId !== division.sportId) return false;
-  if (division.ageGroup && normaliseAgeGroup(team.ageGroup) !== normaliseAgeGroup(division.ageGroup)) {
-    return false;
-  }
-  return true;
-}
-
-export function normaliseAgeGroup(value?: string): string {
-  return (value || '').trim().toLowerCase();
-}
+export { teamQualifies, normaliseAgeGroup, divisionTeamOptions } from '@sk/shared';
+export type { DivisionTeamOption } from '@sk/shared';

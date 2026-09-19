@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { dataManager } from './DataManager';
 import { gameEventManager } from './managers/GameEventManager';
-import { SocketAction } from '@sk/shared';
+import { SocketAction, findTakenDivisionName } from '@sk/shared';
 import { parseSportWriteFields } from './utils/sportValidation';
 import pool from './db';
 import bcrypt from 'bcryptjs';
@@ -1035,25 +1035,109 @@ const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => str
 const CALLER_PROFILE_FIELDS = ['initiatorOrgProfileId', 'initiatorId', 'officialId'] as const;
 
 /**
- * The division a new tournament is created with, and the broadcast that announces it.
+ * A tournament's sports and divisions move together (U52).
  *
- * Kept beside the `ADD_EVENT` handler rather than inside `addEvent` because it is composition of
- * two writes that already exist, and a failure here must not lose the event: a tournament with no
- * division is recoverable and would be reported, whereas an event that vanished because its
- * division insert failed is not.
+ * The invariant, held here rather than in any one screen: **every sport the tournament includes
+ * has at least one division, and every division plays one of the tournament's sports.** The four
+ * helpers below are the four places it can break.
+ *
+ * - A sport chosen — at creation or later — with no division gets one (`createSportDivisions`).
+ * - A sport cannot be removed while a division plays it (`assertSportsRemovable`); the organiser
+ *   deletes those divisions first, which the Sports & Divisions screen offers to do for them.
+ * - A division must name one of the tournament's sports (`assertDivisionSportAllowed`).
+ * - When a sport's last division is deleted or moved to another sport, the sport goes with it
+ *   (`removeSportIfUnused`), and the screen warns before that happens.
+ *
+ * Each division created is published as it lands; a failure is reported to the caller, because a
+ * sport that silently never got its division is exactly the inconsistency this exists to prevent.
  */
-async function createImplicitDivision(event: any): Promise<void> {
-  try {
-    const division = await tournamentManager.createImplicitDivision(event);
-    await publishDivision(
-      division.id,
-      'DIVISION_ADDED',
-      await dataManager.getDivisionDetail(division.id),
-      event.id
-    );
-  } catch (error) {
-    console.error(`[Tournaments] Could not create the implicit division for event ${event.id}:`, error);
-  }
+async function createSportDivisions(event: any, sportIds: string[]): Promise<void> {
+    if (!sportIds.length) return;
+    const existing = await dataManager.getDivisions(event.id);
+    const needing = sportIds.filter(sportId => !existing.some(d => d.sportId === sportId));
+    const created = await tournamentManager.createDivisionsForSports(event, needing);
+    for (const division of created) {
+        await publishDivision(division.id, 'DIVISION_ADDED', await dataManager.getDivisionDetail(division.id), event.id);
+    }
+}
+
+async function assertSportsRemovable(eventId: string, previousSportIds: string[], nextSportIds: string[]): Promise<void> {
+    const removed = previousSportIds.filter(id => !nextSportIds.includes(id));
+    if (!removed.length) return;
+    const divisions = await dataManager.getDivisions(eventId);
+    for (const sportId of removed) {
+        const playing = divisions.filter(d => d.sportId === sportId).map(d => d.name);
+        if (!playing.length) continue;
+        const sportName = (await dataManager.getSport(sportId))?.name || 'That sport';
+        const list = playing.length > 1
+            ? `${playing.slice(0, -1).join(', ')} and ${playing[playing.length - 1]}`
+            : playing[0];
+        throw new Error(
+            `${sportName} still has ${playing.length > 1 ? 'divisions' : 'a division'}: ${list}. ` +
+            `Delete ${playing.length > 1 ? 'them' : 'it'} before removing ${sportName} from the tournament.`
+        );
+    }
+}
+
+/**
+ * Whether a division may play `sportId` — one of its tournament's sports.
+ *
+ * The division's current sport is always allowed, so a division from before U52 whose sport the
+ * tournament does not list can still be saved without being forced off it.
+ */
+async function assertDivisionSportAllowed(eventId: string | null | undefined, sportId?: string, currentSportId?: string) {
+    if (!eventId || !sportId || sportId === currentSportId) return;
+    const event = await dataManager.getEvent(eventId);
+    if (!(event?.sportIds || []).includes(sportId)) {
+        throw new Error("That sport is not one of this tournament's sports. Add it under Sports & Divisions first.");
+    }
+}
+
+async function removeSportIfUnused(eventId: string | null | undefined, sportId?: string | null): Promise<void> {
+    if (!eventId || !sportId) return;
+    const divisions = await dataManager.getDivisions(eventId);
+    if (divisions.some(d => d.sportId === sportId)) return;
+    const event = await dataManager.getEvent(eventId);
+    if (!event || !(event.sportIds || []).includes(sportId)) return;
+    const updated = await dataManager.updateEvent(eventId, {
+        sportIds: (event.sportIds || []).filter(id => id !== sportId),
+    });
+    if (!updated) return;
+    publishEventToOrgs([updated.orgId, ...(updated.participatingOrgIds || [])], 'EVENT_UPDATED', updated);
+    broadcast(eventRoom(updated.id), 'EVENT_UPDATED', updated);
+}
+
+/**
+ * A division's organisers, each marked with whether *this caller* may withdraw them (D33, revised
+ * 2026-09-19). Anyone who may edit the event may withdraw anybody; a convenor only the people they
+ * appointed. Only ever sent to the one caller it was computed for.
+ */
+async function divisionOrganizersFor(userId: string | null | undefined, divisionId: string): Promise<any[]> {
+    const rows = await dataManager.getDivisionOrganizers(divisionId);
+    if (!userId) return rows.map((row: any) => ({ ...row, canWithdraw: false }));
+    const eventId = await dataManager.getDivisionEventId(divisionId);
+    const event = eventId ? await dataManager.getEvent(eventId) : null;
+    const actsForEvent = !!event && await dataManager.canEditEventOrGame(userId, event.orgId, event.id);
+    return Promise.all(rows.map(async (row: any) => ({
+        ...row,
+        canWithdraw: actsForEvent || (!!row.grantedByOrgProfileId &&
+            await dataManager.ownsOrgProfile(userId, row.grantedByOrgProfileId)),
+    })));
+}
+
+/**
+ * Refuse a division name another division in the same tournament already has, ignoring case and
+ * surrounding space. The division screen checks as the name is typed; this is what holds when two
+ * people save at once, or a caller skips the screen.
+ */
+async function assertDivisionNameFree(eventId: string | null | undefined, name: string | undefined, exceptDivisionId?: string) {
+    if (!eventId || name === undefined) return;
+    if (!name.trim()) throw new Error('A division needs a name.');
+    const others = (await dataManager.getDivisions(eventId)).filter(d => d.id !== exceptDivisionId);
+    const clash = findTakenDivisionName(name, others.map(d => d.name));
+    if (clash) {
+        throw new Error(`Another division in this tournament is already called "${clash}". Division names must be different.`);
+    }
 }
 
 io.on('connection', (socket) => {
@@ -1424,7 +1508,7 @@ io.on('connection', (socket) => {
                 callback(request.eventId ? await dataManager.getEventOrganizers(request.eventId) : []);
                 break;
             case 'division_organizers':
-                callback(request.divisionId ? await dataManager.getDivisionOrganizers(request.divisionId) : []);
+                callback(request.divisionId ? await divisionOrganizersFor(socket.data?.userId, request.divisionId) : []);
                 break;
             case 'organizer_candidates': {
                 // Tier 1 is the host and the participating orgs; `global` is the explicit control
@@ -2222,7 +2306,8 @@ io.on('connection', (socket) => {
                     // remembered. The organiser never meets either concept: one division collapses
                     // into the event screen and one stage shows no tabs (U15).
                     if (result.type === 'Tournament') {
-                        await createImplicitDivision(result);
+                        // One division per sport chosen (U52); none until a sport is.
+                        await createSportDivisions(result, result.sportIds || []);
                     }
                     publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_ADDED', result);
                     additionalBroadcasts.push({ topic: eventRoom(result.id), type: 'EVENT_ADDED', data: result });
@@ -2248,7 +2333,22 @@ io.on('connection', (socket) => {
                 }
                 // Fetch current event to know who might be removed
                 const oldEvent = await dataManager.getEvent(action.payload.id);
+                // U52: a tournament's sports and divisions move together. A sport a division plays
+                // cannot be removed — refused before anything is written — and a sport added gets a
+                // division once the write has landed.
+                const sportsChanging =
+                    oldEvent?.type === 'Tournament' && Array.isArray(action.payload.data?.sportIds);
+                const previousSportIds = oldEvent?.sportIds || [];
+                if (sportsChanging) {
+                    await assertSportsRemovable(action.payload.id, previousSportIds, action.payload.data.sportIds);
+                }
                 result = await dataManager.updateEvent(action.payload.id, action.payload.data);
+                if (result && sportsChanging) {
+                    await createSportDivisions(
+                        result,
+                        (result.sportIds || []).filter((id: string) => !previousSportIds.includes(id))
+                    );
+                }
                 if (result) {
                     const oldOrgIds = oldEvent ? [oldEvent.orgId, ...(oldEvent.participatingOrgIds || [])] : [];
                     const newOrgIds = [result.orgId, ...(result.participatingOrgIds || [])];
@@ -2670,6 +2770,21 @@ io.on('connection', (socket) => {
 
             case SocketAction.ADD_DIVISION: {
                 const { stage, orgId: _actingOrgId, ...divisionData } = action.payload;
+                // U52: a division plays one of the tournament's sports — so there must be one to play,
+                // and with only one there is nothing to choose.
+                const parentEvent = await dataManager.getEvent(divisionData.eventId);
+                const eventSportIds = parentEvent?.sportIds || [];
+                if (!eventSportIds.length) {
+                    throw new Error("Choose the tournament's sports before adding a division.");
+                }
+                if (!divisionData.sportId && eventSportIds.length === 1) {
+                    divisionData.sportId = eventSportIds[0];
+                }
+                if (!divisionData.sportId) {
+                    throw new Error('Say which sport the new division plays.');
+                }
+                await assertDivisionSportAllowed(divisionData.eventId, divisionData.sportId);
+                await assertDivisionNameFree(divisionData.eventId, divisionData.name);
                 const division = await dataManager.addDivision(divisionData);
                 // D11: every division has at least one stage. The caller that knows the format
                 // says so in the same call rather than making a second round trip, and a division
@@ -2681,6 +2796,17 @@ io.on('connection', (socket) => {
             }
 
             case SocketAction.UPDATE_DIVISION: {
+                const beforeUpdate =
+                    action.payload.data?.sportId !== undefined || action.payload.data?.name !== undefined
+                        ? await dataManager.getDivision(action.payload.id)
+                        : null;
+                if (action.payload.data?.name !== undefined) {
+                    await assertDivisionNameFree(beforeUpdate?.eventId, action.payload.data.name, action.payload.id);
+                }
+                if (action.payload.data?.sportId !== undefined) {
+                    if (!action.payload.data.sportId) throw new Error('A division has to play a sport.');
+                    await assertDivisionSportAllowed(beforeUpdate?.eventId, action.payload.data.sportId, beforeUpdate?.sportId);
+                }
                 const updated = await dataManager.updateDivision(action.payload.id, action.payload.data);
                 if (!updated) throw new Error('Division not found.');
                 result = await dataManager.getDivisionDetail(updated.id);
@@ -2689,12 +2815,17 @@ io.on('connection', (socket) => {
                 // is a standings-changing edit even though no result moved.
                 await tournamentManager.recalculateDivision(updated.id);
                 await publishStandings(updated.id, updated.eventId);
+                // Moving a sport's last division elsewhere takes the sport out of the tournament (U52).
+                if (beforeUpdate?.sportId && updated.sportId && beforeUpdate.sportId !== updated.sportId) {
+                    await removeSportIfUnused(updated.eventId, beforeUpdate.sportId);
+                }
                 break;
             }
 
             case SocketAction.DELETE_DIVISION: {
                 // Captured first: afterwards there is no row left to resolve the event from.
                 const divisionEventId = await dataManager.getDivisionEventId(action.payload.id);
+                const divisionBeforeDelete = await dataManager.getDivision(action.payload.id);
                 const removedDivision = await dataManager.deleteDivision(action.payload.id);
                 if (!removedDivision) throw new Error('Division not found.');
                 result = { id: action.payload.id };
@@ -2702,6 +2833,8 @@ io.on('connection', (socket) => {
                 if (divisionEventId) {
                     await tournamentManager.recalculateEventStandings(divisionEventId);
                     await publishStandings(null, divisionEventId);
+                    // A sport's last division takes the sport with it (U52); the screen warns first.
+                    await removeSportIfUnused(divisionEventId, divisionBeforeDelete?.sportId);
                 }
                 break;
             }
@@ -2911,14 +3044,24 @@ io.on('connection', (socket) => {
                 // Recorded as the profile the appointer's own permission came through, so the audit
                 // line names a person as their organisation knows them. Null for an app admin who
                 // holds no profile in any org involved, which the column allows for.
-                const grantedBy = await dataManager.resolveGrantingProfile(authUserId!, appointScopeEventId);
+                const grantedBy = await dataManager.resolveGrantingProfile(
+                    authUserId!,
+                    appointScopeEventId,
+                    appointEventId ? undefined : appointDivisionId
+                );
                 const appointed = await dataManager.appointOrganizer({
                     eventId: appointEventId,
                     divisionId: appointDivisionId,
                     orgProfileId,
                     grantedByOrgProfileId: grantedBy,
                 });
-                result = { eventId: appointEventId, divisionId: appointDivisionId, organizers: appointed };
+                result = {
+                    eventId: appointEventId,
+                    divisionId: appointDivisionId,
+                    organizers: appointDivisionId && !appointEventId
+                        ? await divisionOrganizersFor(authUserId, appointDivisionId)
+                        : appointed,
+                };
                 await publishOrganizerChange(orgProfileId, appointScopeEventId);
                 break;
             }
@@ -2929,12 +3072,42 @@ io.on('connection', (socket) => {
                     withdrawEventId || (withdrawDivisionId ? await dataManager.getDivisionEventId(withdrawDivisionId) : null);
                 if (!withdrawScopeEventId) throw new Error('That tournament no longer exists.');
 
+                // D33, revised 2026-09-19: a convenor may withdraw a co-convenor only if they
+                // appointed them. The gate let them this far on their division grant; whether this
+                // particular row is theirs to remove is only knowable here. Event organisers — and
+                // anyone the event already trusts — remove anybody.
+                if (withdrawDivisionId && !withdrawEventId) {
+                    const withdrawEvent = await dataManager.getEvent(withdrawScopeEventId);
+                    const actsForEvent = !!withdrawEvent && await dataManager.canEditEventOrGame(
+                        authUserId!,
+                        action.payload.orgId || withdrawEvent.orgId,
+                        withdrawScopeEventId
+                    );
+                    if (!actsForEvent) {
+                        const grant = (await dataManager.getDivisionOrganizers(withdrawDivisionId))
+                            .find((row: any) => row.orgProfileId === withdrawnProfileId);
+                        const appointedByCaller = !!grant?.grantedByOrgProfileId &&
+                            await dataManager.ownsOrgProfile(authUserId!, grant.grantedByOrgProfileId);
+                        if (!appointedByCaller) {
+                            throw new Error(
+                                "You can only remove convenors you added yourself. Ask the tournament's organisers to remove this one."
+                            );
+                        }
+                    }
+                }
+
                 const remaining = await dataManager.withdrawOrganizer({
                     eventId: withdrawEventId,
                     divisionId: withdrawDivisionId,
                     orgProfileId: withdrawnProfileId,
                 });
-                result = { eventId: withdrawEventId, divisionId: withdrawDivisionId, organizers: remaining };
+                result = {
+                    eventId: withdrawEventId,
+                    divisionId: withdrawDivisionId,
+                    organizers: withdrawDivisionId && !withdrawEventId
+                        ? await divisionOrganizersFor(authUserId, withdrawDivisionId)
+                        : remaining,
+                };
                 // Published *after* the delete, so the recomputed capabilities are the ones the
                 // withdrawal leaves behind — and so the room revalidation it triggers closes the
                 // rooms the grant was holding open.

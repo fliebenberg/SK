@@ -8,7 +8,7 @@
  * checklist itself, so the statuses are computed there and never here.
  *
  * **Two steps route to screens that already existed.** Entrants has had its own screen since U21
- * and the divisions under `What's being played` have had theirs since U13. Giving those a second
+ * and the divisions under `Sports & Divisions` have had theirs since U13. Giving those a second
  * screen apiece would recreate the split this change exists to remove, so the checklist links to
  * what is already there.
  *
@@ -60,8 +60,8 @@ export const SETUP_STEPS: SetupStepRoute[] = [
   },
   {
     key: 'divisions',
-    label: "What's being played",
-    purpose: 'The sports on, and the divisions they are split into',
+    label: 'Sports & Divisions',
+    purpose: 'The divisions being contested, and the sport each one plays',
     icon: 'trophy-outline',
     dismissible: false,
     href: (orgId, eventId) => `/admin/${orgId}/events/${eventId}/setup/playing`,

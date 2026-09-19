@@ -3,7 +3,8 @@ import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'reac
 import { Ionicons } from '@expo/vector-icons';
 import { CandidateTeam, SocketAction, Team, TournamentDivision, TournamentEntrant } from '@sk/shared';
 import { NewTeamModal } from './NewTeamModal';
-import { teamQualifies } from '../../hooks/useEventEntrants';
+import { divisionTeamOptions } from '../../hooks/useEventEntrants';
+import { DivisionTeamChoices } from './DivisionTeamChoices';
 import { wsService } from '../../services/websocket';
 import { useActiveTheme } from '../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../constants/Colors';
@@ -114,80 +115,55 @@ export function DivisionEntrantsEditor({
     writeRoster([...entrants, { divisionId: division.id, teamId: team.id, status: 'active' }]);
   };
 
-  /** Entered competitors that are not a qualifying team: placeholders, people, guest sides. */
-  const qualifyingTeamIds = new Set(
-    candidateTeams.filter(team => teamQualifies(team, division)).map(team => team.id)
+  const enteredTeamIds = new Set(entrants.map(entrant => entrant.teamId).filter(Boolean) as string[]);
+  /* Every team an organisation group below shows — qualifying ones and age-group overrides — so the
+     list of extras holds only what no group can: placeholders, people, and teams from outside the
+     invited organisations or the division's sport. */
+  const shownTeamIds = new Set(
+    orgs.flatMap(org =>
+      divisionTeamOptions(
+        candidateTeams.filter(team => team.orgId === org.id),
+        division,
+        enteredTeamIds
+      ).listed.map(option => option.team.id)
+    )
   );
+  /** Entered competitors no organisation group shows: placeholders, people, guest sides. */
   const extras = entrants.filter(
-    entrant => !entrant.teamId || !qualifyingTeamIds.has(entrant.teamId)
+    entrant => !entrant.teamId || !shownTeamIds.has(entrant.teamId)
   );
 
   return (
     <View>
-      {orgs.map(org => {
-        const qualifying = candidateTeams.filter(
-          team => team.orgId === org.id && teamQualifies(team, division)
-        );
-        return (
-          <View key={org.id} className="mb-4">
-            <View className="flex-row items-center justify-between mb-1.5">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                {org.shortName || org.name}
-              </Text>
-              {!!division.sportId && (
-                <TouchableOpacity
-                  onPress={() => setNewTeamForOrgId(org.id)}
-                  className="flex-row items-center gap-1 active:opacity-80"
-                >
-                  <Ionicons name="add" size={13} color={COLORS.brand.orange} />
-                  <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-wider">
-                    New team
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {qualifying.length ? (
-              qualifying.map(team => {
-                const entered = entrants.some(entrant => entrant.teamId === team.id);
-                const isBusy = !!busyKeys[team.id];
-                return (
-                  <TouchableOpacity
-                    key={team.id}
-                    onPress={() => toggleTeam(team)}
-                    disabled={isBusy}
-                    className={`flex-row items-center gap-3 rounded-xl px-3 py-2.5 mb-1.5 border active:opacity-85 ${
-                      entered
-                        ? 'bg-brand-orange/10 border-brand-orange/30'
-                        : 'bg-slate-50 dark:bg-white/5 border-transparent'
-                    }`}
-                  >
-                    {isBusy ? (
-                      <ActivityIndicator size="small" color={COLORS.brand.orange} />
-                    ) : (
-                      <Ionicons
-                        name={entered ? 'checkbox' : 'square-outline'}
-                        size={18}
-                        color={entered ? COLORS.brand.orange : secondary}
-                      />
-                    )}
-                    <Text
-                      className="font-inter-bold text-xs text-slate-800 dark:text-white flex-1"
-                      numberOfLines={1}
-                    >
-                      {team.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })
-            ) : (
-              <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 italic px-1">
-                No {qualifyingLabel || 'qualifying'} team on the system.
-              </Text>
+      {orgs.map(org => (
+        <View key={org.id} className="mb-4">
+          <View className="flex-row items-center justify-between mb-1.5">
+            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+              {org.shortName || org.name}
+            </Text>
+            {!!division.sportId && (
+              <TouchableOpacity
+                onPress={() => setNewTeamForOrgId(org.id)}
+                className="flex-row items-center gap-1 active:opacity-80"
+              >
+                <Ionicons name="add" size={13} color={COLORS.brand.orange} />
+                <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-wider">
+                  New team
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
-        );
-      })}
+
+          <DivisionTeamChoices
+            teams={candidateTeams.filter(team => team.orgId === org.id)}
+            division={division}
+            enteredTeamIds={enteredTeamIds}
+            isBusy={team => !!busyKeys[team.id]}
+            onToggle={toggleTeam}
+            emptyText={`No ${qualifyingLabel || 'qualifying'} team on the system.`}
+          />
+        </View>
+      ))}
 
       {extras.length > 0 && (
         <View className="mt-1">

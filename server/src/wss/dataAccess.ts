@@ -200,8 +200,12 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   event_organizers:     { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ eventId: req.eventId }) },
   division_organizers:  { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ divisionId: req.divisionId }) },
   // The picker. Gated at the same level as the appointment it feeds, so browsing people is never
-  // easier than the action it exists for.
-  organizer_candidates: { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ eventId: req.eventId }) },
+  // easier than the action it exists for — which, since convenors may appoint co-convenors, means a
+  // `divisionId` is accepted as the narrower scope, as `event_candidate_teams` already does.
+  organizer_candidates: {
+    standalone: 'tournament-organiser',
+    organiserScope: (req: any) => ({ eventId: req.eventId, divisionId: req.divisionId }),
+  },
   stage_games:          { room: (req: any) => stageRoom(req.stageId, 'fixtures') },
   // Pool membership is roster data: it names which competitors are in the division at all.
   stage_entrants:       { room: (req: any) => stageRoom(req.stageId) },

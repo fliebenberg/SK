@@ -285,6 +285,15 @@ export interface TournamentOrganizer {
   grantedByOrgProfileId?: string;
   grantedByName?: string;
   createdAt?: string;
+  /**
+   * Whether *the viewer* may withdraw this grant — set only on a division's list, in replies to one
+   * caller (`get_data`, the appoint/withdraw acks), never on anything published to a room.
+   *
+   * A convenor may withdraw only the co-convenors they appointed (D33, revised 2026-09-19), and
+   * working that out needs the viewer's profiles and the event's permissions — so the server
+   * answers it rather than the client guessing.
+   */
+  canWithdraw?: boolean;
 }
 
 /**

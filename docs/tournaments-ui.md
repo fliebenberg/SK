@@ -121,10 +121,13 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U43** | The Setup tab saves as one form, through the app's floating save bar, not per section. | 7 |
 | **U44** | Each setup step *is* a collapsible section, its heading pinned while it is open. No separate checklist. | 7 |
 | **U45** | A tournament is created by naming it. No wizard — the Setup screen is the form. | 7 |
-| **U46** | The setup sections follow the setup process. `Structure` is dissolved into Basics and What's being played. | 7 |
+| **U46** | The setup sections follow the setup process. `Structure` is dissolved into Basics and What's being played (renamed `Sports & Divisions` by U50). | 7 |
 | **U47** | A tournament has a **base site** and a **set of facilities**. The base site is where it is, not what it may use. | 7 |
 | **U48** | The Setup tab is the checklist; every step is its own screen, saving itself. No accordion. | 7 |
 | **U49** | The checklist says what it is, what each step is for, and which to do next. The tab carries a dot, not a count. | 7 |
+| **U50** | A tournament always shows its division(s) — one included. The step is `Sports & Divisions`. Narrows U15, renames U46's section. | 6, 7 |
+| **U51** | The tournament's sports are chosen first; each division plays one of them. Reverses U46's derivation. | 7 |
+| **U52** | Every sport has at least one division and every division plays one of the tournament's sports. Choosing a sport creates its division; a sport with divisions cannot be removed; deleting its last division removes it. | 7 |
 
 ### Constraints carried in from the feature spec
 
@@ -360,6 +363,11 @@ We go from `Event → Game` to `Event → Division → Stage → Game`.
 
 A single-sport tournament has one division and the organiser must never meet the concept. The same
 applies to a `Festival` division with a single stage.
+
+> **Narrowed 2026-09-19 (U50): for divisions, only the layout collapses now — the concept does
+> not.** Setup always lists the division, one included, and the organiser sets it up. The reasoning
+> and what survives are in §7 under U50. Everything below stands as written for **stages**, and for
+> divisions wherever it describes rendering rather than vocabulary.
 
 > **Decided — one collapse rule, applied everywhere.** **A level with exactly one child renders that
 > child inline and shows no picker for it.** One division → the event screen *is* the division
@@ -796,6 +804,138 @@ that spans weeks.
 >
 > Two columns on a wide screen is still not in this change — `UI-4`, rewritten around the hub.
 
+
+> **Decided 2026-09-19 — a tournament always shows its division, and the step is called `Sports &
+> Divisions` (U50).** This withdraws half of U15 for divisions and the naming argument of U46 with
+> it. Both rested on "a one-sport festival's organiser must never meet the concept", and in use that
+> made setup *less* clear, not more: the process differed by size, an organiser running a small
+> tournament never learned what a division was, and so had nothing to reason from on the day a
+> second sport or age group arrived — the moment the old design introduced the word, a dialog, a
+> previously invisible name and a restructured screen all at once.
+>
+> - **Every tournament has one division or more, and setup always lists them.** One division is a
+>   row like any other: it opens its own screen, and the button under it always reads *Add a
+>   division* — *Split into divisions* is gone, because nothing is being split.
+> - **The step is named for what is on it.** *What's being played* existed to avoid the word
+>   "division" (U46); with the word always on screen, the descriptive name wins.
+> - **Both headings carry an info icon** ([`<FieldLabel>`](file:///c:/Fred/Coding/SK/expo-app/components/FieldLabel.tsx),
+>   so they follow the one `showFieldHelp` preference). *Sports* holds the sentence that used to sit
+>   under the chips; *Divisions* explains the concept — one competition within the tournament,
+>   usually a sport at an age group, with its own entrants, fixtures, standings and fields.
+> - ~~**Sports are always read off the divisions.**~~ *Reversed by U51, below.* U46 kept an editable chip picker for the
+>   single-division case, where "the chip *is* the division's sport". With the division always
+>   visible that is the same question asked twice on one screen, so the picker is gone and the list
+>   is a summary at every size. The screen therefore has nothing to save and no floating save bar.
+> - **A division's sport and age group are edited on the division's screen — which they never were.**
+>   Building this found that neither could be set anywhere: the chips wrote to the division only
+>   while it was the only one, so every second division read *No sport set* permanently. The
+>   division screen now opens with a *Name* / *Sport* / *Age group* form, saved together. The name
+>   used to sit behind a pencil in the header; it is an ordinary first field now, as a tournament's
+>   is on Basic Info, and the header reads `{tournament} - {division}` like the setup steps.
+> - **A division's name can be left to the app.** Until the organiser types one, it is derived from
+>   the sport and age group (`Rugby U14`) and follows them as they change; emptying the field hands
+>   it back, with the derived name shown as the placeholder. Nothing is stored to say which kind a
+>   name is: a saved name counts as automatic when it is one the app would have produced anyway —
+>   the derived name, the tournament's name the first division is created with, or the
+>   `Division 2` that *Add a division* hands out.
+> - ~~**The server keeps `events.sportIds` equal to the divisions' sports.**~~ *Removed by U51.* U46 had the setup screen
+>   write the derived list back "with whatever save happens next", and U48 then gave that screen a
+>   save a derived list never triggered — so the write-back had silently stopped, and the
+>   new-fixture form, which filters sports by the event's list, could not offer a second division's
+>   sport. `ADD_DIVISION`, `UPDATE_DIVISION` (when it carries `sportId`) and `DELETE_DIVISION` now
+>   sync it and publish `EVENT_UPDATED`. It is server-side because a convenor may change their
+>   division's sport and may not edit the event (D33). Divisions with no sport say nothing: if none
+>   has one, the event's list is left alone rather than emptied.
+> - **What survives of U15 for divisions is layout.** The Schedule tab still shows a lone division's
+>   panel inline rather than a list of one, pickers of one stay hidden (`games/new`, Entrants), and
+>   adding the *second* division is still announced, because that is the add that restructures the
+>   Schedule tab. A first or third division is added without a dialog. For stages U15 is unchanged.
+
+> **Decided 2026-09-19, the same afternoon — sports and divisions move together (U52).** U51 got
+> the direction right (sports first) and the removal rule wrong: moving every division onto a
+> tournament's last sport was clever and destructive in the same step. The invariant now is
+> **every sport the tournament includes has at least one division, and every division plays one of
+> the tournament's sports** — held by the server, explained by the screens.
+>
+> - **No sport, no division.** A tournament created without a sport has no division, and
+>   `ADD_DIVISION` is refused until one is chosen. The Divisions section says to choose a sport
+>   first. This replaces U50's "every tournament has at least one division" with "every sport does".
+> - **Choosing a sport creates its first division.** At creation (one per sport, named after it) and
+>   whenever a sport is added later, if it has none. So a sport is never on the list with nothing to
+>   play in, and the organiser meets the division the moment the sport exists.
+> - **Divisions are grouped under their sport,** each group ending in *Add a {sport} division* — so
+>   a new division's sport is where it was added rather than a question. Divisions from before U52
+>   with no sport, or one the tournament does not list, sit in a group of their own to be put right.
+> - **The sport chips save as they are pressed.** Choosing one creates a division immediately, which
+>   a draft-and-save-bar model could not show honestly; the screen has no save bar again.
+> - **A sport cannot be removed while it has divisions.** The server refuses, naming them. Pressing
+>   such a chip opens a dialog listing its divisions with two ways out: delete them one by one from
+>   their own screens, or delete them all there — which arms only once **every division has been
+>   ticked by name**, with no select-all, because it is the most destructive action on the screen.
+> - **Deleting a sport's last division removes the sport,** and so does moving it to another sport.
+>   The division screen warns before either (*"This is the last Rugby division, so Rugby will also
+>   be removed from the tournament"*). Removing every sport this way is the one route to a
+>   tournament with no divisions, and it is a deliberate one.
+> - **Divisions can be deleted** from their own screen, by event organisers (convenors may not — the
+>   gate already said so). This closes `FIX-16`.
+> - **The second-division announcement is gone from setup.** U15's dialog existed to introduce a
+>   concept nobody had seen; with divisions visible from the first sport, and created by pressing a
+>   chip, it announced nothing. The Schedule tab still lists divisions once there are two.
+> - **Nothing moves divisions between sports automatically any more;** U51's single-sport move and
+>   its confirmation are removed. The automatic name (`divisionAutoName`) stays shared code.
+> - **Division names are unique within a tournament, ignoring case and surrounding space**
+>   ([divisionName.ts](file:///c:/Fred/Coding/SK/shared/src/utils/divisionName.ts), with tests).
+>   Two divisions may share a sport and age group — two U14 rugby pools — but not a name: "Rugby U14"
+>   and "rugby u14" read as the same division in a draw or a table. The server refuses a duplicate on
+>   `ADD_DIVISION` and `UPDATE_DIVISION`; the division screen checks as the name is typed, marks the
+>   field and holds Save back, naming the division that already has it. The automatic name never
+>   clashes: the second of a kind is `Rugby U14 - 2` (lowest free number, compared ignoring case),
+>   a division keeps a numbered name while nobody else holds it, and *Add a {sport} division* and a
+>   newly chosen sport use the same rule. A warning about two divisions sharing a sport and age
+>   group was built the same day and taken out again; the name check is what matters.
+
+> **Decided 2026-09-19 — a division's age group narrows the team list; it does not forbid.** Entry
+> (U21) offered only teams matching the division's sport *and* age group, with no way past it, but a
+> strong U13 side playing up or a school fielding a mixed team is normal. So both axes of the
+> entrants screen now share one list
+> ([DivisionTeamChoices](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionTeamChoices.tsx),
+> rule in [divisionEntry.ts](file:///c:/Fred/Coding/SK/shared/src/utils/divisionEntry.ts), tested):
+> qualifying teams first, then an **Other age groups (n)** control that reveals the sport's other
+> teams. Entering one is the override — no dialog, since revealing them was the deliberate step —
+> and it stays listed on both axes afterwards, tagged `U13 · other age group`, rather than dropping
+> into the unexplained extras. **The sport stays strict**: a team of another sport is never offered.
+> This is a screen rule only; the server has always accepted any team.
+
+> **Decided 2026-09-19, later the same day — the tournament's sports come first (U51).** *Its
+> removal and single-sport rules were replaced by U52 above; the direction stands.* This
+> reverses the direction U46 set and U50 kept. Reading the sports off the divisions meant the
+> division screen offered every sport in the system, and a tournament's list of sports was a
+> by-product of whatever its divisions happened to say. Now the organiser chooses the tournament's
+> sports first, on Sports & Divisions, and then sets up a division for each.
+>
+> - **A division plays one of the tournament's sports.** The division screen offers only those, as
+>   a single choice with no way to clear it. The server refuses anything else on `ADD_DIVISION` and
+>   `UPDATE_DIVISION`, except a division's *current* sport — a division from before U51 whose sport
+>   the tournament does not list still shows it (marked *not in the tournament*) and can be saved.
+> - **With one sport, every division plays it.** Nothing to choose, so nothing is asked: a division
+>   added with no sport gets the tournament's only one, server-side, which also covers the implicit
+>   first division. The division screen still shows the sport as a normal selected chip.
+> - **Removing a sport a division plays.** If exactly one sport would remain, every division moves
+>   onto it — the single-sport rule again, not a special case — after a confirmation that names each
+>   division and the sport it is leaving; automatically named divisions are renamed to match
+>   (`Rugby U14` → `Hockey U14`), hand-named ones are not. Otherwise the save is refused, naming the
+>   divisions, because there is no way to guess which of the remaining sports each should move to.
+>   The screen says so under the chips before the save is tried, and holds the save back.
+> - **The server no longer writes the event's sports.** U50's sync from divisions is gone with the
+>   direction it served; the new-fixture form reads `events.sportIds` and that list is now the
+>   organiser's own answer. A tournament's sports step is done when the list has something in it;
+>   the checklist row also counts divisions still without a sport.
+> - **The automatic name is shared code** ([divisionName.ts](file:///c:/Fred/Coding/SK/shared/src/utils/divisionName.ts)),
+>   because the server now renames divisions when it moves them and has to agree with the screen
+>   about which names are automatic.
+>
+> Changing a division's sport after it has entrants and results is still unchecked — `FIX-17`, now
+> reachable through a tournament narrowed to one sport as well as through the division screen.
 
 > **Revised 2026-09-13 — the checklist explains itself (U49).** U48 got the *structure* right and
 > left the page mute. Shown five headings under a progress bar, an organiser using it for the first

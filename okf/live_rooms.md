@@ -78,6 +78,13 @@ not also query for the same data.
 | `event:{id}:standings` | public | `EVENT_STANDINGS_UPDATED` | `EVENT_STANDINGS_UPDATED` |
 | `event:{id}:entrants` | member | `EVENT_ENTRANTS_SYNC` (the whole tournament) | `DIVISION_ENTRANTS_SYNC` (one division's slice) |
 
+**Sports and divisions publish each other (U52).** A tournament's sports and divisions move
+together, so each write can publish the other's message: an `UPDATE_EVENT` (or `ADD_EVENT`) that adds
+a sport with no division publishes a `DIVISION_ADDED` for the division it creates, and a
+`DELETE_DIVISION` or sport-changing `UPDATE_DIVISION` that leaves a sport with no divisions publishes
+an `EVENT_UPDATED` with that sport removed. Nothing new to merge; listed because the publisher is not
+the obvious one.
+
 ### Division
 
 | Room | Access | Join push | Published afterwards |

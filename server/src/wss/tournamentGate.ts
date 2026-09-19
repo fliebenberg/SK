@@ -46,9 +46,10 @@ export const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any
   [SocketAction.SET_EVENT_FACILITIES]: async (p) => p?.eventId ?? null,
   [SocketAction.SET_DIVISION_FACILITIES]: async (p) =>
     p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
-  // Appointing is authorized as the event at both scopes, and has no entry in the division map
-  // below — deliberately. A convenor runs their division; who else may run it is not theirs to
-  // decide, which is what keeps an appointee from ever locking out the people who appointed them.
+  // Appointing is authorized as the event at both scopes. Since 2026-09-19 a convenor may also
+  // appoint and withdraw *within their own division* (the division map below) — but only withdraw
+  // the people they appointed themselves, which the handler checks, because the gate cannot see
+  // who granted a row. Event-scope appointments stay event-only: a division grant never reaches up.
   [SocketAction.APPOINT_ORGANIZER]: async (p) =>
     p?.eventId ?? (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
   [SocketAction.WITHDRAW_ORGANIZER]: async (p) =>
@@ -107,6 +108,10 @@ export const TOURNAMENT_ACTION_DIVISION: Partial<Record<SocketAction, (payload: 
     return res.rows[0]?.division_id ?? null;
   },
   [SocketAction.SET_DIVISION_FACILITIES]: async (p) => p?.divisionId ?? null,
+  // Co-convenors (D33, revised 2026-09-19). Only a division-scope payload resolves to a division;
+  // an event-scope one resolves to none and is refused, so a convenor cannot appoint upwards.
+  [SocketAction.APPOINT_ORGANIZER]: async (p) => (p?.eventId ? null : p?.divisionId ?? null),
+  [SocketAction.WITHDRAW_ORGANIZER]: async (p) => (p?.eventId ? null : p?.divisionId ?? null),
   [SocketAction.RESOLVE_PARTICIPANT]: async (p) => {
     if (!p?.gameParticipantId) return null;
     const gameId = await dataManager.getGameIdForParticipant(p.gameParticipantId);

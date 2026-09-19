@@ -59,6 +59,15 @@ import { COLORS, getThemeColor } from '../constants/Colors';
  * The icon is still **measured in window coordinates**, because that is what lets the bubble
  * **flip below** a label near the top of the screen and **clamp** to the viewport instead of
  * hanging off an edge — the other half of the original report.
+ *
+ * **It starts at the label, not centred on the icon** (2026-09-19). Centring was clamped to the
+ * *window*, but the form sits in a scroll view beside the sidebar, and a scroll view clips what
+ * overflows it. A short label — `Sport` — puts the icon near the column's left edge, so half a
+ * centred bubble went past the scroll view and was cut off: the text appeared to start outside its
+ * box. The window was never the edge that mattered, and the one that does is not measurable from
+ * here. What is always true is that a label sits at the left of its own field, so a bubble aligned
+ * to the label and running right stays over the form wherever the field is; it is only pulled back
+ * when it would pass the window's right edge.
  */
 
 const BUBBLE_WIDTH = 260;
@@ -92,9 +101,18 @@ export interface FieldLabelProps {
   help?: string;
   /** Marks the field as required, for the few that are. */
   required?: boolean;
+  /**
+   * Marks the field as one that may be left empty, with a quiet `Optional` after the label.
+   *
+   * For forms where most fields are needed or filled in for you, so the exceptions are the ones
+   * worth naming — the division screen, where the name fills itself in and the sport is always set,
+   * but an age group and organisers are genuinely optional. Saying so beats an asterisk on every
+   * other field, which reads as a form full of demands.
+   */
+  optional?: boolean;
 }
 
-export function FieldLabel({ label, help, required }: FieldLabelProps) {
+export function FieldLabel({ label, help, required, optional }: FieldLabelProps) {
   const isDark = useActiveTheme() === 'dark';
   const showByDefault = useShowFieldHelp();
   const setLocalOverride = useSettingsStore((state: any) => state.setLocalOverride);
@@ -105,6 +123,8 @@ export function FieldLabel({ label, help, required }: FieldLabelProps) {
   const [hovered, setHovered] = useState(false);
   /** Where the icon is in the window — only ever used to decide flip and clamp. */
   const [anchor, setAnchor] = useState<{ x: number; y: number; width: number } | null>(null);
+  /** How far the icon sits from the start of the label, so the bubble can begin where the label does. */
+  const [iconOffset, setIconOffset] = useState(0);
   const iconRef = useRef<View>(null);
   const { width: screenWidth } = useWindowDimensions();
 
@@ -129,22 +149,21 @@ export function FieldLabel({ label, help, required }: FieldLabelProps) {
    * Where the bubble sits, relative to the icon.
    *
    * Vertically: above by default, flipped below when the icon is too near the top of the window for
-   * a bubble to fit overhead. Horizontally: centred on the icon, then pulled back so neither edge
-   * leaves the screen — expressed as an offset from the icon, since that is what it is positioned
-   * against. Before the measurement lands it simply centres, which is right almost everywhere.
+   * a bubble to fit overhead. Horizontally: its left edge on the label's left edge, running right,
+   * and pulled back only if that would pass the window's right edge — expressed as an offset from
+   * the icon, since that is what it is positioned against.
    */
   const bubbleWidth = Math.min(BUBBLE_WIDTH, screenWidth - BUBBLE_MARGIN * 2);
-  const centredLeft = -bubbleWidth / 2;
+  const labelAlignedLeft = -iconOffset;
   const bubblePosition = anchor
     ? {
-        left:
-          Math.min(
-            Math.max(BUBBLE_MARGIN, anchor.x + anchor.width / 2 - bubbleWidth / 2),
-            Math.max(BUBBLE_MARGIN, screenWidth - bubbleWidth - BUBBLE_MARGIN)
-          ) - anchor.x,
+        left: Math.min(
+          labelAlignedLeft,
+          screenWidth - BUBBLE_MARGIN - bubbleWidth - anchor.x
+        ),
         ...(anchor.y >= MIN_SPACE_ABOVE ? { bottom: BUBBLE_GAP + 16 } : { top: BUBBLE_GAP + 16 }),
       }
-    : { left: centredLeft, bottom: BUBBLE_GAP + 16 };
+    : { left: labelAlignedLeft, bottom: BUBBLE_GAP + 16 };
 
   return (
     <View
@@ -157,6 +176,9 @@ export function FieldLabel({ label, help, required }: FieldLabelProps) {
           {label}
         </Text>
         {required && <Text className="font-inter text-[10px] text-brand-orange">*</Text>}
+        {optional && (
+          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">Optional</Text>
+        )}
 
         {hasHelp && (
           <Pressable
@@ -167,6 +189,7 @@ export function FieldLabel({ label, help, required }: FieldLabelProps) {
               iconRef.current?.measureInWindow((x, y, width) => setAnchor({ x, y, width }));
             }}
             onHoverOut={() => setHovered(false)}
+            onLayout={event => setIconOffset(event.nativeEvent.layout.x)}
             accessibilityRole="button"
             accessibilityLabel={`${isShowing ? 'Hide' : 'Show'} help for ${label}`}
             accessibilityHint={help}

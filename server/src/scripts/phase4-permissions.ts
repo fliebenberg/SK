@@ -279,6 +279,10 @@ async function main() {
     [SocketAction.SCHEDULE_STAGE, { stageId: stageA.id }, 'schedule their fixtures'],
     [SocketAction.ADD_ADJUSTMENT, { divisionId: divisionA.id, entrantId: 'x', pointsDelta: 1, reason: 'y' }, 'record an adjustment'],
     [SocketAction.SET_DIVISION_FACILITIES, { divisionId: divisionA.id, facilityIds: [] }, 'narrow their facilities'],
+    // D33, revised 2026-09-19: co-convenors. Whether a withdrawal is theirs to make — only the
+    // people they appointed — is checked in the handler, where the grant's author is known.
+    [SocketAction.APPOINT_ORGANIZER, { divisionId: divisionA.id, orgProfileId: stranger.profileId }, 'appoint a co-convenor to their division'],
+    [SocketAction.WITHDRAW_ORGANIZER, { divisionId: divisionA.id, orgProfileId: stranger.profileId }, 'reach the withdrawal of a co-convenor'],
   ];
   for (const [type, payload, what] of convenorMay) {
     expect(await gateAllows(specialist.userId, type, payload), true, `a convenor may ${what}`);
@@ -292,7 +296,9 @@ async function main() {
     [SocketAction.DELETE_DIVISION, { id: divisionA.id }, 'delete their own division'],
     [SocketAction.UPDATE_DIVISION, { id: divisionA.id, data: { weighting: 5 } }, "change their division's weighting"],
     [SocketAction.SET_EVENT_FACILITIES, { eventId: event.id, facilityIds: [] }, "set the event's facilities"],
-    [SocketAction.APPOINT_ORGANIZER, { divisionId: divisionA.id, orgProfileId: stranger.profileId }, 'appoint anybody'],
+    [SocketAction.APPOINT_ORGANIZER, { divisionId: divisionB.id, orgProfileId: stranger.profileId }, 'appoint to another division'],
+    [SocketAction.APPOINT_ORGANIZER, { eventId: event.id, orgProfileId: stranger.profileId }, 'appoint an event organiser'],
+    [SocketAction.APPOINT_ORGANIZER, { eventId: event.id, divisionId: divisionA.id, orgProfileId: stranger.profileId }, 'reach event scope by naming their division alongside it'],
   ];
   for (const [type, payload, what] of convenorMayNot) {
     expect(await gateAllows(specialist.userId, type, payload), false, `a convenor may NOT ${what}`);
@@ -333,6 +339,18 @@ async function main() {
   expect(organisersEvent.allowed, false, "a convenor may NOT read the event's organiser list");
   const candidates = await canReadData(stranger.userId, { type: 'organizer_candidates', eventId: event.id, query: 'a' });
   expect(candidates.allowed, false, 'a stranger may not search the organiser picker');
+  // Co-convenors (D33, revised 2026-09-19): a convenor may search for people to add to their own
+  // division — asked with the division — and not for the event's organisers.
+  const convenorSearch = await canReadData(specialist.userId, {
+    type: 'organizer_candidates', eventId: event.id, divisionId: divisionA.id, query: 'a',
+  });
+  expect(convenorSearch.allowed, true, 'a convenor may search for co-convenors for their division');
+  const convenorEventSearch = await canReadData(specialist.userId, { type: 'organizer_candidates', eventId: event.id, query: 'a' });
+  expect(convenorEventSearch.allowed, false, 'a convenor may NOT search at event scope');
+  const convenorOtherSearch = await canReadData(specialist.userId, {
+    type: 'organizer_candidates', eventId: event.id, divisionId: divisionB.id, query: 'a',
+  });
+  expect(convenorOtherSearch.allowed, false, "a convenor may NOT search for another division's convenors");
 
   // ============================================================================================
   // 5. Capability flags — computed from the user and the event, never from a workspace.
