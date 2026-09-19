@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
+import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team } from '@sk/shared';
 import DatePicker from '../../../../../../components/DatePicker';
@@ -261,25 +262,25 @@ export default function SeasonDetails() {
   const handleAddTeam = (teamId: string) => {
     setIsProcessing(true);
     setActionError(null);
-    const payload = { seasonId, teamId, status: 'approved' };
+    const payload = { seasonId, teamId, status: 'approved' as const };
 
-    wsService.emit('action', { type: SocketAction.ADD_SEASON_TEAM as any, payload }, (res: any) => {
+    // Toasted, not put in `actionError`: that banner is only drawn on the Settings tab, so a failure
+    // set there from the Teams or Games tab was never seen.
+    sendAction(SocketAction.ADD_SEASON_TEAM, payload).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setActionError(res.message || "Failed to add team to season.");
-      } else {
-        setIsAddTeamOpen(false);
-        refreshSeasonData();
-      }
+      if (!result.ok) return;
+      setIsAddTeamOpen(false);
+      refreshSeasonData();
     });
   };
 
   // Approve Pending Team
   const handleApproveTeam = (teamId: string) => {
     setIsProcessing(true);
-    const payload = { seasonId, teamId, status: 'approved' };
-    wsService.emit('action', { type: SocketAction.ADD_SEASON_TEAM as any, payload }, () => {
+    const payload = { seasonId, teamId, status: 'approved' as const };
+    sendAction(SocketAction.ADD_SEASON_TEAM, payload).then(result => {
       setIsProcessing(false);
+      if (!result.ok) return;
       refreshSeasonData();
     });
   };
@@ -290,14 +291,11 @@ export default function SeasonDetails() {
     setIsProcessing(true);
     const payload = { seasonId, teamId: teamToRemove.teamId };
 
-    wsService.emit('action', { type: SocketAction.REMOVE_SEASON_TEAM as any, payload }, (res: any) => {
+    sendAction(SocketAction.REMOVE_SEASON_TEAM, payload).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setActionError(res.message || "Failed to remove team.");
-      } else {
-        setTeamToRemove(null);
-        refreshSeasonData();
-      }
+      if (!result.ok) return;
+      setTeamToRemove(null);
+      refreshSeasonData();
     });
   };
 
@@ -307,14 +305,11 @@ export default function SeasonDetails() {
     setActionError(null);
     const payload = { gameId, seasonId };
 
-    wsService.emit('action', { type: SocketAction.ADD_GAME_TO_SEASON as any, payload }, (res: any) => {
+    sendAction(SocketAction.ADD_GAME_TO_SEASON, payload).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setActionError(res.message || "Failed to link game.");
-      } else {
-        setIsLinkGameOpen(false);
-        refreshSeasonData();
-      }
+      if (!result.ok) return;
+      setIsLinkGameOpen(false);
+      refreshSeasonData();
     });
   };
 
@@ -324,14 +319,11 @@ export default function SeasonDetails() {
     setIsProcessing(true);
     const payload = { gameId: gameToUnlink.id, seasonId };
 
-    wsService.emit('action', { type: SocketAction.REMOVE_GAME_FROM_SEASON as any, payload }, (res: any) => {
+    sendAction(SocketAction.REMOVE_GAME_FROM_SEASON, payload).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setActionError(res.message || "Failed to unlink game.");
-      } else {
-        setGameToUnlink(null);
-        refreshSeasonData();
-      }
+      if (!result.ok) return;
+      setGameToUnlink(null);
+      refreshSeasonData();
     });
   };
 
@@ -367,16 +359,15 @@ export default function SeasonDetails() {
       }
     };
 
-    wsService.emit('action', { type: SocketAction.UPDATE_SEASON as any, payload }, (res: any) => {
+    sendAction(SocketAction.UPDATE_SEASON, payload, { suppressToast: true }).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setActionError(res.message || "Failed to update settings.");
-      } else {
-        if (res && res.data) {
-          setSeason(res.data);
-        }
-        useUnsavedChangesStore.getState().clear();
+      // A missing reply used to fall through to here and clear the unsaved-changes guard.
+      if (!result.ok) {
+        setActionError(result.message);
+        return;
       }
+      if (result.data) setSeason(result.data);
+      useUnsavedChangesStore.getState().clear();
     });
   };
 

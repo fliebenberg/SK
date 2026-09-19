@@ -47,8 +47,10 @@ export interface Game {
   startTime?: string;
   scheduledStartTime?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
-  siteId?: string;
-  facilityId?: string;
+  /** `null` on an update clears it. */
+  siteId?: string | null;
+  /** `null` on an update clears it. */
+  facilityId?: string | null;
   finalScoreData?: any;
   customSettings?: any;
   liveState?: {

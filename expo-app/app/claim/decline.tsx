@@ -7,6 +7,8 @@ import { Button } from '../../components/Button';
 import { GlassCard } from '../../components/GlassCard';
 import { OrgLogo } from '../../components/OrgLogo';
 import { wsService } from '../../services/websocket';
+import { sendAction } from '../../services/actions';
+import { SocketAction } from '@sk/shared';
 import { useWsStore } from '../../store/wsStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -56,16 +58,13 @@ export default function DeclineScreen() {
 
   const handleDecline = async () => {
     setSubmitting(true);
-    wsService.emit('action', {
-      type: 'DECLINE_CLAIM',
-      payload: { token }
-    }, (res: any) => {
+    sendAction(SocketAction.DECLINE_CLAIM, { token: token as string }).then(result => {
       setSubmitting(false);
-      if (res && res.error) {
-        Alert.alert('Error', res.error || 'Failed to decline invitation.');
-      } else {
-        setSubmitted(true);
+      if (!result.ok) {
+        Alert.alert('Error', result.message);
+        return;
       }
+      setSubmitted(true);
     });
   };
 

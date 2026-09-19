@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { dataManager } from './DataManager';
 import { gameEventManager } from './managers/GameEventManager';
-import { SocketAction, findTakenDivisionName } from '@sk/shared';
+import { ActionAck, SocketAction, findTakenDivisionName } from '@sk/shared';
 import { parseSportWriteFields } from './utils/sportValidation';
 import pool from './db';
 import bcrypt from 'bcryptjs';
@@ -1893,7 +1893,7 @@ io.on('connection', (socket) => {
     // arrived over the network, not a guarantee about it.
     if (!action || typeof action !== 'object' || typeof (action as any).type !== 'string') {
       console.warn(`[Socket] Malformed action payload from ${socket.id}: ${JSON.stringify(action)}`);
-      if (callback) callback({ status: 'error', message: 'Malformed action' });
+      if (callback) callback({ status: 'error', message: 'Malformed action' } satisfies ActionAck);
       return;
     }
 
@@ -3274,11 +3274,12 @@ io.on('connection', (socket) => {
         // `broadcast()` logs each publish itself (wss/socketLog.ts), so there is no line here.
         additionalBroadcasts.forEach(b => broadcast(b.topic, b.type, b.data));
 
-        if (callback) callback({ status: 'ok', data: result });
+        // The one success exit: the result travels in `data` (ActionAck), never as the ack itself.
+        if (callback) callback({ status: 'ok', data: result } satisfies ActionAck);
 
     } catch (error: any) {
         console.error(`Server: Error handling action ${action.type}:`, error);
-        if (callback) callback({ status: 'error', message: error.message || 'Internal server error' });
+        if (callback) callback({ status: 'error', message: error.message || 'Internal server error' } satisfies ActionAck);
     }
   });
 

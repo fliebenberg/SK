@@ -9,8 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../../services/websocket';
+import { sendAction } from '../../../../../../../services/actions';
 import { useWsStore } from '../../../../../../../store/wsStore';
-import { SocketAction, Event, Game, Sport, Site, Team, Organization } from '@sk/shared';
+import { SocketAction, Event, Game, Sport, Site, Team, Organization, DeleteGamePayload, DeleteEventPayload } from '@sk/shared';
 import { COLORS } from '../../../../../../../constants/Colors';
 import MatchForm, { MatchFormData } from '../../../../../../../components/MatchForm';
 import { useAuthStore } from '../../../../../../../store/authStore';
@@ -192,11 +193,8 @@ export default function EditGame() {
       scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`;
     }
 
-    const userId = useAuthStore.getState().user?.id;
-
     const payload = {
       id: gameId,
-      userId,
       orgId,
       data: {
         sportId: formData.sportId,
@@ -213,8 +211,12 @@ export default function EditGame() {
       }
     };
 
-    wsService.emit('action', { type: SocketAction.UPDATE_GAME, payload }, (res: any) => {
-      if (res && isSingleMatchEvent()) {
+    sendAction(SocketAction.UPDATE_GAME, payload).then((result) => {
+      if (!result.ok) {
+        setIsProcessing(false);
+        return;
+      }
+      if (isSingleMatchEvent()) {
         // Resolve event name based on updated orgs and teams
         const homeOrg = orgsList.find(o => o.id === formData.homeOrgId);
         const awayOrg = orgsList.find(o => o.id === formData.awayOrgId);
@@ -225,7 +227,6 @@ export default function EditGame() {
 
         const eventPayload = {
           id: eventId,
-          userId,
           orgId,
           data: {
             name: eventNameStr,
@@ -238,8 +239,10 @@ export default function EditGame() {
           }
         };
 
-        wsService.emit('action', { type: SocketAction.UPDATE_EVENT, payload: eventPayload }, (eventRes: any) => {
+        sendAction(SocketAction.UPDATE_EVENT, eventPayload).then((eventResult) => {
           setIsProcessing(false);
+          // Left dirty if the event half failed, so saving again retries both.
+          if (!eventResult.ok) return;
           if (formData) {
             setInitialData({ ...formData });
           }
@@ -247,12 +250,10 @@ export default function EditGame() {
         });
       } else {
         setIsProcessing(false);
-        if (res) {
-          if (formData) {
-            setInitialData({ ...formData });
-          }
-          useUnsavedChangesStore.getState().clear();
+        if (formData) {
+          setInitialData({ ...formData });
         }
+        useUnsavedChangesStore.getState().clear();
       }
     });
   };
@@ -262,17 +263,25 @@ export default function EditGame() {
     setIsProcessing(true);
     const payload = {
       id: gameId,
-      data: { status: 'Cancelled' }
+      orgId,
+      data: { status: 'Cancelled' as const }
     };
 
-    wsService.emit('action', { type: SocketAction.UPDATE_GAME, payload }, (res: any) => {
-      if (res && isSingleMatchEvent()) {
+    sendAction(SocketAction.UPDATE_GAME, payload).then((result) => {
+      if (!result.ok) {
+        setIsProcessing(false);
+        return;
+      }
+      if (isSingleMatchEvent()) {
         const eventPayload = {
           id: eventId,
-          data: { status: 'Cancelled' }
+          orgId,
+          data: { status: 'Cancelled' as const }
         };
-        wsService.emit('action', { type: SocketAction.UPDATE_EVENT, payload: eventPayload }, (eventRes: any) => {
+        sendAction(SocketAction.UPDATE_EVENT, eventPayload).then((eventResult) => {
           setIsProcessing(false);
+          // A failed event half keeps the dialog open to retry; re-cancelling the game is harmless.
+          if (!eventResult.ok) return;
           setIsCancelling(false);
           setInitialData((prev: any) => prev ? { ...prev, status: 'Cancelled' } : null);
           if (formData) {
@@ -309,23 +318,19 @@ export default function EditGame() {
   // Delete Game Handler
   const handleDeleteGame = () => {
     setIsProcessing(true);
-    const userId = useAuthStore.getState().user?.id;
     if (isSingleMatchEvent()) {
-      wsService.emit('action', { 
-        type: SocketAction.DELETE_EVENT, 
-        payload: { id: eventId, userId, orgId } 
-      }, (res: any) => {
+      sendAction(SocketAction.DELETE_EVENT, { id: eventId, orgId }).then((result) => {
         setIsProcessing(false);
+        // A failed delete leaves the user on this screen, with the dialog still open.
+        if (!result.ok) return;
         setIsDeleting(false);
         useUnsavedChangesStore.getState().clear();
         router.push(`/admin/${orgId}/events`);
       });
     } else {
-      wsService.emit('action', { 
-        type: SocketAction.DELETE_GAME, 
-        payload: { id: gameId, userId, orgId } 
-      }, (res: any) => {
+      sendAction(SocketAction.DELETE_GAME, { id: gameId, orgId }).then((result) => {
         setIsProcessing(false);
+        if (!result.ok) return;
         setIsDeleting(false);
         useUnsavedChangesStore.getState().clear();
         router.push(`/admin/${orgId}/events/${eventId}`);

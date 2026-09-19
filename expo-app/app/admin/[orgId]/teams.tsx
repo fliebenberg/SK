@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
 import { useAuthStore } from '../../../store/authStore';
 import { SocketAction, Team, Sport, Organization } from '@sk/shared';
@@ -128,15 +129,13 @@ export default function OrgTeams() {
     if (!teamToDelete) return;
     setIsProcessing(true);
     setDeleteError(null);
-    wsService.emit('action', {
-      type: SocketAction.DELETE_TEAM,
-      payload: { id: teamToDelete.id }
-    }, (res: any) => {
+    // Shown inline in the confirmation modal, so no toast.
+    sendAction(SocketAction.DELETE_TEAM, { id: teamToDelete.id }, { suppressToast: true }).then(result => {
       setIsProcessing(false);
-      if (res.status === 'ok') {
+      if (result.ok) {
         setTeamToDelete(null);
       } else {
-        setDeleteError(res.message || 'Team is currently linked to games or events and cannot be deleted.');
+        setDeleteError(result.message || 'Team is currently linked to games or events and cannot be deleted.');
       }
     });
   };

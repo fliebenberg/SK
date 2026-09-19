@@ -183,7 +183,7 @@ export interface TournamentEntrant {
 export interface CandidateTeam {
   id: string;
   name: string;
-  shortName?: string;
+  shortName?: string | null;
   orgId: string;
   orgName: string;
   orgShortName?: string;

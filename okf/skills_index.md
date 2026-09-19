@@ -6,7 +6,7 @@ tags:
   - concept
   - skills
   - agent-rules
-timestamp: 2026-09-13T00:00:00Z
+timestamp: 2026-09-19T00:00:00Z
 ---
 
 # Agentic Skills Catalog
@@ -26,3 +26,4 @@ The `.agent/skills/` directory contains rules and instructions for coding agents
 11. **[todo-checkin](file:///c:/Fred/Coding/SK/.agent/skills/todo-checkin/SKILL.md)** (NEW): Requires consulting the Known Issues & Tech Debt backlog in `TODO.md` before implementing a feature, and logging newly found issues there rather than fixing them opportunistically.
 12. **[review-artifact](file:///c:/Fred/Coding/SK/.agent/skills/review-artifact/SKILL.md)** (NEW): How to build a local review page for a long design document so the user can comment block by block, plus the `Open`/`Decided` blockquote conventions and the comment round-trip. Read before offering to review a spec, data model or catalogue.
 13. **[interview-writeup](file:///c:/Fred/Coding/SK/.agent/skills/interview-writeup/SKILL.md)** (NEW): How a recorded user-research interview becomes its two committed documents — the cleaned speaker-labelled transcript and the 17-section structured summary — plus the folder and filename conventions under `docs/interviews/records/`. Read when asked to write up, summarise or transcribe an interview.
+14. **[action-replies](file:///c:/Fred/Coding/SK/.agent/skills/action-replies/SKILL.md)** (NEW): How the client talks to the server with no silent failures — every socket action goes through `sendAction` (enforced by `npm run check:actions` in `expo-app/`), the three reply formats (actions `{ status, data }`, `get_data` unwrapped, REST thrown errors), and what a call site owes on failure. Read before writing any code that sends an action, reads `get_data`, or calls the REST API. Added 2026-09-19 after an audit found the reply misread four ways.

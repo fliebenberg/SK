@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { GameDispute, SocketAction } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { Ionicons } from '@expo/vector-icons';
 import { useOptionalSharedDynamicScoring } from './DynamicScoringContext';
 import { useAuthStore } from '../../../store/authStore';
@@ -130,22 +131,22 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
     setErrorMessage(null);
     const actionType =
       dispute.type === 'UNDO' || (dispute.type as string) === 'REMOVE_EVENT'
-        ? 'CAST_UNDO_VOTE'
-        : 'CAST_UPDATE_VOTE';
+        ? SocketAction.CAST_UNDO_VOTE
+        : SocketAction.CAST_UPDATE_VOTE;
 
-    wsService.emit(
-      'action',
+    // A refused vote is shown in this panel's own error banner, so no toast as well.
+    sendAction(
+      actionType,
       {
-        type: actionType,
-        payload: {
-          gameId,
-          disputeId: dispute.id,
-          officialId,
-          vote,
-        },
+        gameId,
+        disputeId: dispute.id,
+        officialId,
+        vote,
       },
-      () => {}
-    );
+      { suppressToast: true }
+    ).then((result) => {
+      if (!result.ok) setErrorMessage(result.message);
+    });
   };
 
   return (

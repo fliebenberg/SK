@@ -22,6 +22,7 @@ export interface Organization {
   isActive?: boolean;
   settings?: Record<string, any>;
   type?: OrganizationType;
-  customType?: string;
+  /** `null` on an update clears it. */
+  customType?: string | null;
 }
 

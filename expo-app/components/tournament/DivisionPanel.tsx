@@ -19,6 +19,7 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { DivisionEntrantsEditor } from './DivisionEntrantsEditor';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
 import { wsService } from '../../services/websocket';
+import { sendAction } from '../../services/actions';
 import { useWsStore } from '../../store/wsStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../constants/Colors';
@@ -198,24 +199,18 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
 
   const handleAddStage = () => {
     setIsSavingStage(true);
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.ADD_STAGE,
-        payload: {
-          divisionId,
-          orgId,
-          // Named for what it usually is at this point. Renamable, like every other stage (D3).
-          name: `Stage ${orderedStages.length + 1}`,
-          format: 'Knockout',
-        },
-      },
-      (res: any) => {
-        setIsSavingStage(false);
-        setIsAddingStage(false);
-        if (res?.data?.id) setActiveStageId(res.data.id);
-      }
-    );
+    sendAction(SocketAction.ADD_STAGE, {
+      divisionId,
+      orgId,
+      // Named for what it usually is at this point. Renamable, like every other stage (D3).
+      name: `Stage ${orderedStages.length + 1}`,
+      format: 'Knockout',
+    }).then(result => {
+      setIsSavingStage(false);
+      setIsAddingStage(false);
+      // A refusal is already toasted.
+      if (result.ok) setActiveStageId(result.data.id);
+    });
   };
 
   const announcement = structureAnnouncement({
@@ -259,30 +254,25 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
   const runGeneration = (stage: TournamentStage, mode: 'create' | 'regenerate', deleteResults = false) => {
     setIsGenerating(true);
     setGenerationError(null);
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.GENERATE_STAGE_FIXTURES,
-        payload: { stageId: stage.id, orgId, mode, deleteResults },
-      },
-      (res: any) => {
-        setIsGenerating(false);
-        if (res?.error) {
-          // The server refuses for reasons the client cannot always predict — too few entrants, a
-          // division with no sport, a Swiss stage. Its sentence is more specific than anything
-          // this screen could compose, so it is shown rather than replaced.
-          setGenerationError(res.error);
-          return;
-        }
-        setGenerateFor(null);
-        setIsConfirmingResults(false);
-        setActiveStageId(stage.id);
-      },
-      15000,
+    sendAction(
+      SocketAction.GENERATE_STAGE_FIXTURES,
+      { stageId: stage.id, orgId, mode, deleteResults },
       // The dialog shows the refusal itself, with the counts in it. A toast on top of that is the
       // same sentence twice.
-      { suppressToast: true }
-    );
+      { timeoutMs: 15000, suppressToast: true }
+    ).then(result => {
+      setIsGenerating(false);
+      if (!result.ok) {
+        // The server refuses for reasons the client cannot always predict — too few entrants, a
+        // division with no sport, a Swiss stage. Its sentence is more specific than anything
+        // this screen could compose, so it is shown rather than replaced.
+        setGenerationError(result.message);
+        return;
+      }
+      setGenerateFor(null);
+      setIsConfirmingResults(false);
+      setActiveStageId(stage.id);
+    });
   };
 
   const renderFixtures = (stage: TournamentStage | null) => {

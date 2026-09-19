@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from './Button';
 import { useAuthStore } from '../store/authStore';
 import { useActiveTheme } from '../store/settingsStore';
-import { wsService } from '../services/websocket';
+import { sendAction } from '../services/actions';
 import { SocketAction } from '@sk/shared';
 import { getThemeColor } from '../constants';
 
@@ -39,21 +39,18 @@ export function NominationModal({ visible, onClose, orgId, orgName, onSuccess }:
 
     setSubmitting(true);
     
-    wsService.emit('action', {
-      type: 'REFER_ORG_CONTACT',
-      payload: { 
-        orgId, 
-        contactEmails: [email.trim().toLowerCase()], 
-        referredByUserId: user.id 
-      }
-    }, (res: any) => {
+    sendAction(SocketAction.REFER_ORG_CONTACT, {
+      orgId,
+      contactEmails: [email.trim().toLowerCase()],
+      referredByUserId: user.id,
+    }).then(result => {
       setSubmitting(false);
-      if (res && res.error) {
-        Alert.alert('Nomination Error', res.error || 'Failed to submit nomination invitation.');
-      } else {
-        setSuccess(true);
-        if (onSuccess) onSuccess();
+      if (!result.ok) {
+        Alert.alert('Nomination Error', result.message);
+        return;
       }
+      setSuccess(true);
+      if (onSuccess) onSuccess();
     });
   };
 

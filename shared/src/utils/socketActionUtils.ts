@@ -15,3 +15,15 @@ export function createSocketAction<K extends SocketAction>(
 ): TypedSocketAction<K> {
   return { type, payload };
 }
+
+/**
+ * What the server answers every `action` with — its one exit, at the foot of the action handler in
+ * `server/src/index.ts`. The result is **inside `data`**: an `ADD_TEAM` is answered
+ * `{ status: 'ok', data: team }`, never with the team itself. Reading the ack as the result is
+ * how a created team was reported as a failure (`FIX-18`).
+ *
+ * `get_data` and the REST routes answer differently — see `okf/api_comms.md`.
+ */
+export type ActionAck<T = unknown> =
+  | { status: 'ok'; data: T }
+  | { status: 'error'; message: string };

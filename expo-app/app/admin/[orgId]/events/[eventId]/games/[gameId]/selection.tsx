@@ -22,6 +22,7 @@ import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChangesStore';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { wsService } from '../../../../../../../services/websocket';
+import { sendAction } from '../../../../../../../services/actions';
 import { COLORS } from '../../../../../../../constants/Colors';
 import { SocketAction } from '@sk/shared';
 
@@ -369,26 +370,17 @@ export default function GameSelectionScreen() {
   const handleSave = () => {
     if (!currentParticipant?.id || !canEditCurrentTeam || !game?.id) return;
     setIsSaving(true);
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.SAVE_GAME_ROSTER,
-        payload: {
-          gameId: game.id,
-          participantId: currentParticipant.id,
-          items: roster,
-        },
-      },
-      (res: any) => {
-        setIsSaving(false);
-        if (res && res.status === 'ok') {
-          setOriginalRoster(roster);
-          useUnsavedChangesStore.getState().clear();
-        } else {
-          console.error('Failed to save game roster:', res?.message || 'Unknown error');
-        }
+    sendAction(SocketAction.SAVE_GAME_ROSTER, {
+      gameId: game.id,
+      participantId: currentParticipant.id,
+      items: roster,
+    }).then((result) => {
+      setIsSaving(false);
+      if (result.ok) {
+        setOriginalRoster(roster);
+        useUnsavedChangesStore.getState().clear();
       }
-    );
+    });
   };
 
   // Reserve Limit

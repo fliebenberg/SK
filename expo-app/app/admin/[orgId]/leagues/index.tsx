@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
+import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Sport, Organization } from '@sk/shared';
 import { getOrgLogoUrl } from '../../../../services/api';
@@ -43,7 +44,6 @@ export default function OrgLeagues() {
 
   // Deletion Modal State
   const [leagueToDelete, setLeagueToDelete] = useState<League | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Logo Picker Handler
   const handlePickLeagueLogo = async () => {
@@ -175,10 +175,10 @@ export default function OrgLeagues() {
       logo: newLeagueLogo || undefined
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_LEAGUE as any, payload }, (res: any) => {
+    sendAction(SocketAction.ADD_LEAGUE, payload, { suppressToast: true }).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setCreateError(res.message || "Failed to create league.");
+      if (!result.ok) {
+        setCreateError(result.message);
       } else {
         setIsCreateModalOpen(false);
         setNewLeagueName('');
@@ -194,15 +194,11 @@ export default function OrgLeagues() {
   const confirmDeleteLeague = () => {
     if (!leagueToDelete) return;
     setIsProcessing(true);
-    setDeleteError(null);
 
-    wsService.emit('action', { type: SocketAction.DELETE_LEAGUE as any, payload: { id: leagueToDelete.id } }, (res: any) => {
+    // Toasted rather than shown inline. On failure the dialog stays open.
+    sendAction(SocketAction.DELETE_LEAGUE, { id: leagueToDelete.id }).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setDeleteError(res.message || "Failed to delete league.");
-      } else {
-        setLeagueToDelete(null);
-      }
+      if (result.ok) setLeagueToDelete(null);
     });
   };
 

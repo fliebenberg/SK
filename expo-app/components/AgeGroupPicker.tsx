@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AgeGroup, SocketAction, ageGroupNameKey, sortAgeGroups } from '@sk/shared';
-import { wsService } from '../services/websocket';
-import { reportActionError } from '../utils/actionErrors';
+import { sendAction } from '../services/actions';
 
 /**
  * Chooses an age group from a sport's list — the one control every screen that gives a team,
@@ -92,18 +91,15 @@ export function AgeGroupPicker({
       return;
     }
     setIsAdding(true);
-    wsService.emit(
-      'action',
-      { type: SocketAction.ADD_AGE_GROUP, payload: { sportId, name, orgId } },
-      (response: any) => {
-        setIsAdding(false);
-        if (reportActionError(response, 'That age group could not be added.')) return;
-        const group: AgeGroup = response.data;
-        setAdded(prev => [...prev, group]);
-        setDraft('');
-        onChange(group.id, group);
-      }
-    );
+    sendAction(SocketAction.ADD_AGE_GROUP, { sportId, name, orgId }).then(result => {
+      setIsAdding(false);
+      // A refusal is already toasted; the draft is kept so it can be corrected.
+      if (!result.ok) return;
+      const group = result.data;
+      setAdded(prev => [...prev, group]);
+      setDraft('');
+      onChange(group.id, group);
+    });
   };
 
   return (

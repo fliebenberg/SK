@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { OrgClaimStatus, SocketAction } from '@sk/shared';
 import { Button } from './Button';
 import { wsService } from '../services/websocket';
+import { sendAction } from '../services/actions';
 import { useAuthStore } from '../store/authStore';
 import { useActiveTheme } from '../store/settingsStore';
 import { COLORS, getThemeColor } from '../constants/Colors';
@@ -110,14 +111,16 @@ export function UnclaimedOrgBadge({ org, size = 14, className = '', onHoverChang
     const address = email.trim().toLowerCase();
     if (!address.includes('@') || !userId) return;
     setSending(true);
-    wsService.emitAction(
+    sendAction(
       SocketAction.REFER_ORG_CONTACT,
-      { orgId: org.id, contactEmails: [address], referredByUserId: userId },
-      (res: any) => {
+      { orgId: org.id, contactEmails: [address], referredByUserId: userId }
+    ).then(result => {
         setSending(false);
-        // A rejection has already been toasted by the socket service; keep the form open.
-        if (!res || res.error) return;
-        const row = Array.isArray(res) ? res[0] : null;
+        // A failure has already been toasted; keep the form open.
+        if (!result.ok) return;
+        // The referrals are in `data`. This used to test the ack itself with `Array.isArray`, so
+        // `row` was always null and an answered nomination was always reported as "sent".
+        const row = Array.isArray(result.data) ? result.data[0] : null;
         // Claimed, declined or passed on: the nominee has answered, and this is not a referral.
         if (row && row.status !== 'pending') {
           const answered: Answered =
@@ -127,8 +130,7 @@ export function UnclaimedOrgBadge({ org, size = 14, className = '', onHoverChang
         }
         setSentEmails(prev => (prev.includes(address) ? prev : [...prev, address]));
         setSentTo({ email: address, outcome: row && row.emailSent === false ? 'already-invited' : 'sent' });
-      }
-    );
+      });
   };
 
   return (

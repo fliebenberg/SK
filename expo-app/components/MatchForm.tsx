@@ -7,6 +7,7 @@ import DatePicker from './DatePicker';
 import { COLORS, getThemeColor } from '../constants/Colors';
 import { useActiveTheme } from '../store/settingsStore';
 import { wsService } from '../services/websocket';
+import { sendAction } from '../services/actions';
 import { useWsStore } from '../store/wsStore';
 import { SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/shared';
 import { useAuthStore } from '../store/authStore';
@@ -364,31 +365,31 @@ export default function MatchForm({
       isClaimed: false,
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_ORG, payload }, (res: any) => {
-      const org = res?.data || res;
-      if (org && org.id) {
-        const email = newOrgContactEmail.trim();
-        const currentUserId = useAuthStore.getState().user?.id;
-        if (email && currentUserId) {
-          setPendingReferrals(prev => ({
-            ...prev,
-            [org.id]: [email],
-          }));
-        }
-
-        if (isCreatingHomeOrg) {
-          setSelectedHomeOrg(org);
-          setHomeOrgSearchText('');
-        } else {
-          setSelectedAwayOrg(org);
-          setAwayOrgSearchText('');
-        }
-
-        setIsCreatingOrg(false);
-        setNewOrgName('');
-        setNewOrgShortName('');
-        setNewOrgContactEmail('');
+    sendAction(SocketAction.ADD_ORG, payload).then(result => {
+      // A refusal is already toasted; the modal stays open with what was typed.
+      if (!result.ok) return;
+      const org = result.data;
+      const email = newOrgContactEmail.trim();
+      const currentUserId = useAuthStore.getState().user?.id;
+      if (email && currentUserId) {
+        setPendingReferrals(prev => ({
+          ...prev,
+          [org.id]: [email],
+        }));
       }
+
+      if (isCreatingHomeOrg) {
+        setSelectedHomeOrg(org);
+        setHomeOrgSearchText('');
+      } else {
+        setSelectedAwayOrg(org);
+        setAwayOrgSearchText('');
+      }
+
+      setIsCreatingOrg(false);
+      setNewOrgName('');
+      setNewOrgShortName('');
+      setNewOrgContactEmail('');
     });
   };
 
@@ -396,22 +397,21 @@ export default function MatchForm({
   const handleQuickCreateSite = () => {
     if (!newSiteName.trim()) return;
 
+    // The site itself is the payload — the server reads `name` and `orgId` off it directly.
     const payload = {
-      site: {
-        name: newSiteName.trim(),
-        orgId: orgId,
-        address: { fullAddress: 'TBD' },
-      },
+      name: newSiteName.trim(),
+      orgId: orgId,
+      // The server creates the address and assigns its id, which the model type requires.
+      address: { fullAddress: 'TBD' } as Site['address'],
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_SITE, payload }, (res: any) => {
-      const site = res?.data || res;
-      if (site && site.id) {
-        setSites(prev => [...prev, site]);
-        setSelectedSiteId(site.id);
-        setIsCreatingSite(false);
-        setNewSiteName('');
-      }
+    sendAction(SocketAction.ADD_SITE, payload).then(result => {
+      if (!result.ok) return;
+      const site = result.data;
+      setSites(prev => [...prev, site]);
+      setSelectedSiteId(site.id);
+      setIsCreatingSite(false);
+      setNewSiteName('');
     });
   };
 
@@ -452,21 +452,20 @@ export default function MatchForm({
       isActive: true,
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_TEAM, payload }, (res: any) => {
-      const team = res?.data || res;
-      if (team && team.id) {
-        if (targetOrgIdForTeam === selectedHomeOrg?.id) {
-          setHomeTeams(prev => [...prev, team]);
-          setSelectedHomeTeamId(team.id);
-        } else {
-          setAwayTeams(prev => [...prev, team]);
-          setSelectedAwayTeamId(team.id);
-        }
-        setIsCreatingTeam(false);
-        setNewTeamName('');
-        setNewTeamShortName('');
-        setNewTeamAgeGroupId(null);
+    sendAction(SocketAction.ADD_TEAM, payload).then(result => {
+      if (!result.ok) return;
+      const team = result.data;
+      if (targetOrgIdForTeam === selectedHomeOrg?.id) {
+        setHomeTeams(prev => [...prev, team]);
+        setSelectedHomeTeamId(team.id);
+      } else {
+        setAwayTeams(prev => [...prev, team]);
+        setSelectedAwayTeamId(team.id);
       }
+      setIsCreatingTeam(false);
+      setNewTeamName('');
+      setNewTeamShortName('');
+      setNewTeamAgeGroupId(null);
     });
   };
 

@@ -8,6 +8,7 @@ import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, OrganizationType } from '@sk/shared';
 
@@ -575,6 +576,7 @@ export default function OrgSettings() {
         description: description.trim(),
         supportedSportIds: supportedSportIds,
         type: type,
+        // null clears the column; undefined would be dropped from the JSON and leave it as it was.
         customType: type === 'OTHER' ? customType.trim() : null,
         settings: {
           ...settings,
@@ -583,9 +585,9 @@ export default function OrgSettings() {
       }
     };
 
-    wsService.emit('action', { type: SocketAction.UPDATE_ORG, payload }, (res: any) => {
+    sendAction(SocketAction.UPDATE_ORG, payload).then(result => {
       setIsSaving(false);
-      if (res && res.status !== 'error') {
+      if (result.ok) {
         setSaveSuccess(true);
         setOriginalData({
           orgName: orgName.trim(),
@@ -601,9 +603,8 @@ export default function OrgSettings() {
         });
         useUnsavedChangesStore.getState().clear();
         setTimeout(() => setSaveSuccess(false), 3000);
-      } else {
-        console.error('Failed to update organization');
       }
+      // A failure is toasted and logged by sendAction; the edits stay dirty so they can be retried.
     });
   };
 

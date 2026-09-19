@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSettingsStore, useActiveTheme } from '../../../../store/settingsStore';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
+import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Site, Facility, Address } from '@sk/shared';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
@@ -702,12 +703,9 @@ export default function SiteDetailScreen() {
     };
 
     if (editingSite) {
-      wsService.emit('action', {
-        type: SocketAction.UPDATE_SITE,
-        payload: { id: editingSite.id, data: payload }
-      }, (res: any) => {
+      sendAction(SocketAction.UPDATE_SITE, { id: editingSite.id, data: payload }).then(result => {
         setIsProcessing(false);
-        if (res.status === 'ok') {
+        if (result.ok) {
           setOriginalData({
             name: siteForm.name.trim(),
             isActive: siteForm.isActive,
@@ -715,23 +713,20 @@ export default function SiteDetailScreen() {
           });
           useUnsavedChangesStore.getState().clear();
         } else {
-          Alert.alert('Save Failed', res.message || 'Could not update site');
+          Alert.alert('Save Failed', result.message || 'Could not update site');
         }
       });
     } else {
-      wsService.emit('action', {
-        type: SocketAction.ADD_SITE,
-        payload: { ...payload, orgId }
-      }, (res: any) => {
-        if (res.status === 'ok') {
+      sendAction(SocketAction.ADD_SITE, { ...payload, orgId }).then(result => {
+        if (result.ok) {
           useUnsavedChangesStore.getState().clear();
           router.replace({
             pathname: '/admin/[orgId]/sites/[siteId]',
-            params: { orgId: orgId!, siteId: res.data.id }
+            params: { orgId: orgId!, siteId: result.data.id }
           });
         } else {
           setIsProcessing(false);
-          Alert.alert('Save Failed', res.message || 'Could not create site');
+          Alert.alert('Save Failed', result.message || 'Could not create site');
         }
       });
     }
@@ -742,16 +737,14 @@ export default function SiteDetailScreen() {
     if (!editingSite) return;
     setIsProcessing(true);
     setDeleteError(null);
-    wsService.emit('action', {
-      type: SocketAction.DELETE_SITE,
-      payload: { id: editingSite.id }
-    }, (res: any) => {
+    // Shown inline in the confirmation modal, so no toast.
+    sendAction(SocketAction.DELETE_SITE, { id: editingSite.id }, { suppressToast: true }).then(result => {
       setIsProcessing(false);
-      if (res.status === 'ok') {
+      if (result.ok) {
         setIsDeleteModalOpen(false);
         router.replace(`/admin/${orgId}/sites` as any);
       } else {
-        setDeleteError(res.message || 'Site is currently linked to events or games and cannot be deleted.');
+        setDeleteError(result.message || 'Site is currently linked to events or games and cannot be deleted.');
       }
     });
   };
@@ -781,15 +774,13 @@ export default function SiteDetailScreen() {
     if (!facilityToDelete) return;
     setIsProcessing(true);
     setFacilityDeleteError(null);
-    wsService.emit('action', {
-      type: SocketAction.DELETE_FACILITY,
-      payload: { id: facilityToDelete.id }
-    }, (res: any) => {
+    // Shown inline in the confirmation modal, so no toast.
+    sendAction(SocketAction.DELETE_FACILITY, { id: facilityToDelete.id }, { suppressToast: true }).then(result => {
       setIsProcessing(false);
-      if (res.status === 'ok') {
+      if (result.ok) {
         setFacilityToDelete(null);
       } else {
-        setFacilityDeleteError(res.message || 'Facility is used in games and cannot be deleted.');
+        setFacilityDeleteError(result.message || 'Facility is used in games and cannot be deleted.');
       }
     });
   };

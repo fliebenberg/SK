@@ -1,8 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Game, SinBin } from '@sk/shared';
-import { wsService } from '../../../services/websocket';
-import { reportActionError } from '../../../utils/actionErrors';
+import { Game, SinBin, SocketAction } from '@sk/shared';
+import { sendAction } from '../../../services/actions';
 import { useGameTimer } from '../../../hooks/useGameTimer';
 import { LiveClockText } from '../shared/LiveClockText';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,14 +58,9 @@ export default function RugbyScoreboard({ game, role }: { game: Game; role?: str
   const awaySinBins = game.liveState?.sinBins?.filter(sb => sb.teamId === awayTeamId) || [];
 
   const handleClearSinBin = (sinBinId: string) => {
-    wsService.emit(
-      'action',
-      {
-      type: 'REMOVE_SIN_BIN',
-      payload: { gameId: game.id, sinBinId }
-    },
-      (response: any) => reportActionError(response, 'That sin bin could not be cleared.')
-    );
+    // The badge goes when the server broadcasts the updated game, so there is nothing to do on
+    // success; a failure is announced by `sendAction`.
+    void sendAction(SocketAction.REMOVE_SIN_BIN, { gameId: game.id, sinBinId });
   };
 
   const periodLabel = game.liveState?.periodLabel || (game.status === 'Scheduled' ? 'SCHEDULED' : 'LIVE');

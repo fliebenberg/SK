@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
+import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, OrgMember } from '@sk/shared';
 import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
@@ -155,41 +156,27 @@ export default function EditMember() {
     setIsProcessing(true);
     try {
       // 1. Update Profile
-      await new Promise((resolve, reject) => {
-        wsService.emit('action', {
-          type: SocketAction.UPDATE_ORG_PROFILE,
-          payload: {
-            id: form.id,
-            data: {
-              name: form.name,
-              email: form.email || undefined,
-              cellphone: form.cellphone || undefined,
-              birthdate: form.birthdate || undefined,
-              nationalId: form.nationalId || undefined,
-              image: form.image || undefined,
-              imageConfig: form.imageConfig,
-              identifier: form.personOrgId || undefined,
-            }
-          }
-        }, (res: any) => {
-          if (res.status === 'ok') resolve(res.data);
-          else reject(new Error(res.message || 'Failed to update profile'));
-        });
+      const profileResult = await sendAction(SocketAction.UPDATE_ORG_PROFILE, {
+        id: form.id,
+        data: {
+          name: form.name,
+          email: form.email || undefined,
+          cellphone: form.cellphone || undefined,
+          birthdate: form.birthdate || undefined,
+          nationalId: form.nationalId || undefined,
+          image: form.image || undefined,
+          imageConfig: form.imageConfig,
+          identifier: form.personOrgId || undefined,
+        }
       });
+      if (!profileResult.ok) throw new Error(`Failed to update profile: ${profileResult.message}`);
 
       // 2. Update Member Role
-      await new Promise((resolve, reject) => {
-        wsService.emit('action', {
-          type: SocketAction.UPDATE_ORG_MEMBER,
-          payload: {
-            id: form.membershipId,
-            roleId: form.roleId
-          }
-        }, (res: any) => {
-          if (res.status === 'ok') resolve(res.data);
-          else reject(new Error(res.message || 'Failed to update role'));
-        });
+      const roleResult = await sendAction(SocketAction.UPDATE_ORG_MEMBER, {
+        id: form.membershipId,
+        roleId: form.roleId
       });
+      if (!roleResult.ok) throw new Error(`Failed to update role: ${roleResult.message}`);
 
       setOriginalData(JSON.stringify(form));
       useUnsavedChangesStore.getState().clear();
@@ -207,15 +194,13 @@ export default function EditMember() {
     setIsProcessing(true);
     setDeleteError(null);
     try {
-      await new Promise((resolve, reject) => {
-        wsService.emit('action', {
-          type: SocketAction.REMOVE_ORG_MEMBER,
-          payload: { id: form.membershipId }
-        }, (res: any) => {
-          if (res.status === 'ok') resolve(res);
-          else reject(new Error(res.message || 'Failed to remove member'));
-        });
-      });
+      // Shown inline in the confirmation modal, so no toast.
+      const result = await sendAction(
+        SocketAction.REMOVE_ORG_MEMBER,
+        { id: form.membershipId },
+        { suppressToast: true }
+      );
+      if (!result.ok) throw new Error(result.message || 'Failed to remove member');
       setIsDeleteModalOpen(false);
       useUnsavedChangesStore.getState().clear();
       safeBack(`/admin/${orgId}/people`);

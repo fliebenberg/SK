@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
+import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Team, Sport, Organization, TeamMember, GameSummary, participantLabel } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
@@ -353,21 +354,19 @@ export default function TeamDetailsScreen() {
     }
 
     setIsProcessing(true);
-    wsService.emit('action', {
-      type: SocketAction.UPDATE_TEAM,
-      payload: {
-        id: teamId,
-        data: {
-          name: detailsForm.name.trim(),
-          shortName: detailsForm.shortName.trim() || null,
-          sportId: detailsForm.sportId,
-          ageGroupId: detailsForm.ageGroupId,
-          isActive: detailsForm.isActive
-        }
+    sendAction(SocketAction.UPDATE_TEAM, {
+      id: teamId,
+      data: {
+        name: detailsForm.name.trim(),
+        // null clears the column; undefined would be dropped from the JSON and leave it as it was.
+        shortName: detailsForm.shortName.trim() || null,
+        sportId: detailsForm.sportId,
+        ageGroupId: detailsForm.ageGroupId,
+        isActive: detailsForm.isActive
       }
-    }, (res: any) => {
+    }).then(result => {
       setIsProcessing(false);
-      if (res.status === 'ok') {
+      if (result.ok) {
         setOriginalDetails({
           name: detailsForm.name.trim(),
           shortName: detailsForm.shortName.trim(),
@@ -377,7 +376,7 @@ export default function TeamDetailsScreen() {
         });
         useUnsavedChangesStore.getState().clear();
       } else {
-        Alert.alert('Save Failed', res.message || 'Could not update details');
+        Alert.alert('Save Failed', result.message || 'Could not update details');
       }
     });
   };
@@ -394,16 +393,14 @@ export default function TeamDetailsScreen() {
   const handleDeleteTeam = () => {
     setIsProcessing(true);
     setDeleteError(null);
-    wsService.emit('action', {
-      type: SocketAction.DELETE_TEAM,
-      payload: { id: teamId }
-    }, (res: any) => {
+    // Shown inline in the confirmation modal, so no toast.
+    sendAction(SocketAction.DELETE_TEAM, { id: teamId }, { suppressToast: true }).then(result => {
       setIsProcessing(false);
-      if (res.status === 'ok') {
+      if (result.ok) {
         setIsDeleteModalOpen(false);
         router.replace(`/admin/${orgId}/teams`);
       } else {
-        setDeleteError(res.message || 'Could not delete team');
+        setDeleteError(result.message || 'Could not delete team');
       }
     });
   };
@@ -412,12 +409,9 @@ export default function TeamDetailsScreen() {
   const handleSendInvite = (member: any) => {
     if (!member.email) return;
 
-    wsService.emit('action', {
-      type: SocketAction.SEND_MEMBER_INVITE,
-      payload: { memberId: member.id }
-    }, (res: any) => {
-      if (res && res.status === 'error') {
-        Alert.alert('Invite Error', res.message);
+    sendAction(SocketAction.SEND_MEMBER_INVITE, { memberId: member.id }).then(result => {
+      if (!result.ok) {
+        Alert.alert('Invite Error', result.message);
       } else {
         Alert.alert('Success', `Invitation sent to ${member.name}`);
         wsService.emit('get_data', { type: 'team_members', teamId }, (resData: any) => {
@@ -466,43 +460,29 @@ export default function TeamDetailsScreen() {
         });
 
         // 2. Add organization profile
-        const newProfile: any = await new Promise((resolve, reject) => {
-          wsService.emit('action', {
-            type: SocketAction.ADD_ORG_PROFILE,
-            payload: {
-              id: matchingUser?.id || `profile-${Date.now()}`,
-              name: name.trim(),
-              email: memberEmail || undefined,
-              cellphone: memberCellphone || undefined,
-              birthdate: memberBirthdate || undefined,
-              identifier: memberOrgId || undefined,
-              image: memberImage || undefined,
-              imageConfig: memberImageConfig,
-              orgId
-            }
-          }, (response: any) => {
-            if (response.status === 'ok') resolve(response.data);
-            else reject(new Error(response.message || 'Failed to create profile'));
-          });
+        const profileResult = await sendAction(SocketAction.ADD_ORG_PROFILE, {
+          id: matchingUser?.id || `profile-${Date.now()}`,
+          name: name.trim(),
+          email: memberEmail || undefined,
+          cellphone: memberCellphone || undefined,
+          birthdate: memberBirthdate || undefined,
+          identifier: memberOrgId || undefined,
+          image: memberImage || undefined,
+          imageConfig: memberImageConfig,
+          orgId
         });
-        profileId = newProfile.id;
+        if (!profileResult.ok) throw new Error(`Failed to create profile: ${profileResult.message}`);
+        profileId = profileResult.data.id;
       }
 
       // 3. Link team membership (server handles organization role-org-member automatically on background)
       if (profileId) {
-        await new Promise((resolve, reject) => {
-          wsService.emit('action', {
-            type: SocketAction.ADD_TEAM_MEMBER,
-            payload: {
-              orgProfileId: profileId,
-              teamId,
-              roleId
-            }
-          }, (res: any) => {
-            if (res.status === 'ok') resolve(res.data);
-            else reject(new Error(res.message || 'Failed to add team member'));
-          });
+        const memberResult = await sendAction(SocketAction.ADD_TEAM_MEMBER, {
+          orgProfileId: profileId,
+          teamId,
+          roleId
         });
+        if (!memberResult.ok) throw new Error(`Failed to add team member: ${memberResult.message}`);
       }
 
       closeFn();
@@ -527,13 +507,15 @@ export default function TeamDetailsScreen() {
     if (!rosterMemberToRemove) return;
     setIsProcessing(true);
     setRosterRemoveError(null);
-    wsService.emit('action', {
-      type: SocketAction.REMOVE_TEAM_MEMBER,
-      payload: { id: rosterMemberToRemove.membershipId }
-    }, (res: any) => {
+    // Shown inline in the confirmation modal, so no toast.
+    sendAction(
+      SocketAction.REMOVE_TEAM_MEMBER,
+      { id: rosterMemberToRemove.membershipId },
+      { suppressToast: true }
+    ).then(result => {
       setIsProcessing(false);
-      if (res.status !== 'ok') {
-        setRosterRemoveError(res.message || 'Could not remove member');
+      if (!result.ok) {
+        setRosterRemoveError(result.message || 'Could not remove member');
       } else {
         setRosterMemberToRemove(null);
         // Refresh list
@@ -550,27 +532,19 @@ export default function TeamDetailsScreen() {
 
     try {
       // 1. Save updated profile name
-      await new Promise((resolve, reject) => {
-        wsService.emit('action', {
-          type: SocketAction.UPDATE_ORG_PROFILE,
-          payload: { id: profileId, data: { name: newName.trim() } }
-        }, (res: any) => {
-          if (res.status === 'ok') resolve(res.data);
-          else reject(new Error(res.message || 'Failed to update profile name'));
-        });
+      const nameResult = await sendAction(SocketAction.UPDATE_ORG_PROFILE, {
+        id: profileId,
+        data: { name: newName.trim() }
       });
+      if (!nameResult.ok) throw new Error(`Failed to update profile name: ${nameResult.message}`);
 
       // 2. Save updated role if provided (staff view)
       if (membershipId && newRole) {
-        await new Promise((resolve, reject) => {
-          wsService.emit('action', {
-            type: SocketAction.UPDATE_TEAM_MEMBER,
-            payload: { id: membershipId, data: { roleId: newRole } }
-          }, (res: any) => {
-            if (res.status === 'ok') resolve(res.data);
-            else reject(new Error(res.message || 'Failed to update team role'));
-          });
+        const roleResult = await sendAction(SocketAction.UPDATE_TEAM_MEMBER, {
+          id: membershipId,
+          data: { roleId: newRole }
         });
+        if (!roleResult.ok) throw new Error(`Failed to update team role: ${roleResult.message}`);
       }
 
       // Refresh data

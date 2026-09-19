@@ -7,6 +7,8 @@ import { Button } from '../../components/Button';
 import { GlassCard } from '../../components/GlassCard';
 import { OrgLogo } from '../../components/OrgLogo';
 import { wsService } from '../../services/websocket';
+import { sendAction } from '../../services/actions';
+import { SocketAction } from '@sk/shared';
 import { useWsStore } from '../../store/wsStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,16 +65,17 @@ export default function ReferScreen() {
     }
 
     setSubmitting(true);
-    wsService.emit('action', {
-      type: 'REFER_ORG_CONTACT_VIA_TOKEN',
-      payload: { token, contactEmails: [email.trim().toLowerCase()] }
-    }, (res: any) => {
+    sendAction(SocketAction.REFER_ORG_CONTACT_VIA_TOKEN, {
+      token: token as string,
+      contactEmails: [email.trim().toLowerCase()],
+    }).then(result => {
       setSubmitting(false);
-      if (res && res.error) {
-        Alert.alert('Error', res.error || 'Failed to submit referral.');
-      } else {
-        setSubmitted(true);
+      // A missing reply used to count as submitted. The toast covers web, where Alert is a no-op.
+      if (!result.ok) {
+        Alert.alert('Error', result.message);
+        return;
       }
+      setSubmitted(true);
     });
   };
 

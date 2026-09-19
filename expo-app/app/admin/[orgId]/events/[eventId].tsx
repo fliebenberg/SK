@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
+import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { useAuthStore } from '../../../../store/authStore';
 import {
@@ -35,7 +36,6 @@ import {
 import { OverflowMenu } from '../../../../components/OverflowMenu';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { formatDateRange, dateCountdown } from '../../../../utils/dates';
-import { reportActionError } from '../../../../utils/actionErrors';
 import { SETUP_STEPS } from '../../../../components/tournament/setupSteps';
 import { StandingsTable } from '../../../../components/tournament/StandingsTable';
 import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
@@ -391,19 +391,11 @@ export default function EventDetails() {
 
   const saveDismissed = (next: string[]) => {
     if (!event) return;
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.UPDATE_EVENT,
-        payload: {
-          id: eventId,
-          userId: user?.id,
-          orgId,
-          data: { settings: { ...(event.settings || {}), dismissedSetupSteps: next } },
-        },
-      },
-      (response: any) => reportActionError(response, 'That step could not be put away.')
-    );
+    void sendAction(SocketAction.UPDATE_EVENT, {
+      id: eventId,
+      orgId,
+      data: { settings: { ...(event.settings || {}), dismissedSetupSteps: next } },
+    });
   };
 
   /**
@@ -565,30 +557,28 @@ export default function EventDetails() {
 
   const handleCancelEvent = () => {
     setIsProcessing(true);
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.UPDATE_EVENT,
-        payload: { id: eventId, userId: user?.id, orgId, data: { status: 'Cancelled' } },
-      },
-      () => {
-        setIsProcessing(false);
-        setIsCancelling(false);
-      }
-    );
+    // `orgId`: as in `saveDismissed`. The status follows the event room; a refusal is toasted.
+    sendAction(SocketAction.UPDATE_EVENT, {
+      id: eventId,
+      orgId,
+      data: { status: 'Cancelled' },
+    }).then(() => {
+      setIsProcessing(false);
+      setIsCancelling(false);
+    });
   };
 
   const handleDeleteEvent = () => {
     setIsProcessing(true);
-    wsService.emit(
-      'action',
-      { type: SocketAction.DELETE_EVENT, payload: { id: eventId, userId: user?.id, orgId } },
-      () => {
-        setIsProcessing(false);
-        setIsDeleting(false);
-        router.push(`/admin/${orgId}/events`);
-      }
-    );
+    sendAction(SocketAction.DELETE_EVENT, {
+      id: eventId,
+      orgId,
+    }).then(result => {
+      setIsProcessing(false);
+      setIsDeleting(false);
+      // A failed delete leaves the organiser on the event; the refusal is already toasted.
+      if (result.ok) router.push(`/admin/${orgId}/events`);
+    });
   };
 
   // ------------------------------------------------------------------------------------------

@@ -33,6 +33,15 @@ found and deliberately parked, grouped by area, each with a stable ID.
 
 Full rule: [.agent/skills/todo-checkin/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/todo-checkin/SKILL.md).
 
+## Client–server calls: no silent failures
+
+Every socket action the app sends goes through `sendAction` in
+[expo-app/services/actions.ts](file:///c:/Fred/Coding/SK/expo-app/services/actions.ts) — never
+`wsService.emit('action', …)`. On failure, do nothing that implies success (no navigating, no
+clearing unsaved changes). Run `npm run check:actions` in `expo-app/` before committing client
+changes. Full rule, including the three reply formats:
+[.agent/skills/action-replies/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/action-replies/SKILL.md).
+
 ## Keep the docs in step
 
 Feature, schema, API and workflow changes must be reflected in `okf/` and `docs/` as part of the same

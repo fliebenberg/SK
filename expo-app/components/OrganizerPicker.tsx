@@ -6,7 +6,7 @@ import { useActiveTheme } from '../store/settingsStore';
 import { COLORS, getThemeColor } from '../constants/Colors';
 import { FieldLabel } from './FieldLabel';
 import { PersonPickerModal } from './PersonPickerModal';
-import { wsService } from '../services/websocket';
+import { sendAction } from '../services/actions';
 
 /**
  * Appointing an organiser, at either scope (D33).
@@ -94,40 +94,41 @@ export function OrganizerPicker({
     (orgProfileId: string) => {
       setBusyProfileId(orgProfileId);
       setError(null);
-      wsService.emitAction(
+      // The refusal is shown inline, under the list it concerns, rather than toasted.
+      sendAction(
         SocketAction.APPOINT_ORGANIZER,
         { ...scope, orgProfileId, ...(actingOrgId ? { orgId: actingOrgId } : {}) },
-        (response: any) => {
-          setBusyProfileId(null);
-          if (response?.error) {
-            setError(typeof response.error === 'string' ? response.error : 'Could not appoint that person.');
-            return;
-          }
-          // The action answers with the scope's whole list, so this replaces rather than patches.
-          onChange(response?.data?.organizers ?? response?.organizers ?? organizers);
-          setIsPicking(false);
+        { suppressToast: true }
+      ).then(result => {
+        setBusyProfileId(null);
+        if (!result.ok) {
+          setError(result.message);
+          return;
         }
-      );
+        // The action answers with the scope's whole list, so this replaces rather than patches.
+        onChange(result.data.organizers);
+        setIsPicking(false);
+      });
     },
-    [actingOrgId, divisionId, eventId, onChange, organizers]
+    [actingOrgId, divisionId, eventId, onChange]
   );
 
   const withdraw = useCallback(
     (orgProfileId: string) => {
       setBusyProfileId(orgProfileId);
       setError(null);
-      wsService.emitAction(
+      sendAction(
         SocketAction.WITHDRAW_ORGANIZER,
         { ...scope, orgProfileId, ...(actingOrgId ? { orgId: actingOrgId } : {}) },
-        (response: any) => {
-          setBusyProfileId(null);
-          if (response?.error) {
-            setError(typeof response.error === 'string' ? response.error : 'Could not withdraw that person.');
-            return;
-          }
-          onChange(response?.data?.organizers ?? response?.organizers ?? []);
+        { suppressToast: true }
+      ).then(result => {
+        setBusyProfileId(null);
+        if (!result.ok) {
+          setError(result.message);
+          return;
         }
-      );
+        onChange(result.data.organizers);
+      });
     },
     [actingOrgId, divisionId, eventId, onChange]
   );

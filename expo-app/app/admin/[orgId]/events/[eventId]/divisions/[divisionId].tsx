@@ -36,8 +36,8 @@ import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { useEventCapabilities } from '../../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../../hooks/useSafeBack';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
-import { reportActionError } from '../../../../../../utils/actionErrors';
 import { wsService } from '../../../../../../services/websocket';
+import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
@@ -207,17 +207,12 @@ export default function DivisionScreen() {
 
   const handleSaveFacilities = () => {
     setIsSavingFacilities(true);
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.SET_DIVISION_FACILITIES,
-        payload: { divisionId, orgId, facilityIds: draftFacilityIds },
-      },
-      (response: any) => {
-        setIsSavingFacilities(false);
-        reportActionError(response, "The division's fields could not be saved.");
-      }
-    );
+    // The saved list follows the division room, so success needs nothing; a refusal is toasted.
+    sendAction(SocketAction.SET_DIVISION_FACILITIES, {
+      divisionId,
+      orgId,
+      facilityIds: draftFacilityIds,
+    }).then(() => setIsSavingFacilities(false));
   };
 
   /*
@@ -384,27 +379,17 @@ export default function DivisionScreen() {
 
   const writeDetails = () => {
     setIsSavingDetails(true);
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.UPDATE_DIVISION,
-        payload: {
-          id: divisionId,
-          orgId,
-          data: {
-            name: effectiveName,
-            // A division always plays a sport (U52); an empty draft means "not chosen yet" on a
-            // division from before that, and is left out rather than sent as a clear.
-            ...(draftSportId ? { sportId: draftSportId } : {}),
-            ageGroupId: draftAgeGroupId,
-          },
-        },
+    sendAction(SocketAction.UPDATE_DIVISION, {
+      id: divisionId,
+      orgId,
+      data: {
+        name: effectiveName,
+        // A division always plays a sport (U52); an empty draft means "not chosen yet" on a
+        // division from before that, and is left out rather than sent as a clear.
+        ...(draftSportId ? { sportId: draftSportId } : {}),
+        ageGroupId: draftAgeGroupId,
       },
-      (response: any) => {
-        setIsSavingDetails(false);
-        reportActionError(response, 'The division could not be saved.');
-      }
-    );
+    }).then(() => setIsSavingDetails(false));
   };
 
   const handleSaveDetails = () => {
@@ -424,16 +409,13 @@ export default function DivisionScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
   const handleDelete = () => {
     setIsDeleting(true);
-    wsService.emit(
-      'action',
-      { type: SocketAction.DELETE_DIVISION, payload: { id: divisionId, orgId } },
-      (response: any) => {
-        setIsDeleting(false);
-        setIsConfirmingDelete(false);
-        if (reportActionError(response, 'The division could not be deleted.')) return;
-        router.replace(`/admin/${orgId}/events/${eventId}/setup/playing`);
-      }
-    );
+    sendAction(SocketAction.DELETE_DIVISION, { id: divisionId, orgId }).then(result => {
+      setIsDeleting(false);
+      setIsConfirmingDelete(false);
+      // A failed delete leaves the organiser on the division; the refusal is already toasted.
+      if (!result.ok) return;
+      router.replace(`/admin/${orgId}/events/${eventId}/setup/playing`);
+    });
   };
 
   /* Memoised, and it has to be: `useUnsavedChanges` re-registers whenever this function's identity

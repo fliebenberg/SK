@@ -10,7 +10,7 @@ import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
 import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
-import { wsService } from '../../../../../../services/websocket';
+import { sendAction } from '../../../../../../services/actions';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
@@ -115,19 +115,11 @@ export default function SetupScoring() {
       };
 
       setIsProcessing(true);
-      wsService.emit(
-        'action',
-        {
-          type: SocketAction.UPDATE_EVENT,
-          payload: {
-            id: eventId,
-            userId: user?.id,
-            orgId,
-            data: { settings: { ...(event.settings || {}), scoring } },
-          },
-        },
-        (response: any) => finishSave(response, onDone)
-      );
+      sendAction(SocketAction.UPDATE_EVENT, {
+        id: eventId,
+        orgId,
+        data: { settings: { ...(event.settings || {}), scoring } },
+      }).then(result => finishSave(result, onDone));
     },
     [event, ptsWin, ptsDraw, ptsLoss, eventId, orgId, user?.id, setIsProcessing, finishSave]
   );

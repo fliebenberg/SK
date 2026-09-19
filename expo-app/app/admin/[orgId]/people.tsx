@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, OrgProfile, OrgMember } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../components/PersonnelAutocomplete';
@@ -211,70 +212,53 @@ export default function OrgPeople() {
         });
 
         // Add org profile
-        const newProfile: any = await new Promise((resolve, reject) => {
-          const profilePayload = {
-            id: matchingUser?.id || `profile-${Date.now()}`,
-            name: newMemberData.name,
+        const profileResult = await sendAction(SocketAction.ADD_ORG_PROFILE, {
+          id: matchingUser?.id || `profile-${Date.now()}`,
+          name: newMemberData.name,
+          email: newMemberData.email || undefined,
+          cellphone: newMemberData.cellphone || undefined,
+          birthdate: newMemberData.birthdate || undefined,
+          nationalId: newMemberData.nationalId || undefined,
+          orgId,
+          image: newMemberData.image || undefined,
+          imageConfig: newMemberData.imageConfig,
+          identifier: newMemberData.personOrgId || undefined,
+        });
+        if (!profileResult.ok) throw new Error(`Failed to create profile: ${profileResult.message}`);
+        profileId = profileResult.data.id;
+      } else {
+        // Update profile details
+        const updateResult = await sendAction(SocketAction.UPDATE_ORG_PROFILE, {
+          id: profileId,
+          data: {
             email: newMemberData.email || undefined,
             cellphone: newMemberData.cellphone || undefined,
             birthdate: newMemberData.birthdate || undefined,
             nationalId: newMemberData.nationalId || undefined,
-            orgId,
             image: newMemberData.image || undefined,
             imageConfig: newMemberData.imageConfig,
             identifier: newMemberData.personOrgId || undefined,
-          };
-          wsService.emit('action', { type: SocketAction.ADD_ORG_PROFILE, payload: profilePayload }, (response: any) => {
-            if (response.status === 'ok') resolve(response.data);
-            else reject(new Error(response.message || 'Failed to create profile'));
-          });
+          }
         });
-        profileId = newProfile.id;
-      } else {
-        // Update profile details
-        await new Promise((resolve, reject) => {
-          wsService.emit('action', {
-            type: SocketAction.UPDATE_ORG_PROFILE,
-            payload: {
-              id: profileId,
-              data: {
-                email: newMemberData.email || undefined,
-                cellphone: newMemberData.cellphone || undefined,
-                birthdate: newMemberData.birthdate || undefined,
-                nationalId: newMemberData.nationalId || undefined,
-                image: newMemberData.image || undefined,
-                imageConfig: newMemberData.imageConfig,
-                identifier: newMemberData.personOrgId || undefined,
-              }
-            }
-          }, (res: any) => {
-            if (res.status === 'ok') resolve(res.data);
-            else reject(new Error(res.message || 'Failed to update profile'));
-          });
-        });
+        if (!updateResult.ok) throw new Error(`Failed to update profile: ${updateResult.message}`);
       }
 
       // Link membership role to organization
       if (profileId) {
-        await new Promise((resolve, reject) => {
-          const membershipPayload = {
-            orgProfileId: profileId,
-            orgId,
-            roleId: newMemberData.roleId,
-            startDate: new Date().toISOString(),
-          };
-          wsService.emitAction(SocketAction.ADD_ORG_MEMBER, membershipPayload, (res: any) => {
-            if (res && res.status === 'ok') resolve(res.data);
-            else reject(new Error(res?.message || 'Failed to add organization member'));
-          });
+        const memberResult = await sendAction(SocketAction.ADD_ORG_MEMBER, {
+          orgProfileId: profileId,
+          orgId,
+          roleId: newMemberData.roleId,
         });
+        if (!memberResult.ok) throw new Error(`Failed to add organization member: ${memberResult.message}`);
       }
 
       // Reset and close
       handleCloseAddModal();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Failed to add member');
+      // Names the step that failed; the modal stays open so nothing typed is lost.
+      alert(error?.message || 'Failed to add member');
     } finally {
       setIsProcessing(false);
     }
@@ -286,15 +270,8 @@ export default function OrgPeople() {
 
     setIsProcessing(true);
     try {
-      await new Promise((resolve, reject) => {
-        wsService.emit('action', {
-          type: SocketAction.REMOVE_ORG_MEMBER,
-          payload: { id: confirmDelete.membershipId }
-        }, (res: any) => {
-          if (res.status === 'ok') resolve(res);
-          else reject(new Error(res.message || 'Failed to remove member'));
-        });
-      });
+      const result = await sendAction(SocketAction.REMOVE_ORG_MEMBER, { id: confirmDelete.membershipId });
+      if (!result.ok) throw new Error(result.message || 'Failed to remove member');
       setConfirmDelete(null);
     } catch (err) {
       console.error(err);
@@ -308,12 +285,9 @@ export default function OrgPeople() {
   const handleSendInvite = (member: OrgMember) => {
     if (!member.email) return;
 
-    wsService.emit('action', {
-      type: SocketAction.SEND_MEMBER_INVITE,
-      payload: { memberId: member.id }
-    }, (res: any) => {
-      if (res && res.status === 'error') {
-        alert(res.message);
+    sendAction(SocketAction.SEND_MEMBER_INVITE, { memberId: member.id }).then(result => {
+      if (!result.ok) {
+        alert(result.message);
       } else {
         alert(`Invitation sent to ${member.name}`);
       }

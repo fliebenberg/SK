@@ -7,6 +7,7 @@ import { Button } from '../../../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettingsStore, useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
+import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Facility, Site } from '@sk/shared';
 import { useSocketQuery } from '../../../../../../hooks/useSocketQuery';
@@ -447,12 +448,9 @@ export default function FacilityDetails() {
     };
 
     if (!isNew) {
-      wsService.emit('action', {
-        type: SocketAction.UPDATE_FACILITY,
-        payload: { id: facilityId, data: payload }
-      }, (res: any) => {
+      sendAction(SocketAction.UPDATE_FACILITY, { id: facilityId, data: payload }).then(result => {
         setIsProcessing(false);
-        if (res.status === 'ok') {
+        if (result.ok) {
           setOriginalData({
             name: facilityForm.name.trim(),
             surfaceType: facilityForm.surfaceType.trim(),
@@ -464,20 +462,17 @@ export default function FacilityDetails() {
           });
           useUnsavedChangesStore.getState().clear();
         } else {
-          Alert.alert('Save Failed', res.message || 'Could not update facility');
+          Alert.alert('Save Failed', result.message || 'Could not update facility');
         }
       });
     } else {
-      wsService.emit('action', {
-        type: SocketAction.ADD_FACILITY,
-        payload: payload
-      }, (res: any) => {
-        if (res.status === 'ok') {
+      sendAction(SocketAction.ADD_FACILITY, payload).then(result => {
+        if (result.ok) {
           useUnsavedChangesStore.getState().clear();
           safeGoBack();
         } else {
           setIsProcessing(false);
-          Alert.alert('Save Failed', res.message || 'Could not create facility');
+          Alert.alert('Save Failed', result.message || 'Could not create facility');
         }
       });
     }
@@ -486,16 +481,13 @@ export default function FacilityDetails() {
   // Delete Facility
   const handleDeleteFacility = () => {
     setIsProcessing(true);
-    wsService.emit('action', {
-      type: SocketAction.DELETE_FACILITY,
-      payload: { id: facilityId }
-    }, (res: any) => {
+    sendAction(SocketAction.DELETE_FACILITY, { id: facilityId }).then(result => {
       setIsProcessing(false);
-      setIsDeleteModalOpen(false);
-      if (res.status === 'ok') {
+      if (result.ok) {
+        setIsDeleteModalOpen(false);
         safeGoBack();
       } else {
-        Alert.alert('Delete Failed', res.message || 'Facility is used in games and cannot be deleted.');
+        Alert.alert('Delete Failed', result.message || 'Facility is used in games and cannot be deleted.');
       }
     });
   };

@@ -66,9 +66,12 @@ export interface Event {
   format?: EventFormat;
   date?: string; // Legacy field
   startDate: string;
-  endDate?: string;
-  siteId?: string;
-  facilityId?: string;
+  /** `null` on an update clears it. */
+  endDate?: string | null;
+  /** `null` on an update clears it. */
+  siteId?: string | null;
+  /** `null` on an update clears it. */
+  facilityId?: string | null;
   orgId: string;
   participatingOrgIds?: string[];
   /**

@@ -3,18 +3,25 @@ import { ActivityIndicator, Modal, ScrollView, Text, TouchableOpacity, View } fr
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Facility, Sport, SocketAction, TournamentDivision, divisionAutoName } from '@sk/shared';
+import {
+  Facility,
+  Sport,
+  SocketAction,
+  TournamentDivision,
+  divisionAutoName,
+} from '@sk/shared';
 import { AccessDenied } from '../../../../../../components/AccessDenied';
 import { FieldLabel } from '../../../../../../components/FieldLabel';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
-import { reportActionError } from '../../../../../../utils/actionErrors';
 import { facilitySummary } from '../../../../../../components/tournament/FacilityPicker';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
 import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
 import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { wsService } from '../../../../../../services/websocket';
+import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
+import { useToastStore } from '../../../../../../store/toastStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
@@ -142,19 +149,16 @@ export default function SetupPlaying() {
   const [removingSportId, setRemovingSportId] = useState<string | null>(null);
 
   const writeSports = useCallback(
-    (sportIds: string[], fallback: string) => {
+    (sportIds: string[]) => {
       setIsProcessing(true);
-      wsService.emit(
-        'action',
-        {
-          type: SocketAction.UPDATE_EVENT,
-          payload: { id: eventId, userId: user?.id, orgId, data: { sportIds } },
-        },
-        (response: any) => {
-          setIsProcessing(false);
-          reportActionError(response, fallback);
-        }
-      );
+      sendAction(SocketAction.UPDATE_EVENT, {
+        id: eventId,
+        orgId,
+        data: { sportIds },
+      }).then(() => {
+        // Nothing to do on success: the chips follow the event room. A refusal is already toasted.
+        setIsProcessing(false);
+      });
     },
     [eventId, orgId, user?.id, setIsProcessing]
   );
@@ -163,51 +167,40 @@ export default function SetupPlaying() {
     if (isProcessing) return;
     if (!eventSportIds.includes(sportId)) {
       // The server gives a newly chosen sport its first division (U52).
-      writeSports([...eventSportIds, sportId], 'That sport could not be added.');
+      writeSports([...eventSportIds, sportId]);
       return;
     }
     if (divisionsOf(sportId).length) {
       setRemovingSportId(sportId);
       return;
     }
-    writeSports(
-      eventSportIds.filter(id => id !== sportId),
-      'That sport could not be removed.'
-    );
+    writeSports(eventSportIds.filter(id => id !== sportId));
   };
 
   const handleAddDivision = useCallback(
     (sportId: string) => {
       setIsProcessing(true);
-      wsService.emit(
-        'action',
-        {
-          type: SocketAction.ADD_DIVISION,
-          payload: {
-            eventId,
-            orgId,
-            sportId,
-            // The automatic name for a division with no age group yet — "Rugby", or "Rugby - 2" when
-            // the sport already has one — and it becomes "Rugby U14" once an age group is given on
-            // the screen this opens.
-            name:
-              divisionAutoName(
-                sportName(sportId),
-                undefined,
-                orderedDivisions.map(d => d.name)
-              ) || 'Division',
-            // Every division has at least one stage (D11), and the caller that knows the format
-            // says so in the same call rather than making a second round trip.
-            stage: { name: 'Fixtures', format: 'Festival', sequence: 1 },
-          },
-        },
-        (res: any) => {
-          setIsProcessing(false);
-          if (reportActionError(res, 'The division could not be added.')) return;
-          const addedId = res?.data?.id;
-          if (addedId) router.push(`/admin/${orgId}/events/${eventId}/divisions/${addedId}`);
-        }
-      );
+      sendAction(SocketAction.ADD_DIVISION, {
+        eventId,
+        orgId,
+        sportId,
+        // The automatic name for a division with no age group yet — "Rugby", or "Rugby - 2" when
+        // the sport already has one — and it becomes "Rugby U14" once an age group is given on
+        // the screen this opens.
+        name:
+          divisionAutoName(
+            sportName(sportId),
+            undefined,
+            orderedDivisions.map(d => d.name)
+          ) || 'Division',
+        // Every division has at least one stage (D11), and the caller that knows the format
+        // says so in the same call rather than making a second round trip.
+        stage: { name: 'Fixtures', format: 'Festival', sequence: 1 },
+      }).then(result => {
+        setIsProcessing(false);
+        if (!result.ok) return;
+        router.push(`/admin/${orgId}/events/${eventId}/divisions/${result.data.id}`);
+      });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [eventId, orgId, router, setIsProcessing, sports, orderedDivisions]
@@ -416,14 +409,15 @@ function RemoveSportModal({
   const deleteAll = async () => {
     setIsDeleting(true);
     for (const division of divisions) {
-      const response: any = await new Promise(resolve =>
-        wsService.emit(
-          'action',
-          { type: SocketAction.DELETE_DIVISION, payload: { id: division.id, orgId } },
-          resolve
-        )
+      // Toasted here, so the message can say which division it stopped at; the dialog stays open on
+      // what is left.
+      const result = await sendAction(
+        SocketAction.DELETE_DIVISION,
+        { id: division.id, orgId },
+        { suppressToast: true }
       );
-      if (reportActionError(response, `${division.name} could not be deleted.`)) {
+      if (!result.ok) {
+        useToastStore.getState().showError(`${division.name} could not be deleted: ${result.message}`);
         setIsDeleting(false);
         return;
       }

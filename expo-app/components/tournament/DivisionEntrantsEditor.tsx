@@ -5,7 +5,7 @@ import { CandidateTeam, SocketAction, Team, TournamentDivision, TournamentEntran
 import { NewTeamModal } from './NewTeamModal';
 import { divisionTeamOptions } from '../../hooks/useEventEntrants';
 import { DivisionTeamChoices } from './DivisionTeamChoices';
-import { wsService } from '../../services/websocket';
+import { sendAction } from '../../services/actions';
 import { useActiveTheme } from '../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../constants/Colors';
 
@@ -63,29 +63,24 @@ export function DivisionEntrantsEditor({
 
   const writeRoster = (next: Array<Partial<TournamentEntrant>>, busyKey?: string) => {
     if (busyKey) setBusyKeys(prev => ({ ...prev, [busyKey]: true }));
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.SET_DIVISION_ENTRANTS,
-        payload: {
-          divisionId: division.id,
-          orgId,
-          entrants: next.map(entrant => ({
-            // An empty id is a new entrant: the server mints one rather than treating it as an
-            // update of a row that is not there.
-            id: entrant.id || undefined,
-            teamId: entrant.teamId,
-            orgProfileId: entrant.orgProfileId,
-            label: entrant.label,
-            seed: entrant.seed,
-            status: entrant.status || 'active',
-          })),
-        },
-      },
-      () => {
-        if (busyKey) setBusyKeys(prev => ({ ...prev, [busyKey]: false }));
-      }
-    );
+    // The roster follows the division room, so success needs nothing here; a refusal is toasted.
+    return sendAction(SocketAction.SET_DIVISION_ENTRANTS, {
+      divisionId: division.id,
+      orgId,
+      entrants: next.map(entrant => ({
+        // An empty id is a new entrant: the server mints one rather than treating it as an
+        // update of a row that is not there.
+        id: entrant.id || undefined,
+        teamId: entrant.teamId,
+        orgProfileId: entrant.orgProfileId,
+        label: entrant.label,
+        seed: entrant.seed,
+        status: entrant.status || 'active',
+      })),
+    }).then(result => {
+      if (busyKey) setBusyKeys(prev => ({ ...prev, [busyKey]: false }));
+      return result;
+    });
   };
 
   const toggleTeam = (team: CandidateTeam) => {
@@ -105,7 +100,12 @@ export function DivisionEntrantsEditor({
   const addPlaceholder = () => {
     const label = placeholderLabel.trim();
     if (!label) return;
-    writeRoster([...entrants, { divisionId: division.id, label, status: 'active' }]);
+    writeRoster([...entrants, { divisionId: division.id, label, status: 'active' }]).then(result => {
+      // The field is cleared straight away; a refused placeholder puts it back to be tried again.
+      if (result.ok) return;
+      setPlaceholderLabel(label);
+      setIsAddingPlaceholder(true);
+    });
     setPlaceholderLabel('');
     setIsAddingPlaceholder(false);
   };

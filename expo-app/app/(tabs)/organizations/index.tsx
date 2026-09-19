@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../store/authStore';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, OrganizationType } from '@sk/shared';
 import { getOrgLogoUrl } from '../../../services/api';
@@ -149,28 +150,26 @@ export default function OrganizationsPage() {
       customType: newOrgType === 'OTHER' ? newOrgCustomType.trim() : undefined,
     };
 
-    wsService.emitAction(SocketAction.ADD_ORG, payload, (res: any) => {
-      if (res) {
-        console.log('[OrganizationsPage] Created new organization:', res);
-        loadOrgsAndSports();
+    sendAction(SocketAction.ADD_ORG, payload).then(result => {
+      // A refusal used to be read as the new org (`if (res)`), and the form was cleared and closed
+      // before any reply — so a failed create lost what was typed. Now it stays open to retry.
+      if (!result.ok) return;
+      loadOrgsAndSports();
 
-        if (user?.id) {
-          wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (membershipRes: any) => {
-            if (membershipRes) {
-              setMemberships(membershipRes.orgs, membershipRes.teams);
-            }
-          });
-        }
-      } else {
-        console.error('[OrganizationsPage] Failed to create organization');
+      if (user?.id) {
+        wsService.emit('get_data', { type: 'user_memberships', id: user.id }, (membershipRes: any) => {
+          if (membershipRes) {
+            setMemberships(membershipRes.orgs, membershipRes.teams);
+          }
+        });
       }
-    });
 
-    setNewOrgName('');
-    setNewOrgSport('Football');
-    setNewOrgType(null);
-    setNewOrgCustomType('');
-    setModalVisible(false);
+      setNewOrgName('');
+      setNewOrgSport('Football');
+      setNewOrgType(null);
+      setNewOrgCustomType('');
+      setModalVisible(false);
+    });
   };
 
   const orgTypes: { value: OrganizationType; label: string }[] = [

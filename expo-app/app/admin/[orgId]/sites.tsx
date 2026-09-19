@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, Site, Facility, Address, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
@@ -145,15 +146,13 @@ export default function OrgSitesList() {
     if (!siteToDelete) return;
     setIsProcessing(true);
     setDeleteError(null);
-    wsService.emit('action', {
-      type: SocketAction.DELETE_SITE,
-      payload: { id: siteToDelete.id }
-    }, (res: any) => {
+    // Shown inline in the confirmation modal, so no toast.
+    sendAction(SocketAction.DELETE_SITE, { id: siteToDelete.id }, { suppressToast: true }).then(result => {
       setIsProcessing(false);
-      if (res.status === 'ok') {
+      if (result.ok) {
         setSiteToDelete(null);
       } else {
-        setDeleteError(res.message || 'Site is currently linked to events or games and cannot be deleted.');
+        setDeleteError(result.message || 'Site is currently linked to events or games and cannot be deleted.');
       }
     });
   };

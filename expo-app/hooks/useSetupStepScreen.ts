@@ -1,13 +1,11 @@
 import { useCallback, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActionResponse, Event, SocketAction } from '@sk/shared';
+import { Event, SocketAction } from '@sk/shared';
 import { useLiveRoom } from './useLiveRoom';
 import { useEventCapabilities } from './useEventCapabilities';
 import { useSafeBack } from './useSafeBack';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
-import { useToastStore } from '../store/toastStore';
-import { reportActionError } from '../utils/actionErrors';
-import { wsService } from '../services/websocket';
+import { ActionResult, sendAction } from '../services/actions';
 import { useAuthStore } from '../store/authStore';
 import {
   SetupStepKey,
@@ -98,18 +96,14 @@ export function useSetupStepScreen(stepKey: SetupStepKey) {
    * failed and a screen reading the wrong room looked *identical* from the outside, which is what
    * made `LIVE-X1`'s sibling bug slow to find.
    *
-   * On an error the screen therefore keeps its edits, keeps its dirty state, says what went wrong,
-   * and **does not run `onDone`** — the caller passes navigation in there, and walking away from
-   * changes that were not saved is the one thing that must not happen.
+   * On an error the screen therefore keeps its edits, keeps its dirty state, and **does not run
+   * `onDone`** — the caller passes navigation in there, and walking away from changes that were not
+   * saved is the one thing that must not happen. `sendAction` has already said what went wrong,
+   * and a missing reply counts as a failure: it may not have saved.
    */
-  const finishSave = useCallback((response?: ActionResponse, onDone?: () => void) => {
+  const finishSave = useCallback((result: ActionResult<unknown>, onDone?: () => void) => {
     setIsProcessing(false);
-    if (response?.status === 'error') {
-      useToastStore
-        .getState()
-        .showError(response.message || 'That change could not be saved. Please try again.');
-      return;
-    }
+    if (!result.ok) return;
     useUnsavedChangesStore.getState().clear();
     onDone?.();
   }, []);
@@ -123,26 +117,18 @@ export function useSetupStepScreen(stepKey: SetupStepKey) {
   const dismissStep = useCallback(() => {
     if (!event) return;
     useUnsavedChangesStore.getState().clear();
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.UPDATE_EVENT,
-        payload: {
-          id: eventId,
-          userId: user?.id,
-          orgId,
-          data: {
-            settings: {
-              ...(event.settings || {}),
-              dismissedSetupSteps: [...dismissedSteps, stepKey],
-            },
-          },
+    /* Navigation happens either way — the organiser asked to leave this step. What `sendAction`'s
+       toast prevents is the step quietly reappearing on the checklist with no explanation. */
+    void sendAction(SocketAction.UPDATE_EVENT, {
+      id: eventId,
+      orgId,
+      data: {
+        settings: {
+          ...(event.settings || {}),
+          dismissedSetupSteps: [...dismissedSteps, stepKey],
         },
       },
-      /* Navigation happens either way — the organiser asked to leave this step. What the report
-         prevents is the step quietly reappearing on the checklist with no explanation. */
-      (response: any) => reportActionError(response, 'That step could not be put away.')
-    );
+    });
     safeBack(checklistHref);
   }, [event, eventId, orgId, user?.id, dismissedSteps, stepKey, safeBack, checklistHref]);
 

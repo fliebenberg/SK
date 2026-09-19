@@ -11,5 +11,6 @@ export interface Team {
   playerCount?: number;
   staffCount?: number;
   creatorId?: string;
-  shortName?: string;
+  /** `null` on an update clears it. */
+  shortName?: string | null;
 }

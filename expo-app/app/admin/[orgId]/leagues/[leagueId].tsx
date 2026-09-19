@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
+import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Season, Sport } from '@sk/shared';
 import DatePicker from '../../../../components/DatePicker';
@@ -170,7 +171,6 @@ export default function LeagueDetails() {
 
   // Season Deletion State
   const [seasonToDelete, setSeasonToDelete] = useState<Season | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const computedStatus = calculateSeasonStatus(startDateStr, endDateStr);
 
@@ -275,17 +275,17 @@ export default function LeagueDetails() {
       }
     };
 
-    wsService.emit('action', { type: SocketAction.UPDATE_LEAGUE as any, payload }, (res: any) => {
+    sendAction(SocketAction.UPDATE_LEAGUE, payload, { suppressToast: true }).then(result => {
       setIsSavingLeague(false);
-      if (res && res.status === 'error') {
-        setEditError(res.message || "Failed to update league settings.");
-      } else {
-        // Direct merge to local state
-        if (res && res.data) {
-          setLeague(res.data);
-        }
-        useUnsavedChangesStore.getState().clear();
+      // Shown in the settings banner. A missing reply used to fall through to the success branch
+      // and clear the unsaved-changes guard over a save that may never have landed.
+      if (!result.ok) {
+        setEditError(result.message);
+        return;
       }
+      // Direct merge to local state
+      if (result.data) setLeague(result.data);
+      useUnsavedChangesStore.getState().clear();
     });
   };
 
@@ -320,10 +320,10 @@ export default function LeagueDetails() {
       logo: newSeasonLogo || undefined
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_SEASON as any, payload }, (res: any) => {
+    sendAction(SocketAction.ADD_SEASON, payload, { suppressToast: true }).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setCreateError(res.message || "Failed to create season.");
+      if (!result.ok) {
+        setCreateError(result.message);
       } else {
         setIsCreateModalOpen(false);
         setNewSeasonName('');
@@ -341,15 +341,11 @@ export default function LeagueDetails() {
   const confirmDeleteSeason = () => {
     if (!seasonToDelete) return;
     setIsProcessing(true);
-    setDeleteError(null);
 
-    wsService.emit('action', { type: SocketAction.DELETE_SEASON as any, payload: { id: seasonToDelete.id } }, (res: any) => {
+    // Toasted rather than shown inline. On failure the dialog stays open.
+    sendAction(SocketAction.DELETE_SEASON, { id: seasonToDelete.id }).then(result => {
       setIsProcessing(false);
-      if (res && res.status === 'error') {
-        setDeleteError(res.message || "Failed to delete season.");
-      } else {
-        setSeasonToDelete(null);
-      }
+      if (result.ok) setSeasonToDelete(null);
     });
   };
 

@@ -10,7 +10,6 @@ import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../../../co
 import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { FieldLabel } from '../../../../../../components/FieldLabel';
-import { reportActionError } from '../../../../../../utils/actionErrors';
 import { addDaysToDateString, isCompleteDateString } from '../../../../../../utils/dates';
 import { FacilityPicker } from '../../../../../../components/tournament/FacilityPicker';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
@@ -18,7 +17,9 @@ import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { wsService } from '../../../../../../services/websocket';
+import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
+import { useToastStore } from '../../../../../../store/toastStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
@@ -237,46 +238,43 @@ export default function SetupBasics() {
    * The facilities are a second write, and deliberately so: `event_facilities` is a different
    * table with an action of its own, and folding it into `UPDATE_EVENT` would mean teaching that
    * action about a join table to save one round trip.
+   *
+   * The two run in turn, and the save is finished only when both have landed: the dirty state and
+   * the navigation belong to the whole save, so a refused facility change keeps the screen where it
+   * is rather than walking away from it.
    */
   const handleSave = useCallback(
-    (onDone?: () => void) => {
+    async (onDone?: () => void) => {
       if (!event || !editName.trim() || dateError) return;
 
       setIsProcessing(true);
-      wsService.emit(
-        'action',
-        {
-          type: SocketAction.UPDATE_EVENT,
-          payload: {
-            id: eventId,
-            userId: user?.id,
-            orgId,
-            data: {
-              name: editName.trim(),
-              startDate: `${editStartDate}T12:00:00.000Z`,
-              endDate: isMultiDay && editEndDate ? `${editEndDate}T12:00:00.000Z` : null,
-              siteId: editSiteId || null,
-            },
-          },
+      const eventResult = await sendAction(SocketAction.UPDATE_EVENT, {
+        id: eventId,
+        orgId,
+        data: {
+          name: editName.trim(),
+          startDate: `${editStartDate}T12:00:00.000Z`,
+          endDate: isMultiDay && editEndDate ? `${editEndDate}T12:00:00.000Z` : null,
+          siteId: editSiteId || null,
         },
-        (response: any) => finishSave(response, onDone)
-      );
-
-      /* The second write of this save, and the one that has to report for itself: it had no ack
-         handler at all, so a refused facility change was silent and left the bar up with nothing
-         said. It does not call `finishSave` — the event write owns the dirty state and the
-         navigation — it only speaks up when it fails. */
-      if (facilitiesDirty) {
-        wsService.emit(
-          'action',
-          {
-            type: SocketAction.SET_EVENT_FACILITIES,
-            payload: { eventId, orgId, facilityIds: editFacilityIds },
-          },
-          (response: any) =>
-            reportActionError(response, 'Those facilities could not be saved.')
-        );
+      });
+      if (!eventResult.ok || !facilitiesDirty) {
+        finishSave(eventResult, onDone);
+        return;
       }
+
+      // Toasted here, so the message can say the details did save and only the facilities did not.
+      const facilitiesResult = await sendAction(
+        SocketAction.SET_EVENT_FACILITIES,
+        { eventId, orgId, facilityIds: editFacilityIds },
+        { suppressToast: true }
+      );
+      if (!facilitiesResult.ok) {
+        useToastStore
+          .getState()
+          .showError(`The details were saved, but the facilities were not: ${facilitiesResult.message}`);
+      }
+      finishSave(facilitiesResult, onDone);
     },
     [
       event,

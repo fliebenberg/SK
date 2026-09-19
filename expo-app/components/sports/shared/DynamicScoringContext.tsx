@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, captureEventLabels, findOutcome, getTriggerFor, hasOutcomes, isScoringTemplate, reasonRequiresPlayer, TriggerTeam } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
 import { useSportStore } from '../../../store/sportStore';
@@ -482,10 +483,10 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         eventData,
       };
 
-      wsService.emitAction(SocketAction.ADD_GAME_EVENT, payload, (res: any) => {
-        if (res && res.error) {
-          console.error('Failed to add penalty try event:', res.error);
-          setErrorMessage(res.error);
+      // Failures are shown in this screen's own error dialog, so no toast as well.
+      sendAction(SocketAction.ADD_GAME_EVENT, payload, { suppressToast: true }).then((result) => {
+        if (!result.ok) {
+          setErrorMessage(result.message);
         } else {
           setScoringState({ status: 'IDLE' });
         }
@@ -627,12 +628,11 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         eventData,
       };
 
-      wsService.emitAction(SocketAction.UPDATE_GAME_EVENT, payload, (res: any) => {
-        if (res && res.error) {
-          console.error('Failed to update game event:', res.error);
-          setErrorMessage(res.error);
+      sendAction(SocketAction.UPDATE_GAME_EVENT, payload, { suppressToast: true }).then((result) => {
+        if (!result.ok) {
+          setErrorMessage(result.message);
         } else {
-          const updatedEventId = res?.id || res?.data?.id || scoringState.editingId;
+          const updatedEventId = result.data?.id || scoringState.editingId;
           // The dialog always reports the trigger for the currently selected outcome, so
           // editing an unrelated field (e.g. the reason) would otherwise re-open the linked
           // event dialog for a linked event that already exists. Only chain when the outcome
@@ -665,13 +665,12 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         eventData,
       };
 
-      wsService.emitAction(SocketAction.ADD_GAME_EVENT, payload, (res: any) => {
-        if (res && res.error) {
-          console.error('Failed to add game event:', res.error);
-          setErrorMessage(res.error);
+      sendAction(SocketAction.ADD_GAME_EVENT, payload, { suppressToast: true }).then((result) => {
+        if (!result.ok) {
+          setErrorMessage(result.message);
           return;
         }
-        const addedEventId = res?.id || res?.data?.id || res?.eventId;
+        const addedEventId = result.data.id;
         // AUTOMATED CHAINED FLOW: the template says what a completed event spawns — a try always
         // spawns a conversion, a penalty spawns whatever its chosen outcome names — whose it is,
         // and what the follow-up already knows about itself. A scrum awarded from a free kick
@@ -693,7 +692,7 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
     if (!updateDisputeTarget) return;
     const target = updateDisputeTarget;
     setUpdateDisputeTarget(null);
-    wsService.emitAction(
+    sendAction(
       SocketAction.INITIATE_UPDATE_VOTE,
       {
         gameId: target.gameId,
@@ -701,13 +700,10 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         initiatorId: target.initiatorId,
         updateData: target.updateData,
       },
-      (res: any) => {
-        if (res && res.error) {
-          console.error('Failed to initiate dispute for event update:', res.error);
-          setErrorMessage(res.error);
-        }
-      }
-    );
+      { suppressToast: true }
+    ).then((result) => {
+      if (!result.ok) setErrorMessage(result.message);
+    });
   };
 
   const handleConfirmUndoDispute = () => {
@@ -723,18 +719,17 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       setErrorMessage('User session required: Initiator ID is missing to initiate dispute.');
       return;
     }
-    wsService.emitAction(
+    sendAction(
       SocketAction.INITIATE_UNDO_VOTE,
       { gameId: game.id, eventIdToUndo: eventId, initiatorId },
-      (res: any) => {
-        if (res && res.error) {
-          console.error('Failed to initiate dispute:', res.error);
-          setErrorMessage(res.error);
-        } else {
-          setScoringState({ status: 'IDLE' });
-        }
+      { suppressToast: true }
+    ).then((result) => {
+      if (!result.ok) {
+        setErrorMessage(result.message);
+      } else {
+        setScoringState({ status: 'IDLE' });
       }
-    );
+    });
   };
 
   const removeGameEvent = (eventId: string) => {
@@ -743,16 +738,19 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       setErrorMessage('User session required: Initiator ID is missing to undo event.');
       return;
     }
-    wsService.emitAction(SocketAction.UNDO_GAME_EVENT, { gameId: game.id, eventId, initiatorId }, (res: any) => {
-      if (res && res.error) {
-        console.error('Failed to undo event:', res.error);
-        if (typeof res.error === 'string' && res.error.toLowerCase().includes('expired')) {
+    sendAction(SocketAction.UNDO_GAME_EVENT, { gameId: game.id, eventId, initiatorId }, { suppressToast: true }).then((result) => {
+      // The server reports a refused undo (e.g. the window has expired) as a successful action
+      // whose data says `success: false`, so both shapes are a failure here.
+      const refusal = !result.ok ? result.message : result.data?.success === false ? result.data.error || 'That event could not be undone.' : null;
+      if (refusal !== null) {
+        console.error('Failed to undo event:', refusal);
+        if (refusal.toLowerCase().includes('expired')) {
           const targetEvt = events.find((e) => e.id === eventId);
           const evtName = targetEvt?.subType ? targetEvt.subType.toUpperCase() : 'Event';
           setScoringState({ status: 'IDLE' });
           setUndoDisputeTarget({ eventId, eventName: evtName });
         } else {
-          setErrorMessage(res.error);
+          setErrorMessage(refusal);
         }
       } else {
         setScoringState({ status: 'IDLE' });
@@ -761,22 +759,15 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   };
 
   const updateFinalScore = async (scores: { [participantId: string]: number }) => {
-    return new Promise<void>((resolve) => {
-      wsService.emitAction(
-        SocketAction.UPDATE_GAME_SCORE,
-        {
-          id: game.id,
-          scores,
-        },
-        (res: any) => {
-          if (res && res.error) {
-            console.error('Failed to update final score:', res.error);
-            setErrorMessage(res.error);
-          }
-          resolve();
-        }
-      );
-    });
+    const result = await sendAction(
+      SocketAction.UPDATE_GAME_SCORE,
+      {
+        id: game.id,
+        scores,
+      },
+      { suppressToast: true }
+    );
+    if (!result.ok) setErrorMessage(result.message);
   };
 
   return (

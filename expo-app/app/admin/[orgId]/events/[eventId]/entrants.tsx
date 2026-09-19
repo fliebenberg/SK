@@ -18,7 +18,6 @@ import { GlassCard } from '../../../../../components/GlassCard';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { SetupStepFooter } from '../../../../../components/tournament/SetupStepFooter';
 import { nextStepAfter, stepByKey } from '../../../../../components/tournament/setupSteps';
-import { reportActionError } from '../../../../../utils/actionErrors';
 import { SegmentedControl } from '../../../../../components/SegmentedControl';
 import { Tabs, TabItem } from '../../../../../components/Tabs';
 import { AccessDenied } from '../../../../../components/AccessDenied';
@@ -31,6 +30,7 @@ import { useEventCapabilities } from '../../../../../hooks/useEventCapabilities'
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../../store/authStore';
 import { wsService } from '../../../../../services/websocket';
+import { sendAction } from '../../../../../services/actions';
 import { useWsStore } from '../../../../../store/wsStore';
 import { useActiveTheme } from '../../../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../../../constants/Colors';
@@ -208,19 +208,11 @@ export default function EntrantsScreen() {
    */
   const saveInvites = (next: Array<{ id: string; name: string; shortName?: string }>) => {
     if (!event) return;
-    wsService.emit(
-      'action',
-      {
-      type: SocketAction.UPDATE_EVENT,
-      payload: {
-        id: eventId,
-        userId: user?.id,
-        orgId,
-        data: { participatingOrgIds: next.map(o => o.id) },
-      },
-    },
-      (response: any) => reportActionError(response, 'The invite list could not be saved.')
-    );
+    void sendAction(SocketAction.UPDATE_EVENT, {
+      id: eventId,
+      orgId,
+      data: { participatingOrgIds: next.map(o => o.id) },
+    });
   };
 
   /* This screen predates `useSetupStepScreen` (it has had its own route since U21), so it reads
@@ -265,27 +257,21 @@ export default function EntrantsScreen() {
    */
   const writeRoster = (divisionId: string, next: Array<Partial<TournamentEntrant>>, busyKey?: string) => {
     if (busyKey) setBusyKeys(prev => ({ ...prev, [busyKey]: true }));
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.SET_DIVISION_ENTRANTS,
-        payload: {
-          divisionId,
-          orgId,
-          entrants: next.map(entrant => ({
-            id: entrant.id || undefined,
-            teamId: entrant.teamId,
-            orgProfileId: entrant.orgProfileId,
-            label: entrant.label,
-            seed: entrant.seed,
-            status: entrant.status || 'active',
-          })),
-        },
-      },
-      () => {
-        if (busyKey) setBusyKeys(prev => ({ ...prev, [busyKey]: false }));
-      }
-    );
+    // The roster follows the division room, so success needs nothing; a refusal is toasted.
+    sendAction(SocketAction.SET_DIVISION_ENTRANTS, {
+      divisionId,
+      orgId,
+      entrants: next.map(entrant => ({
+        id: entrant.id || undefined,
+        teamId: entrant.teamId,
+        orgProfileId: entrant.orgProfileId,
+        label: entrant.label,
+        seed: entrant.seed,
+        status: entrant.status || 'active',
+      })),
+    }).then(() => {
+      if (busyKey) setBusyKeys(prev => ({ ...prev, [busyKey]: false }));
+    });
   };
 
   const toggleTeam = (division: TournamentDivision, team: CandidateTeam) => {

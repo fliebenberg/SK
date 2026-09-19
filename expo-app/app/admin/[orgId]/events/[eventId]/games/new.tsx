@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
-import { reportActionError } from '../../../../../../utils/actionErrors';
+import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import {
@@ -234,36 +234,30 @@ export default function ScheduleGame() {
       isClaimed: false
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_ORG, payload }, (res: any) => {
-      const org = res?.data || res;
-      if (org && org.id) {
-        // Invite contact person if specified
-        const email = newOrgContactEmail.trim();
-        const currentUserId = useAuthStore.getState().user?.id;
-        if (email && currentUserId) {
-          wsService.emit(
-            'action',
-            {
-              type: SocketAction.REFER_ORG_CONTACT,
-              payload: {
-                orgId: org.id,
-                contactEmails: [email],
-                referredByUserId: currentUserId
-              }
-            },
-            (response: any) => reportActionError(response, 'That invitation could not be sent.')
-          );
-        }
-
-        // Update list
-        setOrgsList(prev => [...prev, org]);
-        setSelectedAwayOrgId(org.id);
-        setIsCreatingOrg(false);
-        setNewOrgName('');
-        setNewOrgShortName('');
-        setNewOrgContactEmail('');
-      }
+    sendAction(SocketAction.ADD_ORG, payload).then(result => {
       setIsProcessing(false);
+      // A refusal is already toasted; the modal stays open with what was typed.
+      if (!result.ok) return;
+      const org = result.data;
+      // Invite contact person if specified. A failed invitation is announced on its own and does
+      // not undo the organisation, which was created.
+      const email = newOrgContactEmail.trim();
+      const currentUserId = useAuthStore.getState().user?.id;
+      if (email && currentUserId) {
+        void sendAction(SocketAction.REFER_ORG_CONTACT, {
+          orgId: org.id,
+          contactEmails: [email],
+          referredByUserId: currentUserId
+        });
+      }
+
+      // Update list
+      setOrgsList(prev => [...prev, org]);
+      setSelectedAwayOrgId(org.id);
+      setIsCreatingOrg(false);
+      setNewOrgName('');
+      setNewOrgShortName('');
+      setNewOrgContactEmail('');
     });
   };
 
@@ -306,25 +300,24 @@ export default function ScheduleGame() {
       isActive: true
     };
 
-    wsService.emit('action', { type: SocketAction.ADD_TEAM, payload }, (res: any) => {
+    sendAction(SocketAction.ADD_TEAM, payload).then(result => {
       setIsProcessing(false);
-      const team = res?.data || res;
-      if (team && team.id) {
-        setOrgTeams(prev => ({
-          ...prev,
-          [targetOrgIdForTeam]: [...(prev[targetOrgIdForTeam] || []), team]
-        }));
-        
-        if (targetOrgIdForTeam === selectedHomeOrgId) {
-          setSelectedHomeTeamId(team.id);
-        } else {
-          setSelectedAwayTeamId(team.id);
-        }
-        setIsCreatingTeam(false);
-        setNewTeamName('');
-        setNewTeamShortName('');
-        setNewTeamAgeGroupId(null);
+      if (!result.ok) return;
+      const team = result.data;
+      setOrgTeams(prev => ({
+        ...prev,
+        [targetOrgIdForTeam]: [...(prev[targetOrgIdForTeam] || []), team]
+      }));
+      
+      if (targetOrgIdForTeam === selectedHomeOrgId) {
+        setSelectedHomeTeamId(team.id);
+      } else {
+        setSelectedAwayTeamId(team.id);
       }
+      setIsCreatingTeam(false);
+      setNewTeamName('');
+      setNewTeamShortName('');
+      setNewTeamAgeGroupId(null);
     });
   };
 
@@ -338,18 +331,11 @@ export default function ScheduleGame() {
       Object.entries(pendingReferrals).forEach(([rOrgId, email]) => {
         const trimmedEmail = email.trim();
         if (trimmedEmail && trimmedEmail.includes('@')) {
-          wsService.emit(
-            'action',
-            {
-              type: SocketAction.REFER_ORG_CONTACT,
-              payload: {
-                orgId: rOrgId,
-                contactEmails: [trimmedEmail],
-                referredByUserId: currentUserId
-              }
-            },
-            (response: any) => reportActionError(response, 'That invitation could not be sent.')
-          );
+          void sendAction(SocketAction.REFER_ORG_CONTACT, {
+            orgId: rOrgId,
+            contactEmails: [trimmedEmail],
+            referredByUserId: currentUserId
+          });
         }
       });
     }
@@ -403,11 +389,11 @@ export default function ScheduleGame() {
         timeTbd: isTbd
       }
     };
-      wsService.emit('action', { type: SocketAction.ADD_GAME, payload: gamePayload }, (res: any) => {
+    sendAction(SocketAction.ADD_GAME, gamePayload).then(result => {
       setIsProcessing(false);
       setConflictWarning(null);
-      const game = res?.data || res;
-      if (game) safeBack(`/admin/${orgId}/events/${eventId}`);
+      // A failed save stays on the form, as filled in; the refusal is already toasted.
+      if (result.ok) safeBack(`/admin/${orgId}/events/${eventId}`);
     });
   };
 

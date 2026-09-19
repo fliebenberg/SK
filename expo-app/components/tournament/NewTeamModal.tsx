@@ -3,7 +3,7 @@ import { Modal, Text, TextInput, View } from 'react-native';
 import { SocketAction, Team } from '@sk/shared';
 import { GlassCard } from '../GlassCard';
 import { Button } from '../Button';
-import { wsService } from '../../services/websocket';
+import { sendAction } from '../../services/actions';
 import { useActiveTheme } from '../../store/settingsStore';
 import { getThemeColor } from '../../constants/Colors';
 
@@ -66,28 +66,20 @@ export function NewTeamModal({
     if (!trimmed || !sportId) return;
     setIsSaving(true);
     setError(null);
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.ADD_TEAM,
-        payload: {
-          name: trimmed,
-          ageGroupId: ageGroupId || null,
-          sportId,
-          orgId,
-          isActive: true,
-        },
-      },
-      (res: any) => {
-        setIsSaving(false);
-        if (res?.id) {
-          onCreated(res as Team);
-          onClose();
-        } else {
-          setError(res?.error || 'That team could not be created.');
-        }
+    // The failure is shown inline, in the modal the organiser is looking at, rather than toasted.
+    sendAction(
+      SocketAction.ADD_TEAM,
+      { name: trimmed, ageGroupId: ageGroupId || null, sportId, orgId, isActive: true } as Omit<Team, 'id'>,
+      { suppressToast: true }
+    ).then(result => {
+      setIsSaving(false);
+      if (!result.ok) {
+        setError(result.message);
+        return;
       }
-    );
+      onCreated(result.data);
+      onClose();
+    });
   };
 
   return (

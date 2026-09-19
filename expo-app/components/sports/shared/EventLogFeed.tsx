@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction, findReason, getOutcomes, getTriggerFor, isScoringTemplate } from '@sk/shared';
-import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { useSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
@@ -205,20 +205,23 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
         setErrorMessage('User session required: Initiator ID is missing to undo event.');
         return;
       }
-      wsService.emitAction(
+      sendAction(
         SocketAction.UNDO_GAME_EVENT,
         { gameId, eventId: target.id, initiatorId },
-        (res: any) => {
-          if (res && res.error) {
-            console.error('Failed to undo event:', res.error);
-            if (typeof res.error === 'string' && res.error.toLowerCase().includes('expired')) {
-              setDisputeEventTarget(target);
-            } else {
-              setErrorMessage(res.error);
-            }
+        { suppressToast: true }
+      ).then((result) => {
+        // The server reports a refused undo (e.g. the window has expired) as a successful action
+        // whose data says `success: false`, so both shapes are a failure here.
+        const refusal = !result.ok ? result.message : result.data?.success === false ? result.data.error || 'That event could not be undone.' : null;
+        if (refusal !== null) {
+          console.error('Failed to undo event:', refusal);
+          if (refusal.toLowerCase().includes('expired')) {
+            setDisputeEventTarget(target);
+          } else {
+            setErrorMessage(refusal);
           }
         }
-      );
+      });
     }
   };
 
@@ -231,16 +234,13 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
         setErrorMessage('User session required: Initiator ID is missing to initiate dispute.');
         return;
       }
-      wsService.emitAction(
+      sendAction(
         SocketAction.INITIATE_UNDO_VOTE,
         { gameId, eventIdToUndo: target.id, initiatorId },
-        (res: any) => {
-          if (res && res.error) {
-            console.error('Failed to initiate dispute:', res.error);
-            setErrorMessage(res.error);
-          }
-        }
-      );
+        { suppressToast: true }
+      ).then((result) => {
+        if (!result.ok) setErrorMessage(result.message);
+      });
     }
   };
 

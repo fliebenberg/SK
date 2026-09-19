@@ -128,11 +128,21 @@ export interface AddEventPayload extends Omit<Event, "id"> {}
 
 export interface UpdateEventPayload {
     id: string;
+    /**
+     * The workspace the caller is acting from — authorization, never stored. The server falls back
+     * to the event's or game's own organisation when it is omitted.
+     */
+    orgId?: string;
     data: Partial<Event>;
 }
 
 export interface DeleteEventPayload {
     id: string;
+    /**
+     * The workspace the caller is acting from — authorization, never stored. The server falls back
+     * to the event's or game's own organisation when it is omitted.
+     */
+    orgId?: string;
 }
 
 export interface AddGamePayload extends Omit<Game, "id" | "status" | "finalScoreData" | "liveState" | "participants"> {
@@ -155,6 +165,11 @@ export interface UpdateGameScorePayload {
 
 export interface UpdateGamePayload {
     id: string;
+    /**
+     * The workspace the caller is acting from — authorization, never stored. The server falls back
+     * to the event's or game's own organisation when it is omitted.
+     */
+    orgId?: string;
     data: Partial<Omit<Game, "participants">> & {
         participants?: (Partial<GameParticipant> & { teamId: string })[];
     };
@@ -162,6 +177,11 @@ export interface UpdateGamePayload {
 
 export interface DeleteGamePayload {
     id: string;
+    /**
+     * The workspace the caller is acting from — authorization, never stored. The server falls back
+     * to the event's or game's own organisation when it is omitted.
+     */
+    orgId?: string;
 }
 
 export interface AddOrgProfilePayload extends Omit<OrgProfile, "id"> {
@@ -336,6 +356,16 @@ export interface UndoGameEventPayload {
     gameId: string;
     eventId: string;
     initiatorId: string;
+}
+
+export interface SendMemberInvitePayload {
+    /** The org profile to invite — it must have an email. */
+    memberId: string;
+}
+
+export interface RemoveSinBinPayload {
+    gameId: string;
+    sinBinId: string;
 }
 
 export interface AddAgeGroupPayload {
@@ -697,6 +727,8 @@ export interface ProtocolMap {
     [SocketAction.UPDATE_LEAGUE]: { payload: UpdateLeaguePayload; response: League };
     [SocketAction.DELETE_LEAGUE]: { payload: DeleteLeaguePayload; response: void };
     [SocketAction.ADD_AGE_GROUP]: { payload: AddAgeGroupPayload; response: AgeGroup };
+    [SocketAction.SEND_MEMBER_INVITE]: { payload: SendMemberInvitePayload; response: unknown };
+    [SocketAction.REMOVE_SIN_BIN]: { payload: RemoveSinBinPayload; response: unknown };
     [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };
     [SocketAction.UPDATE_SEASON]: { payload: UpdateSeasonPayload; response: Season };
     [SocketAction.DELETE_SEASON]: { payload: DeleteSeasonPayload; response: void };

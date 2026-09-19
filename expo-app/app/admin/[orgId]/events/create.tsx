@@ -5,7 +5,8 @@ import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { wsService } from '../../../../services/websocket';
-import { reportActionError } from '../../../../utils/actionErrors';
+import { sendAction } from '../../../../services/actions';
+import { useToastStore } from '../../../../store/toastStore';
 import { SocketAction } from '@sk/shared';
 import { useAuthStore } from '../../../../store/authStore';
 import { COLORS } from '../../../../constants/Colors';
@@ -63,18 +64,11 @@ export default function CreateEvent() {
         emails.forEach(email => {
           const trimmed = (email || '').trim();
           if (trimmed && trimmed.includes('@')) {
-            wsService.emit(
-              'action',
-              {
-              type: SocketAction.REFER_ORG_CONTACT,
-              payload: {
-                orgId: referredOrgId,
-                contactEmails: [trimmed],
-                referredByUserId: currentUserId,
-              },
-            },
-              (response: any) => reportActionError(response, 'That invitation could not be sent.')
-            );
+            void sendAction(SocketAction.REFER_ORG_CONTACT, {
+              orgId: referredOrgId,
+              contactEmails: [trimmed],
+              referredByUserId: currentUserId,
+            });
           }
         });
       });
@@ -94,56 +88,49 @@ export default function CreateEvent() {
       ? `${form.gameDate}T12:00:00`
       : scheduled.toISOString();
 
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.ADD_EVENT,
-        payload: {
-          name: `${homeName} vs ${awayName}`,
-          type: 'SingleMatch',
-          startDate: `${form.gameDate}T12:00:00.000Z`,
-          siteId: form.siteId || undefined,
-          facilityId: form.facilityId || undefined,
-          orgId,
-          sportIds: form.sportId ? [form.sportId] : [],
-          participatingOrgIds: [form.homeOrgId, form.awayOrgId].filter(
-            id => id && id !== orgId
-          ) as string[],
-          status: 'Scheduled',
-        },
-      },
-      (res: any) => {
-        // `{ status, data }`, passed through unchanged by `emit` — `res.id` is never set
-        // (`FIX-13`).
-        const newEvent = res?.data;
-        if (!newEvent?.id) {
-          setIsProcessing(false);
-          return;
-        }
+    const eventResult = await sendAction(SocketAction.ADD_EVENT, {
+      name: `${homeName} vs ${awayName}`,
+      type: 'SingleMatch',
+      startDate: `${form.gameDate}T12:00:00.000Z`,
+      siteId: form.siteId || undefined,
+      facilityId: form.facilityId || undefined,
+      orgId,
+      sportIds: form.sportId ? [form.sportId] : [],
+      participatingOrgIds: [form.homeOrgId, form.awayOrgId].filter(
+        id => id && id !== orgId
+      ) as string[],
+      status: 'Scheduled',
+    });
+    // A refusal is already toasted; the form stays as filled in.
+    if (!eventResult.ok) {
+      setIsProcessing(false);
+      return;
+    }
+    const newEvent = eventResult.data;
 
-        wsService.emit(
-          'action',
-          {
-            type: SocketAction.ADD_GAME,
-            payload: {
-              eventId: newEvent.id,
-              sportId: form.sportId,
-              participants: [{ teamId: form.homeTeamId }, { teamId: form.awayTeamId }],
-              scheduledStartTime,
-              startTime: scheduledStartTime,
-              siteId: form.siteId || undefined,
-              facilityId: form.facilityId || undefined,
-              status: 'Scheduled',
-              customSettings: { timeTbd: form.isTbd },
-            },
-          },
-          () => {
-            setIsProcessing(false);
-            safeBack(`/admin/${orgId}/events`);
-          }
-        );
-      }
+    // Toasted here rather than by `sendAction`, so the message can say the event did get created.
+    const gameResult = await sendAction(
+      SocketAction.ADD_GAME,
+      {
+        eventId: newEvent.id,
+        sportId: form.sportId,
+        participants: [{ teamId: form.homeTeamId }, { teamId: form.awayTeamId }],
+        scheduledStartTime,
+        startTime: scheduledStartTime,
+        siteId: form.siteId || undefined,
+        facilityId: form.facilityId || undefined,
+        customSettings: { timeTbd: form.isTbd },
+      },
+      { suppressToast: true }
     );
+    setIsProcessing(false);
+    if (!gameResult.ok) {
+      useToastStore
+        .getState()
+        .showError(`The match was created, but its game was not: ${gameResult.message}`, 'Game Not Added');
+      return;
+    }
+    safeBack(`/admin/${orgId}/events`);
   };
 
   return (

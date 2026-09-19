@@ -2,7 +2,7 @@ import React, { useState, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { Game, getPeriodLabel, SocketAction } from '@sk/shared';
 import { useGameTimer } from '../../../hooks/useGameTimer';
-import { wsService } from '../../../services/websocket';
+import { sendAction } from '../../../services/actions';
 import { useAuthStore } from '../../../store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../../constants/Colors';
@@ -94,15 +94,17 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
     return orgMemberships[0]?.orgProfileId || user.id || 'system';
   };
 
+  // These are fire-and-forget: the clock and status on screen come from the server's broadcast,
+  // not from the reply, so nothing here waits on it. `sendAction` still announces a failure.
   const handleUpdateStatus = (status: string, reason?: string) => {
-    wsService.emitAction(SocketAction.UPDATE_GAME_STATUS, { id: game.id, status: status as any });
+    void sendAction(SocketAction.UPDATE_GAME_STATUS, { id: game.id, status: status as any });
 
     let subType = 'GAME_UPDATED';
     if (status === 'Live') subType = 'GAME_STARTED';
     else if (status === 'Finished') subType = 'GAME_ENDED';
     else if (status === 'Cancelled') subType = 'GAME_CANCELLED';
 
-    wsService.emitAction(SocketAction.ADD_GAME_EVENT, {
+    void sendAction(SocketAction.ADD_GAME_EVENT, {
       gameId: game.id,
       initiatorOrgProfileId: resolveInitiatorId(),
       type: 'STATUS',
@@ -123,7 +125,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   };
 
   const handleResetGame = () => {
-    wsService.emitAction(SocketAction.RESET_GAME, { id: game.id });
+    void sendAction(SocketAction.RESET_GAME, { id: game.id });
     setShowResetModal(false);
   };
 
@@ -133,14 +135,14 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   ) => {
     if (isDebouncing) return;
 
-    wsService.emitAction(SocketAction.UPDATE_GAME_CLOCK, { id: game.id, action });
+    void sendAction(SocketAction.UPDATE_GAME_CLOCK, { id: game.id, action });
 
     if (eventType) {
       const eventPeriodLabel = action === 'START_PERIOD'
         ? getPeriodLabel(periodIndex + 1, periodTerm)
         : currentPeriodLabel;
 
-      wsService.emitAction(SocketAction.ADD_GAME_EVENT, {
+      void sendAction(SocketAction.ADD_GAME_EVENT, {
         gameId: game.id,
         initiatorOrgProfileId: resolveInitiatorId(),
         type: 'TIME',

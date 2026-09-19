@@ -1,6 +1,6 @@
 ---
 name: Unsaved Changes Warning
-description: Enforces the `useUnsavedChanges` hook on every editing page, and the save rules that go with it — read the acknowledgement, never let a failed save look like a successful one, and keep the dirty flag clearable by the save it triggers.
+description: Enforces the `useUnsavedChanges` hook on every editing page, and the save rules that go with it — send writes with `sendAction`, never let a failed save look like a successful one, and keep the dirty flag clearable by the save it triggers.
 ---
 
 # Unsaved Changes Warning
@@ -34,20 +34,26 @@ Any component that manages form state or data modification should use the `useUn
 
 ## A save that failed must never look like one that worked
 
-Every `action` is answered `{ status: 'ok' | 'error', message }`, and the server calls the ack on **both** branches. An emit with no callback, or one that ignores its argument, cannot tell the two apart — so the screen carries on as though the write landed.
+Send every write with [`sendAction`](file:///c:/Fred/Coding/SK/expo-app/services/actions.ts) — the
+full rule is the [action-replies skill](file:///c:/Fred/Coding/SK/.agent/skills/action-replies/SKILL.md).
+It resolves to `{ ok: true, data }` or `{ ok: false, message }`, treats no reply at all (a timeout,
+being offline) as a failure, and has already announced the failure by the time you see it.
 
-**On `status: 'error'`: report it, keep the edits, keep the dirty state, and do not run the success path.** Above all do not navigate away: callers routinely pass navigation into the "done" callback, and leaving the screen discards work the user believes is saved. [`reportActionError`](file:///c:/Fred/Coding/SK/expo-app/utils/actionErrors.ts) surfaces the server's own message in one line.
+**On failure: keep the edits, keep the dirty state, and do not run the success path.** Above all do
+not navigate away: callers routinely pass navigation into the "done" callback, and leaving the
+screen discards work the user believes is saved.
 
 ```tsx
-wsService.emit('action', { type: SocketAction.UPDATE_THING, payload }, (response) => {
+sendAction(SocketAction.UPDATE_THING, payload).then(result => {
   setIsProcessing(false);
-  if (reportActionError(response, 'That change could not be saved.')) return; // no clear, no navigate
+  if (!result.ok) return;          // already toasted; no clear, no navigate
   clearDirtyState();
   onDone?.();
 });
 ```
 
-**A screen with two writes needs two handlers.** Only one of them owns the dirty state and the navigation; the other still has to speak up when it fails, or half a save disappears silently.
+**A screen with two writes** stops at the first failure and says which one failed. Only one of the
+writes owns the dirty state and the navigation.
 
 ## The dirty flag must be clearable by the save it triggers
 

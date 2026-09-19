@@ -7,6 +7,8 @@ import { GlassCard } from '../../components/GlassCard';
 import { OrgLogo } from '../../components/OrgLogo';
 import { useAuthStore } from '../../store/authStore';
 import { wsService } from '../../services/websocket';
+import { sendAction } from '../../services/actions';
+import { SocketAction } from '@sk/shared';
 import { useWsStore } from '../../store/wsStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
@@ -58,18 +60,15 @@ export default function ClaimIndexScreen() {
     if (!token || !user) return;
     setClaiming(true);
     
-    wsService.emit('action', { 
-      type: 'CLAIM_ORG_VIA_TOKEN', 
-      payload: { token, userId: user.id } 
-    }, (res: any) => {
+    sendAction(SocketAction.CLAIM_ORG_VIA_TOKEN, { token: token as string, userId: user.id }).then(result => {
       setClaiming(false);
-      if (res && res.error) {
-        // Show custom UI error alert
-        Alert.alert('Error', res.error || 'Failed to claim organization.');
-      } else {
-        // Successfully claimed! Navigate to the admin view
-        router.replace(`/(tabs)/organizations/${claimInfo?.orgId}`);
+      // A missing reply used to count as a claim and navigate into an org the user may not hold.
+      if (!result.ok) {
+        Alert.alert('Error', result.message);
+        return;
       }
+      // Successfully claimed! Navigate to the admin view
+      router.replace(`/(tabs)/organizations/${claimInfo?.orgId}`);
     });
   };
 

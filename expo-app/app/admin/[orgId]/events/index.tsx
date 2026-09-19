@@ -10,8 +10,17 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import DatePicker from '../../../../components/DatePicker';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
+import { sendAction } from '../../../../services/actions';
 import { useAuthStore } from '../../../../store/authStore';
-import { SocketAction, Event, Site, Facility, GameSummary, participantLabel, hasLiveScore } from '@sk/shared';
+import {
+  SocketAction,
+  Event,
+  Site,
+  Facility,
+  GameSummary,
+  participantLabel,
+  hasLiveScore,
+} from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { formatDateRange, formatFixtureWhen } from '../../../../utils/dates';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
@@ -122,29 +131,20 @@ export default function OrgEventsList() {
     const name = newTournamentName.trim();
     if (!name || !newTournamentDate) return;
     setIsProcessing(true);
-    wsService.emit(
-      'action',
-      {
-        type: SocketAction.ADD_EVENT,
-        payload: {
-          name,
-          type: 'Tournament',
-          format: 'Festival',
-          startDate: `${newTournamentDate}T12:00:00.000Z`,
-          orgId,
-          status: 'Scheduled',
-        },
-      },
-      (res: any) => {
-        setIsProcessing(false);
-        // The `action` ack is `{ status, data }` and `emit` passes it through unchanged, so
-        // `res.id` is always undefined and always quiet about it (`FIX-13`).
-        const newId = res?.data?.id;
-        if (!newId) return;
-        setIsNamingTournament(false);
-        router.push(`/admin/${orgId}/events/${newId}`);
-      }
-    );
+    sendAction(SocketAction.ADD_EVENT, {
+      name,
+      type: 'Tournament',
+      format: 'Festival',
+      startDate: `${newTournamentDate}T12:00:00.000Z`,
+      orgId,
+      status: 'Scheduled',
+    }).then(result => {
+      setIsProcessing(false);
+      // A refusal is already toasted; the naming dialog stays open with what was typed.
+      if (!result.ok) return;
+      setIsNamingTournament(false);
+      router.push(`/admin/${orgId}/events/${result.data.id}`);
+    });
   };
 
   /**
@@ -250,19 +250,12 @@ export default function OrgEventsList() {
   const handleDeleteEvent = async () => {
     if (!eventToDelete) return;
     setIsProcessing(true);
-    try {
-      const userId = useAuthStore.getState().user?.id;
-      wsService.emit('action', { 
-        type: SocketAction.DELETE_EVENT, 
-        payload: { id: eventToDelete.id, userId, orgId } 
-      }, (res: any) => {
-        setIsProcessing(false);
-        setEventToDelete(null);
-      });
-    } catch (err) {
-      console.error(err);
-      setIsProcessing(false);
-    }
+    await sendAction(SocketAction.DELETE_EVENT, {
+      id: eventToDelete.id,
+      orgId,
+    });
+    setIsProcessing(false);
+    setEventToDelete(null);
   };
 
   /**
@@ -288,7 +281,7 @@ export default function OrgEventsList() {
   };
 
   // "<site> · <facility>", dropping whichever half we cannot resolve
-  const getVenueLabel = (siteId?: string, facilityId?: string): string | undefined => {
+  const getVenueLabel = (siteId?: string | null, facilityId?: string | null): string | undefined => {
     const site = sites.find(s => s.id === siteId)?.name;
     const facility = facilities.find(f => f.id === facilityId)?.name;
     const parts = [site, facility].filter(Boolean);

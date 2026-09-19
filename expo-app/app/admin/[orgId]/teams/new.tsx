@@ -8,6 +8,7 @@ import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { wsService } from '../../../../services/websocket';
+import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Sport, Organization } from '@sk/shared';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
@@ -106,17 +107,14 @@ export default function NewTeam() {
     }
 
     setIsSaving(true);
-    wsService.emit('action', {
-      type: SocketAction.ADD_TEAM,
-      payload: {
-        name: name.trim(),
-        sportId: selectedSportId,
-        ageGroupId,
-        orgId,
-      }
-    }, (res: any) => {
+    sendAction(SocketAction.ADD_TEAM, {
+      name: name.trim(),
+      sportId: selectedSportId,
+      ageGroupId,
+      orgId,
+    }).then(result => {
       setIsSaving(false);
-      if (res.status === 'ok') {
+      if (result.ok) {
         // Clear form state inputs to disable the dirty flag synchronously
         setName('');
         setAgeGroupId(null);
@@ -124,10 +122,10 @@ export default function NewTeam() {
 
         router.replace({
           pathname: '/admin/[orgId]/teams/[teamId]',
-          params: { orgId: orgId!, teamId: res.data.id }
+          params: { orgId: orgId!, teamId: result.data.id }
         });
       } else {
-        Alert.alert('Save Failed', res.message || 'Could not create team');
+        Alert.alert('Save Failed', result.message || 'Could not create team');
       }
     });
   };
