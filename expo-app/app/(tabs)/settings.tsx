@@ -16,6 +16,7 @@ import { GlassCard } from "../../components/GlassCard";
 import { Button } from "../../components/Button";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { Tabs } from "../../components/Tabs";
+import { PasswordInput } from "../../components/PasswordInput";
 import { useAuthStore } from "../../store/authStore";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -79,9 +80,6 @@ export default function SettingsScreen() {
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showOldPassword, setShowOldPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Branded Toast Notification state
   const [toastConfig, setToastConfig] = useState<{
@@ -801,28 +799,14 @@ export default function SettingsScreen() {
                             <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
                               Current Password
                             </Text>
-                            <View className="relative justify-center">
-                              <TextInput
-                                className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 pr-12 font-inter"
-                                placeholder="••••••••"
-                                secureTextEntry={!showOldPassword}
-                                value={oldPassword}
-                                onChangeText={setOldPassword}
-                                editable={!isSaving}
-                              />
-                              <TouchableOpacity
-                                onPress={() =>
-                                  setShowOldPassword(!showOldPassword)
-                                }
-                                className="absolute right-4"
-                              >
-                                <Ionicons
-                                  name={showOldPassword ? "eye-off" : "eye"}
-                                  size={20}
-                                  color="#64748B"
-                                />
-                              </TouchableOpacity>
-                            </View>
+                            <PasswordInput
+                              purpose="current"
+                              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+                              placeholder="••••••••"
+                              value={oldPassword}
+                              onChangeText={setOldPassword}
+                              editable={!isSaving}
+                            />
                           </View>
 
                           <View className="flex-row gap-2 mt-2">
@@ -857,28 +841,14 @@ export default function SettingsScreen() {
                             <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
                               New Password
                             </Text>
-                            <View className="relative justify-center">
-                              <TextInput
-                                className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 pr-12 font-inter"
-                                placeholder="••••••••"
-                                secureTextEntry={!showNewPassword}
-                                value={newPassword}
-                                onChangeText={setNewPassword}
-                                editable={!isSaving}
-                              />
-                              <TouchableOpacity
-                                onPress={() =>
-                                  setShowNewPassword(!showNewPassword)
-                                }
-                                className="absolute right-4"
-                              >
-                                <Ionicons
-                                  name={showNewPassword ? "eye-off" : "eye"}
-                                  size={20}
-                                  color="#64748B"
-                                />
-                              </TouchableOpacity>
-                            </View>
+                            <PasswordInput
+                              purpose="new"
+                              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+                              placeholder="••••••••"
+                              value={newPassword}
+                              onChangeText={setNewPassword}
+                              editable={!isSaving}
+                            />
 
                             {/* Strength indicator */}
                             {newPassword.length > 0 && (
@@ -907,28 +877,14 @@ export default function SettingsScreen() {
                             <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
                               Confirm New Password
                             </Text>
-                            <View className="relative justify-center">
-                              <TextInput
-                                className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 pr-12 font-inter"
-                                placeholder="••••••••"
-                                secureTextEntry={!showConfirmPassword}
-                                value={confirmPassword}
-                                onChangeText={setConfirmPassword}
-                                editable={!isSaving}
-                              />
-                              <TouchableOpacity
-                                onPress={() =>
-                                  setShowConfirmPassword(!showConfirmPassword)
-                                }
-                                className="absolute right-4"
-                              >
-                                <Ionicons
-                                  name={showConfirmPassword ? "eye-off" : "eye"}
-                                  size={20}
-                                  color="#64748B"
-                                />
-                              </TouchableOpacity>
-                            </View>
+                            <PasswordInput
+                              purpose="new"
+                              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+                              placeholder="••••••••"
+                              value={confirmPassword}
+                              onChangeText={setConfirmPassword}
+                              editable={!isSaving}
+                            />
 
                             {confirmPassword.length > 0 && (
                               <View className="mt-1 flex-row items-center gap-1">

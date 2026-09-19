@@ -2,6 +2,7 @@ import { View, Text, TextInput, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Button } from '../../components/Button';
 import { GlassCard } from '../../components/GlassCard';
+import { PasswordInput } from '../../components/PasswordInput';
 import { useActiveTheme } from '../../store/settingsStore';
 import { apiService } from '../../services/api';
 import { useState } from 'react';
@@ -135,28 +136,26 @@ export default function ResetPasswordScreen() {
 
               <View>
                 <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">New Password</Text>
-                <TextInput 
+                <PasswordInput
+                  purpose="new"
                   className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
                   placeholder="Enter new password"
                   placeholderTextColor={placeholderColor}
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
                   editable={!isLoading}
                 />
               </View>
 
               <View>
                 <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Confirm Password</Text>
-                <TextInput 
+                <PasswordInput
+                  purpose="new"
                   className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
                   placeholder="Re-enter new password"
                   placeholderTextColor={placeholderColor}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
                   editable={!isLoading}
                 />
               </View>
