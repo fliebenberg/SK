@@ -17,6 +17,7 @@ import { emailService } from './services/EmailService';
 import { userManager } from './managers/UserManager';
 import { mailManager } from './managers/MailManager';
 import { sportManager } from './managers/SportManager';
+import { ageGroupManager, AgeGroupError } from './managers/AgeGroupManager';
 import { canJoinRoom } from './wss/roomAccess';
 import { broadcast, pushToSocket, setBroadcastIo } from './wss/broadcast';
 import { publishGameSummary, publishGameRemoved, captureFixtureRooms, publishEventToOrgs } from './wss/fixtures';
@@ -719,6 +720,95 @@ app.get('/api/admin/sports/:id', requireAdmin, async (req: any, res: any) => {
   } catch (error) {
     console.error("Admin get sport error:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// --- Sport age groups (admin) -------------------------------------------------------------------
+// Each call writes immediately rather than riding the sport editor's Save: the list is its own
+// table with teams, divisions and leagues pointing into it, and a merge is not something to stage.
+
+const sendAgeGroupError = (res: any, error: any, label: string) => {
+  if (error instanceof AgeGroupError) return res.status(400).json({ message: error.message });
+  console.error(`Admin ${label} error:`, error);
+  return res.status(500).json({ message: 'Internal server error' });
+};
+
+// GET /api/admin/sports/:id/age-groups - The list with usage counts and who added each custom entry
+app.get('/api/admin/sports/:id/age-groups', requireAdmin, async (req: any, res: any) => {
+  try {
+    return res.json(await ageGroupManager.getAdminList(req.params.id));
+  } catch (error) {
+    return sendAgeGroupError(res, error, 'list age groups');
+  }
+});
+
+// POST /api/admin/sports/:id/age-groups - Add to the official list (promotes a custom entry of that name)
+app.post('/api/admin/sports/:id/age-groups', requireAdmin, async (req: any, res: any) => {
+  try {
+    if (!(await sportManager.getSport(req.params.id))) {
+      return res.status(404).json({ message: 'Sport not found' });
+    }
+    await ageGroupManager.addOfficial(req.params.id, req.body?.name);
+    return res.status(201).json(await ageGroupManager.getAdminList(req.params.id));
+  } catch (error) {
+    return sendAgeGroupError(res, error, 'add age group');
+  }
+});
+
+// PUT /api/admin/sports/:id/age-groups/order - Reorder the official list
+app.put('/api/admin/sports/:id/age-groups/order', requireAdmin, async (req: any, res: any) => {
+  try {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.some((id: unknown) => typeof id !== 'string')) {
+      return res.status(400).json({ message: 'ids must be a list of age group ids.' });
+    }
+    await ageGroupManager.reorder(req.params.id, ids);
+    return res.json(await ageGroupManager.getAdminList(req.params.id));
+  } catch (error) {
+    return sendAgeGroupError(res, error, 'reorder age groups');
+  }
+});
+
+// PATCH /api/admin/age-groups/:id - Rename, promote to official, or demote to custom
+app.patch('/api/admin/age-groups/:id', requireAdmin, async (req: any, res: any) => {
+  try {
+    const { name, isOfficial } = req.body || {};
+    if (isOfficial !== undefined && typeof isOfficial !== 'boolean') {
+      return res.status(400).json({ message: 'isOfficial must be true or false.' });
+    }
+    const updated = await ageGroupManager.update(req.params.id, { name, isOfficial });
+    if (!updated) return res.status(404).json({ message: 'Age group not found' });
+    return res.json(await ageGroupManager.getAdminList(updated.sportId));
+  } catch (error) {
+    return sendAgeGroupError(res, error, 'update age group');
+  }
+});
+
+// DELETE /api/admin/age-groups/:id - Only an entry nothing holds
+app.delete('/api/admin/age-groups/:id', requireAdmin, async (req: any, res: any) => {
+  try {
+    const existing = await ageGroupManager.getAgeGroup(req.params.id);
+    if (!existing) return res.status(404).json({ message: 'Age group not found' });
+    await ageGroupManager.delete(req.params.id);
+    return res.json(await ageGroupManager.getAdminList(existing.sportId));
+  } catch (error) {
+    return sendAgeGroupError(res, error, 'delete age group');
+  }
+});
+
+// POST /api/admin/age-groups/:id/merge - Move everything holding :id to intoId, then delete :id
+app.post('/api/admin/age-groups/:id/merge', requireAdmin, async (req: any, res: any) => {
+  try {
+    const existing = await ageGroupManager.getAgeGroup(req.params.id);
+    if (!existing) return res.status(404).json({ message: 'Age group not found' });
+    const intoId = req.body?.intoId;
+    if (typeof intoId !== 'string' || !intoId) {
+      return res.status(400).json({ message: 'Choose the age group to merge into.' });
+    }
+    const { moved } = await ageGroupManager.merge(req.params.id, intoId);
+    return res.json({ moved, ageGroups: await ageGroupManager.getAdminList(existing.sportId) });
+  } catch (error) {
+    return sendAgeGroupError(res, error, 'merge age groups');
   }
 });
 
@@ -1887,6 +1977,18 @@ io.on('connection', (socket) => {
                 // Broadcast to room that the org is gone
                 broadcast(`org:${action.payload.id}:summary`, 'ORGANIZATION_UPDATED', { id: action.payload.id, deleted: true });
                 break;
+
+            case SocketAction.ADD_AGE_GROUP: {
+                // Anyone who can give a team, division or league an age group can need one the
+                // official list lacks, so being signed in is the whole gate. Nothing broadcasts:
+                // the entry is returned to the picker that asked, and other screens see it the
+                // next time they load the sports list.
+                if (!authUserId) throw new Error('Unauthorized: You must be signed in to add an age group.');
+                const { sportId, name, orgId: addedFromOrgId } = action.payload || {};
+                if (!sportId || !(await sportManager.getSport(sportId))) throw new Error('Choose a sport first.');
+                result = await ageGroupManager.addCustom(sportId, name, authUserId, addedFromOrgId);
+                break;
+            }
 
             case SocketAction.ADD_LEAGUE:
                 result = await dataManager.createLeague(action.payload);

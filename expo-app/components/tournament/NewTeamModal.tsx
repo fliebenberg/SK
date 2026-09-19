@@ -15,6 +15,9 @@ export interface NewTeamModalProps {
   orgName: string;
   /** Pre-filled from the division being entered, and read-only: they are what makes it qualify. */
   sportId?: string;
+  /** The division's age group — what the new team is given, so it qualifies. */
+  ageGroupId?: string | null;
+  /** Its name, for display. */
   ageGroup?: string;
   sportName?: string;
   onCreated: (team: Team) => void;
@@ -39,6 +42,7 @@ export function NewTeamModal({
   orgId,
   orgName,
   sportId,
+  ageGroupId,
   ageGroup,
   sportName,
   onCreated,
@@ -68,7 +72,7 @@ export function NewTeamModal({
         type: SocketAction.ADD_TEAM,
         payload: {
           name: trimmed,
-          ageGroup: ageGroup || '',
+          ageGroupId: ageGroupId || null,
           sportId,
           orgId,
           isActive: true,

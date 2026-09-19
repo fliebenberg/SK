@@ -1,4 +1,5 @@
 import { EventTemplate } from "./EventTemplate";
+import { AgeGroup } from "./AgeGroup";
 
 /**
  * A panel in the scoring control room, and the group a sport's event templates are filed under.
@@ -64,4 +65,6 @@ export interface Sport extends SportTemplate {
   /** The scoring panels this sport shows, in the order they are stacked. */
   eventSections?: EventSection[];
   eventTemplates?: EventTemplate[];
+  /** Official and custom age groups, official first in their curated order. */
+  ageGroups?: AgeGroup[];
 }

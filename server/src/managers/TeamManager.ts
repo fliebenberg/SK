@@ -14,10 +14,10 @@ export class TeamManager extends BaseManager {
   ];
 
   async getTeams(orgId?: string): Promise<Team[]> {
-    let queryText = 'SELECT id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId", short_name as "shortName" FROM teams';
+    let queryText = `SELECT t.id, t.name, t.age_group_id as "ageGroupId", ag.name as "ageGroup", t.sport_id as "sportId", t.org_id as "orgId", t.is_active as "isActive", t.creator_id as "creatorId", t.short_name as "shortName" FROM teams t LEFT JOIN sport_age_groups ag ON ag.id = t.age_group_id`;
     const params: any[] = [];
     if (orgId) {
-        queryText += ' WHERE org_id = $1';
+        queryText += ' WHERE t.org_id = $1';
         params.push(orgId);
     }
     const res = await this.query(queryText, params);
@@ -48,29 +48,35 @@ export class TeamManager extends BaseManager {
   }
 
   async getTeam(id: string): Promise<Team | undefined> {
-    const res = await this.query('SELECT id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId", short_name as "shortName" FROM teams WHERE id = $1', [id]);
+    const res = await this.query(`SELECT t.id, t.name, t.age_group_id as "ageGroupId", ag.name as "ageGroup", t.sport_id as "sportId", t.org_id as "orgId", t.is_active as "isActive", t.creator_id as "creatorId", t.short_name as "shortName" FROM teams t LEFT JOIN sport_age_groups ag ON ag.id = t.age_group_id WHERE t.id = $1`, [id]);
     if (!res.rows[0]) return undefined;
     return this.enrichTeam(res.rows[0]);
   }
 
   async addTeam(team: Omit<Team, "id"> & { id?: string }): Promise<Team> {
     const id = team.id || `team-${Date.now()}`;
-    const res = await this.query(
-        `INSERT INTO teams (id, name, age_group, sport_id, org_id, is_active, creator_id, short_name)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId", short_name as "shortName"`,
-         [id, team.name, team.ageGroup, team.sportId, team.orgId, true, team.creatorId, team.shortName]
+    await this.query(
+        `INSERT INTO teams (id, name, age_group_id, sport_id, org_id, is_active, creator_id, short_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         [id, team.name, team.ageGroupId || null, team.sportId, team.orgId, true, team.creatorId, team.shortName]
     );
     organizationManager.invalidateCache();
-    return res.rows[0];
+    return (await this.getTeam(id))!;
   }
 
   async updateTeam(id: string, data: Partial<Team>): Promise<Team | null> {
+    // An age group belongs to one sport, so a team that changes sport without naming a new age
+    // group loses its old one — the foreign key would refuse the update otherwise.
+    if (data.sportId !== undefined && data.ageGroupId === undefined) {
+        const current = await this.getTeam(id);
+        if (current && current.sportId !== data.sportId) data = { ...data, ageGroupId: null };
+    }
+
     const keys = Object.keys(data).filter(k => k !== 'id');
     if (keys.length === 0) return this.getTeam(id).then(r => r || null);
 
     const map: Record<string, string> = {
-        name: 'name', ageGroup: 'age_group', sportId: 'sport_id', orgId: 'org_id', isActive: 'is_active', creatorId: 'creator_id', shortName: 'short_name'
+        name: 'name', ageGroupId: 'age_group_id', sportId: 'sport_id', orgId: 'org_id', isActive: 'is_active', creatorId: 'creator_id', shortName: 'short_name'
     };
 
     const setClauses: string[] = [];
@@ -80,7 +86,7 @@ export class TeamManager extends BaseManager {
     keys.forEach(key => {
         if (map[key]) {
             setClauses.push(`${map[key]} = $${idx}`);
-            values.push((data as any)[key]);
+            values.push(key === 'ageGroupId' ? (data.ageGroupId || null) : (data as any)[key]);
             idx++;
         }
     });
@@ -89,14 +95,14 @@ export class TeamManager extends BaseManager {
     values.push(id);
     
     const res = await this.query(
-        `UPDATE teams SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, name, age_group as "ageGroup", sport_id as "sportId", org_id as "orgId", is_active as "isActive", creator_id as "creatorId", short_name as "shortName"`,
+        `UPDATE teams SET ${setClauses.join(', ')} WHERE id = $${idx}`,
         values
     );
-    if (!res.rows[0]) return null;
+    if (!res.rowCount) return null;
 
     // Org counts are computed live, so there is nothing to update here.
     organizationManager.invalidateCache();
-    return this.enrichTeam(res.rows[0]);
+    return this.getTeam(id).then(r => r || null);
   }
 
   async deleteTeam(id: string): Promise<Team | null> {

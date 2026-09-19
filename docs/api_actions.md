@@ -141,7 +141,7 @@ All state-changing operations are sent via the `action` event.
 ### 1. Teams
 
 #### `ADD_TEAM`
-*   **Payload**: `Omit<Team, "id">` (includes `name`, `ageGroup`, `sportId`, `organizationId`)
+*   **Payload**: `Omit<Team, "id">` (includes `name`, `ageGroupId`, `sportId`, `orgId`). `ageGroupId` must be an entry of the team's sport — see [Age groups](#age-groups). Reads carry `ageGroup` (the name) as well; writes ignore it.
 *   **Logic**: Creates a new team.
 *   **Broadcasts**:
     *   **Topic**: `org:{orgId}:teams`
@@ -159,6 +159,9 @@ All state-changing operations are sent via the `action` event.
         *   **Event**: `TEAM_UPDATED`
         *   **Data**: The updated `Team` object.
 
+A `data.sportId` that changes the team's sport without an `ageGroupId` clears the age group, since
+an age group belongs to one sport. The same holds for `UPDATE_DIVISION`.
+
 #### `DELETE_TEAM`
 *   **Payload**: `{ id }`
 *   **Logic**: Removes the team.
@@ -169,6 +172,35 @@ All state-changing operations are sent via the `action` event.
     2.  **Topic**: `team:{id}`
         *   **Event**: `TEAM_DELETED`
         *   **Data**: `{ id: string }` (Client should handle navigation away if on this page)
+
+### Age groups
+
+Each sport has one age-group list (`sport_age_groups`): official entries curated in the sport
+editor, and custom ones users add. Teams, divisions and leagues hold an `ageGroupId`; the database
+refuses one of another sport. See [database_structure.md §2d](file:///c:/Fred/Coding/SK/docs/database_structure.md).
+
+#### `ADD_AGE_GROUP`
+*   **Payload**: `{ sportId, name, orgId? }` — `orgId` is the workspace it was added from, shown to
+    the admin reviewing custom entries.
+*   **Gate**: signed in. Anyone who can give a team, division or league an age group may need one the
+    official list lacks.
+*   **Logic**: returns the entry already carrying that name (official or custom, ignoring case and
+    spacing) rather than making a second; otherwise adds a custom entry. Names are 1–40 characters.
+*   **Response**: the `AgeGroup`.
+*   **Broadcasts**: none. The picker that asked adds it locally; other screens see it the next time
+    they read `get_data: sports`.
+
+The admin operations are REST, under `requireAdmin`, and each answers with the sport's whole list as
+`AgeGroupAdminView[]` (usage counts and the adding organisation included):
+
+| Route | Does |
+|---|---|
+| `GET /api/admin/sports/:id/age-groups` | The list. |
+| `POST /api/admin/sports/:id/age-groups` `{ name }` | Adds to the end of the official list; promotes a custom entry of that name instead. |
+| `PUT /api/admin/sports/:id/age-groups/order` `{ ids }` | Sets the official order. |
+| `PATCH /api/admin/age-groups/:id` `{ name?, isOfficial? }` | Rename (refused onto another entry's name), promote or demote. |
+| `DELETE /api/admin/age-groups/:id` | Only when nothing uses it. |
+| `POST /api/admin/age-groups/:id/merge` `{ intoId }` | Moves every team, division and league to `intoId` and deletes `:id`, in one transaction. Answers `{ moved, ageGroups }`. |
 
 ### 2. Team Members
 

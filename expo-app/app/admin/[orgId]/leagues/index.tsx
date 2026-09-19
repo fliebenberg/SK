@@ -13,6 +13,7 @@ import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Sport, Organization } from '@sk/shared';
 import { getOrgLogoUrl } from '../../../../services/api';
 import CustomSelect from '../../../../components/CustomSelect';
+import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
@@ -34,7 +35,7 @@ export default function OrgLeagues() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newLeagueName, setNewLeagueName] = useState('');
   const [selectedSportId, setSelectedSportId] = useState('');
-  const [newLeagueAgeGroup, setNewLeagueAgeGroup] = useState('');
+  const [newLeagueAgeGroupId, setNewLeagueAgeGroupId] = useState<string | null>(null);
   const [selectedJoinPolicy, setSelectedJoinPolicy] = useState<'CLOSED' | 'INVITE' | 'OPEN'>('CLOSED');
   const [newLeagueLogo, setNewLeagueLogo] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -168,7 +169,7 @@ export default function OrgLeagues() {
       name: newLeagueName.trim(),
       orgId,
       sportId: selectedSportId,
-      ageGroup: newLeagueAgeGroup.trim() || undefined,
+      ageGroupId: newLeagueAgeGroupId,
       joinPolicy: selectedJoinPolicy,
       criteria: {},
       logo: newLeagueLogo || undefined
@@ -182,7 +183,7 @@ export default function OrgLeagues() {
         setIsCreateModalOpen(false);
         setNewLeagueName('');
         setSelectedSportId('');
-        setNewLeagueAgeGroup('');
+        setNewLeagueAgeGroupId(null);
         setSelectedJoinPolicy('CLOSED');
         setNewLeagueLogo('');
       }
@@ -373,20 +374,25 @@ export default function OrgLeagues() {
               <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Sport</Text>
               <CustomSelect
                 value={selectedSportId}
-                onChange={setSelectedSportId}
+                onChange={(sportId) => {
+                  // An age group belongs to one sport, so choosing another clears it.
+                  if (sportId !== selectedSportId) setNewLeagueAgeGroupId(null);
+                  setSelectedSportId(sportId);
+                }}
                 options={sports.map(s => ({ value: s.id, label: s.name }))}
                 placeholder="Select a Sport"
               />
             </View>
 
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Age Group (Optional)</Text>
-              <TextInput
-                value={newLeagueAgeGroup}
-                onChangeText={setNewLeagueAgeGroup}
-                placeholder="e.g. U19"
-                placeholderTextColor="#94A3B8"
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Age Group</Text>
+              <AgeGroupPicker
+                sportId={selectedSportId}
+                ageGroups={sports.find(s => s.id === selectedSportId)?.ageGroups}
+                value={newLeagueAgeGroupId}
+                onChange={setNewLeagueAgeGroupId}
+                noneLabel="Any age"
+                orgId={orgId}
               />
             </View>
 

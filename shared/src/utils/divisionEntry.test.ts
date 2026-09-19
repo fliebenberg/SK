@@ -2,29 +2,33 @@ import { describe, expect, it } from 'vitest';
 import { CandidateTeam } from '../models/event/Tournament';
 import { divisionTeamOptions, teamQualifies } from './divisionEntry';
 
-const team = (id: string, sportId: string, ageGroup?: string): CandidateTeam =>
-  ({ id, name: id, orgId: 'org-1', sportId, ageGroup } as CandidateTeam);
+const team = (id: string, sportId: string, ageGroupId?: string): CandidateTeam =>
+  ({ id, name: id, orgId: 'org-1', sportId, ageGroupId } as CandidateTeam);
 
-const rugbyU14 = { sportId: 'rugby', ageGroup: 'U14' };
+const rugbyU14 = { sportId: 'rugby', ageGroupId: 'ag-u14' };
 
 describe('which teams qualify for a division', () => {
-  it('matches the sport and the age group, ignoring case and spacing in the age group', () => {
-    expect(teamQualifies(team('a', 'rugby', 'u14 '), rugbyU14)).toBe(true);
-    expect(teamQualifies(team('b', 'rugby', 'U13'), rugbyU14)).toBe(false);
-    expect(teamQualifies(team('c', 'hockey', 'U14'), rugbyU14)).toBe(false);
+  it('matches the sport and the age group by id', () => {
+    expect(teamQualifies(team('a', 'rugby', 'ag-u14'), rugbyU14)).toBe(true);
+    expect(teamQualifies(team('b', 'rugby', 'ag-u13'), rugbyU14)).toBe(false);
+    expect(teamQualifies(team('c', 'hockey', 'ag-u14'), rugbyU14)).toBe(false);
+  });
+
+  it('does not let a team with no age group into a division that names one', () => {
+    expect(teamQualifies(team('a', 'rugby'), rugbyU14)).toBe(false);
   });
 
   it('lets any age through when the division names none', () => {
-    expect(teamQualifies(team('a', 'rugby', 'U13'), { sportId: 'rugby' })).toBe(true);
+    expect(teamQualifies(team('a', 'rugby', 'ag-u13'), { sportId: 'rugby' })).toBe(true);
   });
 });
 
 describe('the age-group override', () => {
   const teams = [
-    team('u14', 'rugby', 'U14'),
-    team('u13', 'rugby', 'U13'),
-    team('u15', 'rugby', 'U15'),
-    team('hockey', 'hockey', 'U14'),
+    team('u14', 'rugby', 'ag-u14'),
+    team('u13', 'rugby', 'ag-u13'),
+    team('u15', 'rugby', 'ag-u15'),
+    team('hockey', 'hockey', 'ag-hockey-u14'),
   ];
 
   it('lists the qualifying teams, and keeps the other age groups of the sport behind the control', () => {

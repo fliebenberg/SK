@@ -21,7 +21,7 @@ import { COLORS, getThemeColor } from '../../constants/Colors';
 export interface DivisionTeamChoicesProps {
   /** This organisation's teams — the caller filters by organisation. */
   teams: CandidateTeam[];
-  division: { sportId?: string; ageGroup?: string };
+  division: { sportId?: string; ageGroupId?: string | null };
   enteredTeamIds: Set<string>;
   isBusy: (team: CandidateTeam) => boolean;
   onToggle: (team: CandidateTeam) => void;
@@ -70,7 +70,7 @@ export function DivisionTeamChoices({
         </Text>
         {otherAgeGroup && (
           <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-            {team.ageGroup ? `${team.ageGroup.toUpperCase()} · other age group` : 'No age group'}
+            {team.ageGroup ? `${team.ageGroup} · other age group` : 'No age group'}
           </Text>
         )}
       </TouchableOpacity>

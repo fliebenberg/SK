@@ -217,13 +217,15 @@ CREATE TABLE IF NOT EXISTS tournament_divisions (
     event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     sport_id TEXT REFERENCES sports(id),
-    age_group TEXT,
+    age_group_id TEXT,              -- 2026-09-19: was free-text age_group
     scoring_subject TEXT,           -- 'Team' | 'Organisation'; NULL inherits the event
     weighting NUMERIC(6,3) NOT NULL DEFAULT 1.0,
     settings JSONB DEFAULT '{}'::jsonb,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT tournament_divisions_age_group_fk FOREIGN KEY (sport_id, age_group_id)
+        REFERENCES sport_age_groups (sport_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_divisions_event ON tournament_divisions(event_id);
 ```
@@ -231,9 +233,15 @@ CREATE INDEX IF NOT EXISTS idx_divisions_event ON tournament_divisions(event_id)
 Ids are `div-<uuid>`.
 
 `name` is required and free text, because divisions are user-editable and need not be
-`sport + age group` (D3). `sport_id` and `age_group` remain as the fields generation and team
+`sport + age group` (D3). `sport_id` and `age_group_id` remain as the fields generation and team
 filtering key off, and are what the app uses to *propose* divisions — but a division named
 "Division B" with the same sport and age group as "Division A" is legitimate and expected.
+
+> **Changed 2026-09-19 — age groups are a per-sport list.** `age_group` was free text, matched to
+> teams case-insensitively; it is now `age_group_id`, an entry in the sport's `sport_age_groups`
+> list, and a team qualifies when it holds the same id. The composite foreign key means the age
+> group is always one of the division's own sport. See
+> [database_structure.md §2d](file:///c:/Fred/Coding/SK/docs/database_structure.md).
 
 `weighting` implements D18. `NUMERIC` rather than a float so 1.5 means 1.5.
 
@@ -653,7 +661,8 @@ export interface TournamentDivision {
   eventId: string;
   name: string;
   sportId?: string;
-  ageGroup?: string;
+  ageGroupId?: string | null;        // an entry in the sport's age-group list
+  ageGroup?: string;                 // its name, joined in on read
   scoringSubject?: ScoringSubject;   // inherits the event when unset
   weighting: number;                 // D18, default 1.0
   settings?: {

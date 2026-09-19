@@ -57,6 +57,35 @@ Variation templates for a specific sport.
 - `name` (TEXT): Name of preset (e.g., 'U13 Rugby').
 - `settings_override` (JSONB)
 
+### 2d. `sport_age_groups`
+Each sport's age-group list (added 2026-09-19, migration `20260919_sport_age_groups`). One table
+holds two lists, split by `is_official`: the **official** list an admin curates on the sport
+editor's *Age Groups* tab, and the **custom** entries users add under "Other…" in the age-group
+picker when nothing official fits. Custom entries are shared with everyone who plays the sport, and
+an admin reviews them — **promote** flips `is_official`, **merge** repoints every team, division
+and league at another entry and deletes this one. `teams`, `tournament_divisions` and `leagues`
+reference it by id rather than holding the name, which is what makes merging possible and makes
+"same age group" mean "same row".
+- `id` (TEXT, PK): `<sport_id>-<slug>` for the starter entries (`rugby-u13`), a UUID otherwise.
+- `sport_id` (TEXT): NOT NULL, FK to `sports.id` (ON DELETE CASCADE).
+- `name` (TEXT): NOT NULL. Unique per sport ignoring case (`sport_age_groups_name_key` on
+  `(sport_id, lower(name))`); the app also collapses spaces before comparing.
+- `sort_order` (INTEGER): position in the official list; meaningless on a custom entry, which sorts
+  by name after all official ones.
+- `is_official` (BOOLEAN): NOT NULL DEFAULT false.
+- `created_by` (TEXT): the user who added a custom entry. No FK — `users` is created after this
+  table in `init-db.ts`, as with `teams.creator_id`.
+- `created_org_id` (TEXT): FK to `organizations.id` (ON DELETE SET NULL) — the workspace it was
+  added from, shown to the admin reviewing it.
+- `created_at` (TIMESTAMPTZ)
+- `UNIQUE (sport_id, id)`: the target of the composite foreign keys above.
+
+Every sport starts with the starter official list — U9 to U19, then Open — from
+[ageGroupSeed.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/ageGroupSeed.ts), applied by the
+seed, by the migration, and by `SportManager.createSport` for a sport created in the admin portal.
+Per-variant lists (a governing body with its own age groups) wait on `sport_presets` being built —
+`SPORT-3`.
+
 ### 3. `organizations`
 High-level entities like schools, clubs, or federations.
 - `id` (TEXT, PK): Unique identifier.
@@ -120,8 +149,11 @@ Which sports a facility can host — what the scheduler filters on when placing 
 Groups of players representing an organization.
 - `id` (TEXT, PK): Unique identifier.
 - `name` (TEXT): Team name (e.g., '1st XV').
-- `age_group` (TEXT): e.g., 'U19', 'Senior'.
 - `sport_id` (TEXT): FK to `sports.id`.
+- `age_group_id` (TEXT): FK to [`sport_age_groups`](#2d-sport_age_groups), through the composite
+  `(sport_id, age_group_id) → sport_age_groups (sport_id, id)` — so it must be an age group of this
+  row's own sport. NULL for none. The app requires one on every team. Changing a team's sport without naming a
+  new age group clears it.
 - `org_id` (TEXT): FK to `organizations.id`.
 - `is_active` (BOOLEAN): Status toggle.
 - `creator_id` (TEXT): User ID who created the team.
@@ -225,7 +257,10 @@ Everything else here is named for its parent, so a table name tells you what del
 - `name` (TEXT): NOT NULL, free text. Need not be `sport + age group` — "Division B" beside
   "Division A" with the same sport and age group is legitimate.
 - `sport_id` (TEXT): FK to `sports.id`. What generation and team filtering key off.
-- `age_group` (TEXT)
+- `age_group_id` (TEXT): FK to [`sport_age_groups`](#2d-sport_age_groups), through the composite
+  `(sport_id, age_group_id) → sport_age_groups (sport_id, id)` — so it must be an age group of this
+  row's own sport. NULL for none. NULL is "any age". Changing the division's sport without naming a new age
+  group clears it. A team qualifies when it holds the same id.
 - `scoring_subject` (TEXT): `'Team' | 'Organisation'`; NULL inherits the event's.
 - `weighting` (NUMERIC(6,3)): NOT NULL DEFAULT 1.0. `NUMERIC` so 1.5 means 1.5.
 - `settings` (JSONB): this division's scoring system and tiebreak order, when it overrides the event.
@@ -497,7 +532,9 @@ container; the thing you actually play in is a **season** of it.
 - `org_id` (TEXT): NOT NULL, FK to `organizations.id`. The organiser.
 - `sport_id` (TEXT): NOT NULL, FK to `sports.id`. One sport per league — unlike a tournament, which
   splits across sports by division.
-- `age_group` (TEXT)
+- `age_group_id` (TEXT): FK to [`sport_age_groups`](#2d-sport_age_groups), through the composite
+  `(sport_id, age_group_id) → sport_age_groups (sport_id, id)` — so it must be an age group of this
+  row's own sport. NULL for none.
 - `join_policy` (TEXT): NOT NULL DEFAULT `'CLOSED'`. Whether a team may apply to join.
 - `criteria` (JSONB): eligibility rules a joining team must meet.
 - `logo` (TEXT), `created_at` (TIMESTAMPTZ)

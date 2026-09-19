@@ -11,6 +11,7 @@ import { wsService } from '../../../../services/websocket';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Sport, Organization } from '@sk/shared';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
+import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
 
 export default function NewTeam() {
   const router = useRouter();
@@ -27,10 +28,10 @@ export default function NewTeam() {
 
   // Form Fields
   const [name, setName] = useState('');
-  const [ageGroup, setAgeGroup] = useState('');
+  const [ageGroupId, setAgeGroupId] = useState<string | null>(null);
   const [selectedSportId, setSelectedSportId] = useState('');
 
-  const isFormDirty = name.trim().length > 0 || ageGroup.trim().length > 0 || selectedSportId.length > 0;
+  const isFormDirty = name.trim().length > 0 || !!ageGroupId || selectedSportId.length > 0;
 
   const safeGoBack = useCallback(() => {
     safeBack(`/admin/${orgId}/teams`);
@@ -75,6 +76,14 @@ export default function NewTeam() {
     ? sports.filter(s => org.supportedSportIds?.includes(s.id))
     : sports;
 
+  const selectedSport = sports.find(s => s.id === selectedSportId);
+
+  // An age group belongs to one sport, so choosing another sport clears it.
+  const chooseSport = (sportId: string) => {
+    if (sportId !== selectedSportId) setAgeGroupId(null);
+    setSelectedSportId(sportId);
+  };
+
   // Set default sport if only one is available
   useEffect(() => {
     if (availableSports.length === 1 && !selectedSportId) {
@@ -87,12 +96,12 @@ export default function NewTeam() {
       Alert.alert('Validation Error', 'Team Name is required.');
       return;
     }
-    if (!ageGroup.trim()) {
-      Alert.alert('Validation Error', 'Age Group is required (e.g., U19, First Team).');
-      return;
-    }
     if (!selectedSportId) {
       Alert.alert('Validation Error', 'Please select a sport.');
+      return;
+    }
+    if (!ageGroupId) {
+      Alert.alert('Validation Error', 'Please choose an age group.');
       return;
     }
 
@@ -102,7 +111,7 @@ export default function NewTeam() {
       payload: {
         name: name.trim(),
         sportId: selectedSportId,
-        ageGroup: ageGroup.trim().toUpperCase(),
+        ageGroupId,
         orgId,
       }
     }, (res: any) => {
@@ -110,7 +119,7 @@ export default function NewTeam() {
       if (res.status === 'ok') {
         // Clear form state inputs to disable the dirty flag synchronously
         setName('');
-        setAgeGroup('');
+        setAgeGroupId(null);
         setSelectedSportId('');
 
         router.replace({
@@ -168,7 +177,7 @@ export default function NewTeam() {
                 return (
                   <TouchableOpacity
                     key={s.id}
-                    onPress={() => setSelectedSportId(s.id)}
+                    onPress={() => chooseSport(s.id)}
                     className={`px-4 py-3 rounded-xl border flex-row items-center gap-2 ${
                       isSelected
                         ? 'bg-brand-orange border-brand-orange'
@@ -206,14 +215,14 @@ export default function NewTeam() {
           {/* AGE GROUP */}
           <View className="mb-6">
             <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-              Age Group / Division
+              Age Group
             </Text>
-            <TextInput
-              value={ageGroup}
-              onChangeText={setAgeGroup}
-              placeholder="e.g. U19, U15, Seniors"
-              placeholderTextColor="#94A3B8"
-              className="font-inter text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
+            <AgeGroupPicker
+              sportId={selectedSportId}
+              ageGroups={selectedSport?.ageGroups}
+              value={ageGroupId}
+              onChange={setAgeGroupId}
+              orgId={orgId}
             />
           </View>
         </GlassCard>
@@ -240,7 +249,7 @@ export default function NewTeam() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
-              disabled={isSaving || !name.trim() || !ageGroup.trim() || !selectedSportId}
+              disabled={isSaving || !name.trim() || !ageGroupId || !selectedSportId}
               className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
             >
               {isSaving ? (

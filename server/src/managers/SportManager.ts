@@ -1,5 +1,6 @@
 import { EventSection, MatchTopology, Sport, SportParticipantType, getEventSections } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
+import { ageGroupManager } from "./AgeGroupManager";
 
 export interface SportWriteData {
   name: string;
@@ -20,7 +21,8 @@ export class SportManager extends BaseManager {
        FROM sports`
     );
     const dbSports = res.rows;
-    
+    const ageGroups = await ageGroupManager.getBySport();
+
     return dbSports.map(dbSport => ({
       ...dbSport,
       facilityTerm: dbSport.facilityTerm || 'Field',
@@ -32,7 +34,8 @@ export class SportManager extends BaseManager {
       // A sport that predates the column still has to render its panels, so sections are
       // derived from the sections its templates name when the column is empty.
       eventSections: getEventSections(dbSport),
-      eventTemplates: dbSport.eventTemplates || []
+      eventTemplates: dbSport.eventTemplates || [],
+      ageGroups: ageGroups[dbSport.id] || []
     }));
   }
 
@@ -54,6 +57,8 @@ export class SportManager extends BaseManager {
         positions: dbSport.defaultSettings?.positions || []
       },
       eventSections: getEventSections(dbSport),
+      // No `ageGroups`: this is on the scoring path, which never needs them. Pickers read them
+      // from `getSports`, and the sport editor from `ageGroupManager.getAdminList`.
       eventTemplates: dbSport.eventTemplates || []
     };
   }
@@ -74,6 +79,7 @@ export class SportManager extends BaseManager {
         JSON.stringify(data.eventTemplates || [])
       ]
     );
+    await ageGroupManager.addStarterList(data.id);
     return this.getSport(data.id);
   }
 

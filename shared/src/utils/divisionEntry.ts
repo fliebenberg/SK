@@ -8,23 +8,17 @@ import { CandidateTeam } from '../models/event/Tournament';
  * every team rather than none, because an organiser who has not said "u14 rugby" yet has not said
  * "nothing qualifies" either.
  *
- * Age groups are compared case- and space-insensitively because they are free text typed by two
- * different people at two different times: "U14" on the team and "u14 " on the division are the
- * same age group, and treating them as different is how a school appears to have no team.
+ * Age groups are compared by id. Each is an entry in the sport's age-group list, so "U14" on the
+ * team and "U14" on the division are the same row — and a custom "Under 14" is a different one until
+ * an admin merges it into "U14", at which point both hold the same id.
  */
 export function teamQualifies(
-  team: Pick<CandidateTeam, 'sportId' | 'ageGroup'>,
-  division: { sportId?: string; ageGroup?: string }
+  team: Pick<CandidateTeam, 'sportId' | 'ageGroupId'>,
+  division: { sportId?: string; ageGroupId?: string | null }
 ): boolean {
   if (division.sportId && team.sportId !== division.sportId) return false;
-  if (division.ageGroup && normaliseAgeGroup(team.ageGroup) !== normaliseAgeGroup(division.ageGroup)) {
-    return false;
-  }
+  if (division.ageGroupId && team.ageGroupId !== division.ageGroupId) return false;
   return true;
-}
-
-export function normaliseAgeGroup(value?: string): string {
-  return (value || '').trim().toLowerCase();
 }
 
 /** A team the division's list shows, and whether it is there by override. */
@@ -52,7 +46,7 @@ export interface DivisionTeamOption {
  */
 export function divisionTeamOptions(
   teams: CandidateTeam[],
-  division: { sportId?: string; ageGroup?: string },
+  division: { sportId?: string; ageGroupId?: string | null },
   enteredTeamIds: Set<string>
 ): { listed: DivisionTeamOption[]; others: CandidateTeam[] } {
   const listed: DivisionTeamOption[] = [];

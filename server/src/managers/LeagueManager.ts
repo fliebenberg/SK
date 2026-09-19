@@ -8,13 +8,13 @@ export class LeagueManager extends BaseManager {
   async getLeagues(orgId?: string): Promise<League[]> {
     if (orgId) {
       const res = await this.query(
-        `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria, logo FROM leagues WHERE org_id = $1 ORDER BY created_at DESC`,
+        `SELECT l.id, l.name, l.org_id as "orgId", l.sport_id as "sportId", l.age_group_id as "ageGroupId", ag.name as "ageGroup", l.join_policy as "joinPolicy", l.criteria, l.logo FROM leagues l LEFT JOIN sport_age_groups ag ON ag.id = l.age_group_id WHERE l.org_id = $1 ORDER BY l.created_at DESC`,
         [orgId]
       );
       return res.rows;
     } else {
       const res = await this.query(
-        `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria, logo FROM leagues ORDER BY created_at DESC`
+        `SELECT l.id, l.name, l.org_id as "orgId", l.sport_id as "sportId", l.age_group_id as "ageGroupId", ag.name as "ageGroup", l.join_policy as "joinPolicy", l.criteria, l.logo FROM leagues l LEFT JOIN sport_age_groups ag ON ag.id = l.age_group_id ORDER BY l.created_at DESC`
       );
       return res.rows;
     }
@@ -22,7 +22,7 @@ export class LeagueManager extends BaseManager {
 
   async getLeague(id: string): Promise<League | null> {
     const res = await this.query(
-      `SELECT id, name, org_id as "orgId", sport_id as "sportId", age_group as "ageGroup", join_policy as "joinPolicy", criteria, logo FROM leagues WHERE id = $1`,
+      `SELECT l.id, l.name, l.org_id as "orgId", l.sport_id as "sportId", l.age_group_id as "ageGroupId", ag.name as "ageGroup", l.join_policy as "joinPolicy", l.criteria, l.logo FROM leagues l LEFT JOIN sport_age_groups ag ON ag.id = l.age_group_id WHERE l.id = $1`,
       [id]
     );
     return res.rows[0] || null;
@@ -51,13 +51,13 @@ export class LeagueManager extends BaseManager {
     }
 
     await this.query(
-      `INSERT INTO leagues (id, name, org_id, sport_id, age_group, join_policy, criteria, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO leagues (id, name, org_id, sport_id, age_group_id, join_policy, criteria, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         id,
         data.name,
         data.orgId,
         data.sportId,
-        data.ageGroup || null,
+        data.ageGroupId || null,
         data.joinPolicy || 'CLOSED',
         JSON.stringify(data.criteria || {}),
         logo || null
@@ -92,9 +92,9 @@ export class LeagueManager extends BaseManager {
       fields.push(`name = $${idx++}`);
       values.push(data.name);
     }
-    if (data.ageGroup !== undefined) {
-      fields.push(`age_group = $${idx++}`);
-      values.push(data.ageGroup || null);
+    if (data.ageGroupId !== undefined) {
+      fields.push(`age_group_id = $${idx++}`);
+      values.push(data.ageGroupId || null);
     }
     if (data.joinPolicy !== undefined) {
       fields.push(`join_policy = $${idx++}`);
@@ -228,9 +228,10 @@ export class LeagueManager extends BaseManager {
   // --- Season Teams (Participants) ---
   async getSeasonTeams(seasonId: string): Promise<(Team & { status: string })[]> {
     const res = await this.query(
-      `SELECT t.id, t.name, t.age_group as "ageGroup", t.sport_id as "sportId", t.org_id as "orgId", t.is_active as "isActive", t.creator_id as "creatorId", t.short_name as "shortName", st.status as "status" 
+      `SELECT t.id, t.name, t.age_group_id as "ageGroupId", ag.name as "ageGroup", t.sport_id as "sportId", t.org_id as "orgId", t.is_active as "isActive", t.creator_id as "creatorId", t.short_name as "shortName", st.status as "status" 
        FROM teams t 
        JOIN season_teams st ON t.id = st.team_id 
+       LEFT JOIN sport_age_groups ag ON ag.id = t.age_group_id
        WHERE st.season_id = $1`,
       [seasonId]
     );

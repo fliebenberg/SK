@@ -5,6 +5,7 @@ import { setIo } from '../wss/sockets';
 import { accessManager } from '../managers/AccessManager';
 import { eventManager } from '../managers/EventManager';
 import { tournamentManager } from '../managers/TournamentManager';
+import { starterAgeGroupId } from './setup/ageGroupSeed';
 import { canJoinRoom } from '../wss/roomAccess';
 import { canReadData } from '../wss/dataAccess';
 import { publishStageFixtures } from '../wss/tournaments';
@@ -164,17 +165,19 @@ async function main() {
     stageId: string;
     sportId: string;
     ageGroup: string;
+    ageGroupId: string;
     weighting: number;
   }> = [];
 
   for (let sportIndex = 0; sportIndex < sports.length; sportIndex++) {
     for (const ageGroup of AGE_GROUPS) {
       const isWeighted = sportIndex === WEIGHTED.sportIndex && ageGroup === WEIGHTED.ageGroup;
+      const ageGroupId = starterAgeGroupId(sports[sportIndex].id, ageGroup);
       const division = await tournamentManager.addDivision({
         eventId: event.id,
         name: `${ageGroup} ${sports[sportIndex].name}`,
         sportId: sports[sportIndex].id,
-        ageGroup,
+        ageGroupId,
         weighting: isWeighted ? WEIGHTED.weighting : 1.0,
       });
       const stage = await tournamentManager.addStage({
@@ -187,6 +190,7 @@ async function main() {
         stageId: stage.id,
         sportId: sports[sportIndex].id,
         ageGroup,
+        ageGroupId,
         weighting: isWeighted ? WEIGHTED.weighting : 1.0,
       });
     }
@@ -201,9 +205,9 @@ async function main() {
     for (const school of schools) {
       const id = `team-p6-${school.shortName}-${division.ageGroup}-${division.sportId}-${stamp}`.toLowerCase();
       await query(
-        `INSERT INTO teams (id, name, age_group, sport_id, org_id, is_active)
+        `INSERT INTO teams (id, name, age_group_id, sport_id, org_id, is_active)
          VALUES ($1, $2, $3, $4, $5, true)`,
-        [id, `${division.ageGroup}A`, division.ageGroup, division.sportId, school.id]
+        [id, `${division.ageGroup}A`, division.ageGroupId, division.sportId, school.id]
       );
       created.teamIds.push(id);
       teams.push({ id, orgId: school.id });
@@ -223,7 +227,7 @@ async function main() {
   );
   const sampleCandidate = candidates.find(team => team.id === created.teamIds[0])!;
   expect(
-    [!!sampleCandidate.orgName, !!sampleCandidate.sportId, !!sampleCandidate.ageGroup],
+    [!!sampleCandidate.orgName, !!sampleCandidate.sportId, !!sampleCandidate.ageGroupId],
     [true, true, true],
     'and each carries the org and the two fields that decide which divisions it qualifies for'
   );
@@ -464,9 +468,9 @@ async function main() {
   const swapped = rosterBefore[0];
   const replacementTeamId = `team-p6-sub-${stamp}`;
   await query(
-    `INSERT INTO teams (id, name, age_group, sport_id, org_id, is_active)
+    `INSERT INTO teams (id, name, age_group_id, sport_id, org_id, is_active)
      VALUES ($1, 'Second XV', $2, $3, $4, true)`,
-    [replacementTeamId, substituteDivision.ageGroup, substituteDivision.sportId, schools[0].id]
+    [replacementTeamId, substituteDivision.ageGroupId, substituteDivision.sportId, schools[0].id]
   );
   created.teamIds.push(replacementTeamId);
 

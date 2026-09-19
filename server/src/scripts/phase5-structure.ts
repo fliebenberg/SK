@@ -4,6 +4,7 @@ import pool from '../db';
 import { accessManager } from '../managers/AccessManager';
 import { eventManager } from '../managers/EventManager';
 import { tournamentManager } from '../managers/TournamentManager';
+import { starterAgeGroupId } from './setup/ageGroupSeed';
 
 /**
  * Tournaments Phase 5 — the structure a tournament is created with, and what a screen can read.
@@ -204,8 +205,8 @@ async function main() {
 
   const teamId = `team-p5-${stamp}`;
   await query(
-    `INSERT INTO teams (id, org_id, name, sport_id, age_group) VALUES ($1, $2, 'P5 Team', $3, 'Open')`,
-    [teamId, APP_TEST_ORG_ID, sportId.id]
+    `INSERT INTO teams (id, org_id, name, sport_id, age_group_id) VALUES ($1, $2, 'P5 Team', $3, $4)`,
+    [teamId, APP_TEST_ORG_ID, sportId.id, starterAgeGroupId(sportId.id, 'Open')]
   );
   created.teamIds.push(teamId);
 

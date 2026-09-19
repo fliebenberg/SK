@@ -313,6 +313,7 @@ export default function EntrantsScreen() {
         orgName: orgs.find(o => o.id === team.orgId)?.name || team.orgId,
         orgShortName: orgs.find(o => o.id === team.orgId)?.shortName,
         sportId: team.sportId,
+        ageGroupId: team.ageGroupId,
         ageGroup: team.ageGroup,
       },
     ]);
@@ -602,6 +603,7 @@ export default function EntrantsScreen() {
         orgId={newTeamFor?.orgId || ''}
         orgName={orgs.find(o => o.id === newTeamFor?.orgId)?.name || ''}
         sportId={newTeamFor?.division.sportId}
+        ageGroupId={newTeamFor?.division.ageGroupId}
         ageGroup={newTeamFor?.division.ageGroup}
         sportName={sportName(newTeamFor?.division.sportId)}
         onCreated={(team) => {

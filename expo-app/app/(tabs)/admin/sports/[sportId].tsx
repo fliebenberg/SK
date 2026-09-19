@@ -9,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { apiService, Sport } from '../../../../services/api';
 import { SportSettingsTab } from '../../../../components/admin/sports/SportSettingsTab';
 import { SportPositionsTab } from '../../../../components/admin/sports/SportPositionsTab';
+import { SportAgeGroupsTab } from '../../../../components/admin/sports/SportAgeGroupsTab';
+import { AgeGroupAdminView } from '@sk/shared';
 import { SportEventsTab } from '../../../../components/admin/sports/SportEventsTab';
 import {
   EMPTY_FORM,
@@ -17,7 +19,7 @@ import {
   payloadFromForm,
 } from '../../../../components/admin/sports/sportForm';
 
-type SportTab = 'settings' | 'positions' | 'events';
+type SportTab = 'settings' | 'positions' | 'ageGroups' | 'events';
 
 export default function EditSport() {
   const safeBack = useSafeBack();
@@ -35,6 +37,8 @@ export default function EditSport() {
   const [originalSport, setOriginalSport] = useState<Sport | null>(null);
 
   const [form, setForm] = useState<SportForm>(EMPTY_FORM);
+  // Not part of the form: each age-group change is written as it is made (see SportAgeGroupsTab).
+  const [ageGroups, setAgeGroups] = useState<AgeGroupAdminView[]>([]);
 
   const setField = <K extends keyof SportForm>(field: K, value: SportForm[K]) =>
     setForm(prev => ({ ...prev, [field]: value }));
@@ -50,9 +54,13 @@ export default function EditSport() {
       setIsLoading(true);
       setError(null);
       try {
-        const sport = await apiService.getAdminSport(token, sportId);
+        const [sport, sportAgeGroups] = await Promise.all([
+          apiService.getAdminSport(token, sportId),
+          apiService.getAdminAgeGroups(token, sportId),
+        ]);
         setOriginalSport(sport);
         setForm(formFromSport(sport));
+        setAgeGroups(sportAgeGroups);
       } catch (err: any) {
         console.error('[EditSport] Failed to load sport:', err);
         setError(err.message || 'Failed to load sport details.');
@@ -221,6 +229,13 @@ export default function EditSport() {
           items={[
             { key: 'settings', label: 'Settings', icon: 'options-outline' },
             { key: 'positions', label: 'Positions', icon: 'people-outline', badge: form.positions.length || undefined },
+            {
+              key: 'ageGroups',
+              label: 'Age Groups',
+              icon: 'layers-outline',
+              // The custom entries are the ones waiting on a decision, so they are what is counted.
+              badge: ageGroups.filter(group => !group.isOfficial).length || undefined,
+            },
             { key: 'events', label: 'Events', icon: 'flash-outline', badge: form.eventTemplates.length || undefined },
           ]}
           activeKey={activeTab}
@@ -243,6 +258,17 @@ export default function EditSport() {
             positions={form.positions}
             onChange={(positions) => setField('positions', positions)}
           />
+        )}
+
+        {activeTab === 'ageGroups' && (
+          isNew || !sportId || !token ? (
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Create the sport first. It starts with the standard age groups (U9 to U19, and Open),
+              which you can then change here.
+            </Text>
+          ) : (
+            <SportAgeGroupsTab sportId={sportId} token={token} ageGroups={ageGroups} onChange={setAgeGroups} />
+          )
         )}
 
         {activeTab === 'events' && (

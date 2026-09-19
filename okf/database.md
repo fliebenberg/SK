@@ -8,7 +8,7 @@ tags:
   - PostgreSQL
   - migrations
   - persistence
-timestamp: 2026-09-01T21:00:00Z
+timestamp: 2026-09-19T12:00:00Z
 ---
 
 # Database & Data Persistence
@@ -38,6 +38,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260901_tournaments.ts`: The tournaments schema (Phase 1). Nine new tables, four columns on `game_participants`, two on `events`; the `SportsDay` rewrite; `events.type` made `NOT NULL` with a `CHECK`; the `seasons.settings` default moved to 3/1/0; and `game_participants`' three missing foreign keys, which needed 8 orphaned rows deleted first. See below.
     - `20260902_game_stage_id.ts`: Adds `games.stage_id` and its index (Phase 3). One column, and the one place this build deviated from the settled data model — see below.
     - `20260903_backfill_stages.ts`: **Data only, no schema change** (Phase 6), so nothing to mirror into `init-db.ts` — a database built from scratch has no rows to fix. Gives the stages their format implies to divisions created before Phase 5, and attaches orphaned tournament fixtures to their division's first stage where the answer is unambiguous (an event with exactly one division). Fixtures on multi-division events are **reported and left alone**: nothing in the row says which division they belonged to, and guessing would put a fixture in a table it never counted toward. Closes `PEOPLE-3` for existing rows, the way `FIX-12` closes it for new ones.
+    - `20260919_sport_age_groups.ts`: Age groups become a per-sport list. Creates `sport_age_groups` (official entries curated by an admin, custom ones added by users), seeds every sport with the starter list, and replaces the free-text `age_group` on `teams`, `tournament_divisions` and `leagues` with `age_group_id` under a composite foreign key on `(sport_id, age_group_id)` — so an age group can only be held by something of its own sport. Existing values are carried over: a starter name match takes the official entry, anything else becomes a custom one. Managed by [AgeGroupManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/AgeGroupManager.ts); see [database_structure.md §2d](file:///c:/Fred/Coding/SK/docs/database_structure.md).
 
 ## The tournaments schema
 

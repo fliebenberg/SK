@@ -59,9 +59,9 @@ export function useEventEntrants(eventId?: string | null, enabled = true) {
 }
 
 /*
- * The eligibility rules — `teamQualifies`, `normaliseAgeGroup` and the age-group override
+ * The eligibility rules — `teamQualifies` and the age-group override
  * `divisionTeamOptions` — live in the shared package, where they are tested. Re-exported so the
  * screens' existing imports keep working.
  */
-export { teamQualifies, normaliseAgeGroup, divisionTeamOptions } from '@sk/shared';
+export { teamQualifies, divisionTeamOptions } from '@sk/shared';
 export type { DivisionTeamOption } from '@sk/shared';

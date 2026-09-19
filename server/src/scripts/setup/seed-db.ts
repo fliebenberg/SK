@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SPORT_SEEDS, SYSTEM_SETTINGS_SEEDS } from './seeds';
+import { STARTER_AGE_GROUPS, starterAgeGroupId } from './ageGroupSeed';
 
 const seedDb = async () => {
     try {
@@ -70,6 +71,18 @@ const seedDb = async () => {
                 JSON.stringify(sport.eventSections || []),
                 JSON.stringify(sport.eventTemplates || [])
             ]);
+        }
+
+        // 1b. Every sport starts with the starter official age-group list; an admin edits it in the
+        // sport editor. Existing rows are left alone, so re-seeding never undoes that editing.
+        for (const sport of allSports) {
+            for (let i = 0; i < STARTER_AGE_GROUPS.length; i++) {
+                await pool.query(`
+                    INSERT INTO sport_age_groups (id, sport_id, name, sort_order, is_official)
+                    VALUES ($1, $2, $3, $4, true)
+                    ON CONFLICT DO NOTHING
+                `, [starterAgeGroupId(sport.id, STARTER_AGE_GROUPS[i]), sport.id, STARTER_AGE_GROUPS[i], i]);
+            }
         }
 
         // 1a. Sport ids: canonicalise, then verify against what was just seeded.
@@ -324,10 +337,10 @@ const seedDb = async () => {
 
             for (const team of teams) {
                 await pool.query(`
-                    INSERT INTO teams (id, name, age_group, sport_id, org_id, is_active)
+                    INSERT INTO teams (id, name, age_group_id, sport_id, org_id, is_active)
                     VALUES ($1, $2, $3, $4, $5, $6)
                     ON CONFLICT (id) DO NOTHING
-                `, [team.id, team.name, team.ageGroup, team.sportId, team.orgId, true]);
+                `, [team.id, team.name, starterAgeGroupId(team.sportId, team.ageGroup), team.sportId, team.orgId, true]);
             }
 
             // Org Profiles

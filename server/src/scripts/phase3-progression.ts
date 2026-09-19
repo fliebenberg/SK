@@ -3,6 +3,7 @@ import { query } from '../db';
 import pool from '../db';
 import { eventManager } from '../managers/EventManager';
 import { tournamentManager } from '../managers/TournamentManager';
+import { starterAgeGroupId } from './setup/ageGroupSeed';
 
 /**
  * Tournaments Phase 3 — the exit criterion, as a runnable check.
@@ -71,9 +72,9 @@ async function main() {
   for (let i = 0; i < 4; i++) {
     const teamId = `team-p3-${stamp}-${i + 1}`;
     await query(
-      `INSERT INTO teams (id, name, age_group, sport_id, org_id, is_active)
-       VALUES ($1, $2, 'U14', $3, $4, true)`,
-      [teamId, `P3 Team ${i + 1}`, sportId, teamOrgs[i]]
+      `INSERT INTO teams (id, name, age_group_id, sport_id, org_id, is_active)
+       VALUES ($1, $2, $3, $4, $5, true)`,
+      [teamId, `P3 Team ${i + 1}`, starterAgeGroupId(sportId, 'U14'), sportId, teamOrgs[i]]
     );
     created.teamIds.push(teamId);
   }
@@ -99,7 +100,7 @@ async function main() {
     eventId: event.id,
     name: 'U14 Pool & Knockout',
     sportId,
-    ageGroup: 'U14',
+    ageGroupId: starterAgeGroupId(sportId, 'U14'),
     weighting: 1.5,
   });
   assertEqual(division.weighting, 1.5, 'weighting round-trips as a number, not a NUMERIC string');

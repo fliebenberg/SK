@@ -137,17 +137,41 @@ const createTables = async () => {
             );
         `);
 
+        // Sport age groups: each sport's list, official (curated in the sport editor) and custom
+        // (added by users under "Other…"). Teams, divisions and leagues reference an entry through
+        // (sport_id, age_group_id), so an age group can only be held by something of its own sport.
+        // `created_by` has no FK because `users` is created further down, as with `teams.creator_id`.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS sport_age_groups (
+                id TEXT PRIMARY KEY,
+                sport_id TEXT NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                is_official BOOLEAN NOT NULL DEFAULT false,
+                created_by TEXT,
+                created_org_id TEXT REFERENCES organizations(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE (sport_id, id)
+            );
+        `);
+        await pool.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS sport_age_groups_name_key
+                ON sport_age_groups (sport_id, lower(name));
+        `);
+
         // Teams Table
         await pool.query(`
             CREATE TABLE IF NOT EXISTS teams (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
-                age_group TEXT,
                 sport_id TEXT REFERENCES sports(id),
+                age_group_id TEXT,
                 org_id TEXT REFERENCES organizations(id),
                 is_active BOOLEAN DEFAULT true,
                 creator_id TEXT,
-                short_name TEXT
+                short_name TEXT,
+                CONSTRAINT teams_age_group_fk FOREIGN KEY (sport_id, age_group_id)
+                    REFERENCES sport_age_groups (sport_id, id)
             );
         `);
 
@@ -289,13 +313,15 @@ const createTables = async () => {
                 event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
                 name TEXT NOT NULL,
                 sport_id TEXT REFERENCES sports(id),
-                age_group TEXT,
+                age_group_id TEXT,
                 scoring_subject TEXT,           -- 'Team' | 'Organisation'; NULL inherits the event
                 weighting NUMERIC(6,3) NOT NULL DEFAULT 1.0,
                 settings JSONB DEFAULT '{}'::jsonb,
                 sort_order INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                CONSTRAINT tournament_divisions_age_group_fk FOREIGN KEY (sport_id, age_group_id)
+                    REFERENCES sport_age_groups (sport_id, id)
             );
         `);
 
@@ -704,11 +730,13 @@ const createTables = async () => {
                 name TEXT NOT NULL,
                 org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
                 sport_id TEXT NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
-                age_group TEXT,
+                age_group_id TEXT,
                 join_policy TEXT NOT NULL DEFAULT 'CLOSED',
                 criteria JSONB DEFAULT '{}'::jsonb,
                 logo TEXT DEFAULT NULL,
-                created_at TIMESTAMPTZ DEFAULT NOW()
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                CONSTRAINT leagues_age_group_fk FOREIGN KEY (sport_id, age_group_id)
+                    REFERENCES sport_age_groups (sport_id, id)
             );
         `);
 

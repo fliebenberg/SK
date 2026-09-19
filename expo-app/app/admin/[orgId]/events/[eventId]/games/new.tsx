@@ -27,6 +27,7 @@ import {
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
 import DatePicker from '../../../../../../components/DatePicker';
 import CustomSelect from '../../../../../../components/CustomSelect';
+import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
 
 export default function ScheduleGame() {
   const router = useRouter();
@@ -67,7 +68,7 @@ export default function ScheduleGame() {
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamShortName, setNewTeamShortName] = useState('');
-  const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('Open');
+  const [newTeamAgeGroupId, setNewTeamAgeGroupId] = useState<string | null>(null);
   const [targetOrgIdForTeam, setTargetOrgIdForTeam] = useState('');
 
   const [pendingReferrals, setPendingReferrals] = useState<Record<string, string>>({});
@@ -270,21 +271,22 @@ export default function ScheduleGame() {
   const handleCreateTeamTrigger = (targetOrgId: string) => {
     setTargetOrgIdForTeam(targetOrgId);
     
-    // Default the age group to the other team's age group (if available)
-    let defaultedAgeGroup = 'Open';
+    // Default the age group to the other team's (if available), else the sport's "Open".
+    let defaultedAgeGroupId: string | null =
+      sports.find(s => s.id === selectedSportId)?.ageGroups?.find(g => g.isOfficial && g.name === 'Open')?.id || null;
     if (targetOrgId === selectedHomeOrgId) {
       if (selectedAwayTeamId) {
         const otherTeam = (orgTeams[selectedAwayOrgId] || []).find(t => t.id === selectedAwayTeamId);
-        if (otherTeam?.ageGroup) defaultedAgeGroup = otherTeam.ageGroup;
+        if (otherTeam?.ageGroupId) defaultedAgeGroupId = otherTeam.ageGroupId;
       }
     } else {
       if (selectedHomeTeamId) {
         const otherTeam = (orgTeams[selectedHomeOrgId] || []).find(t => t.id === selectedHomeTeamId);
-        if (otherTeam?.ageGroup) defaultedAgeGroup = otherTeam.ageGroup;
+        if (otherTeam?.ageGroupId) defaultedAgeGroupId = otherTeam.ageGroupId;
       }
     }
     
-    setNewTeamAgeGroup(defaultedAgeGroup);
+    setNewTeamAgeGroupId(defaultedAgeGroupId);
     setNewTeamName('');
     setNewTeamShortName('');
     setIsCreatingTeam(true);
@@ -292,7 +294,7 @@ export default function ScheduleGame() {
 
   // Team Quick-Create Handler
   const handleQuickCreateTeam = () => {
-    if (!newTeamName.trim() || !newTeamShortName.trim() || !selectedSportId || !targetOrgIdForTeam) return;
+    if (!newTeamName.trim() || !newTeamShortName.trim() || !selectedSportId || !newTeamAgeGroupId || !targetOrgIdForTeam) return;
     setIsProcessing(true);
 
     const payload = {
@@ -300,7 +302,7 @@ export default function ScheduleGame() {
       shortName: newTeamShortName.trim(),
       orgId: targetOrgIdForTeam,
       sportId: selectedSportId,
-      ageGroup: newTeamAgeGroup.trim() || 'Open',
+      ageGroupId: newTeamAgeGroupId,
       isActive: true
     };
 
@@ -321,7 +323,7 @@ export default function ScheduleGame() {
         setIsCreatingTeam(false);
         setNewTeamName('');
         setNewTeamShortName('');
-        setNewTeamAgeGroup('Open');
+        setNewTeamAgeGroupId(null);
       }
     });
   };
@@ -908,12 +910,12 @@ export default function ScheduleGame() {
             </View>
             <View className="space-y-1.5">
               <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Age Group</Text>
-              <TextInput
-                placeholder="e.g. Open"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newTeamAgeGroup}
-                onChangeText={setNewTeamAgeGroup}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+              <AgeGroupPicker
+                sportId={selectedSportId}
+                ageGroups={sports.find(s => s.id === selectedSportId)?.ageGroups}
+                value={newTeamAgeGroupId}
+                onChange={setNewTeamAgeGroupId}
+                orgId={targetOrgIdForTeam || undefined}
               />
             </View>
             <View className="flex-row gap-3 pt-4">
@@ -926,7 +928,7 @@ export default function ScheduleGame() {
               <Button
                 title="Register"
                 onPress={handleQuickCreateTeam}
-                disabled={!newTeamName.trim() || !newTeamShortName.trim()}
+                disabled={!newTeamName.trim() || !newTeamShortName.trim() || !newTeamAgeGroupId}
                 className="flex-1 py-2.5 rounded-lg"
               />
             </View>

@@ -255,6 +255,7 @@ export function DivisionEntrantsEditor({
         orgId={newTeamForOrgId || ''}
         orgName={orgs.find(o => o.id === newTeamForOrgId)?.name || ''}
         sportId={division.sportId}
+        ageGroupId={division.ageGroupId}
         ageGroup={division.ageGroup}
         sportName={sportName}
         onCreated={handleCreated}

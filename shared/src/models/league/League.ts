@@ -10,6 +10,9 @@ export interface League {
   name: string;
   orgId: string;
   sportId: string;
+  /** An entry in the sport's age-group list (see `AgeGroup`). What is written. */
+  ageGroupId?: string | null;
+  /** The age group's name, joined in on read for display. Ignored on write. */
   ageGroup?: string;
   joinPolicy: 'CLOSED' | 'INVITE' | 'OPEN';
   criteria?: Record<string, any>;

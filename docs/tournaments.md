@@ -147,7 +147,7 @@ So we introduce a grouping layer between the event and its games:
 Event (Tournament)
 └── Division            e.g. "u14 Rugby", "Open Netball", "u16 Rugby — Division B"
     ├── sportId
-    ├── ageGroup        (optional — a tournament may have only one)
+    ├── ageGroupId      (optional — a tournament may have only one; an entry in the sport's list)
     ├── entrants        teams, individuals, or unresolved placeholders
     ├── facilities      which fields/courts this division may use (optional)
     ├── weighting       multiplier applied to its points in the org roll-up (default 1.0)
@@ -265,9 +265,11 @@ Proposed flow, per division:
    an unclaimed org with a nomination email invite — see
    [create.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/[orgId]/events/create.tsx)).
 2. For a division of *sport S, age group A*, the app offers each participating org's teams
-   matching `sportId === S && ageGroup === A` — the same filter `games/new.tsx` already applies.
+   matching `sportId === S && ageGroupId === A` — the same filter `games/new.tsx` already applies.
+   (Since 2026-09-19 an age group is an entry in the sport's list rather than free text, so this
+   is an id comparison — see `teamQualifies` in `shared/src/utils/divisionEntry.ts`.)
 3. Where an org has no matching team, offer to create one inline. `Team` is a light record
-   (`name`, `ageGroup`, `sportId`, `orgId`) so this is cheap, and the create-event screen already
+   (`name`, `ageGroupId`, `sportId`, `orgId`) so this is cheap, and the create-event screen already
    does inline team creation today.
 4. An org may enter more than one team in a division (u14A *and* u14B). This must not be blocked.
 

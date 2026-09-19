@@ -1,5 +1,6 @@
 import { dataManager } from '../DataManager';
 import { query } from '../db';
+import { starterAgeGroupId } from './setup/ageGroupSeed';
 
 async function runTest() {
     console.log("=== STARTING LEAGUES & SEASONS INTEGRATION TEST ===");
@@ -38,14 +39,14 @@ async function runTest() {
             name: "Pretoria U19 Rugby",
             orgId: orgId,
             sportId: sportId,
-            ageGroup: "U19"
+            ageGroupId: starterAgeGroupId(sportId, "U19")
         } as any);
         await dataManager.addTeam({
             id: teamBId,
             name: "Johannesburg U19 Rugby",
             orgId: orgId,
             sportId: sportId,
-            ageGroup: "U19"
+            ageGroupId: starterAgeGroupId(sportId, "U19")
         } as any);
 
         // 3. Create Test League
@@ -55,7 +56,7 @@ async function runTest() {
             name: "SA U19 Rugby League",
             orgId: orgId,
             sportId: sportId,
-            ageGroup: "U19",
+            ageGroupId: starterAgeGroupId(sportId, "U19"),
             joinPolicy: "CLOSED",
             criteria: { ageGroup: "U19" }
         });

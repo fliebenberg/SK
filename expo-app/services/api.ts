@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { EventSection, EventTemplate } from '@sk/shared';
+import { AgeGroup, AgeGroupAdminView, EventSection, EventTemplate } from '@sk/shared';
 import { useToastStore } from '../store/toastStore';
 
 const getApiUrl = () => {
@@ -365,6 +365,87 @@ export const apiService = {
     );
   },
 
+  /*
+   * A sport's age groups (Admin only). Each call writes immediately — the list is its own table,
+   * not part of the sport form — and answers with the sport's whole list, so the tab re-renders
+   * from what the server now holds.
+   */
+  async getAdminAgeGroups(token: string, sportId: string, options?: ApiRequestOptions): Promise<AgeGroupAdminView[]> {
+    return apiFetch<AgeGroupAdminView[]>(
+      `${API_BASE_URL}/api/admin/sports/${sportId}/age-groups`,
+      { headers: { 'Authorization': `Bearer ${token}` } },
+      options
+    );
+  },
+
+  async addAdminAgeGroup(token: string, sportId: string, name: string, options?: ApiRequestOptions): Promise<AgeGroupAdminView[]> {
+    return apiFetch<AgeGroupAdminView[]>(
+      `${API_BASE_URL}/api/admin/sports/${sportId}/age-groups`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name }),
+      },
+      options
+    );
+  },
+
+  async reorderAdminAgeGroups(token: string, sportId: string, ids: string[], options?: ApiRequestOptions): Promise<AgeGroupAdminView[]> {
+    return apiFetch<AgeGroupAdminView[]>(
+      `${API_BASE_URL}/api/admin/sports/${sportId}/age-groups/order`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ids }),
+      },
+      options
+    );
+  },
+
+  /** Rename, promote (`isOfficial: true`) or demote. */
+  async updateAdminAgeGroup(
+    token: string,
+    id: string,
+    data: { name?: string; isOfficial?: boolean },
+    options?: ApiRequestOptions
+  ): Promise<AgeGroupAdminView[]> {
+    return apiFetch<AgeGroupAdminView[]>(
+      `${API_BASE_URL}/api/admin/age-groups/${id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(data),
+      },
+      options
+    );
+  },
+
+  async deleteAdminAgeGroup(token: string, id: string, options?: ApiRequestOptions): Promise<AgeGroupAdminView[]> {
+    return apiFetch<AgeGroupAdminView[]>(
+      `${API_BASE_URL}/api/admin/age-groups/${id}`,
+      { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } },
+      options
+    );
+  },
+
+  /** Moves every team, division and league on `id` to `intoId`, then deletes `id`. */
+  async mergeAdminAgeGroup(
+    token: string,
+    id: string,
+    intoId: string,
+    options?: ApiRequestOptions
+  ): Promise<{ moved: number; ageGroups: AgeGroupAdminView[] }> {
+    return apiFetch<{ moved: number; ageGroups: AgeGroupAdminView[] }>(
+      `${API_BASE_URL}/api/admin/age-groups/${id}/merge`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ intoId }),
+      },
+      options
+    );
+  },
+
   /**
    * Create a new sport configuration (Admin only)
    */
@@ -455,4 +536,6 @@ export interface Sport {
   defaultSettings?: SportSettings;
   eventSections?: EventSection[];
   eventTemplates?: EventTemplate[];
+  /** Official and custom, official first. The sport editor reads the fuller admin view instead. */
+  ageGroups?: AgeGroup[];
 }

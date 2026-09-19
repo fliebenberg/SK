@@ -18,6 +18,7 @@ import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
 import { getAvatarUrl } from '../../../../services/api';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { PaginatedList } from '../../../../components/PaginatedList';
+import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -68,7 +69,7 @@ export default function TeamDetailsScreen() {
     name: '',
     shortName: '',
     sportId: '',
-    ageGroup: '',
+    ageGroupId: null as string | null,
     isActive: true
   });
   const [originalDetails, setOriginalDetails] = useState<any>(null);
@@ -160,14 +161,14 @@ export default function TeamDetailsScreen() {
               name: t.name,
               shortName: t.shortName || '',
               sportId: t.sportId,
-              ageGroup: t.ageGroup,
+              ageGroupId: t.ageGroupId || null,
               isActive: t.isActive !== false
             });
             setOriginalDetails({
               name: t.name,
               shortName: t.shortName || '',
               sportId: t.sportId,
-              ageGroup: t.ageGroup,
+              ageGroupId: t.ageGroupId || null,
               isActive: t.isActive !== false
             });
           }
@@ -220,14 +221,14 @@ export default function TeamDetailsScreen() {
           name: updated.name,
           shortName: updated.shortName || '',
           sportId: updated.sportId,
-          ageGroup: updated.ageGroup,
+          ageGroupId: updated.ageGroupId || null,
           isActive: updated.isActive !== false
         });
         setOriginalDetails({
           name: updated.name,
           shortName: updated.shortName || '',
           sportId: updated.sportId,
-          ageGroup: updated.ageGroup,
+          ageGroupId: updated.ageGroupId || null,
           isActive: updated.isActive !== false
         });
       }
@@ -274,7 +275,7 @@ export default function TeamDetailsScreen() {
       detailsForm.name.trim() !== originalDetails.name ||
       detailsForm.shortName.trim() !== originalDetails.shortName ||
       detailsForm.sportId !== originalDetails.sportId ||
-      detailsForm.ageGroup.trim() !== originalDetails.ageGroup ||
+      detailsForm.ageGroupId !== originalDetails.ageGroupId ||
       detailsForm.isActive !== originalDetails.isActive
     ) : false;
   }, [detailsForm, originalDetails]);
@@ -289,7 +290,7 @@ export default function TeamDetailsScreen() {
       name: originalDetails.name,
       shortName: originalDetails.shortName,
       sportId: originalDetails.sportId,
-      ageGroup: originalDetails.ageGroup,
+      ageGroupId: originalDetails.ageGroupId,
       isActive: originalDetails.isActive,
     });
   }, [originalDetails]);
@@ -346,8 +347,8 @@ export default function TeamDetailsScreen() {
       Alert.alert('Validation Error', 'Team Name is required');
       return;
     }
-    if (!detailsForm.ageGroup.trim()) {
-      Alert.alert('Validation Error', 'Age Group is required');
+    if (!detailsForm.ageGroupId) {
+      Alert.alert('Validation Error', 'Please choose an age group');
       return;
     }
 
@@ -360,7 +361,7 @@ export default function TeamDetailsScreen() {
           name: detailsForm.name.trim(),
           shortName: detailsForm.shortName.trim() || null,
           sportId: detailsForm.sportId,
-          ageGroup: detailsForm.ageGroup.trim().toUpperCase(),
+          ageGroupId: detailsForm.ageGroupId,
           isActive: detailsForm.isActive
         }
       }
@@ -371,7 +372,7 @@ export default function TeamDetailsScreen() {
           name: detailsForm.name.trim(),
           shortName: detailsForm.shortName.trim(),
           sportId: detailsForm.sportId,
-          ageGroup: detailsForm.ageGroup.trim().toUpperCase(),
+          ageGroupId: detailsForm.ageGroupId,
           isActive: detailsForm.isActive
         });
         useUnsavedChangesStore.getState().clear();
@@ -700,16 +701,6 @@ export default function TeamDetailsScreen() {
                 />
               </View>
 
-              {/* AGE GROUP */}
-              <View className="mb-4">
-                <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Age Group</Text>
-                <TextInput
-                  value={detailsForm.ageGroup}
-                  onChangeText={val => setDetailsForm(prev => ({ ...prev, ageGroup: val }))}
-                  className="font-inter text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5"
-                />
-              </View>
-
               {/* SPORT */}
               <View className="mb-6">
                 <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Sport</Text>
@@ -719,7 +710,10 @@ export default function TeamDetailsScreen() {
                     return (
                       <TouchableOpacity
                         key={s.id}
-                        onPress={() => setDetailsForm(prev => ({ ...prev, sportId: s.id }))}
+                        onPress={() => setDetailsForm(prev => (
+                          // An age group belongs to one sport, so choosing another clears it.
+                          prev.sportId === s.id ? prev : { ...prev, sportId: s.id, ageGroupId: null }
+                        ))}
                         className={`px-3 py-2 rounded-lg border ${
                           isSelected ? 'bg-brand-orange border-brand-orange' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
                         }`}
@@ -731,6 +725,18 @@ export default function TeamDetailsScreen() {
                     );
                   })}
                 </View>
+              </View>
+
+              {/* AGE GROUP — after the sport, whose list it chooses from */}
+              <View className="mb-6">
+                <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Age Group</Text>
+                <AgeGroupPicker
+                  sportId={detailsForm.sportId}
+                  ageGroups={sports.find(s => s.id === detailsForm.sportId)?.ageGroups}
+                  value={detailsForm.ageGroupId}
+                  onChange={ageGroupId => setDetailsForm(prev => ({ ...prev, ageGroupId }))}
+                  orgId={orgId}
+                />
               </View>
 
               {/* STATUS TOGGLE */}
@@ -1662,7 +1668,7 @@ export default function TeamDetailsScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSaveDetails}
-              disabled={isProcessing || !detailsForm.name.trim() || !detailsForm.ageGroup.trim()}
+              disabled={isProcessing || !detailsForm.name.trim() || !detailsForm.ageGroupId}
               className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
             >
               {isProcessing ? (

@@ -23,6 +23,7 @@ export * from './models/event/ScoreLog';
 export * from './models/sport/Sport';
 export * from './models/sport/SportCategory';
 export * from './models/sport/SportPreset';
+export * from './models/sport/AgeGroup';
 export * from './models/sport/EventTemplate';
 export * from './models/people/UserBadge';
 export * from './models/referral/OrgClaimReferral';

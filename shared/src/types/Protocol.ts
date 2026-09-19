@@ -16,6 +16,7 @@ import { GameEvent } from "../models/event/GameEvent";
 import { GameDispute } from "../models/event/GameDispute";
 import { OrgClaimReferral } from "../models/referral/OrgClaimReferral";
 import { Report } from "../models/Report";
+import { AgeGroup } from "../models/sport/AgeGroup";
 import { Notification } from "../models/notification/Notification";
 import { League, Season, SeasonTeam, LeagueSettings, LeagueStandingRow } from "../models/league/League";
 import { GameSummary } from "../models/event/GameSummary";
@@ -337,11 +338,19 @@ export interface UndoGameEventPayload {
     initiatorId: string;
 }
 
+export interface AddAgeGroupPayload {
+    sportId: string;
+    name: string;
+    /** The workspace the user is acting from — recorded so an admin can see who added it. */
+    orgId?: string;
+}
+
 export interface AddLeaguePayload {
     name: string;
     orgId: string;
     sportId: string;
-    ageGroup?: string;
+    /** An entry in the sport's age-group list. */
+    ageGroupId?: string | null;
     joinPolicy: 'CLOSED' | 'INVITE' | 'OPEN';
     criteria?: Record<string, any>;
 }
@@ -447,7 +456,8 @@ export interface AddDivisionPayload {
     orgId: string;
     name: string;
     sportId?: string;
-    ageGroup?: string;
+    /** An entry in the sport's age-group list. */
+    ageGroupId?: string | null;
     scoringSubject?: ScoringSubject;
     weighting?: number;
     settings?: TournamentDivision['settings'];
@@ -686,6 +696,7 @@ export interface ProtocolMap {
     [SocketAction.ADD_LEAGUE]: { payload: AddLeaguePayload; response: League };
     [SocketAction.UPDATE_LEAGUE]: { payload: UpdateLeaguePayload; response: League };
     [SocketAction.DELETE_LEAGUE]: { payload: DeleteLeaguePayload; response: void };
+    [SocketAction.ADD_AGE_GROUP]: { payload: AddAgeGroupPayload; response: AgeGroup };
     [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };
     [SocketAction.UPDATE_SEASON]: { payload: UpdateSeasonPayload; response: Season };
     [SocketAction.DELETE_SEASON]: { payload: DeleteSeasonPayload; response: void };

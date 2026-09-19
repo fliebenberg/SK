@@ -81,6 +81,9 @@ export interface TournamentDivision {
   eventId: string;
   name: string;
   sportId?: string;
+  /** An entry in the sport's age-group list (see `AgeGroup`). What is written. */
+  ageGroupId?: string | null;
+  /** The age group's name, joined in on read for display. Ignored on write. */
   ageGroup?: string;
   /** Inherits the event's when unset (data model §6). */
   scoringSubject?: ScoringSubject;
@@ -185,6 +188,8 @@ export interface CandidateTeam {
   orgName: string;
   orgShortName?: string;
   sportId?: string;
+  ageGroupId?: string | null;
+  /** Display only. */
   ageGroup?: string;
 }
 

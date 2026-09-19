@@ -127,7 +127,8 @@ export class TournamentManager extends BaseManager {
    * (U47), which is why it is coalesced here rather than left null for a caller to interpret.
    */
   private DIVISION_COLUMNS = `
-      d.id, d.event_id as "eventId", d.name, d.sport_id as "sportId", d.age_group as "ageGroup",
+      d.id, d.event_id as "eventId", d.name, d.sport_id as "sportId", d.age_group_id as "ageGroupId",
+      (SELECT ag.name FROM sport_age_groups ag WHERE ag.id = d.age_group_id) as "ageGroup",
       d.scoring_subject as "scoringSubject", d.weighting::float8 as "weighting", d.settings,
       d.sort_order as "sortOrder",
       COALESCE((SELECT json_agg(df.facility_id ORDER BY df.facility_id)
@@ -196,7 +197,7 @@ export class TournamentManager extends BaseManager {
     eventId: string;
     name: string;
     sportId?: string;
-    ageGroup?: string;
+    ageGroupId?: string | null;
     scoringSubject?: ScoringSubject;
     weighting?: number;
     settings?: TournamentDivision['settings'];
@@ -214,14 +215,14 @@ export class TournamentManager extends BaseManager {
 
     await this.query(
       `INSERT INTO tournament_divisions
-         (id, event_id, name, sport_id, age_group, scoring_subject, weighting, settings, sort_order)
+         (id, event_id, name, sport_id, age_group_id, scoring_subject, weighting, settings, sort_order)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         id,
         data.eventId,
         data.name,
         data.sportId || null,
-        data.ageGroup || null,
+        data.ageGroupId || null,
         data.scoringSubject || null,
         data.weighting ?? 1.0,
         JSON.stringify(data.settings || {}),
@@ -275,7 +276,14 @@ export class TournamentManager extends BaseManager {
 
     if (data.name !== undefined) set('name', data.name);
     if (data.sportId !== undefined) set('sport_id', data.sportId || null);
-    if (data.ageGroup !== undefined) set('age_group', data.ageGroup || null);
+    // An age group belongs to one sport, so changing the sport without naming a new age group
+    // clears the old one — the foreign key would refuse the update otherwise. (The half of
+    // `FIX-17` this schema forces; entrants and fixtures of the old sport are still unchecked.)
+    if (data.ageGroupId !== undefined) set('age_group_id', data.ageGroupId || null);
+    else if (data.sportId !== undefined) {
+      const current = await this.getDivision(id);
+      if (current && (current.sportId || null) !== (data.sportId || null)) set('age_group_id', null);
+    }
     if (data.scoringSubject !== undefined) set('scoring_subject', data.scoringSubject || null);
     if (data.weighting !== undefined) set('weighting', data.weighting);
     if (data.settings !== undefined) set('settings', JSON.stringify(data.settings));
@@ -425,23 +433,24 @@ export class TournamentManager extends BaseManager {
    * reasoning that keeps the invite picker a search (`FIX-2`). It is deliberately **not** filtered
    * by sport or age group on the server: the org axis shows one org against every division at
    * once, so a per-division filter would be a query per division. The projection is lean enough
-   * that the client filters it locally against each division's `sportId` and `ageGroup`, which is
+   * that the client filters it locally against each division's `sportId` and `ageGroupId`, which is
    * one read for the whole grid.
    */
   async getEventCandidateTeams(eventId: string): Promise<CandidateTeam[]> {
     const res = await this.query(
       `SELECT t.id, t.name, t.short_name as "shortName", t.org_id as "orgId",
               o.name as "orgName", o.short_name as "orgShortName",
-              t.sport_id as "sportId", t.age_group as "ageGroup"
+              t.sport_id as "sportId", t.age_group_id as "ageGroupId", ag.name as "ageGroup"
          FROM teams t
          JOIN organizations o ON o.id = t.org_id
+         LEFT JOIN sport_age_groups ag ON ag.id = t.age_group_id
         WHERE t.is_active IS NOT FALSE
           AND t.org_id IN (
                 SELECT ev.org_id FROM events ev WHERE ev.id = $1
                 UNION
                 SELECT eo.org_id FROM event_organizations eo WHERE eo.event_id = $1
               )
-        ORDER BY o.name, t.age_group NULLS LAST, t.name`,
+        ORDER BY o.name, ag.is_official DESC NULLS LAST, ag.sort_order, ag.name, t.name`,
       [eventId]
     );
     return res.rows;

@@ -12,6 +12,7 @@ import { SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/sha
 import { useAuthStore } from '../store/authStore';
 import { NominationModal } from './NominationModal';
 import { GlassCard } from './GlassCard';
+import { AgeGroupPicker } from './AgeGroupPicker';
 import { getContrastColor } from '../utils/colorUtils';
 
 export interface MatchFormData {
@@ -86,7 +87,7 @@ export default function MatchForm({
   const [targetOrgIdForTeam, setTargetOrgIdForTeam] = useState('');
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamShortName, setNewTeamShortName] = useState('');
-  const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('Open');
+  const [newTeamAgeGroupId, setNewTeamAgeGroupId] = useState<string | null>(null);
 
   const [isNominationModalVisible, setIsNominationModalVisible] = useState(false);
   const [pendingReferrals, setPendingReferrals] = useState<Record<string, string[]>>({});
@@ -417,20 +418,22 @@ export default function MatchForm({
   // Team Quick-Create Trigger
   const handleCreateTeamTrigger = (targetOrgId: string) => {
     setTargetOrgIdForTeam(targetOrgId);
-    let defaultedAgeGroup = 'Open';
+    // The opponent's age group when one is chosen, else the sport's "Open", else none yet.
+    let defaultedAgeGroupId: string | null =
+      sports.find(s => s.id === selectedSportId)?.ageGroups?.find(g => g.isOfficial && g.name === 'Open')?.id || null;
     if (targetOrgId === selectedHomeOrg?.id) {
       if (selectedAwayTeamId) {
         const otherTeam = awayTeams.find(t => t.id === selectedAwayTeamId);
-        if (otherTeam?.ageGroup) defaultedAgeGroup = otherTeam.ageGroup;
+        if (otherTeam?.ageGroupId) defaultedAgeGroupId = otherTeam.ageGroupId;
       }
     } else {
       if (selectedHomeTeamId) {
         const otherTeam = homeTeams.find(t => t.id === selectedHomeTeamId);
-        if (otherTeam?.ageGroup) defaultedAgeGroup = otherTeam.ageGroup;
+        if (otherTeam?.ageGroupId) defaultedAgeGroupId = otherTeam.ageGroupId;
       }
     }
 
-    setNewTeamAgeGroup(defaultedAgeGroup);
+    setNewTeamAgeGroupId(defaultedAgeGroupId);
     setNewTeamName('');
     setNewTeamShortName('');
     setIsCreatingTeam(true);
@@ -438,14 +441,14 @@ export default function MatchForm({
 
   // Team Quick-Create Handler
   const handleQuickCreateTeam = () => {
-    if (!newTeamName.trim() || !newTeamShortName.trim() || !selectedSportId || !targetOrgIdForTeam) return;
+    if (!newTeamName.trim() || !newTeamShortName.trim() || !selectedSportId || !newTeamAgeGroupId || !targetOrgIdForTeam) return;
 
     const payload = {
       name: newTeamName.trim(),
       shortName: newTeamShortName.trim(),
       orgId: targetOrgIdForTeam,
       sportId: selectedSportId,
-      ageGroup: newTeamAgeGroup.trim() || 'Open',
+      ageGroupId: newTeamAgeGroupId,
       isActive: true,
     };
 
@@ -462,7 +465,7 @@ export default function MatchForm({
         setIsCreatingTeam(false);
         setNewTeamName('');
         setNewTeamShortName('');
-        setNewTeamAgeGroup('Open');
+        setNewTeamAgeGroupId(null);
       }
     });
   };
@@ -1106,12 +1109,12 @@ export default function MatchForm({
             </View>
             <View className="space-y-1.5">
               <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Age Group</Text>
-              <TextInput
-                placeholder="e.g. Open"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newTeamAgeGroup}
-                onChangeText={setNewTeamAgeGroup}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+              <AgeGroupPicker
+                sportId={selectedSportId}
+                ageGroups={sports.find(s => s.id === selectedSportId)?.ageGroups}
+                value={newTeamAgeGroupId}
+                onChange={setNewTeamAgeGroupId}
+                orgId={targetOrgIdForTeam || undefined}
               />
             </View>
             <View className="flex-row gap-3 pt-4">
@@ -1124,7 +1127,7 @@ export default function MatchForm({
               <Button
                 title="Register"
                 onPress={handleQuickCreateTeam}
-                disabled={!newTeamName.trim() || !newTeamShortName.trim()}
+                disabled={!newTeamName.trim() || !newTeamShortName.trim() || !newTeamAgeGroupId}
                 className="flex-1 py-2.5 rounded-lg"
               />
             </View>

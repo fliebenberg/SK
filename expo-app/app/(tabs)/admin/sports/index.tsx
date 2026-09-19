@@ -74,7 +74,14 @@ export default function SportsList() {
               const hasRegistry = sport.eventTemplates && sport.eventTemplates.length > 0;
               
               return (
-                <GlassCard key={sport.id} className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
+                <TouchableOpacity
+                  key={sport.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${sport.name}`}
+                  activeOpacity={0.85}
+                  onPress={() => router.push(`/admin/sports/${sport.id}` as any)}
+                >
+                <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4">
                   <View className="flex-row items-center gap-3.5 flex-1">
                     <View className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-brand-orange/10 border border-orange-200 dark:border-brand-orange/20 items-center justify-center flex-shrink-0">
                       <Ionicons name="football" size={18} color={isDark ? "#FF3E00" : "#c2410c"} />
@@ -116,13 +123,11 @@ export default function SportsList() {
                     </View>
                   </View>
                   
-                  <TouchableOpacity
-                    onPress={() => router.push(`/admin/sports/${sport.id}` as any)}
-                    className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg active:opacity-85"
-                  >
+                  <View className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg">
                     <Ionicons name="create-outline" size={16} color="#FF3E00" />
-                  </TouchableOpacity>
+                  </View>
                 </GlassCard>
+                </TouchableOpacity>
               );
             })}
           </View>

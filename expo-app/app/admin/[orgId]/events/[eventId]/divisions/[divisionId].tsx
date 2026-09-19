@@ -5,7 +5,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -26,6 +25,7 @@ import {
 import { FieldLabel } from '../../../../../../components/FieldLabel';
 import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
 import CustomSelect from '../../../../../../components/CustomSelect';
+import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { DivisionPanel } from '../../../../../../components/tournament/DivisionPanel';
@@ -65,8 +65,6 @@ export default function DivisionScreen() {
   }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
-  // Sport and age group share a line from 768px, the breakpoint Basic Info pairs its dates at.
-  const isWideLayout = useWindowDimensions().width >= 768;
 
   const { capabilities } = useEventCapabilities(eventId);
   /**
@@ -263,7 +261,10 @@ export default function DivisionScreen() {
   */
   const [customName, setCustomName] = useState<string | null>(null);
   const [draftSportId, setDraftSportId] = useState('');
-  const [draftAgeGroup, setDraftAgeGroup] = useState('');
+  const [draftAgeGroupId, setDraftAgeGroupId] = useState<string | null>(null);
+  // The name goes into the automatic division name; kept beside the id because a custom entry the
+  // organiser has just added is not in `sports` until the list is next loaded.
+  const [draftAgeGroupName, setDraftAgeGroupName] = useState('');
   const [isSavingDetails, setIsSavingDetails] = useState(false);
 
   /*
@@ -334,13 +335,20 @@ export default function DivisionScreen() {
   useEffect(() => {
     setCustomName(savedCustomName);
     setDraftSportId(division?.sportId || onlyEventSportId || '');
-    setDraftAgeGroup(division?.ageGroup || '');
-  }, [divisionId, savedCustomName, division?.sportId, division?.ageGroup, onlyEventSportId]);
+    setDraftAgeGroupId(division?.ageGroupId || null);
+    setDraftAgeGroupName(division?.ageGroup || '');
+  }, [divisionId, savedCustomName, division?.sportId, division?.ageGroupId, division?.ageGroup, onlyEventSportId]);
 
-  // Compared the way it is stored: teams keep their age group upper-cased, and a division's has to
-  // match one to find the teams that qualify for it.
-  const normalisedAgeGroup = draftAgeGroup.trim().toUpperCase();
-  const derivedName = deriveName(draftSportId, draftAgeGroup);
+  // An age group belongs to one sport, so choosing another clears it (the server does the same).
+  const chooseSport = (sportId: string) => {
+    if (sportId !== draftSportId) {
+      setDraftAgeGroupId(null);
+      setDraftAgeGroupName('');
+    }
+    setDraftSportId(sportId);
+  };
+
+  const derivedName = deriveName(draftSportId, draftAgeGroupName || undefined);
   const nameIsAutomatic = !customName?.trim();
   /* An automatic name with nothing to derive it from keeps what the division is already called,
      rather than saving a blank. */
@@ -356,13 +364,14 @@ export default function DivisionScreen() {
     !!division &&
     (effectiveName !== division.name ||
       draftSportId !== (division.sportId || '') ||
-      normalisedAgeGroup !== (division.ageGroup || ''));
+      draftAgeGroupId !== (division.ageGroupId || null));
 
   const resetDetails = useCallback(() => {
     setCustomName(savedCustomName);
     setDraftSportId(division?.sportId || onlyEventSportId || '');
-    setDraftAgeGroup(division?.ageGroup || '');
-  }, [savedCustomName, division?.sportId, division?.ageGroup, onlyEventSportId]);
+    setDraftAgeGroupId(division?.ageGroupId || null);
+    setDraftAgeGroupName(division?.ageGroup || '');
+  }, [savedCustomName, division?.sportId, division?.ageGroupId, division?.ageGroup, onlyEventSportId]);
 
   const savedSportName = sports.find(sport => sport.id === division?.sportId)?.name;
   const isLastOfSport =
@@ -387,7 +396,7 @@ export default function DivisionScreen() {
             // A division always plays a sport (U52); an empty draft means "not chosen yet" on a
             // division from before that, and is left out rather than sent as a clear.
             ...(draftSportId ? { sportId: draftSportId } : {}),
-            ageGroup: normalisedAgeGroup,
+            ageGroupId: draftAgeGroupId,
           },
         },
       },
@@ -518,11 +527,11 @@ export default function DivisionScreen() {
                 </View>
               )}
 
-              {/* Sport and age group side by side when there is room — the pair that says what the
-                  division *is*, and what its automatic name is made of. `items-end` keeps the two
-                  inputs level when one label's help is open and the other's is not. */}
-              <View className={isWideLayout ? 'flex-row items-end gap-4' : 'gap-4'}>
-                <View className={`space-y-2 ${isWideLayout ? 'flex-1' : ''}`}>
+              {/* Sport, then age group — the pair that says what the division *is*, and what its
+                  automatic name is made of. Stacked rather than side by side: the age groups are a
+                  row of chips from the sport's list, which needs the full width. */}
+              <View className="gap-4">
+                <View className="space-y-2">
                   <FieldLabel
                     label="Sport"
                     help="The sport played in this division."
@@ -538,7 +547,7 @@ export default function DivisionScreen() {
                        Not clearable — a division always plays a sport (U52). */
                     <CustomSelect
                       value={draftSportId}
-                      onChange={setDraftSportId}
+                      onChange={chooseSport}
                       placeholder="Choose a sport"
                       options={sportChoices.map(sport => ({
                         value: sport.id,
@@ -554,20 +563,23 @@ export default function DivisionScreen() {
                   )}
                 </View>
 
-                <View className={`space-y-2 ${isWideLayout ? 'flex-1' : ''}`}>
+                <View className="space-y-2">
                   <FieldLabel
                     label="Age group"
                     optional
-                    help="The age group for this division. Leave empty if the division is not limited to one age group."
+                    help="The age group for this division, from the sport's list. Teams of that age group are the ones offered for entry. Choose Any age if the division is not limited to one, or Other… for one the list does not have."
                   />
                   {canEditRecord ? (
-                    <TextInput
-                      value={draftAgeGroup}
-                      onChangeText={setDraftAgeGroup}
-                      autoCapitalize="characters"
-                      placeholder="e.g. U14, U19, Open"
-                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-800 dark:text-white"
+                    <AgeGroupPicker
+                      sportId={draftSportId}
+                      ageGroups={sports.find(sport => sport.id === draftSportId)?.ageGroups}
+                      value={draftAgeGroupId}
+                      onChange={(ageGroupId, group) => {
+                        setDraftAgeGroupId(ageGroupId);
+                        setDraftAgeGroupName(group?.name || '');
+                      }}
+                      noneLabel="Any age"
+                      orgId={orgId}
                     />
                   ) : (
                     <Text className="font-inter text-sm text-slate-800 dark:text-white">

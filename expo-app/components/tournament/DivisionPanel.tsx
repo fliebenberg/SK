@@ -515,6 +515,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
                       orgName: rosterOrgs.find(o => o.id === team.orgId)?.name || team.orgId,
                       orgShortName: rosterOrgs.find(o => o.id === team.orgId)?.shortName,
                       sportId: team.sportId,
+                      ageGroupId: team.ageGroupId,
                       ageGroup: team.ageGroup,
                     },
                   ])

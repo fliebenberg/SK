@@ -64,6 +64,24 @@ A table to hold variation templates for a specific sport.
 - `settingsOverride` (JSON): E.g., `{ scheduledPeriods: 2, periodLengthMS: 900000 }`.
 - When creating a Match, the user picks the Sport and optionally a Preset, making setup rapid.
 
+> **Not built** — `SPORT-3` in TODO.md. Two things to design with it, settled 2026-09-19:
+> - **A preset is a rules variant, not an age group.** "U13 Rugby" above mixes the two. Age groups
+>   are now their own per-sport list (§B2); a preset may *default* rules for an age group, but the
+>   same age group can play under several presets (U13 fifteens and U13 sevens) and one preset
+>   covers many age groups.
+> - **A preset may carry its own age-group list.** A governing body can use age groups the sport's
+>   standard list does not — South African and New Zealand rugby, say. The intended shape is a
+>   nullable `preset_id` on `sport_age_groups`, NULL meaning sport-wide, added when presets exist.
+
+### **B2. Age groups**
+Each sport has one list in `sport_age_groups` ([database_structure.md §2d](file:///c:/Fred/Coding/SK/docs/database_structure.md)):
+**official** entries an admin curates on the sport editor's **Age Groups** tab, and **custom** ones
+users add under "Other…" in [AgeGroupPicker](file:///c:/Fred/Coding/SK/expo-app/components/AgeGroupPicker.tsx)
+when nothing official fits. Custom entries are visible to everyone playing the sport, so they
+double as a record of what the official list is missing: the admin promotes one, or merges it into
+the official entry it duplicates. Teams, divisions and leagues hold the entry's id, under a foreign
+key that requires it to belong to their own sport.
+
 ### **C. The `Match` (or `Event`) Entity**
 Represents a specific instance of a game.
 - `id`, `sportId`, `matchDayId` (Groups matches together, e.g., an Athletics Meet).

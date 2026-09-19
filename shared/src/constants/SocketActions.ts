@@ -48,6 +48,16 @@ export enum SocketAction {
      */
     DELETE_TEAM = 'DELETE_TEAM',
 
+    // --- Age groups ---
+    /**
+     * Add a custom age group to a sport's list — the "Other…" choice in the age-group picker.
+     * Any signed-in user may, since anyone who can give a team, division or league an age group
+     * may need one the official list lacks. Returns the existing entry, official or custom, when
+     * the name matches one ignoring case and spacing, so it never makes a duplicate.
+     * Expects payload: AddAgeGroupPayload
+     */
+    ADD_AGE_GROUP = 'ADD_AGE_GROUP',
+
     // --- Sites & Facilities ---
     /**
      * Action to create a new site.
