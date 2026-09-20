@@ -6,6 +6,35 @@ All multi-platform client development takes place in **`expo-app/`**.
 
 ---
 
+## Pre-commit checks
+
+Run this once per clone:
+
+```sh
+npm run hooks:install     # from the repo root — or just `npm install` there, which does it too
+```
+
+It points `core.hooksPath` at [.githooks/](file:///c:/Fred/Coding/SK/.githooks/), where `pre-commit`
+runs two static checks on every commit:
+
+| Check | Fails when |
+| --- | --- |
+| `expo-app/scripts/check-actions.js` | a socket action is sent outside `sendAction`, which puts the reply contract back in the hands of the call site |
+| `server/scripts/check-migrations.js` | a migration is missing from the catalogue in [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md), or touches a table `init-db.ts` never mentions |
+
+Both are dependency-free node scripts and together take about a quarter of a second, so they work in
+a fresh clone with nothing installed. Either can be run on its own — `npm run check:actions` in
+`expo-app/`, `npm run check:migrations` in `server/`.
+
+Git config is per-clone and not cloned with the repo, which is why the step above is needed at all.
+`git commit --no-verify` bypasses the hook when you genuinely need to.
+
+**The checks read the working tree, not the index**, so a partially staged commit is checked against
+all your edits rather than the ones being committed. Fixing that means stashing unstaged work inside
+a hook, which is a worse trade than the occasional confusing refusal.
+
+---
+
 ## Unified Versioning
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) to automatically handle Semantic Versioning (SemVer) across the `server` and `shared` packages.

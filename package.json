@@ -3,6 +3,8 @@
   "version": "0.0.4",
   "private": true,
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || exit 0",
+    "hooks:install": "git config core.hooksPath .githooks",
     "release": "commit-and-tag-version",
     "release:push": "npm run release && git push --follow-tags",
     "review:rugby": "node scripts/rugby-review.js",

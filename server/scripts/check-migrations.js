@@ -29,8 +29,18 @@ const INIT_DB = path.join(ROOT, 'src/scripts/setup/init-db.ts');
 /** A migration that creates or alters nothing says so, and is exempt from the mirror check. */
 const DATA_ONLY = /\bdata only, no schema change\b/i;
 
-const catalogue = fs.readFileSync(CATALOGUE, 'utf8');
 const initDb = fs.readFileSync(INIT_DB, 'utf8');
+
+/**
+ * Filenames that appear as a catalogue *bullet*, not merely somewhere in the document.
+ *
+ * Matching the whole file was the first version and it was worthless: the prose below the list
+ * links to migrations too, so a file the catalogue never listed passed as soon as any section
+ * mentioned it by name. Found by testing the failing case rather than the passing one.
+ */
+const catalogued = new Set(
+  [...fs.readFileSync(CATALOGUE, 'utf8').matchAll(/^\s*[-*]\s+`([^`]+\.ts)`/gm)].map(m => m[1])
+);
 
 const files = fs
   .readdirSync(MIGRATIONS_DIR)
@@ -40,8 +50,8 @@ const files = fs
 const problems = [];
 
 for (const file of files) {
-  if (!catalogue.includes(file)) {
-    problems.push(`${file}  is not listed in okf/database.md`);
+  if (!catalogued.has(file)) {
+    problems.push(`${file}  has no entry in the migrations list in okf/database.md`);
   }
 
   const source = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');

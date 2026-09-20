@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# ScoreKeeper pre-commit checks.
+#
+# Two static checks that each exist because the thing they catch is invisible until much later:
+#
+#   check:actions     — a socket action sent outside `sendAction` interprets the reply on its own,
+#                       which is how the app came to have failures nobody saw (LIVE-19).
+#   check:migrations  — a migration missing from the catalogue in okf/database.md, or from the
+#                       init-db.ts mirror. Neither breaks anything until someone needs the answer.
+#
+# Both are plain node scripts with no dependencies, so this works in a fresh clone with nothing
+# installed, and both run in well under a second — a pre-commit hook that costs real time is a
+# pre-commit hook people start bypassing.
+#
+# **They read the working tree, not the index.** A commit that stages only some of your edits is
+# checked against all of them, so the hook can refuse a commit over an unstaged change, or pass one
+# whose staged half would fail. Fixing that properly means stashing what is unstaged, and a hook
+# that moves your work around is a worse trade than this one.
+#
+# Enabled by `git config core.hooksPath .githooks` — see README.md. Bypass with `--no-verify`.
+
+root=$(git rev-parse --show-toplevel) || exit 1
+
+run() {
+  if ! node "$root/$1"; then
+    echo ""
+    echo "pre-commit: $1 failed."
+    echo "Fix it, or bypass this hook with:  git commit --no-verify"
+    exit 1
+  fi
+}
+
+run server/scripts/check-migrations.js
+run expo-app/scripts/check-actions.js
