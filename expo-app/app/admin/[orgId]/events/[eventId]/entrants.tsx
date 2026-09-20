@@ -17,6 +17,9 @@ import {
 } from '@sk/shared';
 import { GlassCard } from '../../../../../components/GlassCard';
 import { OrgLogo } from '../../../../../components/OrgLogo';
+import { ConfirmationModal } from '../../../../../components/ConfirmationModal';
+import { FieldLabel } from '../../../../../components/FieldLabel';
+import { EntrantGrid } from '../../../../../components/tournament/EntrantGrid';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { SetupStepFooter } from '../../../../../components/tournament/SetupStepFooter';
 import { nextStepAfter, stepByKey } from '../../../../../components/tournament/setupSteps';
@@ -26,7 +29,7 @@ import { AccessDenied } from '../../../../../components/AccessDenied';
 import { DivisionEntrantsEditor } from '../../../../../components/tournament/DivisionEntrantsEditor';
 import { NewTeamModal } from '../../../../../components/tournament/NewTeamModal';
 import { useLiveRoom } from '../../../../../hooks/useLiveRoom';
-import { useEventEntrants, teamQualifies } from '../../../../../hooks/useEventEntrants';
+import { useEventEntrants, divisionByTeamId, divisionTeamOptions } from '../../../../../hooks/useEventEntrants';
 import { DivisionTeamChoices } from '../../../../../components/tournament/DivisionTeamChoices';
 import { candidateFromTeam } from '../../../../../components/tournament/candidateTeam';
 import { useEventCapabilities } from '../../../../../hooks/useEventCapabilities';
@@ -119,7 +122,7 @@ export default function EntrantsScreen() {
     },
   });
 
-  const { byDivision, isLoading: isLoadingEntrants, accessDenied } = useEventEntrants(eventId);
+  const { entrants, byDivision, isLoading: isLoadingEntrants, accessDenied } = useEventEntrants(eventId);
 
   /**
    * The teams that could be entered — a one-shot read, because no room owns "teams that could
@@ -234,18 +237,54 @@ export default function EntrantsScreen() {
     division.name || [division.ageGroup, sportName(division.sportId)].filter(Boolean).join(' ');
 
   const [axis, setAxis] = useState<Axis>('division');
+  const [activeSportId, setActiveSportId] = useState<string | null>(null);
   const [activeDivisionId, setActiveDivisionId] = useState<string | null>(null);
   const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<{
+    team: CandidateTeam;
+    from: TournamentDivision;
+    to: TournamentDivision;
+  } | null>(null);
   const [newTeamFor, setNewTeamFor] = useState<{ division: TournamentDivision; orgId: string } | null>(
     null
   );
   // Keyed by `${divisionId}:${teamId}` so two cells of the grid can never share a spinner.
   const [busyKeys, setBusyKeys] = useState<Record<string, boolean>>({});
 
-  const divisionsCollapsed = isCollapsed(orderedDivisions.length);
-  const activeDivision =
-    orderedDivisions.find(d => d.id === activeDivisionId) || orderedDivisions[0] || null;
   const activeOrg = orgs.find(o => o.id === activeOrgId) || orgs[0] || null;
+
+  /**
+   * The division axis navigates **sport, then age group** — not one flat list of divisions.
+   *
+   * Fifteen divisions in a strip is fifteen tabs nobody can scan, and fifteen items in a dropdown
+   * is no better. But they are not fifteen unrelated things: they are three sports of five ages,
+   * which is how the tournament was built and how an organiser holds it in their head. Split that
+   * way it is a strip of three and a row of five, both of which fit on a phone.
+   *
+   * Each level collapses on its own (U15). One sport shows no sport strip; a sport with one
+   * division shows no age row; a tournament with one division shows neither.
+   */
+  const sportsInPlay = useMemo(() => {
+    const seen: string[] = [];
+    for (const division of orderedDivisions) {
+      const key = division.sportId || '';
+      if (!seen.includes(key)) seen.push(key);
+    }
+    return seen;
+  }, [orderedDivisions]);
+
+  const activeSport = sportsInPlay.includes(activeSportId || '')
+    ? (activeSportId as string)
+    : sportsInPlay[0] ?? '';
+  const divisionsOfSport = orderedDivisions.filter(d => (d.sportId || '') === activeSport);
+  const activeDivision =
+    divisionsOfSport.find(d => d.id === activeDivisionId) || divisionsOfSport[0] || null;
+
+  const sportsCollapsed = isCollapsed(sportsInPlay.length);
+  const agesCollapsed = isCollapsed(divisionsOfSport.length);
+
+  /** A division named by its age group alone, since the sport is settled by the strip above. */
+  const ageLabel = (division: TournamentDivision) => division.ageGroup || 'All ages';
 
   // ------------------------------------------------------------------------------------------
   // Writes
@@ -297,6 +336,52 @@ export default function EntrantsScreen() {
     setCandidateTeams(prev => [...prev, candidateFromTeam(team, orgs)]);
   };
 
+  /**
+   * Which division of this tournament holds each entered team — the input to the "already in…"
+   * chip, and to the one-division rule the server enforces.
+   */
+  const divisionByTeam = useMemo(() => divisionByTeamId(entrants), [entrants]);
+  const divisionNameOf = (divisionId: string) => {
+    const division = orderedDivisions.find(d => d.id === divisionId);
+    return division ? divisionLabel(division) : 'another division';
+  };
+
+  /**
+   * **Move here** — one write, not a remove and an add.
+   *
+   * `takeFromOtherDivisions` lets the server do both halves in one transaction, so the team cannot
+   * end up in neither division if the second call fails. Confirmed first because it edits a
+   * division the organiser is not looking at.
+   */
+  const confirmMove = (team: CandidateTeam, fromDivisionId: string, to: TournamentDivision) => {
+    const from = orderedDivisions.find(d => d.id === fromDivisionId);
+    if (from) setPendingMove({ team, from, to });
+  };
+
+  const runMove = () => {
+    if (!pendingMove) return;
+    const { team, to } = pendingMove;
+    setPendingMove(null);
+    const busyKey = `${to.id}:${team.id}`;
+    setBusyKeys(prev => ({ ...prev, [busyKey]: true }));
+    sendAction(SocketAction.SET_DIVISION_ENTRANTS, {
+      divisionId: to.id,
+      orgId,
+      takeFromOtherDivisions: true,
+      entrants: [
+        ...rosterOf(to.id).map(entrant => ({
+          id: entrant.id,
+          teamId: entrant.teamId,
+          orgProfileId: entrant.orgProfileId,
+          label: entrant.label,
+          seed: entrant.seed,
+          status: entrant.status || 'active',
+        })),
+        { teamId: team.id, status: 'active' as const },
+      ],
+    }).then(() => setBusyKeys(prev => ({ ...prev, [busyKey]: false })));
+  };
+
   const handleTeamCreated = (division: TournamentDivision, team: Team) => {
     appendCandidate(team);
     writeRoster(division.id, [
@@ -323,17 +408,39 @@ export default function EntrantsScreen() {
 
     return (
       <View className="space-y-4">
-        {/* One division renders inline and shows no picker: the concept arrives with the second. */}
-        {!divisionsCollapsed && (
+        {/* Sport, then age group. Each level appears only when there is a second one to choose
+            between, so a one-division tournament still shows neither. */}
+        {!sportsCollapsed && (
           <Tabs
-            items={orderedDivisions.map<TabItem>(division => ({
+            items={sportsInPlay.map<TabItem>(sportId => ({
+              key: sportId,
+              label: sportName(sportId) || 'No sport',
+              sublabel: `${orderedDivisions
+                .filter(d => (d.sportId || '') === sportId)
+                .reduce((sum, d) => sum + rosterOf(d.id).length, 0)} entered`,
+            }))}
+            activeKey={activeSport}
+            onChange={(sportId) => {
+              setActiveSportId(sportId);
+              // The age row below is about to be a different set, so the division follows the
+              // sport rather than keeping a selection that is no longer in the row.
+              setActiveDivisionId(null);
+            }}
+            scrollable={sportsInPlay.length > 3}
+          />
+        )}
+
+        {!agesCollapsed && (
+          <Tabs
+            variant="pill"
+            items={divisionsOfSport.map<TabItem>(division => ({
               key: division.id,
-              label: divisionLabel(division),
+              label: ageLabel(division),
               sublabel: `${rosterOf(division.id).length} entered`,
             }))}
             activeKey={activeDivision.id}
             onChange={setActiveDivisionId}
-            scrollable={orderedDivisions.length > 3}
+            scrollable={divisionsOfSport.length > 3}
           />
         )}
 
@@ -357,6 +464,9 @@ export default function EntrantsScreen() {
             orgs={orgs}
             sportName={sportName(activeDivision.sportId)}
             onTeamCreated={appendCandidate}
+            divisionByTeam={divisionByTeam}
+            divisionName={divisionNameOf}
+            onMoveTeam={(team, from) => confirmMove(team, from, activeDivision)}
           />
         </GlassCard>
       </View>
@@ -384,11 +494,22 @@ export default function EntrantsScreen() {
 
     return (
       <View className="space-y-4">
+        {/* Crest and code, because a strip of school names does not fit and a strip of crests
+            alone does not identify — most organisations have no logo at all. */}
         {orgs.length > 1 && (
           <Tabs
             items={orgs.map<TabItem>(org => ({
               key: org.id,
-              label: org.shortName || org.name,
+              label: org.shortName,
+              leading: (
+                <OrgLogo
+                  logo={org.logo}
+                  settings={org.logoConfig ? { logoConfig: org.logoConfig } : undefined}
+                  primaryColor={org.primaryColor}
+                  size={20}
+                  className="rounded-full"
+                />
+              ),
             }))}
             activeKey={activeOrg.id}
             onChange={setActiveOrgId}
@@ -397,59 +518,101 @@ export default function EntrantsScreen() {
         )}
 
         <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white" numberOfLines={1}>
-              {activeOrg.name}
+          <View className="flex-row items-center gap-2 mb-4">
+            <OrgLogo
+              logo={activeOrg.logo}
+              settings={activeOrg.logoConfig ? { logoConfig: activeOrg.logoConfig } : undefined}
+              primaryColor={activeOrg.primaryColor}
+              size={28}
+              className="rounded-full"
+            />
+            <Text
+              className="font-orbitron-bold text-sm text-slate-800 dark:text-white flex-1"
+              numberOfLines={1}
+            >
+              {isLargeScreen ? `${activeOrg.name} (${activeOrg.shortName})` : activeOrg.shortName}
             </Text>
             <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               {totalEntered} entered
             </Text>
           </View>
 
-          {orderedDivisions.map(division => {
-            const qualifying = candidateTeams.filter(
-              team => team.orgId === activeOrg.id && teamQualifies(team, division)
-            );
-            return (
-              <View key={division.id} className="mb-4">
-                <View className="flex-row items-center justify-between mb-1.5">
-                  <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+          {/*
+            The mirror image of the division axis: the same grid, with a division where that one
+            has an organisation. One school against every division at once is the view that makes
+            "Northcliff have confirmed" a single sitting rather than fifteen screen visits.
+          */}
+          <EntrantGrid
+            groups={orderedDivisions.map(division => {
+              const teams = candidateTeams.filter(team => team.orgId === activeOrg.id);
+              const enteredTeamIds = new Set(
+                rosterOf(division.id).map(entrant => entrant.teamId).filter(Boolean) as string[]
+              );
+              const { listed, others } = divisionTeamOptions(
+                teams,
+                division,
+                enteredTeamIds,
+                divisionByTeam
+              );
+              return {
+                key: division.id,
+                isEmpty: listed.length === 0 && others.length === 0,
+                header: (
+                  <Text
+                    numberOfLines={1}
+                    className="font-orbitron-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-widest"
+                  >
                     {divisionLabel(division)}
                   </Text>
-                  {!qualifying.length && (
-                    <TouchableOpacity
-                      onPress={() => setNewTeamFor({ division, orgId: activeOrg.id })}
-                      className="flex-row items-center gap-1 active:opacity-80"
-                    >
-                      <Ionicons name="add" size={13} color={COLORS.brand.orange} />
-                      <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-wider">
-                        Create a team
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                ),
+                body: (
+                  <DivisionTeamChoices
+                    teams={teams}
+                    division={division}
+                    enteredTeamIds={enteredTeamIds}
+                    divisionByTeam={divisionByTeam}
+                    divisionName={divisionNameOf}
+                    isBusy={team => !!busyKeys[`${division.id}:${team.id}`]}
+                    onToggle={team => toggleTeam(division, team)}
+                    onMove={(team, from) => confirmMove(team, from, division)}
+                    emptyText="Nothing qualifying."
+                  />
+                ),
+              };
+            })}
+            emptyText="This tournament has nothing to enter teams into yet."
+            /*
+              The divisions this school has no team for, at the foot rather than as nine empty
+              columns between the organiser and the six that matter. Each is still a button,
+              because discovering that Northcliff have no u16 netball team is exactly the moment
+              the team gets created — the reason this axis exists at all.
+            */
+            renderEmpty={empties => (
+              <View className="border-t border-slate-100 dark:border-white/5 pt-3 mt-1">
+                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+                  {activeOrg.shortName} has no team for
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {empties.map(group => {
+                    const division = orderedDivisions.find(d => d.id === group.key)!;
+                    return (
+                      <TouchableOpacity
+                        key={group.key}
+                        onPress={() => setNewTeamFor({ division, orgId: activeOrg.id })}
+                        accessibilityLabel={`Create a ${divisionLabel(division)} team for ${activeOrg.name}`}
+                        className="flex-row items-center gap-1.5 rounded-full border border-dashed border-slate-300 dark:border-white/10 px-2.5 py-1.5 active:opacity-80"
+                      >
+                        <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400">
+                          {divisionLabel(division)}
+                        </Text>
+                        <Ionicons name="add-circle-outline" size={13} color={COLORS.brand.orange} />
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-                {/* Qualifying teams, age-group overrides already entered, and the rest of the
-                    sport behind "Other age groups" — the same component the division axis uses. */}
-                <DivisionTeamChoices
-                  teams={candidateTeams.filter(team => team.orgId === activeOrg.id)}
-                  division={division}
-                  enteredTeamIds={
-                    new Set(
-                      rosterOf(division.id).map(entrant => entrant.teamId).filter(Boolean) as string[]
-                    )
-                  }
-                  isBusy={team => !!busyKeys[`${division.id}:${team.id}`]}
-                  onToggle={team => toggleTeam(division, team)}
-                  emptyText={`Nothing qualifying — ${activeOrg.shortName || activeOrg.name} has no ${[
-                    division.ageGroup,
-                    sportName(division.sportId),
-                  ]
-                    .filter(Boolean)
-                    .join(' ')} team.`}
-                />
               </View>
-            );
-          })}
+            )}
+          />
         </GlassCard>
       </View>
     );
@@ -496,9 +659,18 @@ export default function EntrantsScreen() {
                 at the top of this file for why this one list has no save bar. */}
             {canEdit && (
               <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-1.5">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Organisations invited
-                </Text>
+                {/*
+                  `UI-16`. The one field on this screen with something non-obvious to say: the
+                  distinction between an organisation *competing* and one *running* the tournament
+                  is the confusion this screen was built to make visible, and it is precisely what
+                  a permanent paragraph would stop being read about after the second tournament.
+                  Nothing else here gets an icon — a sport tab and a team chip say what they are,
+                  and an icon on those would turn the mark into furniture.
+                */}
+                <FieldLabel
+                  label="Organisations invited"
+                  help="The schools and clubs competing in this tournament. Inviting one offers its teams for entry below; it does not give anyone permission to run anything. An organisation that helps run the tournament is appointed under Basic Info instead."
+                />
                 {invitedOrgs.length > 0 && (
                   <View className="flex-row flex-wrap gap-2 mb-2">
                     {/*
@@ -598,6 +770,30 @@ export default function EntrantsScreen() {
         onCreated={(team) => {
           if (newTeamFor) handleTeamCreated(newTeamFor.division, team);
         }}
+      />
+
+      {/*
+        A team plays in one division, so entering one that is already elsewhere is a move. Asked
+        rather than done, because it edits a division the organiser is not looking at — and because
+        the team may already have been drawn into fixtures there. The wording is conditional on
+        purpose: this screen does not read fixtures and must not claim there are any.
+      */}
+      <ConfirmationModal
+        isOpen={!!pendingMove}
+        title={`Move ${pendingMove?.team.name || 'this team'}?`}
+        description={
+          `${pendingMove?.team.name || 'It'} is entered in ${
+            pendingMove ? divisionLabel(pendingMove.from) : 'another division'
+          }. Moving it to ${
+            pendingMove ? divisionLabel(pendingMove.to) : 'this division'
+          } takes it out of the first — a team plays in one division of a tournament. If ${
+            pendingMove ? divisionLabel(pendingMove.from) : 'that division'
+          } has already drawn its fixtures, they will need redoing.`
+        }
+        confirmText="Move it here"
+        cancelText="Leave it"
+        onConfirm={runMove}
+        onClose={() => setPendingMove(null)}
       />
     </SafeAreaView>
   );

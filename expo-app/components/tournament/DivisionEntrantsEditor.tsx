@@ -5,6 +5,8 @@ import { CandidateTeam, OrgBadge, SocketAction, Team, TournamentDivision, Tourna
 import { NewTeamModal } from './NewTeamModal';
 import { divisionTeamOptions } from '../../hooks/useEventEntrants';
 import { DivisionTeamChoices } from './DivisionTeamChoices';
+import { EntrantGrid } from './EntrantGrid';
+import { OrgLogo } from '../OrgLogo';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme } from '../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../constants/Colors';
@@ -34,6 +36,20 @@ export interface DivisionEntrantsEditorProps {
   sportName?: string;
   /** A team created inline is appended here, because `event_candidate_teams` is a one-shot read. */
   onTeamCreated?: (team: Team) => void;
+  /**
+   * Every entered team in the tournament and the division holding it (`divisionByTeamId`).
+   *
+   * Optional, and its absence is a real case rather than laziness: the division panel a convenor
+   * reaches has only *their* division's roster — the event-level one is a room they may not be
+   * able to join — so there it is left out and a team already entered elsewhere is refused by the
+   * server with a message naming where it is. The event-level entrants screen passes it and gets
+   * the better experience: the chip says so up front, and offers to move it.
+   */
+  divisionByTeam?: Map<string, string>;
+  /** Names a division for the chip that says where a team went. */
+  divisionName?: (divisionId: string) => string;
+  /** Tapping a team another division holds. Without it, such a chip is inert. */
+  onMoveTeam?: (team: CandidateTeam, fromDivisionId: string) => void;
 }
 
 export function DivisionEntrantsEditor({
@@ -44,6 +60,9 @@ export function DivisionEntrantsEditor({
   orgs,
   sportName,
   onTeamCreated,
+  divisionByTeam,
+  divisionName,
+  onMoveTeam,
 }: DivisionEntrantsEditorProps) {
   const isDark = useActiveTheme() === 'dark';
   const secondary = getThemeColor(isDark, 'textSecondary');
@@ -113,51 +132,109 @@ export function DivisionEntrantsEditor({
   /* Every team an organisation group below shows — qualifying ones and age-group overrides — so the
      list of extras holds only what no group can: placeholders, people, and teams from outside the
      invited organisations or the division's sport. */
+  const teamsOf = (orgId: string) => candidateTeams.filter(team => team.orgId === orgId);
+  const optionsOf = (orgId: string) =>
+    divisionTeamOptions(teamsOf(orgId), division, enteredTeamIds, divisionByTeam);
   const shownTeamIds = new Set(
-    orgs.flatMap(org =>
-      divisionTeamOptions(
-        candidateTeams.filter(team => team.orgId === org.id),
-        division,
-        enteredTeamIds
-      ).listed.map(option => option.team.id)
-    )
+    orgs.flatMap(org => optionsOf(org.id).listed.map(option => option.team.id))
   );
   /** Entered competitors no organisation group shows: placeholders, people, guest sides. */
   const extras = entrants.filter(
     entrant => !entrant.teamId || !shownTeamIds.has(entrant.teamId)
   );
 
+  /** An organisation's heading: its crest, its code, and the way to give it a team it lacks. */
+  const orgHeader = (org: OrgBadge) => (
+    <View className="flex-row items-center justify-between gap-2">
+      <View className="flex-row items-center gap-1.5 flex-1 min-w-0">
+        <OrgLogo
+          logo={org.logo}
+          settings={org.logoConfig ? { logoConfig: org.logoConfig } : undefined}
+          primaryColor={org.primaryColor}
+          size={18}
+          className="rounded-full"
+        />
+        <Text
+          numberOfLines={1}
+          className="font-orbitron-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-widest flex-1"
+        >
+          {org.shortName}
+        </Text>
+      </View>
+      {!!division.sportId && (
+        <TouchableOpacity
+          onPress={() => setNewTeamForOrgId(org.id)}
+          accessibilityLabel={`New team for ${org.name}`}
+          className="flex-row items-center gap-0.5 active:opacity-80"
+        >
+          <Ionicons name="add" size={13} color={COLORS.brand.orange} />
+          <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-wider">
+            New
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   return (
     <View>
-      {orgs.map(org => (
-        <View key={org.id} className="mb-4">
-          <View className="flex-row items-center justify-between mb-1.5">
-            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-              {org.shortName || org.name}
+      <EntrantGrid
+        groups={orgs.map(org => {
+          const { listed, others } = optionsOf(org.id);
+          return {
+            key: org.id,
+            header: orgHeader(org),
+            isEmpty: listed.length === 0 && others.length === 0,
+            body: (
+              <DivisionTeamChoices
+                teams={teamsOf(org.id)}
+                division={division}
+                enteredTeamIds={enteredTeamIds}
+                divisionByTeam={divisionByTeam}
+                divisionName={divisionName}
+                isBusy={team => !!busyKeys[team.id]}
+                onToggle={toggleTeam}
+                onMove={onMoveTeam}
+                emptyText={`No ${qualifyingLabel || 'qualifying'} team on the system.`}
+              />
+            ),
+          };
+        })}
+        emptyText="No organisations are taking part yet."
+        /*
+          The schools with no team of this sport and age, collected rather than given a column
+          each. Still every one of them, because this line is the only route to creating the team
+          they are missing — which is exactly the moment an organiser discovers it.
+        */
+        renderEmpty={empties => (
+          <View className="border-t border-slate-100 dark:border-white/5 pt-3 mt-1">
+            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+              No {qualifyingLabel || 'qualifying'} team
             </Text>
-            {!!division.sportId && (
-              <TouchableOpacity
-                onPress={() => setNewTeamForOrgId(org.id)}
-                className="flex-row items-center gap-1 active:opacity-80"
-              >
-                <Ionicons name="add" size={13} color={COLORS.brand.orange} />
-                <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-wider">
-                  New team
-                </Text>
-              </TouchableOpacity>
-            )}
+            <View className="flex-row flex-wrap gap-2">
+              {empties.map(group => {
+                const org = orgs.find(o => o.id === group.key)!;
+                return (
+                  <TouchableOpacity
+                    key={group.key}
+                    onPress={() => setNewTeamForOrgId(org.id)}
+                    disabled={!division.sportId}
+                    accessibilityLabel={`Create a ${qualifyingLabel} team for ${org.name}`}
+                    className="flex-row items-center gap-1.5 rounded-full border border-dashed border-slate-300 dark:border-white/10 px-2.5 py-1.5 active:opacity-80"
+                  >
+                    <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400">
+                      {org.shortName}
+                    </Text>
+                    {!!division.sportId && (
+                      <Ionicons name="add-circle-outline" size={13} color={COLORS.brand.orange} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-
-          <DivisionTeamChoices
-            teams={candidateTeams.filter(team => team.orgId === org.id)}
-            division={division}
-            enteredTeamIds={enteredTeamIds}
-            isBusy={team => !!busyKeys[team.id]}
-            onToggle={toggleTeam}
-            emptyText={`No ${qualifyingLabel || 'qualifying'} team on the system.`}
-          />
-        </View>
-      ))}
+        )}
+      />
 
       {extras.length > 0 && (
         <View className="mt-1">

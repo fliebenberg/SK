@@ -63,5 +63,5 @@ export function useEventEntrants(eventId?: string | null, enabled = true) {
  * `divisionTeamOptions` — live in the shared package, where they are tested. Re-exported so the
  * screens' existing imports keep working.
  */
-export { teamQualifies, divisionTeamOptions } from '@sk/shared';
+export { teamQualifies, divisionTeamOptions, divisionByTeamId } from '@sk/shared';
 export type { DivisionTeamOption } from '@sk/shared';

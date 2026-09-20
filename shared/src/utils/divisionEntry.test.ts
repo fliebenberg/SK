@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CandidateTeam } from '../models/event/Tournament';
-import { divisionTeamOptions, teamQualifies } from './divisionEntry';
+import { divisionByTeamId, divisionTeamOptions, teamQualifies } from './divisionEntry';
 
 const team = (id: string, sportId: string, ageGroupId?: string): CandidateTeam =>
   ({ id, name: id, orgId: 'org-1', sportId, ageGroupId } as CandidateTeam);
@@ -55,5 +55,67 @@ describe('the age-group override', () => {
     const { listed, others } = divisionTeamOptions(teams, { sportId: 'rugby' }, new Set());
     expect(listed.map(o => o.team.id)).toEqual(['u14', 'u13', 'u15']);
     expect(others).toEqual([]);
+  });
+});
+
+describe('a team already entered in another division', () => {
+  const teams = [
+    team('u14', 'rugby', 'ag-u14'),
+    team('u13', 'rugby', 'ag-u13'),
+  ];
+  const divisionA = { id: 'div-a', ...rugbyU14 };
+
+  it('is listed, not hidden, and says which division holds it', () => {
+    const { listed } = divisionTeamOptions(
+      teams,
+      divisionA,
+      new Set(),
+      divisionByTeamId([{ divisionId: 'div-b', teamId: 'u14' }])
+    );
+    expect(listed).toEqual([{ team: teams[0], otherAgeGroup: false, takenByDivisionId: 'div-b' }]);
+  });
+
+  it('is not "taken" by the division it is being offered for', () => {
+    const { listed } = divisionTeamOptions(
+      teams,
+      divisionA,
+      new Set(['u14']),
+      divisionByTeamId([{ divisionId: 'div-a', teamId: 'u14' }])
+    );
+    expect(listed[0].takenByDivisionId).toBeUndefined();
+  });
+
+  it('surfaces an out-of-age-group team from behind the control when another division holds it', () => {
+    const { listed, others } = divisionTeamOptions(
+      teams,
+      divisionA,
+      new Set(),
+      divisionByTeamId([{ divisionId: 'div-b', teamId: 'u13' }])
+    );
+    expect(listed.map(o => [o.team.id, o.otherAgeGroup, o.takenByDivisionId])).toEqual([
+      ['u14', false, undefined],
+      ['u13', true, 'div-b'],
+    ]);
+    expect(others).toEqual([]);
+  });
+
+  it('behaves exactly as before when no roster is passed', () => {
+    const { listed, others } = divisionTeamOptions(teams, divisionA, new Set());
+    expect(listed).toEqual([{ team: teams[0], otherAgeGroup: false, takenByDivisionId: undefined }]);
+    expect(others).toEqual([teams[1]]);
+  });
+});
+
+describe('divisionByTeamId', () => {
+  it('ignores entrants with no team, so a placeholder takes nothing', () => {
+    expect(divisionByTeamId([{ divisionId: 'div-a', label: 'TBC' } as any]).size).toBe(0);
+  });
+
+  it('keeps the first of a duplicate rather than throwing', () => {
+    const map = divisionByTeamId([
+      { divisionId: 'div-a', teamId: 't' },
+      { divisionId: 'div-b', teamId: 't' },
+    ]);
+    expect(map.get('t')).toBe('div-a');
   });
 });

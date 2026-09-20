@@ -1,30 +1,40 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CandidateTeam } from '@sk/shared';
 import { divisionTeamOptions } from '../../hooks/useEventEntrants';
+import { EntrantTeamChip } from './EntrantTeamChip';
 import { useActiveTheme } from '../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../constants/Colors';
 
 /**
- * One organisation's teams for one division, as tick-boxes — with the age-group override.
+ * One group's teams for one division, as chips — with the age-group override and the one-division
+ * rule.
  *
- * Shared by both axes of entry (U21): the division editor lists it per organisation, the entrants
- * screen's organisation axis per division. They were two copies of the same rows, and the override
- * has to behave identically in both or a team entered from one axis goes missing from the other.
+ * Shared by both axes of entry (U21): the division editor renders it per organisation, the
+ * entrants screen's organisation axis per division. They were two copies of the same rows once,
+ * and the override has to behave identically in both or a team entered from one axis goes missing
+ * from the other.
  *
  * The rule is `divisionTeamOptions`: qualifying teams, plus any other-age-group team already
- * entered (tagged with its age group), and the rest of the sport's teams behind a control that
- * says how many there are. Entering one of those is the override — no dialog, because revealing
- * them was already the deliberate step, and the tag keeps it visible afterwards.
+ * entered or held by another division (tagged with its age group), and the rest of the sport's
+ * teams behind a control that says how many there are. Entering one of those is the override — no
+ * dialog, because revealing them was already the deliberate step, and the tag keeps it visible
+ * afterwards.
  */
 export interface DivisionTeamChoicesProps {
-  /** This organisation's teams — the caller filters by organisation. */
+  /** This group's teams — the caller filters by organisation. */
   teams: CandidateTeam[];
-  division: { sportId?: string; ageGroupId?: string | null };
+  division: { id?: string; sportId?: string; ageGroupId?: string | null };
   enteredTeamIds: Set<string>;
+  /** Every entered team in the tournament and the division holding it (`divisionByTeamId`). */
+  divisionByTeam?: Map<string, string>;
+  /** Names the division a team is held by, for the chip that says where it went. */
+  divisionName?: (divisionId: string) => string;
   isBusy: (team: CandidateTeam) => boolean;
   onToggle: (team: CandidateTeam) => void;
+  /** Tapping a team another division holds. Without it, such a chip is inert. */
+  onMove?: (team: CandidateTeam, fromDivisionId: string) => void;
   /** Shown when nothing qualifies and nothing is entered. */
   emptyText: string;
 }
@@ -33,49 +43,34 @@ export function DivisionTeamChoices({
   teams,
   division,
   enteredTeamIds,
+  divisionByTeam,
+  divisionName,
   isBusy,
   onToggle,
+  onMove,
   emptyText,
 }: DivisionTeamChoicesProps) {
   const isDark = useActiveTheme() === 'dark';
   const secondary = getThemeColor(isDark, 'textSecondary');
   const [showOthers, setShowOthers] = useState(false);
 
-  const { listed, others } = divisionTeamOptions(teams, division, enteredTeamIds);
+  const { listed, others } = divisionTeamOptions(teams, division, enteredTeamIds, divisionByTeam);
 
-  const renderRow = (team: CandidateTeam, otherAgeGroup: boolean) => {
-    const entered = enteredTeamIds.has(team.id);
-    const busy = isBusy(team);
-    return (
-      <TouchableOpacity
-        key={team.id}
-        onPress={() => onToggle(team)}
-        disabled={busy}
-        activeOpacity={0.85}
-        className={`flex-row items-center gap-3 rounded-xl px-3 py-2.5 mb-1.5 border ${
-          entered ? 'bg-brand-orange/10 border-brand-orange/30' : 'bg-slate-50 dark:bg-white/5 border-transparent'
-        }`}
-      >
-        {busy ? (
-          <ActivityIndicator size="small" color={COLORS.brand.orange} />
-        ) : (
-          <Ionicons
-            name={entered ? 'checkbox' : 'square-outline'}
-            size={18}
-            color={entered ? COLORS.brand.orange : secondary}
-          />
-        )}
-        <Text className="font-inter-bold text-xs text-slate-800 dark:text-white flex-1" numberOfLines={1}>
-          {team.name}
-        </Text>
-        {otherAgeGroup && (
-          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-            {team.ageGroup ? `${team.ageGroup} · other age group` : 'No age group'}
-          </Text>
-        )}
-      </TouchableOpacity>
-    );
-  };
+  const renderChip = (team: CandidateTeam, otherAgeGroup: boolean, takenByDivisionId?: string) => (
+    <EntrantTeamChip
+      key={team.id}
+      team={team}
+      entered={enteredTeamIds.has(team.id)}
+      takenBy={takenByDivisionId ? divisionName?.(takenByDivisionId) || 'another division' : undefined}
+      otherAgeGroup={otherAgeGroup}
+      busy={isBusy(team)}
+      onPress={() =>
+        takenByDivisionId && !enteredTeamIds.has(team.id)
+          ? onMove?.(team, takenByDivisionId)
+          : onToggle(team)
+      }
+    />
+  );
 
   return (
     <View>
@@ -84,13 +79,13 @@ export function DivisionTeamChoices({
           {emptyText}
         </Text>
       ) : (
-        listed.map(option => renderRow(option.team, option.otherAgeGroup))
+        listed.map(option => renderChip(option.team, option.otherAgeGroup, option.takenByDivisionId))
       )}
 
       {others.length > 0 &&
         (showOthers ? (
           <>
-            {others.map(team => renderRow(team, true))}
+            {others.map(team => renderChip(team, true))}
             <TouchableOpacity
               onPress={() => setShowOthers(false)}
               activeOpacity={0.8}

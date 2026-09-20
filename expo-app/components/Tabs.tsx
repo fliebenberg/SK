@@ -14,6 +14,13 @@ export interface TabItem<T extends string = string> {
    */
   sublabel?: string;
   icon?: keyof typeof Ionicons.glyphMap;
+  /**
+   * Anything to draw before the label — an organisation's crest, where `icon` cannot reach.
+   *
+   * Takes the place of `icon` when both are given, since two marks before one label is noise.
+   * Keep it small and square: it sits on the label's line and a tall node stretches the strip.
+   */
+  leading?: React.ReactNode;
   badge?: string | number;
   /**
    * "There is something here", without saying how much.
@@ -49,6 +56,31 @@ export function Tabs<T extends string = string>({
 }: TabsProps<T>) {
   const isDark = useActiveTheme() === 'dark';
 
+  /**
+   * Keep the active tab on screen.
+   *
+   * A scrollable strip is the answer to "fifteen divisions do not fit", but on its own it only
+   * solves the layout: the strip does not move, so a tab selected from elsewhere — a deep link, a
+   * sport chosen above, going back to a screen — can be active and invisible, which reads as
+   * nothing being selected at all. Each tab reports where it is, and a change scrolls to it.
+   *
+   * Positions are captured per tab rather than estimated, because the tabs are not equal width:
+   * `U14 Rugby` and `Open Netball (Boys)` differ by half a strip.
+   */
+  const scrollRef = React.useRef<ScrollView>(null);
+  const layouts = React.useRef<Record<string, { x: number; width: number }>>({});
+  const viewportWidth = React.useRef(0);
+
+  React.useEffect(() => {
+    if (!scrollable) return;
+    const layout = layouts.current[activeKey];
+    if (!layout || !viewportWidth.current) return;
+    // A third of the viewport of lead-in, so the active tab does not sit flush against the edge
+    // looking like the end of the list.
+    const lead = viewportWidth.current / 3;
+    scrollRef.current?.scrollTo({ x: Math.max(0, layout.x - lead), animated: true });
+  }, [activeKey, scrollable]);
+
   const renderContent = () => (
     <View
       className={`flex-row items-center border-b border-slate-200 dark:border-white/10 ${
@@ -64,13 +96,19 @@ export function Tabs<T extends string = string>({
               key={tab.key}
               onPress={() => onChange(tab.key)}
               disabled={isActive || tab.disabled}
+              onLayout={e => {
+                layouts.current[tab.key] = {
+                  x: e.nativeEvent.layout.x,
+                  width: e.nativeEvent.layout.width,
+                };
+              }}
               className={`px-4 py-2 rounded-xl flex-row items-center gap-2 min-h-[44px] active:opacity-80 ${
                 isActive
                   ? 'bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/40'
                   : 'bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-white/5'
               } ${tab.disabled ? 'opacity-40' : ''}`}
             >
-              {tab.icon && (
+              {tab.leading ? tab.leading : tab.icon && (
                 <Ionicons
                   name={tab.icon}
                   size={16}
@@ -115,11 +153,17 @@ export function Tabs<T extends string = string>({
             key={tab.key}
             onPress={() => onChange(tab.key)}
             disabled={isActive || tab.disabled}
+            onLayout={e => {
+              layouts.current[tab.key] = {
+                x: e.nativeEvent.layout.x,
+                width: e.nativeEvent.layout.width,
+              };
+            }}
             className={`flex-1 py-3 px-2 flex-row items-center justify-center gap-2 relative min-h-[44px] active:opacity-80 ${
               tab.disabled ? 'opacity-40' : ''
             }`}
           >
-            {tab.icon && (
+            {tab.leading ? tab.leading : tab.icon && (
               <Ionicons
                 name={tab.icon}
                 size={16}
@@ -166,7 +210,14 @@ export function Tabs<T extends string = string>({
 
   if (scrollable) {
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        onLayout={e => {
+          viewportWidth.current = e.nativeEvent.layout.width;
+        }}
+      >
         {renderContent()}
       </ScrollView>
     );

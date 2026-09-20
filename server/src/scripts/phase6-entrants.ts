@@ -708,6 +708,56 @@ async function main() {
     'but the sport is refused once a team is entered, and the division keeps the one it had'
   );
 
+  // ------------------------------------------------------------------------------------------
+  // 8c. A team plays in one division of a tournament, and Move here is one write
+  // ------------------------------------------------------------------------------------------
+
+  /*
+   * Divisions are sport plus age group, so the only way a team reaches two of them is an A/B
+   * section split of its own sport and age — where being in both is not something that happens,
+   * it is a mistake somebody is making. Enforced on the server rather than only hidden in the
+   * entry grid, because two organisers on two devices would otherwise both succeed.
+   */
+  const moveTarget = await tournamentManager.addDivision({
+    eventId: event.id,
+    name: `P6 Move ${stamp}`,
+    sportId: lockSportId,
+    ageGroupId: starterAgeGroupId(lockSportId, 'u13'),
+  } as any);
+
+  const doubleEntry = await tournamentManager
+    .setDivisionEntrants(moveTarget.id, [{ teamId: lockTeamId }])
+    .then(() => null)
+    .catch((err: Error) => err.message);
+  expect(
+    [
+      typeof doubleEntry === 'string' && doubleEntry.includes(`P6 Lock ${stamp}`),
+      (await tournamentManager.getEntrants(moveTarget.id)).length,
+    ],
+    [true, 0],
+    'entering a team another division already holds is refused, naming the division that has it'
+  );
+
+  /*
+   * **Move here** — the same write with the flag, and the reason it is a flag rather than a second
+   * call: one transaction cannot leave the team in neither division.
+   */
+  const moved = await tournamentManager.setDivisionEntrants(
+    moveTarget.id,
+    [{ teamId: lockTeamId }],
+    { takeFromOtherDivisions: true }
+  );
+  expect(
+    [
+      moved.entrants.map(e => e.teamId),
+      (await tournamentManager.getEntrants(lockDivision.id)).length,
+      moved.vacated.map(v => v.divisionId),
+    ],
+    [[lockTeamId], 0, [lockDivision.id]],
+    'but Move here takes it across in one write, and reports the division it came out of'
+  );
+
+  await tournamentManager.deleteDivision(moveTarget.id);
   await tournamentManager.deleteDivision(lockDivision.id);
 
   // ------------------------------------------------------------------------------------------

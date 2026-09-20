@@ -170,6 +170,14 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     teams has no row to carry them, and that is exactly the org whose empty group is where its
     first team gets created — both entry screens used to derive this list by deduplicating the
     teams, and so lost the host and the school invited this morning.
+*   **`SET_DIVISION_ENTRANTS` refuses a team another division of the same tournament holds**
+    (2026-09-20), naming that division. `takeFromOtherDivisions: true` is the **Move here** answer:
+    the server removes the team from the other division in the *same transaction*, so a move cannot
+    half-apply and leave a team in no division. The handler then recalculates and republishes the
+    vacated division as well — entrants, stage entrants, stages, standings and its fixture
+    summaries — because it has viewers of its own and is the side nobody is looking at while the
+    change is made. Removing an entrant unresolves every fixture that named it, which is why the
+    summaries go out too.
 *   **A fixture's audience includes its event and division rooms** (Phase 5). `join_room` hands
     fixtures over to `event:{id}` and `division:{id}:fixtures`, so both must also receive
     `GAME_SUMMARY_UPDATED` — a room that hands data over on join and never republishes it goes

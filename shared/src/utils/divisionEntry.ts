@@ -26,6 +26,33 @@ export interface DivisionTeamOption {
   team: CandidateTeam;
   /** Plays the division's sport but is from another age group — entered by override. */
   otherAgeGroup: boolean;
+  /**
+   * Another division of the same tournament that already holds this team, if there is one.
+   *
+   * A team plays in one division, so this option cannot simply be ticked — but it is **shown
+   * rather than hidden**, because hiding it makes the commonest mistake unrecoverable in place.
+   * An organiser who put a team in the wrong division goes to the right one, finds the team
+   * missing, and has nothing on screen telling them where it went. Shown and labelled with where
+   * it is, the fix is one tap from where the mistake was noticed.
+   */
+  takenByDivisionId?: string;
+}
+
+/**
+ * Which division of a tournament each entered team is in — the input to `takenByDivisionId`.
+ *
+ * Built from the event-level roster, so it covers every division at once. A team appearing twice
+ * should be impossible (the server refuses it), and the first wins rather than throwing: a screen
+ * that cannot render a roster is a worse answer to bad data than one that shows it oddly.
+ */
+export function divisionByTeamId(
+  entrants: Array<{ divisionId: string; teamId?: string }>
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const entrant of entrants) {
+    if (entrant.teamId && !map.has(entrant.teamId)) map.set(entrant.teamId, entrant.divisionId);
+  }
+  return map;
 }
 
 /**
@@ -46,17 +73,31 @@ export interface DivisionTeamOption {
  */
 export function divisionTeamOptions(
   teams: CandidateTeam[],
-  division: { sportId?: string; ageGroupId?: string | null },
-  enteredTeamIds: Set<string>
+  division: { id?: string; sportId?: string; ageGroupId?: string | null },
+  enteredTeamIds: Set<string>,
+  /** Every entered team in the tournament and the division holding it — see {@link divisionByTeamId}. */
+  divisionByTeam?: Map<string, string>
 ): { listed: DivisionTeamOption[]; others: CandidateTeam[] } {
   const listed: DivisionTeamOption[] = [];
   const others: CandidateTeam[] = [];
+
+  /* Only *another* division counts. A team entered in this one is entered, not taken. */
+  const takenBy = (teamId: string) => {
+    const holder = divisionByTeam?.get(teamId);
+    return holder && holder !== division.id ? holder : undefined;
+  };
+
   for (const team of teams) {
     if (teamQualifies(team, division)) {
-      listed.push({ team, otherAgeGroup: false });
+      listed.push({ team, otherAgeGroup: false, takenByDivisionId: takenBy(team.id) });
     } else if (!division.sportId || team.sportId === division.sportId) {
-      if (enteredTeamIds.has(team.id)) listed.push({ team, otherAgeGroup: true });
-      else others.push(team);
+      // A team held by another division stays in `listed` even out of age group, for the same
+      // reason it is shown at all: the organiser looking for it has to be able to find it.
+      if (enteredTeamIds.has(team.id) || takenBy(team.id)) {
+        listed.push({ team, otherAgeGroup: true, takenByDivisionId: takenBy(team.id) });
+      } else {
+        others.push(team);
+      }
     }
   }
   return { listed, others };

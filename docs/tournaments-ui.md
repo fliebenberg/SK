@@ -1000,6 +1000,55 @@ that spans weeks.
 > entrants** can still change sport, since nothing was entered. Logged on `FIX-17` rather than
 > folded in, because guarding fixtures is a different rule from the one decided here.
 
+> **Revised 2026-09-20 — the entry grid (U53).** The two axes were right and their *rendering* was
+> not: a full-width row per team is honest about one school's six teams and hopeless about five
+> schools' thirty, and fifteen divisions in one tab strip is fifteen tabs nobody can scan. Nothing
+> about the two-axes model changed; what changed is what a group looks like and how you get to one.
+>
+> - **The chip is the unit** ([EntrantTeamChip](file:///c:/Fred/Coding/SK/expo-app/components/tournament/EntrantTeamChip.tsx)),
+>   and one component renders it on both axes. A column of chips reads as *a list belonging to a
+>   school*, which is the shape the task has; a column of full-width bars reads as a wall.
+> - **Columns on a wide screen, stacked sections on a phone** — reflowed by
+>   [EntrantGrid](file:///c:/Fred/Coding/SK/expo-app/components/tournament/EntrantGrid.tsx), not
+>   branched into two renderings. Column count is bounded by legibility rather than arithmetic:
+>   fifteen invited schools cannot be fifteen columns on any screen, and two 140px columns on a
+>   phone are worse than one clear list. Same breaks as `PaginatedList`, one step narrower.
+> - **A group with nothing to offer sinks below the grid**, as a row of buttons. It cannot simply
+>   be dropped, because the empty group is the only route to creating the team that is missing —
+>   which is the entire reason the organisation axis exists — but nine of them between the
+>   organiser and the six that matter is a wall of "nothing qualifying".
+> - **Sport, then age group** replaces the flat division strip. Fifteen divisions are not fifteen
+>   unrelated things; they are three sports of five ages, which is how the tournament was built and
+>   how an organiser holds it. Three tabs and five pills both fit a phone, so **no dropdown was
+>   needed**. Each level collapses independently under U15. A division with no age group is *All
+>   ages*; a sport whose divisions have none shows no age row at all.
+> - **The organisation tabs carry the crest and the code** — `TabItem.leading` was added for it.
+>   Crest alone would not identify, since most organisations have no logo and fall back to a
+>   generic mark.
+> - **`<Tabs scrollable>` now scrolls the active tab into view.** Scrolling solved the layout and
+>   not the problem: a tab selected from elsewhere could be active and off-screen, which reads as
+>   nothing being selected. Positions are measured per tab rather than estimated, because the tabs
+>   are not equal width.
+>
+> **A team plays in one division of a tournament — and the taken chip is shown, not hidden.**
+> Hiding it was the obvious reading of the rule and is the wrong one: an organiser who put a team
+> in the wrong division goes to the right one, finds it absent, and has nothing on screen saying
+> where it went. The mistake becomes unrecoverable at the place it was noticed. So the chip is
+> dimmed, labelled *In U14 A — tap to move*, and tapping offers **Move here**.
+>
+> The rule is enforced in `setDivisionEntrants`, not only in the grid: this is a live multi-user
+> screen, and two organisers on two devices would otherwise both succeed. **Move here is a flag on
+> that write** (`takeFromOtherDivisions`) rather than a remove and an add, so one transaction
+> cannot leave a team in no division at all. The vacated division is recalculated and republished
+> in the same handler — it has viewers of its own, and it is the side nobody is looking at while
+> the change is made. Moving a team out of a division that has drawn fixtures unresolves them,
+> exactly as removing it by hand from that division always has; that is deliberately not a new
+> refusal, since a Move stricter than the untick-then-tick it replaces would be a worse tool.
+>
+> The division panel a convenor reaches passes no roster, because the event-level one is a room
+> they may not be able to join. There a double entry is refused by the server with a message naming
+> the division that holds the team — worse than the chip, and correct.
+
 > **Revised 2026-09-13 — the checklist explains itself (U49).** U48 got the *structure* right and
 > left the page mute. Shown five headings under a progress bar, an organiser using it for the first
 > time could not tell what the list was, what any row would ask for before opening it, or which to

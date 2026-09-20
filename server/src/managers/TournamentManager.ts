@@ -546,14 +546,66 @@ export class TournamentManager extends BaseManager {
       label?: string;
       seed?: number;
       status?: 'active' | 'withdrawn';
-    }>
+    }>,
+    options: { takeFromOtherDivisions?: boolean } = {}
   ): Promise<{
     entrants: TournamentEntrant[];
     removedIds: string[];
     changedIdentityIds: string[];
     syncedStageIds: string[];
+    /** Divisions this write took a team *out* of, and the stage each had to re-mirror. */
+    vacated: Array<{ divisionId: string; syncedStageIds: string[] }>;
   }> {
     const result = await this.transaction(async (tx) => {
+      /**
+       * A team plays in one division of a tournament (2026-09-20).
+       *
+       * Divisions are sport plus age group, so the only way a team can reach two of them is an
+       * A/B section split of its own sport and age — where being in both is not a thing that
+       * happens, it is a mistake somebody is making. The check is here rather than only in the
+       * entry grid because this is a live multi-user screen: two organisers on two devices would
+       * otherwise both succeed, and neither would see the other's write until a reload.
+       *
+       * `takeFromOtherDivisions` is **Move here**, and it is a flag on this write rather than a
+       * second call on purpose. The organiser who taps a team shown as *in U14 A* almost always
+       * means "it belongs here instead", and doing that as remove-then-add leaves a window — and,
+       * if the second call fails, a team in no division at all. One transaction cannot half-apply.
+       *
+       * Moving a team out of a division that has already generated fixtures unresolves those
+       * fixtures, exactly as removing it by hand from that division's own roster does. That is
+       * deliberately not a new refusal: the manual path has always allowed it, and a Move stricter
+       * than the untick-then-tick it replaces would be a worse tool than the thing it is for.
+       */
+      const incomingTeamIds = entrants.map(e => e.teamId).filter(Boolean) as string[];
+      const vacatedIds = new Set<string>();
+
+      if (incomingTeamIds.length) {
+        const clashes = await tx(
+          `SELECT e.id, e.team_id as "teamId", d.id as "divisionId", d.name as "divisionName"
+             FROM division_entrants e
+             JOIN tournament_divisions d ON d.id = e.division_id
+            WHERE d.event_id = (SELECT event_id FROM tournament_divisions WHERE id = $1)
+              AND d.id <> $1
+              AND e.team_id = ANY($2::text[])`,
+          [divisionId, incomingTeamIds]
+        );
+
+        if (clashes.rows.length && !options.takeFromOtherDivisions) {
+          const first = clashes.rows[0];
+          const name = await tx(`SELECT name FROM teams WHERE id = $1`, [first.teamId]);
+          throw new Error(
+            `${name.rows[0]?.name || 'That team'} is already entered in ` +
+              `${first.divisionName || 'another division'}. A team plays in one division of a ` +
+              `tournament — move it across rather than entering it twice.`
+          );
+        }
+
+        for (const clash of clashes.rows) {
+          await tx(`DELETE FROM division_entrants WHERE id = $1`, [clash.id]);
+          vacatedIds.add(clash.divisionId);
+        }
+      }
+
       const existing = await tx(
         `SELECT id, team_id, org_profile_id FROM division_entrants WHERE division_id = $1`,
         [divisionId]
@@ -618,7 +670,11 @@ export class TournamentManager extends BaseManager {
           )
         : await tx(`DELETE FROM division_entrants WHERE division_id = $1 RETURNING id`, [divisionId]);
 
-      return { removedIds: removed.rows.map((r: any) => r.id), changedIdentityIds };
+      return {
+        removedIds: removed.rows.map((r: any) => r.id),
+        changedIdentityIds,
+        vacatedIds: [...vacatedIds],
+      };
     });
 
     // The roster is the thing an organiser edits; stage membership is machinery. Keeping the two
@@ -626,7 +682,15 @@ export class TournamentManager extends BaseManager {
     // {@link syncOpenStageEntrants}.
     const syncedStageIds = await this.syncOpenStageEntrants(divisionId);
 
-    return { entrants: await this.getEntrants(divisionId), ...result, syncedStageIds };
+    // A division a team was moved out of needs the same treatment, or its stage keeps an entrant
+    // the roster no longer has and its next Generate draws a team that is playing elsewhere.
+    const { vacatedIds, ...rest } = result;
+    const vacated = [];
+    for (const vacatedId of vacatedIds) {
+      vacated.push({ divisionId: vacatedId, syncedStageIds: await this.syncOpenStageEntrants(vacatedId) });
+    }
+
+    return { entrants: await this.getEntrants(divisionId), ...rest, syncedStageIds, vacated };
   }
 
   /**

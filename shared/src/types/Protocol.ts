@@ -564,6 +564,16 @@ export interface SetDivisionEntrantsPayload extends BatchPayload {
     divisionId: string;
     orgId: string;
     entrants: DivisionEntrantInput[];
+    /**
+     * **Move here**: take any of these teams out of the other division of this tournament that
+     * currently holds them, in the same transaction.
+     *
+     * A team plays in one division of a tournament, and without this the write is refused naming
+     * the division that already has it. The flag is how the organiser answers that refusal —
+     * usually they mean "it belongs here instead" — and it is a flag rather than a second call so
+     * the move cannot half-apply and leave a team in no division at all.
+     */
+    takeFromOtherDivisions?: boolean;
 }
 
 export interface StageEntrantInput {

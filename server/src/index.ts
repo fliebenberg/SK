@@ -3142,13 +3142,27 @@ io.on('connection', (socket) => {
             case SocketAction.SET_DIVISION_ENTRANTS: {
                 const entrantDivisionId = action.payload.divisionId;
                 result = await runIdempotent(action.payload.idempotencyKey, async () => {
-                    const outcome = await dataManager.setDivisionEntrants(entrantDivisionId, action.payload.entrants || []);
+                    const outcome = await dataManager.setDivisionEntrants(
+                        entrantDivisionId,
+                        action.payload.entrants || [],
+                        { takeFromOtherDivisions: !!action.payload.takeFromOtherDivisions }
+                    );
                     // A roster edit can be a substitution (D10), which changes who every fixture
                     // pointing at that entrant was played by — so the tables are rebuilt whether
                     // or not a result moved. D10 is explicit that a substitution does not touch
                     // the draw: the fixtures stay exactly where they are.
                     await tournamentManager.recalculateDivision(entrantDivisionId);
-                    return { applied: outcome.entrants, errors: [], syncedStageIds: outcome.syncedStageIds };
+                    // A **Move here** takes the team out of another division in the same write, so
+                    // that division's table is as wrong as this one's until it is rebuilt too.
+                    for (const vacated of outcome.vacated) {
+                        await tournamentManager.recalculateDivision(vacated.divisionId);
+                    }
+                    return {
+                        applied: outcome.entrants,
+                        errors: [],
+                        syncedStageIds: outcome.syncedStageIds,
+                        vacated: outcome.vacated,
+                    };
                 });
                 const entrantEventId = await dataManager.getDivisionEventId(entrantDivisionId);
                 await publishEntrants(entrantDivisionId, result.applied, entrantEventId || undefined);
@@ -3170,6 +3184,35 @@ io.on('connection', (socket) => {
                 // summaries go out too — that is the whole point of the placeholder model.
                 for (const game of await dataManager.getDivisionGames(entrantDivisionId)) {
                     await publishGameSummary(game.id);
+                }
+                /*
+                 * A **Move here** edited two divisions, and the one that lost the team has viewers
+                 * of its own. Publishing only the destination would leave the source showing a
+                 * team that is no longer in it until somebody reloaded — the `FIX-4` shape, and
+                 * worse here because the stale side is the one nobody is looking at while they
+                 * make the change. Its fixtures go out too: removing an entrant unresolves every
+                 * fixture that named it.
+                 */
+                for (const vacated of result.vacated || []) {
+                    await publishEntrants(
+                        vacated.divisionId,
+                        await dataManager.getDivisionEntrants(vacated.divisionId),
+                        entrantEventId || undefined
+                    );
+                    for (const syncedStageId of vacated.syncedStageIds) {
+                        publishStageEntrants(
+                            vacated.divisionId,
+                            syncedStageId,
+                            await dataManager.getStageEntrants(syncedStageId)
+                        );
+                    }
+                    if (vacated.syncedStageIds.length) {
+                        publishStages(vacated.divisionId, await dataManager.getStages(vacated.divisionId));
+                    }
+                    await publishStandings(vacated.divisionId, entrantEventId);
+                    for (const game of await dataManager.getDivisionGames(vacated.divisionId)) {
+                        await publishGameSummary(game.id);
+                    }
                 }
                 break;
             }
