@@ -1,5 +1,6 @@
 import { LeagueStandingRow } from "../league/League";
 import { EventFormat } from "./Event";
+import type { OrgBadge } from "../organization/Organization";
 
 /**
  * How a *stage* of a division is structured.
@@ -186,11 +187,30 @@ export interface CandidateTeam {
   shortName?: string | null;
   orgId: string;
   orgName: string;
-  orgShortName?: string;
+  /** Always set — `organizations.short_name` is `NOT NULL` since 2026-09-20. */
+  orgShortName: string;
   sportId?: string;
   ageGroupId?: string | null;
   /** Display only. */
   ageGroup?: string;
+}
+
+/**
+ * What `get_data event_candidate_teams` answers: the teams, and the organisations they belong to.
+ *
+ * The orgs are a **sibling list rather than fields on each team**, for two reasons. A school with
+ * twenty teams would otherwise repeat its logo, its logo placement and its colour twenty times.
+ * And, more importantly, an organisation with *no* teams yet would have no row to carry them — the
+ * host that has not entered anything, or a school invited this morning. Those are exactly the orgs
+ * the entry screen must still show, because their empty column is where "create a team" lives.
+ *
+ * `orgs` is the same set the teams are drawn from: the host, plus `event_organizations`. It is
+ * built from the organisations table rather than from the returned teams, so it is complete
+ * whether or not anybody has a team.
+ */
+export interface EventCandidateTeams {
+  teams: CandidateTeam[];
+  orgs: OrgBadge[];
 }
 
 /**

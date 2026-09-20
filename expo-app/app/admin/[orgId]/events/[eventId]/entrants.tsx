@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   CandidateTeam,
   Event,
+  OrgBadge,
   Organization,
   SocketAction,
   Sport,
@@ -15,6 +16,7 @@ import {
   isCollapsed,
 } from '@sk/shared';
 import { GlassCard } from '../../../../../components/GlassCard';
+import { OrgLogo } from '../../../../../components/OrgLogo';
 import { ScreenHeader } from '../../../../../components/ScreenHeader';
 import { SetupStepFooter } from '../../../../../components/tournament/SetupStepFooter';
 import { nextStepAfter, stepByKey } from '../../../../../components/tournament/setupSteps';
@@ -26,6 +28,7 @@ import { NewTeamModal } from '../../../../../components/tournament/NewTeamModal'
 import { useLiveRoom } from '../../../../../hooks/useLiveRoom';
 import { useEventEntrants, teamQualifies } from '../../../../../hooks/useEventEntrants';
 import { DivisionTeamChoices } from '../../../../../components/tournament/DivisionTeamChoices';
+import { candidateFromTeam } from '../../../../../components/tournament/candidateTeam';
 import { useEventCapabilities } from '../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../../store/authStore';
@@ -75,6 +78,9 @@ export default function EntrantsScreen() {
   const safeBack = useSafeBack();
   const { orgId, eventId } = useLocalSearchParams<{ orgId: string; eventId: string }>();
   const isDark = useActiveTheme() === 'dark';
+  const { width } = useWindowDimensions();
+  /** 768px, the same break `ResponsivePageLayout` and `ResponsiveHeader` use. */
+  const isLargeScreen = width >= 768;
   const secondary = getThemeColor(isDark, 'textSecondary');
   const isConnected = useWsStore((state: any) => state.isConnected);
 
@@ -122,13 +128,21 @@ export default function EntrantsScreen() {
    * question rather than a set.
    */
   const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
+  /**
+   * The organisations that may enter — the host and the invited schools, whether or not they have
+   * a team yet. It arrives beside the teams rather than being derived from them, because the org
+   * with nothing entered is precisely the one whose column has to be there to create a team in.
+   */
+  const [orgs, setOrgs] = useState<OrgBadge[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
 
   useEffect(() => {
     if (!isConnected || !eventId || !canEdit) return;
     let active = true;
     wsService.emit('get_data', { type: 'event_candidate_teams', eventId }, (res: any) => {
-      if (active && Array.isArray(res)) setCandidateTeams(res);
+      if (!active || !res) return;
+      setCandidateTeams(res.teams || []);
+      setOrgs(res.orgs || []);
     });
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
       if (active && Array.isArray(res)) setSports(res);
@@ -147,19 +161,10 @@ export default function EntrantsScreen() {
     [divisions]
   );
 
-  /** The host runs the day and usually enters teams as well, so it belongs in the list. */
-  const orgs = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; shortName?: string }>();
-    for (const team of candidateTeams) {
-      if (!map.has(team.orgId)) {
-        map.set(team.orgId, { id: team.orgId, name: team.orgName, shortName: team.orgShortName });
-      }
-    }
-    for (const participating of event?.participatingOrgs || []) {
-      if (!map.has(participating.id)) map.set(participating.id, participating);
-    }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [candidateTeams, event?.participatingOrgs]);
+  /* The org list used to be assembled here, by deduplicating the candidate teams and patching in
+     `participatingOrgs` for the ones with none. It produced no logo, and it had a hole the patch
+     could not cover: the **host** is not in `participatingOrgs`, so a host that had entered nothing
+     appeared nowhere. `event_candidate_teams` now answers both questions at once. */
 
   const sportName = (sportId?: string) => sports.find(s => s.id === sportId)?.name;
 
@@ -206,12 +211,12 @@ export default function EntrantsScreen() {
    * Write the list straight out. `participatingOrgIds` is the whole set every time, because that
    * is what `UPDATE_EVENT` expects — there is no add-one action.
    */
-  const saveInvites = (next: Array<{ id: string; name: string; shortName?: string }>) => {
+  const saveInvites = (nextIds: string[]) => {
     if (!event) return;
     void sendAction(SocketAction.UPDATE_EVENT, {
       id: eventId,
       orgId,
-      data: { participatingOrgIds: next.map(o => o.id) },
+      data: { participatingOrgIds: nextIds },
     });
   };
 
@@ -289,20 +294,7 @@ export default function EntrantsScreen() {
   const appendCandidate = (team: Team) => {
     // `event_candidate_teams` was a one-shot read, so nothing would otherwise tell this screen the
     // team now exists.
-    setCandidateTeams(prev => [
-      ...prev,
-      {
-        id: team.id,
-        name: team.name,
-        shortName: team.shortName,
-        orgId: team.orgId,
-        orgName: orgs.find(o => o.id === team.orgId)?.name || team.orgId,
-        orgShortName: orgs.find(o => o.id === team.orgId)?.shortName,
-        sportId: team.sportId,
-        ageGroupId: team.ageGroupId,
-        ageGroup: team.ageGroup,
-      },
-    ]);
+    setCandidateTeams(prev => [...prev, candidateFromTeam(team, orgs)]);
   };
 
   const handleTeamCreated = (division: TournamentDivision, team: Team) => {
@@ -509,16 +501,30 @@ export default function EntrantsScreen() {
                 </Text>
                 {invitedOrgs.length > 0 && (
                   <View className="flex-row flex-wrap gap-2 mb-2">
+                    {/*
+                      The flag carries the crest, and as much text as the screen has room for: the
+                      full name with the code in brackets on a wide screen, the code alone on a
+                      phone. Both say the same thing — the code is the name, abbreviated — so the
+                      narrow one loses no information a reader of the wide one had, which is what
+                      makes dropping the name at 768px safe rather than merely tidy.
+                    */}
                     {invitedOrgs.map(o => (
                       <View
                         key={o.id}
-                        className="flex-row items-center bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-slate-200/50 dark:border-white/5"
+                        className="flex-row items-center gap-2 bg-slate-100 dark:bg-slate-800 pl-1.5 pr-3 py-1.5 rounded-full border border-slate-200/50 dark:border-white/5"
                       >
-                        <Text className="font-inter text-xs text-slate-700 dark:text-slate-300 mr-1.5">
-                          {o.name}
+                        <OrgLogo
+                          logo={o.logo}
+                          settings={o.logoConfig ? { logoConfig: o.logoConfig } : undefined}
+                          primaryColor={o.primaryColor}
+                          size={22}
+                          className="rounded-full"
+                        />
+                        <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
+                          {isLargeScreen ? `${o.name} (${o.shortName})` : o.shortName}
                         </Text>
                         <TouchableOpacity
-                          onPress={() => saveInvites(invitedOrgs.filter(p => p.id !== o.id))}
+                          onPress={() => saveInvites(invitedOrgs.filter(p => p.id !== o.id).map(p => p.id))}
                           accessibilityLabel={`Remove ${o.name}`}
                         >
                           <Ionicons name="close-circle" size={14} color={COLORS.brand.red} />
@@ -541,10 +547,7 @@ export default function EntrantsScreen() {
                   <TouchableOpacity
                     key={o.id}
                     onPress={() => {
-                      saveInvites([
-                        ...invitedOrgs,
-                        { id: o.id, name: o.name, shortName: o.shortName },
-                      ]);
+                      saveInvites([...invitedOrgs.map(p => p.id), o.id]);
                       setOrgSearchText('');
                     }}
                     className="px-4 py-2.5 border-b border-slate-100 dark:border-white/5 active:opacity-80"

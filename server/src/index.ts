@@ -1739,7 +1739,11 @@ io.on('connection', (socket) => {
                 const candidateEventId =
                     request.eventId ||
                     (request.divisionId ? await dataManager.getDivisionEventId(request.divisionId) : null);
-                callback(candidateEventId ? await dataManager.getEventCandidateTeams(candidateEventId) : []);
+                callback(
+                    candidateEventId
+                        ? await dataManager.getEventCandidateTeams(candidateEventId)
+                        : { teams: [], orgs: [] }
+                );
                 break;
             }
             case 'event_standings': {

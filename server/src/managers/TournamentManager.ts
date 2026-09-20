@@ -7,6 +7,7 @@ import {
   GameSummary,
   MatchTopology,
   CandidateTeam,
+  EventCandidateTeams,
   ParticipantSourceRule,
   ScoringSubject,
   ScoringSystem,
@@ -438,8 +439,18 @@ export class TournamentManager extends BaseManager {
    * that the client filters it locally against each division's `sportId` and `ageGroupId`, which is
    * one read for the whole grid.
    */
-  async getEventCandidateTeams(eventId: string): Promise<CandidateTeam[]> {
-    const res = await this.query(
+  async getEventCandidateTeams(eventId: string): Promise<EventCandidateTeams> {
+    /**
+     * Who may enter: the host, plus the invited organisations. The host is not a row in
+     * `event_organizations` — running the day and competing in it are different things — and it
+     * usually enters teams as well, so both halves are needed and neither implies the other.
+     */
+    const ORG_SCOPE = `
+                SELECT ev.org_id FROM events ev WHERE ev.id = $1
+                UNION
+                SELECT eo.org_id FROM event_organizations eo WHERE eo.event_id = $1`;
+
+    const teams = await this.query(
       `SELECT t.id, t.name, t.short_name as "shortName", t.org_id as "orgId",
               o.name as "orgName", o.short_name as "orgShortName",
               t.sport_id as "sportId", t.age_group_id as "ageGroupId", ag.name as "ageGroup"
@@ -447,15 +458,23 @@ export class TournamentManager extends BaseManager {
          JOIN organizations o ON o.id = t.org_id
          LEFT JOIN sport_age_groups ag ON ag.id = t.age_group_id
         WHERE t.is_active IS NOT FALSE
-          AND t.org_id IN (
-                SELECT ev.org_id FROM events ev WHERE ev.id = $1
-                UNION
-                SELECT eo.org_id FROM event_organizations eo WHERE eo.event_id = $1
-              )
+          AND t.org_id IN (${ORG_SCOPE})
         ORDER BY o.name, ag.is_official DESC NULLS LAST, ag.sort_order, ag.name, t.name`,
       [eventId]
     );
-    return res.rows;
+
+    // Taken from `organizations` rather than from the teams above, so an org with nothing entered
+    // still appears — which is the whole point, because its empty column is where a team is made.
+    const orgs = await this.query(
+      `SELECT o.id, o.name, o.short_name as "shortName", o.logo,
+              o.settings->'logoConfig' as "logoConfig", o.primary_color as "primaryColor"
+         FROM organizations o
+        WHERE o.id IN (${ORG_SCOPE})
+        ORDER BY o.name`,
+      [eventId]
+    );
+
+    return { teams: teams.rows, orgs: orgs.rows };
   }
 
   async getEntrants(divisionId: string): Promise<TournamentEntrant[]> {

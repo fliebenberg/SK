@@ -8,7 +8,7 @@ tags:
   - WebSockets
   - real-time
   - sport-registry
-timestamp: 2026-09-19T00:00:00Z
+timestamp: 2026-09-20T12:00:00Z
 ---
 
 # API & Real-time WebSockets
@@ -164,7 +164,12 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     `tournament-organiser` read scoped by **either** an `eventId` (the entry screen) or a
     `divisionId` (a convenor reaching the same editor through their division). It is deliberately
     unfiltered by sport and age group: the organisation axis shows one school against every
-    division at once, so a per-division filter would be a query per division.
+    division at once, so a per-division filter would be a query per division. It answers
+    `{ teams, orgs }` rather than a bare array (2026-09-20): the organisations are a **sibling
+    list** drawn from `organizations`, not fields repeated on every team row. An org with *no*
+    teams has no row to carry them, and that is exactly the org whose empty group is where its
+    first team gets created — both entry screens used to derive this list by deduplicating the
+    teams, and so lost the host and the school invited this morning.
 *   **A fixture's audience includes its event and division rooms** (Phase 5). `join_room` hands
     fixtures over to `event:{id}` and `division:{id}:fixtures`, so both must also receive
     `GAME_SUMMARY_UPDATED` — a room that hands data over on join and never republishes it goes

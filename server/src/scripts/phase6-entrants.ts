@@ -134,6 +134,23 @@ async function main() {
     schools.push({ id, name: `P6 School ${letter}`, shortName: `P6${letter}` });
   }
 
+  /**
+   * A fifth school, invited and with no teams at all.
+   *
+   * This is the case the entry screens used to lose. Both of them built their organisation list by
+   * deduplicating the candidate *teams*, so a school with nothing on the system had no row to be
+   * derived from and never appeared — and the empty group under its name is the only place its
+   * first team could have been created. `getEventCandidateTeams` answers the org question from
+   * `organizations` for exactly this reason, so the school below must come back with no teams.
+   */
+  const emptySchoolId = `org-p6-e-${stamp}`;
+  await query(
+    `INSERT INTO organizations (id, name, short_name, is_claimed, is_active)
+     VALUES ($1, 'P6 School E', 'P6E', true, true)`,
+    [emptySchoolId]
+  );
+  created.orgIds.push(emptySchoolId);
+
   // ------------------------------------------------------------------------------------------
   // The tournament: three sports x five age groups = fifteen divisions
   // ------------------------------------------------------------------------------------------
@@ -145,7 +162,7 @@ async function main() {
     startDate: new Date().toISOString(),
     orgId: APP_TEST_ORG_ID,
     sportIds: sports.map((s: any) => s.id),
-    participatingOrgIds: schools.map(s => s.id),
+    participatingOrgIds: [...schools.map(s => s.id), emptySchoolId],
     status: 'Scheduled',
   } as any);
   created.eventIds.push(event.id);
@@ -221,15 +238,38 @@ async function main() {
 
   const candidates = await tournamentManager.getEventCandidateTeams(event.id);
   expect(
-    candidates.filter(team => created.teamIds.includes(team.id)).length,
+    candidates.teams.filter(team => created.teamIds.includes(team.id)).length,
     60,
     'every participating school\'s teams are offered, in one read for the whole grid'
   );
-  const sampleCandidate = candidates.find(team => team.id === created.teamIds[0])!;
+  const sampleCandidate = candidates.teams.find(team => team.id === created.teamIds[0])!;
   expect(
     [!!sampleCandidate.orgName, !!sampleCandidate.sportId, !!sampleCandidate.ageGroupId],
     [true, true, true],
     'and each carries the org and the two fields that decide which divisions it qualifies for'
+  );
+
+  // The org list comes back beside the teams, and is drawn from `organizations` rather than from
+  // the teams — which is the difference the next three checks exist to hold.
+  expect(
+    candidates.orgs.some(org => org.id === APP_TEST_ORG_ID),
+    true,
+    'the host is offered as an entrant organisation, though it is not in event_organizations'
+  );
+  expect(
+    [
+      candidates.orgs.some(org => org.id === emptySchoolId),
+      candidates.teams.some(team => team.orgId === emptySchoolId),
+    ],
+    [true, false],
+    'and so is an invited school with no teams — the one whose empty group is where a team is made'
+  );
+  expect(
+    schools.every(school =>
+      candidates.orgs.some(org => org.id === school.id && org.shortName === school.shortName)
+    ),
+    true,
+    'each carrying the short code a column heading and a team flag are rendered from'
   );
 
   // ------------------------------------------------------------------------------------------

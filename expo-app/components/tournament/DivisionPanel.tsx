@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   CandidateTeam,
   GameSummary,
+  OrgBadge,
   SocketAction,
   Sport,
   TournamentDivision,
@@ -17,6 +18,7 @@ import { GlassCard } from '../GlassCard';
 import { Tabs, TabItem } from '../Tabs';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { DivisionEntrantsEditor } from './DivisionEntrantsEditor';
+import { candidateFromTeam } from './candidateTeam';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
 import { wsService } from '../../services/websocket';
 import { sendAction } from '../../services/actions';
@@ -146,13 +148,17 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
    * Addressed by division so a convenor, who holds no event-scope grant, is answered too.
    */
   const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
+  /** The organisations that may enter — see `EventCandidateTeams`; not derived from the teams. */
+  const [rosterOrgs, setRosterOrgs] = useState<OrgBadge[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
 
   useEffect(() => {
     if (!isConnected || !divisionId || !canEdit || !showEntrants) return;
     let active = true;
     wsService.emit('get_data', { type: 'event_candidate_teams', eventId, divisionId }, (res: any) => {
-      if (active && Array.isArray(res)) setCandidateTeams(res);
+      if (!active || !res) return;
+      setCandidateTeams(res.teams || []);
+      setRosterOrgs(res.orgs || []);
     });
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
       if (active && Array.isArray(res)) setSports(res);
@@ -224,16 +230,9 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
 
   const activeEntrants = entrants.filter(entrant => entrant.status !== 'withdrawn');
 
-  /** The organisations whose teams could be entered, from the candidate list itself. */
-  const rosterOrgs = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; shortName?: string }>();
-    for (const team of candidateTeams) {
-      if (!map.has(team.orgId)) {
-        map.set(team.orgId, { id: team.orgId, name: team.orgName, shortName: team.orgShortName });
-      }
-    }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [candidateTeams]);
+  /* `rosterOrgs` used to be deduplicated from the candidate teams here. It came with the same hole
+     the entrants screen had: a school with no team of any sport never appeared, so the one place a
+     convenor could have made them a team was missing. The read answers it directly now. */
 
   /**
    * The concrete cost of regenerating a stage, from the fixtures this panel already holds.
@@ -495,20 +494,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
                 orgs={rosterOrgs}
                 sportName={sports.find(sport => sport.id === division.sportId)?.name}
                 onTeamCreated={(team) =>
-                  setCandidateTeams(prev => [
-                    ...prev,
-                    {
-                      id: team.id,
-                      name: team.name,
-                      shortName: team.shortName,
-                      orgId: team.orgId,
-                      orgName: rosterOrgs.find(o => o.id === team.orgId)?.name || team.orgId,
-                      orgShortName: rosterOrgs.find(o => o.id === team.orgId)?.shortName,
-                      sportId: team.sportId,
-                      ageGroupId: team.ageGroupId,
-                      ageGroup: team.ageGroup,
-                    },
-                  ])
+                  setCandidateTeams(prev => [...prev, candidateFromTeam(team, rosterOrgs)])
                 }
               />
             </View>

@@ -11,6 +11,7 @@
 export type EventType = 'SingleMatch' | 'Tournament';
 
 import type { ScoringSystem } from './Tournament';
+import type { OrgBadge } from '../organization/Organization';
 
 /**
  * How a tournament is structured — what the event screen keys its tabs and setup steps off.
@@ -85,7 +86,7 @@ export interface Event {
    * is open. Choosing which orgs to *invite* is a different question, over a set no room owns, and
    * stays a search.
    */
-  participatingOrgs?: Array<{ id: string; name: string; shortName?: string }>;
+  participatingOrgs?: OrgBadge[];
   sportIds?: string[];
   settings?: {
     /**

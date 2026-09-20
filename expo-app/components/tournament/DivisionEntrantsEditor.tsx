@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CandidateTeam, SocketAction, Team, TournamentDivision, TournamentEntrant } from '@sk/shared';
+import { CandidateTeam, OrgBadge, SocketAction, Team, TournamentDivision, TournamentEntrant } from '@sk/shared';
 import { NewTeamModal } from './NewTeamModal';
 import { divisionTeamOptions } from '../../hooks/useEventEntrants';
 import { DivisionTeamChoices } from './DivisionTeamChoices';
@@ -23,12 +23,6 @@ import { COLORS, getThemeColor } from '../../constants/Colors';
  * actually changed moves.
  */
 
-export interface EntrantOrg {
-  id: string;
-  name: string;
-  shortName?: string;
-}
-
 export interface DivisionEntrantsEditorProps {
   /** The acting organisation, from the route — not the org whose teams are being entered. */
   orgId: string;
@@ -36,7 +30,7 @@ export interface DivisionEntrantsEditorProps {
   /** This division's roster, already filtered by the caller. */
   entrants: TournamentEntrant[];
   candidateTeams: CandidateTeam[];
-  orgs: EntrantOrg[];
+  orgs: OrgBadge[];
   sportName?: string;
   /** A team created inline is appended here, because `event_candidate_teams` is a one-shot read. */
   onTeamCreated?: (team: Team) => void;
