@@ -256,9 +256,26 @@ async function main() {
   ]);
   created.profileIds.push(profileId);
 
+  /*
+   * Asserted over the reply's own keys rather than against a literal shape.
+   *
+   * The literal version broke the moment `event_sport_organizers` added a third scope (`SHARED-6`):
+   * the code was right and this check was stale, which is the least useful way for a check to
+   * fail. What it is actually about is that an ungranted user gets a well-formed empty answer
+   * instead of `null` — a claim about emptiness, not about how many scopes exist — so it is
+   * written that way and a fourth scope will not disturb it. The three that do exist are still
+   * required by name, because losing one is a different bug and should still be caught.
+   */
+  const emptyGrants = await accessManager.getMyGrants(userId);
   expect(
-    await accessManager.getMyGrants(userId),
-    { eventIds: [], divisions: [] },
+    [
+      // Checked first and guarded below, because `nothing` is the failure this check is named for
+      // and it must be *reported* — `Object.values(null)` would end the run instead.
+      !!emptyGrants,
+      !!emptyGrants && Object.values(emptyGrants).every(s => Array.isArray(s) && s.length === 0),
+      !!emptyGrants && ['eventIds', 'sports', 'divisions'].every(s => s in emptyGrants),
+    ],
+    [true, true, true],
     'somebody with no grants gets an empty answer rather than nothing'
   );
 
