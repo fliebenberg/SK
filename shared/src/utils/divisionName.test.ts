@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { divisionAutoName, findTakenDivisionName, isAutomaticDivisionName } from './divisionName';
+import {
+  divisionAutoName,
+  divisionSiblingLabel,
+  divisionSiblingLabels,
+  findTakenDivisionName,
+  isAutomaticDivisionName,
+} from './divisionName';
 
 describe('a division’s automatic name (U50)', () => {
   it('puts the sport first, then the age group', () => {
@@ -68,5 +74,77 @@ describe('division names are unique within a tournament', () => {
     expect(divisionAutoName('Rugby', 'U14', ['rugby u14'])).toBe('Rugby U14 - 2');
     expect(divisionAutoName('Rugby', 'U14', ['RUGBY U14', 'rugby u14 - 2'])).toBe('Rugby U14 - 3');
     expect(divisionAutoName('Rugby', 'U14', ['rugby u14'], 'Rugby U14')).toBe('Rugby U14 - 2');
+  });
+});
+
+describe('how a division is labelled beside its siblings', () => {
+  const rugby = { sportName: 'Rugby' };
+
+  it('uses the age group when there is one, not the whole automatic name', () => {
+    expect(divisionSiblingLabel({ name: 'Rugby U14', ageGroup: 'U14' }, rugby)).toBe('U14');
+  });
+
+  it('prefers a name somebody typed over the age group', () => {
+    expect(divisionSiblingLabel({ name: 'Cup', ageGroup: 'U14' }, rugby)).toBe('Cup');
+  });
+
+  it('names two ageless divisions apart instead of calling both "All ages"', () => {
+    expect(divisionSiblingLabel({ name: 'Rugby', ageGroup: null }, rugby)).toBe('Rugby');
+    expect(divisionSiblingLabel({ name: 'Rugby - 2', ageGroup: null }, rugby)).toBe('Rugby - 2');
+  });
+
+  it('still says "All ages" for a lone division with no name and no age group', () => {
+    expect(divisionSiblingLabel({ name: '', ageGroup: null }, rugby)).toBe('All ages');
+  });
+
+  it('treats the tournament\'s own name as automatic, so it does not label a pill', () => {
+    expect(
+      divisionSiblingLabel({ name: "Fred's Test Tournament", ageGroup: 'U14' }, {
+        sportName: 'Rugby',
+        eventName: "Fred's Test Tournament",
+      })
+    ).toBe('U14');
+  });
+});
+
+describe('labelling a sport\'s divisions together', () => {
+  const rugby = { sportName: 'Rugby' };
+  const labels = (divisions: any[]) => [...divisionSiblingLabels(divisions, rugby).values()];
+
+  it('keeps the short labels when they already differ', () => {
+    expect(
+      labels([
+        { id: 'a', name: 'Rugby U13', ageGroup: 'U13' },
+        { id: 'b', name: 'Rugby U14', ageGroup: 'U14' },
+      ])
+    ).toEqual(['U13', 'U14']);
+  });
+
+  it('falls back to names for an A/B split at the same age, which would read "U14" twice', () => {
+    expect(
+      labels([
+        { id: 'a', name: 'Rugby U14', ageGroup: 'U14' },
+        { id: 'b', name: 'Rugby U14 - 2', ageGroup: 'U14' },
+      ])
+    ).toEqual(['Rugby U14', 'Rugby U14 - 2']);
+  });
+
+  it('only rewrites the labels that clash, leaving the rest short', () => {
+    expect(
+      labels([
+        { id: 'a', name: 'Rugby U13', ageGroup: 'U13' },
+        { id: 'b', name: 'Rugby U14', ageGroup: 'U14' },
+        { id: 'c', name: 'Rugby U14 - 2', ageGroup: 'U14' },
+      ])
+    ).toEqual(['U13', 'Rugby U14', 'Rugby U14 - 2']);
+  });
+
+  it('separates two ageless divisions, which used to be "All ages" twice', () => {
+    expect(
+      labels([
+        { id: 'a', name: 'Rugby', ageGroup: null },
+        { id: 'b', name: 'Rugby - 2', ageGroup: null },
+      ])
+    ).toEqual(['Rugby', 'Rugby - 2']);
   });
 });

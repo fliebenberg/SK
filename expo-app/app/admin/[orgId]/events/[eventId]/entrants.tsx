@@ -13,6 +13,7 @@ import {
   Team,
   TournamentDivision,
   TournamentEntrant,
+  divisionSiblingLabels,
   isCollapsed,
 } from '@sk/shared';
 import { GlassCard } from '../../../../../components/GlassCard';
@@ -283,8 +284,24 @@ export default function EntrantsScreen() {
   const sportsCollapsed = isCollapsed(sportsInPlay.length);
   const agesCollapsed = isCollapsed(divisionsOfSport.length);
 
-  /** A division named by its age group alone, since the sport is settled by the strip above. */
-  const ageLabel = (division: TournamentDivision) => division.ageGroup || 'All ages';
+  /**
+   * What each pill says — whatever tells one division of this sport from the others.
+   *
+   * Not simply the age group. A tournament with two ageless rugby divisions showed a Rugby tab
+   * over two pills both reading `All ages`, naming neither; an A/B split at one age reduces to
+   * `U14` twice by a different route. Computed for the sport's divisions **together**, because
+   * that is the only level at which a clash can be seen. The rule and its reasoning are in
+   * `divisionSiblingLabels`.
+   */
+  const ageLabels = useMemo(
+    () =>
+      divisionSiblingLabels(divisionsOfSport, {
+        sportName: sportName(activeSport),
+        eventName: event?.name,
+      }),
+    [divisionsOfSport, activeSport, sports, event?.name]
+  );
+  const ageLabel = (division: TournamentDivision) => ageLabels.get(division.id) || 'All ages';
 
   // ------------------------------------------------------------------------------------------
   // Writes

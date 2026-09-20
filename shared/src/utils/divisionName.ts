@@ -86,3 +86,71 @@ export function isAutomaticDivisionName(
   if (context.eventName && value === context.eventName.trim()) return true;
   return /^Division \d+$/.test(value);
 }
+
+/**
+ * How a division is labelled *beside its siblings of the same sport* — the entry grid's age pills.
+ *
+ * The entrants screen navigates sport, then division, so the pill only has to say which division
+ * within one sport. `All ages` looked right for a division with no age group until a tournament
+ * had two of them: a Rugby tab over two pills both reading `All ages`, naming neither. The label
+ * has to be whatever actually *differs*, in this order:
+ *
+ *  1. **A name somebody typed** — `Cup`, `Plate`, `Boys A`. It was written to carry exactly this
+ *     distinction, so nothing the app derives can beat it.
+ *  2. **The age group**, where there is one. Shorter than the name and, unlike it, does not repeat
+ *     the sport already shown on the tab above.
+ *  3. **The automatic name**, for a division with neither — `Rugby` and `Rugby - 2`. It repeats
+ *     the sport, which is a cost worth paying: two pills that read the same are not a label at
+ *     all. The sport prefix is deliberately *not* stripped, because stripping turns that pair into
+ *     `Rugby` and `2`, and a set of labels where one is a word and the next is a digit reads worse
+ *     than one that is merely redundant.
+ *
+ * `All ages` survives only for the case it was right for all along: a lone unnamed division, where
+ * there is nothing to distinguish and the pill is saying the division is open to every age.
+ */
+export function divisionSiblingLabel(
+  division: { name?: string | null; ageGroup?: string | null },
+  context: { sportName?: string | null; eventName?: string | null } = {}
+): string {
+  const name = (division.name || '').trim();
+  const automatic = isAutomaticDivisionName(name, {
+    sportName: context.sportName,
+    ageGroup: division.ageGroup,
+    eventName: context.eventName,
+  });
+
+  if (!automatic) return name;
+  if (division.ageGroup?.trim()) return division.ageGroup.trim();
+  return name || 'All ages';
+}
+
+/**
+ * {@link divisionSiblingLabel} for a whole sport at once, with collisions resolved.
+ *
+ * Labelling each division on its own is not enough, and the second case is the more likely of the
+ * two: an A/B split at the same age — `Rugby U14` and `Rugby U14 - 2` — reduces to `U14` twice,
+ * which is the same unreadable pair as two `All ages` pills, reached by a different route. Since a
+ * division's name is unique within its tournament, falling back to the name always separates them.
+ *
+ * The fallback is applied **only to the labels that collide**, so one clash does not turn a tidy
+ * row of `U13 U14 U15` into three repetitions of the sport.
+ */
+export function divisionSiblingLabels(
+  divisions: Array<{ id: string; name?: string | null; ageGroup?: string | null }>,
+  context: { sportName?: string | null; eventName?: string | null } = {}
+): Map<string, string> {
+  const first = divisions.map(division => ({
+    division,
+    label: divisionSiblingLabel(division, context),
+  }));
+
+  const seen = new Map<string, number>();
+  for (const { label } of first) seen.set(label, (seen.get(label) ?? 0) + 1);
+
+  const labels = new Map<string, string>();
+  for (const { division, label } of first) {
+    const clashes = (seen.get(label) ?? 0) > 1;
+    labels.set(division.id, clashes ? (division.name || '').trim() || label : label);
+  }
+  return labels;
+}

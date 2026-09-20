@@ -1017,6 +1017,17 @@ that spans weeks.
 >   be dropped, because the empty group is the only route to creating the team that is missing —
 >   which is the entire reason the organisation axis exists — but nine of them between the
 >   organiser and the six that matter is a wall of "nothing qualifying".
+> - **The pill says whatever tells a division from its siblings**, which is not always the age
+>   group ([divisionSiblingLabels](file:///c:/Fred/Coding/SK/shared/src/utils/divisionName.ts)). The
+>   first cut labelled an ageless division *All ages*, and a tournament with two of them showed a
+>   Rugby tab over two pills that both read *All ages* and named neither. The order is: a name
+>   somebody typed (`Cup`, `Plate`) beats everything, since it was written to carry exactly this
+>   distinction; then the age group, which unlike the name does not repeat the sport on the tab
+>   above; then the automatic name, which does repeat it and is still better than a label that does
+>   not distinguish. Computed for a sport's divisions **together**, because a clash can only be
+>   seen at that level — an A/B split at one age (`Rugby U14` and `Rugby U14 - 2`) reduces to *U14*
+>   twice by a different route, and only the labels that collide fall back to names, so one clash
+>   does not turn `U13 U14 U15` into three repetitions of the sport.
 > - **Sport, then age group** replaces the flat division strip. Fifteen divisions are not fifteen
 >   unrelated things; they are three sports of five ages, which is how the tournament was built and
 >   how an organiser holds it. Three tabs and five pills both fit a phone, so **no dropdown was
