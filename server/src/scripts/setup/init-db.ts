@@ -70,7 +70,7 @@ const createTables = async () => {
                 logo TEXT,
                 primary_color TEXT,
                 secondary_color TEXT,
-                short_name TEXT,
+                short_name TEXT NOT NULL CHECK (btrim(short_name) <> ''),
                 is_claimed BOOLEAN DEFAULT false,
                 creator_id TEXT,
                 is_active BOOLEAN DEFAULT true,

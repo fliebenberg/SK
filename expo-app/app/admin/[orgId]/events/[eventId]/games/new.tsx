@@ -23,7 +23,9 @@ import {
   TournamentDivision,
   TournamentStage,
   isCollapsed,
+  ORG_SHORT_CODE_MAX_LENGTH,
 } from '@sk/shared';
+import { useOrgShortCode } from '../../../../../../hooks/useOrgShortCode';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
 import DatePicker from '../../../../../../components/DatePicker';
 import CustomSelect from '../../../../../../components/CustomSelect';
@@ -62,7 +64,7 @@ export default function ScheduleGame() {
   // Quick Create Modals
   const [isCreatingOrg, setIsCreatingOrg] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgShortName, setNewOrgShortName] = useState('');
+  const shortCode = useOrgShortCode();
   const [newOrgContactEmail, setNewOrgContactEmail] = useState('');
 
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
@@ -223,12 +225,12 @@ export default function ScheduleGame() {
 
   // Quick Create Org Handler
   const handleQuickCreateOrg = () => {
-    if (!newOrgName.trim()) return;
+    if (!newOrgName.trim() || !shortCode.shortCode) return;
     setIsProcessing(true);
 
     const payload = {
       name: newOrgName.trim(),
-      shortName: newOrgShortName.trim() || undefined,
+      shortName: shortCode.shortCode,
       joinPolicy: 'request',
       supportedSportIds: selectedSportId ? [selectedSportId] : [],
       isClaimed: false
@@ -256,7 +258,7 @@ export default function ScheduleGame() {
       setSelectedAwayOrgId(org.id);
       setIsCreatingOrg(false);
       setNewOrgName('');
-      setNewOrgShortName('');
+      shortCode.reset();
       setNewOrgContactEmail('');
     });
   };
@@ -815,18 +817,26 @@ export default function ScheduleGame() {
                 placeholder="e.g. St John's College"
                 placeholderTextColor={getThemeColor(isDark, 'placeholder')}
                 value={newOrgName}
-                onChangeText={setNewOrgName}
+                onChangeText={(text) => {
+                  setNewOrgName(text);
+                  shortCode.onNameChange(text);
+                }}
                 className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
               />
             </View>
+            {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
             <View className="space-y-1.5">
               <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Short Code / Initials</Text>
               <TextInput
                 placeholder="e.g. SJC"
                 placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newOrgShortName}
-                onChangeText={setNewOrgShortName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                value={shortCode.shortCode}
+                onChangeText={shortCode.onShortCodeChange}
+                maxLength={ORG_SHORT_CODE_MAX_LENGTH}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                spellCheck={false}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-orbitron-bold text-sm text-slate-850 dark:text-white w-32 text-center"
               />
             </View>
             <View className="space-y-1.5">
@@ -854,7 +864,7 @@ export default function ScheduleGame() {
               <Button
                 title="Register"
                 onPress={handleQuickCreateOrg}
-                disabled={!newOrgName.trim()}
+                disabled={!newOrgName.trim() || !shortCode.shortCode}
                 className="flex-1 py-2.5 rounded-lg"
               />
             </View>

@@ -10,7 +10,7 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, OrganizationType } from '@sk/shared';
+import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, normalizeOrgShortCode } from '@sk/shared';
 
 const orgTypes: { value: OrganizationType; label: string }[] = [
   { value: 'SCHOOL', label: 'School' },
@@ -559,9 +559,26 @@ export default function OrgSettings() {
 
   useUnsavedChanges(hasChanges, handleCancel);
 
+  /**
+   * Why Save is greyed out, if it is — and what the bar says instead of its usual subtitle.
+   *
+   * The two existing conditions were spelled out three times each (the guard, the `disabled`, and
+   * the colour), and the abbreviation becoming required as well would have made nine copies of the
+   * same test. Deriving the reason once also answers the question a greyed-out button raises: the
+   * blocking field is usually scrolled off the top of a settings page this long.
+   */
+  const saveBlockedReason = useMemo(() => {
+    if (!type) return 'Choose an organization type before saving.';
+    if (type === 'OTHER' && !customType.trim()) return 'Specify the custom organization type before saving.';
+    // Required since 2026-09-20 — the server refuses a blank one, and this keeps the refusal from
+    // being how the editor finds out.
+    if (!shortName.trim()) return 'An abbreviation is required — it stands in for the name wherever the name will not fit.';
+    return null;
+  }, [type, customType, shortName]);
+
   const handleSave = () => {
-    if (!type) return;
-    if (type === 'OTHER' && !customType.trim()) return;
+    // `!type` is repeated from `saveBlockedReason` only so the payload below can see it narrowed.
+    if (saveBlockedReason || !type) return;
 
     setIsSaving(true);
     
@@ -750,18 +767,21 @@ export default function OrgSettings() {
             {/* Short Name / Abbreviation Field */}
             <View style={{ flex: 1 }} className="min-w-[150px]">
               <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
-                Abbreviation
+                Abbreviation (Required)
               </Text>
+              {/* Normalised as it is typed, because a code is a code: no spaces, upper case. */}
               <TextInput
                 value={shortName}
-                onChangeText={setShortName}
-                maxLength={6}
-                autoCapitalize="none"
+                onChangeText={(text) => setShortName(normalizeOrgShortCode(text))}
+                maxLength={ORG_SHORT_CODE_MAX_LENGTH}
+                autoCapitalize="characters"
                 autoCorrect={false}
                 spellCheck={false}
                 placeholder="SHORT"
                 placeholderTextColor="#94A3B8"
-                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100/30 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 w-36 text-center"
+                className={`font-orbitron-bold text-lg text-slate-800 dark:text-white bg-slate-100/30 dark:bg-white/5 border rounded-xl px-4 py-2.5 w-36 text-center ${
+                  shortName.trim() ? 'border-slate-200 dark:border-white/5' : 'border-brand-red/60'
+                }`}
               />
             </View>
 
@@ -1411,7 +1431,13 @@ export default function OrgSettings() {
         <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
           <View className="flex-1 mr-4">
             <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">Unsaved Changes</Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">You have modified this organization's settings.</Text>
+            <Text
+              className={`font-inter text-[9px] mt-0.5 ${
+                saveBlockedReason ? 'text-brand-red' : 'text-slate-400 dark:text-slate-500'
+              }`}
+            >
+              {saveBlockedReason || "You have modified this organization's settings."}
+            </Text>
           </View>
           <View className="flex-row items-center gap-2.5">
             <TouchableOpacity
@@ -1423,11 +1449,9 @@ export default function OrgSettings() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
-              disabled={isSaving || !type || (type === 'OTHER' && !customType.trim())}
+              disabled={isSaving || !!saveBlockedReason}
               className={`px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md ${
-                !type || (type === 'OTHER' && !customType.trim())
-                  ? 'bg-brand-orange/40 shadow-none'
-                  : 'bg-brand-orange shadow-brand-orange/30'
+                saveBlockedReason ? 'bg-brand-orange/40 shadow-none' : 'bg-brand-orange shadow-brand-orange/30'
               }`}
             >
               {isSaving ? (

@@ -9,7 +9,8 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, OrganizationType } from '@sk/shared';
+import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType } from '@sk/shared';
+import { useOrgShortCode } from '../../../hooks/useOrgShortCode';
 import { getOrgLogoUrl } from '../../../services/api';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
@@ -33,6 +34,7 @@ export default function OrganizationsPage() {
   const [newOrgSport, setNewOrgSport] = useState('Football');
   const [newOrgType, setNewOrgType] = useState<OrganizationType | null>(null);
   const [newOrgCustomType, setNewOrgCustomType] = useState('');
+  const shortCode = useOrgShortCode();
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
 
   const loadOrgsAndSports = () => {
@@ -134,7 +136,7 @@ export default function OrganizationsPage() {
   const orgs = filteredOrgs;
 
   const handleCreateOrg = () => {
-    if (!newOrgName.trim() || !newOrgType) return;
+    if (!newOrgName.trim() || !newOrgType || !shortCode.shortCode) return;
     if (newOrgType === 'OTHER' && !newOrgCustomType.trim()) return;
 
     const matchedSportId = Object.keys(sportsMap).find(
@@ -143,6 +145,7 @@ export default function OrganizationsPage() {
 
     const payload = {
       name: newOrgName.trim(),
+      shortName: shortCode.shortCode,
       supportedSportIds: matchedSportId ? [matchedSportId] : [],
       creatorId: user?.id,
       isActive: true,
@@ -168,6 +171,7 @@ export default function OrganizationsPage() {
       setNewOrgSport('Football');
       setNewOrgType(null);
       setNewOrgCustomType('');
+      shortCode.reset();
       setModalVisible(false);
     });
   };
@@ -526,12 +530,36 @@ export default function OrganizationsPage() {
               </Text>
               <TextInput
                 value={newOrgName}
-                onChangeText={setNewOrgName}
+                onChangeText={(text) => {
+                  setNewOrgName(text);
+                  shortCode.onNameChange(text);
+                }}
                 placeholder="e.g. Springvale High"
                 placeholderTextColor="#94A3B8"
                 className="bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-800 dark:text-white outline-none"
                 autoFocus
               />
+            </View>
+
+            {/* Required, but pre-filled from the name as it is typed — see `useOrgShortCode`. */}
+            <View className="mb-4">
+              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                Short Code (Required)
+              </Text>
+              <TextInput
+                value={shortCode.shortCode}
+                onChangeText={shortCode.onShortCodeChange}
+                maxLength={ORG_SHORT_CODE_MAX_LENGTH}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                spellCheck={false}
+                placeholder="SVH"
+                placeholderTextColor="#94A3B8"
+                className="bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-orbitron-bold text-sm text-slate-800 dark:text-white outline-none w-32 text-center"
+              />
+              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-1.5">
+                Used wherever the full name will not fit — tabs, columns and team flags.
+              </Text>
             </View>
 
             <View className="mb-6">
@@ -629,6 +657,7 @@ export default function OrganizationsPage() {
                   setNewOrgSport('Football');
                   setNewOrgType(null);
                   setNewOrgCustomType('');
+                  shortCode.reset();
                 }}
                 className="flex-1"
               />
@@ -637,8 +666,9 @@ export default function OrganizationsPage() {
                 variant="primary"
                 onPress={handleCreateOrg}
                 disabled={
-                  !newOrgName.trim() || 
-                  !newOrgType || 
+                  !newOrgName.trim() ||
+                  !shortCode.shortCode ||
+                  !newOrgType ||
                   (newOrgType === 'OTHER' && !newOrgCustomType.trim())
                 }
                 className="flex-1"

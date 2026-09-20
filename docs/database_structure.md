@@ -90,7 +90,10 @@ Per-variant lists (a governing body with its own age groups) wait on `sport_pres
 High-level entities like schools, clubs, or federations.
 - `id` (TEXT, PK): Unique identifier.
 - `name` (TEXT): Full name of the organization.
-- `short_name` (TEXT): Abbreviated name.
+- `short_name` (TEXT): NOT NULL, `CHECK (btrim(short_name) <> '')`. The org's short code, used
+  wherever the full name will not fit — a column heading, a tab, a team flag on a phone. Required
+  since 2026-09-20; **not unique**, because two schools really are both `NHS`. Derived from the name
+  by `deriveOrgShortCode` where nobody supplies one.
 - `logo` (TEXT): URL or path to the logo image.
 - `primary_color` (TEXT): CSS-compatible color code.
 - `secondary_color` (TEXT): CSS-compatible color code.

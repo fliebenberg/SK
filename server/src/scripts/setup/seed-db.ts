@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SPORT_SEEDS, SYSTEM_SETTINGS_SEEDS } from './seeds';
 import { STARTER_AGE_GROUPS, starterAgeGroupId } from './ageGroupSeed';
+import { deriveOrgShortCode } from '@sk/shared';
 
 const seedDb = async () => {
     try {
@@ -246,7 +247,9 @@ const seedDb = async () => {
                     org.logo, 
                     org.primary_color || org.primaryColor, 
                     org.secondary_color || org.secondaryColor, 
-                    org.short_name || org.shortName, 
+                    // `short_name` is NOT NULL since 2026-09-20, and the extra orgs loaded from
+                    // `data/existing_orgs.json` predate that — derive rather than fail the seed.
+                    org.short_name || org.shortName || deriveOrgShortCode(org.name),
                     org.is_claimed ?? false,
                     org.is_active ?? true,
                     org.creator_id ?? null,

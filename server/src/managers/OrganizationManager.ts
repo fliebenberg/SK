@@ -1,4 +1,4 @@
-import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse } from "@sk/shared";
+import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
@@ -217,10 +217,26 @@ export class OrganizationManager extends BaseManager {
     return logo;
   }
 
+  /**
+   * A short code, required since 2026-09-20 — derived from the name rather than refused.
+   *
+   * Every create screen pre-fills the field, so a caller arriving here without one is a script, an
+   * older client or a path nobody remembered. Deriving is the right answer for all three: the code
+   * is structural on the entrants screen, and an organisation that reaches the database without
+   * one breaks a column there rather than at the point of creation where somebody could fix it.
+   * The refusal is kept for the case deriving cannot help — no name either.
+   */
+  private requireShortCode(shortName: string | undefined | null, name: string | undefined): string {
+    const code = normalizeOrgShortCode(shortName) || deriveOrgShortCode(name);
+    if (!code) throw new Error('An organisation needs a short code.');
+    return code;
+  }
+
   async addOrganization(org: Omit<Organization, "id"> & { id?: string }): Promise<Organization> {
     const id = org.id || `org-${Date.now()}`;
     const supportedSportIds = org.supportedSportIds || [];
     const supportedRoleIds = org.supportedRoleIds || [];
+    const shortName = this.requireShortCode(org.shortName, org.name);
     
     let logo = org.logo;
     if (logo) {
@@ -242,7 +258,7 @@ export class OrganizationManager extends BaseManager {
         await this.query(
           `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type) 
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [id, org.name, logo, org.primaryColor, org.secondaryColor, org.shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null]
+          [id, org.name, logo, org.primaryColor, org.secondaryColor, shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null]
         );
 
         for (const sportId of supportedSportIds) {
@@ -264,6 +280,16 @@ export class OrganizationManager extends BaseManager {
   }
 
   async updateOrganization(id: string, data: Partial<Organization>): Promise<Organization | null> {
+    // An update that *names* the short code may not blank it. Deriving a replacement would be
+    // wrong here in a way it is not on create: the organisation already has a code people have
+    // seen, and silently swapping it for initials is worse than telling the editor to type one.
+    // An update that does not mention `shortName` at all leaves the existing code alone.
+    if ('shortName' in data) {
+      const code = normalizeOrgShortCode(data.shortName);
+      if (!code) throw new Error('An organisation needs a short code.');
+      data.shortName = code;
+    }
+
     // If logo is being updated and it's base64, process it
     if (data.logo) {
       if (data.logo.startsWith('data:image')) {

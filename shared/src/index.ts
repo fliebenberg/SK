@@ -49,4 +49,5 @@ export * from './utils/collapseRule';
 export * from './utils/divisionName';
 export * from './utils/divisionEntry';
 export * from './utils/organizerScope';
+export * from './utils/orgShortCode';
 export * from './constants/TestConstants';
