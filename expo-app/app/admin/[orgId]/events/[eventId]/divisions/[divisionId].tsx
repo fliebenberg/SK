@@ -21,6 +21,7 @@ import {
   divisionAutoName,
   findTakenDivisionName,
   isAutomaticDivisionName,
+  reseedDecision,
 } from '@sk/shared';
 import { FieldLabel } from '../../../../../../components/FieldLabel';
 import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
@@ -42,6 +43,18 @@ import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+
+/** The fields the details form edits, plus the division they belong to. */
+interface DivisionDraft {
+  divisionId: string;
+  customName: string | null;
+  sportId: string;
+  ageGroupId: string | null;
+}
+
+/** Equality over what the form edits — the division id is identity, not a field. */
+const same = (a: DivisionDraft, b: DivisionDraft) =>
+  a.customName === b.customName && a.sportId === b.sportId && a.ageGroupId === b.ageGroupId;
 
 /**
  * A division's own screen (U13).
@@ -273,6 +286,22 @@ export default function DivisionScreen() {
   const [draftAgeGroupName, setDraftAgeGroupName] = useState('');
   const [isSavingDetails, setIsSavingDetails] = useState(false);
 
+  /**
+   * The division as the drafts were last seeded from it — what "unsaved" is measured against.
+   *
+   * Comparing the drafts to the **live** `division` instead looks equivalent and is not, because
+   * the live record changes under an open screen. A `DIVISION_UPDATED` from another device arrives
+   * one render before the effect that re-seeds the drafts, so for that one frame the new record
+   * sits beside the old drafts and the screen declares itself dirty: **the Save row flashes up on
+   * every other viewer's screen each time somebody edits the division.** Measuring against a
+   * baseline that only moves when the drafts move removes the window entirely rather than making
+   * it shorter.
+   *
+   * `null` until the division has loaded, which is also what keeps an empty screen from reading as
+   * an edit of a division it does not have yet.
+   */
+  const [baseline, setBaseline] = useState<DivisionDraft | null>(null);
+
   /*
     The tournament's other divisions, for two questions. Is this the last division of its sport? The
     server removes a sport when its last division is deleted or moved (U52), and both are warned
@@ -343,11 +372,54 @@ export default function DivisionScreen() {
      a division that somehow has none is offered it here as the draft, to be saved like any edit. */
   const onlyEventSportId = eventSportIds.length === 1 ? eventSportIds[0] : undefined;
 
+  /** The division's saved values, in the shape the drafts hold them. */
+  const saved: DivisionDraft = {
+    divisionId,
+    customName: savedCustomName,
+    sportId: division?.sportId || onlyEventSportId || '',
+    ageGroupId: division?.ageGroupId || null,
+  };
+
+  const seedDetails = useCallback((from: DivisionDraft, ageGroupName: string) => {
+    // One batch, so the drafts and the baseline they are measured against never disagree even for
+    // a render — which is the whole point of having a baseline.
+    setCustomName(from.customName);
+    setDraftSportId(from.sportId);
+    setDraftAgeGroupId(from.ageGroupId);
+    setDraftAgeGroupName(ageGroupName);
+    setBaseline(from);
+  }, []);
+
+  /**
+   * Take the saved values, unless doing so would throw away an edit in progress.
+   *
+   * Three cases arrive down this path and only the third is a conflict:
+   *
+   * - **A different division** — always re-seed; these are not the same form.
+   * - **Nothing typed here** (the drafts still match the baseline) — re-seed, so a change made on
+   *   another device appears rather than being invisible until the next visit.
+   * - **This device's own save landing back** — the drafts already equal what arrived, so
+   *   re-seeding is a no-op for them and moves the baseline, which is what brings the Save row
+   *   down.
+   *
+   * Otherwise somebody is part-way through an edit and the incoming values are somebody else's.
+   * **Their typing is kept.** The old effect re-seeded unconditionally, so a remote change to *any*
+   * field silently discarded a half-typed name on every other open screen — the exact loss
+   * `useUnsavedChanges` exists to prevent, arriving through the back door.
+   */
   useEffect(() => {
-    setCustomName(savedCustomName);
-    setDraftSportId(division?.sportId || onlyEventSportId || '');
-    setDraftAgeGroupId(division?.ageGroupId || null);
-    setDraftAgeGroupName(division?.ageGroup || '');
+    if (!division) return;
+    const decision = reseedDecision<DivisionDraft>({
+      // A different division is a different form, so whatever was typed in the last does not carry
+      // over. Expressed as "no baseline" rather than as an effect of its own, which would run
+      // *after* this one and leave the drafts a render behind.
+      baseline: baseline?.divisionId === divisionId ? baseline : null,
+      drafts: { divisionId, customName, sportId: draftSportId, ageGroupId: draftAgeGroupId },
+      incoming: saved,
+      same,
+    });
+    if (decision === 'adopt') seedDetails(saved, division.ageGroup || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divisionId, savedCustomName, division?.sportId, division?.ageGroupId, division?.ageGroup, onlyEventSportId]);
 
   // An age group belongs to one sport, so choosing another clears it (the server does the same).
@@ -371,18 +443,26 @@ export default function DivisionScreen() {
     numbered to avoid one, so in practice this only fires on a name somebody typed.
   */
   const nameClash = findTakenDivisionName(effectiveName, siblingNames);
+  /**
+   * Measured against the **baseline**, and over the fields the organiser actually edits.
+   *
+   * Not `effectiveName`, which is derived: the automatic name is numbered against the division's
+   * siblings, so renaming a *different* division can change it here without anybody touching this
+   * form. Comparing the inputs instead means the Save row answers "have I changed anything", which
+   * is the question it is asking.
+   */
   const detailsDirty =
     !!division &&
-    (effectiveName !== division.name ||
-      draftSportId !== (division.sportId || '') ||
-      draftAgeGroupId !== (division.ageGroupId || null));
+    !!baseline &&
+    (customName !== baseline.customName ||
+      draftSportId !== baseline.sportId ||
+      draftAgeGroupId !== baseline.ageGroupId);
 
+  /** Cancel goes back to what is saved now, not to what was saved when the screen opened. */
   const resetDetails = useCallback(() => {
-    setCustomName(savedCustomName);
-    setDraftSportId(division?.sportId || onlyEventSportId || '');
-    setDraftAgeGroupId(division?.ageGroupId || null);
-    setDraftAgeGroupName(division?.ageGroup || '');
-  }, [savedCustomName, division?.sportId, division?.ageGroupId, division?.ageGroup, onlyEventSportId]);
+    seedDetails(saved, division?.ageGroup || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedDetails, savedCustomName, division?.sportId, division?.ageGroupId, division?.ageGroup, onlyEventSportId]);
 
   /**
    * `FIX-17` — the sport is fixed once teams are entered, and the age group is not.

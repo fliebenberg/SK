@@ -64,6 +64,17 @@ A save bar rendered on `isDirty` computed from server data can only come down if
 
 **When you add a term to a dirty check, ask two questions**: which write clears it, and which room refreshes the value it compares against. If either answer is "none", the form can become permanently dirty.
 
+## Never measure dirtiness against live data
+
+A third way it fails, and the one that bites hardest on a screen two people have open. Comparing the drafts to the **live record** — `editName !== event.name` — and re-seeding them in an effect keyed on that record looks equivalent to keeping a baseline, and is not. The record moves under an open form, and it moves one render before the effect that follows it:
+
+*   **The save bar flashes on every other viewer.** For that one frame the new record sits beside the old drafts, and the form declares itself dirty. Reported on the division screen: editing a name on one device made a button blink on another.
+*   **An edit in progress is silently discarded.** An unconditional re-seed throws away a half-typed value whenever *any* field of the record changes elsewhere — the loss this whole skill exists to prevent, arriving through the back door rather than through navigation.
+
+**Keep a baseline: the values the drafts were last seeded from.** Dirtiness is drafts-against-baseline, and the two move together in one batch, so no frame can exist in which they disagree. [`reseedDecision`](file:///c:/Fred/Coding/SK/shared/src/utils/liveForm.ts) decides what an incoming record means — `adopt` when the form is clean or the change is this device's own save landing back, `keep` when somebody is mid-edit, `unchanged` when nothing moved (return before writing state, or the effect feeds itself).
+
+Two details worth copying rather than rediscovering. **Compare the fields the user edits, not derived ones** — the division screen's automatic name is numbered against its siblings, so renaming a *different* division changed it and would have reported this form dirty. And **a different subject is a different form**: express that as "no baseline" inside the same effect, because a second effect clearing it runs afterwards and leaves the drafts a render behind.
+
 **Prefer a state that cannot go wrong over one that recovers.** The multi-day case was fixed by making the bad state unreachable — an end date is required and seeded — not by detecting it afterwards.
 
 ## Technical Details

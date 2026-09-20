@@ -6,7 +6,7 @@ tags:
   - concept
   - skills
   - agent-rules
-timestamp: 2026-09-19T00:00:00Z
+timestamp: 2026-09-20T12:00:00Z
 ---
 
 # Agentic Skills Catalog
@@ -20,7 +20,7 @@ The `.agent/skills/` directory contains rules and instructions for coding agents
 5. **[project-file-maps](file:///c:/Fred/Coding/SK/.agent/skills/project-file-maps/SKILL.md)**: Maps terms like "future ideas file" and "todo list" to specific files in the workspace root.
 6. **[date-formatting](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md)**: Standards for handling dates and times — display through [`expo-app/utils/dates.ts`](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts) and never by slicing an ISO string, the noon-UTC convention for calendar dates, UTC storage, and `null`/`undefined` rather than `""` for empty timestamps. Rewritten 2026-09-13 (U49): it previously mandated `date-fns`, which `expo-app` does not depend on.
 7. **[test-org-reuse](file:///c:/Fred/Coding/SK/.agent/skills/test-org-reuse/SKILL.md)**: Enforces reuse of the common "App Test Org" in integration tests.
-8. **[unsaved-changes-warning](file:///c:/Fred/Coding/SK/.agent/skills/unsaved-changes-warning/SKILL.md)**: Mandates the `useUnsavedChanges` hook on all pages that allow data editing, and the save rules that go with it — every action reads its acknowledgement, a failed save never looks like a successful one, and a dirty flag must be clearable by the save it triggers. Extended 2026-09-15 after both failure modes were found on one screen (`LIVE-19`).
+8. **[unsaved-changes-warning](file:///c:/Fred/Coding/SK/.agent/skills/unsaved-changes-warning/SKILL.md)**: Mandates the `useUnsavedChanges` hook on all pages that allow data editing, and the save rules that go with it — every action reads its acknowledgement, a failed save never looks like a successful one, a dirty flag must be clearable by the save it triggers, and dirtiness is measured against a **baseline** rather than against live data. Extended 2026-09-15 after both failure modes were found on one screen (`LIVE-19`), and again 2026-09-20 after a live record changing under an open form was found to flash the save bar on other viewers and silently discard their typing.
 9. **[okf-maintenance](file:///c:/Fred/Coding/SK/.agent/skills/okf-maintenance/SKILL.md)**: Procedural guide for maintaining OKF index documents.
 10. **[live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md)** (NEW): How real-time data reaches a client - rooms as the read boundary, broadcasts that carry data rather than a nudge to refetch, and the game summary tier. Read before adding a room, a broadcast, or a screen showing changing data.
 11. **[todo-checkin](file:///c:/Fred/Coding/SK/.agent/skills/todo-checkin/SKILL.md)** (NEW): Requires consulting the Known Issues & Tech Debt backlog in `TODO.md` before implementing a feature, and logging newly found issues there rather than fixing them opportunistically.
