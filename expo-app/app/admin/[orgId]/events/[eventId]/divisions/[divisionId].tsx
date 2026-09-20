@@ -573,23 +573,31 @@ export default function DivisionScreen() {
                   full width, and reading them as one line matches how the division is named. */}
               <View className="flex-row gap-3">
                 <View className="flex-1 space-y-2">
+                  {/*
+                    `FIX-17`'s explanation lives in the help rather than under the field.
+
+                    It is guidance, not a property of the division: true only while teams are
+                    entered, read once, and then permanent furniture on a screen an organiser
+                    returns to. That is exactly what `<FieldLabel>` exists for — shown inline by
+                    default, so nobody has to go looking for why the dropdown is a line of text,
+                    and put away for good by anyone who has learned it.
+                  */}
                   <FieldLabel
                     label="Sport"
-                    help="The sport played in this division."
+                    help={
+                      sportLocked
+                        ? `The sport played in this division. Fixed now that ${enteredTeams} ${
+                            enteredTeams === 1 ? 'team has' : 'teams have'
+                          } been entered — remove them to change it, or add a division for the other sport.`
+                        : 'The sport played in this division.'
+                    }
                   />
                   {canEditRecord && sportLocked ? (
-                    /* `FIX-17`. Shown rather than offered-and-refused, and it says what to do
-                       instead — the organiser wanting hockey wants a hockey division, not this
-                       one emptied. The server refuses the same change. */
-                    <View className="space-y-1">
-                      <Text className="font-inter text-sm text-slate-800 dark:text-white">
-                        {savedSportName || 'No sport set'}
-                      </Text>
-                      <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
-                        Fixed — {enteredTeams} {enteredTeams === 1 ? 'team has' : 'teams have'} been
-                        entered. Remove them to change it, or add a division for the other sport.
-                      </Text>
-                    </View>
+                    /* Plain text, like the read-only case below, because that is what it is now.
+                       The server refuses the same change. */
+                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                      {savedSportName || 'No sport set'}
+                    </Text>
                   ) : canEditRecord && sportChoices.length === 0 ? (
                     <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
                       The tournament has no sports yet. Choose them under Sports & Divisions, then

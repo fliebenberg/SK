@@ -984,9 +984,14 @@ that spans weeks.
 >   contradicts no sport: a division holding nothing but *Winner of the regional qualifier* is
 >   still free to change. `TournamentManager.updateDivision` refuses the rest, naming the count.
 > - **The control says so instead of being refused.** The division screen replaces the sport
->   dropdown with the sport and a line — *Fixed, 8 teams have been entered. Remove them to change
->   it, or add a division for the other sport.* The organiser who wants hockey wants a hockey
->   division, not this one emptied, so the message names that rather than only saying no.
+>   dropdown with the sport as plain text, and the reason goes in the field's **help**: *Fixed now
+>   that 8 teams have been entered — remove them to change it, or add a division for the other
+>   sport.* The organiser who wants hockey wants a hockey division, not this one emptied, so the
+>   message names that rather than only saying no. It began as a permanent line under the field and
+>   was moved (2026-09-20): the reason is guidance, true only while teams are entered and read
+>   once, which is precisely the copy `<FieldLabel>` exists to fold away. Field help is on by
+>   default, so it is still the first thing seen — it is now also dismissible by somebody who has
+>   learned it, instead of sitting under the field on every later visit.
 > - **Age group stays changeable, with a confirmation that counts.** The teams that no longer match
 >   become age-group overrides — a state the entry grid already renders and tags, and one the
 >   organiser resolves by swapping teams — so the screen asks rather than refuses, and says *3
