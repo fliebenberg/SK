@@ -210,9 +210,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
         { gameId, eventId: target.id, initiatorId },
         { suppressToast: true }
       ).then((result) => {
-        // The server reports a refused undo (e.g. the window has expired) as a successful action
-        // whose data says `success: false`, so both shapes are a failure here.
-        const refusal = !result.ok ? result.message : result.data?.success === false ? result.data.error || 'That event could not be undone.' : null;
+        // A refused undo (e.g. the window has expired) arrives as an error; the message says why.
+        const refusal = result.ok ? null : result.message;
         if (refusal !== null) {
           console.error('Failed to undo event:', refusal);
           if (refusal.toLowerCase().includes('expired')) {

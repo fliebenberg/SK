@@ -83,38 +83,45 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
     return () => clearInterval(interval);
   }, [hasPeriodElapsed]);
 
-  const resolveInitiatorId = (): string => {
+  /*
+    The profile the log entry credits. No fallback: the server only accepts one of the caller's own
+    org profiles, so the `user.id` / `'system'` this used to fall back to was refused outright and
+    the entry was never written. With no profile the entry is simply uncredited, as in EventLogFeed.
+  */
+  const resolveInitiatorId = (): string | undefined => {
     const user = useAuthStore.getState().user;
     const orgMemberships = useAuthStore.getState().orgMemberships || [];
-    if (!user) return 'system';
+    if (!user) return undefined;
     if (user.globalRole === 'admin') {
       const adminMem = orgMemberships.find((m: any) => m.orgId === 'org-system-admins');
       if (adminMem?.orgProfileId) return adminMem.orgProfileId;
     }
-    return orgMemberships[0]?.orgProfileId || user.id || 'system';
+    return orgMemberships[0]?.orgProfileId || undefined;
   };
 
   // These are fire-and-forget: the clock and status on screen come from the server's broadcast,
-  // not from the reply, so nothing here waits on it. `sendAction` still announces a failure.
+  // not from the reply, so nothing here waits on it. `sendAction` still announces a failure. The
+  // log entry travels with the change and is written by the server only if the change applies
+  // (SYNC-4) — it used to be a second action, so a refused start could still log GAME_STARTED.
   const handleUpdateStatus = (status: string, reason?: string) => {
-    void sendAction(SocketAction.UPDATE_GAME_STATUS, { id: game.id, status: status as any });
-
     let subType = 'GAME_UPDATED';
     if (status === 'Live') subType = 'GAME_STARTED';
     else if (status === 'Finished') subType = 'GAME_ENDED';
     else if (status === 'Cancelled') subType = 'GAME_CANCELLED';
 
-    void sendAction(SocketAction.ADD_GAME_EVENT, {
-      gameId: game.id,
+    void sendAction(SocketAction.UPDATE_GAME_STATUS, {
+      id: game.id,
+      status: status as any,
       initiatorOrgProfileId: resolveInitiatorId(),
-      type: 'STATUS',
-      subType,
-      eventData: {
-        status,
-        reason,
-        timestamp: new Date().toISOString(),
-        elapsedMS: currentMS,
-        period: currentPeriodLabel,
+      log: {
+        subType,
+        eventData: {
+          status,
+          reason,
+          timestamp: new Date().toISOString(),
+          elapsedMS: currentMS,
+          period: currentPeriodLabel,
+        },
       },
     });
 
@@ -135,25 +142,20 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   ) => {
     if (isDebouncing) return;
 
-    void sendAction(SocketAction.UPDATE_GAME_CLOCK, { id: game.id, action });
+    const eventPeriodLabel = action === 'START_PERIOD'
+      ? getPeriodLabel(periodIndex + 1, periodTerm)
+      : currentPeriodLabel;
 
-    if (eventType) {
-      const eventPeriodLabel = action === 'START_PERIOD'
-        ? getPeriodLabel(periodIndex + 1, periodTerm)
-        : currentPeriodLabel;
-
-      void sendAction(SocketAction.ADD_GAME_EVENT, {
-        gameId: game.id,
-        initiatorOrgProfileId: resolveInitiatorId(),
-        type: 'TIME',
-        subType: eventType,
-        eventData: {
-          action,
-          period: eventPeriodLabel,
-          elapsedMS: currentMS,
-        },
-      });
-    }
+    void sendAction(SocketAction.UPDATE_GAME_CLOCK, {
+      id: game.id,
+      action,
+      ...(eventType
+        ? {
+            initiatorOrgProfileId: resolveInitiatorId(),
+            log: { subType: eventType, eventData: { action, period: eventPeriodLabel, elapsedMS: currentMS } },
+          }
+        : {}),
+    });
 
     setIsDebouncing(true);
     setTimeout(() => setIsDebouncing(false), 1000);

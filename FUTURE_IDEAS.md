@@ -4,6 +4,18 @@ This document is a space to jot down brilliant ideas for the application while w
 
 ## Ideas Bucket
 
+- [ ] **A fault analyser for the failures log, so recurring failures point at weak processes.**
+  Since 2026-09-19 (SYNC-2) every failure a user meets is written to
+  `server/logs/failures-YYYY-MM-DD.jsonl`, one JSON object per line: server refusals and the
+  client's own no-answers and unreadable replies, each with its action type, message, user, request
+  id, platform and screen. A system-admin screen (or a report to begin with) that reads it and
+  shows: the most frequent failures by action and message, trends over time, which failures
+  cluster on one screen, organisation or platform, how often "no answer" is followed by a
+  successful replay, and which users hit the same refusal repeatedly — the last being the clearest
+  sign of a confusing process rather than a bug. Grouping should normalise messages that embed ids
+  or names. Two design notes: the log holds user ids, so access is system-admin only and retention
+  stays bounded (90 days today); and if the analysis needs querying rather than scanning files,
+  that is the point to move the log into a table.
 - [ ] Add the ability to set up an ongoing "ladder" tournament where players can challenge each other to move up teh ladder. It could have rules like how many places above you you can challenge and how often a peson can be challenged (you dont want one player being challenged by several different players in a short period of time). It could facilitate the scheduling of matches etc.
 - [ ] Add venue scheduling functionality to avoid multiple games being scheduled at the same venue at the same time. It could also allow for venues to be booked for private events etc.
 - [ ] Add functionality to merge organizations and teams, to handle duplicates created as placeholders during event setup.

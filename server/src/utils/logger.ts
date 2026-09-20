@@ -66,6 +66,43 @@ export const logger = winston.createLogger({
   ],
 });
 
+/**
+ * Every failure a user met, one JSON object per line: refusals the server raised (`source:
+ * 'server'`) and failures the client reported (`source: 'client'`) — timeouts, being offline, replies
+ * it could not read — which the server never sees on its own (SYNC-2). Kept apart from the prose
+ * logs, and kept longer, because it is written to be analysed: what fails, how often, for whom, on
+ * which action. The fault analyser in FUTURE_IDEAS.md reads this file.
+ */
+const failureLogger = winston.createLogger({
+  level: 'info',
+  transports: [
+    new DailyRotateFile({
+      filename: path.join(logsDir, 'failures-%DATE%.jsonl'),
+      datePattern: 'YYYY-MM-DD',
+      maxFiles: '90d',
+      format: winston.format.printf(({ message }) => String(message)),
+    }),
+  ],
+});
+
+export interface FailureRecord {
+  source: 'server' | 'client';
+  /** Why it failed: the server refused it, no answer came back, or the reply could not be read. */
+  kind: 'refused' | 'no-answer' | 'unexpected-reply';
+  actionType?: string;
+  message: string;
+  userId?: string | null;
+  requestId?: string;
+  /** Client only: when it happened on the device, the platform and the screen. */
+  occurredAt?: string;
+  platform?: string;
+  screen?: string;
+}
+
+export function recordFailure(record: FailureRecord): void {
+  failureLogger.info(JSON.stringify({ at: new Date().toISOString(), ...record }));
+}
+
 // Helper function to stringify arguments passed to console logging methods
 const formatArgs = (args: any[]): string => {
   return args

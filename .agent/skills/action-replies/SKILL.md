@@ -42,9 +42,9 @@ sendAction(SocketAction.UPDATE_TEAM, { id, data }).then(result => {
 ```
 
 [`sendAction`](file:///c:/Fred/Coding/SK/expo-app/services/actions.ts) resolves (never rejects) to
-`{ ok: true, data }` or `{ ok: false, message, noAnswer? }`. It announces every failure — the wrapper
-toasts refusals, timeouts and being offline; anything that is neither reply shape is toasted and
-logged as a contract violation — and logs every failure with its action type.
+`{ ok: true, data }` or `{ ok: false, message, noAnswer? }`. It announces every failure itself — a
+refusal, no answer (after one automatic retry), a reply of neither shape — with a toast unless the
+caller shows it inline, and logs and reports it (Rule 3).
 
 **Do not** call `wsService.emit('action', …)` or `wsService.emitAction(…)`. `npm run check:actions`
 (from `expo-app/`) fails on either, anywhere outside `services/`. Run it before committing client
@@ -64,10 +64,37 @@ changes.
 5. **Fire-and-forget is still `sendAction`.** `void sendAction(...)` when there is nothing to do on
    success — the point is that a failure is still announced. An optimistic UI change made before
    sending must be reverted on failure.
-6. **`noAnswer`** means "may have saved". Where retrying could duplicate (creates), say "check before
-   trying again" rather than "it did not save" — `sendAction`'s default message already does.
+6. **`noAnswer`** means "may have saved" — even after `sendAction`'s own retry. Its default message
+   already says "check before trying again".
 
-## Rule 2 — `get_data` and REST
+## Rule 2 — retries must not duplicate
+
+Every action carries a `requestId`, and the server answers a repeated one from the first attempt
+instead of applying it again (`runIdempotent`, per user, successes only). `sendAction` handles the
+common cases by itself: it retries once with the same id after a lost reply, and an identical later
+call reuses an unanswered attempt's id. **A save made of several writes, or one whose payload changes
+between attempts (a live clock reading), must key its writes itself**:
+
+```ts
+const scope = useRequestScope();                 // renew() after success, and when the form resets
+const payload = { id: `profile-${scope.current()}`, name, orgId };   // ids from the scope, not the clock
+await sendAction(SocketAction.ADD_ORG_PROFILE, payload, {
+  requestId: requestKeyFor(scope.current(), SocketAction.ADD_ORG_PROFILE, payload),
+});
+```
+
+`requestKeyFor` changes when the content changes, so an edited retry is a new write rather than a
+replay of the old one. Pass the payload minus anything that moves between attempts without changing
+what is saved. The replay memory is in memory and short-lived — `SYNC-5` is the durable version.
+
+## Rule 3 — failures are recorded where we can see them
+
+`server/logs/failures-YYYY-MM-DD.jsonl` holds one JSON line per failure: every refusal the server
+raises, and what the client reports that the server never sees (no answer, an unreadable reply —
+`services/clientFailures.ts`). Nothing to do at a call site: `sendAction` reports. Never put payload
+contents in a report — payloads carry people's details.
+
+## Rule 4 — `get_data` and REST
 
 - `get_data` answers the data unwrapped, so **validate the shape** (`Array.isArray(res)`, a known
   field) before using it; a refusal arrives as `{ status: 'error' }` and is toasted by the wrapper.
@@ -90,6 +117,12 @@ changes.
 
 ## Server side
 
-Throw for anything the user should hear about; the handler turns a throw into
-`{ status: 'error', message }`. Do **not** answer success for an action that did nothing — see
-`SYNC-1` in TODO.md for the handlers that still return `ok` with `null` when their target is gone.
+- **Throw** for anything the user should hear about; the handler turns a throw into
+  `{ status: 'error', message }` and records it in the failures log.
+- **Never answer success for an action that did nothing.** The handler's exit refuses an empty result
+  (`null`, `undefined`, `false`) — which is what managers return when the target is gone — so a
+  handler must set `result` to what it changed (the record, an id, `true`) on a genuine success.
+- **Never encode a refusal inside a success** (`{ success: false, error }`, `{ status: 'error' }` as
+  the result). Throw it.
+- **A change and its record travel together.** A status or clock change carries its game-log entry
+  (`log`), written by the server only once the change applied — never a second action from the client.

@@ -19,6 +19,9 @@ import type { BatchItemError, BatchResponse } from '@sk/shared';
  *    messages would relocate to the client exactly the cost this contract removes on the server.
  * 4. **One idempotency key.** {@link runIdempotent}.
  *
+ * `runIdempotent` also backs every other action: the action handler in `index.ts` runs any action
+ * carrying a `requestId` through it (SYNC-3), keyed per user, so a retried create is not applied twice.
+ *
  * ---------------------------------------------------------------------------------------------
  * WHAT THE IDEMPOTENCY CACHE IS, AND WHAT IT IS NOT
  *
@@ -30,6 +33,7 @@ import type { BatchItemError, BatchResponse } from '@sk/shared';
  * server process. Both are acceptable today (one process, and a restart drops the socket anyway)
  * and neither would be if this app ever ran more than one node — at which point the answer is a
  * table, not a bigger map. Written down rather than left to be discovered.
+ * The durable version is logged as `SYNC-5` in TODO.md.
  *
  * The in-flight map matters as much as the completed one: a retry usually arrives *because* the
  * first attempt is slow, so a duplicate that lands mid-write awaits the original's promise rather
@@ -38,7 +42,7 @@ import type { BatchItemError, BatchResponse } from '@sk/shared';
  */
 
 const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
-const MAX_KEYS = 512;
+const MAX_KEYS = 2000;
 
 interface CachedBatch {
   result: any;
@@ -73,13 +77,13 @@ export async function runIdempotent<T extends object>(
   const now = Date.now();
   const cached = completed.get(key);
   if (cached && cached.expiresAt > now) {
-    console.log(`[Batch] Replayed idempotency key ${key}; nothing was written.`);
+    console.log(`[Idempotency] Replayed key ${key}; nothing was written.`);
     return { ...cached.result, replayed: true };
   }
 
   const pending = inFlight.get(key);
   if (pending) {
-    console.log(`[Batch] Idempotency key ${key} is still in flight; awaiting the original.`);
+    console.log(`[Idempotency] Key ${key} is still in flight; awaiting the original.`);
     return { ...(await pending), replayed: true };
   }
 
@@ -88,6 +92,13 @@ export async function runIdempotent<T extends object>(
   try {
     const result = await promise;
     if (completed.size >= MAX_KEYS) sweep(now);
+    // Still full of live keys (every action carries one since SYNC-3): drop the oldest, which a Map
+    // iterates first. The cache stays bounded; the price under load is a shorter replay window.
+    while (completed.size >= MAX_KEYS) {
+      const oldest = completed.keys().next().value;
+      if (oldest === undefined) break;
+      completed.delete(oldest);
+    }
     completed.set(key, { result, expiresAt: Date.now() + IDEMPOTENCY_TTL_MS });
     return result;
   } finally {

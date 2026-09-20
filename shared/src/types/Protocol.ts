@@ -153,6 +153,14 @@ export interface AddGamePayload extends Omit<Game, "id" | "status" | "finalScore
 export interface UpdateGameStatusPayload {
     id: string;
     status: Game['status'];
+    /**
+     * The game-log entry this change is recorded as (`GAME_STARTED`, `PERIOD_ENDED`, …). The server
+     * writes it only once the change itself has been applied, so the log can never say something
+     * happened that was refused (SYNC-4). It used to be a second action the client sent alongside.
+     */
+    log?: { subType: string; eventData?: Record<string, any> };
+    /** Who the log entry credits. Checked against the caller, like every initiator field. */
+    initiatorOrgProfileId?: string;
 }
 
 export interface UpdateGameScorePayload {
@@ -340,6 +348,14 @@ export interface CastUpdateVotePayload {
 export interface UpdateGameClockPayload {
     id: string;
     action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' | 'END_PERIOD' | 'START_PERIOD';
+    /**
+     * The game-log entry this change is recorded as (`GAME_STARTED`, `PERIOD_ENDED`, …). The server
+     * writes it only once the change itself has been applied, so the log can never say something
+     * happened that was refused (SYNC-4). It used to be a second action the client sent alongside.
+     */
+    log?: { subType: string; eventData?: Record<string, any> };
+    /** Who the log entry credits. Checked against the caller, like every initiator field. */
+    initiatorOrgProfileId?: string;
 }
 
 export interface ResetGamePayload {

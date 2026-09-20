@@ -1,4 +1,4 @@
-import './utils/logger';
+import { recordFailure } from './utils/logger';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -1124,6 +1124,69 @@ const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => str
  */
 const CALLER_PROFILE_FIELDS = ['initiatorOrgProfileId', 'initiatorId', 'officialId'] as const;
 
+/** Carries a refusal out of `runIdempotent`, which remembers only what resolves. */
+class RefusedAck extends Error {
+    constructor(public readonly ack: ActionAck) {
+        super(ack.status === 'error' ? ack.message : 'Refused');
+    }
+}
+
+/**
+ * Write one entry to a game's log and publish it — what `ADD_GAME_EVENT` does, and what a status or
+ * clock change does for its own log entry. Throws the manager's refusal, so the action answers it.
+ */
+async function recordGameEvent(data: {
+    gameId: string;
+    type: string;
+    subType?: string;
+    eventData?: any;
+    initiatorOrgProfileId?: string;
+    actorOrgProfileId?: string;
+    gameParticipantId?: string;
+}) {
+    const eventRes = await gameEventManager.ingestEvent(data);
+    if ('error' in eventRes) {
+        console.error('Server: Failed to ingest game event:', eventRes.error);
+        throw new Error(eventRes.error);
+    }
+    // Broadcast the granular event to the base game room and detail room
+    broadcast(`game:${data.gameId}`, 'GAME_EVENT_ADDED', eventRes);
+    broadcast(`game:${data.gameId}:events`, 'GAME_EVENT_ADDED', eventRes);
+
+    // Broadcast updated game state to the detail room and base game room
+    const updatedGame = await dataManager.getGame(data.gameId);
+    if (updatedGame) {
+        broadcast(`game:${data.gameId}`, 'GAME_UPDATED', updatedGame);
+    }
+    // A recorded score changes what every fixture list shows.
+    await publishGameSummary(data.gameId);
+    return eventRes;
+}
+
+/**
+ * The log entry a status or clock change asked for, written only after the change applied (SYNC-4).
+ * The client used to send it as a second action beside the change, so a refused "start" could still
+ * log `GAME_STARTED`. If the change applied but its entry cannot be written, the action says so
+ * rather than reporting a clean success.
+ */
+async function recordChangeInLog(
+    payload: { id: string; log?: { subType: string; eventData?: any }; initiatorOrgProfileId?: string },
+    type: 'STATUS' | 'TIME'
+) {
+    if (!payload.log?.subType) return;
+    try {
+        await recordGameEvent({
+            gameId: payload.id,
+            type,
+            subType: payload.log.subType,
+            eventData: payload.log.eventData,
+            initiatorOrgProfileId: payload.initiatorOrgProfileId,
+        });
+    } catch (error: any) {
+        throw new Error(`The change was applied, but it could not be added to the game log: ${error.message}`);
+    }
+}
+
 /**
  * A tournament's sports and divisions move together (U52).
  *
@@ -1886,7 +1949,7 @@ io.on('connection', (socket) => {
     socket.leave(topic);
   });
 
-  socket.on('action', async (action: { type: SocketAction, payload: any }, callback) => {
+  const runAction = async (action: { type: SocketAction, payload: any }, callback: ((ack: ActionAck) => void) | undefined) => {
     // Same class of defect as `SOCK-1`, at the other unchecked boundary: this preamble reads
     // `action.type` *before* the try block below, so an emit with no payload — or a non-object one —
     // threw here and ended the process. The declared parameter type is a claim about a value that
@@ -1973,7 +2036,10 @@ io.on('connection', (socket) => {
 
         switch(action.type) {
             case SocketAction.DELETE_ORG:
-                result = await dataManager.deleteOrganization(action.payload.id);
+                // `deleteOrganization` throws when the org still has dependants and returns nothing
+                // otherwise, so the id is the result (an empty result is refused below).
+                await dataManager.deleteOrganization(action.payload.id);
+                result = { id: action.payload.id };
                 // Broadcast to room that the org is gone
                 broadcast(`org:${action.payload.id}:summary`, 'ORGANIZATION_UPDATED', { id: action.payload.id, deleted: true });
                 break;
@@ -2190,9 +2256,12 @@ io.on('connection', (socket) => {
             case SocketAction.UPDATE_GAME_STATUS:
                 result = await dataManager.updateGameStatus(action.payload.id, action.payload.status);
                 if (result) {
-                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
-                    additionalBroadcasts.push({ topic: eventFixturesRoom(result.eventId), type: 'GAME_UPDATED', data: result });
+                    // Published now rather than queued: the log entry below can still fail, and
+                    // the status change has happened whether or not it does.
+                    broadcast(`game:${result.id}`, 'GAME_UPDATED', result);
+                    broadcast(eventFixturesRoom(result.eventId), 'GAME_UPDATED', result);
                     await publishGameSummary(result.id);
+                    await recordChangeInLog(action.payload, 'STATUS');
                 }
                 break;
             case SocketAction.UPDATE_GAME_CLOCK:
@@ -2209,29 +2278,14 @@ io.on('connection', (socket) => {
                     // `useGameTimer`), so this fires a handful of times per match and the few extra
                     // KB buys consistency cheaply. The compact tier is `publishGameSummary` below,
                     // which is what every fixture list reads.
-                    additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
+                    // Published now, not queued, for the reason given under UPDATE_GAME_STATUS.
+                    broadcast(`game:${result.id}`, 'GAME_UPDATED', result);
                     await publishGameSummary(result.id);
+                    await recordChangeInLog(action.payload, 'TIME');
                 }
                 break;
             case SocketAction.ADD_GAME_EVENT:
-                const eventRes = await gameEventManager.ingestEvent(action.payload);
-                if (!('error' in eventRes)) {
-                    // Broadcast the granular event to the base game room and detail room
-                    broadcast(`game:${action.payload.gameId}`, 'GAME_EVENT_ADDED', eventRes);
-                    broadcast(`game:${action.payload.gameId}:events`, 'GAME_EVENT_ADDED', eventRes);
-                    
-                    // Broadcast updated game state to the detail room and base game room
-                    const updatedGame = await dataManager.getGame(action.payload.gameId);
-                    if (updatedGame) {
-                        broadcast(`game:${action.payload.gameId}`, 'GAME_UPDATED', updatedGame);
-                    }
-                    // A recorded score changes what every fixture list shows.
-                    await publishGameSummary(action.payload.gameId);
-                    result = eventRes;
-                } else {
-                    console.error('Server: Failed to ingest game event:', eventRes.error);
-                    throw new Error(eventRes.error);
-                }
+                result = await recordGameEvent(action.payload);
                 break;
             case SocketAction.UPDATE_GAME_EVENT:
                 const updatedEvent = await gameEventManager.updateEvent(action.payload.gameId, action.payload.eventId, { 
@@ -2253,6 +2307,8 @@ io.on('connection', (socket) => {
                     console.log(`Server: Broadcasting DISPUTE_STARTED (UNDO) for game ${action.payload.gameId}, dispute: ${undoVoteRes.dispute?.id}`);
                     broadcast(gameDisputesRoom(action.payload.gameId), 'DISPUTE_STARTED', { eventId: action.payload.eventIdToUndo, gameId: action.payload.gameId, dispute: undoVoteRes.dispute });
                     result = undoVoteRes.dispute;
+                } else {
+                    throw new Error(undoVoteRes.error || 'The undo vote could not be started.');
                 }
                 break;
             case SocketAction.INITIATE_UPDATE_VOTE:
@@ -2262,15 +2318,15 @@ io.on('connection', (socket) => {
                     broadcast(gameDisputesRoom(action.payload.gameId), 'DISPUTE_STARTED', { eventId: action.payload.eventId, gameId: action.payload.gameId, dispute: updateVoteRes.dispute });
                     result = updateVoteRes.dispute;
                 } else {
-                    console.error(`Server: INITIATE_UPDATE_VOTE failed:`, updateVoteRes.error);
+                    throw new Error(updateVoteRes.error || 'The update vote could not be started.');
                 }
                 break;
             case SocketAction.CAST_UNDO_VOTE:
             case SocketAction.CAST_UPDATE_VOTE:
                 const castRes = await gameEventManager.castUpdateVote(action.payload.gameId, action.payload.disputeId, action.payload.officialId, action.payload.vote);
-                if (castRes.success) {
-                    broadcast(gameDisputesRoom(action.payload.gameId), 'DISPUTE_VOTE_UPDATED', { dispute: castRes.dispute });
-                }
+                if (!castRes.success) throw new Error(castRes.error || 'That vote could not be recorded.');
+                broadcast(gameDisputesRoom(action.payload.gameId), 'DISPUTE_VOTE_UPDATED', { dispute: castRes.dispute });
+                result = { dispute: castRes.dispute, resolved: !!castRes.resolved };
                 break;
             case SocketAction.UPDATE_GAME: {
                 if (!authUserId) {
@@ -2320,13 +2376,13 @@ io.on('connection', (socket) => {
                 break;
             case SocketAction.REMOVE_SIN_BIN:
                 const removed = await gameEventManager.removeSinBin(action.payload.gameId, action.payload.sinBinId);
-                if (removed) {
-                    const updatedGame = await dataManager.getGame(action.payload.gameId);
-                    if (updatedGame) {
-                        broadcast(`game:${action.payload.gameId}`, 'GAME_UPDATED', updatedGame);
-                        await publishGameSummary(action.payload.gameId);
-                    }
+                if (!removed) throw new Error('That sin bin has already ended or been removed.');
+                const updatedGame = await dataManager.getGame(action.payload.gameId);
+                if (updatedGame) {
+                    broadcast(`game:${action.payload.gameId}`, 'GAME_UPDATED', updatedGame);
+                    await publishGameSummary(action.payload.gameId);
                 }
+                result = { gameId: action.payload.gameId, sinBinId: action.payload.sinBinId };
                 break;
             case SocketAction.RESET_GAME:
                 await dataManager.resetGame(action.payload.id);
@@ -2378,16 +2434,14 @@ io.on('connection', (socket) => {
                 break;
             }
             case SocketAction.UNDO_GAME_EVENT:
+                // A refusal is thrown, not returned as `{ success: false }` inside an ok: the client
+                // reads `status`, and an ok that means "refused" is a silent failure (SYNC-1).
                 if (!action.payload.initiatorId) {
-                    result = { success: false, error: 'initiatorId is required for UNDO_GAME_EVENT action.' };
-                    break;
+                    throw new Error('initiatorId is required for UNDO_GAME_EVENT action.');
                 }
                 const undoRes = await gameEventManager.undoEvent(action.payload.gameId, action.payload.eventId, action.payload.initiatorId);
-                if (undoRes.success) {
-                    result = { success: true };
-                } else {
-                    result = { success: false, error: undoRes.error };
-                }
+                if (!undoRes.success) throw new Error(undoRes.error || 'That event could not be undone.');
+                result = { success: true };
                 break;
             case SocketAction.GET_SYSTEM_SETTINGS:
                 const sysSettingsRes = await pool.query('SELECT key, value FROM system_settings');
@@ -2617,8 +2671,7 @@ io.on('connection', (socket) => {
                         [action.payload.orgProfileId]
                     );
                     if (isAdminAccount.rows.length > 0) {
-                        result = { status: 'error', message: 'System Admin accounts cannot be added to standard user organizations. Please use a standard user account.' };
-                        break;
+                        throw new Error('System Admin accounts cannot be added to standard user organizations. Please use a standard user account.');
                     }
                 }
                 console.log(`DataManager: Adding org member ${action.payload.orgProfileId} to ${action.payload.orgId}`);
@@ -3274,12 +3327,95 @@ io.on('connection', (socket) => {
         // `broadcast()` logs each publish itself (wss/socketLog.ts), so there is no line here.
         additionalBroadcasts.forEach(b => broadcast(b.topic, b.type, b.data));
 
+        // Nothing happened, so this is not a success (SYNC-1). Every handler returns what it changed
+        // — the record, `true`, an id — and a manager answers `null`/`false` when its target is gone
+        // (deleted or changed by someone else a moment ago). Answering ok with `data: null` there
+        // told the user their change had saved.
+        if (result === null || result === undefined || result === false) {
+            throw new Error('That change did not happen — what it applied to no longer exists. It may have been deleted or changed by someone else; refresh and try again.');
+        }
+
         // The one success exit: the result travels in `data` (ActionAck), never as the ack itself.
         if (callback) callback({ status: 'ok', data: result } satisfies ActionAck);
 
     } catch (error: any) {
         console.error(`Server: Error handling action ${action.type}:`, error);
+        recordFailure({
+            source: 'server',
+            kind: 'refused',
+            actionType: action.type,
+            message: error.message || 'Internal server error',
+            userId: authUserId,
+            requestId: typeof (action as any).requestId === 'string' ? (action as any).requestId : undefined,
+        });
         if (callback) callback({ status: 'error', message: error.message || 'Internal server error' } satisfies ActionAck);
+    }
+  };
+
+  /*
+    Every action may carry a `requestId` (SYNC-3). The client keeps it across retries of the same
+    attempt — its own automatic retry after a lost reply, and a user pressing Save again after
+    "no answer" — so a repeat returns the first attempt's answer instead of applying the change
+    twice. Scoped to the caller, so two users can never collide. Only successes are remembered: a
+    refused attempt is one the client genuinely wants to run again. In memory and short-lived — see
+    `wss/batch.ts` for what that does and does not cover.
+  */
+  socket.on('action', async (action: { type: SocketAction, payload: any, requestId?: unknown }, callback) => {
+    const requestId = action && typeof action === 'object' && typeof action.requestId === 'string'
+        ? action.requestId
+        : undefined;
+    if (!requestId) return runAction(action, callback);
+
+    const replayKey = `action:${socket.data?.userId || socket.id}:${action.type}:${requestId}`;
+    try {
+        const ack = await runIdempotent(replayKey, () => new Promise<ActionAck & object>((resolve, reject) => {
+            runAction(action, (reply) => (reply.status === 'ok' ? resolve(reply) : reject(new RefusedAck(reply))));
+        }));
+        if (callback) callback(ack);
+    } catch (error: any) {
+        if (callback) {
+            callback(error instanceof RefusedAck
+                ? error.ack
+                : { status: 'error', message: error?.message || 'Internal server error' } satisfies ActionAck);
+        }
+    }
+  });
+
+  /*
+    Failures the client met that the server never saw — no answer, a reply it could not read —
+    reported in batches by `expo-app/services/clientFailures.ts` (SYNC-2). Refusals are not among
+    them: the server records those itself, in the action handler's catch.
+    Written to the failures log with the socket's own user id, never one the client claims. Bounded
+    per message and per minute, so a client stuck in a failure loop cannot fill the disk.
+  */
+  let failureReportWindowStart = 0;
+  let failureReportsInWindow = 0;
+  socket.on('client_failures', (items: unknown) => {
+    if (!Array.isArray(items)) return;
+    const now = Date.now();
+    if (now - failureReportWindowStart > 60_000) {
+      failureReportWindowStart = now;
+      failureReportsInWindow = 0;
+    }
+    const text = (value: unknown, max: number) =>
+        typeof value === 'string' ? value.slice(0, max) : undefined;
+    for (const item of items.slice(0, 20)) {
+        if (failureReportsInWindow >= 60) break;
+        if (!item || typeof item !== 'object') continue;
+        const kind = (item as any).kind;
+        if (kind !== 'refused' && kind !== 'no-answer' && kind !== 'unexpected-reply') continue;
+        failureReportsInWindow++;
+        recordFailure({
+            source: 'client',
+            kind,
+            actionType: text((item as any).actionType, 64),
+            message: text((item as any).message, 500) || '',
+            userId: socket.data?.userId || null,
+            requestId: text((item as any).requestId, 64),
+            occurredAt: text((item as any).occurredAt, 40),
+            platform: text((item as any).platform, 20),
+            screen: text((item as any).screen, 200),
+        });
     }
   });
 

@@ -5,7 +5,8 @@ import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { wsService } from '../../../../services/websocket';
-import { sendAction } from '../../../../services/actions';
+import { requestKeyFor, sendAction } from '../../../../services/actions';
+import { useRequestScope } from '../../../../hooks/useRequestScope';
 import { useToastStore } from '../../../../store/toastStore';
 import { SocketAction } from '@sk/shared';
 import { useAuthStore } from '../../../../store/authStore';
@@ -51,6 +52,10 @@ export default function CreateEvent() {
       );
     });
 
+  // Kept across retries of one save, so a retry after the game fails does not create a second
+  // match (SYNC-3): the event is answered from the server's replay rather than created again.
+  const saveRequestScope = useRequestScope();
+
   const handleSubmit = async () => {
     if (!form || !isFormValid()) return;
     setIsProcessing(true);
@@ -88,9 +93,9 @@ export default function CreateEvent() {
       ? `${form.gameDate}T12:00:00`
       : scheduled.toISOString();
 
-    const eventResult = await sendAction(SocketAction.ADD_EVENT, {
+    const eventPayload = {
       name: `${homeName} vs ${awayName}`,
-      type: 'SingleMatch',
+      type: 'SingleMatch' as const,
       startDate: `${form.gameDate}T12:00:00.000Z`,
       siteId: form.siteId || undefined,
       facilityId: form.facilityId || undefined,
@@ -99,7 +104,10 @@ export default function CreateEvent() {
       participatingOrgIds: [form.homeOrgId, form.awayOrgId].filter(
         id => id && id !== orgId
       ) as string[],
-      status: 'Scheduled',
+      status: 'Scheduled' as const,
+    };
+    const eventResult = await sendAction(SocketAction.ADD_EVENT, eventPayload, {
+      requestId: requestKeyFor(saveRequestScope.current(), SocketAction.ADD_EVENT, eventPayload),
     });
     // A refusal is already toasted; the form stays as filled in.
     if (!eventResult.ok) {
@@ -109,20 +117,20 @@ export default function CreateEvent() {
     const newEvent = eventResult.data;
 
     // Toasted here rather than by `sendAction`, so the message can say the event did get created.
-    const gameResult = await sendAction(
-      SocketAction.ADD_GAME,
-      {
-        eventId: newEvent.id,
-        sportId: form.sportId,
-        participants: [{ teamId: form.homeTeamId }, { teamId: form.awayTeamId }],
-        scheduledStartTime,
-        startTime: scheduledStartTime,
-        siteId: form.siteId || undefined,
-        facilityId: form.facilityId || undefined,
-        customSettings: { timeTbd: form.isTbd },
-      },
-      { suppressToast: true }
-    );
+    const gamePayload = {
+      eventId: newEvent.id,
+      sportId: form.sportId,
+      participants: [{ teamId: form.homeTeamId }, { teamId: form.awayTeamId }],
+      scheduledStartTime,
+      startTime: scheduledStartTime,
+      siteId: form.siteId || undefined,
+      facilityId: form.facilityId || undefined,
+      customSettings: { timeTbd: form.isTbd },
+    };
+    const gameResult = await sendAction(SocketAction.ADD_GAME, gamePayload, {
+      suppressToast: true,
+      requestId: requestKeyFor(saveRequestScope.current(), SocketAction.ADD_GAME, gamePayload),
+    });
     setIsProcessing(false);
     if (!gameResult.ok) {
       useToastStore
@@ -130,6 +138,7 @@ export default function CreateEvent() {
         .showError(`The match was created, but its game was not: ${gameResult.message}`, 'Game Not Added');
       return;
     }
+    saveRequestScope.renew();
     safeBack(`/admin/${orgId}/events`);
   };
 

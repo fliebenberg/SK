@@ -9,7 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
-import { sendAction } from '../../../services/actions';
+import { requestKeyFor, sendAction } from '../../../services/actions';
+import { useRequestScope } from '../../../hooks/useRequestScope';
 import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, OrgProfile, OrgMember } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../components/PersonnelAutocomplete';
@@ -101,8 +102,12 @@ export default function OrgPeople() {
     }
   }, [rolesData]);
 
+  // One scope per person being added, kept across retries (SYNC-3) — see handleAddMember.
+  const addRequestScope = useRequestScope();
+
   const handleCloseAddModal = () => {
     setIsAdding(false);
+    addRequestScope.renew();
     const defaultRole = rolesData?.org?.find((r: any) => r.name === 'Member')?.id || 'role-org-member';
     setNewMemberData({
       name: '',
@@ -211,9 +216,13 @@ export default function OrgPeople() {
           }, (res) => resolve(res));
         });
 
-        // Add org profile
-        const profileResult = await sendAction(SocketAction.ADD_ORG_PROFILE, {
-          id: matchingUser?.id || `profile-${Date.now()}`,
+        /*
+          Two writes, so a retry after the second fails must not repeat the first (SYNC-3). The new
+          profile's id comes from this save's request scope rather than the clock, so every retry
+          sends the same profile; keyed on it, the server hands back the one it already created.
+        */
+        const profilePayload = {
+          id: matchingUser?.id || `profile-${addRequestScope.current()}`,
           name: newMemberData.name,
           email: newMemberData.email || undefined,
           cellphone: newMemberData.cellphone || undefined,
@@ -223,6 +232,9 @@ export default function OrgPeople() {
           image: newMemberData.image || undefined,
           imageConfig: newMemberData.imageConfig,
           identifier: newMemberData.personOrgId || undefined,
+        };
+        const profileResult = await sendAction(SocketAction.ADD_ORG_PROFILE, profilePayload, {
+          requestId: requestKeyFor(addRequestScope.current(), SocketAction.ADD_ORG_PROFILE, profilePayload),
         });
         if (!profileResult.ok) throw new Error(`Failed to create profile: ${profileResult.message}`);
         profileId = profileResult.data.id;
@@ -245,10 +257,9 @@ export default function OrgPeople() {
 
       // Link membership role to organization
       if (profileId) {
-        const memberResult = await sendAction(SocketAction.ADD_ORG_MEMBER, {
-          orgProfileId: profileId,
-          orgId,
-          roleId: newMemberData.roleId,
+        const memberPayload = { orgProfileId: profileId, orgId, roleId: newMemberData.roleId };
+        const memberResult = await sendAction(SocketAction.ADD_ORG_MEMBER, memberPayload, {
+          requestId: requestKeyFor(addRequestScope.current(), SocketAction.ADD_ORG_MEMBER, memberPayload),
         });
         if (!memberResult.ok) throw new Error(`Failed to add organization member: ${memberResult.message}`);
       }

@@ -9,7 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
-import { sendAction } from '../../../../services/actions';
+import { requestKeyFor, sendAction } from '../../../../services/actions';
+import { useRequestScope } from '../../../../hooks/useRequestScope';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Team, Sport, Organization, TeamMember, GameSummary, participantLabel } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
@@ -111,7 +112,11 @@ export default function TeamDetailsScreen() {
   const [cooldownHours, setCooldownHours] = useState(168);
   const [imageEditorTarget, setImageEditorTarget] = useState<'player' | 'staff' | null>(null);
 
+  // One scope per roster addition, kept across retries (SYNC-3) — see handleAddRosterMember.
+  const addRequestScope = useRequestScope();
+
   const resetMemberForm = () => {
+    addRequestScope.renew();
     setMemberEmail('');
     setMemberCellphone('');
     setMemberBirthdate('');
@@ -459,9 +464,11 @@ export default function TeamDetailsScreen() {
           }, (res: any) => resolve(res));
         });
 
-        // 2. Add organization profile
-        const profileResult = await sendAction(SocketAction.ADD_ORG_PROFILE, {
-          id: matchingUser?.id || `profile-${Date.now()}`,
+        // 2. Add organization profile. Its id comes from this addition's request scope, not the
+        //    clock, so a retry after step 3 fails sends the same profile and the server returns the
+        //    one it already created rather than a duplicate (SYNC-3).
+        const profilePayload = {
+          id: matchingUser?.id || `profile-${addRequestScope.current()}`,
           name: name.trim(),
           email: memberEmail || undefined,
           cellphone: memberCellphone || undefined,
@@ -470,6 +477,9 @@ export default function TeamDetailsScreen() {
           image: memberImage || undefined,
           imageConfig: memberImageConfig,
           orgId
+        };
+        const profileResult = await sendAction(SocketAction.ADD_ORG_PROFILE, profilePayload, {
+          requestId: requestKeyFor(addRequestScope.current(), SocketAction.ADD_ORG_PROFILE, profilePayload),
         });
         if (!profileResult.ok) throw new Error(`Failed to create profile: ${profileResult.message}`);
         profileId = profileResult.data.id;
@@ -477,10 +487,9 @@ export default function TeamDetailsScreen() {
 
       // 3. Link team membership (server handles organization role-org-member automatically on background)
       if (profileId) {
-        const memberResult = await sendAction(SocketAction.ADD_TEAM_MEMBER, {
-          orgProfileId: profileId,
-          teamId,
-          roleId
+        const memberPayload = { orgProfileId: profileId, teamId, roleId };
+        const memberResult = await sendAction(SocketAction.ADD_TEAM_MEMBER, memberPayload, {
+          requestId: requestKeyFor(addRequestScope.current(), SocketAction.ADD_TEAM_MEMBER, memberPayload),
         });
         if (!memberResult.ok) throw new Error(`Failed to add team member: ${memberResult.message}`);
       }

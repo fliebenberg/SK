@@ -136,7 +136,23 @@ every org registered on the event, **and** every org owning a participating team
 
 ## Action Handler
 
-All state-changing operations are sent via the `action` event.
+All state-changing operations are sent via the `action` event, as `{ type, payload, requestId? }`,
+and only through `sendAction` on the client (`expo-app/services/actions.ts`).
+
+**Replies.** `{ status: 'ok', data }` or `{ status: 'error', message }` (`ActionAck`). An action whose
+handler changed nothing — its target was deleted a moment ago — is refused with an error rather than
+answered `ok` with `data: null`, and no handler encodes a refusal inside `data`.
+
+**`requestId`.** Optional. A repeat of the same id from the same user within ten minutes is answered
+with the first attempt's reply (plus `replayed: true`) and applies nothing; only successes are
+remembered, so a refused attempt can be retried with the same id. In memory, per process (`SYNC-5`).
+
+**Failures log.** Every refusal is written to `server/logs/failures-YYYY-MM-DD.jsonl`.
+
+#### `client_failures` (socket event, not an action)
+*   **Payload**: `Array<{ kind: 'no-answer' | 'unexpected-reply', actionType, message, requestId?, occurredAt?, platform?, screen? }>`
+*   **Logic**: written to the failures log with the socket's own user id. At most 20 items per message
+    and 60 per minute per socket; malformed items are dropped. No reply.
 
 ### 1. Teams
 
@@ -282,9 +298,15 @@ The admin operations are REST, under `requireAdmin`, and each answers with the s
     *   **Event**: `GAME_ADDED`
     *   **Data**: The new `Game` object.
 
-#### `UPDATE_GAME_STATUS`
-*   **Payload**: `{ id, status }`
-*   **Logic**: Updates status (e.g., 'Scheduled', 'In Progress', 'Finished').
+#### `UPDATE_GAME_STATUS` (and `UPDATE_GAME_CLOCK`)
+*   **Payload**: `{ id, status, log?, initiatorOrgProfileId? }` — the clock takes `action` in place of
+    `status`. `log: { subType, eventData }` is the game-log entry the change is recorded as
+    (`GAME_STARTED`, `PERIOD_ENDED`, …); the server writes it only once the change has applied, so the
+    log never records a refused change. `initiatorOrgProfileId` must be one of the caller's own
+    profiles, or omitted for an uncredited entry.
+*   **Logic**: Updates status (e.g., 'Scheduled', 'In Progress', 'Finished'), publishes the game, then
+    writes the log entry. If the change applied but the entry could not be written, the reply is an
+    error saying so — the status change stands and has already been published.
 *   **Broadcasts**:
     *   **Topic**: `game:{id}`
     *   **Event**: `GAME_UPDATED`

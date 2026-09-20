@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Game, GameEvent, GameDispute, Sport, getPeriodLabel, SocketAction, captureEventLabels, findOutcome, getTriggerFor, hasOutcomes, isScoringTemplate, reasonRequiresPlayer, TriggerTeam } from '@sk/shared';
 import { wsService } from '../../../services/websocket';
-import { sendAction } from '../../../services/actions';
+import { newRequestId, requestKeyFor, sendAction } from '../../../services/actions';
 import { getLiveElapsedMS } from '../../../hooks/useGameTimer';
 import { useAuthStore } from '../../../store/authStore';
 import { useSportStore } from '../../../store/sportStore';
@@ -87,6 +87,8 @@ interface DynamicScoringContextType {
 const DynamicScoringContext = createContext<DynamicScoringContextType | null>(null);
 
 export function DynamicScoringProvider({ game, children }: { game: Game; children: React.ReactNode }) {
+  // The request scope of the event being captured — see the ADD_GAME_EVENT send below.
+  const addRequestScope = useRef(newRequestId());
   const [scoringState, setScoringState] = useState<DynamicScoringContextType['scoringState']>({
     status: 'IDLE',
   });
@@ -450,6 +452,8 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
   const templates: EventTemplateItem[] = (sport?.eventTemplates || []) as EventTemplateItem[];
 
   const startDynamicFlow = (templateId: string, side: 'home' | 'away', initialData: any = {}) => {
+    // A new event being captured: a new request scope, so it can never be answered with the last one.
+    addRequestScope.current = newRequestId();
     if (templateId === 'penalty_try' && !initialData?.eventId) {
       const initiatorId = resolveOrgProfileId(game);
       if (!initiatorId) {
@@ -665,11 +669,21 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         eventData,
       };
 
-      sendAction(SocketAction.ADD_GAME_EVENT, payload, { suppressToast: true }).then((result) => {
+      /*
+        Keyed to this capture and to what is being recorded, minus the clock reading and period,
+        which move between attempts (SYNC-3). A scorer confirming again after "no answer" therefore
+        gets the event the server may already hold, not a second try on the board; one who changes
+        the player or outcome before retrying is recording something else, and gets a new write.
+      */
+      const { elapsedMS: _elapsed, period: _period, ...recordedData } = eventData as any;
+      const requestId = requestKeyFor(addRequestScope.current, SocketAction.ADD_GAME_EVENT, { ...payload, eventData: recordedData });
+
+      sendAction(SocketAction.ADD_GAME_EVENT, payload, { suppressToast: true, requestId }).then((result) => {
         if (!result.ok) {
           setErrorMessage(result.message);
           return;
         }
+        addRequestScope.current = newRequestId();
         const addedEventId = result.data.id;
         // AUTOMATED CHAINED FLOW: the template says what a completed event spawns — a try always
         // spawns a conversion, a penalty spawns whatever its chosen outcome names — whose it is,
@@ -739,9 +753,8 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
       return;
     }
     sendAction(SocketAction.UNDO_GAME_EVENT, { gameId: game.id, eventId, initiatorId }, { suppressToast: true }).then((result) => {
-      // The server reports a refused undo (e.g. the window has expired) as a successful action
-      // whose data says `success: false`, so both shapes are a failure here.
-      const refusal = !result.ok ? result.message : result.data?.success === false ? result.data.error || 'That event could not be undone.' : null;
+      // A refused undo (e.g. the window has expired) arrives as an error; the message says why.
+      const refusal = result.ok ? null : result.message;
       if (refusal !== null) {
         console.error('Failed to undo event:', refusal);
         if (refusal.toLowerCase().includes('expired')) {
