@@ -20,6 +20,7 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { DivisionEntrantsEditor } from './DivisionEntrantsEditor';
 import { candidateFromTeam } from './candidateTeam';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
+import { useDivisionEntrants } from '../../hooks/useDivisionEntrants';
 import { wsService } from '../../services/websocket';
 import { sendAction } from '../../services/actions';
 import { useWsStore } from '../../store/wsStore';
@@ -85,8 +86,6 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
   const divisionRoom = divisionId ? `division:${divisionId}` : null;
   const fixturesRoom = divisionId ? `division:${divisionId}:fixtures` : null;
   const stagesRoom = divisionId ? `division:${divisionId}:stages` : null;
-  /** The organiser's tier: the roster. */
-  const entrantsRoom = divisionId ? `division:${divisionId}:entrants` : null;
 
   const { items: divisions } = useLiveRoom<TournamentDivision>(divisionRoom, {
     reduce: (message) => {
@@ -135,13 +134,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
    * `enabled` rather than a null room: a spectator's panel must not join the member tier at all,
    * and the same hook has to keep its place in the render either way.
    */
-  const { items: entrants } = useLiveRoom<TournamentEntrant>(entrantsRoom, {
-    enabled: canEdit,
-    reduce: (message) =>
-      message.type === 'DIVISION_ENTRANTS_SYNC' && message.data?.divisionId === divisionId
-        ? { kind: 'replace', items: message.data?.entrants || [] }
-        : { kind: 'ignore' },
-  });
+  const { entrants } = useDivisionEntrants(divisionId, canEdit);
 
   /**
    * What could be entered — a one-shot read, because no room owns "teams that could enter".

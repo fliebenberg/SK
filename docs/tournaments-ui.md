@@ -973,6 +973,33 @@ that spans weeks.
 > Changing a division's sport after it has entrants and results is still unchecked — `FIX-17`, now
 > reachable through a tournament narrowed to one sport as well as through the division screen.
 
+> **Decided 2026-09-20 — a division's sport is fixed once teams are entered; its age group is not
+> (`FIX-17`).** The undecided part was the *rule*, not the mechanism: refuse once fixtures exist,
+> refuse once a result exists, or allow with a dialog naming what stops qualifying. Entrants were
+> chosen because they are the earliest and plainest line — **you cannot enter a team without having
+> decided what the division plays** — and because a rule an organiser can predict beats one that
+> depends on how far into the day they are.
+>
+> - **Only entrants with a team count.** A placeholder (D7) is a label with no team, so it
+>   contradicts no sport: a division holding nothing but *Winner of the regional qualifier* is
+>   still free to change. `TournamentManager.updateDivision` refuses the rest, naming the count.
+> - **The control says so instead of being refused.** The division screen replaces the sport
+>   dropdown with the sport and a line — *Fixed, 8 teams have been entered. Remove them to change
+>   it, or add a division for the other sport.* The organiser who wants hockey wants a hockey
+>   division, not this one emptied, so the message names that rather than only saying no.
+> - **Age group stays changeable, with a confirmation that counts.** The teams that no longer match
+>   become age-group overrides — a state the entry grid already renders and tags, and one the
+>   organiser resolves by swapping teams — so the screen asks rather than refuses, and says *3
+>   entered teams are not U15*. Moving to *Any age* creates no overrides and so asks nothing. The
+>   dialog is not `danger`: nothing is destroyed, and choosing the old age group again reverses it.
+> - **The count comes off the roster**, through `teamAgeGroupId` on each entrant — derived, never
+>   stored — so the screen can tell a matching entrant from an override without a teams lookup
+>   per row.
+>
+> What remains is narrower than the original entry: a division with a **hand-added fixture but no
+> entrants** can still change sport, since nothing was entered. Logged on `FIX-17` rather than
+> folded in, because guarding fixtures is a different rule from the one decided here.
+
 > **Revised 2026-09-13 — the checklist explains itself (U49).** U48 got the *structure* right and
 > left the page mute. Shown five headings under a progress bar, an organiser using it for the first
 > time could not tell what the list was, what any row would ask for before opening it, or which to

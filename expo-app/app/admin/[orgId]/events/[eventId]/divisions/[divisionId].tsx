@@ -29,6 +29,7 @@ import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { DivisionPanel } from '../../../../../../components/tournament/DivisionPanel';
+import { enteredTeamCount, useDivisionEntrants } from '../../../../../../hooks/useDivisionEntrants';
 import { DivisionStandings } from '../../../../../../components/tournament/DivisionStandings';
 import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
 import { FacilityPicker } from '../../../../../../components/tournament/FacilityPicker';
@@ -383,6 +384,36 @@ export default function DivisionScreen() {
     setDraftAgeGroupName(division?.ageGroup || '');
   }, [savedCustomName, division?.sportId, division?.ageGroupId, division?.ageGroup, onlyEventSportId]);
 
+  /**
+   * `FIX-17` — the sport is fixed once teams are entered, and the age group is not.
+   *
+   * Both halves are the server's rule; these read the roster so the screen can say so in advance.
+   * A control that explains itself beats one that is refused on save, especially here, where the
+   * organiser's next move differs per case: a blocked sport means *make another division*, while a
+   * changed age group means *swap these teams out*.
+   *
+   * Placeholders (D7) are excluded deliberately. An entrant with a label and no team contradicts
+   * no sport, so a division holding only "Winner of the regional qualifier" is still free.
+   */
+  const { entrants: divisionEntrants } = useDivisionEntrants(divisionId, canEditRecord);
+  const enteredTeams = enteredTeamCount(divisionEntrants);
+  const sportLocked = enteredTeams > 0;
+
+  /**
+   * Entered teams that the *draft* age group would turn into overrides.
+   *
+   * Not a refusal — an override is a state the entry grid renders and tags, and swapping the teams
+   * is the organiser's job afterwards. But it reclassifies entrants that were matching a moment
+   * ago, which is too much to do without saying how many. Moving to "Any age" makes nothing an
+   * override, because a division that names no age group admits every age.
+   */
+  const ageGroupOverrides = !draftAgeGroupId
+    ? 0
+    : divisionEntrants.filter(
+        entrant => !!entrant.teamId && entrant.teamAgeGroupId !== draftAgeGroupId
+      ).length;
+  const ageGroupChanging = draftAgeGroupId !== (division?.ageGroupId || null);
+
   const savedSportName = sports.find(sport => sport.id === division?.sportId)?.name;
   const isLastOfSport =
     !!division?.sportId &&
@@ -391,6 +422,7 @@ export default function DivisionScreen() {
   const sportChanging = !!draftSportId && draftSportId !== (division?.sportId || '');
 
   const [isConfirmingSportMove, setIsConfirmingSportMove] = useState(false);
+  const [isConfirmingAgeGroup, setIsConfirmingAgeGroup] = useState(false);
 
   const writeDetails = () => {
     setIsSavingDetails(true);
@@ -410,6 +442,13 @@ export default function DivisionScreen() {
   const handleSaveDetails = () => {
     if (sportChanging && isLastOfSport) {
       setIsConfirmingSportMove(true);
+      return;
+    }
+    // Asked second, so the sport dialog — which is about the *tournament* losing a sport — is not
+    // stacked behind one about this division's entrants. The two cannot both apply in any case:
+    // an entered team locks the sport, so `sportChanging` implies nothing is entered.
+    if (ageGroupChanging && ageGroupOverrides > 0) {
+      setIsConfirmingAgeGroup(true);
       return;
     }
     writeDetails();
@@ -538,7 +577,20 @@ export default function DivisionScreen() {
                     label="Sport"
                     help="The sport played in this division."
                   />
-                  {canEditRecord && sportChoices.length === 0 ? (
+                  {canEditRecord && sportLocked ? (
+                    /* `FIX-17`. Shown rather than offered-and-refused, and it says what to do
+                       instead — the organiser wanting hockey wants a hockey division, not this
+                       one emptied. The server refuses the same change. */
+                    <View className="space-y-1">
+                      <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                        {savedSportName || 'No sport set'}
+                      </Text>
+                      <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
+                        Fixed — {enteredTeams} {enteredTeams === 1 ? 'team has' : 'teams have'} been
+                        entered. Remove them to change it, or add a division for the other sport.
+                      </Text>
+                    </View>
+                  ) : canEditRecord && sportChoices.length === 0 ? (
                     <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
                       The tournament has no sports yet. Choose them under Sports & Divisions, then
                       come back to pick this division's.
@@ -754,9 +806,36 @@ export default function DivisionScreen() {
         isProcessing={isSavingDetails}
         onConfirm={() => {
           setIsConfirmingSportMove(false);
-          writeDetails();
+          // The age-group question can still be outstanding behind this one.
+          if (ageGroupChanging && ageGroupOverrides > 0) setIsConfirmingAgeGroup(true);
+          else writeDetails();
         }}
         onClose={() => setIsConfirmingSportMove(false)}
+      />
+
+      {/*
+        `FIX-17`, the half that is allowed. Changing the age group leaves entered teams where they
+        are and reclassifies them as overrides — a real state the entry grid tags rather than a
+        broken one, so this asks rather than refuses. It is not `danger`: nothing is destroyed and
+        the change reverses by choosing the old age group again.
+      */}
+      <ConfirmationModal
+        isOpen={isConfirmingAgeGroup}
+        title={`Change the age group to ${draftAgeGroupName || 'another age group'}?`}
+        description={
+          `${ageGroupOverrides} entered ${
+            ageGroupOverrides === 1 ? 'team is' : 'teams are'
+          } not ${draftAgeGroupName || 'that age group'}. They stay in the division and will show ` +
+          `as age-group overrides, so you can swap them for the right teams when you are ready.`
+        }
+        confirmText="Change age group"
+        cancelText="Cancel"
+        isProcessing={isSavingDetails}
+        onConfirm={() => {
+          setIsConfirmingAgeGroup(false);
+          writeDetails();
+        }}
+        onClose={() => setIsConfirmingAgeGroup(false)}
       />
     </SafeAreaView>
   );

@@ -172,6 +172,15 @@ export interface TournamentEntrant {
   name?: string;
   /** Derived, never stored. Prefixed to `name` the way `participantLabel` does it. */
   orgShortName?: string;
+  /**
+   * The entered team's own age group — derived, never stored, and `null` for a placeholder.
+   *
+   * Here so a screen can tell an entrant that *matches* the division's age group from one entered
+   * as an override, without a teams lookup per row. The division screen counts the second kind
+   * before letting the age group change, since that change silently turns matching entrants into
+   * overrides (`FIX-17`).
+   */
+  teamAgeGroupId?: string | null;
 }
 
 /**

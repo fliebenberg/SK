@@ -151,7 +151,8 @@ export class TournamentManager extends BaseManager {
   private ENTRANT_COLUMNS = `
       e.id, e.division_id as "divisionId", e.team_id as "teamId",
       e.org_profile_id as "orgProfileId", e.org_id as "orgId", e.label, e.seed, e.status,
-      COALESCE(t.name, op.name, e.label) as "name", o.short_name as "orgShortName"`;
+      COALESCE(t.name, op.name, e.label) as "name", o.short_name as "orgShortName",
+      t.age_group_id as "teamAgeGroupId"`;
 
   private ENTRANT_JOINS = `
       FROM division_entrants e
@@ -277,16 +278,52 @@ export class TournamentManager extends BaseManager {
       values.push(value);
     };
 
+    /**
+     * A division's sport is fixed once teams are entered (`FIX-17`, settled 2026-09-20).
+     *
+     * Switching a rugby division with eight entered rugby teams to hockey used to succeed, leaving
+     * every entrant in place as a team that no longer `teamQualifies` and any played fixtures
+     * scored under the old sport's rules. The rule chosen over the alternatives — refuse once
+     * fixtures exist, or allow with a dialog listing what stops qualifying — is the earliest and
+     * the plainest: **entrants are the point at which the sport has been acted on.** You cannot
+     * enter a team without having decided what the division plays.
+     *
+     * Only entrants with a **team** count. A placeholder (D7) is an entrant with a label and no
+     * team, so it contradicts no sport and blocks nothing: a division holding nothing but "Winner
+     * of the regional qualifier" has not committed to rugby in any way that matters.
+     *
+     * Age group is deliberately *not* guarded the same way. It can change with teams entered, and
+     * the teams that no longer match simply show as age-group overrides — a state the entry grid
+     * already renders and tags, and one an organiser resolves by swapping the teams. The screen
+     * confirms it and says how many, which is the right weight for a reversible reclassification.
+     */
+    // Both sides normalised to `null`, so "" and `undefined` do not read as a change away from an
+    // unset sport — a spurious one would clear the age group below for no reason.
+    const current = data.sportId !== undefined ? await this.getDivision(id) : null;
+    const sportChanging =
+      data.sportId !== undefined && (current?.sportId || null) !== (data.sportId || null);
+
+    if (sportChanging) {
+      const entered = await this.query(
+        `SELECT COUNT(*)::int AS n FROM division_entrants
+          WHERE division_id = $1 AND team_id IS NOT NULL`,
+        [id]
+      );
+      const n = entered.rows[0]?.n ?? 0;
+      if (n > 0) {
+        throw new Error(
+          `This division has ${n} ${n === 1 ? 'team' : 'teams'} entered, so its sport cannot be ` +
+            `changed. Remove them first, or add a division for the other sport.`
+        );
+      }
+    }
+
     if (data.name !== undefined) set('name', data.name);
     if (data.sportId !== undefined) set('sport_id', data.sportId || null);
     // An age group belongs to one sport, so changing the sport without naming a new age group
-    // clears the old one — the foreign key would refuse the update otherwise. (The half of
-    // `FIX-17` this schema forces; entrants and fixtures of the old sport are still unchecked.)
+    // clears the old one — the foreign key would refuse the update otherwise.
     if (data.ageGroupId !== undefined) set('age_group_id', data.ageGroupId || null);
-    else if (data.sportId !== undefined) {
-      const current = await this.getDivision(id);
-      if (current && (current.sportId || null) !== (data.sportId || null)) set('age_group_id', null);
-    }
+    else if (sportChanging) set('age_group_id', null);
     if (data.scoringSubject !== undefined) set('scoring_subject', data.scoringSubject || null);
     if (data.weighting !== undefined) set('weighting', data.weighting);
     if (data.settings !== undefined) set('settings', JSON.stringify(data.settings));

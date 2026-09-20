@@ -624,6 +624,93 @@ async function main() {
   );
 
   // ------------------------------------------------------------------------------------------
+  // 8b. FIX-17 — a division's sport is fixed once teams are entered; its age group is not
+  // ------------------------------------------------------------------------------------------
+
+  /*
+   * On a division of its own, so nothing above depends on the state these checks leave behind.
+   *
+   * The rule settled on 2026-09-20: entrants are the point at which the sport has been acted on,
+   * because you cannot enter a team without having decided what the division plays. Age group is
+   * deliberately looser — the teams that stop matching become overrides, which the entry grid
+   * renders and tags, and the organiser swaps them at their leisure.
+   */
+  const lockSportId = sports[0].id;
+  const lockDivision = await tournamentManager.addDivision({
+    eventId: event.id,
+    name: `P6 Lock ${stamp}`,
+    sportId: lockSportId,
+    ageGroupId: starterAgeGroupId(lockSportId, 'u13'),
+  } as any);
+
+  // A placeholder is an entrant with no team, so it settles nothing about the sport.
+  await tournamentManager.setDivisionEntrants(lockDivision.id, [
+    { label: 'Winner of the regional qualifier' },
+  ]);
+  const movedOnPlaceholder = await tournamentManager
+    .updateDivision(lockDivision.id, { sportId: sports[1].id })
+    .then(d => d?.sportId)
+    .catch(() => 'refused');
+  expect(
+    movedOnPlaceholder,
+    sports[1].id,
+    'a division holding only a placeholder may still change its sport — a label contradicts none'
+  );
+  // Changing the sport clears the age group, so the revert restores both.
+  await tournamentManager.updateDivision(lockDivision.id, {
+    sportId: lockSportId,
+    ageGroupId: starterAgeGroupId(lockSportId, 'u13'),
+  });
+
+  // And now a real team.
+  const lockTeamId = `team-p6-lock-${stamp}`;
+  await query(
+    `INSERT INTO teams (id, name, age_group_id, sport_id, org_id, is_active)
+     VALUES ($1, 'P6 Lock XI', $2, $3, $4, true)`,
+    [lockTeamId, starterAgeGroupId(lockSportId, 'u13'), lockSportId, schools[0].id]
+  );
+  created.teamIds.push(lockTeamId);
+  await tournamentManager.setDivisionEntrants(lockDivision.id, [{ teamId: lockTeamId }]);
+
+  /*
+   * The age group is checked *before* the sport refusal, and the order is load-bearing.
+   *
+   * Run the other way round, a broken refusal leaves the division on a sport whose age groups are
+   * not the ones this code names, and the age-group change then dies on the composite foreign key
+   * — turning a clear "the sport should have been refused" into an unrelated crash three lines
+   * later. Found by disabling the refusal to check these assertions actually catch it.
+   */
+  const movedAge = starterAgeGroupId(lockSportId, 'u17');
+  await tournamentManager.updateDivision(lockDivision.id, { ageGroupId: movedAge });
+  const afterAgeChange = await tournamentManager.getEntrants(lockDivision.id);
+  expect(
+    [
+      (await tournamentManager.getDivision(lockDivision.id))?.ageGroupId,
+      afterAgeChange.length,
+      afterAgeChange[0]?.teamId,
+      // Carried on the entrant so the screen can count the overrides before making the change.
+      afterAgeChange[0]?.teamAgeGroupId,
+    ],
+    [movedAge, 1, lockTeamId, starterAgeGroupId(lockSportId, 'u13')],
+    'the age group changes with a team entered, leaving it in place as an override'
+  );
+
+  const refusal = await tournamentManager
+    .updateDivision(lockDivision.id, { sportId: sports[1].id })
+    .then(() => null)
+    .catch((err: Error) => err.message);
+  expect(
+    [
+      typeof refusal === 'string' && refusal.includes('1 team'),
+      (await tournamentManager.getDivision(lockDivision.id))?.sportId,
+    ],
+    [true, lockSportId],
+    'but the sport is refused once a team is entered, and the division keeps the one it had'
+  );
+
+  await tournamentManager.deleteDivision(lockDivision.id);
+
+  // ------------------------------------------------------------------------------------------
   // 9. The Phase 6 migration — PEOPLE-3's remaining half
   // ------------------------------------------------------------------------------------------
 
