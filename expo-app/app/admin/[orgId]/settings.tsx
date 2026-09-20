@@ -10,7 +10,7 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
-import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, normalizeOrgShortCode } from '@sk/shared';
+import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, normalizeOrgShortCode, reseedDecision } from '@sk/shared';
 
 const orgTypes: { value: OrganizationType; label: string }[] = [
   { value: 'SCHOOL', label: 'School' },
@@ -115,6 +115,39 @@ const getShades = (hue: number, isGrey?: boolean) => {
   ];
 };
 
+/** Everything this form edits, in one shape, so drafts and baseline are comparable. */
+interface OrgForm {
+  orgName: string;
+  shortName: string;
+  primaryColor: string;
+  secondaryColor: string;
+  logo: string;
+  description: string;
+  logoConfig: { scale: number; x: number; y: number };
+  supportedSportIds: string[];
+  type: OrganizationType | null;
+  customType: string;
+}
+
+/**
+ * Equality over the form. Sports are a **set**, so they are sorted before comparing — reordering
+ * is not an edit — and `logoConfig` is compared field by field rather than by identity, since it
+ * is a fresh object out of JSONB on every read.
+ */
+const sameOrgForm = (a: OrgForm, b: OrgForm) =>
+  a.orgName === b.orgName &&
+  a.shortName === b.shortName &&
+  a.primaryColor === b.primaryColor &&
+  a.secondaryColor === b.secondaryColor &&
+  a.logo === b.logo &&
+  a.description === b.description &&
+  a.logoConfig.scale === b.logoConfig.scale &&
+  a.logoConfig.x === b.logoConfig.x &&
+  a.logoConfig.y === b.logoConfig.y &&
+  [...a.supportedSportIds].sort().join() === [...b.supportedSportIds].sort().join() &&
+  a.type === b.type &&
+  a.customType === b.customType;
+
 export default function OrgSettings() {
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -140,18 +173,11 @@ export default function OrgSettings() {
   const [type, setType] = useState<OrganizationType | null>(null);
   const [customType, setCustomType] = useState('');
 
-  const [originalData, setOriginalData] = useState<{
-    orgName: string;
-    shortName: string;
-    primaryColor: string;
-    secondaryColor: string;
-    logo: string;
-    description: string;
-    logoConfig: { scale: number; x: number; y: number };
-    supportedSportIds: string[];
-    type: OrganizationType | null;
-    customType: string;
-  } | null>(null);
+  /**
+   * What the form was last seeded from — moved in the same batch as the fields, so the save bar
+   * cannot flash when `ORGANIZATION_UPDATED` arrives from another device.
+   */
+  const [originalData, setOriginalData] = useState<OrgForm | null>(null);
   
   // Temp logo states for the editor modal
   const [isEditingLogo, setIsEditingLogo] = useState(false);
@@ -205,40 +231,61 @@ export default function OrgSettings() {
     }
   }, [teamsList]);
 
+  /**
+   * Take the organisation as it now stands, unless doing so would throw away an edit (`UI-19`).
+   *
+   * This screen re-seeded on every `orgData` change, and `ORGANIZATION_UPDATED` from another
+   * device is one of those — so a colleague saving a colour silently discarded a half-typed name
+   * here. It never *flashed* the save bar, because the fields and their baseline already moved
+   * together; only the second half of the bug applied, and `reseedDecision` is the same rule the
+   * live-room screens use for both.
+   */
   useEffect(() => {
-    if (orgData) {
-      setOrgName(orgData.name || '');
-      setShortName(orgData.shortName || '');
-      setPrimaryColor(orgData.primaryColor || '#FF3E00');
-      setSecondaryColor(orgData.secondaryColor || '#00E5FF');
-      setLogo(orgData.logo || '');
-      setDescription(orgData.description || '');
-      
-      // Load settings and logoConfig
-      const orgSettings = orgData.settings || {};
-      setSettings(orgSettings);
-      const lConfig = orgSettings.logoConfig || { scale: 1, x: 0, y: 0 };
-      setLogoConfig(lConfig);
+    if (!orgData) return;
+    const orgSettings = orgData.settings || {};
+    const incoming: OrgForm = {
+      orgName: orgData.name || '',
+      shortName: orgData.shortName || '',
+      primaryColor: orgData.primaryColor || '#FF3E00',
+      secondaryColor: orgData.secondaryColor || '#00E5FF',
+      logo: orgData.logo || '',
+      description: orgData.description || '',
+      logoConfig: orgSettings.logoConfig || { scale: 1, x: 0, y: 0 },
+      supportedSportIds: orgData.supportedSportIds || [],
+      type: orgData.type || null,
+      customType: orgData.customType || '',
+    };
+    const drafts: OrgForm = {
+      orgName,
+      shortName,
+      primaryColor,
+      secondaryColor,
+      logo,
+      description,
+      logoConfig,
+      supportedSportIds,
+      type,
+      customType,
+    };
 
-      const sIds = orgData.supportedSportIds || [];
-      setSupportedSportIds(sIds);
-
-      setType(orgData.type || null);
-      setCustomType(orgData.customType || '');
-
-      setOriginalData({
-        orgName: orgData.name || '',
-        shortName: orgData.shortName || '',
-        primaryColor: orgData.primaryColor || '#FF3E00',
-        secondaryColor: orgData.secondaryColor || '#00E5FF',
-        logo: orgData.logo || '',
-        description: orgData.description || '',
-        logoConfig: lConfig,
-        supportedSportIds: sIds,
-        type: orgData.type || null,
-        customType: orgData.customType || '',
-      });
+    if (reseedDecision({ baseline: originalData, drafts, incoming, same: sameOrgForm }) !== 'adopt') {
+      return;
     }
+
+    setOrgName(incoming.orgName);
+    setShortName(incoming.shortName);
+    setPrimaryColor(incoming.primaryColor);
+    setSecondaryColor(incoming.secondaryColor);
+    setLogo(incoming.logo);
+    setDescription(incoming.description);
+    // `settings` is the whole object, carried across on save; only `logoConfig` is edited here.
+    setSettings(orgSettings);
+    setLogoConfig(incoming.logoConfig);
+    setSupportedSportIds(incoming.supportedSportIds);
+    setType(incoming.type);
+    setCustomType(incoming.customType);
+    setOriginalData(incoming);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgData]);
 
   const isLoading = isOrgLoading || !sportsList || !teamsList || !orgData;

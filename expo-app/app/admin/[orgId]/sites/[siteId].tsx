@@ -11,7 +11,7 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
 import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Site, Facility, Address } from '@sk/shared';
+import { SocketAction, Site, Facility, Address, reseedDecision } from '@sk/shared';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
@@ -232,6 +232,31 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, facilities = 
     style: { width: '100%', height: 200, borderRadius: 12, overflow: 'hidden', marginBottom: 12 }
   });
 };
+
+/** What the site form edits. */
+interface SiteForm {
+  name: string;
+  isActive: boolean;
+  address: Address;
+}
+
+/**
+ * Equality over the form, and it has to name the address fields rather than compare the object:
+ * the address arrives as a fresh object on every read, and it carries an `id` that the form does
+ * not edit. Kept in step with `hasChanges`, which asks the same question of the same fields.
+ */
+const sameSiteForm = (a: SiteForm, b: SiteForm) =>
+  a.name.trim() === b.name.trim() &&
+  a.isActive === b.isActive &&
+  (a.address?.fullAddress || '') === (b.address?.fullAddress || '') &&
+  (a.address?.addressLine1 || '') === (b.address?.addressLine1 || '') &&
+  (a.address?.addressLine2 || '') === (b.address?.addressLine2 || '') &&
+  (a.address?.city || '') === (b.address?.city || '') &&
+  (a.address?.province || '') === (b.address?.province || '') &&
+  (a.address?.postalCode || '') === (b.address?.postalCode || '') &&
+  (a.address?.country || '') === (b.address?.country || '') &&
+  a.address?.latitude === b.address?.latitude &&
+  a.address?.longitude === b.address?.longitude;
 
 export default function SiteDetailScreen() {
   const router = useRouter();
@@ -474,22 +499,32 @@ export default function SiteDetailScreen() {
           latitude: undefined,
           longitude: undefined,
         } as Address;
-        setSiteForm(prev => {
-          if (editingSite?.id !== site.id || (prev.name === '' && prev.address.fullAddress === '')) {
-            return {
-              name: site.name,
-              isActive: site.isActive !== false,
-              address: initialAddress
-            };
-          }
-          return prev;
-        });
-        setOriginalData({
+        /*
+          `UI-19`. The form and its baseline move together or not at all.
+
+          They used to move separately: `setSiteForm` kept what had been typed, while
+          `setOriginalData` took the incoming values unconditionally. That does not lose the
+          typing, which is what made it hard to see — it corrupts the *comparison*. `hasChanges`
+          then measured an edit in progress against somebody else's values, so a remote change that
+          happened to match what was being typed dropped the save bar over work that was never
+          saved, and Cancel restored to a version the organiser had never seen.
+        */
+        const incoming = {
           name: site.name,
           isActive: site.isActive !== false,
-          address: { ...initialAddress }
+          address: { ...initialAddress },
+        };
+        const decision = reseedDecision({
+          baseline: originalData,
+          drafts: siteForm,
+          incoming,
+          same: sameSiteForm,
         });
-        setAddressSearchQuery(prev => prev === '' ? (site.address?.fullAddress || '') : prev);
+        if (decision === 'adopt') {
+          setSiteForm(incoming);
+          setOriginalData(incoming);
+          setAddressSearchQuery(site.address?.fullAddress || '');
+        }
         setIsProcessing(false);
       } else {
         Alert.alert('Error', 'Site not found');

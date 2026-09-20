@@ -13,7 +13,7 @@ import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
-import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team } from '@sk/shared';
+import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team, reseedDecision } from '@sk/shared';
 import DatePicker from '../../../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../../../services/api';
 import * as ImagePicker from 'expo-image-picker';
@@ -55,6 +55,37 @@ const calculateSeasonStatus = (startDateStr: string, endDateStr: string): 'UPCOM
   }
 };
 
+/** The season settings form — the fields the Save bar above the season covers. */
+interface SeasonSettingsForm {
+  name: string;
+  startDate: string;
+  endDate: string;
+  ptsWin: string;
+  ptsDraw: string;
+  ptsLoss: string;
+  logo: string;
+}
+
+/** A season record, in the shape the settings form holds it. Defaults match the form's own. */
+const seasonSettingsOf = (season: any): SeasonSettingsForm => ({
+  name: season?.name || '',
+  startDate: season?.startDate ? season.startDate.split('T')[0] : '',
+  endDate: season?.endDate ? season.endDate.split('T')[0] : '',
+  ptsWin: String(season?.settings?.pointsPerWin ?? 4),
+  ptsDraw: String(season?.settings?.pointsPerDraw ?? 2),
+  ptsLoss: String(season?.settings?.pointsPerLoss ?? 0),
+  logo: season?.logo || '',
+});
+
+const sameSeasonSettings = (a: SeasonSettingsForm, b: SeasonSettingsForm) =>
+  a.name.trim() === b.name.trim() &&
+  a.startDate === b.startDate &&
+  a.endDate === b.endDate &&
+  a.ptsWin === b.ptsWin &&
+  a.ptsDraw === b.ptsDraw &&
+  a.ptsLoss === b.ptsLoss &&
+  a.logo === b.logo;
+
 export default function SeasonDetails() {
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -94,6 +125,38 @@ export default function SeasonDetails() {
   const [startDateStr, setStartDateStr] = useState('');
   const [endDateStr, setEndDateStr] = useState('');
   const [seasonLogo, setSeasonLogo] = useState('');
+
+  /**
+   * What the settings fields were last seeded from (`UI-19`).
+   *
+   * The Save bar is measured against this rather than against `season`, because `season` is
+   * re-read by `refreshSeasonData` after unrelated actions and can come back carrying somebody
+   * else's edit.
+   */
+  const [settingsBaseline, setSettingsBaseline] = useState<SeasonSettingsForm | null>(null);
+
+  /** The settings fields as they stand. */
+  const currentSeasonSettings = (): SeasonSettingsForm => ({
+    name: seasonName,
+    startDate: startDateStr,
+    endDate: endDateStr,
+    ptsWin,
+    ptsDraw,
+    ptsLoss,
+    logo: seasonLogo,
+  });
+
+  const seedSeasonSettings = (from: SeasonSettingsForm) => {
+    // One batch, so the fields and the baseline they are measured against never disagree.
+    setSeasonName(from.name);
+    setStartDateStr(from.startDate);
+    setEndDateStr(from.endDate);
+    setPtsWin(from.ptsWin);
+    setPtsDraw(from.ptsDraw);
+    setPtsLoss(from.ptsLoss);
+    setSeasonLogo(from.logo);
+    setSettingsBaseline(from);
+  };
 
   const computedStatus = calculateSeasonStatus(startDateStr, endDateStr);
 
@@ -152,13 +215,7 @@ export default function SeasonDetails() {
         if (res) {
           setSeason(res);
           setStandings(res.cachedStandings || []);
-          setPtsWin(String(res.settings?.pointsPerWin ?? 4));
-          setPtsDraw(String(res.settings?.pointsPerDraw ?? 2));
-          setPtsLoss(String(res.settings?.pointsPerLoss ?? 0));
-          setSeasonName(res.name || '');
-          setStartDateStr(res.startDate ? res.startDate.split('T')[0] : '');
-          setEndDateStr(res.endDate ? res.endDate.split('T')[0] : '');
-          setSeasonLogo(res.logo || '');
+          seedSeasonSettings(seasonSettingsOf(res));
         }
       });
 
@@ -213,32 +270,25 @@ export default function SeasonDetails() {
     };
   }, [isConnected, seasonId, orgId]);
 
-  const hasSettingsChanges = season ? (
-    seasonName.trim() !== (season.name || '') ||
-    startDateStr !== (season.startDate ? season.startDate.split('T')[0] : '') ||
-    endDateStr !== (season.endDate ? season.endDate.split('T')[0] : '') ||
-    ptsWin !== String(season.settings?.pointsPerWin ?? 4) ||
-    ptsDraw !== String(season.settings?.pointsPerDraw ?? 2) ||
-    ptsLoss !== String(season.settings?.pointsPerLoss ?? 0) ||
-    seasonLogo !== (season.logo || '')
-  ) : false;
+  /**
+   * Measured against the baseline the fields were seeded from, never against the live `season` —
+   * which `refreshSeasonData` replaces after unrelated actions.
+   */
+  const hasSettingsChanges =
+    !!settingsBaseline && !sameSeasonSettings(currentSeasonSettings(), settingsBaseline);
 
   const safeGoBack = useCallback(() => {
     safeBack(`/admin/${orgId}/leagues/${leagueId}`);
   }, [safeBack, orgId, leagueId]);
 
+  /** Discard goes back to the baseline — what the fields were last seeded from, which is what
+   *  is saved. Restoring from the live `season` could pull in an edit made elsewhere. */
   const handleCancelSettings = useCallback(() => {
-    if (season) {
-      setSeasonName(season.name || '');
-      setStartDateStr(season.startDate ? season.startDate.split('T')[0] : '');
-      setEndDateStr(season.endDate ? season.endDate.split('T')[0] : '');
-      setPtsWin(String(season.settings?.pointsPerWin ?? 4));
-      setPtsDraw(String(season.settings?.pointsPerDraw ?? 2));
-      setPtsLoss(String(season.settings?.pointsPerLoss ?? 0));
-      setSeasonLogo(season.logo || '');
+    if (settingsBaseline) {
+      seedSeasonSettings(settingsBaseline);
       setActionError(null);
     }
-  }, [season]);
+  }, [settingsBaseline, seedSeasonSettings]);
 
   useUnsavedChanges(hasSettingsChanges && !isProcessing, handleCancelSettings);
 
@@ -251,10 +301,23 @@ export default function SeasonDetails() {
       if (Array.isArray(res)) setSeasonGames(res);
     });
     wsService.emit('get_data', { type: 'season', id: seasonId }, (res: any) => {
-      if (res) {
-        setSeason(res);
-        setStandings(res.cachedStandings || []);
-      }
+      if (!res) return;
+      setSeason(res);
+      setStandings(res.cachedStandings || []);
+      /*
+        `UI-19`. This re-read runs after adding a team or generating fixtures, and it can bring back
+        somebody else's edit to the settings above. Left ungated it moved the record the Save bar
+        was measured against while the fields stayed as typed — so a field nobody here touched read
+        as unsaved, and Cancel would have restored to a version this organiser never saw.
+      */
+      const incoming = seasonSettingsOf(res);
+      const decision = reseedDecision({
+        baseline: settingsBaseline,
+        drafts: currentSeasonSettings(),
+        incoming,
+        same: sameSeasonSettings,
+      });
+      if (decision === 'adopt') seedSeasonSettings(incoming);
     });
   };
 
@@ -366,7 +429,11 @@ export default function SeasonDetails() {
         setActionError(result.message);
         return;
       }
-      if (result.data) setSeason(result.data);
+      if (result.data) {
+        setSeason(result.data);
+        // The baseline moves with the save, which is what brings the Save bar down.
+        seedSeasonSettings(seasonSettingsOf(result.data));
+      }
       useUnsavedChangesStore.getState().clear();
     });
   };

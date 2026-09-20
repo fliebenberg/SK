@@ -12,7 +12,7 @@ import { wsService } from '../../../../services/websocket';
 import { requestKeyFor, sendAction } from '../../../../services/actions';
 import { useRequestScope } from '../../../../hooks/useRequestScope';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Team, Sport, Organization, TeamMember, GameSummary, participantLabel } from '@sk/shared';
+import { SocketAction, Team, Sport, Organization, TeamMember, GameSummary, participantLabel, reseedDecision } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
@@ -43,6 +43,22 @@ interface TeamRole {
   name: string;
 }
 
+/** The team details form — the fields its Save bar covers. */
+interface TeamDetailsForm {
+  name: string;
+  shortName: string;
+  sportId: string;
+  ageGroupId: string | null;
+  isActive: boolean;
+}
+
+const sameTeamDetails = (a: TeamDetailsForm, b: TeamDetailsForm) =>
+  a.name.trim() === b.name.trim() &&
+  a.shortName.trim() === b.shortName.trim() &&
+  a.sportId === b.sportId &&
+  a.ageGroupId === b.ageGroupId &&
+  a.isActive === b.isActive;
+
 export default function TeamDetailsScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -67,14 +83,25 @@ export default function TeamDetailsScreen() {
   const [availableRoles, setAvailableRoles] = useState<TeamRole[]>([]);
 
   // Form Details State
-  const [detailsForm, setDetailsForm] = useState({
+  const [detailsForm, setDetailsForm] = useState<TeamDetailsForm>({
     name: '',
     shortName: '',
     sportId: '',
-    ageGroupId: null as string | null,
+    ageGroupId: null,
     isActive: true
   });
-  const [originalDetails, setOriginalDetails] = useState<any>(null);
+  const [originalDetails, setOriginalDetails] = useState<TeamDetailsForm | null>(null);
+
+  /*
+    Read by the room subscription below, which is registered once and so closes over the state as
+    it was on that render. Refs are what let it ask "is anything typed *now*" rather than
+    "was anything typed when I was set up" — the difference between protecting an edit and
+    protecting the absence of one.
+  */
+  const detailsFormRef = React.useRef(detailsForm);
+  const originalDetailsRef = React.useRef(originalDetails);
+  detailsFormRef.current = detailsForm;
+  originalDetailsRef.current = originalDetails;
 
   // Add/Edit Player Modal State
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
@@ -223,20 +250,29 @@ export default function TeamDetailsScreen() {
       if (event.type === 'TEAM_UPDATED' && event.data?.id === teamId) {
         const updated = event.data;
         setTeam(updated);
-        setDetailsForm({
+        /*
+          `UI-19`. This used to re-seed the form and its baseline on every `TEAM_UPDATED`, so a
+          colleague renaming the team discarded a half-typed name here without a word. It never
+          flashed the Save bar — the two moved together — which is what kept it hidden.
+        */
+        const incoming: TeamDetailsForm = {
           name: updated.name,
           shortName: updated.shortName || '',
           sportId: updated.sportId,
           ageGroupId: updated.ageGroupId || null,
-          isActive: updated.isActive !== false
-        });
-        setOriginalDetails({
-          name: updated.name,
-          shortName: updated.shortName || '',
-          sportId: updated.sportId,
-          ageGroupId: updated.ageGroupId || null,
-          isActive: updated.isActive !== false
-        });
+          isActive: updated.isActive !== false,
+        };
+        if (
+          reseedDecision({
+            baseline: originalDetailsRef.current,
+            drafts: detailsFormRef.current,
+            incoming,
+            same: sameTeamDetails,
+          }) === 'adopt'
+        ) {
+          setDetailsForm(incoming);
+          setOriginalDetails(incoming);
+        }
       }
 
       // Fixture updates carry their own data, so merge rather than re-reading
