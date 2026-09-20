@@ -11,7 +11,8 @@
     "db:reset": "ts-node src/scripts/setup/reset-db.ts && npm run db:init",
     "db:seed": "ts-node src/scripts/setup/seed-db.ts",
     "db:setup": "npm run db:reset && npm run db:seed",
-    "verify:rooms": "ts-node src/scripts/verify-rooms.ts"
+    "verify:rooms": "ts-node src/scripts/verify-rooms.ts",
+    "check:migrations": "node scripts/check-migrations.js"
   },
   "dependencies": {
     "@sk/shared": "file:../shared",

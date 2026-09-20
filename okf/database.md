@@ -8,7 +8,7 @@ tags:
   - PostgreSQL
   - migrations
   - persistence
-timestamp: 2026-09-19T12:00:00Z
+timestamp: 2026-09-20T12:00:00Z
 ---
 
 # Database & Data Persistence
@@ -34,11 +34,20 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260705_add_league_and_season_logos.ts`: Adds branding logo support to leagues/seasons.
     - `20260711_rename_invite_cooldown_hours.ts`: Sets up default invite cooldown periods (2 weeks) and configures referral settings.
     - `20260808_create_system_admin_org.ts`: Creates the System Administration Organization (`org-system-admins`) and provisions admin org profiles and memberships.
+    - `20260810_migrate_sport_ids.ts`: **Data only, no schema change.** Canonicalises sport ids from the legacy `sport-` prefix to clean slugs (`sport-rugby` → `rugby`), duplicating the `sports` rows first so the foreign keys hold, repointing `teams`, `games`, `leagues`, `facilities` and the three sport join tables, then deleting the prefixed originals.
+    - `20260810_update_rugby_event_templates.ts`: **Data only.** Rewrites rugby's `sports.event_templates` from `RUGBY_SEED_SPEC`. The seed is the source of truth for the spec; a full rewrite is what keeps the database copy from drifting field by field, which is why three migrations do the same thing on different dates and their order does not matter.
+    - `20260815_rugby_trigger_team.ts`: **Data only.** Adds `triggerTeam: 'same' | 'opponent'` to the rugby templates, so a spawned follow-up event knows whose it is. The rule previously lived in expo-app as a hardcoded pair of template ids, where neither the server's edit cascade nor the event feed could see it. Rewrites `event_templates` from the seed.
+    - `20260815_rugby_trigger_event_data.ts`: **Data only.** Moves the scrum outcomes' `eventData` to `triggerEventData` — it was being merged onto the event being *edited* rather than the one being spawned, so setting a free kick's outcome to Scrum overwrote the free kick's own infringement reason. Rewrites `event_templates` from the seed.
+    - `20260820_add_sport_event_sections.ts`: Adds `sports.event_sections` (JSONB) and backfills each sport's list from the distinct `section` values its templates name, in first-appearance order, with the headings `DynamicScoringPanel` used to hardcode. Never overwrites a list already written by the sport editor.
+    - `20260820_rename_sport_periods_setting.ts`: **Data only.** Renames `sports.default_settings.periods` to `scheduledPeriods`, matching the game- and event-level overrides that shadow it — under the old name an override written as `scheduledPeriods` was silently ignored.
     - `20260814_derive_org_counts.ts`: Drops the denormalized `team_count` / `site_count` / `member_count` columns (now computed live) and `org_memberships.expiry_processed`; adds org-scoped foreign key indexes.
     - `20260901_tournaments.ts`: The tournaments schema (Phase 1). Nine new tables, four columns on `game_participants`, two on `events`; the `SportsDay` rewrite; `events.type` made `NOT NULL` with a `CHECK`; the `seasons.settings` default moved to 3/1/0; and `game_participants`' three missing foreign keys, which needed 8 orphaned rows deleted first. See below.
     - `20260902_game_stage_id.ts`: Adds `games.stage_id` and its index (Phase 3). One column, and the one place this build deviated from the settled data model — see below.
     - `20260903_backfill_stages.ts`: **Data only, no schema change** (Phase 6), so nothing to mirror into `init-db.ts` — a database built from scratch has no rows to fix. Gives the stages their format implies to divisions created before Phase 5, and attaches orphaned tournament fixtures to their division's first stage where the answer is unambiguous (an event with exactly one division). Fixtures on multi-division events are **reported and left alone**: nothing in the row says which division they belonged to, and guessing would put a fixture in a table it never counted toward. Closes `PEOPLE-3` for existing rows, the way `FIX-12` closes it for new ones.
+    - `20260905_referral_resend_and_nominators.ts`: Adds `org_claim_referrals.last_sent_at`, so a re-nomination resends only once the cooldown has passed without losing the original `created_at` (NULL on older rows reads as `created_at`); and `org_claim_referral_nominators`, because one referral row can only credit one nominator while a second person entering the same address must still see "you have referred this org". Backfilled from `referred_by_user_id`. See [docs/nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §2.
     - `20260919_sport_age_groups.ts`: Age groups become a per-sport list. Creates `sport_age_groups` (official entries curated by an admin, custom ones added by users), seeds every sport with the starter list, and replaces the free-text `age_group` on `teams`, `tournament_divisions` and `leagues` with `age_group_id` under a composite foreign key on `(sport_id, age_group_id)` — so an age group can only be held by something of its own sport. Existing values are carried over: a starter name match takes the official entry, anything else becomes a custom one. Managed by [AgeGroupManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/AgeGroupManager.ts); see [database_structure.md §2d](file:///c:/Fred/Coding/SK/docs/database_structure.md).
+    - `20260920_event_sport_organizers.ts`: The third organiser scope — one sport of one tournament (D33, widened 2026-09-20). Creates `event_sport_organizers`, keyed on **(event, sport, profile)** with `ON DELETE CASCADE` on both halves, plus the `org_profile_id` index its two sibling grant tables carry. A rule rather than a list: it covers a division of that sport added tomorrow, and stops covering one moved to another sport, without a row being touched.
+    - `20260920_org_short_code.ts`: Every organisation gets a short code. Backfills `organizations.short_name` from the name where it was blank, then makes the column `NOT NULL` with a non-blank `CHECK`. Codes are **not** unique by design — see "Organisation short codes" below.
 
 ## The tournaments schema
 
@@ -111,6 +120,12 @@ Without that a clean install believed no migration had ever run and replayed all
 only for as long as every migration happens to be written defensively, and it made the two paths
 impossible to compare. **A new table therefore goes in both files**, `IF NOT EXISTS` in each.
 
+**`npm run check:migrations`** (from `server/`) catches the two omissions that go unnoticed
+longest: a migration missing from the catalogue above, and a migration that creates or alters a
+table `init-db.ts` never mentions. A migration with nothing to mirror exempts itself by saying
+"Data only, no schema change" in its header. It is a cheap static check, not a substitute for the
+diff below — it only asks whether the table name *appears* in `init-db.ts`.
+
 **Diff the two paths rather than trusting the rule.** Restore a dump into a scratch database and
 migrate it, build another with `db:init`, then `pg_dump --schema-only --no-owner --no-privileges`
 both and compare. Two things this catches that reading the diff of your own change never will:
@@ -126,6 +141,31 @@ both and compare. Two things this catches that reading the diff of your own chan
 `ADD CONSTRAINT` is the one statement with no `IF NOT EXISTS`, so guard each on `pg_constraint` or a
 re-run fails. Guard on the *column* rather than the constraint name when a database might already
 have one under Postgres' auto-generated name — a name check will happily add a duplicate beside it.
+
+## Organisation short codes
+
+`organizations.short_name` is **`NOT NULL` with a `CHECK (btrim(short_name) <> '')`** since
+2026-09-20 ([20260920_org_short_code.ts](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/20260920_org_short_code.ts)).
+`NOT NULL` alone would accept `''`, which is the state the change exists to remove, so the two
+always travel together.
+
+It became required when the tournament entrants screen made it structural — a column heading, a
+tab, a team flag on a phone are all places a full name does not fit. A screen that falls back to
+the name for the organisations that never set a code is a screen with broken columns.
+
+**Codes are deliberately not unique**, and no index enforces otherwise. Two schools really are both
+`NHS`; a uniqueness constraint would start refusing the obvious code and push people into `NHS2`.
+Where a code could be ambiguous the UI shows the full name beside it. The migration's numeric
+suffixing is cosmetic — it only stops the *backfill* manufacturing collisions nobody chose.
+
+Nothing asks a user for a code they have not been offered.
+[`deriveOrgShortCode`](file:///c:/Fred/Coding/SK/shared/src/utils/orgShortCode.ts) turns a name into
+initials (dropping connectives, so "University of Cape Town" is `UCT`), and one function serves
+three jobs: it backfilled the existing rows, it pre-fills the field on all three create paths
+through [`useOrgShortCode`](file:///c:/Fred/Coding/SK/expo-app/hooks/useOrgShortCode.ts), and it is
+the server's fallback in `OrganizationManager.addOrganization` for a caller that sends none. An
+**update** that names `shortName` may not blank it and is refused rather than re-derived: the
+organisation already has a code people have seen.
 
 ## Derived vs Stored Values
 
