@@ -470,7 +470,7 @@ may hold no membership anywhere and so act from no workspace at all.
 | `RESOLVE_PARTICIPANT` | `{ gameParticipantId, orgId, teamId? \| orgProfileId? \| entrantId? }` | no | `GAME_SUMMARY_UPDATED`, standings |
 | `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no | `DIVISION_ADJUSTMENTS_SYNC`, standings |
 | `SET_EVENT_FACILITIES` / `SET_DIVISION_FACILITIES` | `{ …Id, orgId, facilityIds }` | no | `EVENT_FACILITIES_SYNC` / `DIVISION_FACILITIES_SYNC` |
-| `APPOINT_ORGANIZER` / `WITHDRAW_ORGANIZER` | `{ eventId \| divisionId, orgProfileId, orgId? }` | no | `EVENT_CAPABILITIES_UPDATED` to `user:{id}` — **not** to a division room |
+| `APPOINT_ORGANIZER` / `WITHDRAW_ORGANIZER` | `{ eventId \| (eventId + sportId) \| divisionId, orgProfileId, orgId? }` | no | `EVENT_CAPABILITIES_UPDATED` to `user:{id}` — **not** to a division room |
 
 **Which of these a division convenor may send** (Phase 4, widened from D31 on 2026-09-03): every
 action that names their division — entrants, stages, fixtures, scheduling, results and adjustments —
@@ -483,6 +483,24 @@ co-convenors, and may withdraw only the ones they appointed — checked in the h
 A division's organiser list carries a per-viewer `canWithdraw` in replies to its caller. An attempt
 on another division resolves to a division they do not hold and is refused **on the wire**, not by
 a hidden button.
+
+**Which a sport's organiser may send** (added 2026-09-20): every action a convenor of any division
+of that sport could send, resolved through the division's *current* sport rather than a stored list
+— plus `ADD_DIVISION` and `DELETE_DIVISION` for their own sport, and `UPDATE_DIVISION` on a division
+of it. Three refusals define the edge, and all three are decisions about the tournament rather than
+about the sport: an `UPDATE_DIVISION` that would **move a division to another sport** (refused in the
+gate — it would walk a division out of their reach or somebody else's into it), a `DELETE_DIVISION`
+of the sport's **last** division (refused in the handler: it would take the sport out of the
+tournament, U52), and any event-scope appointment. Appointing is allowed within their sport, at both
+scopes below them — co-organisers of the sport and convenors of its divisions — withdrawing only the
+people they appointed, checked in the handler exactly as a convenor's is.
+
+**How the three scopes are told apart.** A sport-scope payload carries `eventId` *and* `sportId`, so
+`eventId` on its own stopped meaning event scope when the sport scope was added. Every reader —
+the gate, the manager, both handlers, the picker — asks `organizerScopeOf`
+(`shared/src/utils/organizerScope.ts`), which takes the most specific field present: a division id
+wins, then a sport with its event, then an event alone. A payload naming none is refused rather than
+defaulted.
 
 Three behaviours are worth stating because they are refusals rather than features:
 
@@ -513,8 +531,15 @@ names people, so it is read through `get_data` at the organiser tier instead:
 | --- | --- |
 | `{ type: 'event_capabilities', eventId }` | any signed-in user — it answers about **the caller** and there is no way to ask about anybody else |
 | `{ type: 'event_organizers', eventId }` | whoever may organise that event |
+| `{ type: 'sport_organizers', eventId, sportId }` | whoever may organise that sport of that tournament |
 | `{ type: 'division_organizers', divisionId }` | whoever may organise that division |
-| `{ type: 'organizer_candidates', eventId, query, global? }` | whoever may organise that event |
+| `{ type: 'organizer_candidates', eventId, query, global?, sportId?, divisionId? }` | whoever may organise that event, sport or division |
+
+`sport_organizers` is asked **per sport rather than per event**, so the read is gated by exactly the
+grant that would let the caller change it: a netball organiser reads their own sport's list without
+being handed the people running every other sport, and there is no wider read for them to be refused
+by. A tournament has a handful of sports and the reads run together. Its rows carry the same
+per-viewer `canWithdraw` a division's do.
 
 `organizer_candidates` is the picker's search, in tiers: by default the host and participating
 organisations, and `global: true` is the explicit control that widens it to everybody. **Both tiers

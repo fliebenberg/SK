@@ -21,7 +21,7 @@ export const EVENT_ROLES: EventRole[] = ['Hosting', 'Convening', 'Attending'];
 /** What each chip means, for the filter row's accessibility label and any explanatory copy. */
 export const EVENT_ROLE_DESCRIPTIONS: Record<EventRole, string> = {
   Hosting: 'You run this tournament',
-  Convening: 'You run a division of it',
+  Convening: 'You run a sport or a division of it',
   Attending: 'Your organisation is taking part',
 };
 
@@ -38,8 +38,9 @@ export interface RoleGame {
  *
  * **Hosting and attending are derived here; convening is not and cannot be.** UI doc §4 is explicit
  * about the split: the client already holds the user's memberships, the event's own org and its
- * participating orgs, so it can answer the first two without asking. Division-organiser assignments
- * appear on no payload the client holds, so `grants` carries them — one read for a whole list.
+ * participating orgs, so it can answer the first two without asking. Sport- and division-organiser
+ * assignments appear on no payload the client holds, so `grants` carries them — one read for a
+ * whole list.
  *
  * An app admin is not "hosting" everything. These chips describe a relationship, not a permission;
  * what an admin may *do* is answered by `event_capabilities`, which is a different question asked
@@ -71,7 +72,13 @@ export function deriveEventRoles(params: {
     roles.push('Hosting');
   }
 
-  if (grants.divisions.some(d => d.eventId === event.id)) {
+  // One chip for both narrow scopes (2026-09-20). They differ in how much they cover, not in what
+  // they say about the viewer — "you run part of this" — and a fourth chip splitting the netball
+  // organiser from the netball U14 convenor would be a distinction the filter row cannot use.
+  const convenes =
+    grants.divisions.some(d => d.eventId === event.id) ||
+    (grants.sports || []).some(s => s.eventId === event.id);
+  if (convenes) {
     roles.push('Convening');
   }
 

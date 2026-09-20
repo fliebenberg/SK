@@ -142,7 +142,7 @@ Not re-opened here. Listed because each one dictates something about a screen.
 | **D11** | Stages are visible to the organiser, not just present in the schema. |
 | **D12** | The interface ships in phases. Which phases is §14. |
 | **D16** | Venue and facility are named together wherever more than one venue is in play. |
-| **D22 / D31 / D33** | A tournament and a division are each surfaces that can be handed to one person. |
+| **D22 / D31 / D33** | A tournament, a sport and a division are each surfaces that can be handed to one person. |
 | **D29** | An override must be visible *as* an override, not as quietly different data. |
 | **D30** | Standings arrive from the server. The client stops calling `calculateStandings`. |
 
@@ -333,6 +333,37 @@ whoever administers the app account.
 > Note this leaves the *division* convenor as the genuinely narrow role (D31, fixtures and results
 > only). Event-level and division-level are the same assignment mechanism (D33) with very different
 > scopes, which is the intended shape rather than an inconsistency.
+
+> **Decided 2026-09-20 — a third scope: one sport of the tournament.** "Who runs the netball" is a
+> real job at a schools tournament and had no home: the two existing scopes made it either the whole
+> tournament or one age group of it, and appointing somebody to each netball division in turn was
+> correct only for as long as the draw stood still.
+>
+> So the sport scope is stored as a **rule** — a row on `(event, sport)` — and not as a list of
+> divisions. It covers a netball division added tomorrow, and stops covering one moved to hockey,
+> with no row touched either time. That property is the reason it exists; a fan-out into
+> `division_organizers` would have been the same feature with a staleness bug built in.
+>
+> **What it carries**: everything a convenor of every division of that sport holds, plus the two
+> things a convenor deliberately does not — the division's own record, and **adding and deleting
+> divisions** of their sport. They appoint within their sport (co-organisers of it, convenors of its
+> divisions) and withdraw only the people they appointed, exactly as a convenor does.
+>
+> **Where it stops is the useful part, and all three are decisions about the *tournament* rather
+> than about the sport**: they cannot move a division to another sport (it would walk a division out
+> of their reach or somebody else's into it), cannot delete their sport's **last** division (that
+> would take the sport out of the tournament — U52), and cannot make an event-scope appointment. The
+> first is refused in the gate, the second in the handler, because "is this the last one" is a fact
+> about the rest of the tournament rather than about the payload.
+>
+> **Called "organiser", not "convenor"**, so the two narrow scopes stay distinguishable in speech:
+> "the netball organiser" runs the sport, "the netball U14 convenor" runs one division of it.
+>
+> Appointed on **Sports & Divisions**, in the group that already lists each sport's divisions —
+> folded behind a summary line, because that screen is a list of sports and a picker under each one
+> would bury what the screen is for. It is also the one screen a sport's organiser opens for their
+> own job, so it admits them: they see their sports and the divisions under them, and not the chips
+> that decide which sports the tournament plays, nor the setup-flow footer.
 
 ---
 

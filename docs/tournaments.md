@@ -92,7 +92,7 @@ Recorded in place in the section each belongs to.
 | **D30** | Standings are **persisted**, recalculated when a result is finalised. |
 | **D31** | A division convenor **runs their whole division** — entrants, stages, fixtures, results. Widened 2026-09-03. |
 | **D32** | The unread sport flags are logged as `SPORT-10` rather than fixed here. |
-| **D33** | An organiser is a **named person, not an org role** — assignable at event or division scope. |
+| **D33** | An organiser is a **named person, not an org role** — assignable at event, sport or division scope. Sport scope added 2026-09-20. |
 | **D34** | Facilities declare which other facilities they **physically conflict with**; conflicting facilities cannot hold fixtures in the same slot. |
 
 ---

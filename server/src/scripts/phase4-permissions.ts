@@ -25,6 +25,8 @@ import { userManager } from '../managers/UserManager';
  *  - **an external specialist**, a profile in the hosting org with *no membership at all*, appointed
  *    to convene one division — the case the whole profile-keyed design exists for;
  *  - **an unclaimed profile**, appointed before it has a user account, which then claims one;
+ *  - **a sport's organiser** (2026-09-20), appointed over one sport of the tournament, whose reach
+ *    is every division of that sport and stops at the sport next door;
  *  - **a stranger**, who is refused throughout and proves the checks are not vacuous.
  *
  * Kept rather than thrown away, for the reason Phase 3's audit gives: `server/` has no test
@@ -66,6 +68,7 @@ const created = {
   eventId: '',
   otherEventId: '',
   divisionA: '',
+  divisionA2: '',
   divisionB: '',
   stageA: '',
   stageB: '',
@@ -148,8 +151,17 @@ async function main() {
     withUser: false,
     roleId: null,
   });
+  // Runs one sport of the tournament (2026-09-20). A member of nothing, like the specialist, so
+  // every allowance below comes from the sport grant alone.
+  const sportRunner = await makePerson('sportrunner', 'P4 Netball Organiser', APP_TEST_ORG_ID, {
+    roleId: null,
+  });
 
-  const sportId = (await query(`SELECT id FROM sports ORDER BY id LIMIT 1`)).rows[0].id;
+  const sportRows = (await query(`SELECT id FROM sports ORDER BY id LIMIT 2`)).rows;
+  const sportId = sportRows[0].id;
+  // The second sport is what makes a sport grant falsifiable: with one sport, "runs the netball"
+  // and "runs the tournament's divisions" are the same set and every assertion below is vacuous.
+  const otherSportId = sportRows[1]?.id || sportId;
   created.teamId = `team-p4-${stamp}`;
   await query(
     `INSERT INTO teams (id, name, sport_id, org_id, is_active) VALUES ($1, 'P4 Team', $2, $3, true)`,
@@ -162,7 +174,7 @@ async function main() {
     format: 'Festival',
     startDate: new Date().toISOString(),
     orgId: APP_TEST_ORG_ID,
-    sportIds: [sportId],
+    sportIds: [sportId, otherSportId],
     settings: {},
     status: 'Scheduled',
   } as any);
@@ -183,7 +195,21 @@ async function main() {
   created.otherEventId = otherEvent.id;
 
   const divisionA = await tournamentManager.addDivision({ eventId: event.id, name: 'Netball', sportId });
-  const divisionB = await tournamentManager.addDivision({ eventId: event.id, name: 'Hockey', sportId });
+  // Division B plays the *other* sport, so "a convenor may not touch the division next door" and
+  // "a sport's organiser may not touch the sport next door" are both tested against it.
+  const divisionB = await tournamentManager.addDivision({
+    eventId: event.id,
+    name: 'Hockey',
+    sportId: otherSportId,
+  });
+  // A second division of sport A, so the sport grant covers *more than one* division and is
+  // visibly a rule rather than a grant over the division that happened to exist.
+  const divisionA2 = await tournamentManager.addDivision({
+    eventId: event.id,
+    name: 'Netball U16',
+    sportId,
+  });
+  created.divisionA2 = divisionA2.id;
   created.divisionA = divisionA.id;
   created.divisionB = divisionB.id;
   const stageA = await tournamentManager.addStage({ divisionId: divisionA.id, name: 'Main', format: 'Festival' });
@@ -308,6 +334,104 @@ async function main() {
   for (const [type, payload] of [...convenorMay, ...convenorMayNot]) {
     expect(await gateAllows(stranger.userId, type, payload), false, `a stranger is refused ${type}`);
   }
+
+  // ============================================================================================
+  // 3b. A sport's organiser: every division of their sport, and the shape of that sport (2026-09-20).
+  //
+  // The claim being tested is that a sport grant is a **rule, not a list**. `divisionA2` is created
+  // above and never named in the appointment, so every allowance over it comes from the sport it
+  // plays. `divisionB` plays the other sport and is the boundary.
+  // ============================================================================================
+  await tournamentManager.appointOrganizer({
+    eventId: event.id,
+    sportId,
+    orgProfileId: sportRunner.profileId,
+    grantedByOrgProfileId: admin.profileId,
+  });
+
+  const sportOrganiserMay: [SocketAction, any, string][] = [
+    [SocketAction.SET_DIVISION_ENTRANTS, { divisionId: divisionA.id, entrants: [] }, "set a division of their sport's entrants"],
+    [SocketAction.SET_DIVISION_ENTRANTS, { divisionId: divisionA2.id, entrants: [] }, 'reach a division they were never named on'],
+    [SocketAction.ADD_STAGE, { divisionId: divisionA2.id, name: 'Knockout', format: 'Knockout' }, 'add a stage in their sport'],
+    [SocketAction.GENERATE_STAGE_FIXTURES, { stageId: stageA.id, mode: 'create' }, 'generate fixtures in their sport'],
+    [SocketAction.SET_DIVISION_FACILITIES, { divisionId: divisionA.id, facilityIds: [] }, 'narrow a division of their sport'],
+    // The two powers a division convenor does not have.
+    [SocketAction.ADD_DIVISION, { eventId: event.id, sportId, name: 'Netball U18' }, 'add a division to their sport'],
+    [SocketAction.DELETE_DIVISION, { id: divisionA2.id }, 'delete a division of their sport'],
+    [SocketAction.UPDATE_DIVISION, { id: divisionA.id, data: { weighting: 5 } }, "change a division of their sport's weighting"],
+    // Appointing within their sport, at both scopes below them.
+    [SocketAction.APPOINT_ORGANIZER, { eventId: event.id, sportId, orgProfileId: stranger.profileId }, 'appoint a co-organiser of their sport'],
+    [SocketAction.APPOINT_ORGANIZER, { divisionId: divisionA.id, orgProfileId: stranger.profileId }, "appoint a convenor to their sport's division"],
+    [SocketAction.WITHDRAW_ORGANIZER, { eventId: event.id, sportId, orgProfileId: stranger.profileId }, 'reach the withdrawal of a co-organiser'],
+  ];
+  for (const [type, payload, what] of sportOrganiserMay) {
+    expect(await gateAllows(sportRunner.userId, type, payload), true, `a sport's organiser may ${what}`);
+  }
+
+  const sportOrganiserMayNot: [SocketAction, any, string][] = [
+    [SocketAction.SET_DIVISION_ENTRANTS, { divisionId: divisionB.id, entrants: [] }, "set another sport's entrants"],
+    [SocketAction.ADD_STAGE, { divisionId: divisionB.id, name: 'X', format: 'Festival' }, "add a stage to another sport's division"],
+    [SocketAction.GENERATE_STAGE_FIXTURES, { stageId: stageB.id, mode: 'create' }, "generate another sport's fixtures"],
+    [SocketAction.DELETE_DIVISION, { id: divisionB.id }, "delete another sport's division"],
+    [SocketAction.ADD_DIVISION, { eventId: event.id, sportId: otherSportId, name: 'Hockey B' }, 'add a division to another sport'],
+    // Moving a division between sports is the tournament's decision: it would walk a division out
+    // of their reach, or one of somebody else's into it.
+    [SocketAction.UPDATE_DIVISION, { id: divisionA.id, data: { sportId: otherSportId } }, 'move their division to another sport'],
+    [SocketAction.SET_EVENT_FACILITIES, { eventId: event.id, facilityIds: [] }, "set the event's facilities"],
+    // The "never reach up" rule, at the scope above them.
+    [SocketAction.APPOINT_ORGANIZER, { eventId: event.id, orgProfileId: stranger.profileId }, 'appoint an event organiser'],
+    [SocketAction.APPOINT_ORGANIZER, { eventId: event.id, sportId: otherSportId, orgProfileId: stranger.profileId }, "appoint to another sport"],
+    [SocketAction.APPOINT_ORGANIZER, { divisionId: divisionB.id, orgProfileId: stranger.profileId }, "appoint into another sport's division"],
+  ];
+  for (const [type, payload, what] of sportOrganiserMayNot) {
+    expect(await gateAllows(sportRunner.userId, type, payload), false, `a sport's organiser may NOT ${what}`);
+  }
+
+  // The grant reaches exactly as far as the sport does, on the read path too.
+  expect(
+    await accessManager.canOrganizeDivision(sportRunner.userId, divisionA2.id),
+    true,
+    "a sport's organiser organises a division of their sport they were never named on"
+  );
+  expect(
+    await accessManager.canOrganizeDivision(sportRunner.userId, divisionB.id),
+    false,
+    "a sport's organiser does NOT organise another sport's division"
+  );
+  expect(
+    await canJoinRoom(sportRunner.userId, `division:${divisionA2.id}`),
+    true,
+    "a sport's organiser may join the room of a division of their sport"
+  );
+  expect(
+    (await accessManager.getEventCapabilities(sportRunner.userId, event.id)).canEditEvent,
+    false,
+    "a sport's organiser does NOT get canEditEvent"
+  );
+  expect(
+    (await accessManager.getEventCapabilities(sportRunner.userId, event.id)).convenesSportIds.join() === sportId,
+    true,
+    'their capabilities name the one sport they run'
+  );
+  // The grant does not reach the same sport at a different tournament, which is the whole reason
+  // the key is (event, sport) and not sport.
+  expect(
+    await accessManager.hasSportGrant(sportRunner.userId, otherEvent.id, sportId),
+    false,
+    'the grant does NOT reach the same sport at another tournament'
+  );
+
+  // Withdrawal closes it, including over the division it was never named on.
+  await tournamentManager.withdrawOrganizer({
+    eventId: event.id,
+    sportId,
+    orgProfileId: sportRunner.profileId,
+  });
+  expect(
+    await accessManager.canOrganizeDivision(sportRunner.userId, divisionA2.id),
+    false,
+    "a withdrawn sport organiser holds nothing"
+  );
 
   // ============================================================================================
   // 4. The read path. A convenor with no membership must still see the division they run.

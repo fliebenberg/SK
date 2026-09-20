@@ -70,7 +70,7 @@ export function useEventCapabilities(eventId?: string | null) {
   return { capabilities, isLoading };
 }
 
-const EMPTY_GRANTS: EventGrants = { eventIds: [], divisions: [] };
+const EMPTY_GRANTS: EventGrants = { eventIds: [], sports: [], divisions: [] };
 
 /**
  * The same question asked across a *list* of events, in one read.

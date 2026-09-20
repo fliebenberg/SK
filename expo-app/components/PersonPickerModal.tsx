@@ -66,6 +66,11 @@ export interface PersonPickerModalProps {
   /** Offered only when the event has organisations beyond the host. */
   hasParticipatingOrgs?: boolean;
   /**
+   * Set when appointing an organiser of one sport. Sent with the searches for the same reason
+   * `divisionId` is: the grant that authorizes the appointment has to authorize the browsing.
+   */
+  sportId?: string;
+  /**
    * Set when appointing a division's convenor. Sent with the searches so a convenor — who may
    * appoint co-convenors but holds no event-wide rights — is authorized on their division.
    */
@@ -83,6 +88,7 @@ export function PersonPickerModal({
   onSelect,
   title = 'Add an organiser',
   hasParticipatingOrgs = false,
+  sportId,
   divisionId,
 }: PersonPickerModalProps) {
   const isDark = useActiveTheme() === 'dark';
@@ -145,6 +151,7 @@ export function PersonPickerModal({
         {
           type: 'organizer_candidates',
           eventId,
+          ...(sportId ? { sportId } : {}),
           ...(divisionId ? { divisionId } : {}),
           query: term.trim(),
           global: scope === 'global',
@@ -156,7 +163,7 @@ export function PersonPickerModal({
       );
     }, 300);
     return () => clearTimeout(handle);
-  }, [visible, scope, term, eventId, divisionId]);
+  }, [visible, scope, term, eventId, sportId, divisionId]);
 
   /* The org scope filters what is already loaded; the others show what came back. */
   const people = useMemo(() => {

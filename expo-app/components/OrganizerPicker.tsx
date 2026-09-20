@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SocketAction, TournamentOrganizer } from '@sk/shared';
+import {
+  SocketAction,
+  TournamentOrganizer,
+  organizerScopeFields,
+  organizerScopeOf,
+} from '@sk/shared';
 import { useActiveTheme } from '../store/settingsStore';
 import { COLORS, getThemeColor } from '../constants/Colors';
 import { FieldLabel } from './FieldLabel';
@@ -9,11 +14,13 @@ import { PersonPickerModal } from './PersonPickerModal';
 import { sendAction } from '../services/actions';
 
 /**
- * Appointing an organiser, at either scope (D33).
+ * Appointing an organiser, at any of the three scopes (D33).
  *
- * The same control appoints an organiser of the whole tournament and a convenor of one division —
- * they are one mechanism at two scopes, so they are one component; `divisionId` is the only
- * difference between them, and it changes what is written rather than how it looks.
+ * The same control appoints an organiser of the whole tournament, an organiser of one of its sports
+ * and a convenor of one division — they are one mechanism at three scopes, so they are one
+ * component; which scope is the only difference between them, and it changes what is written rather
+ * than how it looks. `organizerScopeFields` turns the props into that payload, so the client and
+ * the server read the same fields the same way.
  *
  * **Three tiers, in this order** (implementation plan §0.1), because who you are looking for gets
  * less likely at each step:
@@ -36,7 +43,9 @@ import { sendAction } from '../services/actions';
 export interface OrganizerPickerProps {
   /** The tournament. Always required — it scopes the search even for a division appointment. */
   eventId: string;
-  /** Set to appoint a convenor of one division; omit to appoint an organiser of the event. */
+  /** Set to appoint an organiser of one sport of this tournament (2026-09-20). */
+  sportId?: string;
+  /** Set to appoint a convenor of one division; omit both to appoint an organiser of the event. */
   divisionId?: string;
   /** Where a newly created person's profile lands: the organisation hosting the tournament. */
   hostOrgId: string;
@@ -68,6 +77,7 @@ export interface OrganizerPickerProps {
 
 export function OrganizerPicker({
   eventId,
+  sportId,
   divisionId,
   hostOrgId,
   actingOrgId,
@@ -87,7 +97,13 @@ export function OrganizerPicker({
   const [busyProfileId, setBusyProfileId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const scope = divisionId ? { divisionId } : { eventId };
+  // The scope is read the same way it is read on the server, rather than by testing the props
+  // here: a sport appointment carries the event id too, so "has an eventId" is not the question.
+  const scopeFields = organizerScopeFields(
+    organizerScopeOf({ eventId, sportId, divisionId }) || { kind: 'event', eventId }
+  );
+  /** Everything narrower than the event appoints under a per-row withdrawal rule. */
+  const isNarrowScope = !!sportId || !!divisionId;
 
 
   const appoint = useCallback(
@@ -97,7 +113,7 @@ export function OrganizerPicker({
       // The refusal is shown inline, under the list it concerns, rather than toasted.
       sendAction(
         SocketAction.APPOINT_ORGANIZER,
-        { ...scope, orgProfileId, ...(actingOrgId ? { orgId: actingOrgId } : {}) },
+        { ...scopeFields, orgProfileId, ...(actingOrgId ? { orgId: actingOrgId } : {}) },
         { suppressToast: true }
       ).then(result => {
         setBusyProfileId(null);
@@ -110,7 +126,7 @@ export function OrganizerPicker({
         setIsPicking(false);
       });
     },
-    [actingOrgId, divisionId, eventId, onChange]
+    [actingOrgId, divisionId, eventId, onChange, sportId]
   );
 
   const withdraw = useCallback(
@@ -119,7 +135,7 @@ export function OrganizerPicker({
       setError(null);
       sendAction(
         SocketAction.WITHDRAW_ORGANIZER,
-        { ...scope, orgProfileId, ...(actingOrgId ? { orgId: actingOrgId } : {}) },
+        { ...scopeFields, orgProfileId, ...(actingOrgId ? { orgId: actingOrgId } : {}) },
         { suppressToast: true }
       ).then(result => {
         setBusyProfileId(null);
@@ -130,7 +146,7 @@ export function OrganizerPicker({
         onChange(result.data.organizers);
       });
     },
-    [actingOrgId, divisionId, eventId, onChange]
+    [actingOrgId, divisionId, eventId, onChange, sportId]
   );
 
 
@@ -166,17 +182,18 @@ export function OrganizerPicker({
                     {organizer.orgShortName}
                   </Text>
                 )}
-                {/* Who added them — on a division, where convenors add each other, so the
+                {/* Who added them — wherever people at that scope add each other, so the
                     organisers can see how somebody came to have access. */}
-                {!!divisionId && !!organizer.grantedByName && (
+                {isNarrowScope && !!organizer.grantedByName && (
                   <Text numberOfLines={1} className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
                     Added by {organizer.grantedByName}
                   </Text>
                 )}
               </View>
               {/* `canWithdraw` is the server's answer for this viewer; a convenor may remove only
-                  the co-convenors they added (D33, revised 2026-09-19). Absent means no per-row
-                  rule applies, as on the event's own list. */}
+                  the co-convenors they added (D33, revised 2026-09-19), and a sport's organiser
+                  only the people they added. Absent means no per-row rule applies, as on the
+                  event's own list. */}
               {canManage && organizer.canWithdraw !== false && (
                 <TouchableOpacity
                   onPress={() => withdraw(organizer.orgProfileId)}
@@ -221,6 +238,7 @@ export function OrganizerPicker({
             excludeIds={organizers.map(o => o.orgProfileId)}
             busyId={busyProfileId}
             title={divisionId ? 'Add a convenor' : 'Add an organiser'}
+            sportId={sportId}
             divisionId={divisionId}
             onSelect={person => appoint(person.id)}
           />

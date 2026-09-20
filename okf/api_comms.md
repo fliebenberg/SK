@@ -111,7 +111,8 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     and a table are spectator information); `division:{id}` is `member`, because an entrant may be
     a person and an adjustment carries an organiser's reason and author. An **appointed convenor**
     also gets in, without any membership at all — otherwise they would be given a division to run
-    and refused its roster. `event:{id}:entrants` is the event-level counterpart of the third one,
+    and refused its roster; so does **a sport's organiser**, whose grant `getGrantSnapshot` resolves
+    into the divisions of that sport rather than making room access learn a third kind of grant. `event:{id}:entrants` is the event-level counterpart of the third one,
     at the same tier; `event:{id}` itself stays public.
 *   **The event room hands over its facilities too** (U47). `event:{id}` pushes
     `EVENT_FACILITIES_SYNC` on join beside the event, its fixture summaries and its divisions
@@ -126,14 +127,24 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     sends `STAGES_SYNC` alongside the tables, because a room that hands data over on join and never
     republishes it is `FIX-4` again.
 *   **Permissions are per-user, so they are not broadcast** (Phase 4). A room broadcast reaches
-    everyone in the room, so `{ canEditEvent, convenesDivisionIds }` is read per socket through
-    `get_data { type: 'event_capabilities', eventId }` rather than stamped onto the event or the
-    division. A grant change pushes `EVENT_CAPABILITIES_UPDATED` to that person's `user:{id}` room,
-    which `broadcast()` also treats as an identity change — dropping their cached access and
-    revalidating the rooms their sockets already hold. A **list** of events cannot afford that read
-    per card, so it asks `get_data { type: 'my_event_grants' }` once — the grants this caller holds,
-    with each division grant carrying its event id — and derives hosting and attending from data it
-    already has. Display only; every write is still gated server-side.
+    everyone in the room, so `{ canEditEvent, convenesSportIds, convenesDivisionIds }` is read per
+    socket through `get_data { type: 'event_capabilities', eventId }` rather than stamped onto the
+    event or the division. A grant change pushes `EVENT_CAPABILITIES_UPDATED` to that person's
+    `user:{id}` room, which `broadcast()` also treats as an identity change — dropping their cached
+    access and revalidating the rooms their sockets already hold. A **list** of events cannot afford
+    that read per card, so it asks `get_data { type: 'my_event_grants' }` once — the grants this
+    caller holds, with each sport and division grant carrying its event id — and derives hosting and
+    attending from data it already has. Display only; every write is still gated server-side.
+*   **Three organiser scopes, one gate** (D33; the sport scope added 2026-09-20). `tournamentGate.ts`
+    resolves each write to the event, the division and the **sport** it touches, and admits the
+    caller on whichever they hold. The sport map is deliberately small — creating a division, moving
+    one between sports, appointing — because for everything else "their sport" is *the sport of the
+    division the action already resolved to*, derived rather than listed a third time where it could
+    drift. Who runs a sport is read per sport (`get_data { type: 'sport_organizers', eventId,
+    sportId }`), never broadcast: like the other organiser lists it names people and `event:{id}` is
+    public. Which scope a payload names is `organizerScopeOf`'s answer, in `shared/`, because a
+    sport grant carries an `eventId` alongside its `sportId` and so would otherwise read as event
+    scope.
 *   **The roster has an event-level room too** (Phase 6). `event:{id}:entrants` carries **every**
     division's roster in one push, because the entry screens work two axes — by division and by
     organisation — over one dataset, and the organisation axis is a division x org grid that would

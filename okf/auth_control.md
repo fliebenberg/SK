@@ -33,12 +33,18 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
     - **Scorekeeper / Official**: Authorized to open the scoring console and update game states in real-time.
     - **Coach**: Manage team lineups and view restricted rosters.
     - **Player**: View personal schedules and access internal team details.
-4.  **Event-Scoped Grant (Tournament Organiser / Division Convenor)**:
+4.  **Event-Scoped Grant (Tournament Organiser / Sport Organiser / Division Convenor)**:
     - **Not a membership, and not an org role.** A named person is granted edit rights over one
-      container: a whole tournament (`event_organizers`) or one of its divisions
+      container: a whole tournament (`event_organizers`), one of its sports
+      (`event_sport_organizers`, added 2026-09-20) or one of its divisions
       (`division_organizers`). This is the only source of authority in the app that is neither
       derived from a membership nor global. Added by the tournaments work (D33); see
       [tournaments-implementation-plan.md §0.1](file:///c:/Fred/Coding/SK/docs/tournaments-implementation-plan.md).
+    - **Which scope a payload names is `organizerScopeOf`'s answer**, in
+      [shared/src/utils/organizerScope.ts](file:///c:/Fred/Coding/SK/shared/src/utils/organizerScope.ts),
+      and never a field test written out again. A sport grant carries an `eventId` *and* a
+      `sportId`, so "has an `eventId`" stopped meaning "event scope" when the sport scope arrived;
+      the gate, the manager, both handlers and the picker all ask the one function.
     - **Keyed on the profile, not the user account.** `AccessManager` already resolves a user into a
       set of `org_profiles` ids, matching by `user_id` **or** verified email, so a grant can be made
       before the person has an account and needs no rewrite when they claim one.
@@ -48,6 +54,17 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
           outside it. Safe because the two grants have different sources: the hosting org's admins
           get their rights from *being admins*, so an appointee can never lock them out, and any
           admin can withdraw the grant at any time.
+        - *Sport organiser* (2026-09-20) — everything a convenor of **every division of that
+          sport** holds, plus the two things a convenor does not: the division's own record
+          (name, age group, weighting) and **adding and deleting divisions** of their sport. They
+          may appoint co-organisers of their sport and convenors to its divisions, withdrawing only
+          the people they appointed. **A rule, not a list**: it covers a division of that sport
+          added tomorrow, and stops covering one moved to another sport, with no row touched. Three
+          things are outside it and all are decisions about the *tournament* rather than the sport:
+          moving a division between sports, deleting the sport's **last** division (which would take
+          the sport out of the tournament, U52 — refused in the handler), and any event-scope
+          appointment. The key is **(event, sport)**: the same sport at another tournament is
+          somebody else's job.
         - *Division convenor* — everything within their division: entrants, stages, fixtures,
           results and adjustments — and **co-convenors** for that division: they may appoint them,
           and withdraw only the ones they appointed (revised 2026-09-19; the handler checks
@@ -63,7 +80,10 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
     - **Reads as well as writes.** A convenor with no membership must still see the roster of the
       division they run, so `roomAccess` admits a grant on `division:{id}` and on the internal
       `game:{id}` tiers of that division's fixtures. Grants are cached on the read path beside the
-      membership snapshot (30s TTL) and **never** on the write path.
+      membership snapshot (30s TTL) and **never** on the write path. A **sport** grant is resolved
+      into the divisions it currently covers inside `getGrantSnapshot`, rather than becoming a third
+      set every reader has to know about — every reader is asking "may they join this division's
+      room?", and the answer is the same whichever scope supplies it.
 
 5.  **Global Admin**:
     - **Single Source of Truth**: Global Admin status (`globalRole === 'admin'`) is derived dynamically from active membership in the System Administration Organization (`org-system-admins`, `id: 'org-system-admins'`).

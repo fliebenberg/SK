@@ -8,6 +8,7 @@ import {
   Sport,
   SocketAction,
   TournamentDivision,
+  TournamentOrganizer,
   divisionAutoName,
 } from '@sk/shared';
 import { AccessDenied } from '../../../../../../components/AccessDenied';
@@ -15,6 +16,7 @@ import { FieldLabel } from '../../../../../../components/FieldLabel';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { facilitySummary } from '../../../../../../components/tournament/FacilityPicker';
+import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
 import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
 import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
@@ -45,6 +47,12 @@ import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
  * ticking each division by name before the button arms. Deleting a sport's last division removes
  * the sport, which the division screen warns about; the dialog here says so up front.
  *
+ * **Each sport's organisers are appointed here (2026-09-20).** A sport grant is the third D33
+ * scope, and it belongs beside the thing it is about: the group that already lists a sport's
+ * divisions gains the people who run them. It is also the one screen a sport's organiser opens for
+ * their own job, so it admits them — showing only their sports, without the chips that decide
+ * which sports the tournament plays, which stays the tournament's decision.
+ *
  * A division's own screen is where its name, sport, age group, stages and fields are edited — this
  * one lists them and opens them.
  */
@@ -60,6 +68,7 @@ export default function SetupPlaying() {
     step,
     event,
     canEdit,
+    capabilities,
     isLoadingCapabilities,
     accessDenied,
     isProcessing,
@@ -136,9 +145,28 @@ export default function SetupPlaying() {
   const eventFacilityIds = useMemo(() => eventFacilityRows.map(row => row.id), [eventFacilityRows]);
 
   const eventSportIds = event?.sportIds || [];
+
+  /*
+    Two kinds of viewer reach this screen (2026-09-20).
+
+    An **event organiser** sees all of it. A **sport's organiser** sees their own sports and the
+    divisions under them, and nothing that decides the shape of the tournament: the sport chips,
+    the unplaced-divisions group and the setup footer are all about the tournament rather than
+    about a sport. `runsSport` is the one predicate the rest of the screen asks, so the two
+    viewers differ in what is rendered and never in how a thing behaves once it is.
+  */
+  const mySportIds = capabilities?.convenesSportIds || [];
+  const runsSport = (sportId?: string) => canEdit || (!!sportId && mySportIds.includes(sportId));
+
   /** The tournament's sports in the order the chips show them, so the groups below match. */
-  const chosenSports = sports.filter(sport => eventSportIds.includes(sport.id));
+  const chosenSports = sports.filter(
+    sport => eventSportIds.includes(sport.id) && runsSport(sport.id)
+  );
   const divisionsOf = (sportId: string) => orderedDivisions.filter(d => d.sportId === sportId);
+  /** What this viewer is actually shown below, which is what the count on the label should say. */
+  const listedDivisions = canEdit
+    ? orderedDivisions
+    : orderedDivisions.filter(d => runsSport(d.sportId));
   /* Divisions from before U52 can have no sport, or one the tournament does not list. They are
      shown rather than hidden, in a group of their own, so they can be opened and put right. */
   const unplacedDivisions = orderedDivisions.filter(
@@ -209,7 +237,9 @@ export default function SetupPlaying() {
   const handleBack = useCallback(() => goBackToChecklist(), [goBackToChecklist]);
   const handleNext = useCallback(() => goBackToChecklist(nextStep), [goBackToChecklist, nextStep]);
 
-  if (accessDenied || (!isLoadingCapabilities && !canEdit)) {
+  // A sport's organiser has a job on this screen even though they may not edit the event.
+  const canOpen = canEdit || mySportIds.length > 0;
+  if (accessDenied || (!isLoadingCapabilities && !canOpen)) {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
         <AccessDenied
@@ -266,6 +296,9 @@ export default function SetupPlaying() {
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="space-y-6">
             <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl">
+              {/* Which sports the tournament plays is the tournament's decision, so a sport's own
+                  organiser does not get the chips — only the group for their sport, below. */}
+              {canEdit && (
               <View className="p-5 space-y-4">
                 <FieldLabel
                   label="Sports"
@@ -299,19 +332,22 @@ export default function SetupPlaying() {
                   })}
                 </View>
               </View>
+              )}
 
               {/* Divisions, grouped under the sport each one plays (U52). */}
-              <View className="p-5 space-y-4 border-t border-slate-200 dark:border-white/5">
+              <View className={`p-5 space-y-4 ${canEdit ? 'border-t border-slate-200 dark:border-white/5' : ''}`}>
                 <FieldLabel
                   label={
-                    orderedDivisions.length > 1 ? `Divisions · ${orderedDivisions.length}` : 'Divisions'
+                    listedDivisions.length > 1 ? `Divisions · ${listedDivisions.length}` : 'Divisions'
                   }
                   help="A division is one competition within the tournament: the teams that play each other for the same title — one sport, usually at one age group, like Rugby U14. Each has its own entrants, fixtures, standings and fields. Every sport starts with one; add more when age groups compete separately."
                 />
 
                 {chosenSports.length === 0 && (
                   <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
-                    Choose a sport above and its first division is created for you.
+                    {canEdit
+                      ? 'Choose a sport above and its first division is created for you.'
+                      : 'The sports you run are no longer part of this tournament.'}
                   </Text>
                 )}
 
@@ -320,6 +356,14 @@ export default function SetupPlaying() {
                     <Text className="font-inter-bold text-[11px] text-slate-600 dark:text-slate-300">
                       {sport.name}
                     </Text>
+                    <SportOrganizers
+                      eventId={eventId}
+                      hostOrgId={event?.orgId || orgId}
+                      actingOrgId={orgId}
+                      sport={sport}
+                      canManage={runsSport(sport.id)}
+                      hasParticipatingOrgs={(event?.participatingOrgIds || []).length > 0}
+                    />
                     {divisionsOf(sport.id).map(renderDivisionRow)}
                     <TouchableOpacity
                       onPress={() => handleAddDivision(sport.id)}
@@ -335,7 +379,7 @@ export default function SetupPlaying() {
                   </View>
                 ))}
 
-                {unplacedDivisions.length > 0 && (
+                {canEdit && unplacedDivisions.length > 0 && (
                   <View className="space-y-2">
                     <Text className="font-inter-bold text-[11px] text-slate-600 dark:text-slate-300">
                       Not playing one of the tournament's sports
@@ -349,13 +393,17 @@ export default function SetupPlaying() {
               </View>
             </View>
 
-            <SetupStepFooter
-              label={step.label}
-              nextStep={nextStep}
-              onNext={handleNext}
-              onBackToChecklist={handleBack}
-              isProcessing={isProcessing}
-            />
+            {/* The setup flow is the tournament's, so its footer is too. A sport's organiser
+                came here for their sport and has no next step to be sent to. */}
+            {canEdit && (
+              <SetupStepFooter
+                label={step.label}
+                nextStep={nextStep}
+                onNext={handleNext}
+                onBackToChecklist={handleBack}
+                isProcessing={isProcessing}
+              />
+            )}
           </View>
         </ScrollView>
       )}
@@ -367,6 +415,107 @@ export default function SetupPlaying() {
         onClose={() => setRemovingSportId(null)}
       />
     </SafeAreaView>
+  );
+}
+
+/**
+ * Who runs one sport of this tournament (D33's third scope, 2026-09-20).
+ *
+ * **It reads its own list, one sport at a time.** The whole tournament's grants in one read would
+ * be fewer round trips, but `sport_organizers` is gated by the grant over the sport it names — so
+ * asking per sport is what lets a netball organiser read their own list without being handed the
+ * people running every other sport, and without a second, wider read existing for them to be
+ * refused by. A tournament has a handful of sports, and the reads run together.
+ *
+ * It is **collapsed until asked for**, unlike the division screen's picker. A division screen is
+ * about one division and has room to say who runs it; this screen is a list of sports and their
+ * divisions, and a picker under each sport would bury what the screen is for. The count is on the
+ * summary line, so nothing is hidden — only folded.
+ */
+function SportOrganizers({
+  eventId,
+  hostOrgId,
+  actingOrgId,
+  sport,
+  canManage,
+  hasParticipatingOrgs,
+}: {
+  eventId: string;
+  /** Where a newly created person's profile lands: the organisation hosting the tournament. */
+  hostOrgId: string;
+  /** The workspace the viewer is acting from. */
+  actingOrgId: string;
+  sport: Sport;
+  canManage: boolean;
+  hasParticipatingOrgs: boolean;
+}) {
+  const isDark = useActiveTheme() === 'dark';
+  const isConnected = useWsStore((state: any) => state.isConnected);
+  const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+
+  // No room owns "who runs this sport" — the list names people and `event:{id}` is public — so it
+  // is a one-shot read, refreshed by the writes the picker makes.
+  useEffect(() => {
+    if (!isConnected || !eventId || !sport.id) return;
+    let active = true;
+    wsService.emit(
+      'get_data',
+      { type: 'sport_organizers', eventId, sportId: sport.id },
+      (res: any) => {
+        if (active) setOrganizers(Array.isArray(res) ? res : []);
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [isConnected, eventId, sport.id]);
+
+  return (
+    <View className="rounded-xl border border-slate-200 dark:border-white/5">
+      <TouchableOpacity
+        onPress={() => setIsOpen(open => !open)}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isOpen }}
+        className="flex-row items-center gap-2 px-3 py-2.5"
+      >
+        <Ionicons name="person-circle-outline" size={16} color={getThemeColor(isDark, 'textSecondary')} />
+        <Text className="font-inter text-[11px] text-slate-600 dark:text-slate-300 flex-1" numberOfLines={1}>
+          {sport.name} organisers
+          {organizers.length > 0 ? ` · ${organizers.length}` : ''}
+        </Text>
+        {organizers.length === 0 && (
+          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500">None yet</Text>
+        )}
+        <Ionicons
+          name={isOpen ? 'chevron-up' : 'chevron-down'}
+          size={14}
+          color={getThemeColor(isDark, 'textSecondary')}
+        />
+      </TouchableOpacity>
+
+      {isOpen && (
+        <View className="px-3 pb-3">
+          <OrganizerPicker
+            eventId={eventId}
+            sportId={sport.id}
+            hostOrgId={hostOrgId}
+            actingOrgId={actingOrgId}
+            organizers={organizers}
+            onChange={setOrganizers}
+            canManage={canManage}
+            label={`${sport.name} Organiser(s)`}
+            help={`People responsible for running the ${sport.name} at this tournament. They run every ${sport.name} division — including ones added later — and may add and remove ${sport.name} divisions, but not change anything else about the tournament.`}
+            optional
+            /* `hostOrgName` deliberately not passed, for the reason Basic Info gives: the event
+               does not carry the host org's name, and fetching it for a chip label is not worth a
+               round trip inside that org's own workspace. */
+            hasParticipatingOrgs={hasParticipatingOrgs}
+          />
+        </View>
+      )}
+    </View>
   );
 }
 

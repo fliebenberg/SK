@@ -267,23 +267,32 @@ export class AccessManager extends BaseManager {
   `;
 
   /**
-   * Both scopes of grant this user holds on one event, in one query.
+   * All three scopes of grant this user holds on one event, in one query.
    *
    * `convenesDivisionIds` is populated even for someone who is *also* an event organiser. Their
    * rights are unchanged by it — an event organiser's scope strictly contains a convenor's — but
    * the division rows carry intent ("this person is the netball convenor"), which is what the role
-   * chips print. Authorization asks `isEventOrganizer`; display asks both.
+   * chips print. Authorization asks `isEventOrganizer`; display asks all three.
+   *
+   * `convenesSportIds` is the scope added on 2026-09-20, and unlike the division list it genuinely
+   * authorizes: for somebody holding only it, it is every division of those sports plus the right
+   * to add and delete divisions within them.
    */
   async getEventGrants(
     userId: string,
     eventId: string
-  ): Promise<{ isEventOrganizer: boolean; convenesDivisionIds: string[] }> {
-    if (!userId || !eventId) return { isEventOrganizer: false, convenesDivisionIds: [] };
+  ): Promise<{ isEventOrganizer: boolean; convenesSportIds: string[]; convenesDivisionIds: string[] }> {
+    const empty = { isEventOrganizer: false, convenesSportIds: [], convenesDivisionIds: [] };
+    if (!userId || !eventId) return empty;
 
     const res = await this.query(`
       SELECT 'event' AS scope, eo.event_id AS id
         FROM event_organizers eo
        WHERE eo.event_id = $2 AND eo.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+      UNION ALL
+      SELECT 'sport' AS scope, eso.sport_id AS id
+        FROM event_sport_organizers eso
+       WHERE eso.event_id = $2 AND eso.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
       UNION ALL
       SELECT 'division' AS scope, dorg.division_id AS id
         FROM division_organizers dorg
@@ -293,6 +302,7 @@ export class AccessManager extends BaseManager {
 
     return {
       isEventOrganizer: res.rows.some((r: any) => r.scope === 'event'),
+      convenesSportIds: res.rows.filter((r: any) => r.scope === 'sport').map((r: any) => r.id),
       convenesDivisionIds: res.rows.filter((r: any) => r.scope === 'division').map((r: any) => r.id),
     };
   }
@@ -333,7 +343,22 @@ export class AccessManager extends BaseManager {
     // ordinary case, and because an event organiser holds no division row to find.
     if (await this.canOrganizeEvent(userId, eventId)) return true;
 
-    return this.hasDivisionGrant(userId, divisionId);
+    if (await this.hasDivisionGrant(userId, divisionId)) return true;
+
+    // The sport scope (2026-09-20): "runs the netball" covers every netball division, so the
+    // question is asked of the division's *current* sport rather than of a stored list. A division
+    // moved to hockey leaves this person's reach the moment it moves, with no row touched.
+    return this.hasDivisionSportGrant(userId, divisionId);
+  }
+
+  /**
+   * True when this user may organise `sportId` at `eventId` — the sport-scope counterpart to
+   * `canOrganizeDivision`, for the reads and writes that name a sport rather than a division.
+   */
+  async canOrganizeSport(userId: string, eventId: string, sportId: string): Promise<boolean> {
+    if (!userId || !eventId || !sportId) return false;
+    if (await this.canOrganizeEvent(userId, eventId)) return true;
+    return this.hasSportGrant(userId, eventId, sportId);
   }
 
   /** Is this user named on this division? The narrow question, without the event-wide checks. */
@@ -342,6 +367,39 @@ export class AccessManager extends BaseManager {
     const res = await this.query(
       `SELECT 1 FROM division_organizers
         WHERE division_id = $2 AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER}) LIMIT 1`,
+      [userId, divisionId]
+    );
+    return res.rows.length > 0;
+  }
+
+  /** Is this user named on this sport, at this tournament? The narrow question again. */
+  async hasSportGrant(userId: string, eventId: string, sportId: string): Promise<boolean> {
+    if (!userId || !eventId || !sportId) return false;
+    const res = await this.query(
+      `SELECT 1 FROM event_sport_organizers
+        WHERE event_id = $2 AND sport_id = $3 AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+        LIMIT 1`,
+      [userId, eventId, sportId]
+    );
+    return res.rows.length > 0;
+  }
+
+  /**
+   * Does a sport grant of this user's cover this division?
+   *
+   * One query rather than "read the division, then ask": the join *is* the rule — the division's
+   * own `event_id` and `sport_id` are what a grant has to match, so a division with no sport set
+   * matches nothing, which is the right answer rather than a case to handle.
+   */
+  async hasDivisionSportGrant(userId: string, divisionId: string): Promise<boolean> {
+    if (!userId || !divisionId) return false;
+    const res = await this.query(
+      `SELECT 1
+         FROM tournament_divisions d
+         JOIN event_sport_organizers eso
+           ON eso.event_id = d.event_id AND eso.sport_id = d.sport_id
+        WHERE d.id = $2 AND eso.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+        LIMIT 1`,
       [userId, divisionId]
     );
     return res.rows.length > 0;
@@ -364,6 +422,17 @@ export class AccessManager extends BaseManager {
       SELECT 'division' AS scope, dorg.division_id AS id
         FROM division_organizers dorg
        WHERE dorg.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+      UNION ALL
+      -- A sport grant is resolved here into the divisions it covers *right now*, rather than
+      -- becoming a third set the caller has to know about. Every reader of this snapshot asks
+      -- "may they join this division's room?", and the answer is the same whichever scope
+      -- supplies it, so roomAccess needs no third case -- and the 30-second TTL it already
+      -- lives under is what bounds how stale the expansion can be.
+      SELECT 'division' AS scope, d.id AS id
+        FROM event_sport_organizers eso
+        JOIN tournament_divisions d
+          ON d.event_id = eso.event_id AND d.sport_id = eso.sport_id
+       WHERE eso.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
     `, [userId]);
 
     const eventIds = new Set<string>();
@@ -394,14 +463,24 @@ export class AccessManager extends BaseManager {
    */
   async getMyGrants(userId: string): Promise<{
     eventIds: string[];
+    sports: Array<{ sportId: string; eventId: string }>;
     divisions: Array<{ divisionId: string; eventId: string }>;
   }> {
-    if (!userId) return { eventIds: [], divisions: [] };
+    if (!userId) return { eventIds: [], sports: [], divisions: [] };
 
-    const [events, divisions] = await Promise.all([
+    const [events, sports, divisions] = await Promise.all([
       this.query(
         `SELECT event_id AS "eventId"
            FROM event_organizers
+          WHERE org_profile_id IN (${this.PROFILE_IDS_FOR_USER})`,
+        [userId]
+      ),
+      // Not expanded into divisions the way `getGrantSnapshot` does it: that one answers "may I
+      // into this room", where a division id is the question, and this one drives role chips,
+      // where the honest answer is "you run the netball" however many divisions that is today.
+      this.query(
+        `SELECT sport_id AS "sportId", event_id AS "eventId"
+           FROM event_sport_organizers
           WHERE org_profile_id IN (${this.PROFILE_IDS_FOR_USER})`,
         [userId]
       ),
@@ -416,6 +495,7 @@ export class AccessManager extends BaseManager {
 
     return {
       eventIds: events.rows.map((r: any) => r.eventId),
+      sports: sports.rows.map((r: any) => ({ sportId: r.sportId, eventId: r.eventId })),
       divisions: divisions.rows.map((r: any) => ({ divisionId: r.divisionId, eventId: r.eventId })),
     };
   }
@@ -430,16 +510,27 @@ export class AccessManager extends BaseManager {
   async getEventCapabilities(userId: string, eventId: string): Promise<{
     eventId: string;
     canEditEvent: boolean;
+    convenesSportIds: string[];
     convenesDivisionIds: string[];
   }> {
-    const empty = { eventId, canEditEvent: false, convenesDivisionIds: [] as string[] };
+    const empty = {
+      eventId,
+      canEditEvent: false,
+      convenesSportIds: [] as string[],
+      convenesDivisionIds: [] as string[],
+    };
     if (!userId || !eventId) return empty;
 
     const [canEditEvent, grants] = await Promise.all([
       this.canOrganizeEvent(userId, eventId),
       this.getEventGrants(userId, eventId),
     ]);
-    return { eventId, canEditEvent, convenesDivisionIds: grants.convenesDivisionIds };
+    return {
+      eventId,
+      canEditEvent,
+      convenesSportIds: grants.convenesSportIds,
+      convenesDivisionIds: grants.convenesDivisionIds,
+    };
   }
 
   /**
@@ -471,7 +562,12 @@ export class AccessManager extends BaseManager {
    * *read* on an audit line, so it names a person as their organisation knows them rather than
    * naming a user account.
    */
-  async resolveGrantingProfile(userId: string, eventId: string, divisionId?: string): Promise<string | null> {
+  async resolveGrantingProfile(
+    userId: string,
+    eventId: string,
+    divisionId?: string,
+    sportId?: string
+  ): Promise<string | null> {
     if (!userId || !eventId) return null;
 
     const granted = await this.query(
@@ -495,6 +591,22 @@ export class AccessManager extends BaseManager {
         [userId, divisionId]
       );
       if (convened.rows[0]) return convened.rows[0].profileId;
+    }
+
+    // The same reasoning one scope up (2026-09-20). A sport's organiser may appoint within their
+    // sport, and the profile that grant is held by is the one to record — including when they are
+    // appointing into a *division* of their sport, which is why this runs whether or not a
+    // `divisionId` was given and why the caller passes the division's sport when it has one.
+    if (sportId) {
+      const runsSport = await this.query(
+        `SELECT eso.org_profile_id AS "profileId"
+           FROM event_sport_organizers eso
+          WHERE eso.event_id = $2 AND eso.sport_id = $3
+            AND eso.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+          LIMIT 1`,
+        [userId, eventId, sportId]
+      );
+      if (runsSport.rows[0]) return runsSport.rows[0].profileId;
     }
 
     // Otherwise the profile in the hosting org their role comes from. A current membership sorts

@@ -66,32 +66,15 @@ export default function DivisionScreen() {
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
 
-  const { capabilities } = useEventCapabilities(eventId);
   /**
-   * A division's `canEdit`, derived rather than sent.
+   * A division's permissions, derived rather than sent.
    *
    * Phase 4 deliberately keeps this off the division object: a `canEdit` there would be published
-   * to a room, so one viewer's answer would reach every other viewer of the same division.
+   * to a room, so one viewer's answer would reach every other viewer of the same division. The
+   * flags themselves are computed below the division, because since 2026-09-20 one of them depends
+   * on the sport it plays.
    */
-  const canEdit =
-    !!capabilities &&
-    (capabilities.canEditEvent || capabilities.convenesDivisionIds.includes(divisionId));
-  /**
-   * Event organisers — who may also change the division's own record and delete it.
-   *
-   * Appointing is no longer theirs alone: since 2026-09-19 a convenor may add co-convenors to their
-   * own division and remove the ones they added (D33, revised). The picker is shown to anyone with
-   * `canEdit`, and the server marks which rows this viewer may remove.
-   */
-  const canAppoint = !!capabilities?.canEditEvent;
-  /**
-   * The division's own record — name, sport, age group — is an event-level decision (D33, widened
-   * 2026-09-03): a convenor runs what happens inside the division, not how it sits in the event, and
-   * `UPDATE_DIVISION` is authorized as the event for exactly that reason. So the form is editable
-   * for event organisers only; a convenor sees the same values read-only. Until 2026-09-19 the form
-   * was gated on `canEdit`, which includes convenors, and a convenor's save was refused by the server.
-   */
-  const canEditRecord = canAppoint;
+  const { capabilities } = useEventCapabilities(eventId);
 
   // The division record, which is `division:{id}` now rather than a passenger on the fixtures room
   // (rule 4). The record is public — a spectator reading a draw needs the division's name — which
@@ -114,6 +97,33 @@ export default function DivisionScreen() {
   );
 
   const division = divisions.find(d => d.id === divisionId);
+
+  /**
+   * Whether this viewer runs the *sport* this division plays (2026-09-20).
+   *
+   * Read off the division rather than the route — which is why these flags sit below the room
+   * that loads it — so the answer follows the division if its sport changes. That is the whole
+   * point of a sport grant being a rule and not a list.
+   */
+  const runsThisSport =
+    !!division?.sportId && !!capabilities?.convenesSportIds.includes(division.sportId);
+  const canEdit =
+    !!capabilities &&
+    (capabilities.canEditEvent || capabilities.convenesDivisionIds.includes(divisionId) || runsThisSport);
+  /**
+   * Who may change the division's own record and delete it.
+   *
+   * Appointing is no longer the event organisers' alone: since 2026-09-19 a convenor may add
+   * co-convenors to their own division and remove the ones they added (D33, revised). The picker is
+   * shown to anyone with `canEdit`, and the server marks which rows this viewer may remove.
+   *
+   * The record itself — name, sport, age group — was an event-level decision (D33, widened
+   * 2026-09-03): a convenor runs what happens *inside* the division, not how it sits in the event.
+   * A sport's organiser is the exception added on 2026-09-20: they may add and delete divisions of
+   * their sport, so withholding *rename* from them would be a line with nothing behind it.
+   */
+  const canEditRecord = !!capabilities?.canEditEvent || runsThisSport;
+  const canAppoint = canEditRecord;
 
   /*
     The tournament's name, for the header — `Fred's Test Tournament - Rugby U14`, the same shape the
@@ -321,7 +331,12 @@ export default function DivisionScreen() {
   */
   const eventSportIds = event?.sportIds || [];
   const sportChoices = sports.filter(
-    sport => eventSportIds.includes(sport.id) || sport.id === division?.sportId
+    sport =>
+      (eventSportIds.includes(sport.id) || sport.id === division?.sportId) &&
+      // Moving a division between sports is the tournament's decision (2026-09-20): the gate
+      // refuses it for a sport's own organiser, so their dropdown holds their current sport alone
+      // rather than offering a choice that would be refused.
+      (!!capabilities?.canEditEvent || sport.id === division?.sportId)
   );
   /* With a single sport there is nothing to choose: the server gives every division that sport, and
      a division that somehow has none is offered it here as the draft, to be saved like any edit. */
@@ -404,6 +419,11 @@ export default function DivisionScreen() {
     Deleting a division (`FIX-16`). Event organisers only — a convenor runs a division but may not
     remove it (D33, and the gate says the same). Its fixtures survive (`games.stage_id` is
     `ON DELETE SET NULL`); its entrants, stages and table do not, and the dialog says so.
+  */
+  /*
+    Deleting the last division of a sport removes the sport from the tournament (U52), which is the
+    tournament's decision and not the sport organiser's — the server refuses it. So the button is
+    withheld rather than offered and refused, and the line below says why it is not there.
   */
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -676,7 +696,7 @@ export default function DivisionScreen() {
               <DivisionStandings divisionId={divisionId} canEdit={canEdit} />
             </View>
 
-            {canAppoint && (
+            {canAppoint && (capabilities?.canEditEvent || !isLastOfSport) && (
               <TouchableOpacity
                 onPress={() => setIsConfirmingDelete(true)}
                 activeOpacity={0.85}
@@ -687,6 +707,14 @@ export default function DivisionScreen() {
                   Delete division
                 </Text>
               </TouchableOpacity>
+            )}
+
+            {canAppoint && !capabilities?.canEditEvent && isLastOfSport && (
+              <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 text-center">
+                This is the last {savedSportName || 'sport'} division, so deleting it would take{' '}
+                {savedSportName || 'the sport'} out of the tournament — which the tournament's
+                organisers decide. Ask them to remove it.
+              </Text>
             )}
           </View>
         </ScrollView>

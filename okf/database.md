@@ -53,10 +53,13 @@ you what deletes it:
            ├─ division_facilities    a narrowing of event_facilities
            └─ division_adjustments   a deduction or a walkover, recorded as an override
 
-Plus `event_facilities` (the facilities in play) and `event_organizers` / `division_organizers` (the
-two grant scopes — full rights over the tournament, or the whole of one division). Both are keyed on
-`org_profiles`, never `users`, so a convenor can be appointed before they have an account; see
+Plus `event_facilities` (the facilities in play) and the three grant tables `event_organizers`,
+`event_sport_organizers` and `division_organizers` — full rights over the tournament, over one of
+its sports, or over one division. All three are keyed on `org_profiles`, never `users`, so a convenor
+can be appointed before they have an account; see
 [okf/auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) for what each scope carries.
+`event_sport_organizers` keys on **(event, sport)** and so is a rule rather than a list: it covers
+every division of that sport, including ones created later.
 
 Four things about it are worth knowing before touching it:
 

@@ -42,13 +42,15 @@ export class DataManager {
   canScoreGame = (userId: string, gameId: string) => accessManager.canScoreGame(userId, gameId);
   isOrgMember = (userId: string, orgId: string) => accessManager.isOrgMember(userId, orgId);
   canOrganizeDivision = (userId: string, divisionId: string) => accessManager.canOrganizeDivision(userId, divisionId);
+  canOrganizeSport = (userId: string, eventId: string, sportId: string) =>
+    accessManager.canOrganizeSport(userId, eventId, sportId);
   getEventCapabilities = (userId: string, eventId: string) => accessManager.getEventCapabilities(userId, eventId);
   getMyGrants = (userId: string) => accessManager.getMyGrants(userId);
   getEventGrants = (userId: string, eventId: string) => accessManager.getEventGrants(userId, eventId);
   getUserIdsForOrgProfile = (orgProfileId: string) => accessManager.getUserIdsForOrgProfile(orgProfileId);
   getEventOrgIds = (eventId: string) => accessManager.getEventOrgIds(eventId);
-  resolveGrantingProfile = (userId: string, eventId: string, divisionId?: string) =>
-    accessManager.resolveGrantingProfile(userId, eventId, divisionId);
+  resolveGrantingProfile = (userId: string, eventId: string, divisionId?: string, sportId?: string) =>
+    accessManager.resolveGrantingProfile(userId, eventId, divisionId, sportId);
   ownsOrgProfile = (userId: string, orgProfileId: string) => accessManager.ownsOrgProfile(userId, orgProfileId);
   getGameOrgId = (gameId: string) => accessManager.getGameOrgId(gameId);
 
@@ -328,6 +330,9 @@ export class DataManager {
   getEventOrganizers = (eventId: string) => tournamentManager.getEventOrganizers(eventId);
   getDivisionOrganizers = (divisionId: string) => tournamentManager.getDivisionOrganizers(divisionId);
   getEventDivisionOrganizers = (eventId: string) => tournamentManager.getEventDivisionOrganizers(eventId);
+  getSportOrganizers = (eventId: string, sportId: string) =>
+    tournamentManager.getSportOrganizers(eventId, sportId);
+  getEventSportOrganizers = (eventId: string) => tournamentManager.getEventSportOrganizers(eventId);
   appointOrganizer = (data: any) => tournamentManager.appointOrganizer(data);
   withdrawOrganizer = (data: any) => tournamentManager.withdrawOrganizer(data);
   setDivisionFacilities = (divisionId: string, facilityIds: string[]) =>

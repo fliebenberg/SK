@@ -661,8 +661,10 @@ export interface SetDivisionFacilitiesPayload {
  * `orgId` is the workspace the caller is acting from, as on every other tournament write.
  */
 export interface AppointOrganizerPayload {
-    /** Set for an event-scope grant. Exactly one of this and `divisionId`. */
+    /** Set for an event-scope grant — and for a sport-scope one, which names the tournament too. */
     eventId?: string;
+    /** Set with `eventId` for a sport-scope grant (2026-09-20). */
+    sportId?: string;
     /** Set for a division-scope grant. */
     divisionId?: string;
     orgProfileId: string;
@@ -679,6 +681,7 @@ export interface AppointOrganizerPayload {
 
 export interface WithdrawOrganizerPayload {
     eventId?: string;
+    sportId?: string;
     divisionId?: string;
     orgProfileId: string;
     orgId?: string;
@@ -693,6 +696,7 @@ export interface WithdrawOrganizerPayload {
  */
 export interface OrganizersResult {
     eventId?: string;
+    sportId?: string;
     divisionId?: string;
     organizers: TournamentOrganizer[];
 }
@@ -837,9 +841,16 @@ export type GetDataRequest =
   // Permissions (Phase 4). `event_capabilities` answers for the **caller** and nobody else — the
   // identity comes from the handshake, so the request names no user and one cannot be asked for.
   | { type: 'event_capabilities' | 'event_organizers'; eventId: string }
+  // One sport of one tournament (2026-09-20). Asked per sport rather than per event so that the
+  // read is gated by exactly the grant that would let the caller change it — a sport's organiser
+  // reads their own sport's list without being handed every other sport's people.
+  | { type: 'sport_organizers'; eventId: string; sportId: string }
   | { type: 'division_organizers'; divisionId: string }
   // The organiser picker's search. Tiered rather than global by default: `eventId` scopes tier 1
   // to the host and participating orgs, and `global: true` is the explicit control that widens it.
   // Either way the projection is name, org and image — never contact or identity fields.
-  | { type: 'organizer_candidates'; eventId: string; query: string; global?: boolean };
+  // `sportId`/`divisionId` narrow the *gate*, not the results: they are the scopes that may appoint
+  // without holding the event.
+  | { type: 'organizer_candidates'; eventId: string; query: string; global?: boolean;
+      sportId?: string; divisionId?: string };
 

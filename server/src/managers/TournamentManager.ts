@@ -19,6 +19,8 @@ import {
   TournamentOrganizer,
   TournamentStage,
   TournamentStandingRow,
+  NO_ORGANIZER_SCOPE,
+  organizerScopeOf,
   stagePlanForFormat,
   divisionAutoName,
   calculateStandings,
@@ -2081,8 +2083,12 @@ export class TournamentManager extends BaseManager {
   }
   // --- Organiser assignments (D33) -------------------------------------------------------------
   //
-  // One mechanism, two scopes, two tables. The rights each scope confers are `AccessManager`'s
+  // One mechanism, three scopes, three tables. The rights each scope confers are `AccessManager`'s
   // business; what lives here is the storage and the list a screen prints.
+  //
+  // Which scope a payload names is `organizerScopeOf`'s answer and never a field test written out
+  // again here: the sport scope carries an `eventId` alongside its `sportId`, so "has an eventId"
+  // stopped meaning "event scope" when it was added (2026-09-20).
   //
   // **An appointment writes exactly one row.** It must never add the appointee's organisation to
   // `event_organizations`: participation is determined by the teams taking part and by nothing
@@ -2090,9 +2096,22 @@ export class TournamentManager extends BaseManager {
   // design is most likely to produce, because adding it looks helpful. The precedent is
   // `GameOfficial`, a person attached to a fixture with no organisation on the record at all.
 
-  /** The columns every organiser list selects, parameterised by the grant table's alias. */
-  private organizerColumns(alias: string, scopeColumn: string): string {
-    return `${alias}.${scopeColumn} AS "${scopeColumn === 'event_id' ? 'eventId' : 'divisionId'}",
+  /**
+   * The columns every organiser list selects, parameterised by the grant table's alias.
+   *
+   * `scopeColumns` are the id columns that say which scope the row *is* — one for an event or a
+   * division grant, two for a sport grant, which names the tournament as well.
+   */
+  private organizerColumns(alias: string, scopeColumns: string[]): string {
+    const aliasFor: Record<string, string> = {
+      event_id: 'eventId',
+      sport_id: 'sportId',
+      division_id: 'divisionId',
+    };
+    const scope = scopeColumns
+      .map(column => `${alias}.${column} AS "${aliasFor[column]}"`)
+      .join(',\n            ');
+    return `${scope},
             ${alias}.org_profile_id AS "orgProfileId",
             op.name, op.org_id AS "orgId", o.short_name AS "orgShortName", op.image,
             ${alias}.granted_by_org_profile_id AS "grantedByOrgProfileId",
@@ -2102,7 +2121,7 @@ export class TournamentManager extends BaseManager {
 
   async getEventOrganizers(eventId: string): Promise<TournamentOrganizer[]> {
     const res = await this.query(
-      `SELECT ${this.organizerColumns('eo', 'event_id')}
+      `SELECT ${this.organizerColumns('eo', ['event_id'])}
          FROM event_organizers eo
          JOIN org_profiles op ON op.id = eo.org_profile_id
          LEFT JOIN organizations o ON o.id = op.org_id
@@ -2114,9 +2133,47 @@ export class TournamentManager extends BaseManager {
     return res.rows;
   }
 
+  /**
+   * Who runs one sport of one tournament.
+   *
+   * The sport's name is joined in because every screen printing this list prints "Netball
+   * organisers" beside it, and the alternative — a sports lookup per list — is the staleness
+   * `TournamentEntrant.name` exists to avoid.
+   */
+  async getSportOrganizers(eventId: string, sportId: string): Promise<TournamentOrganizer[]> {
+    const res = await this.query(
+      `SELECT ${this.organizerColumns('eso', ['event_id', 'sport_id'])}, sp.name AS "sportName"
+         FROM event_sport_organizers eso
+         JOIN org_profiles op ON op.id = eso.org_profile_id
+         LEFT JOIN sports sp ON sp.id = eso.sport_id
+         LEFT JOIN organizations o ON o.id = op.org_id
+         LEFT JOIN org_profiles gb ON gb.id = eso.granted_by_org_profile_id
+        WHERE eso.event_id = $1 AND eso.sport_id = $2
+        ORDER BY op.name`,
+      [eventId, sportId]
+    );
+    return res.rows;
+  }
+
+  /** Every sport grant in one tournament — for a caller that holds the event and wants them all. */
+  async getEventSportOrganizers(eventId: string): Promise<TournamentOrganizer[]> {
+    const res = await this.query(
+      `SELECT ${this.organizerColumns('eso', ['event_id', 'sport_id'])}, sp.name AS "sportName"
+         FROM event_sport_organizers eso
+         JOIN org_profiles op ON op.id = eso.org_profile_id
+         LEFT JOIN sports sp ON sp.id = eso.sport_id
+         LEFT JOIN organizations o ON o.id = op.org_id
+         LEFT JOIN org_profiles gb ON gb.id = eso.granted_by_org_profile_id
+        WHERE eso.event_id = $1
+        ORDER BY sp.name, op.name`,
+      [eventId]
+    );
+    return res.rows;
+  }
+
   async getDivisionOrganizers(divisionId: string): Promise<TournamentOrganizer[]> {
     const res = await this.query(
-      `SELECT ${this.organizerColumns('dorg', 'division_id')}
+      `SELECT ${this.organizerColumns('dorg', ['division_id'])}
          FROM division_organizers dorg
          JOIN org_profiles op ON op.id = dorg.org_profile_id
          LEFT JOIN organizations o ON o.id = op.org_id
@@ -2131,7 +2188,7 @@ export class TournamentManager extends BaseManager {
   /** Every organiser of an event *and* of its divisions, for the event screen's role chips. */
   async getEventDivisionOrganizers(eventId: string): Promise<TournamentOrganizer[]> {
     const res = await this.query(
-      `SELECT ${this.organizerColumns('dorg', 'division_id')}
+      `SELECT ${this.organizerColumns('dorg', ['division_id'])}
          FROM division_organizers dorg
          JOIN tournament_divisions d ON d.id = dorg.division_id
          JOIN org_profiles op ON op.id = dorg.org_profile_id
@@ -2153,60 +2210,103 @@ export class TournamentManager extends BaseManager {
    */
   async appointOrganizer(data: {
     eventId?: string;
+    sportId?: string;
     divisionId?: string;
     orgProfileId: string;
     grantedByOrgProfileId?: string | null;
   }): Promise<TournamentOrganizer[]> {
-    const { eventId, divisionId, orgProfileId } = data;
-    if (!!eventId === !!divisionId) {
-      throw new Error('An appointment names either an event or a division, not both and not neither.');
-    }
+    const { orgProfileId } = data;
+    const scope = organizerScopeOf(data);
+    if (!scope) throw new Error(NO_ORGANIZER_SCOPE);
     if (!orgProfileId) throw new Error('An appointment names the person it appoints.');
 
     const profile = await this.query('SELECT 1 FROM org_profiles WHERE id = $1', [orgProfileId]);
     if (!profile.rows[0]) throw new Error('That person no longer exists.');
 
-    if (eventId) {
-      await this.query(
-        `INSERT INTO event_organizers (event_id, org_profile_id, granted_by_org_profile_id)
-         VALUES ($1, $2, $3) ON CONFLICT (event_id, org_profile_id) DO NOTHING`,
-        [eventId, orgProfileId, data.grantedByOrgProfileId || null]
-      );
-      return this.getEventOrganizers(eventId);
-    }
+    const grantedBy = data.grantedByOrgProfileId || null;
 
-    await this.query(
-      `INSERT INTO division_organizers (division_id, org_profile_id, granted_by_org_profile_id)
-       VALUES ($1, $2, $3) ON CONFLICT (division_id, org_profile_id) DO NOTHING`,
-      [divisionId, orgProfileId, data.grantedByOrgProfileId || null]
-    );
-    return this.getDivisionOrganizers(divisionId!);
+    switch (scope.kind) {
+      case 'event':
+        await this.query(
+          `INSERT INTO event_organizers (event_id, org_profile_id, granted_by_org_profile_id)
+           VALUES ($1, $2, $3) ON CONFLICT (event_id, org_profile_id) DO NOTHING`,
+          [scope.eventId, orgProfileId, grantedBy]
+        );
+        return this.getEventOrganizers(scope.eventId);
+
+      case 'sport':
+        // The sport has to be one this tournament plays. Nothing stops the row otherwise — the
+        // foreign key only says the sport exists — and a grant over a sport that is not here is a
+        // permission with no visible edge: it would spring into effect if the sport were ever added.
+        await this.assertSportInEvent(scope.eventId, scope.sportId);
+        await this.query(
+          `INSERT INTO event_sport_organizers (event_id, sport_id, org_profile_id, granted_by_org_profile_id)
+           VALUES ($1, $2, $3, $4) ON CONFLICT (event_id, sport_id, org_profile_id) DO NOTHING`,
+          [scope.eventId, scope.sportId, orgProfileId, grantedBy]
+        );
+        return this.getSportOrganizers(scope.eventId, scope.sportId);
+
+      case 'division':
+        await this.query(
+          `INSERT INTO division_organizers (division_id, org_profile_id, granted_by_org_profile_id)
+           VALUES ($1, $2, $3) ON CONFLICT (division_id, org_profile_id) DO NOTHING`,
+          [scope.divisionId, orgProfileId, grantedBy]
+        );
+        return this.getDivisionOrganizers(scope.divisionId);
+    }
   }
 
   /** Withdraw a grant. Also idempotent — withdrawing twice leaves the same absence. */
   async withdrawOrganizer(data: {
     eventId?: string;
+    sportId?: string;
     divisionId?: string;
     orgProfileId: string;
   }): Promise<TournamentOrganizer[]> {
-    const { eventId, divisionId, orgProfileId } = data;
-    if (!!eventId === !!divisionId) {
-      throw new Error('A withdrawal names either an event or a division, not both and not neither.');
-    }
+    const { orgProfileId } = data;
+    const scope = organizerScopeOf(data);
+    if (!scope) throw new Error(NO_ORGANIZER_SCOPE);
 
-    if (eventId) {
-      await this.query('DELETE FROM event_organizers WHERE event_id = $1 AND org_profile_id = $2', [
-        eventId,
-        orgProfileId,
-      ]);
-      return this.getEventOrganizers(eventId);
-    }
+    switch (scope.kind) {
+      case 'event':
+        await this.query('DELETE FROM event_organizers WHERE event_id = $1 AND org_profile_id = $2', [
+          scope.eventId,
+          orgProfileId,
+        ]);
+        return this.getEventOrganizers(scope.eventId);
 
-    await this.query('DELETE FROM division_organizers WHERE division_id = $1 AND org_profile_id = $2', [
-      divisionId,
-      orgProfileId,
-    ]);
-    return this.getDivisionOrganizers(divisionId!);
+      case 'sport':
+        await this.query(
+          'DELETE FROM event_sport_organizers WHERE event_id = $1 AND sport_id = $2 AND org_profile_id = $3',
+          [scope.eventId, scope.sportId, orgProfileId]
+        );
+        return this.getSportOrganizers(scope.eventId, scope.sportId);
+
+      case 'division':
+        await this.query(
+          'DELETE FROM division_organizers WHERE division_id = $1 AND org_profile_id = $2',
+          [scope.divisionId, orgProfileId]
+        );
+        return this.getDivisionOrganizers(scope.divisionId);
+    }
+  }
+
+  /** Refuse a sport the tournament does not play. Worded for the organiser, not the developer. */
+  private async assertSportInEvent(eventId: string, sportId: string): Promise<void> {
+    const res = await this.query(
+      `SELECT s.name,
+              EXISTS (SELECT 1 FROM event_sports es WHERE es.event_id = e.id AND es.sport_id = $2) AS "inEvent"
+         FROM events e LEFT JOIN sports s ON s.id = $2
+        WHERE e.id = $1`,
+      [eventId, sportId]
+    );
+    const row = res.rows[0];
+    if (!row) throw new Error('That tournament no longer exists.');
+    if (!row.inEvent) {
+      throw new Error(
+        `${row.name || 'That sport'} is not one of this tournament's sports. Add it first, then appoint its organisers.`
+      );
+    }
   }
 
 }

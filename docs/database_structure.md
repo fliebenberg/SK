@@ -246,7 +246,8 @@ Which sports an event runs. `PRIMARY KEY (event_id, sport_id)`, both FKs cascadi
 Which organisations are taking part. `PRIMARY KEY (event_id, org_id)`, both FKs cascading.
 
 **Participation is determined by the teams taking part, and by nothing else.** Appointing an
-organiser or a convenor must never write a row here — see `event_organizers` (section 11k).
+organiser, a sport's organiser or a convenor must never write a row here — see `event_organizers`
+(section 11k).
 
 ### 11d. `tournament_divisions`
 The netball, the U14 rugby. A division is a substantial entity with children of its own, which is
@@ -325,34 +326,49 @@ with a reason and an author, rather than as a quiet edit to a game that never ha
 - `created_by_user_id` (TEXT): FK to `users.id`.
 - `created_at` (TIMESTAMPTZ)
 
-### 11k. `event_organizers` and `division_organizers`
-The two grant scopes: a row in the first is an event organiser with full rights over the tournament,
-a row in the second is the convenor of one division — who, since 2026-09-03, runs the whole of that
-division (entrants, stages, fixtures, results, adjustments) but nothing above or beside it. Both
-cascade away with their parent — a grant is meaningless without the thing it grants access to.
+### 11k. `event_organizers`, `event_sport_organizers` and `division_organizers`
+The three grant scopes: a row in the first is an event organiser with full rights over the
+tournament; a row in the second (added 2026-09-20) runs one **sport** of it; a row in the third is
+the convenor of one division — who, since 2026-09-03, runs the whole of that division (entrants,
+stages, fixtures, results, adjustments) but nothing above or beside it. All three cascade away with
+their parent — a grant is meaningless without the thing it grants access to.
 - `event_id` / `division_id` (TEXT): FK to the parent (ON DELETE CASCADE).
+- `sport_id` (TEXT, `event_sport_organizers` only): FK to `sports.id` (ON DELETE CASCADE), alongside
+  `event_id`.
 - `org_profile_id` (TEXT): FK to `org_profiles.id` (ON DELETE CASCADE).
 - `granted_by_org_profile_id` (TEXT): FK to `org_profiles.id` (ON DELETE SET NULL). Nullable — an
   app admin acting globally may hold no profile in any org involved.
 - `created_at` (TIMESTAMPTZ)
-- `PRIMARY KEY (<parent>_id, org_profile_id)`
+- `PRIMARY KEY (<parent>_id, org_profile_id)`, and `(event_id, sport_id, org_profile_id)` for the
+  sport scope.
 
-Three things about this shape were decided rather than assumed:
+Four things about this shape were decided rather than assumed:
 
-- **Two tables, not one with a nullable `division_id`.** Postgres treats NULLs as *distinct* in a
-  unique index, so a single table would have let the same person be appointed event organiser any
-  number of times. Split, the composite primary key says it for free, and each foreign key points at
-  exactly one parent — so a grant cannot pair event A with a division of event B.
+- **A table each, not one with nullable columns.** Postgres treats NULLs as *distinct* in a unique
+  index, so a single table would have let the same person be appointed event organiser any number of
+  times. Split, the composite primary key says it for free, and each foreign key points at exactly
+  one parent — so a grant cannot pair event A with a division of event B.
 - **Grants reference `org_profiles`, never `users`.** `AccessManager` resolves a user into a set of
   profile ids, by `user_id` or verified email, so profile is the identity the permission layer works
   in. A person with no account can therefore be appointed, and the grant needs no rewrite when they
   later claim it.
-- **Holding both rows is not a third state.** An event organiser's rights strictly contain a
-  convenor's, so the access check stops at `event_organizers` and never consults divisions. The
-  division row carries *intent* — "this person is the netball convenor" — which drives the role chips.
+- **The sport scope keys on (event, sport), and is a rule rather than a list.** A grant says "you run
+  the netball *at this tournament*"; the same sport next weekend is somebody else's job, and a
+  sport-wide grant would be a permission with no visible edge. Because it is matched against a
+  division's own `event_id` and `sport_id`, it covers a netball division created tomorrow and stops
+  covering one moved to hockey, with no row touched either time. The alternative — writing a
+  `division_organizers` row per division — would be correct only for as long as the draw stood
+  still. Removing a sport from *this tournament* is not a delete of either referenced row and
+  deliberately leaves the grant alone, so putting the sport back restores who ran it.
+- **Holding more than one row is not a further state.** An event organiser's rights strictly contain
+  a sport organiser's, which strictly contain a convenor's, so the access check stops at the widest
+  scope the caller holds. The narrower rows carry *intent* — "this person is the netball convenor" —
+  which drives the role chips.
 
 Written by `APPOINT_ORGANIZER` / `WITHDRAW_ORGANIZER`, both idempotent (`ON CONFLICT DO NOTHING`,
-and a delete that matches nothing). An appointment writes **exactly one row**: it must never add the
+and a delete that matches nothing). Which of the three a payload names is decided once, in
+`organizerScopeOf` (`shared/src/utils/organizerScope.ts`): a sport grant carries an `eventId`
+*alongside* its `sportId`, so `eventId` alone no longer implies event scope. An appointment writes **exactly one row**: it must never add the
 appointee's organisation to `event_organizations`, because participation is determined by the teams
 taking part and by nothing else. `phase4-permissions.ts` asserts that, and asserts the organisation
 stays out of the standings roll-up, since an org in the table having played nothing is how the bug

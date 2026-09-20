@@ -410,7 +410,7 @@ const createTables = async () => {
             );
         `);
 
-        // D33's two grant scopes. Two tables rather than one with a nullable division_id: a
+        // D33's three grant scopes. A table each rather than one with nullable columns: a
         // composite primary key is then the uniqueness rule (Postgres treats NULLs as distinct
         // in a unique index), and each foreign key points at exactly one parent, so a grant
         // cannot pair event A with a division of event B.
@@ -424,6 +424,21 @@ const createTables = async () => {
                 granted_by_org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 PRIMARY KEY (event_id, org_profile_id)
+            );
+        `);
+
+        // The sport scope (2026-09-20) keys on **(event, sport)**: "you run the netball at this
+        // tournament", which the same sport at next weekend's tournament says nothing about. It is
+        // a rule rather than a list — it covers a netball division added tomorrow, and stops
+        // covering one moved to hockey, without a row being touched.
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS event_sport_organizers (
+                event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
+                sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
+                org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE CASCADE,
+                granted_by_org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (event_id, sport_id, org_profile_id)
             );
         `);
 
@@ -798,6 +813,7 @@ const createTables = async () => {
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_facilities_division ON division_facilities(division_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_adjustments_division ON division_adjustments(division_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_event_organizers_profile ON event_organizers(org_profile_id);`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_event_sport_organizers_profile ON event_sport_organizers(org_profile_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_organizers_profile ON division_organizers(org_profile_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_participants_entrant ON game_participants(entrant_id);`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_participants_source_game ON game_participants(source_game_id);`);

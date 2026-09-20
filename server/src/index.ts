@@ -7,7 +7,15 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { dataManager } from './DataManager';
 import { gameEventManager } from './managers/GameEventManager';
-import { ActionAck, SocketAction, findTakenDivisionName } from '@sk/shared';
+import {
+    ActionAck,
+    NO_ORGANIZER_SCOPE,
+    OrganizerScope,
+    SocketAction,
+    findTakenDivisionName,
+    organizerScopeFields,
+    organizerScopeOf,
+} from '@sk/shared';
 import { parseSportWriteFields } from './utils/sportValidation';
 import pool from './db';
 import bcrypt from 'bcryptjs';
@@ -1267,8 +1275,32 @@ async function removeSportIfUnused(eventId: string | null | undefined, sportId?:
  */
 async function divisionOrganizersFor(userId: string | null | undefined, divisionId: string): Promise<any[]> {
     const rows = await dataManager.getDivisionOrganizers(divisionId);
-    if (!userId) return rows.map((row: any) => ({ ...row, canWithdraw: false }));
     const eventId = await dataManager.getDivisionEventId(divisionId);
+    return markWithdrawable(userId, eventId, rows);
+}
+
+/**
+ * A sport's organisers, marked the same way (2026-09-20).
+ *
+ * The rule is the one the division list already applies, one scope up: a sport's organiser may add
+ * co-organisers of their sport and remove only the ones they added, so the answer depends on the
+ * viewer and is computed per caller rather than stored on the row.
+ */
+async function sportOrganizersFor(
+    userId: string | null | undefined,
+    eventId: string,
+    sportId: string
+): Promise<any[]> {
+    return markWithdrawable(userId, eventId, await dataManager.getSportOrganizers(eventId, sportId));
+}
+
+/** `canWithdraw` for one caller over one list. Never published to a room — it is one viewer's answer. */
+async function markWithdrawable(
+    userId: string | null | undefined,
+    eventId: string | null | undefined,
+    rows: any[]
+): Promise<any[]> {
+    if (!userId) return rows.map((row: any) => ({ ...row, canWithdraw: false }));
     const event = eventId ? await dataManager.getEvent(eventId) : null;
     const actsForEvent = !!event && await dataManager.canEditEventOrGame(userId, event.orgId, event.id);
     return Promise.all(rows.map(async (row: any) => ({
@@ -1276,6 +1308,80 @@ async function divisionOrganizersFor(userId: string | null | undefined, division
         canWithdraw: actsForEvent || (!!row.grantedByOrgProfileId &&
             await dataManager.ownsOrgProfile(userId, row.grantedByOrgProfileId)),
     })));
+}
+
+/** The tournament an appointment scope belongs to — the id every publish and audit lookup needs. */
+async function organizerScopeEventId(scope: OrganizerScope): Promise<string | null> {
+    return scope.kind === 'division'
+        ? dataManager.getDivisionEventId(scope.divisionId)
+        : scope.eventId;
+}
+
+/**
+ * The sport whose grant may be the one the appointer is acting through.
+ *
+ * A sport-scope appointment names it. A division-scope one does not, but a sport's organiser
+ * appointing a convenor to one of their divisions is acting through their sport grant, so the
+ * division's own sport is what `resolveGrantingProfile` has to be offered. An event-scope
+ * appointment is never made through a sport grant.
+ */
+async function grantingSportFor(scope: OrganizerScope): Promise<string | undefined> {
+    if (scope.kind === 'sport') return scope.sportId;
+    if (scope.kind === 'division') {
+        return (await dataManager.getDivision(scope.divisionId))?.sportId || undefined;
+    }
+    return undefined;
+}
+
+/**
+ * The list an appointment or withdrawal answers with, as *this caller* should see it.
+ *
+ * The narrow scopes carry `canWithdraw`, which is one viewer's answer and so is recomputed rather
+ * than taken from the write's return value. The event scope has no per-row rule, so the list the
+ * write already produced is the list.
+ */
+async function organizersForCaller(
+    userId: string | null | undefined,
+    scope: OrganizerScope,
+    written: any[]
+): Promise<any[]> {
+    if (scope.kind === 'division') return divisionOrganizersFor(userId, scope.divisionId);
+    if (scope.kind === 'sport') return sportOrganizersFor(userId, scope.eventId, scope.sportId);
+    return written;
+}
+
+/**
+ * Stop a sport's organiser deleting the last division of their own sport (2026-09-20).
+ *
+ * Deleting a sport's last division removes the sport from the tournament (U52) - which is a
+ * decision about the tournament, not about the sport, and so is not theirs. Everything either side
+ * of that line is: they may add netball divisions, and delete any netball division while another
+ * remains.
+ *
+ * Checked here rather than in the gate because the gate asks what a payload *touches*, and "is this
+ * the last one" is a fact about the rest of the tournament. It is the same shape as the
+ * "withdraw only whom you appointed" rule, and for the same reason.
+ */
+async function assertNotLastDivisionOfDelegatedSport(
+    userId: string | null | undefined,
+    actingOrgId: string | undefined,
+    division: { id: string; eventId: string; sportId?: string; name?: string } | null | undefined
+): Promise<void> {
+    if (!userId || !division?.sportId || !division.eventId) return;
+
+    const event = await dataManager.getEvent(division.eventId);
+    if (!event) return;
+    // An event organiser may do this, and the dialog on the setup screen tells them what it means.
+    if (await dataManager.canEditEventOrGame(userId, actingOrgId || event.orgId, event.id)) return;
+
+    const siblings = (await dataManager.getDivisions(division.eventId))
+        .filter(d => d.id !== division.id && d.sportId === division.sportId);
+    if (siblings.length > 0) return;
+
+    const sportName = (await dataManager.getSport(division.sportId))?.name || 'that sport';
+    throw new Error(
+        `Deleting the last ${sportName} division would take ${sportName} out of the tournament, which the tournament's organisers decide. Ask them to remove it.`
+    );
 }
 
 /**
@@ -1659,6 +1765,13 @@ io.on('connection', (socket) => {
                 break;
             case 'event_organizers':
                 callback(request.eventId ? await dataManager.getEventOrganizers(request.eventId) : []);
+                break;
+            case 'sport_organizers':
+                callback(
+                    request.eventId && request.sportId
+                        ? await sportOrganizersFor(socket.data?.userId, request.eventId, request.sportId)
+                        : []
+                );
                 break;
             case 'division_organizers':
                 callback(request.divisionId ? await divisionOrganizersFor(socket.data?.userId, request.divisionId) : []);
@@ -2981,6 +3094,7 @@ io.on('connection', (socket) => {
                 // Captured first: afterwards there is no row left to resolve the event from.
                 const divisionEventId = await dataManager.getDivisionEventId(action.payload.id);
                 const divisionBeforeDelete = await dataManager.getDivision(action.payload.id);
+                await assertNotLastDivisionOfDelegatedSport(authUserId, action.payload.orgId, divisionBeforeDelete);
                 const removedDivision = await dataManager.deleteDivision(action.payload.id);
                 if (!removedDivision) throw new Error('Division not found.');
                 result = { id: action.payload.id };
@@ -3191,9 +3305,10 @@ io.on('connection', (socket) => {
             }
 
             case SocketAction.APPOINT_ORGANIZER: {
-                const { eventId: appointEventId, divisionId: appointDivisionId, orgProfileId } = action.payload;
-                const appointScopeEventId =
-                    appointEventId || (appointDivisionId ? await dataManager.getDivisionEventId(appointDivisionId) : null);
+                const { orgProfileId } = action.payload;
+                const appointScope = organizerScopeOf(action.payload);
+                if (!appointScope) throw new Error(NO_ORGANIZER_SCOPE);
+                const appointScopeEventId = await organizerScopeEventId(appointScope);
                 if (!appointScopeEventId) throw new Error('That tournament no longer exists.');
 
                 // Recorded as the profile the appointer's own permission came through, so the audit
@@ -3202,36 +3317,35 @@ io.on('connection', (socket) => {
                 const grantedBy = await dataManager.resolveGrantingProfile(
                     authUserId!,
                     appointScopeEventId,
-                    appointEventId ? undefined : appointDivisionId
+                    appointScope.kind === 'division' ? appointScope.divisionId : undefined,
+                    await grantingSportFor(appointScope)
                 );
                 const appointed = await dataManager.appointOrganizer({
-                    eventId: appointEventId,
-                    divisionId: appointDivisionId,
+                    ...organizerScopeFields(appointScope),
                     orgProfileId,
                     grantedByOrgProfileId: grantedBy,
                 });
                 result = {
-                    eventId: appointEventId,
-                    divisionId: appointDivisionId,
-                    organizers: appointDivisionId && !appointEventId
-                        ? await divisionOrganizersFor(authUserId, appointDivisionId)
-                        : appointed,
+                    ...organizerScopeFields(appointScope),
+                    organizers: await organizersForCaller(authUserId, appointScope, appointed),
                 };
                 await publishOrganizerChange(orgProfileId, appointScopeEventId);
                 break;
             }
 
             case SocketAction.WITHDRAW_ORGANIZER: {
-                const { eventId: withdrawEventId, divisionId: withdrawDivisionId, orgProfileId: withdrawnProfileId } = action.payload;
-                const withdrawScopeEventId =
-                    withdrawEventId || (withdrawDivisionId ? await dataManager.getDivisionEventId(withdrawDivisionId) : null);
+                const { orgProfileId: withdrawnProfileId } = action.payload;
+                const withdrawScope = organizerScopeOf(action.payload);
+                if (!withdrawScope) throw new Error(NO_ORGANIZER_SCOPE);
+                const withdrawScopeEventId = await organizerScopeEventId(withdrawScope);
                 if (!withdrawScopeEventId) throw new Error('That tournament no longer exists.');
 
-                // D33, revised 2026-09-19: a convenor may withdraw a co-convenor only if they
-                // appointed them. The gate let them this far on their division grant; whether this
-                // particular row is theirs to remove is only knowable here. Event organisers — and
-                // anyone the event already trusts — remove anybody.
-                if (withdrawDivisionId && !withdrawEventId) {
+                // D33, revised 2026-09-19 and widened 2026-09-20: somebody holding a narrow scope
+                // may withdraw only the people they appointed. The gate let them this far on their
+                // division or sport grant; whether this particular row is theirs to remove is only
+                // knowable here. Event organisers - and anyone the event already trusts - remove
+                // anybody, which is why the event scope skips the check entirely.
+                if (withdrawScope.kind !== 'event') {
                     const withdrawEvent = await dataManager.getEvent(withdrawScopeEventId);
                     const actsForEvent = !!withdrawEvent && await dataManager.canEditEventOrGame(
                         authUserId!,
@@ -3239,29 +3353,29 @@ io.on('connection', (socket) => {
                         withdrawScopeEventId
                     );
                     if (!actsForEvent) {
-                        const grant = (await dataManager.getDivisionOrganizers(withdrawDivisionId))
-                            .find((row: any) => row.orgProfileId === withdrawnProfileId);
+                        const held = withdrawScope.kind === 'division'
+                            ? await dataManager.getDivisionOrganizers(withdrawScope.divisionId)
+                            : await dataManager.getSportOrganizers(withdrawScope.eventId, withdrawScope.sportId);
+                        const grant = held.find((row: any) => row.orgProfileId === withdrawnProfileId);
                         const appointedByCaller = !!grant?.grantedByOrgProfileId &&
                             await dataManager.ownsOrgProfile(authUserId!, grant.grantedByOrgProfileId);
                         if (!appointedByCaller) {
                             throw new Error(
-                                "You can only remove convenors you added yourself. Ask the tournament's organisers to remove this one."
+                                withdrawScope.kind === 'division'
+                                    ? "You can only remove convenors you added yourself. Ask the tournament's organisers to remove this one."
+                                    : "You can only remove organisers you added yourself. Ask the tournament's organisers to remove this one."
                             );
                         }
                     }
                 }
 
                 const remaining = await dataManager.withdrawOrganizer({
-                    eventId: withdrawEventId,
-                    divisionId: withdrawDivisionId,
+                    ...organizerScopeFields(withdrawScope),
                     orgProfileId: withdrawnProfileId,
                 });
                 result = {
-                    eventId: withdrawEventId,
-                    divisionId: withdrawDivisionId,
-                    organizers: withdrawDivisionId && !withdrawEventId
-                        ? await divisionOrganizersFor(authUserId, withdrawDivisionId)
-                        : remaining,
+                    ...organizerScopeFields(withdrawScope),
+                    organizers: await organizersForCaller(authUserId, withdrawScope, remaining),
                 };
                 // Published *after* the delete, so the recomputed capabilities are the ones the
                 // withdrawal leaves behind — and so the room revalidation it triggers closes the

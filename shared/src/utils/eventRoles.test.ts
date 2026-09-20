@@ -11,7 +11,7 @@ import { EventGrants } from '../models/event/Tournament';
  * chips exist to convey: a host who also coaches a team will use the screen for both.
  */
 
-const NO_GRANTS: EventGrants = { eventIds: [], divisions: [] };
+const NO_GRANTS: EventGrants = { eventIds: [], sports: [], divisions: [] };
 
 const event = {
   id: 'evt-1',
@@ -51,7 +51,7 @@ describe('deriveEventRoles', () => {
     expect(
       deriveEventRoles({
         event,
-        grants: { eventIds: ['evt-1'], divisions: [] },
+        grants: { eventIds: ['evt-1'], sports: [], divisions: [] },
         orgMemberships: [],
         teamMemberships: [],
       })
@@ -62,7 +62,18 @@ describe('deriveEventRoles', () => {
     expect(
       deriveEventRoles({
         event,
-        grants: { eventIds: [], divisions: [{ divisionId: 'div-1', eventId: 'evt-1' }] },
+        grants: { eventIds: [], sports: [], divisions: [{ divisionId: 'div-1', eventId: 'evt-1' }] },
+        orgMemberships: [],
+        teamMemberships: [],
+      })
+    ).toEqual(['Convening']);
+  });
+
+  it('names the organiser of one of its sports as convening', () => {
+    expect(
+      deriveEventRoles({
+        event,
+        grants: { eventIds: [], sports: [{ sportId: 'netball', eventId: 'evt-1' }], divisions: [] },
         orgMemberships: [],
         teamMemberships: [],
       })
@@ -75,6 +86,7 @@ describe('deriveEventRoles', () => {
         event,
         grants: {
           eventIds: ['evt-other'],
+          sports: [{ sportId: 'netball', eventId: 'evt-other' }],
           divisions: [{ divisionId: 'div-9', eventId: 'evt-other' }],
         },
         orgMemberships: [],
@@ -124,7 +136,7 @@ describe('deriveEventRoles', () => {
     expect(
       deriveEventRoles({
         event,
-        grants: { eventIds: [], divisions: [{ divisionId: 'div-1', eventId: 'evt-1' }] },
+        grants: { eventIds: [], sports: [], divisions: [{ divisionId: 'div-1', eventId: 'evt-1' }] },
         orgMemberships: [membership('org-host', 'role-org-admin')],
         teamMemberships: [teamRole('team-7', 'role-coach')],
         games: [{ participants: [{ teamId: 'team-7' }, { teamId: 'team-8' }] }],

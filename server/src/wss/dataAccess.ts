@@ -46,7 +46,11 @@ export interface DataAccessRule {
   /** The request field naming the subject, for `self`. */
   selfField?: string;
   /** The event or division to authorize against, for `tournament-organiser`. */
-  organiserScope?: (req: any) => { eventId?: string | null; divisionId?: string | null };
+  organiserScope?: (req: any) => {
+    eventId?: string | null;
+    sportId?: string | null;
+    divisionId?: string | null;
+  };
 }
 
 const orgRoom = (suffix: string) => (req: any) =>
@@ -198,13 +202,25 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   // Who runs this tournament is not spectator information: it is a list of named people, and
   // `event:{id}` is a public room, so it cannot defer to one.
   event_organizers:     { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ eventId: req.eventId }) },
+  // Asked per sport, not per event (2026-09-20): the read is then gated by exactly the grant that
+  // would let the caller change it, so a sport's organiser reads their own sport's list without
+  // being handed the people running every other sport.
+  sport_organizers:     {
+    standalone: 'tournament-organiser',
+    organiserScope: (req: any) => ({ eventId: req.eventId, sportId: req.sportId }),
+  },
   division_organizers:  { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ divisionId: req.divisionId }) },
   // The picker. Gated at the same level as the appointment it feeds, so browsing people is never
-  // easier than the action it exists for — which, since convenors may appoint co-convenors, means a
-  // `divisionId` is accepted as the narrower scope, as `event_candidate_teams` already does.
+  // easier than the action it exists for — which, since convenors may appoint co-convenors and a
+  // sport's organiser may appoint within their sport, means a `divisionId` or a `sportId` is
+  // accepted as the narrower scope, as `event_candidate_teams` already does.
   organizer_candidates: {
     standalone: 'tournament-organiser',
-    organiserScope: (req: any) => ({ eventId: req.eventId, divisionId: req.divisionId }),
+    organiserScope: (req: any) => ({
+      eventId: req.eventId,
+      sportId: req.sportId,
+      divisionId: req.divisionId,
+    }),
   },
   stage_games:          { room: (req: any) => stageRoom(req.stageId, 'fixtures') },
   // Pool membership is roster data: it names which competitors are in the division at all.
@@ -292,6 +308,13 @@ export async function canReadData(userId: string, request: any): Promise<DataAcc
           return (await accessManager.canOrganizeDivision(userId, scope.divisionId))
             ? { allowed: true, reason: `organises division ${scope.divisionId}` }
             : { allowed: false, reason: 'not an organiser of that division' };
+        }
+        // Narrowest first, so the check that runs is the one the caller's own grant can satisfy.
+        // A sport scope needs both halves: a grant is over one sport of one tournament.
+        if (scope?.sportId && scope?.eventId) {
+          return (await accessManager.canOrganizeSport(userId, scope.eventId, scope.sportId))
+            ? { allowed: true, reason: `organises sport ${scope.sportId} of event ${scope.eventId}` }
+            : { allowed: false, reason: 'not an organiser of that sport' };
         }
         if (scope?.eventId) {
           return (await accessManager.canOrganizeEvent(userId, scope.eventId))

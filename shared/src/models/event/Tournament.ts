@@ -254,22 +254,35 @@ export interface TournamentStandingRow extends LeagueStandingRow {
 }
 
 /**
- * A person granted edit rights over a tournament or one of its divisions (D33).
+ * A person granted edit rights over a tournament, one of its sports, or one of its divisions (D33).
  *
- * Two scopes, two tables — `event_organizers` and `division_organizers` — and this one shape for
- * both: exactly one of `eventId` and `divisionId` is set. The grant is keyed on the **profile**,
- * not the user account, which is what makes "appoint the netball convenor, who will get an invite"
- * possible and what lets a grant survive the person later claiming their account untouched
- * (implementation plan §0.1).
+ * Three scopes, three tables — `event_organizers`, `event_sport_organizers` and
+ * `division_organizers` — and this one shape for all of them. Which scope a row is, is read with
+ * {@link organizerScopeOf} rather than by testing fields by hand: a **sport** grant carries an
+ * `eventId` *and* a `sportId`, so `eventId` on its own stopped meaning "event scope" when the sport
+ * scope was added on 2026-09-20.
+ *
+ * **The sport scope is a rule, not a list.** It says "this person runs the netball", so it covers
+ * every netball division in the tournament — including ones added afterwards, and including a
+ * division that becomes netball later. That is the whole reason it is not sugar for appointing
+ * somebody to each division in turn, which would go stale the moment the draw grew.
+ *
+ * The grant is keyed on the **profile**, not the user account, which is what makes "appoint the
+ * netball convenor, who will get an invite" possible and what lets a grant survive the person later
+ * claiming their account untouched (implementation plan §0.1).
  *
  * The person's own organisation is on the row for display only. Appointing someone says nothing
  * about who is competing: an org is in the tournament because it entered a team, and an
  * appointment must never write a row into `event_organizations`.
  */
 export interface TournamentOrganizer {
-  /** Set on an event-scope grant, absent on a division-scope one. */
+  /** Set on an event-scope grant — and on a sport-scope one, which names the tournament too. */
   eventId?: string;
-  /** Set on a division-scope grant, absent on an event-scope one. */
+  /** Set on a sport-scope grant, alongside `eventId`. Absent on the other two. */
+  sportId?: string;
+  /** The sport's name, joined in on read for display. Ignored on write. */
+  sportName?: string;
+  /** Set on a division-scope grant, absent on the other two. */
   divisionId?: string;
   orgProfileId: string;
   /**
@@ -291,12 +304,14 @@ export interface TournamentOrganizer {
   grantedByName?: string;
   createdAt?: string;
   /**
-   * Whether *the viewer* may withdraw this grant — set only on a division's list, in replies to one
-   * caller (`get_data`, the appoint/withdraw acks), never on anything published to a room.
+   * Whether *the viewer* may withdraw this grant — set on a sport's and a division's lists, in
+   * replies to one caller (`get_data`, the appoint/withdraw acks), never on anything published to a
+   * room.
    *
-   * A convenor may withdraw only the co-convenors they appointed (D33, revised 2026-09-19), and
-   * working that out needs the viewer's profiles and the event's permissions — so the server
-   * answers it rather than the client guessing.
+   * A convenor may withdraw only the co-convenors they appointed (D33, revised 2026-09-19), and a
+   * sport's organiser only the people they appointed (2026-09-20). Working that out needs the
+   * viewer's profiles and the event's permissions — so the server answers it rather than the client
+   * guessing.
    */
   canWithdraw?: boolean;
 }
@@ -331,6 +346,8 @@ export interface TournamentOrganizer {
 export interface EventGrants {
   /** Events this user is an appointed organiser of. */
   eventIds: string[];
+  /** Sports this user runs, each within one event (2026-09-20). */
+  sports: Array<{ sportId: string; eventId: string }>;
   /** Divisions this user convenes, each with the event it belongs to. */
   divisions: Array<{ divisionId: string; eventId: string }>;
 }
@@ -339,6 +356,14 @@ export interface EventCapabilities {
   eventId: string;
   /** Full rights over the tournament: the hosting org's admins and staff, and appointed organisers. */
   canEditEvent: boolean;
+  /**
+   * Sports this user runs in this tournament (2026-09-20).
+   *
+   * Unlike `convenesDivisionIds`, this one **does** grant something an event grant would not, to
+   * somebody who holds only it: every division of these sports, plus adding and deleting divisions
+   * within them. A screen that asks "may I edit this division?" asks both lists.
+   */
+  convenesSportIds: string[];
   /**
    * Divisions this user convenes. An event organiser's rights already contain a convenor's, so a
    * person holding both scopes has this populated even though it grants them nothing further —
