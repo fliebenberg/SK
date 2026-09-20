@@ -223,11 +223,48 @@ export default function DivisionScreen() {
   const [draftFacilityIds, setDraftFacilityIds] = useState<string[]>([]);
   const [isSavingFacilities, setIsSavingFacilities] = useState(false);
   const savedFacilityKey = [...(division?.facilityIds || [])].sort().join();
+
+  /**
+   * A baseline of its own, for the same reasons as the details above — the facilities are a
+   * different subject, saved by a different action against a different table, so one combined
+   * baseline would let a remote rename decide what happens to an unsaved venue choice.
+   *
+   * `null` means "not loaded"; `''` means "none chosen", which is an ordinary saved state.
+   */
+  const [facilityBaseline, setFacilityBaseline] = useState<{ divisionId: string; key: string } | null>(
+    null
+  );
+  /**
+   * Scoped to the division, and it has to be. The key alone would carry across a navigation
+   * whenever two divisions happen to have the same venues — including the common case of both
+   * having none, where an unsaved choice made on the first would follow you to the second.
+   */
+  const facilityBaselineKey =
+    facilityBaseline?.divisionId === divisionId ? facilityBaseline.key : null;
+
+  const seedFacilities = useCallback(
+    (ids: string[], key: string, forDivisionId: string) => {
+      setDraftFacilityIds(ids);
+      setFacilityBaseline({ divisionId: forDivisionId, key });
+    },
+    []
+  );
+
   useEffect(() => {
-    setDraftFacilityIds(division?.facilityIds || []);
+    if (!division) return;
+    const decision = reseedDecision<string>({
+      baseline: facilityBaselineKey,
+      // Compared as a sorted key, so order is not a change.
+      drafts: [...draftFacilityIds].sort().join(),
+      incoming: savedFacilityKey,
+      same: (a, b) => a === b,
+    });
+    if (decision === 'adopt') seedFacilities(division.facilityIds || [], savedFacilityKey, divisionId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divisionId, savedFacilityKey]);
-  const facilitiesDirty = [...draftFacilityIds].sort().join() !== savedFacilityKey;
+
+  const facilitiesDirty =
+    facilityBaselineKey !== null && [...draftFacilityIds].sort().join() !== facilityBaselineKey;
 
   const handleSaveFacilities = () => {
     setIsSavingFacilities(true);
@@ -563,9 +600,9 @@ export default function DivisionScreen() {
      `savedFacilityKey` stands in for `division.facilityIds`, which is a new array on every sync. */
   const handleDiscard = useCallback(() => {
     resetDetails();
-    setDraftFacilityIds(division?.facilityIds || []);
+    seedFacilities(division?.facilityIds || [], savedFacilityKey, divisionId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetDetails, savedFacilityKey]);
+  }, [resetDetails, seedFacilities, savedFacilityKey, divisionId]);
 
   const { confirmThenNavigate } = useUnsavedChanges(
     ((canEditRecord && detailsDirty) || (canEdit && facilitiesDirty)) && !isSavingDetails && !isSavingFacilities,

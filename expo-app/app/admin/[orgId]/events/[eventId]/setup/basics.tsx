@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Event, Facility, Site, SocketAction, TournamentOrganizer } from '@sk/shared';
+import { Event, Facility, Site, SocketAction, TournamentOrganizer, reseedDecision } from '@sk/shared';
 import { AccessDenied } from '../../../../../../components/AccessDenied';
 import CustomSelect from '../../../../../../components/CustomSelect';
 import DatePicker from '../../../../../../components/DatePicker';
@@ -23,6 +23,28 @@ import { useToastStore } from '../../../../../../store/toastStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+
+/** The identity half of this form — the fields `UPDATE_EVENT` carries — plus the event they belong to. */
+interface EventIdentity {
+  eventId: string;
+  name: string;
+  startDate: string;
+  isMultiDay: boolean;
+  endDate: string;
+  siteId: string;
+}
+
+/**
+ * Equality over what the form edits. The event id is identity rather than a field, and the end
+ * date only counts while the switch is on — off, its value is not part of the form and a stale one
+ * behind the switch must not read as an unsaved change.
+ */
+const sameIdentity = (a: EventIdentity, b: EventIdentity) =>
+  a.name === b.name &&
+  a.startDate === b.startDate &&
+  a.isMultiDay === b.isMultiDay &&
+  (!a.isMultiDay || a.endDate === b.endDate) &&
+  a.siteId === b.siteId;
 
 /**
  * What the tournament is, when it is, and where (U48).
@@ -137,13 +159,59 @@ export default function SetupBasics() {
   const [editFacilityIds, setEditFacilityIds] = useState<string[]>([]);
   const [organizers, setOrganizers] = useState<TournamentOrganizer[]>([]);
 
+  /**
+   * What the drafts were last seeded from — never the live `event` (`UI-18`).
+   *
+   * Two faults come from measuring "unsaved" against a record that moves under an open form, and
+   * the division screen had both before 2026-09-20: an `EVENT_UPDATED` from another device lands
+   * one render before the effect that follows it, so the save bar **flashes on every other
+   * viewer**; and an unconditional re-seed **discards a half-typed name** whenever anybody else
+   * touches any field. `reseedDecision` is the shared rule, with its reasoning and its tests.
+   *
+   * The facilities keep a baseline of their own, below. They are a different subject saved by a
+   * different action against a different table, so one combined baseline would let a remote change
+   * to the date decide what happens to an unsaved facility choice.
+   */
+  const [identityBaseline, setIdentityBaseline] = useState<EventIdentity | null>(null);
+
+  const savedIdentity: EventIdentity = {
+    eventId,
+    name: event?.name || '',
+    startDate: event?.startDate?.split('T')[0] || '',
+    isMultiDay: !!event?.endDate,
+    endDate: event?.endDate?.split('T')[0] || '',
+    siteId: event?.siteId || '',
+  };
+
+  const seedIdentity = useCallback((from: EventIdentity) => {
+    // One batch, so the drafts and the baseline they are measured against never disagree.
+    setEditName(from.name);
+    setEditStartDate(from.startDate);
+    setIsMultiDay(from.isMultiDay);
+    setEditEndDate(from.endDate);
+    setEditSiteId(from.siteId);
+    setIdentityBaseline(from);
+  }, []);
+
   useEffect(() => {
     if (!event) return;
-    setEditName(event.name);
-    setEditStartDate(event.startDate?.split('T')[0] || '');
-    setIsMultiDay(!!event.endDate);
-    setEditEndDate(event.endDate?.split('T')[0] || '');
-    setEditSiteId(event.siteId || '');
+    const decision = reseedDecision<EventIdentity>({
+      // A different event is a different form. Said as "no baseline" inside this effect, because a
+      // second effect clearing it would run afterwards and leave the drafts a render behind.
+      baseline: identityBaseline?.eventId === eventId ? identityBaseline : null,
+      drafts: {
+        eventId,
+        name: editName,
+        startDate: editStartDate,
+        isMultiDay,
+        endDate: editEndDate,
+        siteId: editSiteId,
+      },
+      incoming: savedIdentity,
+      same: sameIdentity,
+    });
+    if (decision === 'adopt') seedIdentity(savedIdentity);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event?.id, event?.name, event?.startDate, event?.endDate, event?.siteId]);
 
   /**
@@ -153,8 +221,32 @@ export default function SetupBasics() {
    */
   const savedFacilityIds = useMemo(() => eventFacilityRows.map(row => row.id), [eventFacilityRows]);
   const savedFacilityKey = [...savedFacilityIds].sort().join();
+  /**
+   * Scoped to the event, and it has to be. The key alone would carry across a navigation whenever
+   * two tournaments happen to use the same facilities — including both using none, where an
+   * unsaved choice made on the first would follow you to the second.
+   */
+  const [facilityBaseline, setFacilityBaseline] = useState<{ eventId: string; key: string } | null>(
+    null
+  );
+  const facilityBaselineKey = facilityBaseline?.eventId === eventId ? facilityBaseline.key : null;
+
+  const seedFacilities = useCallback((ids: string[], key: string, forEventId: string) => {
+    setEditFacilityIds(ids);
+    setFacilityBaseline({ eventId: forEventId, key });
+  }, []);
+
   useEffect(() => {
-    setEditFacilityIds(savedFacilityIds);
+    if (!event) return;
+    const decision = reseedDecision<string>({
+      baseline: facilityBaselineKey,
+      drafts: [...editFacilityIds].sort().join(),
+      incoming: savedFacilityKey,
+      // The set is compared as its sorted key, so order is not a change and equality is a string
+      // comparison rather than a deep one.
+      same: (a, b) => a === b,
+    });
+    if (decision === 'adopt') seedFacilities(savedFacilityIds, savedFacilityKey, eventId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event?.id, savedFacilityKey]);
 
@@ -208,26 +300,28 @@ export default function SetupBasics() {
     }
   };
 
+  /* Measured against the baseline, never against the live event — see `identityBaseline`. */
   const identityDirty =
     !!event &&
-    (editName !== event.name ||
-      editStartDate !== (event.startDate?.split('T')[0] || '') ||
-      isMultiDay !== !!event.endDate ||
-      (isMultiDay && editEndDate !== (event.endDate?.split('T')[0] || '')) ||
-      editSiteId !== (event.siteId || ''));
-  /** Its own flag, because it saves through its own action against its own table. */
-  const facilitiesDirty = [...editFacilityIds].sort().join() !== savedFacilityKey;
+    !!identityBaseline &&
+    (editName !== identityBaseline.name ||
+      editStartDate !== identityBaseline.startDate ||
+      isMultiDay !== identityBaseline.isMultiDay ||
+      // An end date only counts while the switch is on; off, its value is not part of the form.
+      (isMultiDay && editEndDate !== identityBaseline.endDate) ||
+      editSiteId !== identityBaseline.siteId);
+  /** Its own flag and its own baseline, because it saves through its own action against its own table. */
+  const facilitiesDirty =
+    facilityBaselineKey !== null && [...editFacilityIds].sort().join() !== facilityBaselineKey;
   const isDirty = canEdit && (identityDirty || facilitiesDirty);
 
+  /** Cancel goes back to what is saved *now*, not to what was saved when the screen opened. */
   const handleCancel = useCallback(() => {
     if (!event) return;
-    setEditName(event.name);
-    setEditStartDate(event.startDate?.split('T')[0] || '');
-    setIsMultiDay(!!event.endDate);
-    setEditEndDate(event.endDate?.split('T')[0] || '');
-    setEditSiteId(event.siteId || '');
-    setEditFacilityIds(savedFacilityIds);
-  }, [event, savedFacilityIds]);
+    seedIdentity(savedIdentity);
+    seedFacilities(savedFacilityIds, savedFacilityKey, eventId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedIdentity, seedFacilities, event, savedFacilityKey]);
 
   const { confirmThenNavigate } = useUnsavedChanges(isDirty && !isProcessing, handleCancel);
 

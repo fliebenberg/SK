@@ -42,8 +42,11 @@ export function reseedDecision<T>(args: {
 }): ReseedDecision {
   const { baseline, drafts, incoming, same } = args;
 
-  // Nothing to protect yet.
-  if (!baseline) return 'adopt';
+  // Nothing to protect yet. Compared against `null` rather than tested for truthiness, because a
+  // form's whole state can legitimately *be* falsy — a facility set held as its sorted key is `''`
+  // when nothing is chosen, and treating that as "not loaded yet" would re-seed unconditionally
+  // and put back the very clobber this exists to prevent.
+  if (baseline == null) return 'adopt';
 
   // The record has not moved, whatever the drafts are doing. Said before the conflict check so a
   // form with unsaved edits does not re-decide on every unrelated render.

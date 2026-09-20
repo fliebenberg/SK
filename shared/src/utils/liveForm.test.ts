@@ -42,3 +42,21 @@ describe('a live record changing under an open form', () => {
     expect(decide(null, TYPING, RENAMED)).toBe('adopt');
   });
 });
+
+describe('a form whose whole state can be falsy', () => {
+  // A set of chosen ids, held as its sorted key: "" is "none chosen", not "not loaded".
+  const decide = (baseline: string | null, drafts: string, incoming: string) =>
+    reseedDecision({ baseline, drafts, incoming, same: (a: string, b: string) => a === b });
+
+  it('protects an edit made from an empty baseline', () => {
+    expect(decide('', 'field-1', 'field-2')).toBe('keep');
+  });
+
+  it('still adopts before the first load', () => {
+    expect(decide(null, '', 'field-1')).toBe('adopt');
+  });
+
+  it('reports an empty record that has not moved as unchanged', () => {
+    expect(decide('', '', '')).toBe('unchanged');
+  });
+});

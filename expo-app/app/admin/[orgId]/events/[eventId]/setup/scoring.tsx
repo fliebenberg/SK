@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DEFAULT_SCORING_SYSTEM, ScoringSystem, SocketAction } from '@sk/shared';
+import { DEFAULT_SCORING_SYSTEM, ScoringSystem, SocketAction, reseedDecision } from '@sk/shared';
 import { AccessDenied } from '../../../../../../components/AccessDenied';
 import { Button } from '../../../../../../components/Button';
 import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../../../components/FloatingSaveBar';
@@ -14,6 +14,14 @@ import { sendAction } from '../../../../../../services/actions';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+
+/** The three point fields, plus the event they belong to. */
+interface ScoringDraft {
+  eventId: string;
+  win: string;
+  draw: string;
+  loss: string;
+}
 
 /**
  * How the competition is scored (U48).
@@ -63,38 +71,69 @@ export default function SetupScoring() {
    * editable here yet, so the form shows blanks rather than inventing numbers.
    */
   const savedScoring: ScoringSystem = event?.settings?.scoring || DEFAULT_SCORING_SYSTEM;
-  useEffect(() => {
-    if (savedScoring.mode === 'byResult') {
-      setPtsWin(String(savedScoring.pointsPerWin));
-      setPtsDraw(String(savedScoring.pointsPerDraw));
-      setPtsLoss(String(savedScoring.pointsPerLoss));
-    } else {
-      setPtsWin('');
-      setPtsDraw('');
-      setPtsLoss('');
-    }
-    // The event coming back with a scoring system is what "confirmed" means, so the flag has done
-    // its job — leaving it set would keep the save bar up over a saved form.
+
+  /** The saved points as the three text fields hold them. Blank for a system this form cannot edit. */
+  const savedPoints =
+    savedScoring.mode === 'byResult'
+      ? {
+          eventId,
+          win: String(savedScoring.pointsPerWin),
+          draw: String(savedScoring.pointsPerDraw),
+          loss: String(savedScoring.pointsPerLoss),
+        }
+      : { eventId, win: '', draw: '', loss: '' };
+
+  /**
+   * What the fields were last seeded from — never the live event (`UI-18`).
+   *
+   * This screen had the flash and the clobber in a sharper form than the others: its effect was
+   * keyed on `event.settings.scoring`, an object parsed fresh out of JSONB on every broadcast, so
+   * **any** update to the event — a rename, a date — gave it a new identity and re-seeded the form
+   * over whatever was being typed.
+   *
+   * `confirmDefaultScoring` is deliberately *outside* the baseline. It is not a value the form
+   * holds but an assertion about one ("the defaults are right"), so it cannot be compared against
+   * anything saved; it is an extra dirty term, and adopting a record clears it because the event
+   * coming back with a scoring system is what confirming meant.
+   */
+  const [pointsBaseline, setPointsBaseline] = useState<ScoringDraft | null>(null);
+  const pointsBaselineForEvent = pointsBaseline?.eventId === eventId ? pointsBaseline : null;
+
+  const seedPoints = useCallback((from: ScoringDraft) => {
+    setPtsWin(from.win);
+    setPtsDraw(from.draw);
+    setPtsLoss(from.loss);
+    setPointsBaseline(from);
     setConfirmDefaultScoring(false);
-  }, [event?.id, event?.settings?.scoring]);
+  }, []);
+
+  useEffect(() => {
+    if (!event) return;
+    const decision = reseedDecision<ScoringDraft>({
+      baseline: pointsBaselineForEvent,
+      drafts: { eventId, win: ptsWin, draw: ptsDraw, loss: ptsLoss },
+      incoming: savedPoints,
+      same: (a, b) => a.win === b.win && a.draw === b.draw && a.loss === b.loss,
+    });
+    if (decision === 'adopt') seedPoints(savedPoints);
+    // Keyed on the values rather than on `settings.scoring`, whose identity changes on every sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event?.id, savedPoints.win, savedPoints.draw, savedPoints.loss]);
 
   const isDirty =
     canEdit &&
     savedScoring.mode === 'byResult' &&
+    !!pointsBaselineForEvent &&
     (confirmDefaultScoring ||
-      ptsWin !== String(savedScoring.pointsPerWin) ||
-      ptsDraw !== String(savedScoring.pointsPerDraw) ||
-      ptsLoss !== String(savedScoring.pointsPerLoss));
+      ptsWin !== pointsBaselineForEvent.win ||
+      ptsDraw !== pointsBaselineForEvent.draw ||
+      ptsLoss !== pointsBaselineForEvent.loss);
 
+  /** Cancel goes back to what is saved now, not to what was saved when the screen opened. */
   const handleCancel = useCallback(() => {
-    const scoring = event?.settings?.scoring || DEFAULT_SCORING_SYSTEM;
-    if (scoring.mode === 'byResult') {
-      setPtsWin(String(scoring.pointsPerWin));
-      setPtsDraw(String(scoring.pointsPerDraw));
-      setPtsLoss(String(scoring.pointsPerLoss));
-    }
-    setConfirmDefaultScoring(false);
-  }, [event]);
+    seedPoints(savedPoints);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedPoints, savedPoints.win, savedPoints.draw, savedPoints.loss]);
 
   const { confirmThenNavigate } = useUnsavedChanges(isDirty && !isProcessing, handleCancel);
 
