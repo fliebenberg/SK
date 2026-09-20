@@ -509,11 +509,11 @@ export default function DivisionScreen() {
                 </View>
               )}
 
-              {/* Sport, then age group — the pair that says what the division *is*, and what its
-                  automatic name is made of. Stacked rather than side by side: the age groups are a
-                  row of chips from the sport's list, which needs the full width. */}
-              <View className="gap-4">
-                <View className="space-y-2">
+              {/* Sport and age group — the pair that says what the division *is*, and what its
+                  automatic name is made of. Side by side: both are dropdowns, so neither needs the
+                  full width, and reading them as one line matches how the division is named. */}
+              <View className="flex-row gap-3">
+                <View className="flex-1 space-y-2">
                   <FieldLabel
                     label="Sport"
                     help="The sport played in this division."
@@ -545,7 +545,7 @@ export default function DivisionScreen() {
                   )}
                 </View>
 
-                <View className="space-y-2">
+                <View className="flex-1 space-y-2">
                   <FieldLabel
                     label="Age group"
                     optional
@@ -562,6 +562,7 @@ export default function DivisionScreen() {
                       }}
                       noneLabel="Any age"
                       orgId={orgId}
+                      variant="dropdown"
                     />
                   ) : (
                     <Text className="font-inter text-sm text-slate-800 dark:text-white">

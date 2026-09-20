@@ -82,6 +82,13 @@ double as a record of what the official list is missing: the admin promotes one,
 the official entry it duplicates. Teams, divisions and leagues hold the entry's id, under a foreign
 key that requires it to belong to their own sport.
 
+The picker has two shapes. Its default is **chips** — every official entry on show, with "Other…"
+opening the custom ones and a box to add another — for screens where choosing the age group is the
+point. `variant="dropdown"` folds the same choices into a `CustomSelect`, for a screen where the
+age group is one field among several; there the custom entries sit in the list beside the official
+ones, since a list has room for them, and "Other…" only opens the add box. The division screen uses
+the dropdown (2026-09-20).
+
 ### **C. The `Match` (or `Event`) Entity**
 Represents a specific instance of a game.
 - `id`, `sportId`, `matchDayId` (Groups matches together, e.g., an Athletics Meet).

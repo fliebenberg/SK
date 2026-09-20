@@ -832,6 +832,11 @@ that spans weeks.
 >   division screen now opens with a *Name* / *Sport* / *Age group* form, saved together. The name
 >   used to sit behind a pencil in the header; it is an ordinary first field now, as a tournament's
 >   is on Basic Info, and the header reads `{tournament} - {division}` like the setup steps.
+> - **Sport and age group share a line, both as dropdowns (2026-09-20).** The age group was a row of
+>   chips from the sport's list, which needed the full width and so pushed the two fields apart —
+>   the pair that the automatic name is made of read as two unrelated sections. `AgeGroupPicker`
+>   grew a `dropdown` variant (§B2 of [multi_sport_architecture.md](file:///c:/Fred/Coding/SK/docs/multi_sport_architecture.md)),
+>   and the two now sit side by side, in the order the derived name puts them.
 > - **A division's name can be left to the app.** Until the organiser types one, it is derived from
 >   the sport and age group (`Rugby U14`) and follows them as they change; emptying the field hands
 >   it back, with the derived name shown as the placeholder. Nothing is stored to say which kind a

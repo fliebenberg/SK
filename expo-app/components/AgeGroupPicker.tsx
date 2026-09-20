@@ -3,6 +3,7 @@ import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'reac
 import { Ionicons } from '@expo/vector-icons';
 import { AgeGroup, SocketAction, ageGroupNameKey, sortAgeGroups } from '@sk/shared';
 import { sendAction } from '../services/actions';
+import CustomSelect from './CustomSelect';
 
 /**
  * Chooses an age group from a sport's list — the one control every screen that gives a team,
@@ -13,6 +14,11 @@ import { sendAction } from '../services/actions';
  * the second school needing "U13 Girls" picks the first school's, and a box to add a new one. The
  * server returns the existing entry when a typed name matches one ignoring case, so "u13" typed
  * here simply selects "U13".
+ *
+ * `variant="dropdown"` renders the same choices as a select instead, for screens where the age
+ * group is one field among several rather than the point of the screen. There the custom entries
+ * sit in the list beside the official ones — a list has room for them — and **Other…** only opens
+ * the box that adds a new one.
  *
  * An added entry is kept locally and handed to `onChange`, so the screen does not have to reload
  * the sports list to show it.
@@ -30,7 +36,12 @@ interface AgeGroupPickerProps {
   /** The workspace the user is acting from, recorded against a custom entry they add. */
   orgId?: string;
   disabled?: boolean;
+  /** `chips` (the default) shows every choice at once; `dropdown` folds them into a select. */
+  variant?: 'chips' | 'dropdown';
 }
+
+/** Not an age group id — the dropdown row that opens the "add a new one" box. */
+const ADD_NEW = '__add_new__';
 
 const chipClass = (isSelected: boolean) =>
   `px-3.5 py-2 rounded-xl border ${
@@ -50,6 +61,7 @@ export function AgeGroupPicker({
   noneLabel,
   orgId,
   disabled,
+  variant = 'chips',
 }: AgeGroupPickerProps) {
   const [added, setAdded] = useState<AgeGroup[]>([]);
   const [showOther, setShowOther] = useState(false);
@@ -70,7 +82,8 @@ export function AgeGroupPicker({
   const official = all.filter(g => g.isOfficial);
   const custom = all.filter(g => !g.isOfficial);
   const selected = all.find(g => g.id === value);
-  const otherOpen = showOther || (!!selected && !selected.isOfficial);
+  const isDropdown = variant === 'dropdown';
+  const otherOpen = isDropdown ? showOther : showOther || (!!selected && !selected.isOfficial);
 
   if (!sportId) {
     return (
@@ -88,6 +101,8 @@ export function AgeGroupPicker({
     if (existing) {
       onChange(existing.id, existing);
       setDraft('');
+      // The dropdown shows what was chosen; the box has done its job.
+      if (isDropdown) setShowOther(false);
       return;
     }
     setIsAdding(true);
@@ -98,41 +113,67 @@ export function AgeGroupPicker({
       const group = result.data;
       setAdded(prev => [...prev, group]);
       setDraft('');
+      if (isDropdown) setShowOther(false);
       onChange(group.id, group);
     });
   };
 
   return (
     <View className={disabled ? 'opacity-50' : ''} pointerEvents={disabled ? 'none' : 'auto'}>
-      <View className="flex-row flex-wrap gap-2">
-        {noneLabel !== undefined && (
-          <TouchableOpacity onPress={() => onChange(null)} className={chipClass(!value)}>
-            <Text className={chipTextClass(!value)}>{noneLabel}</Text>
+      {isDropdown ? (
+        <CustomSelect
+          value={value || ''}
+          onChange={picked => {
+            if (picked === ADD_NEW) {
+              setShowOther(true);
+              return;
+            }
+            setShowOther(false);
+            const group = all.find(g => g.id === picked);
+            onChange(group ? group.id : null, group);
+          }}
+          // The closed control reads "Any age" off the `''` option, so the placeholder is free to
+          // stay the instruction — which is also the select's modal heading.
+          placeholder="Choose an age group"
+          options={[
+            ...(noneLabel !== undefined ? [{ value: '', label: noneLabel }] : []),
+            // Custom entries sit with the official ones here: the list has room for them, so
+            // nothing another user added is hidden behind Other…, which only adds a new one.
+            ...all.map(group => ({ value: group.id, label: group.name })),
+            { value: ADD_NEW, label: 'Other…', description: 'Add an age group this list does not have' },
+          ]}
+        />
+      ) : (
+        <View className="flex-row flex-wrap gap-2">
+          {noneLabel !== undefined && (
+            <TouchableOpacity onPress={() => onChange(null)} className={chipClass(!value)}>
+              <Text className={chipTextClass(!value)}>{noneLabel}</Text>
+            </TouchableOpacity>
+          )}
+          {official.map(group => (
+            <TouchableOpacity key={group.id} onPress={() => onChange(group.id, group)} className={chipClass(value === group.id)}>
+              <Text className={chipTextClass(value === group.id)}>{group.name}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            onPress={() => setShowOther(!otherOpen)}
+            className={`${chipClass(!!selected && !selected.isOfficial)} flex-row items-center gap-1`}
+          >
+            <Text className={chipTextClass(!!selected && !selected.isOfficial)}>
+              {selected && !selected.isOfficial ? selected.name : 'Other…'}
+            </Text>
+            <Ionicons
+              name={otherOpen ? 'chevron-up' : 'chevron-down'}
+              size={12}
+              color={selected && !selected.isOfficial ? 'white' : '#94A3B8'}
+            />
           </TouchableOpacity>
-        )}
-        {official.map(group => (
-          <TouchableOpacity key={group.id} onPress={() => onChange(group.id, group)} className={chipClass(value === group.id)}>
-            <Text className={chipTextClass(value === group.id)}>{group.name}</Text>
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity
-          onPress={() => setShowOther(!otherOpen)}
-          className={`${chipClass(!!selected && !selected.isOfficial)} flex-row items-center gap-1`}
-        >
-          <Text className={chipTextClass(!!selected && !selected.isOfficial)}>
-            {selected && !selected.isOfficial ? selected.name : 'Other…'}
-          </Text>
-          <Ionicons
-            name={otherOpen ? 'chevron-up' : 'chevron-down'}
-            size={12}
-            color={selected && !selected.isOfficial ? 'white' : '#94A3B8'}
-          />
-        </TouchableOpacity>
-      </View>
+        </View>
+      )}
 
       {otherOpen && (
         <View className="mt-3 p-3 rounded-xl border border-dashed border-slate-300 dark:border-white/10">
-          {custom.length > 0 && (
+          {!isDropdown && custom.length > 0 && (
             <>
               <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mb-2">
                 Added by other users of this sport:
