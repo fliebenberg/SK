@@ -110,11 +110,23 @@ function identify(socket: Socket): string {
  * so this covers the fan-out path that no per-socket wrapper can see — `io.to(room).emit` never
  * touches an individual socket's `emit`.
  */
-export function logBroadcast(topic: string, type: string, data: unknown, recipients: number): void {
+/**
+ * @param recipients how many sockets the message reached, or `null` where the attached server
+ * cannot say. `0` and "unknown" must not print the same: the count exists to make a room that
+ * published to nobody visible (`FIX-4`), and reporting a confident zero for an answer we do not
+ * have is the one way this line could mislead rather than help.
+ */
+export function logBroadcast(
+  topic: string,
+  type: string,
+  data: unknown,
+  recipients: number | null
+): void {
   if (mode === 'off') return;
   if (!passesFilter('update', type, topic)) return;
   const payload = mode === 'full' ? renderPayload(data) : '';
-  console.log(`[Socket] OUT broadcast type=${type} topic=${topic} recipients=${recipients}${payload}`);
+  const reached = recipients === null ? 'unknown' : recipients;
+  console.log(`[Socket] OUT broadcast type=${type} topic=${topic} recipients=${reached}${payload}`);
 }
 
 /**

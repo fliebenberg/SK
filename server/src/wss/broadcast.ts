@@ -63,7 +63,14 @@ export function broadcast(topic: string, type: string, data: any) {
   // through any one socket's `emit` — so the per-socket wrapper in `attachSocketLogging` cannot
   // see it. The recipient count is the number this message actually reached, which is the thing
   // worth knowing when a room looks like it published to nobody (`FIX-4`).
-  logBroadcast(topic, type, data, io.sockets.adapter.rooms.get(topic)?.size ?? 0);
+  //
+  // Read defensively, and this is not superstition (`SHARED-4`): the integration scripts attach a
+  // hand-rolled `io` so that broadcasts are recorded rather than dropped, and one of them had no
+  // `sockets` at all — so *logging a broadcast* threw, and the throw ended a script that had just
+  // generated ninety fixtures. A diagnostic may not be able to kill the thing it is observing.
+  // `null` rather than `0` when the count cannot be read: see `logBroadcast`.
+  const rooms = (io as any).sockets?.adapter?.rooms;
+  logBroadcast(topic, type, data, rooms ? rooms.get(topic)?.size ?? 0 : null);
 }
 
 /**

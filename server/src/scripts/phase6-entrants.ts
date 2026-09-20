@@ -101,10 +101,17 @@ async function main() {
 
   // A fake io, so `broadcast()` records rather than dropping with "io not set". This is how the
   // "one message for ninety fixtures" claim is checked rather than asserted.
+  //
+  // `sockets.adapter.rooms` is here because `broadcast()` reads it for the recipient count it
+  // logs, and a stub without it used to end this script after fixture generation (`SHARED-4`).
+  // `broadcast()` no longer trusts it — a diagnostic must not kill what it observes — but the map
+  // is cheap and keeps the log honest: this script really does publish to an empty room, and it
+  // should say 0 rather than "unknown".
   setIo({
     to: (topic: string) => ({
       emit: (_event: string, message: any) => published.push(message),
     }),
+    sockets: { adapter: { rooms: new Map<string, Set<string>>() } },
   } as any);
 
   await query(
