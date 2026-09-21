@@ -24,6 +24,7 @@ import {
   LeagueStandingRow,
   participantLabel,
   hasLiveScore,
+  isScoreNotProvided,
 } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { Tabs } from '../../../../components/Tabs';
@@ -751,8 +752,13 @@ export default function EventDetails() {
                         </Text>
                       )}
                     </View>
-                    <View className="px-4">
+                    <View className="px-4 items-center">
                       <Text className="font-inter-bold text-xs text-slate-400 uppercase tracking-wider">VS</Text>
+                      {isScoreNotProvided(game) && (
+                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-2 text-center">
+                          Score not provided
+                        </Text>
+                      )}
                     </View>
                     <View className="flex-1 items-center">
                       <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white text-center">

@@ -92,6 +92,22 @@ function participantKey(p: Partial<GameParticipant>): string | undefined {
 }
 
 /**
+ * Whether a finished match's result was recorded as **not provided** (2026-09-21).
+ *
+ * The match was played and nobody knows the score — nobody kept it, or it was lost. That is a
+ * result in its own right, not the absence of one: the match is finished, counts toward no table,
+ * and decides no knockout, where the organiser settles who advances by hand as for a draw (D29).
+ * Recording it this way is better than making somebody invent a score to close the match, which
+ * would put a fiction in the table.
+ *
+ * Every reader of a result must ask this **first**, before falling back to the live state — see
+ * `sideScores` here and `gameOutcome` in `TournamentManager`, which are required to agree.
+ */
+export function isResultNotProvided(finalScoreData: unknown): boolean {
+  return isPlainObject(finalScoreData) && (finalScoreData as any).notProvided === true;
+}
+
+/**
  * Every side's score, or `undefined` when the fixture has no result to read.
  *
  * Three shapes, in the order of how final they are. `finalScoreData` is the recorded result and
@@ -106,6 +122,11 @@ function sideScores(
   topology: MatchTopology
 ): Record<string, number> | undefined {
   const final = game.finalScoreData;
+
+  // Checked before anything else, and the order is the point: a match that was live-scored to 12–7
+  // and then recorded as *not provided* still carries 12–7 in its live state, and every fallback
+  // below would find it. "Nobody knows the score" has to outrank a score somebody half-entered.
+  if (isResultNotProvided(final)) return undefined;
 
   if (isPlainObject(final?.scores)) return final.scores as Record<string, number>;
 
@@ -129,6 +150,18 @@ function sideScores(
     return game.liveState!.scores as Record<string, number>;
   }
   return undefined;
+}
+
+/**
+ * A match's score by `gameParticipantId`, for a screen holding the full `Game` — read in the same
+ * order of finality the table reads it, so a card and the standings cannot disagree about a result.
+ * `undefined` when there is none to show, including a result recorded as not provided.
+ *
+ * Screens used to read `finalScoreData.home` / `.away` directly, which a recorded result does not
+ * write (2026-09-21).
+ */
+export function gameResultScores(game: Game): Record<string, number> | undefined {
+  return sideScores(game, game.participants || [], MatchTopology.HEAD_TO_HEAD);
 }
 
 /**

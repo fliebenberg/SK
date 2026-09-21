@@ -150,6 +150,23 @@ export interface AddGamePayload extends Omit<Game, "id" | "status" | "finalScore
     participants?: (Omit<GameParticipant, "id" | "gameId"> & { id?: string; gameId?: string })[];
 }
 
+/**
+ * A match's result, recorded after the fact — or recorded as not known.
+ *
+ * Exactly one of `scores` and `notProvided`. **Not provided is a result, not an absence of one**: it
+ * says the match was played and nobody knows the score, so the match is finished, counts toward no
+ * table, and decides no knockout — the organiser settles who advances by hand, as for a draw (D29).
+ * Asking somebody to invent a score just to close a match would put a fiction in the table.
+ */
+export interface RecordGameResultPayload {
+    id: string;
+    /** Points by `gameParticipantId`, one for every side. */
+    scores?: Record<string, number>;
+    notProvided?: boolean;
+    /** Who the game-log entry credits. Checked against the caller, like every initiator field. */
+    initiatorOrgProfileId?: string;
+}
+
 export interface UpdateGameStatusPayload {
     id: string;
     status: Game['status'];
@@ -783,6 +800,7 @@ export interface ProtocolMap {
 
     [SocketAction.ADD_GAME]: { payload: AddGamePayload; response: Game };
     [SocketAction.UPDATE_GAME_STATUS]: { payload: UpdateGameStatusPayload; response: Game };
+    [SocketAction.RECORD_GAME_RESULT]: { payload: RecordGameResultPayload; response: Game };
     [SocketAction.UPDATE_GAME_SCORE]: { payload: UpdateGameScorePayload; response: Game };
     [SocketAction.UPDATE_GAME]: { payload: UpdateGamePayload; response: Game };
     [SocketAction.DELETE_GAME]: { payload: DeleteGamePayload; response: void };

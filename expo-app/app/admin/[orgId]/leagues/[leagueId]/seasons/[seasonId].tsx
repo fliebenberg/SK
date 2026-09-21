@@ -14,6 +14,7 @@ import { wsService } from '../../../../../../services/websocket';
 import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team, reseedDecision } from '@sk/shared';
+import { finishedScoreLine } from '../../../../../../utils/matchScore';
 import DatePicker from '../../../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../../../services/api';
 import * as ImagePicker from 'expo-image-picker';
@@ -638,9 +639,9 @@ export default function SeasonDetails() {
                     {(game.participants?.[1] as any)?.teamName || 'Away'}
                   </Text>
 
-                  {game.status === 'Finished' && game.finalScoreData && (
+                  {finishedScoreLine(game) && (
                     <Text className="font-orbitron-bold text-base text-brand-orange text-center pb-2">
-                      {game.finalScoreData.home} - {game.finalScoreData.away}
+                      {finishedScoreLine(game)}
                     </Text>
                   )}
 

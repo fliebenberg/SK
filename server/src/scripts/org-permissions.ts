@@ -1,10 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { SocketAction } from '@sk/shared';
+import { SocketAction, isResultNotProvided } from '@sk/shared';
 import { query } from '../db';
 import pool from '../db';
 import { enforceOrgAction } from '../wss/orgGate';
 import { enforceProfileAction } from '../wss/profileGate';
+import { refuseResultInFixtureEdit, validateRecordedResult } from '../wss/fixtureRules';
+import { accessManager } from '../managers/AccessManager';
+import { dataManager } from '../DataManager';
 
 /**
  * Who may write an organisation's things — the gate added on 2026-09-21, asserted against a real
@@ -333,9 +336,9 @@ async function main() {
   );
 
   /*
-   * `UPDATE_GAME` chooses its rule by what the payload changes: the result needs a scorer, anything
-   * else an editor. Asserted through the refusal each path gives, which is what shows the choice is
-   * being made — a stranger fails both, but for two different reasons.
+   * `UPDATE_GAME` is planning since 2026-09-21 — one rule, the fixture's editors. The result moved to
+   * `RECORD_GAME_RESULT`, under the scoring gate, and what `UPDATE_GAME` may still carry is checked
+   * in its handler by `refuseResultInFixtureEdit` (below).
    */
   const refusal = async (payload: any) => {
     try {
@@ -347,28 +350,107 @@ async function main() {
   };
   expect(
     [
-      await refusal({ id: gameId, data: { status: 'Finished' } }),
-      await refusal({ id: gameId, data: { finalScoreData: {} } }),
       await refusal({ id: gameId, data: { scheduledStartTime: new Date().toISOString() } }),
+      await allows(admin, SocketAction.UPDATE_GAME, { id: gameId, data: { scheduledStartTime: new Date().toISOString() } }),
     ],
-    ['update-fixture', 'update-fixture', 'update-fixture'],
-    'every UPDATE_GAME refusal names the rule that made it, for the gate log'
+    ['edit-fixture', true],
+    "a fixture is the host's editors' to plan, and a refusal names that rule for the gate log"
   );
-  const reason = async (payload: any) => {
+
+  /*
+   * The caveat Fred gave when the result moved (2026-09-21): whoever edits a fixture may also record
+   * its result. `canScoreGame` is what the scoring gate asks, so it is asked here directly.
+   */
+  expect(
+    [await accessManager.canScoreGame(admin, gameId), await accessManager.canScoreGame(stranger, gameId)],
+    [true, false],
+    "the fixture's editors may record its result; a stranger may not"
+  );
+
+  // ------------------------------------------------------------------------------------------
+  // 6b. What each write path may carry — validation, in the handlers, after the gates
+  // ------------------------------------------------------------------------------------------
+
+  const edit = (data: any, status: string) => {
     try {
-      await enforceOrgAction(stranger, SocketAction.UPDATE_GAME, payload);
-      return 'allowed';
-    } catch (err: any) {
-      return /score/.test(err?.message) ? 'scorer' : 'editor';
+      refuseResultInFixtureEdit(data, { status } as any);
+      return 'ok';
+    } catch {
+      return 'refused';
     }
   };
   expect(
     [
-      await reason({ id: gameId, data: { status: 'Finished' } }),
-      await reason({ id: gameId, data: { scheduledStartTime: new Date().toISOString() } }),
+      edit({ status: 'Finished' }, 'Scheduled'),
+      edit({ status: 'Live' }, 'Scheduled'),
+      edit({ finalScoreData: { scores: {} } }, 'Scheduled'),
+      edit({ liveState: {} }, 'Scheduled'),
+      edit({ status: 'Scheduled' }, 'Finished'),
+      edit({ status: 'Cancelled' }, 'Scheduled'),
+      edit({ status: 'Scheduled' }, 'Cancelled'),
+      edit({ status: 'Finished', siteId: 'x' }, 'Finished'),
     ],
-    ['scorer', 'editor'],
-    'and asks for a scorer to finish the match but an editor to reschedule it'
+    ['refused', 'refused', 'refused', 'refused', 'refused', 'ok', 'ok', 'ok'],
+    'UPDATE_GAME plans a fixture — it cancels and reinstates, but does not start, finish or score one'
+  );
+
+  const sides = [
+    { id: 'p1', teamId: 't1' },
+    { id: 'p2', teamId: 't2' },
+  ] as any;
+  const record = (participants: any, payload: any) => {
+    try {
+      validateRecordedResult({ participants }, payload);
+      return 'ok';
+    } catch {
+      return 'refused';
+    }
+  };
+  expect(
+    [
+      record(sides, { scores: { p1: 2, p2: 1 } }),
+      record(sides, { notProvided: true }),
+      record(sides, {}),
+      record(sides, { scores: { p1: 2, p2: 1 }, notProvided: true }),
+      record(sides, { scores: { p1: 2 } }),
+      record(sides, { scores: { p1: 2, p2: 1, p3: 0 } }),
+      record(sides, { scores: { p1: -1, p2: 1 } }),
+      record(sides, { scores: { p1: 'two', p2: 1 } }),
+      record([{ id: 'p1', teamId: 't1' }, { id: 'p2' }], { notProvided: true }),
+    ],
+    ['ok', 'ok', 'refused', 'refused', 'refused', 'refused', 'refused', 'refused', 'refused'],
+    'a result is a score for every side, or recorded as not provided — never both, never half'
+  );
+
+  // Recorded for real: both kinds finish the match; only a score is a score.
+  const teamA = `team-op-a-${stamp}`;
+  const teamB = `team-op-b-${stamp}`;
+  for (const [id, name] of [[teamA, 'OP A'], [teamB, 'OP B']]) {
+    await query(`INSERT INTO teams (id, name, org_id) VALUES ($1, $2, $3)`, [id, name, claimed]);
+    created.teamIds.push(id);
+  }
+  const playedId = `game-op-played-${stamp}`;
+  await query(`INSERT INTO games (id, event_id, status, live_state) VALUES ($1, $2, 'Live', '{"scores":{}}')`, [playedId, eventId]);
+  await query(
+    `INSERT INTO game_participants (id, game_id, team_id, sort_order) VALUES ($1, $3, $4, 0), ($2, $3, $5, 1)`,
+    [`gp-op-a-${stamp}`, `gp-op-b-${stamp}`, playedId, teamA, teamB]
+  );
+  const scored = await dataManager.recordGameResult(playedId, { scores: { [`gp-op-a-${stamp}`]: 3, [`gp-op-b-${stamp}`]: 1 } });
+  const scoredSummary = await dataManager.getGameSummary(playedId);
+  const unscored = await dataManager.recordGameResult(playedId, { notProvided: true });
+  const unscoredSummary = await dataManager.getGameSummary(playedId);
+  expect(
+    [
+      scored?.status,
+      scoredSummary?.scores,
+      !!scored?.finishTime,
+      unscored?.status,
+      isResultNotProvided(unscored?.finalScoreData),
+      unscoredSummary?.scores ?? null,
+      unscoredSummary?.resultNotProvided,
+    ],
+    ['Finished', { [`gp-op-a-${stamp}`]: 3, [`gp-op-b-${stamp}`]: 1 }, true, 'Finished', true, null, true],
+    'a recorded score finishes the match and shows on its card; "not provided" finishes it with no score at all'
   );
 
   expect(
@@ -416,6 +498,7 @@ async function main() {
 }
 
 async function cleanup() {
+  await query(`DELETE FROM games WHERE event_id = ANY($1)`, [created.eventIds]);
   for (const id of created.eventIds) await query(`DELETE FROM events WHERE id = $1`, [id]);
   for (const id of created.notificationIds) await query(`DELETE FROM notifications WHERE id = $1`, [id]);
   for (const id of created.leagueIds) await query(`DELETE FROM leagues WHERE id = $1`, [id]);

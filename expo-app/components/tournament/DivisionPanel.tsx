@@ -13,6 +13,7 @@ import {
   TournamentStage,
   participantLabel,
   hasLiveScore,
+  isScoreNotProvided,
 } from '@sk/shared';
 import { GlassCard } from '../GlassCard';
 import { Tabs, TabItem } from '../Tabs';
@@ -359,7 +360,9 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
               const away = participantLabel(game.participants?.[1]);
               const score = hasLiveScore(game)
                 ? `${game.scores?.[game.participants?.[0]?.id || ''] ?? 0} - ${game.scores?.[game.participants?.[1]?.id || ''] ?? 0}`
-                : null;
+                : isScoreNotProvided(game)
+                  ? 'No score'
+                  : null;
 
               return (
                 <TouchableOpacity

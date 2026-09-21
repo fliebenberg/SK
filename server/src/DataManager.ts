@@ -165,6 +165,8 @@ export class DataManager {
   getGameSummariesByEvent = (eventId: string) => eventManager.getGameSummariesByEvent(eventId);
   addGame = (game: AddGamePayload) => eventManager.addGame(game);
   updateGameStatus = (id: string, status: Game['status']) => eventManager.updateGameStatus(id, status);
+  recordGameResult = (id: string, result: { scores: Record<string, number> } | { notProvided: true }) =>
+    eventManager.recordGameResult(id, result);
   updateGameClock = (id: string, action: any) => eventManager.updateGameClock(id, action);
   updateGame = (id: string, data: UpdateGamePayload['data']) => eventManager.updateGame(id, data);
   deleteGame = (id: string) => eventManager.deleteGame(id);

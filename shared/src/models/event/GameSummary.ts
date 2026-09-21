@@ -71,8 +71,17 @@ export interface GameSummary {
   /** Kick-off deliberately not set yet, as opposed to simply absent. */
   timeTbd?: boolean;
   participants: GameSummaryParticipant[];
-  /** Points by `gameParticipantId`. */
+  /**
+   * Points by `gameParticipantId` — the recorded result where there is one, the live score
+   * otherwise, in the same order of finality the standings engine reads them. Absent when the
+   * result was recorded as not provided.
+   */
   scores?: Record<string, number>;
+  /**
+   * Finished, with the score recorded as not known. A screen shows "Score not provided" rather than
+   * 0–0, which would read as a result nobody reported.
+   */
+  resultNotProvided?: boolean;
   clock?: GameClockState;
   periodLabel?: string;
   updatedAt?: string;
@@ -84,9 +93,19 @@ export function getParticipantScore(summary: GameSummary | undefined, participan
   return summary.scores?.[participantId] ?? 0;
 }
 
-/** A game is worth showing a score for once it has started. */
+/**
+ * A game is worth showing a score for once it has started — unless its result was recorded as not
+ * provided, where there is no score to show and 0–0 would be a result nobody reported.
+ */
 export function hasLiveScore(summary: GameSummary | undefined): boolean {
-  return !!summary && (summary.status === 'Live' || summary.status === 'Finished');
+  return (
+    !!summary && !summary.resultNotProvided && (summary.status === 'Live' || summary.status === 'Finished')
+  );
+}
+
+/** Finished with no known score — for the screens that say so where a score would go. */
+export function isScoreNotProvided(summary: GameSummary | undefined): boolean {
+  return !!summary && summary.status === 'Finished' && !!summary.resultNotProvided;
 }
 
 /** "<org code> <team name>", falling back to whichever half is known. */

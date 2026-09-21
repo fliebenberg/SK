@@ -176,6 +176,16 @@ export enum SocketAction {
     UPDATE_GAME_SCORE = 'UPDATE_GAME_SCORE',
 
     /**
+     * Finish a match with its result — or with the result recorded as **not provided**.
+     *
+     * The one way to finish a match outside live scoring (2026-09-21). It writes the final score to
+     * `finalScoreData`, which outranks the live state everywhere a result is read, and finishes the
+     * match in the same write so a result and a finished status cannot come apart.
+     * Expects payload: `RecordGameResultPayload`.
+     */
+    RECORD_GAME_RESULT = 'RECORD_GAME_RESULT',
+
+    /**
      * Action to ingest a new game event (score, penalty, substitution).
      * Expects payload: { gameId: string, initiatorOrgProfileId: string, type: string, subType?: string, eventData?: any, actorOrgProfileId?: string, gameParticipantId?: string }
      */

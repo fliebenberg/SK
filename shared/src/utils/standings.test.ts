@@ -5,6 +5,8 @@ import { ScoringSystem, TournamentAdjustment } from '../models/event/Tournament'
 import {
   StandingsSubject,
   calculateStandings,
+  gameResultScores,
+  isResultNotProvided,
   rollUpByOrganisation,
 } from './standings';
 
@@ -531,5 +533,61 @@ describe('a weighted two-division roll-up', () => {
 
     const rows = rollUpByOrganisation([{ weighting: 0.5, rows: penalised }], orgs);
     expect(byId(rows, 'org-north')).toMatchObject({ points: 0.5, adjustment: -1 });
+  });
+});
+
+describe('a result recorded as not provided', () => {
+  const subjects = [team('a', 'Alpha'), team('b', 'Bravo')];
+
+  it('counts toward no table — the match was played, nobody knows the score', () => {
+    const played = h2h('g1', 'a', 20, 'b', 10);
+    const unknown = fixture('g2', [{ teamId: 'a' }, { teamId: 'b' }], {
+      finalScoreData: { notProvided: true },
+    });
+    const rows = calculateStandings([played, unknown], subjects, { scoring: THREE_ONE_ZERO });
+    expect(byId(rows, 'a').played).toBe(1);
+    expect(byId(rows, 'b').played).toBe(1);
+  });
+
+  it('outranks a live score left over from before it was recorded', () => {
+    // Live-scored to 12-7, then recorded as not provided: the live state still says 12-7, and every
+    // fallback would find it. This is the case the order of the checks exists for.
+    const halfScored = fixture(
+      'g1',
+      [
+        { teamId: 'a', score: 12 },
+        { teamId: 'b', score: 7 },
+      ],
+      { finalScoreData: { notProvided: true } }
+    );
+    const rows = calculateStandings([halfScored], subjects, { scoring: THREE_ONE_ZERO });
+    expect([byId(rows, 'a').played, byId(rows, 'a').points]).toEqual([0, 0]);
+  });
+
+  it('is told apart from a recorded score by a single explicit flag, not by what is missing', () => {
+    expect(isResultNotProvided({ notProvided: true })).toBe(true);
+    expect(isResultNotProvided({ scores: {} })).toBe(false);
+    expect(isResultNotProvided(null)).toBe(false);
+    expect(isResultNotProvided(undefined)).toBe(false);
+  });
+});
+
+describe('gameResultScores — what a match card shows', () => {
+  const sides = [
+    { id: 'p1', gameId: 'g', teamId: 't1', sortOrder: 0 },
+    { id: 'p2', gameId: 'g', teamId: 't2', sortOrder: 1 },
+  ] as any;
+  const game = (extra: any) => ({ id: 'g', eventId: 'e', status: 'Finished', participants: sides, ...extra }) as any;
+
+  it('reads a recorded result over the live score', () => {
+    expect(gameResultScores(game({ finalScoreData: { scores: { p1: 3, p2: 1 } }, liveState: { scores: { p1: 9, p2: 9 } } })))
+      .toEqual({ p1: 3, p2: 1 });
+  });
+  it('maps a legacy home/away result onto the sides in order', () => {
+    expect(gameResultScores(game({ finalScoreData: { home: 2, away: 5 } }))).toEqual({ p1: 2, p2: 5 });
+  });
+  it('shows nothing for a result recorded as not provided, whatever the live state says', () => {
+    expect(gameResultScores(game({ finalScoreData: { notProvided: true }, liveState: { scores: { p1: 12, p2: 7 } } })))
+      .toBeUndefined();
   });
 });

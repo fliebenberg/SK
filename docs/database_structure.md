@@ -446,7 +446,7 @@ Generic match entity supporting various topologies and participant types.
 - `status` (TEXT)
 - `site_id` (TEXT): FK to `sites.id`.
 - `facility_id` (TEXT): FK to `facilities.id`.
-- `final_score_data` (JSONB): Flexible summary obj (e.g. {home: 12, away: 5} or {standings: [...]})
+- `final_score_data` (JSONB): The recorded result, which outranks `live_state` wherever a result is read. One of `{scores: {<gameParticipantId>: n}}` (what `RECORD_GAME_RESULT` writes), `{placings: {...}}` for a meet recorded as finishing order, `{notProvided: true}` — finished with the score unknown, counted in no table and deciding no knockout (2026-09-21) — or the legacy `{home, away}`. Read in that order by `sideScores` (standings) and `gameOutcome` (knockouts), `notProvided` first.
 - `custom_settings` (JSONB): Finalized rules copied from sport default. For a generated tournament
   fixture it also carries `tournament: { round, roundName, label, matchIndex, poolKey?, leg? }` —
   presentation metadata, which is what lets a client print "QF1" and therefore "Winner QF1" — and

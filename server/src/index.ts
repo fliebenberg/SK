@@ -34,6 +34,7 @@ import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
 import { enforceProfileAction } from './wss/profileGate';
 import { GateRefusal, enforceOrgAction } from './wss/orgGate';
+import { refuseResultInFixtureEdit, validateRecordedResult } from './wss/fixtureRules';
 import {
   publishAdjustments,
   publishDivision,
@@ -1111,6 +1112,9 @@ const SCORING_ACTION_GAME_ID: Partial<Record<SocketAction, (payload: any) => str
   [SocketAction.UPDATE_GAME_CLOCK]: (p) => p?.id,
   [SocketAction.UPDATE_GAME_SCORE]: (p) => p?.id,
   [SocketAction.UPDATE_GAME_STATUS]: (p) => p?.id,
+  // `canScoreGame` already admits the host's admins and staff, event organisers and division
+  // convenors — so the people who edit a fixture may record its result as well (2026-09-21).
+  [SocketAction.RECORD_GAME_RESULT]: (p) => p?.id,
   [SocketAction.RESET_GAME]: (p) => p?.id,
   [SocketAction.REMOVE_SIN_BIN]: (p) => p?.gameId,
   [SocketAction.SAVE_GAME_ROSTER]: (p) => p?.gameId,
@@ -2407,6 +2411,36 @@ io.on('connection', (socket) => {
                     await recordChangeInLog(action.payload, 'STATUS');
                 }
                 break;
+            case SocketAction.RECORD_GAME_RESULT: {
+                // Authorised in the scoring gate. A result, or a result recorded as not provided,
+                // finishes the match in the same write — see `EventManager.recordGameResult`.
+                const recordFor = await dataManager.getGame(action.payload.id);
+                if (!recordFor) throw new Error('That match no longer exists.');
+                validateRecordedResult(recordFor, action.payload);
+                const notProvided = !!action.payload.notProvided;
+                result = await dataManager.recordGameResult(
+                    action.payload.id,
+                    notProvided ? { notProvided: true } : { scores: action.payload.scores }
+                );
+                if (result) {
+                    broadcast(`game:${result.id}`, 'GAME_UPDATED', result);
+                    broadcast(eventFixturesRoom(result.eventId), 'GAME_UPDATED', result);
+                    await publishGameSummary(result.id);
+                    // Logged, which finishing a match from the edit form never was.
+                    await recordChangeInLog(
+                        {
+                            id: action.payload.id,
+                            log: {
+                                subType: 'RESULT_RECORDED',
+                                eventData: notProvided ? { notProvided: true } : { scores: action.payload.scores },
+                            },
+                            initiatorOrgProfileId: action.payload.initiatorOrgProfileId,
+                        },
+                        'STATUS'
+                    );
+                }
+                break;
+            }
             case SocketAction.UPDATE_GAME_CLOCK:
                 result = await dataManager.updateGameClock(action.payload.id, action.payload.action);
                 if (result) {
@@ -2472,8 +2506,13 @@ io.on('connection', (socket) => {
                 result = { dispute: castRes.dispute, resolved: !!castRes.resolved };
                 break;
             case SocketAction.UPDATE_GAME: {
-                // Authorised in `orgGate` (`update-fixture`), before this handler runs: a change to
-                // the result needs a scorer, anything else an editor of the fixture.
+                // Authorised in `orgGate` (`edit-fixture`). Planning only since 2026-09-21: the
+                // result and the match's progress are the scoring actions' — see `fixtureRules.ts`.
+                {
+                    const current = await dataManager.getGame(action.payload.id);
+                    if (!current) throw new Error('That match no longer exists.');
+                    refuseResultInFixtureEdit(action.payload.data, current);
+                }
                 result = await dataManager.updateGame(action.payload.id, action.payload.data);
                 if (result) {
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
@@ -3430,6 +3469,7 @@ io.on('connection', (socket) => {
         if (result && result.id && (
             action.type === SocketAction.UPDATE_GAME ||
             action.type === SocketAction.UPDATE_GAME_STATUS ||
+            action.type === SocketAction.RECORD_GAME_RESULT ||
             action.type === SocketAction.UPDATE_GAME_SCORE ||
             action.type === SocketAction.RESET_GAME ||
             action.type === SocketAction.ADD_GAME_EVENT ||

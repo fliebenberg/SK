@@ -52,12 +52,6 @@ export class GateRefusal extends Error {
   }
 }
 
-/** Whether an `UPDATE_GAME` touches the result — the payloads the scoring rule governs. */
-function touchesResult(payload: any): boolean {
-  const data = payload?.data;
-  return !!data && (data.finalScoreData !== undefined || data.liveState !== undefined || data.status === 'Finished');
-}
-
 type Rule =
   /** Admin or staff of the organisation. */
   | { kind: 'manage-org'; org: OrgResolver }
@@ -71,14 +65,8 @@ type Rule =
   | { kind: 'organize-fixture' }
   /** Editing or deleting an event: `canEditEventOrGame` for the event. */
   | { kind: 'edit-event' }
-  /** Deleting a fixture: `canEditEventOrGame` for the fixture. */
+  /** Editing or deleting a fixture: `canEditEventOrGame` for the fixture. */
   | { kind: 'edit-fixture' }
-  /**
-   * `UPDATE_GAME`: a change to the result needs a *scorer*, anything else an *editor* of the fixture.
-   * The two are different people — a division's convenor may enter a result but not reschedule —
-   * so the rule is chosen by what the payload changes.
-   */
-  | { kind: 'update-fixture' }
   | { kind: 'app-admin' }
   | { kind: 'signed-in' }
   /** A payload that names a user must name the caller. */
@@ -154,7 +142,8 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   // assert "every action is gated" with no list of exceptions to keep in step.
   [SocketAction.UPDATE_EVENT]: { kind: 'edit-event' },
   [SocketAction.DELETE_EVENT]: { kind: 'edit-event' },
-  [SocketAction.UPDATE_GAME]: { kind: 'update-fixture' },
+  // Planning only since 2026-09-21 — the result is `RECORD_GAME_RESULT`'s, under the scoring gate.
+  [SocketAction.UPDATE_GAME]: { kind: 'edit-fixture' },
   [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
   // Anybody who can give a team, division or league an age group can need one the list lacks.
   // That the sport exists is the handler's question — it is validation, not permission.
@@ -283,13 +272,6 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
       );
     }
 
-    case 'update-fixture':
-      if (touchesResult(payload)) {
-        if (await accessManager.canScoreGame(userId, payload.id)) return;
-        throw refuse('Unauthorized: You do not have permission to score this match.');
-      }
-    // A change that does not touch the result is an edit of the fixture, and falls through to that.
-    // eslint-disable-next-line no-fallthrough
     case 'edit-fixture': {
       const requestingOrgId = payload?.orgId || (await accessManager.getGameOrgId(payload?.id));
       if (requestingOrgId && (await accessManager.canEditEventOrGame(userId, requestingOrgId, undefined, payload.id))) {

@@ -25,6 +25,7 @@ import {
   stagePlanForFormat,
   divisionAutoName,
   calculateStandings,
+  isResultNotProvided,
   rollUpByOrganisation,
 } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
@@ -2051,6 +2052,11 @@ export class TournamentManager extends BaseManager {
     );
     const game = res.rows[0];
     if (!game || game.status !== 'Finished') return null;
+    // Recorded as not provided: nobody knows who won, so nobody advances automatically — the
+    // organiser settles it by hand, exactly as for a draw (D29). Checked before the score shapes
+    // below for the reason `sideScores` gives: a live score left over from before would otherwise
+    // pick a winner the organiser explicitly said is not known.
+    if (isResultNotProvided(game.finalScoreData)) return null;
 
     const participants: any[] = game.participants || [];
     if (participants.length < 2) return null;

@@ -102,7 +102,7 @@ it is written to mirror `canEditEventOrGame` rather than to invent a second rule
 | May they edit this event or fixture? | `canEditEventOrGame` (admits an appointed event organiser) |
 | May they organise this event, asked without a workspace? | `canOrganizeEvent` |
 | May they organise this division? | `canOrganizeDivision` |
-| May they score this fixture? | `canScoreGame` (admits an organiser and the division's convenor) |
+| May they score this fixture, or record its result? | `canScoreGame` (admits the host's admins and staff, an organiser and the division's convenor — so every editor is also a scorer) |
 | What may they do in this tournament? | `getEventCapabilities` → `{ canEditEvent, convenesDivisionIds }` |
 | May they join this room / read this query? | `wss/roomAccess.ts` / `wss/dataAccess.ts` |
 | May this tournament write proceed? | `wss/tournamentGate.ts` — one gate for every tournament action |
@@ -122,6 +122,13 @@ its handler check and the coverage check would never notice.
 **Gates decide permission; handlers decide validity.** `ADD_AGE_GROUP` shows the line: whether you
 may add one (signed in) is the gate's, whether the sport exists ("Choose a sport first") is the
 handler's. Keeping that line is what stops the gate becoming a second copy of every handler.
+
+**A fixture has two write paths, planning and the result, each with its own permission.**
+`UPDATE_GAME` is planning — teams, time, venue, cancel and reinstate — under `edit-fixture`.
+The result belongs to the scoring actions, and `RECORD_GAME_RESULT` records it after the fact (a
+score, or *score not provided*) under `canScoreGame`. What each path may carry is validation, in the
+handler, by [fixtureRules.ts](file:///c:/Fred/Coding/SK/server/src/wss/fixtureRules.ts). Until
+2026-09-21 `UPDATE_GAME` carried both and picked its rule by inspecting the payload.
 
 **A refusal is logged once, naming the gate and the rule.** Each gate runs inside `gate()` in
 `index.ts`, which writes `[Gate] organisation refused DELETE_TEAM for user-… rule=manage-org: …`

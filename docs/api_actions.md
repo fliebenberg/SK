@@ -298,6 +298,32 @@ The admin operations are REST, under `requireAdmin`, and each answers with the s
     *   **Event**: `GAME_ADDED`
     *   **Data**: The new `Game` object.
 
+#### `UPDATE_GAME` — planning only
+*   **Payload**: `{ id, data }` — teams, sport, kick-off, venue, custom settings, and a status of
+    `Scheduled` or `Cancelled`.
+*   **Authorised**: `orgGate`, rule `edit-fixture` (`canEditEventOrGame`).
+*   **Logic**: Edits the fixture. Since 2026-09-21 it does **not** touch the result or the match's
+    progress: `refuseResultInFixtureEdit` in `wss/fixtureRules.ts` refuses `finalScoreData`,
+    `liveState`, a status of `Live` or `Finished`, and any status change on a match that has already
+    started. An *unchanged* status is allowed, so editing a finished match's venue still saves. It
+    used to finish matches without writing a game-log entry, and to finish a started match with an
+    empty live score that the table read as 0–0.
+
+#### `RECORD_GAME_RESULT`
+*   **Payload**: `{ id, scores?, notProvided?, initiatorOrgProfileId? }` — exactly one of `scores`
+    (points by `gameParticipantId`, one for every side) and `notProvided: true`.
+*   **Authorised**: the scoring gate (`canScoreGame`), which already admits the host's admins and
+    staff, event organisers, division convenors and official scorers — so a fixture's editors may
+    record its result.
+*   **Logic**: Checked by `validateRecordedResult` (both sides known; a score for every side and
+    only those; numbers ≥ 0). Writes `finalScoreData` and finishes the match in one statement, then
+    recalculates standings and writes a `RESULT_RECORDED` game-log entry. Recording again corrects
+    the result. **Not provided** is a result, not an absence of one: the match is finished, counts
+    toward no table (`isResultNotProvided` is read first by `sideScores` and `gameOutcome`), decides
+    no knockout, and shows as "Score not provided" / "No score" rather than 0–0.
+*   **Broadcasts**: `GAME_UPDATED` to `game:{id}` and the event's fixtures room; the game summary is
+    republished.
+
 #### `UPDATE_GAME_STATUS` (and `UPDATE_GAME_CLOCK`)
 *   **Payload**: `{ id, status, log?, initiatorOrgProfileId? }` — the clock takes `action` in place of
     `status`. `log: { subType, eventData }` is the game-log entry the change is recorded as

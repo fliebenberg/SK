@@ -9,6 +9,7 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
 import { League, Season, LeagueStandingRow, Game, Sport } from '@sk/shared';
+import { finishedScoreLine } from '../../utils/matchScore';
 import CustomSelect from '../../components/CustomSelect';
 import { formatFixtureWhen } from '../../utils/dates';
 
@@ -270,9 +271,9 @@ export default function PublicLeagueStandings() {
                         {(game.participants?.[1] as any)?.teamName || 'Away'}
                       </Text>
 
-                      {game.status === 'Finished' && game.finalScoreData && (
+                      {finishedScoreLine(game) && (
                         <Text className="font-orbitron-bold text-base text-brand-orange text-center pb-2">
-                          {game.finalScoreData.home} - {game.finalScoreData.away}
+                          {finishedScoreLine(game)}
                         </Text>
                       )}
                     </GlassCard>

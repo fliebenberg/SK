@@ -12,7 +12,7 @@ import { wsService } from '../../../../services/websocket';
 import { requestKeyFor, sendAction } from '../../../../services/actions';
 import { useRequestScope } from '../../../../hooks/useRequestScope';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Team, Sport, Organization, TeamMember, GameSummary, participantLabel, reseedDecision } from '@sk/shared';
+import { SocketAction, Team, Sport, Organization, TeamMember, GameSummary, participantLabel, reseedDecision, isScoreNotProvided } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
@@ -605,7 +605,9 @@ export default function TeamDetailsScreen() {
 
   // ---------------- STATS CALCULATOR ----------------
   const calculateStats = () => {
-    const finished = teamGames.filter(g => g.status === 'Finished');
+    // A match whose score was recorded as not provided is left out, as the standings leave it out:
+    // counting it would make it a 0–0 draw nobody reported.
+    const finished = teamGames.filter(g => g.status === 'Finished' && !isScoreNotProvided(g));
     let won = 0, lost = 0, drawn = 0, goalsFor = 0, goalsAgainst = 0;
 
     finished.forEach(g => {
@@ -1076,8 +1078,9 @@ export default function TeamDetailsScreen() {
               {teamGames.map(game => {
                 const isFinished = game.status === 'Finished';
                 const { mine: myScore, theirs: oppScore } = scoresFor(game);
+                const noScore = isScoreNotProvided(game);
                 let gameOutcome = '-';
-                if (isFinished) {
+                if (isFinished && !noScore) {
                   if (myScore > oppScore) gameOutcome = 'W';
                   else if (myScore < oppScore) gameOutcome = 'L';
                   else gameOutcome = 'D';
@@ -1109,7 +1112,7 @@ export default function TeamDetailsScreen() {
                         </Text>
                       </View>
                       <View className="flex-row items-center gap-2">
-                        {isFinished && (
+                        {isFinished && !noScore && (
                           <View className={`w-6 h-6 rounded-full items-center justify-center ${
                             gameOutcome === 'W' ? 'bg-green-500/20' : gameOutcome === 'L' ? 'bg-red-500/20' : 'bg-yellow-500/20'
                           }`}>
@@ -1120,9 +1123,13 @@ export default function TeamDetailsScreen() {
                             </Text>
                           </View>
                         )}
-                        <Text className="font-mono-bold text-lg text-slate-800 dark:text-white mr-1">
-                          {myScore} - {oppScore}
-                        </Text>
+                        {noScore ? (
+                          <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 mr-1">No score</Text>
+                        ) : (
+                          <Text className="font-mono-bold text-lg text-slate-800 dark:text-white mr-1">
+                            {myScore} - {oppScore}
+                          </Text>
+                        )}
                         {targetEventId && (
                           <View className="flex-row items-center gap-1.5 ml-1">
                             <TouchableOpacity
@@ -1199,7 +1206,7 @@ export default function TeamDetailsScreen() {
             {/* RECENT MATCHES SUMMARY */}
             <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Recent games</Text>
             <View className="space-y-2">
-              {teamGames.filter(g => g.status === 'Finished').slice(0, 5).map(game => {
+              {teamGames.filter(g => g.status === 'Finished' && !isScoreNotProvided(g)).slice(0, 5).map(game => {
                 const { mine: myScore, theirs: oppScore } = scoresFor(game);
                 const outcome = myScore > oppScore ? 'W' : myScore < oppScore ? 'L' : 'D';
 

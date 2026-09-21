@@ -12,8 +12,9 @@ export class EventManager extends BaseManager {
   /**
    * The summary projection: what a fixtures list, match card or scoreboard
    * header needs, and nothing more. Narrower than `GAME_COLUMNS` on purpose —
-   * it takes only `scores`, `clock` and `periodLabel` out of `live_state`,
-   * leaving sin bins and the `final_score_data` blob behind, and it resolves
+   * it takes only `scores`, `clock` and `periodLabel` out of `live_state` and
+   * only the score and the not-provided flag out of `final_score_data`,
+   * leaving sin bins and the rest of both blobs behind, and it resolves
    * each participant's org so a client never has to fetch teams and orgs
    * separately just to print "SBHS 1st XV".
    */
@@ -24,7 +25,13 @@ export class EventManager extends BaseManager {
       g.finish_time as "finishTime", g.status,
       g.site_id as "siteId", g.facility_id as "facilityId",
       (g.custom_settings->>'timeTbd')::boolean as "timeTbd",
-      g.live_state->'scores' as "scores",
+      -- The recorded result outranks the live score, the order the standings engine reads them
+      -- in; a result recorded as not provided has no score to show at all. Before 2026-09-21 this
+      -- read the live score alone, so a recorded result counted in the table and never appeared on
+      -- a fixture card.
+      CASE WHEN (g.final_score_data->>'notProvided')::boolean THEN NULL
+           ELSE COALESCE(g.final_score_data->'scores', g.live_state->'scores') END as "scores",
+      COALESCE((g.final_score_data->>'notProvided')::boolean, false) as "resultNotProvided",
       g.live_state->'clock' as "clock",
       g.live_state->>'periodLabel' as "periodLabel",
       g.updated_at as "updatedAt",
@@ -430,6 +437,34 @@ export class EventManager extends BaseManager {
       }
       await this.recalculateStandingsForGame(id);
       return (await this.getGame(id)) || null;
+  }
+
+  /**
+   * Finish a match with its result, or with the result recorded as not provided — in one write.
+   *
+   * One statement rather than a score update and a status update, so a result and a finished
+   * status cannot come apart: no finished match without a result, no result on a match still
+   * marked live. Allowed on a match that is already finished, which is how a score is corrected or a
+   * *not provided* replaced once the scoresheet turns up; the original finish time is kept.
+   *
+   * The result goes into `final_score_data`, the recorded result, which outranks the live score in
+   * the standings engine, in knockout progression and in the fixture summary alike.
+   */
+  async recordGameResult(
+    id: string,
+    result: { scores: Record<string, number> } | { notProvided: true }
+  ): Promise<Game | null> {
+    const finalScoreData = 'notProvided' in result ? { notProvided: true } : { scores: result.scores };
+    const res = await this.query(
+      `UPDATE games
+          SET final_score_data = $1, status = 'Finished',
+              finish_time = COALESCE(finish_time, NOW()), updated_at = NOW()
+        WHERE id = $2`,
+      [JSON.stringify(finalScoreData), id]
+    );
+    if (!res.rowCount) return null;
+    await this.recalculateStandingsForGame(id);
+    return (await this.getGame(id)) || null;
   }
 
   async resetGame(id: string): Promise<Game | null> {

@@ -20,6 +20,8 @@ import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChange
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
+import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
+import { finishedScoreLine } from '../../../../../../../utils/matchScore';
 
 export default function EditGame() {
   const router = useRouter();
@@ -47,6 +49,7 @@ export default function EditGame() {
   // Deletion & Cancellation modals
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   // Form Reset and Dirty state
   const [formKey, setFormKey] = useState(0);
@@ -175,7 +178,10 @@ export default function EditGame() {
     if (!homeTeamId && !awayTeamId) {
       checkComplete();
     }
-  }, [event, orgsList, orgId, game]);
+    // Keyed on the id, not the object: recording a result or cancelling updates `game` in place, and
+    // re-running this would reset the form's starting point under any unsaved edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event, orgsList, orgId, game?.id]);
 
   // Submit Handler
   const handleSubmit = () => {
@@ -203,7 +209,8 @@ export default function EditGame() {
         startTime: scheduledTime,
         siteId: formData.siteId || null,
         facilityId: formData.facilityId || null,
-        status: formData.status,
+        // No status: the form does not edit it (Cancel/Reinstate and Record result do), and sending
+        // back the one it loaded would be refused if the match had started on another device since.
         customSettings: {
           ...(game.customSettings || {}),
           timeTbd: formData.isTbd
@@ -239,7 +246,6 @@ export default function EditGame() {
                participation became a row the organiser can remove. Sending one side would have
                quietly taken the other out of its own match. */
             participatingOrgIds: [formData.homeOrgId, formData.awayOrgId].filter(Boolean),
-            status: formData.status === 'Cancelled' ? 'Cancelled' : event.status
           }
         };
 
@@ -262,49 +268,35 @@ export default function EditGame() {
     });
   };
 
-  // Cancel Game Handler
-  const handleCancelGame = () => {
+  /**
+   * Cancel a scheduled match, or reinstate a cancelled one — the two status changes that are
+   * planning decisions, and so the only ones this screen makes. Starting and finishing a match
+   * belong to the match itself: live scoring, or Record result (2026-09-21).
+   */
+  const setPlanningStatus = (status: 'Scheduled' | 'Cancelled') => {
     setIsProcessing(true);
-    const payload = {
-      id: gameId,
-      orgId,
-      data: { status: 'Cancelled' as const }
+    const applied = () => {
+      setIsCancelling(false);
+      setInitialData((prev: any) => prev ? { ...prev, status } : null);
+      if (formData) setFormData({ ...formData, status });
+      setGame(prev => prev ? { ...prev, status } : prev);
     };
 
-    sendAction(SocketAction.UPDATE_GAME, payload).then((result) => {
+    sendAction(SocketAction.UPDATE_GAME, { id: gameId, orgId, data: { status } }).then((result) => {
       if (!result.ok) {
         setIsProcessing(false);
         return;
       }
       if (isSingleMatchEvent()) {
-        const eventPayload = {
-          id: eventId,
-          orgId,
-          data: { status: 'Cancelled' as const }
-        };
-        sendAction(SocketAction.UPDATE_EVENT, eventPayload).then((eventResult) => {
+        sendAction(SocketAction.UPDATE_EVENT, { id: eventId, orgId, data: { status } }).then((eventResult) => {
           setIsProcessing(false);
-          // A failed event half keeps the dialog open to retry; re-cancelling the game is harmless.
+          // A failed event half keeps the dialog open to retry; repeating the game half is harmless.
           if (!eventResult.ok) return;
-          setIsCancelling(false);
-          setInitialData((prev: any) => prev ? { ...prev, status: 'Cancelled' } : null);
-          if (formData) {
-            setFormData({
-              ...formData,
-              status: 'Cancelled'
-            });
-          }
+          applied();
         });
       } else {
         setIsProcessing(false);
-        setIsCancelling(false);
-        setInitialData((prev: any) => prev ? { ...prev, status: 'Cancelled' } : null);
-        if (formData) {
-          setFormData({
-            ...formData,
-            status: 'Cancelled'
-          });
-        }
+        applied();
       }
     });
   };
@@ -413,24 +405,66 @@ export default function EditGame() {
           onChange={setFormData}
         />
 
+        {/* RESULT — recorded after the fact, by an editor or a scorer */}
+        {(permissions.canScore || permissions.canEdit) && game.status !== 'Cancelled' && (
+          <GlassCard className="border border-slate-200 dark:border-white/5 p-5 mt-6">
+            <View className="flex-row justify-between items-center">
+              <View className="flex-1 mr-3">
+                <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Result</Text>
+                <Text className="font-inter text-xs text-slate-500 mt-0.5">
+                  {finishedScoreLine(game) || 'Record the score to finish the match — or that nobody has it.'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsRecording(true)}
+                className="px-4 py-2 bg-brand-orange rounded-lg"
+              >
+                <Text className="font-inter-bold text-xs text-white uppercase">
+                  {game.status === 'Finished' ? 'Correct Result' : 'Record Result'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </GlassCard>
+        )}
+
         {/* DANGER ZONE */}
         <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 gap-4 mt-6">
           <Text className="font-orbitron-bold text-xs text-brand-red uppercase tracking-wider">Danger Zone</Text>
-          <View className="flex-row justify-between items-center">
-            <View>
-              <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Cancel Match</Text>
-              <Text className="font-inter text-xs text-slate-500 mt-0.5">Temporarily mark match as Cancelled.</Text>
+          {game.status === 'Cancelled' ? (
+            <View className="flex-row justify-between items-center">
+              <View className="flex-1 mr-3">
+                <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Reinstate Match</Text>
+                <Text className="font-inter text-xs text-slate-500 mt-0.5">Put this cancelled match back on the schedule.</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setPlanningStatus('Scheduled')}
+                disabled={isProcessing}
+                className="px-4 py-2 border border-brand-orange rounded-lg"
+              >
+                <Text className="font-inter-bold text-xs text-brand-orange uppercase">Reinstate</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={() => setIsCancelling(true)}
-              disabled={formData?.status === 'Cancelled'}
-              className={`px-4 py-2 border border-brand-orange rounded-lg ${
-                formData?.status === 'Cancelled' ? 'opacity-40' : ''
-              }`}
-            >
-              <Text className="font-inter-bold text-xs text-brand-orange uppercase">Cancel Match</Text>
-            </TouchableOpacity>
-          </View>
+          ) : (
+            <View className="flex-row justify-between items-center">
+              <View className="flex-1 mr-3">
+                <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Cancel Match</Text>
+                <Text className="font-inter text-xs text-slate-500 mt-0.5">
+                  {game.status === 'Scheduled' || !game.status
+                    ? 'Temporarily mark match as Cancelled.'
+                    : 'This match has already started, so it is cancelled from its scoring screen.'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsCancelling(true)}
+                disabled={!(game.status === 'Scheduled' || !game.status)}
+                className={`px-4 py-2 border border-brand-orange rounded-lg ${
+                  game.status === 'Scheduled' || !game.status ? '' : 'opacity-40'
+                }`}
+              >
+                <Text className="font-inter-bold text-xs text-brand-orange uppercase">Cancel Match</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View className="flex-row justify-between items-center pt-4 border-t border-slate-100 dark:border-white/5">
             <View>
@@ -490,12 +524,24 @@ export default function EditGame() {
       <ConfirmationModal
         isOpen={isCancelling}
         title="Cancel Match?"
-        description="Are you sure you want to cancel this match? You can restore it later by setting the status back to Scheduled."
+        description="Are you sure you want to cancel this match? You can reinstate it later from this screen."
         confirmText="Cancel Match"
         cancelText="Keep Scheduled"
-        onConfirm={handleCancelGame}
+        onConfirm={() => setPlanningStatus('Cancelled')}
         onClose={() => setIsCancelling(false)}
         isProcessing={isProcessing}
+      />
+
+      <RecordResultModal
+        isOpen={isRecording}
+        onClose={() => setIsRecording(false)}
+        game={game}
+        sideLabels={(game.participants || []).map(p => (p as any).name || '')}
+        onRecorded={(finished) => {
+          setGame(finished);
+          setInitialData((prev: any) => prev ? { ...prev, status: finished.status } : null);
+          if (formData) setFormData({ ...formData, status: finished.status as any });
+        }}
       />
 
       {/* DELETION CONFIRMATION */}

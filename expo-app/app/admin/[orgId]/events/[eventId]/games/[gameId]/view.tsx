@@ -15,6 +15,8 @@ import { useAuthStore } from '../../../../../../../store/authStore';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
+import { finishedScoreLine } from '../../../../../../../utils/matchScore';
+import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
 import { EventLogFeed } from '../../../../../../../components/sports/shared/EventLogFeed';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
 
@@ -34,6 +36,7 @@ export default function ViewGame() {
   const [isLoading, setIsLoading] = useState(true);
   const [event, setEvent] = useState<Event | null>(null);
   const [game, setGame] = useState<Game | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   
   // Entity caches
   const [sport, setSport] = useState<Sport | null>(null);
@@ -220,9 +223,9 @@ export default function ViewGame() {
             {/* VS SPLIT */}
             <View className="px-4 items-center">
               <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 italic">VS</Text>
-              {game.status === 'Finished' && (
+              {finishedScoreLine(game) && (
                 <Text className="font-orbitron-bold text-base text-brand-orange mt-2">
-                  {game.finalScoreData?.home ?? 0} - {game.finalScoreData?.away ?? 0}
+                  {finishedScoreLine(game)}
                 </Text>
               )}
             </View>
@@ -241,6 +244,20 @@ export default function ViewGame() {
             </View>
           </View>
         </GlassCard>
+
+        {/* RECORD RESULT — an editor or a scorer, for a match that was not live-scored or needs correcting */}
+        {(permissions.canScore || permissions.canEdit) && game.status !== 'Cancelled' && (
+          <TouchableOpacity
+            onPress={() => setIsRecording(true)}
+            activeOpacity={0.85}
+            className="flex-row items-center justify-center gap-2 bg-brand-orange rounded-xl py-3 mb-6"
+          >
+            <Ionicons name="trophy-outline" size={14} color="white" />
+            <Text className="font-orbitron-bold text-[10px] text-white uppercase tracking-widest">
+              {game.status === 'Finished' ? 'Correct Result' : 'Record Result'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* METADATA LIST */}
         <GlassCard className="border border-slate-200 dark:border-white/5 p-5 gap-4">
@@ -284,6 +301,14 @@ export default function ViewGame() {
           </DynamicScoringProvider>
         </View>
       </ScrollView>
+
+      <RecordResultModal
+        isOpen={isRecording}
+        onClose={() => setIsRecording(false)}
+        game={game}
+        sideLabels={[homeTeam?.name || '', awayTeam?.name || '']}
+        onRecorded={setGame}
+      />
     </SafeAreaView>
   );
 }

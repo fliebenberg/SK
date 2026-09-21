@@ -20,6 +20,7 @@ import {
   GameSummary,
   participantLabel,
   hasLiveScore,
+  isScoreNotProvided,
 } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { formatDateRange, formatFixtureWhen } from '../../../../utils/dates';
@@ -272,8 +273,9 @@ export default function OrgEventsList() {
     return `${home || 'TBD'} vs ${away || 'TBD'}`;
   };
 
-  /** "12 - 7", in the same participant order as the matchup line. */
+  /** "12 - 7", in the same participant order as the matchup line — or "No score", when finished without one. */
   const getScoreLabel = (game?: GameSummary): string | undefined => {
+    if (isScoreNotProvided(game)) return 'No score';
     if (!game || !hasLiveScore(game)) return undefined;
     const [home, away] = game.participants || [];
     if (!home || !away) return undefined;
