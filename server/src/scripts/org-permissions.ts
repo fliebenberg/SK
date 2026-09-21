@@ -23,9 +23,10 @@ import { enforceProfileAction } from '../wss/profileGate';
  *  - **The unclaimed exception.** A stranger *may* create a team or a person in an unclaimed
  *    organisation, and the payload is cut to the minimum on the way — checked by looking at what is
  *    left of it, since "allowed" alone would pass a gate that forgot to strip.
- *  - **Coverage.** Every action the server handles must be authorised by *something*: one of the
- *    three gates, the scoring gate, or a check in its own handler named below. A handler added later
- *    without any of those fails this script, which is the property the forty-five lacked.
+ *  - **Coverage.** Every action the server handles must be named by a gate — the tournament,
+ *    profile, organisation or scoring gate — with **no exceptions**. Nothing authorises inside its
+ *    own handler any more, so a handler added later without a rule fails this script, which is the
+ *    property the forty-five lacked.
  *
  * Kept, for the reason every phase script gives: `server/` has no test harness. It leaves the
  * database as it found it.
@@ -62,6 +63,7 @@ const created = {
   siteIds: [] as string[],
   leagueIds: [] as string[],
   notificationIds: [] as string[],
+  eventIds: [] as string[],
 };
 
 async function main() {
@@ -306,15 +308,88 @@ async function main() {
   );
 
   // ------------------------------------------------------------------------------------------
-  // 6. Coverage — nothing the server handles is left unauthorised
+  // 6. Events and fixtures, which checked inside their own handlers until 2026-09-21
+  // ------------------------------------------------------------------------------------------
+
+  const eventId = `evt-op-${stamp}`;
+  await query(
+    `INSERT INTO events (id, name, type, start_date, org_id, status) VALUES ($1, 'OP Match', 'SingleMatch', NOW(), $2, 'Scheduled')`,
+    [eventId, claimed]
+  );
+  created.eventIds.push(eventId);
+  const gameId = `game-op-${stamp}`;
+  await query(`INSERT INTO games (id, event_id, status) VALUES ($1, $2, 'Scheduled')`, [gameId, eventId]);
+
+  expect(
+    [
+      await allows(stranger, SocketAction.UPDATE_EVENT, { id: eventId, data: { name: 'Hijacked' } }),
+      await allows(stranger, SocketAction.DELETE_EVENT, { id: eventId }),
+      await allows(stranger, SocketAction.DELETE_GAME, { id: gameId }),
+      await allows(admin, SocketAction.UPDATE_EVENT, { id: eventId, data: { name: 'Renamed' } }),
+      await allows(admin, SocketAction.DELETE_GAME, { id: gameId }),
+    ],
+    [false, false, false, true, true],
+    "events and fixtures are the host's to edit and delete — still, now that the gate decides it"
+  );
+
+  /*
+   * `UPDATE_GAME` chooses its rule by what the payload changes: the result needs a scorer, anything
+   * else an editor. Asserted through the refusal each path gives, which is what shows the choice is
+   * being made — a stranger fails both, but for two different reasons.
+   */
+  const refusal = async (payload: any) => {
+    try {
+      await enforceOrgAction(stranger, SocketAction.UPDATE_GAME, payload);
+      return 'allowed';
+    } catch (err: any) {
+      return err?.rule;
+    }
+  };
+  expect(
+    [
+      await refusal({ id: gameId, data: { status: 'Finished' } }),
+      await refusal({ id: gameId, data: { finalScoreData: {} } }),
+      await refusal({ id: gameId, data: { scheduledStartTime: new Date().toISOString() } }),
+    ],
+    ['update-fixture', 'update-fixture', 'update-fixture'],
+    'every UPDATE_GAME refusal names the rule that made it, for the gate log'
+  );
+  const reason = async (payload: any) => {
+    try {
+      await enforceOrgAction(stranger, SocketAction.UPDATE_GAME, payload);
+      return 'allowed';
+    } catch (err: any) {
+      return /score/.test(err?.message) ? 'scorer' : 'editor';
+    }
+  };
+  expect(
+    [
+      await reason({ id: gameId, data: { status: 'Finished' } }),
+      await reason({ id: gameId, data: { scheduledStartTime: new Date().toISOString() } }),
+    ],
+    ['scorer', 'editor'],
+    'and asks for a scorer to finish the match but an editor to reschedule it'
+  );
+
+  expect(
+    [
+      await allows(null, SocketAction.ADD_AGE_GROUP, { sportId: sport.id, name: 'U9' }),
+      await allows(stranger, SocketAction.ADD_AGE_GROUP, { sportId: sport.id, name: 'U9' }),
+    ],
+    [false, true],
+    'an age group is anybody signed in — that its sport exists is left to the handler, as validation'
+  );
+
+  // ------------------------------------------------------------------------------------------
+  // 7. Coverage — nothing the server handles is left unauthorised
   // ------------------------------------------------------------------------------------------
 
   /*
    * Read from the source rather than listed by hand, so a new `case` is seen the day it is added.
-   * The five below authorise in their own handler; everything else must be in a gate's table. An
-   * action that is in neither fails here, which is exactly what the forty-five would have done.
+   * **No exceptions.** Until 2026-09-21 five actions authorised inside their own handlers and were
+   * listed here as allowed to; they moved into `orgGate`, and the list went with them. An action a
+   * gate does not name fails this check, and there is no second list to remember to keep in step.
    */
-  const INLINE = ['ADD_AGE_GROUP', 'UPDATE_GAME', 'DELETE_GAME', 'UPDATE_EVENT', 'DELETE_EVENT'];
 
   const src = (file: string) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
   const index = src('index.ts');
@@ -325,12 +400,11 @@ async function main() {
     ...[...src('wss/profileGate.ts').matchAll(/SocketAction\.([A-Z_]+)/g)].map(m => m[1]),
     ...[...src('wss/orgGate.ts').matchAll(/\[SocketAction\.([A-Z_]+)\]:/g)].map(m => m[1]),
     ...[...index.slice(0, index.indexOf('const runAction = async')).matchAll(/\[SocketAction\.([A-Z_]+)\]\s*:/g)].map(m => m[1]),
-    ...INLINE,
   ]);
   expect(
     [...new Set(handled.filter(name => !gated.has(name)))],
     [],
-    'every action the server handles is authorised by a gate or by a check in its handler'
+    'every action the server handles is authorised by a gate — none checks inside its handler'
   );
 
   if (failures.length) {
@@ -342,6 +416,7 @@ async function main() {
 }
 
 async function cleanup() {
+  for (const id of created.eventIds) await query(`DELETE FROM events WHERE id = $1`, [id]);
   for (const id of created.notificationIds) await query(`DELETE FROM notifications WHERE id = $1`, [id]);
   for (const id of created.leagueIds) await query(`DELETE FROM leagues WHERE id = $1`, [id]);
   for (const id of created.siteIds) await query(`DELETE FROM sites WHERE id = $1`, [id]);

@@ -109,12 +109,24 @@ it is written to mirror `canEditEventOrGame` rather than to invent a second rule
 | May they write this person record? | `canManageOrgPeople`, enforced by `wss/profileGate.ts` |
 | May they write this organisation's things? | `wss/orgGate.ts` — one table for teams, sites, facilities, members, leagues and events |
 
-**Every action the server handles is authorised somewhere**, and that is now asserted rather than
-hoped: [org-permissions.ts](file:///c:/Fred/Coding/SK/server/src/scripts/org-permissions.ts) reads the
-action handler's `case` list from source and fails on any action that is in none of the four gates
-(tournament, profile, organisation, scoring) and not one of the five that check in their own
-handler. Add a handler without a gate and that script says so, which is the property that was
-missing for forty-five actions until 2026-09-21.
+**Every authorisation decision happens in a gate, before the handler runs — and nowhere else.**
+No handler checks who is asking: if an action reaches the switch in `index.ts`, a gate let it
+through. That is asserted rather than hoped:
+[org-permissions.ts](file:///c:/Fred/Coding/SK/server/src/scripts/org-permissions.ts) reads the
+handler's `case` list from source and fails on any action no gate names, with **no list of
+exceptions**. Five actions (`UPDATE_EVENT`, `DELETE_EVENT`, `UPDATE_GAME`, `DELETE_GAME`,
+`ADD_AGE_GROUP`) checked inside their handlers until 2026-09-21 and sat on an allowlist; moving them
+into `orgGate` removed the list, which matters more than the tidiness — an allowlist entry could lose
+its handler check and the coverage check would never notice.
+
+**Gates decide permission; handlers decide validity.** `ADD_AGE_GROUP` shows the line: whether you
+may add one (signed in) is the gate's, whether the sport exists ("Choose a sport first") is the
+handler's. Keeping that line is what stops the gate becoming a second copy of every handler.
+
+**A refusal is logged once, naming the gate and the rule.** Each gate runs inside `gate()` in
+`index.ts`, which writes `[Gate] organisation refused DELETE_TEAM for user-… rule=manage-org: …`
+before the client is told. The `rule` comes from `GateRefusal`, so it reaches the log and never the
+client — which is also where the identity gate records *which* profile somebody tried to act as.
 
 ## An organisation's things are written by the people who run it
 

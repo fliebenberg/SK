@@ -39,6 +39,25 @@ import { accessManager } from '../managers/AccessManager';
 
 type OrgResolver = (payload: any) => Promise<string | null>;
 
+/**
+ * A refusal that knows which rule made it.
+ *
+ * The client sees only `message`, exactly as before. `rule` is for the gate log in `index.ts`, so
+ * that "why was this refused?" is answered by one line naming the gate and the rule rather than by
+ * reading the handler.
+ */
+export class GateRefusal extends Error {
+  constructor(message: string, readonly rule: string) {
+    super(message);
+  }
+}
+
+/** Whether an `UPDATE_GAME` touches the result — the payloads the scoring rule governs. */
+function touchesResult(payload: any): boolean {
+  const data = payload?.data;
+  return !!data && (data.finalScoreData !== undefined || data.liveState !== undefined || data.status === 'Finished');
+}
+
 type Rule =
   /** Admin or staff of the organisation. */
   | { kind: 'manage-org'; org: OrgResolver }
@@ -50,6 +69,16 @@ type Rule =
   | { kind: 'grant-role'; org: OrgResolver }
   /** Adding a fixture: an event organiser, or the convenor of the stage's division. */
   | { kind: 'organize-fixture' }
+  /** Editing or deleting an event: `canEditEventOrGame` for the event. */
+  | { kind: 'edit-event' }
+  /** Deleting a fixture: `canEditEventOrGame` for the fixture. */
+  | { kind: 'edit-fixture' }
+  /**
+   * `UPDATE_GAME`: a change to the result needs a *scorer*, anything else an *editor* of the fixture.
+   * The two are different people — a division's convenor may enter a result but not reschedule —
+   * so the rule is chosen by what the payload changes.
+   */
+  | { kind: 'update-fixture' }
   | { kind: 'app-admin' }
   | { kind: 'signed-in' }
   /** A payload that names a user must name the caller. */
@@ -120,6 +149,16 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   // may add a team to it — including a team from another organisation.
   [SocketAction.ADD_EVENT]: { kind: 'manage-org', org: orgId },
   [SocketAction.ADD_GAME]: { kind: 'organize-fixture' },
+  // These five checked inside their own handlers until 2026-09-21. Moved so that no action is
+  // authorised anywhere but a gate — which is what lets the coverage check in `org-permissions`
+  // assert "every action is gated" with no list of exceptions to keep in step.
+  [SocketAction.UPDATE_EVENT]: { kind: 'edit-event' },
+  [SocketAction.DELETE_EVENT]: { kind: 'edit-event' },
+  [SocketAction.UPDATE_GAME]: { kind: 'update-fixture' },
+  [SocketAction.DELETE_GAME]: { kind: 'edit-fixture' },
+  // Anybody who can give a team, division or league an age group can need one the list lacks.
+  // That the sport exists is the handler's question — it is validation, not permission.
+  [SocketAction.ADD_AGE_GROUP]: { kind: 'signed-in' },
   [SocketAction.ADD_LEAGUE]: { kind: 'manage-org', org: orgId },
   [SocketAction.UPDATE_LEAGUE]: { kind: 'manage-org', org: leagueOrg('id') },
   [SocketAction.DELETE_LEAGUE]: { kind: 'manage-org', org: leagueOrg('id') },
@@ -182,37 +221,38 @@ async function isUnclaimed(org: string): Promise<boolean> {
 export async function enforceOrgAction(userId: string | null, type: SocketAction, payload: any): Promise<void> {
   const rule = RULES[type];
   if (!rule) return;
+  const refuse = (message: string) => new GateRefusal(message, rule.kind);
 
   if (rule.kind === 'token') {
-    if (!payload?.token) throw new Error(`Bad request: ${type} needs a token.`);
+    if (!payload?.token) throw refuse(`Bad request: ${type} needs a token.`);
     return;
   }
 
-  if (!userId) throw new Error('Unauthorized: You must be signed in to do that.');
+  if (!userId) throw refuse('Unauthorized: You must be signed in to do that.');
 
   switch (rule.kind) {
     case 'signed-in':
       // Creating an organisation records who made it; that may only be the caller.
       if (type === SocketAction.ADD_ORG && payload?.creatorId && payload.creatorId !== userId) {
-        throw new Error('Unauthorized: An organisation can only be created in your own name.');
+        throw refuse('Unauthorized: An organisation can only be created in your own name.');
       }
       return;
 
     case 'self':
       if (payload?.[rule.field] !== userId) {
-        throw new Error("Unauthorized: That belongs to somebody else's account.");
+        throw refuse("Unauthorized: That belongs to somebody else's account.");
       }
       return;
 
     case 'own-notification': {
       const res = await pool.query('SELECT user_id FROM notifications WHERE id = $1', [payload?.id]);
-      if (res.rows[0]?.user_id !== userId) throw new Error('Unauthorized: That notification is not yours.');
+      if (res.rows[0]?.user_id !== userId) throw refuse('Unauthorized: That notification is not yours.');
       return;
     }
 
     case 'app-admin':
       if (!(await accessManager.isAppAdmin(userId))) {
-        throw new Error('Unauthorized: Only an app administrator may do that.');
+        throw refuse('Unauthorized: Only an app administrator may do that.');
       }
       return;
 
@@ -225,16 +265,50 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
         const divisionId = res.rows[0]?.division_id;
         if (divisionId && (await accessManager.canOrganizeDivision(userId, divisionId))) return;
       }
-      throw new Error('Unauthorized: Only an organiser of this event may add a fixture to it.');
+      throw refuse('Unauthorized: Only an organiser of this event may add a fixture to it.');
+    }
+
+    case 'edit-event': {
+      // The workspace the caller acts from, falling back to the event's own so the check cannot be
+      // skipped by leaving `orgId` out of the payload.
+      const res = await pool.query('SELECT org_id FROM events WHERE id = $1', [payload?.id]);
+      const requestingOrgId = payload?.orgId || res.rows[0]?.org_id;
+      if (requestingOrgId && (await accessManager.canEditEventOrGame(userId, requestingOrgId, payload.id, undefined))) {
+        return;
+      }
+      throw refuse(
+        type === SocketAction.DELETE_EVENT
+          ? 'Unauthorized: You do not have permission to delete this event.'
+          : 'Unauthorized: You do not have permission to edit this event.'
+      );
+    }
+
+    case 'update-fixture':
+      if (touchesResult(payload)) {
+        if (await accessManager.canScoreGame(userId, payload.id)) return;
+        throw refuse('Unauthorized: You do not have permission to score this match.');
+      }
+    // A change that does not touch the result is an edit of the fixture, and falls through to that.
+    // eslint-disable-next-line no-fallthrough
+    case 'edit-fixture': {
+      const requestingOrgId = payload?.orgId || (await accessManager.getGameOrgId(payload?.id));
+      if (requestingOrgId && (await accessManager.canEditEventOrGame(userId, requestingOrgId, undefined, payload.id))) {
+        return;
+      }
+      throw refuse(
+        type === SocketAction.DELETE_GAME
+          ? 'Unauthorized: You do not have permission to delete this match.'
+          : 'Unauthorized: You do not have permission to edit this match details.'
+      );
     }
   }
 
   const org = await rule.org(payload);
-  if (!org) throw new Error(`Bad request: ${type} does not name anything that exists.`);
+  if (!org) throw refuse(`Bad request: ${type} does not name anything that exists.`);
 
   if (rule.kind === 'admin-org') {
     if (await accessManager.isOrganizationAdmin(userId, org)) return;
-    throw new Error("Unauthorized: Only an organisation's admins may do that.");
+    throw refuse("Unauthorized: Only an organisation's admins may do that.");
   }
 
   if (await accessManager.canManageOrgPeople(userId, org)) {
@@ -242,7 +316,7 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
     // member would make themselves an admin.
     if (rule.kind === 'grant-role' && payload?.roleId === 'role-org-admin') {
       if (!(await accessManager.isOrganizationAdmin(userId, org))) {
-        throw new Error("Unauthorized: Only an organisation's admins may make somebody an admin.");
+        throw refuse("Unauthorized: Only an organisation's admins may make somebody an admin.");
       }
     }
     return;
@@ -253,5 +327,5 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
     return;
   }
 
-  throw new Error("Unauthorized: Only an organisation's admins and staff may change its things.");
+  throw refuse("Unauthorized: Only an organisation's admins and staff may change its things.");
 }

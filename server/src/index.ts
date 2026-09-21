@@ -33,7 +33,7 @@ import { tournamentManager } from './managers/TournamentManager';
 import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
 import { enforceProfileAction } from './wss/profileGate';
-import { enforceOrgAction } from './wss/orgGate';
+import { GateRefusal, enforceOrgAction } from './wss/orgGate';
 import {
   publishAdjustments,
   publishDivision,
@@ -2112,9 +2112,31 @@ io.on('connection', (socket) => {
         : null;
 
     try {
-        // --- Authorization gate for live match mutations ---
-        const scoringGameIdFor = SCORING_ACTION_GAME_ID[action.type];
-        if (scoringGameIdFor) {
+        /*
+         * Every authorisation decision, in order, and nowhere else (2026-09-21).
+         *
+         * No handler below checks who is asking: if an action reaches the switch, a gate has let it
+         * through. `org-permissions` asserts that for every action the switch handles. Each gate runs
+         * inside `gate()`, so a refusal is logged once, naming the gate and — where the gate records
+         * one — the rule that refused, before the client is told. "Why was this refused?" is then a
+         * single line in the log rather than a read through the handler.
+         */
+        const gate = async (name: string, check: () => Promise<void>) => {
+            try {
+                await check();
+            } catch (err: any) {
+                const rule = err instanceof GateRefusal ? ` rule=${err.rule}` : '';
+                console.warn(
+                    `[Gate] ${name} refused ${action.type} for ${authUserId || 'anonymous'}${rule}: ${err?.message}`
+                );
+                throw err;
+            }
+        };
+
+        // Live match mutations — the scorer of the fixture.
+        await gate('scoring', async () => {
+            const scoringGameIdFor = SCORING_ACTION_GAME_ID[action.type];
+            if (!scoringGameIdFor) return;
             if (!authUserId) {
                 throw new Error('Unauthorized: You must be signed in to score this match.');
             }
@@ -2125,38 +2147,33 @@ io.on('connection', (socket) => {
             if (!(await dataManager.canScoreGame(authUserId, targetGameId))) {
                 throw new Error('Unauthorized: You do not have permission to score this match.');
             }
-        }
+        });
 
-        // --- Authorization gate for tournament mutations ---
-        // Event scope first, then the division a convenor holds. Both live in `tournamentGate.ts`,
-        // which throws the refusal the client sees; a non-tournament action passes straight through.
-        await enforceTournamentAction(authUserId, action.type, action.payload);
+        // Tournament structure — event scope first, then the division a convenor holds.
+        await gate('tournament', () => enforceTournamentAction(authUserId, action.type, action.payload));
 
-        // --- Authorization gate for person records ---
-        // A profile is the identity the permission layer resolves users into, so writing one is
-        // writing identity. Admins of the holding org, plus an event organiser creating a person to
-        // appoint. See `profileGate.ts` for what was open before this (`PEOPLE-2`).
-        await enforceProfileAction(authUserId, action.type, action.payload);
+        // Person records, which are identity (`PEOPLE-2`).
+        await gate('profile', () => enforceProfileAction(authUserId, action.type, action.payload));
 
-        // --- Authorization gate for an organisation's things ---
-        // Teams, sites, facilities, members, leagues, events — and the handful of actions that were
-        // open to anybody, signed in or not, until 2026-09-21. See `orgGate.ts`. May cut the payload
-        // down, for an outsider creating a team in an unclaimed organisation.
-        await enforceOrgAction(authUserId, action.type, action.payload);
+        // An organisation's things, events and fixtures, and the actions that were open to anybody
+        // until 2026-09-21. May cut the payload down, for an outsider creating in an unclaimed org.
+        await gate('organisation', () => enforceOrgAction(authUserId, action.type, action.payload));
 
         // A caller may only act as one of its own org profiles.
-        if (authUserId) {
+        await gate('identity', async () => {
+            if (!authUserId) return;
             for (const field of CALLER_PROFILE_FIELDS) {
                 const claimedProfileId = action.payload?.[field];
                 if (!claimedProfileId) continue;
                 if (!(await dataManager.ownsOrgProfile(authUserId, claimedProfileId))) {
-                    console.warn(
-                        `[Socket] User ${authUserId} attempted to act as org profile ${claimedProfileId} via ${action.type}`
+                    // Which profile was claimed goes to the log in `rule`, never to the client.
+                    throw new GateRefusal(
+                        'Unauthorized: That profile does not belong to your account.',
+                        `acts-as ${field}=${claimedProfileId}`
                     );
-                    throw new Error('Unauthorized: That profile does not belong to your account.');
                 }
             }
-        }
+        });
 
         switch(action.type) {
             case SocketAction.DELETE_ORG:
@@ -2173,10 +2190,12 @@ io.on('connection', (socket) => {
                 // official list lacks, so being signed in is the whole gate. Nothing broadcasts:
                 // the entry is returned to the picker that asked, and other screens see it the
                 // next time they load the sports list.
-                if (!authUserId) throw new Error('Unauthorized: You must be signed in to add an age group.');
+                // Signed-in is checked in `orgGate`; that the sport exists is validation, and stays here.
                 const { sportId, name, orgId: addedFromOrgId } = action.payload || {};
                 if (!sportId || !(await sportManager.getSport(sportId))) throw new Error('Choose a sport first.');
-                result = await ageGroupManager.addCustom(sportId, name, authUserId, addedFromOrgId);
+                // Non-null because `orgGate` refused a signed-out caller before this ran — and the
+                // coverage check in `org-permissions` fails if this action ever loses its rule.
+                result = await ageGroupManager.addCustom(sportId, name, authUserId!, addedFromOrgId);
                 break;
             }
 
@@ -2453,31 +2472,8 @@ io.on('connection', (socket) => {
                 result = { dispute: castRes.dispute, resolved: !!castRes.resolved };
                 break;
             case SocketAction.UPDATE_GAME: {
-                if (!authUserId) {
-                    throw new Error('Unauthorized: You must be signed in to update this match.');
-                }
-                const isScoreUpdate = action.payload.data && (
-                    action.payload.data.finalScoreData !== undefined ||
-                    action.payload.data.liveState !== undefined ||
-                    action.payload.data.status === 'Finished'
-                );
-                // Fall back to the game's own organization so the check cannot be
-                // skipped by omitting orgId from the payload.
-                const requestingOrgId = action.payload.orgId || await dataManager.getGameOrgId(action.payload.id);
-                const hasPermission = isScoreUpdate
-                    ? await dataManager.canScoreGame(authUserId, action.payload.id)
-                    : !!requestingOrgId && await dataManager.canEditEventOrGame(
-                        authUserId,
-                        requestingOrgId,
-                        undefined,
-                        action.payload.id
-                    );
-                if (!hasPermission) {
-                    throw new Error(isScoreUpdate
-                        ? 'Unauthorized: You do not have permission to score this match.'
-                        : 'Unauthorized: You do not have permission to edit this match details.'
-                    );
-                }
+                // Authorised in `orgGate` (`update-fixture`), before this handler runs: a change to
+                // the result needs a scorer, anything else an editor of the fixture.
                 result = await dataManager.updateGame(action.payload.id, action.payload.data);
                 if (result) {
                     additionalBroadcasts.push({ topic: `game:${result.id}`, type: 'GAME_UPDATED', data: result });
@@ -2533,19 +2529,7 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.DELETE_GAME: {
-                if (!authUserId) {
-                    throw new Error('Unauthorized: You must be signed in to delete this match.');
-                }
-                const requestingOrgId = action.payload.orgId || await dataManager.getGameOrgId(action.payload.id);
-                const hasPermission = !!requestingOrgId && await dataManager.canEditEventOrGame(
-                    authUserId,
-                    requestingOrgId,
-                    undefined,
-                    action.payload.id
-                );
-                if (!hasPermission) {
-                    throw new Error('Unauthorized: You do not have permission to delete this match.');
-                }
+                // Authorised in `orgGate` (`edit-fixture`), before this handler runs.
                 // The audience has to be captured before the row goes, or there is
                 // nothing left to resolve the participating orgs from.
                 const deletedGameRooms = await captureFixtureRooms(action.payload.id);
@@ -2595,22 +2579,7 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.UPDATE_EVENT:
-                if (!authUserId) {
-                    throw new Error('Unauthorized: You must be signed in to edit this event.');
-                }
-                {
-                    const existingEvent = await dataManager.getEvent(action.payload.id);
-                    const requestingOrgId = action.payload.orgId || existingEvent?.orgId;
-                    const hasPermission = !!requestingOrgId && await dataManager.canEditEventOrGame(
-                        authUserId,
-                        requestingOrgId,
-                        action.payload.id,
-                        undefined
-                    );
-                    if (!hasPermission) {
-                        throw new Error('Unauthorized: You do not have permission to edit this event.');
-                    }
-                }
+                // Authorised in `orgGate` (`edit-event`), before this handler runs.
                 // Fetch current event to know who might be removed
                 const oldEvent = await dataManager.getEvent(action.payload.id);
                 // U52: a tournament's sports and divisions move together. A sport a division plays
@@ -2669,22 +2638,7 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.DELETE_EVENT:
-                if (!authUserId) {
-                    throw new Error('Unauthorized: You must be signed in to delete this event.');
-                }
-                const eventToDelete = await dataManager.getEvent(action.payload.id);
-                {
-                    const requestingOrgId = action.payload.orgId || eventToDelete?.orgId;
-                    const hasPermission = !!requestingOrgId && await dataManager.canEditEventOrGame(
-                        authUserId,
-                        requestingOrgId,
-                        action.payload.id,
-                        undefined
-                    );
-                    if (!hasPermission) {
-                        throw new Error('Unauthorized: You do not have permission to delete this event.');
-                    }
-                }
+                // Authorised in `orgGate` (`edit-event`), before this handler runs.
                 result = await dataManager.deleteEvent(action.payload.id);
                 if (result) {
                     publishEventToOrgs([result.orgId, ...(result.participatingOrgIds || [])], 'EVENT_DELETED', { id: result.id });
