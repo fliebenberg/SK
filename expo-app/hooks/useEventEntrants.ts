@@ -59,9 +59,8 @@ export function useEventEntrants(eventId?: string | null, enabled = true) {
 }
 
 /*
- * The eligibility rules — `teamQualifies` and the age-group override
- * `divisionTeamOptions` — live in the shared package, where they are tested. Re-exported so the
- * screens' existing imports keep working.
+ * The eligibility rules live in the shared package, where they are tested. `teamQualifies` answers
+ * whether a competitor may enter a division; `divisionsForTeam` turns that round and answers which
+ * divisions a competitor may enter, which is the question the entry table asks of every row.
  */
-export { teamQualifies, divisionTeamOptions, divisionByTeamId } from '@sk/shared';
-export type { DivisionTeamOption } from '@sk/shared';
+export { teamQualifies, divisionsForTeam } from '@sk/shared';

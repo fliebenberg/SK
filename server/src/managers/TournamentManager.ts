@@ -549,7 +549,7 @@ export class TournamentManager extends BaseManager {
       seed?: number;
       status?: 'active' | 'withdrawn';
     }>,
-    options: { takeFromOtherDivisions?: boolean } = {}
+    options: { takeFromOtherDivisions?: boolean; removeEntrantIds?: string[] } = {}
   ): Promise<{
     entrants: TournamentEntrant[];
     removedIds: string[];
@@ -580,6 +580,25 @@ export class TournamentManager extends BaseManager {
        */
       const incomingTeamIds = entrants.map(e => e.teamId).filter(Boolean) as string[];
       const vacatedIds = new Set<string>();
+
+      /*
+       * `removeEntrantIds` is the same move for a competitor that has no team to clash on.
+       *
+       * A placeholder (D7) and a person entrant are identified by their row, not by a team, so the
+       * clash query below cannot see them — and moving one between divisions is genuinely a delete
+       * and an insert rather than an update, because a `division_entrants` row belongs to its
+       * division and carries the fixtures generated against it. Naming the rows to drop lets that
+       * happen inside this transaction, so a placeholder being moved cannot end up in both
+       * divisions or in neither.
+       */
+      for (const entrantId of options.removeEntrantIds || []) {
+        const removed = await tx(
+          `DELETE FROM division_entrants WHERE id = $1 AND division_id <> $2
+           RETURNING division_id as "divisionId"`,
+          [entrantId, divisionId]
+        );
+        if (removed.rows[0]?.divisionId) vacatedIds.add(removed.rows[0].divisionId);
+      }
 
       if (incomingTeamIds.length) {
         const clashes = await tx(

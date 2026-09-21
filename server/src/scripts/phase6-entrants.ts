@@ -757,6 +757,32 @@ async function main() {
     'but Move here takes it across in one write, and reports the division it came out of'
   );
 
+  /*
+   * A placeholder moves the same way, through `removeEntrantIds` rather than the team clash.
+   *
+   * It has no team to clash on and its row belongs to its division — carrying the fixtures drawn
+   * against it — so a move is genuinely a delete and an insert. Naming the row lets both happen in
+   * one transaction, which is what stops a placeholder ending up in both divisions or in neither.
+   */
+  const placeholderHome = await tournamentManager.setDivisionEntrants(lockDivision.id, [
+    { label: 'Winner of the regional qualifier' },
+  ]);
+  const placeholderId = placeholderHome.entrants[0].id;
+  const placeholderMoved = await tournamentManager.setDivisionEntrants(
+    moveTarget.id,
+    [{ label: 'Winner of the regional qualifier' }],
+    { removeEntrantIds: [placeholderId] }
+  );
+  expect(
+    [
+      placeholderMoved.entrants.map(e => e.label),
+      (await tournamentManager.getEntrants(lockDivision.id)).length,
+      placeholderMoved.vacated.map(v => v.divisionId),
+    ],
+    [['Winner of the regional qualifier'], 0, [lockDivision.id]],
+    'a placeholder moves in one write too, though it has no team to clash on'
+  );
+
   await tournamentManager.deleteDivision(moveTarget.id);
   await tournamentManager.deleteDivision(lockDivision.id);
 

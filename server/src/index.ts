@@ -3145,7 +3145,10 @@ io.on('connection', (socket) => {
                     const outcome = await dataManager.setDivisionEntrants(
                         entrantDivisionId,
                         action.payload.entrants || [],
-                        { takeFromOtherDivisions: !!action.payload.takeFromOtherDivisions }
+                        {
+                            takeFromOtherDivisions: !!action.payload.takeFromOtherDivisions,
+                            removeEntrantIds: action.payload.removeEntrantIds || [],
+                        }
                     );
                     // A roster edit can be a substitution (D10), which changes who every fixture
                     // pointing at that entrant was played by — so the tables are rebuilt whether

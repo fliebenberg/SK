@@ -51,4 +51,5 @@ export * from './utils/divisionEntry';
 export * from './utils/organizerScope';
 export * from './utils/orgShortCode';
 export * from './utils/liveForm';
+export * from './utils/entrantRows';
 export * from './constants/TestConstants';

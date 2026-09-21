@@ -1046,6 +1046,56 @@ that spans weeks.
 >   nothing being selected. Positions are measured per tab rather than estimated, because the tabs
 >   are not equal width.
 >
+> **Replaced 2026-09-21 — the entry table (U54).** The grid was rebuilt a day earlier and was
+> still the wrong shape, which the layers gave away: getting to a team was axis → sport → age
+> group → organisation → chip, five levels before anything could be ticked. It is now **one row
+> per competitor, a tick, and the division it plays in.**
+>
+> **The reason is not that the grid was ugly.** It asked *which teams for this division*, so "a
+> team plays in one division" was a rule it had to defend — a server refusal, a dimmed chip naming
+> where the team went, a Move-here dialog, and the whole tournament's roster threaded through three
+> components so a chip could know it was taken. Asked the other way round, a competitor has **one
+> division cell** and the invariant stops being sayable rather than being enforced. Moving a team
+> is changing a dropdown. That deleted `EntrantGrid`, `EntrantTeamChip`, `DivisionTeamChoices`,
+> `NewTeamModal`, the move dialog, and `divisionTeamOptions`/`divisionByTeamId` with their tests.
+>
+> - **The rows are every candidate team, plus every entrant that is not one of them**
+>   ([buildEntrantRows](file:///c:/Fred/Coding/SK/shared/src/utils/entrantRows.ts)). One rule
+>   instead of three special cases: team sports list their candidates whether entered or not, a
+>   placeholder is an entrant with no team, and an individual sport has no candidates so its rows
+>   are exactly what somebody added — nothing is prepopulated, and that falls out rather than being
+>   coded for. It also keeps a team that is entered but no longer a candidate, which is a real
+>   competitor and would otherwise vanish.
+> - **Playing and Division cannot disagree.** Ticking Playing enters the competitor into its only
+>   qualifying division, so "playing, but nowhere" — a state an entrant cannot be in, since an
+>   entrant *is* a division's entrant — is unreachable. The division is plain text at one choice
+>   and a dropdown at two or more (U15); most teams qualify for exactly one division, so most rows
+>   carry no control.
+> - **The override kept its deliberateness.** `divisionsForTeam` returns `qualifying` and `others`
+>   — the same sport, another age group — and the dropdown lists the second group separately,
+>   labelled. A flat list would turn entering a u13 side into the u14 division from a decision into
+>   a mis-tap, which is what the grid's "Other age groups (3)" control bought.
+> - **The two axes became filters.** Division and organisation narrow one list rather than
+>   selecting between two layouts with two sets of controls. Neither is applied on arrival: a
+>   filter you chose is easier to understand than one that was already on. Filtering by division
+>   shows what *could* be in it as well as what is, because that is where entering happens.
+> - **One button adds what the tournament does not already offer**
+>   ([AddEntrantModal](file:///c:/Fred/Coding/SK/expo-app/components/tournament/AddEntrantModal.tsx)):
+>   a team that is not on the system, a placeholder, or a person in an individual sport. Sport and
+>   organisation are **pickers bounded by the tournament's own**, pre-filled from the active
+>   filters — the old dialog took both from the division that opened it and showed them read-only,
+>   which only worked because it could only be opened from inside one.
+>
+> **A placeholder moves through `removeEntrantIds`**, a companion to `takeFromOtherDivisions`: it
+> has no team to clash on, and its `division_entrants` row belongs to its division and carries the
+> fixtures drawn against it, so a move is genuinely a delete and an insert. Naming the row keeps
+> both inside one transaction.
+>
+> The **division panel** renders the same table narrowed to one division, so the convenor's screen
+> and the organiser's cannot drift. It passes no tournament-wide roster — a convenor may not be
+> able to join the event-level entrants room — so there a team already entered elsewhere is refused
+> by the server with a message naming where it is, rather than being shown up front.
+
 > **Revised 2026-09-21 — the organisations card.** Three changes, and the middle one is a data
 > model change rather than a label.
 >

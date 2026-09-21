@@ -574,6 +574,15 @@ export interface SetDivisionEntrantsPayload extends BatchPayload {
      * the move cannot half-apply and leave a team in no division at all.
      */
     takeFromOtherDivisions?: boolean;
+    /**
+     * Entrant rows to delete from whichever other division holds them, in the same transaction.
+     *
+     * The same move as `takeFromOtherDivisions`, for a competitor with no team to clash on: a
+     * placeholder (D7) or a person entrant is identified by its row rather than by a team, and
+     * moving one is a delete and an insert because the row belongs to its division and carries the
+     * fixtures generated against it.
+     */
+    removeEntrantIds?: string[];
 }
 
 export interface StageEntrantInput {

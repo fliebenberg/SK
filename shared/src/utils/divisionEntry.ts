@@ -21,84 +21,40 @@ export function teamQualifies(
   return true;
 }
 
-/** A team the division's list shows, and whether it is there by override. */
-export interface DivisionTeamOption {
-  team: CandidateTeam;
-  /** Plays the division's sport but is from another age group — entered by override. */
-  otherAgeGroup: boolean;
-  /**
-   * Another division of the same tournament that already holds this team, if there is one.
-   *
-   * A team plays in one division, so this option cannot simply be ticked — but it is **shown
-   * rather than hidden**, because hiding it makes the commonest mistake unrecoverable in place.
-   * An organiser who put a team in the wrong division goes to the right one, finds the team
-   * missing, and has nothing on screen telling them where it went. Shown and labelled with where
-   * it is, the fix is one tap from where the mistake was noticed.
-   */
-  takenByDivisionId?: string;
-}
-
 /**
- * Which division of a tournament each entered team is in — the input to `takenByDivisionId`.
+ * Which divisions a competitor may be entered into — the entry table's division column.
  *
- * Built from the event-level roster, so it covers every division at once. A team appearing twice
- * should be impossible (the server refuses it), and the first wins rather than throwing: a screen
- * that cannot render a roster is a worse answer to bad data than one that shows it oddly.
+ * The inverse of {@link divisionTeamOptions}, and the inversion is the point. The grid this
+ * replaced asked "which teams for this division", which made *where a team plays* something the
+ * screen had to reconstruct by looking in every division at once — and made "a team plays in one
+ * division" a rule defended with dimmed chips and a move dialog. Asked the other way round, a
+ * competitor has one division cell and the invariant stops being sayable.
+ *
+ * - `qualifying` — the right sport, and the right age group or a division that names none. These
+ *   are the ordinary answer and appear first.
+ * - `others` — the same sport, another age group. The **override**: a strong u13 side playing up,
+ *   or a school short of u14s. Kept in a separate group at the foot of the list so that choosing
+ *   one stays a deliberate act rather than a mis-tap, which is what the old "other age groups"
+ *   control bought and what a single flat list would have thrown away.
+ *
+ * Another sport is never offered. A hockey team in a rugby division is a mistake, not an exception.
+ *
+ * A competitor with **no team behind it** — a placeholder (D7), or a person in an individual sport
+ * — qualifies nowhere in particular, so it is offered every division and nothing is held back.
+ * `null` rather than an empty object is what says so: a team whose sport is merely unset is a
+ * different thing, and passing one would quietly get the placeholder treatment.
  */
-export function divisionByTeamId(
-  entrants: Array<{ divisionId: string; teamId?: string }>
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const entrant of entrants) {
-    if (entrant.teamId && !map.has(entrant.teamId)) map.set(entrant.teamId, entrant.divisionId);
+export function divisionsForTeam<D extends { sportId?: string; ageGroupId?: string | null }>(
+  team: Pick<CandidateTeam, 'sportId' | 'ageGroupId'> | null,
+  divisions: D[]
+): { qualifying: D[]; others: D[] } {
+  if (!team) return { qualifying: [...divisions], others: [] };
+
+  const qualifying: D[] = [];
+  const others: D[] = [];
+  for (const division of divisions) {
+    if (teamQualifies(team, division)) qualifying.push(division);
+    else if (!division.sportId || team.sportId === division.sportId) others.push(division);
   }
-  return map;
-}
-
-/**
- * Which of an organisation's teams a division offers — the age-group override (2026-09-19).
- *
- * The age group narrows the list; it is not a rule. A strong U13 side playing up, or a school short
- * of U14s fielding a mixed team, is normal, so a team of the right **sport** from another age group
- * can still be entered. Two lists come back:
- *
- * - `listed` — every qualifying team, **plus any other-age-group team already entered**, so an
- *   override stays visible on both axes of the entrants screen instead of vanishing from the list
- *   it was added from.
- * - `others` — the right sport, another age group, not entered. The screens keep these behind an
- *   "other age groups" control, so entering one is a deliberate step rather than a slip.
- *
- * The **sport stays strict**: a hockey team in a rugby division is a mistake, not an exception, so
- * nothing offers it. Enforced here only — the server accepts any team, as it always has.
- */
-export function divisionTeamOptions(
-  teams: CandidateTeam[],
-  division: { id?: string; sportId?: string; ageGroupId?: string | null },
-  enteredTeamIds: Set<string>,
-  /** Every entered team in the tournament and the division holding it — see {@link divisionByTeamId}. */
-  divisionByTeam?: Map<string, string>
-): { listed: DivisionTeamOption[]; others: CandidateTeam[] } {
-  const listed: DivisionTeamOption[] = [];
-  const others: CandidateTeam[] = [];
-
-  /* Only *another* division counts. A team entered in this one is entered, not taken. */
-  const takenBy = (teamId: string) => {
-    const holder = divisionByTeam?.get(teamId);
-    return holder && holder !== division.id ? holder : undefined;
-  };
-
-  for (const team of teams) {
-    if (teamQualifies(team, division)) {
-      listed.push({ team, otherAgeGroup: false, takenByDivisionId: takenBy(team.id) });
-    } else if (!division.sportId || team.sportId === division.sportId) {
-      // A team held by another division stays in `listed` even out of age group, for the same
-      // reason it is shown at all: the organiser looking for it has to be able to find it.
-      if (enteredTeamIds.has(team.id) || takenBy(team.id)) {
-        listed.push({ team, otherAgeGroup: true, takenByDivisionId: takenBy(team.id) });
-      } else {
-        others.push(team);
-      }
-    }
-  }
-  return { listed, others };
+  return { qualifying, others };
 }

@@ -313,7 +313,7 @@ export class DataManager {
   setDivisionEntrants = (
     divisionId: string,
     entrants: any[],
-    options?: { takeFromOtherDivisions?: boolean }
+    options?: { takeFromOtherDivisions?: boolean; removeEntrantIds?: string[] }
   ) => tournamentManager.setDivisionEntrants(divisionId, entrants, options);
   getStageEntrants = (stageId: string) => tournamentManager.getStageEntrants(stageId);
   setStageEntrants = (stageId: string, entrants: any[]) => tournamentManager.setStageEntrants(stageId, entrants);

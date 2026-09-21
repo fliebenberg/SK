@@ -8,7 +8,7 @@ tags:
   - WebSockets
   - real-time
   - sport-registry
-timestamp: 2026-09-20T12:00:00Z
+timestamp: 2026-09-21T12:00:00Z
 ---
 
 # API & Real-time WebSockets
@@ -178,6 +178,11 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     summaries — because it has viewers of its own and is the side nobody is looking at while the
     change is made. Removing an entrant unresolves every fixture that named it, which is why the
     summaries go out too.
+*   **`removeEntrantIds`** (2026-09-21) is the same move for a competitor with no team to clash
+    on. A placeholder or a person entrant is identified by its `division_entrants` row, which
+    belongs to its division and carries the fixtures drawn against it — so moving one is a delete
+    and an insert rather than an update, and naming the rows to drop keeps both inside the one
+    transaction. Vacated divisions are republished exactly as for a team move.
 *   **A fixture's audience includes its event and division rooms** (Phase 5). `join_room` hands
     fixtures over to `event:{id}` and `division:{id}:fixtures`, so both must also receive
     `GAME_SUMMARY_UPDATED` — a room that hands data over on join and never republishes it goes

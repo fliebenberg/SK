@@ -485,6 +485,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
                 entrants={entrants}
                 candidateTeams={candidateTeams}
                 orgs={rosterOrgs}
+                sports={sports}
                 sportName={sports.find(sport => sport.id === division.sportId)?.name}
                 onTeamCreated={(team) =>
                   setCandidateTeams(prev => [...prev, candidateFromTeam(team, rosterOrgs)])
