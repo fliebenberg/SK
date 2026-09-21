@@ -26,6 +26,13 @@ export interface OrgBadge {
   /** `null` where the org has never adjusted its logo; `<OrgLogo>` defaults it. */
   logoConfig?: { scale?: number; x?: number; y?: number } | null;
   primaryColor?: string;
+  /**
+   * Whether anybody owns it. An unclaimed organisation accepts a minimum from anybody signed in — a
+   * team's name, sport and age group, a person's name — so that the people entering it are not
+   * blocked by an owner who does not exist yet (2026-09-21). A claimed one does not: a screen reads
+   * this to offer an org-linked placeholder instead, rather than a form the server will refuse.
+   */
+  isClaimed?: boolean;
 }
 
 export interface Organization {

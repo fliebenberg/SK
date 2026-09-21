@@ -301,6 +301,8 @@ export default function EntrantsScreen() {
         id: entrant.id || undefined,
         teamId: entrant.teamId,
         orgProfileId: entrant.orgProfileId,
+        // Only a placeholder's is read by the server; a team or a person carries its own.
+        orgId: entrant.teamId || entrant.orgProfileId ? undefined : entrant.orgId,
         label: entrant.label,
         seed: entrant.seed,
         status: entrant.status || 'active',
@@ -336,6 +338,7 @@ export default function EntrantsScreen() {
       : {
           teamId: row.entrant?.teamId,
           orgProfileId: row.entrant?.orgProfileId,
+          orgId: row.entrant?.orgId,
           label: row.entrant?.label,
           status: 'active',
         };
@@ -358,13 +361,20 @@ export default function EntrantsScreen() {
   };
 
   /** A placeholder or a person from the Add dialog. */
+  /**
+   * A person or a placeholder from the Add dialog.
+   *
+   * `orgId` is carried through, and until 2026-09-21 it was not: an org-linked placeholder arrived
+   * here with its school and left without it, so it was stored exactly like a generic one — no
+   * crest, missing from its school's filter, uncounted in its school's roll-up.
+   */
   const handleEntrantCreated = (
-    made: { label?: string; orgProfileId?: string; name: string },
+    made: { label?: string; orgProfileId?: string; orgId?: string; name: string },
     divisionId: string
   ) => {
     writeRoster(divisionId, [
       ...rosterOf(divisionId),
-      { label: made.label, orgProfileId: made.orgProfileId, status: 'active' },
+      { label: made.label, orgProfileId: made.orgProfileId, orgId: made.orgId, status: 'active' },
     ]);
   };
 

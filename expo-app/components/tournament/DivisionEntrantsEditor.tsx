@@ -93,6 +93,8 @@ export function DivisionEntrantsEditor({
         id: entrant.id || undefined,
         teamId: entrant.teamId,
         orgProfileId: entrant.orgProfileId,
+        // Only a placeholder's is read by the server; a team or a person carries its own.
+        orgId: entrant.teamId || entrant.orgProfileId ? undefined : entrant.orgId,
         label: entrant.label,
         seed: entrant.seed,
         status: entrant.status || 'active',
@@ -119,6 +121,7 @@ export function DivisionEntrantsEditor({
           : {
               teamId: row.entrant?.teamId,
               orgProfileId: row.entrant?.orgProfileId,
+              orgId: row.entrant?.orgId,
               label: row.entrant?.label,
               status: 'active' as const,
             },
@@ -170,7 +173,7 @@ export function DivisionEntrantsEditor({
         onEntrantCreated={made =>
           writeRoster([
             ...entrants,
-            { label: made.label, orgProfileId: made.orgProfileId, status: 'active' },
+            { label: made.label, orgProfileId: made.orgProfileId, orgId: made.orgId, status: 'active' },
           ])
         }
       />

@@ -1096,6 +1096,28 @@ that spans weeks.
 > able to join the event-level entrants room — so there a team already entered elsewhere is refused
 > by the server with a message naming where it is, rather than being shown up front.
 
+> **Revised 2026-09-21 — whose records the Add dialog may write.** Settled with the organisation
+> gate (`PEOPLE-6`): you may create a team or a person in an organisation you run, **or in one
+> nobody has claimed**, with only a name, sport and age group — because nobody else can, and an
+> outsider doing it is a reason for somebody from that school to claim it. A **claimed** school you
+> do not run is its own admins' to fill in.
+>
+> The dialog asks that question itself, from `OrgBadge.isClaimed` and the user's memberships, so it
+> never offers a form the server will refuse. For a claimed school it says so and offers, in the same
+> breath, the one thing that *is* open — **Add a placeholder for NHS** — because "you can't" without
+> "but you can" is a dead end. For an unclaimed one it says the basics are welcome and the owner will
+> fill in the rest. A person not yet on an organisation's roster is now **created** (name only) where
+> the rule allows it, rather than being quietly recorded as a placeholder.
+>
+> **A placeholder is one of two kinds.** A *generic* one — *Winner of the regional qualifier* — has
+> no organisation, because none is known. An *org-linked* one — *Northcliff's second team, TBC* —
+> has one by definition, and the dialog makes the organisation compulsory for it. The column stays
+> nullable only because the generic kind exists. Until this change the organisation was **dropped**
+> on the way to the server, so an org-linked placeholder was stored exactly like a generic one: no
+> crest, missing from its school's filter, and uncounted in its school's roll-up. The server now
+> takes a placeholder's organisation, never a team's or a person's — those carry their own, and a
+> payload cannot re-attribute Northcliff's team to Athlone by saying so.
+
 > **Revised 2026-09-21 — the organisations card.** Three changes, and the middle one is a data
 > model change rather than a label.
 >

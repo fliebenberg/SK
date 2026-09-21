@@ -8,30 +8,30 @@ import { AgeGroupPicker } from '../AgeGroupPicker';
 import { FieldLabel } from '../FieldLabel';
 import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
 import { sendAction } from '../../services/actions';
+import { useAuthStore } from '../../store/authStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { getThemeColor } from '../../constants/Colors';
 
 /**
  * Adding a competitor the tournament does not already offer.
  *
- * One button and one dialog for the three things that used to have none, one, or a corner of the
- * grid each:
+ * One button and one dialog for everything the table cannot produce on its own: a team that is not
+ * on the system, a person in an individual sport, and a placeholder. The sport and organisation are
+ * pickers bounded by the tournament's own, pre-filled from the table's filters.
  *
- * - **A team that is not on the system.** Discovering that Northcliff have no u16 netball team is
- *   part of entering them, and sending the organiser to the teams screen and back is the friction
- *   that gets a feature abandoned on its first real use. The grid put this in the empty column
- *   under each school — which worked, and only worked because the grid had a column per school.
- * - **A placeholder** (D7) — a competitor with a label and no team, *Winner of the regional
- *   qualifier*, schedulable and printable like any other and resolved later.
- * - **An entrant in an individual sport**, which is a person rather than a team. Those sports get
- *   no candidate list at all, so every entrant arrives through here.
+ * **Whose records this may write is settled by one rule (2026-09-21).** You may create a team or a
+ * person in an organisation you run — or in one **nobody has claimed yet**, with only the minimum
+ * (a team's name, sport and age group; a person's name), because nobody else can and an outsider
+ * doing it is a reason for somebody from that school to claim it. A **claimed** school you do not
+ * run is its own admins' to fill in, so for one of those the dialog offers what you *can* do — an
+ * org-linked placeholder, which reserves the slot in the school's name for them to fill — rather
+ * than a form the server would refuse. The server holds the same line in `orgGate` and
+ * `profileGate`; this is so the refusal never has to happen.
  *
- * **The sport and the organisation are chosen, not fixed.** The old team dialog took both from the
- * division that prompted it and showed them read-only, which was right when it could only be
- * opened from inside a division. A button at the top of the table has no such context, so both are
- * pickers — bounded by the tournament's own sports and organisations, since a team of a sport
- * nobody plays could never be entered — and **pre-filled from whatever the table is filtered by**,
- * which is usually the answer.
+ * **A placeholder is one of two kinds, not one kind with an optional field.** A *generic* one is a
+ * competitor nobody can name yet — *Winner of the regional qualifier* — and has no organisation
+ * because none is known. An *org-linked* one is a slot that belongs to a school — *Northcliff's
+ * second team, TBC* — and has one by definition.
  */
 export interface AddEntrantModalProps {
   isOpen: boolean;
@@ -50,7 +50,7 @@ export interface AddEntrantModalProps {
   defaultDivisionId?: string;
   /** A team was created; the caller appends it to its candidate list. */
   onTeamCreated: (team: Team, divisionId: string | null) => void;
-  /** A placeholder or a person, to be written into a division. */
+  /** A person or a placeholder, to be written into a division. */
   onEntrantCreated: (
     entrant: { label?: string; orgProfileId?: string; orgId?: string; name: string },
     divisionId: string
@@ -74,8 +74,12 @@ export function AddEntrantModal({
   onEntrantCreated,
 }: AddEntrantModalProps) {
   const isDark = useActiveTheme() === 'dark';
+  const user = useAuthStore((state: any) => state.user);
+  const memberships = useAuthStore((state: any) => state.orgMemberships) || [];
 
   const [kind, setKind] = useState<Kind>('team');
+  /** For a placeholder: does it belong to a school, or to nobody yet? */
+  const [placeholderForOrg, setPlaceholderForOrg] = useState(false);
   const [sportId, setSportId] = useState('');
   const [entrantOrgId, setEntrantOrgId] = useState('');
   const [name, setName] = useState('');
@@ -86,15 +90,39 @@ export function AddEntrantModal({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /** An individual sport has no teams, so the dialog is about a person instead. */
   const chosenSport = sports.find(s => s.id === sportId);
   const isIndividual = chosenSport?.participantType === 'INDIVIDUAL';
+  const chosenOrg = orgs.find(o => o.id === entrantOrgId);
+
+  /**
+   * May this user create a team or a person in that organisation — the same question `orgGate`
+   * answers, asked early so the dialog can offer the alternative instead of a refusal.
+   *
+   * `isClaimed` is trusted only when it says *false*. An older payload without the field is treated
+   * as claimed, which errs towards offering a placeholder rather than a form that would be refused.
+   */
+  const canWriteInto = (id: string) => {
+    const org = orgs.find(o => o.id === id);
+    if (!org) return false;
+    if (id === orgId || user?.globalRole === 'admin') return true;
+    const runsIt = memberships.some(
+      (m: any) =>
+        m.orgId === id &&
+        (m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff') &&
+        (!m.endDate || new Date(m.endDate) > new Date())
+    );
+    return runsIt || org.isClaimed === false;
+  };
+
+  const writable = !!entrantOrgId && canWriteInto(entrantOrgId);
+  /** An organisation you neither run nor may fill in on its behalf — only a placeholder is open. */
+  const claimedByOthers = !!entrantOrgId && !writable;
 
   useEffect(() => {
     if (!isOpen) return;
-    const seededSport = defaultSportId || (sports.length === 1 ? sports[0].id : '');
     setKind('team');
-    setSportId(seededSport);
+    setPlaceholderForOrg(false);
+    setSportId(defaultSportId || (sports.length === 1 ? sports[0].id : ''));
     setEntrantOrgId(defaultOrgId || (orgs.length === 1 ? orgs[0].id : ''));
     setDivisionId(defaultDivisionId || '');
     setName('');
@@ -105,41 +133,69 @@ export function AddEntrantModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, defaultSportId, defaultOrgId, defaultDivisionId]);
 
-  /* The kind follows the sport: choosing an individual sport makes this an entrant dialog. A
-     placeholder is the organiser's own choice and is left alone. */
+  /* The kind follows the sport: an individual sport makes this about a person. A placeholder is the
+     organiser's own choice and is left alone. */
   useEffect(() => {
     if (kind === 'placeholder') return;
     setKind(isIndividual ? 'person' : 'team');
   }, [isIndividual, kind]);
 
-  /** Divisions the thing being added could go into — the sport narrows them. */
+  /** Switch to an org-linked placeholder for the school that could not be written into. */
+  const offerPlaceholder = () => {
+    setKind('placeholder');
+    setPlaceholderForOrg(true);
+    if (!name.trim() && personText.trim()) setName(personText.trim());
+  };
+
   const divisionChoices = divisions.filter(
     division => kind === 'placeholder' || !sportId || division.sportId === sportId
   );
 
   const canSave = (() => {
-    if (kind === 'placeholder') return !!name.trim() && !!divisionId;
+    if (kind === 'placeholder') {
+      return !!name.trim() && !!divisionId && (!placeholderForOrg || !!entrantOrgId);
+    }
+    if (claimedByOthers) return false;
     if (kind === 'person') return (!!person || !!personText.trim()) && !!entrantOrgId && !!divisionId;
     return !!name.trim() && !!sportId && !!entrantOrgId;
   })();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!canSave) return;
     setError(null);
 
     if (kind === 'placeholder') {
-      onEntrantCreated({ label: name.trim(), name: name.trim() }, divisionId);
+      onEntrantCreated(
+        {
+          label: name.trim(),
+          name: name.trim(),
+          orgId: placeholderForOrg ? entrantOrgId : undefined,
+        },
+        divisionId
+      );
       onClose();
       return;
     }
 
     if (kind === 'person') {
+      if (person) {
+        onEntrantCreated({ orgProfileId: person.id, orgId: entrantOrgId, name: person.name }, divisionId);
+        onClose();
+        return;
+      }
+      // Somebody not on the organisation's roster yet: create them, with a name and nothing more.
+      setIsSaving(true);
+      const created = await sendAction(SocketAction.ADD_ORG_PROFILE, {
+        name: personText.trim(),
+        orgId: entrantOrgId,
+      } as any);
+      setIsSaving(false);
+      if (!created.ok) {
+        setError(created.message || 'That person could not be added.');
+        return;
+      }
       onEntrantCreated(
-        person
-          ? { orgProfileId: person.id, orgId: entrantOrgId, name: person.name }
-          : // Nobody on the system by that name yet: recorded as a placeholder carrying it, which
-            // is exactly what a placeholder is for and avoids creating a half-made person record.
-            { label: personText.trim(), name: personText.trim(), orgId: entrantOrgId },
+        { orgProfileId: created.data.id, orgId: entrantOrgId, name: personText.trim() },
         divisionId
       );
       onClose();
@@ -147,26 +203,45 @@ export function AddEntrantModal({
     }
 
     setIsSaving(true);
-    sendAction(SocketAction.ADD_TEAM, {
+    const result = await sendAction(SocketAction.ADD_TEAM, {
       name: name.trim(),
       orgId: entrantOrgId,
       sportId,
       ageGroupId: ageGroupId || undefined,
       isActive: true,
-    } as any).then(result => {
-      setIsSaving(false);
-      // A refusal is already toasted; the dialog stays open with what was typed.
-      if (!result.ok) {
-        setError(result.message || 'That team could not be created.');
-        return;
-      }
-      onTeamCreated(result.data, divisionId || null);
-      onClose();
-    });
+    } as any);
+    setIsSaving(false);
+    // A refusal is already toasted; the dialog stays open with what was typed.
+    if (!result.ok) {
+      setError(result.message || 'That team could not be created.');
+      return;
+    }
+    onTeamCreated(result.data, divisionId || null);
+    onClose();
   };
 
   const title =
     kind === 'placeholder' ? 'Add a placeholder' : kind === 'person' ? 'Add an entrant' : 'Add a team';
+
+  const chip = (active: boolean, label: string, onPress: () => void, key: string) => (
+    <TouchableOpacity
+      key={key}
+      onPress={onPress}
+      className={`px-3 py-1.5 rounded-xl border ${
+        active
+          ? 'bg-brand-orange/15 border-brand-orange'
+          : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
+      }`}
+    >
+      <Text
+        className={`font-inter text-xs ${
+          active ? 'text-brand-orange font-inter-bold' : 'text-slate-600 dark:text-slate-400'
+        }`}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
@@ -176,36 +251,26 @@ export function AddEntrantModal({
             {title}
           </Text>
 
-          <ScrollView className="max-h-[420px]" keyboardShouldPersistTaps="handled">
+          <ScrollView className="max-h-[440px]" keyboardShouldPersistTaps="handled">
             <View className="space-y-4">
-              {/* A placeholder is a different kind of thing, not a different sport, so it is its
-                  own choice rather than an option in the sport list. */}
               <View className="flex-row gap-2">
-                {(['team', 'placeholder'] as const).map(option => {
-                  const label =
-                    option === 'team' ? (isIndividual ? 'Entrant' : 'Team') : 'Placeholder';
-                  const active = option === 'placeholder' ? kind === 'placeholder' : kind !== 'placeholder';
-                  return (
-                    <TouchableOpacity
-                      key={option}
-                      onPress={() => setKind(option === 'placeholder' ? 'placeholder' : isIndividual ? 'person' : 'team')}
-                      className={`px-3 py-1.5 rounded-xl border ${
-                        active
-                          ? 'bg-brand-orange/15 border-brand-orange'
-                          : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
-                      }`}
-                    >
-                      <Text
-                        className={`font-inter text-xs ${
-                          active ? 'text-brand-orange font-inter-bold' : 'text-slate-600 dark:text-slate-400'
-                        }`}
-                      >
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                {chip(kind !== 'placeholder', isIndividual ? 'Entrant' : 'Team', () =>
+                  setKind(isIndividual ? 'person' : 'team'), 'real')}
+                {chip(kind === 'placeholder', 'Placeholder', () => setKind('placeholder'), 'placeholder')}
               </View>
+
+              {kind === 'placeholder' && (
+                <View className="space-y-2">
+                  <FieldLabel
+                    label="Belongs to"
+                    help="An open placeholder is a competitor nobody can name yet, like the winner of a qualifier. A placeholder for an organisation reserves a place in that school's name, for them to fill in."
+                  />
+                  <View className="flex-row gap-2">
+                    {chip(!placeholderForOrg, 'Nobody yet', () => setPlaceholderForOrg(false), 'open')}
+                    {chip(placeholderForOrg, 'An organisation', () => setPlaceholderForOrg(true), 'org')}
+                  </View>
+                </View>
+              )}
 
               {kind !== 'placeholder' && (
                 <View className="space-y-2">
@@ -222,27 +287,56 @@ export function AddEntrantModal({
                 </View>
               )}
 
-              {kind !== 'placeholder' && (
+              {(kind !== 'placeholder' || placeholderForOrg) && (
                 <View className="space-y-2">
                   <FieldLabel
                     label="Organisation"
-                    help="The school or club the competitor belongs to, from the organisations taking part."
+                    help="The school or club this belongs to, from the organisations taking part."
                   />
                   <CustomSelect
                     value={entrantOrgId}
                     onChange={setEntrantOrgId}
-                    options={orgs.map(org => ({ value: org.id, label: `${org.name} (${org.shortName})` }))}
+                    options={orgs.map(org => ({
+                      value: org.id,
+                      label: `${org.name} (${org.shortName})`,
+                      description: org.isClaimed === false ? 'Not yet claimed' : undefined,
+                    }))}
                     placeholder="Choose an organisation"
                     showSearch
                   />
                 </View>
               )}
 
-              {kind === 'person' ? (
+              {/*
+                A claimed school you do not run. Said, not refused — and with the one thing you can do
+                offered in the same breath, because "you can't" without "but you can" is a dead end.
+              */}
+              {kind !== 'placeholder' && claimedByOthers && (
+                <View className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-3 space-y-2">
+                  <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
+                    {chosenOrg?.name} is run by its own admins, so their {isIndividual ? 'people' : 'teams'} are
+                    theirs to add. You can reserve a place for them instead, and they fill it in.
+                  </Text>
+                  <TouchableOpacity onPress={offerPlaceholder} className="active:opacity-80">
+                    <Text className="font-inter-bold text-[11px] text-brand-orange uppercase tracking-wider">
+                      Add a placeholder for {chosenOrg?.shortName}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {kind !== 'placeholder' && !claimedByOthers && chosenOrg && chosenOrg.id !== orgId && chosenOrg.isClaimed === false && (
+                <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
+                  {chosenOrg.name} has not been claimed yet, so you can add the basics for them. Whoever
+                  claims it can fill in the rest.
+                </Text>
+              )}
+
+              {kind === 'person' && !claimedByOthers && (
                 <View className="space-y-2">
                   <FieldLabel
                     label="Entrant"
-                    help="Somebody on the organisation's roster. A name that is not on the system yet is entered as a placeholder, to be resolved later."
+                    help="Somebody on the organisation's roster, or a new name — which adds them to the organisation with that name alone."
                   />
                   {!!entrantOrgId && (
                     <PersonnelAutocomplete
@@ -260,27 +354,35 @@ export function AddEntrantModal({
                     />
                   )}
                 </View>
-              ) : (
+              )}
+
+              {(kind === 'placeholder' || (kind === 'team' && !claimedByOthers)) && (
                 <View className="space-y-2">
                   <FieldLabel
                     label={kind === 'placeholder' ? 'Description' : 'Team name'}
                     help={
                       kind === 'placeholder'
-                        ? 'What this competitor will be until it is known — "Winner of the regional qualifier". It can be scheduled and printed like any other, and naming the team later fills in every fixture at once.'
+                        ? 'What this competitor is until it is known. It can be scheduled and printed like any other, and naming it later fills in every fixture at once.'
                         : undefined
                     }
                   />
                   <TextInput
                     value={name}
                     onChangeText={setName}
-                    placeholder={kind === 'placeholder' ? 'Winner of the regional qualifier' : 'e.g. U16A'}
+                    placeholder={
+                      kind !== 'placeholder'
+                        ? 'e.g. U16A'
+                        : placeholderForOrg
+                          ? `${chosenOrg?.shortName || 'School'} second team`
+                          : 'Winner of the regional qualifier'
+                    }
                     placeholderTextColor={getThemeColor(isDark, 'placeholder')}
                     className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
                   />
                 </View>
               )}
 
-              {kind === 'team' && (
+              {kind === 'team' && !claimedByOthers && (
                 <View className="space-y-2">
                   <FieldLabel
                     label="Age group"
@@ -299,27 +401,29 @@ export function AddEntrantModal({
                 </View>
               )}
 
-              <View className="space-y-2">
-                <FieldLabel
-                  label="Division"
-                  optional={kind === 'team'}
-                  help={
-                    kind === 'team'
-                      ? 'Enter the team straight away, or leave this and tick it in the table afterwards.'
-                      : 'Which division this competitor is entered into.'
-                  }
-                />
-                <CustomSelect
-                  value={divisionId}
-                  onChange={setDivisionId}
-                  options={divisionChoices.map(division => ({
-                    value: division.id,
-                    label: divisionLabel(division),
-                  }))}
-                  placeholder={kind === 'team' ? 'Not yet' : 'Choose a division'}
-                  clearable={kind === 'team'}
-                />
-              </View>
+              {!(kind !== 'placeholder' && claimedByOthers) && (
+                <View className="space-y-2">
+                  <FieldLabel
+                    label="Division"
+                    optional={kind === 'team'}
+                    help={
+                      kind === 'team'
+                        ? 'Enter the team straight away, or leave this and tick it in the table afterwards.'
+                        : 'Which division this competitor is entered into.'
+                    }
+                  />
+                  <CustomSelect
+                    value={divisionId}
+                    onChange={setDivisionId}
+                    options={divisionChoices.map(division => ({
+                      value: division.id,
+                      label: divisionLabel(division),
+                    }))}
+                    placeholder={kind === 'team' ? 'Not yet' : 'Choose a division'}
+                    clearable={kind === 'team'}
+                  />
+                </View>
+              )}
 
               {!!error && <Text className="font-inter text-xs text-brand-red">{error}</Text>}
             </View>

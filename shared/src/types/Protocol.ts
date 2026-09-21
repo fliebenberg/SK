@@ -555,6 +555,11 @@ export interface DivisionEntrantInput {
     id?: string;
     teamId?: string;
     orgProfileId?: string;
+    /**
+     * A placeholder's organisation — an *org-linked* placeholder names one, a generic one does not.
+     * Ignored for a team or a person, which carry their own and cannot be re-attributed.
+     */
+    orgId?: string;
     label?: string;
     seed?: number;
     status?: TournamentEntrant['status'];

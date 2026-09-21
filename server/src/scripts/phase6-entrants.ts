@@ -783,6 +783,40 @@ async function main() {
     'a placeholder moves in one write too, though it has no team to clash on'
   );
 
+  /*
+   * An org-linked placeholder keeps its school — through its creation, and through every later
+   * rewrite of the roster. The second is the one that bites: a roster is always sent whole (D13),
+   * so a placeholder whose organisation was not carried along would lose it to any unrelated edit of
+   * the same division, silently. Before 2026-09-21 it never had one to lose.
+   */
+  const schoolSlot = await tournamentManager.setDivisionEntrants(moveTarget.id, [
+    { label: "P6 School A second team", orgId: schools[0].id },
+  ]);
+  const slot = schoolSlot.entrants.find(e => e.label === 'P6 School A second team')!;
+  const afterRewrite = await tournamentManager.setDivisionEntrants(moveTarget.id, [
+    { id: slot.id, label: slot.label, orgId: slot.orgId },
+    { label: 'Winner of the regional qualifier' },
+  ]);
+  expect(
+    [
+      slot.orgId,
+      afterRewrite.entrants.find(e => e.id === slot.id)?.orgId,
+      afterRewrite.entrants.find(e => e.label === 'Winner of the regional qualifier')?.orgId ?? null,
+    ],
+    [schools[0].id, schools[0].id, null],
+    'an org-linked placeholder keeps its school through a roster rewrite, and a generic one has none'
+  );
+
+  // A team carries its own organisation, and a payload cannot move it to somebody else's.
+  const reattributed = await tournamentManager.setDivisionEntrants(moveTarget.id, [
+    { teamId: lockTeamId, orgId: schools[1].id },
+  ]);
+  expect(
+    reattributed.entrants.find(e => e.teamId === lockTeamId)?.orgId,
+    schools[0].id,
+    "and a team's organisation is its own — naming another one in the payload does not change it"
+  );
+
   await tournamentManager.deleteDivision(moveTarget.id);
   await tournamentManager.deleteDivision(lockDivision.id);
 

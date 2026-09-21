@@ -506,7 +506,8 @@ export class TournamentManager extends BaseManager {
     // still appears — which is the whole point, because its empty column is where a team is made.
     const orgs = await this.query(
       `SELECT o.id, o.name, o.short_name as "shortName", o.logo,
-              o.settings->'logoConfig' as "logoConfig", o.primary_color as "primaryColor"
+              o.settings->'logoConfig' as "logoConfig", o.primary_color as "primaryColor",
+              o.is_claimed as "isClaimed"
          FROM organizations o
         WHERE o.id IN (${ORG_SCOPE})
         ORDER BY o.name`,
@@ -545,6 +546,8 @@ export class TournamentManager extends BaseManager {
       id?: string;
       teamId?: string;
       orgProfileId?: string;
+      /** Only read for a placeholder — a team or a person carries its own organisation. */
+      orgId?: string;
       label?: string;
       seed?: number;
       status?: 'active' | 'withdrawn';
@@ -642,7 +645,18 @@ export class TournamentManager extends BaseManager {
         const id = entrant.id && existingById.has(entrant.id) ? entrant.id : `ent-${uuidv4()}`;
         const teamId = entrant.teamId || null;
         const orgProfileId = entrant.orgProfileId || null;
-        const orgId = await this.deriveEntrantOrgId(tx, teamId, orgProfileId);
+        /*
+         * A team or a person carries its own organisation, and that always wins — a client cannot
+         * attribute Northcliff's team to Athlone by saying so. Only a **placeholder** takes the
+         * organisation it is given, because it has nothing of its own to take one from: an
+         * *org-linked* placeholder ("Northcliff's second team, TBC") names one, a *generic* one
+         * ("Winner of the regional qualifier") does not. Before 2026-09-21 the given one was
+         * dropped, so an org-linked placeholder was stored exactly like a generic one — no crest,
+         * missing from its school's filter, and uncounted in its school's roll-up.
+         */
+        const orgId =
+          (await this.deriveEntrantOrgId(tx, teamId, orgProfileId)) ??
+          (!teamId && !orgProfileId ? entrant.orgId || null : null);
 
         const previous = existingById.get(id);
         if (previous && (previous.team_id !== teamId || previous.org_profile_id !== orgProfileId)) {
