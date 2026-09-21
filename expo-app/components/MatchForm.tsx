@@ -9,8 +9,8 @@ import { useActiveTheme } from '../store/settingsStore';
 import { wsService } from '../services/websocket';
 import { sendAction } from '../services/actions';
 import { useWsStore } from '../store/wsStore';
-import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/shared';
-import { useOrgShortCode } from '../hooks/useOrgShortCode';
+import { SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/shared';
+import { RegisterOrgModal } from './RegisterOrgModal';
 import { useAuthStore } from '../store/authStore';
 import { NominationModal } from './NominationModal';
 import { GlassCard } from './GlassCard';
@@ -78,9 +78,8 @@ export default function MatchForm({
   // Quick Create Modals
   const [isCreatingOrg, setIsCreatingOrg] = useState(false);
   const [isCreatingHomeOrg, setIsCreatingHomeOrg] = useState(false);
+  /** What was typed into the search that found nothing — the register dialog's starting name. */
   const [newOrgName, setNewOrgName] = useState('');
-  const shortCode = useOrgShortCode();
-  const [newOrgContactEmail, setNewOrgContactEmail] = useState('');
 
   const [isCreatingSite, setIsCreatingSite] = useState(false);
   const [newSiteName, setNewSiteName] = useState('');
@@ -353,46 +352,6 @@ export default function MatchForm({
   const filteredAwayTeams = useMemo(() => {
     return awayTeams.filter(t => !selectedSportId || t.sportId === selectedSportId);
   }, [awayTeams, selectedSportId]);
-
-  // Quick Create Org Handler
-  const handleQuickCreateOrg = () => {
-    if (!newOrgName.trim() || !shortCode.shortCode) return;
-
-    const payload = {
-      name: newOrgName.trim(),
-      shortName: shortCode.shortCode,
-      joinPolicy: 'request',
-      supportedSportIds: selectedSportId ? [selectedSportId] : [],
-      isClaimed: false,
-    };
-
-    sendAction(SocketAction.ADD_ORG, payload).then(result => {
-      // A refusal is already toasted; the modal stays open with what was typed.
-      if (!result.ok) return;
-      const org = result.data;
-      const email = newOrgContactEmail.trim();
-      const currentUserId = useAuthStore.getState().user?.id;
-      if (email && currentUserId) {
-        setPendingReferrals(prev => ({
-          ...prev,
-          [org.id]: [email],
-        }));
-      }
-
-      if (isCreatingHomeOrg) {
-        setSelectedHomeOrg(org);
-        setHomeOrgSearchText('');
-      } else {
-        setSelectedAwayOrg(org);
-        setAwayOrgSearchText('');
-      }
-
-      setIsCreatingOrg(false);
-      setNewOrgName('');
-      shortCode.reset();
-      setNewOrgContactEmail('');
-    });
-  };
 
   // Quick Create Site Handler
   const handleQuickCreateSite = () => {
@@ -1010,78 +969,27 @@ export default function MatchForm({
         </View>
       </Modal>
 
-      {/* QUICK CREATE ORGANIZATION MODAL */}
-      <Modal
-        visible={isCreatingOrg}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsCreatingOrg(false)}
-      >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl space-y-4">
-            <Text className="font-orbitron-bold text-base text-slate-850 dark:text-white uppercase tracking-wider">
-              Register Organization
-            </Text>
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Full Name</Text>
-              <TextInput
-                placeholder="e.g. St John's College"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newOrgName}
-                onChangeText={(text) => {
-                  setNewOrgName(text);
-                  shortCode.onNameChange(text);
-                }}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-              />
-            </View>
-            {/* Required, but filled in from the name as it is typed — see `useOrgShortCode`. */}
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Short Code / Initials</Text>
-              <TextInput
-                placeholder="e.g. SJC"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={shortCode.shortCode}
-                onChangeText={shortCode.onShortCodeChange}
-                maxLength={ORG_SHORT_CODE_MAX_LENGTH}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                spellCheck={false}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-orbitron-bold text-sm text-slate-850 dark:text-white w-32 text-center"
-              />
-            </View>
-            <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Contact Person Email (Optional)</Text>
-              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mb-1 leading-4">
-                Help us get this organization claimed! If you know who manages this school or club (e.g. head of sports or club secretary), add their email below so we can invite them to take control of their teams and schedules.
-              </Text>
-              <TextInput
-                placeholder="contact@school.edu"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                value={newOrgContactEmail}
-                onChangeText={setNewOrgContactEmail}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-            <View className="flex-row gap-3 pt-4">
-              <Button
-                title="Cancel"
-                variant="secondary"
-                onPress={() => setIsCreatingOrg(false)}
-                className="flex-1 py-2.5 rounded-lg"
-              />
-              <Button
-                title="Register"
-                onPress={handleQuickCreateOrg}
-                disabled={!newOrgName.trim() || !shortCode.shortCode}
-                className="flex-1 py-2.5 rounded-lg"
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* Registering a school that is not on the system — the shared dialog (2026-09-21). The
+          invitation to its contact is held until this form is saved, as it always was here. */}
+      <RegisterOrgModal
+        isOpen={isCreatingOrg}
+        onClose={() => setIsCreatingOrg(false)}
+        initialName={newOrgName}
+        sportId={selectedSportId || undefined}
+        onRegistered={(org, contactEmail) => {
+          const currentUserId = useAuthStore.getState().user?.id;
+          if (contactEmail && currentUserId) {
+            setPendingReferrals(prev => ({ ...prev, [org.id]: [contactEmail] }));
+          }
+          if (isCreatingHomeOrg) {
+            setSelectedHomeOrg(org);
+            setHomeOrgSearchText('');
+          } else {
+            setSelectedAwayOrg(org);
+            setAwayOrgSearchText('');
+          }
+        }}
+      />
 
       {/* QUICK CREATE TEAM MODAL */}
       <Modal

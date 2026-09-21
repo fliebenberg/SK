@@ -28,6 +28,7 @@ import { nextStepAfter, stepByKey } from '../../../../../components/tournament/s
 import { AccessDenied } from '../../../../../components/AccessDenied';
 import { EntrantTable } from '../../../../../components/tournament/EntrantTable';
 import { AddEntrantModal } from '../../../../../components/tournament/AddEntrantModal';
+import { RegisterOrgModal } from '../../../../../components/RegisterOrgModal';
 import { useLiveRoom } from '../../../../../hooks/useLiveRoom';
 import { useEventEntrants } from '../../../../../hooks/useEventEntrants';
 import { candidateFromTeam } from '../../../../../components/tournament/candidateTeam';
@@ -175,6 +176,8 @@ export default function EntrantsScreen() {
   const user = useAuthStore((state: any) => state.user);
   /** Whether the add-an-organisation search is open. Closed by default: see the card below. */
   const [isAddingOrg, setIsAddingOrg] = useState(false);
+  /** The register dialog, for a school the search did not find. */
+  const [isRegisteringOrg, setIsRegisteringOrg] = useState(false);
   const [orgSearchText, setOrgSearchText] = useState('');
   const [searchedOrgs, setSearchedOrgs] = useState<Organization[]>([]);
   const [isSearchingOrgs, setIsSearchingOrgs] = useState(false);
@@ -510,6 +513,22 @@ export default function EntrantsScreen() {
                       <Text className="font-inter text-sm text-slate-800 dark:text-white">{o.name}</Text>
                     </TouchableOpacity>
                   ))}
+                {/*
+                  The school that is not on the system yet. Offered once something has been typed,
+                  whether or not the search found anything — "St John's" may well match a
+                  different St John's, and the organiser is the one who knows which they mean.
+                */}
+                {isAddingOrg && !!orgSearchText.trim() && !isSearchingOrgs && (
+                  <TouchableOpacity
+                    onPress={() => setIsRegisteringOrg(true)}
+                    className="flex-row items-center gap-2 px-4 py-2.5 active:opacity-80"
+                  >
+                    <Ionicons name="add-circle-outline" size={15} color={COLORS.brand.orange} />
+                    <Text className="font-inter text-sm text-brand-orange">
+                      Register “{orgSearchText.trim()}” — not on ScoreKeeper yet
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </GlassCard>
             )}
 
@@ -596,6 +615,31 @@ export default function EntrantsScreen() {
           </View>
         </ScrollView>
       )}
+
+      {/*
+        A school registered from here is taking part as soon as it exists — adding it to this
+        tournament is why it was registered — and its contact is invited straight away, since this
+        screen writes on press rather than holding changes for a save.
+      */}
+      <RegisterOrgModal
+        isOpen={isRegisteringOrg}
+        onClose={() => setIsRegisteringOrg(false)}
+        initialName={orgSearchText}
+        sportId={event?.sportIds?.length === 1 ? event.sportIds[0] : undefined}
+        onRegistered={(org, contactEmail) => {
+          saveInvites([...invitedOrgs.map(p => p.id), org.id]);
+          if (contactEmail && user?.id) {
+            // A failed invitation is announced on its own and does not undo the organisation.
+            void sendAction(SocketAction.REFER_ORG_CONTACT, {
+              orgId: org.id,
+              contactEmails: [contactEmail],
+              referredByUserId: user.id,
+            });
+          }
+          setOrgSearchText('');
+          setIsAddingOrg(false);
+        }}
+      />
 
       <AddEntrantModal
         isOpen={isAdding}

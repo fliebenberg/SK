@@ -1096,6 +1096,20 @@ that spans weeks.
 > able to join the event-level entrants room — so there a team already entered elsewhere is refused
 > by the server with a message naming where it is, rather than being shown up front.
 
+> **Revised 2026-09-21 — an organisation can be created wherever one is chosen.** The entrants
+> screen's *Organisations → Add* could only search, so an organiser who found a visiting school
+> missing had to leave, create it elsewhere, and come back. Once something is typed it now offers
+> **Register “…” — not on ScoreKeeper yet**, whether or not the search found matches, because
+> "St John's" may well match a different St John's and the organiser is the one who knows. The
+> school is added to the tournament as soon as it exists — that is why it was registered.
+>
+> It uses [RegisterOrgModal](file:///c:/Fred/Coding/SK/expo-app/components/RegisterOrgModal.tsx),
+> which also replaced two near-identical inline copies in the fixture screens. The directory's own
+> *Add organisation* keeps its separate dialog on purpose: that one makes **you** its admin, where
+> this one records a school somebody else runs and leaves it unclaimed. Merging them would blur the
+> line the claim process exists to hold. The contact email is handed back rather than sent, because
+> one caller invites straight away and another holds the invitation until its form is saved.
+
 > **Revised 2026-09-21 — whose records the Add dialog may write.** Settled with the organisation
 > gate (`PEOPLE-6`): you may create a team or a person in an organisation you run, **or in one
 > nobody has claimed**, with only a name, sport and age group — because nobody else can, and an

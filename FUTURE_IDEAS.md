@@ -4,6 +4,23 @@ This document is a space to jot down brilliant ideas for the application while w
 
 ## Ideas Bucket
 
+- [ ] **Let a tournament's organiser open entry to the schools taking part, so each fills in its own
+  teams and players.** Raised 2026-09-21 while settling who may create records in another
+  organisation. Today the organiser enters everybody: they may add a team or a person to an
+  organisation they run, or — with only a name, sport and age group — to one nobody has claimed; a
+  **claimed** school's records are its own admins' to write, so for one of those the organiser can
+  only reserve a slot. This idea hands that slot to the school: the organiser switches on
+  self-entry, and each participating organisation's admins enter and name their own competitors.
+  **Org-linked placeholders are already the mechanism** — *Northcliff's second team, TBC* is a slot
+  that belongs to Northcliff by definition (`division_entrants.org_id`, carried since 2026-09-21), so
+  "fill in your placeholders" is the natural shape of the task for the visiting school, and
+  resolving one updates every fixture drawn against it at once (D7). Open questions for when it is
+  built: whether a school may only fill slots the organiser reserved or may add beyond them; a
+  deadline after which entry closes; whether the organiser approves each resolution or it simply
+  takes effect; and what a school sees of the rest of the tournament while entering. The permission
+  half would be a new grant — the school's admins acting within *this* tournament's divisions —
+  which belongs beside the event, sport and division organiser scopes in `AccessManager`.
+
 - [ ] **A fault analyser for the failures log, so recurring failures point at weak processes.**
   Since 2026-09-19 (SYNC-2) every failure a user meets is written to
   `server/logs/failures-YYYY-MM-DD.jsonl`, one JSON object per line: server refusals and the
