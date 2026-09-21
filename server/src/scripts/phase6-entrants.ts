@@ -261,7 +261,7 @@ async function main() {
   expect(
     candidates.orgs.some(org => org.id === APP_TEST_ORG_ID),
     true,
-    'the host is offered as an entrant organisation, though it is not in event_organizations'
+    'the host is offered as an entrant organisation, as a row like any other (2026-09-21)'
   );
   expect(
     [
@@ -759,6 +759,43 @@ async function main() {
 
   await tournamentManager.deleteDivision(moveTarget.id);
   await tournamentManager.deleteDivision(lockDivision.id);
+
+  // ------------------------------------------------------------------------------------------
+  // 8d. Hosting and competing are different things (2026-09-21)
+  // ------------------------------------------------------------------------------------------
+
+  /*
+   * The host is a row in `event_organizations` like anybody else, written when the event was
+   * created — which is the whole point, because it is what lets an organiser take it off. While
+   * participation was implicit for the host, removing it did nothing: every reader unioned
+   * `events.org_id` back in.
+   */
+  const withHost = await tournamentManager.getEventCandidateTeams(event.id);
+  expect(
+    withHost.orgs.some(org => org.id === APP_TEST_ORG_ID),
+    true,
+    'the host is a participating organisation from the moment the tournament is created'
+  );
+
+  await eventManager.updateEvent(event.id, {
+    participatingOrgIds: [...schools.map(school => school.id), emptySchoolId],
+  } as any);
+  const withoutHost = await tournamentManager.getEventCandidateTeams(event.id);
+  expect(
+    [
+      withoutHost.orgs.some(org => org.id === APP_TEST_ORG_ID),
+      withoutHost.orgs.length,
+      // The schools are untouched: removing one organisation removes one organisation.
+      schools.every(school => withoutHost.orgs.some(org => org.id === school.id)),
+    ],
+    [false, withHost.orgs.length - 1, true],
+    'and taking it off the list removes it — a school may run a tournament it does not play in'
+  );
+
+  // Put it back, so the event is as the rest of the script left it.
+  await eventManager.updateEvent(event.id, {
+    participatingOrgIds: [APP_TEST_ORG_ID, ...schools.map(school => school.id), emptySchoolId],
+  } as any);
 
   // ------------------------------------------------------------------------------------------
   // 9. The Phase 6 migration — PEOPLE-3's remaining half

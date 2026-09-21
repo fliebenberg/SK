@@ -478,14 +478,16 @@ export class TournamentManager extends BaseManager {
    */
   async getEventCandidateTeams(eventId: string): Promise<EventCandidateTeams> {
     /**
-     * Who may enter: the host, plus the invited organisations. The host is not a row in
-     * `event_organizations` — running the day and competing in it are different things — and it
-     * usually enters teams as well, so both halves are needed and neither implies the other.
+     * Who may enter: the organisations taking part, which is `event_organizations` and nothing
+     * else.
+     *
+     * The host used to be unioned in here, on the reasoning that it runs the day and usually
+     * enters teams too. Both halves of that are true and the union was still wrong: it made the
+     * host's participation unconditional, so an organiser who took the host off the list watched
+     * its teams stay in the grid. Since 2026-09-21 the host is an ordinary row, written when the
+     * event is created, and removing it means what it says.
      */
-    const ORG_SCOPE = `
-                SELECT ev.org_id FROM events ev WHERE ev.id = $1
-                UNION
-                SELECT eo.org_id FROM event_organizations eo WHERE eo.event_id = $1`;
+    const ORG_SCOPE = `SELECT eo.org_id FROM event_organizations eo WHERE eo.event_id = $1`;
 
     const teams = await this.query(
       `SELECT t.id, t.name, t.short_name as "shortName", t.org_id as "orgId",

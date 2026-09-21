@@ -177,8 +177,18 @@ export class EventManager extends BaseManager {
             await this.query('INSERT INTO event_sports (event_id, sport_id) VALUES ($1, $2)', [id, sportId]);
         }
 
-        for (const orgId of participatingOrgIds) {
-            await this.query('INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2)', [id, orgId]);
+        /*
+          The host takes part unless somebody says otherwise, and that is recorded as a row rather
+          than assumed by every reader (2026-09-21). Hosting and competing are different things —
+          a school can run a tournament it does not play in — and while participation was implicit
+          for the host there was nowhere for the difference to live: an absent row could not mean
+          "removed", because it already meant "never added".
+        */
+        for (const orgId of new Set([event.orgId, ...participatingOrgIds].filter(Boolean))) {
+            await this.query(
+                'INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+                [id, orgId]
+            );
         }
 
         await this.query('COMMIT');

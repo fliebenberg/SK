@@ -234,7 +234,11 @@ export default function EditGame() {
             siteId: formData.siteId || null,
             facilityId: formData.facilityId || null,
             sportIds: formData.sportId ? [formData.sportId] : [],
-            participatingOrgIds: formData.awayOrgId && formData.awayOrgId !== orgId ? [formData.awayOrgId] : [],
+            /* Both sides. This sent the away org alone, on the assumption that the host is
+               implicitly taking part — an assumption that stopped holding on 2026-09-21, when
+               participation became a row the organiser can remove. Sending one side would have
+               quietly taken the other out of its own match. */
+            participatingOrgIds: [formData.homeOrgId, formData.awayOrgId].filter(Boolean),
             status: formData.status === 'Cancelled' ? 'Cancelled' : event.status
           }
         };

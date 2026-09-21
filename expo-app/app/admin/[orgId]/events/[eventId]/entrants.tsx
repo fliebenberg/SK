@@ -177,6 +177,8 @@ export default function EntrantsScreen() {
   // ------------------------------------------------------------------------------------------
 
   const user = useAuthStore((state: any) => state.user);
+  /** Whether the add-an-organisation search is open. Closed by default: see the card below. */
+  const [isAddingOrg, setIsAddingOrg] = useState(false);
   const [orgSearchText, setOrgSearchText] = useState('');
   const [searchedOrgs, setSearchedOrgs] = useState<Organization[]>([]);
   const [isSearchingOrgs, setIsSearchingOrgs] = useState(false);
@@ -201,9 +203,10 @@ export default function EntrantsScreen() {
       wsService.emit('get_data', { type: 'search_similar_orgs', name: query }, (res: any) => {
         setIsSearchingOrgs(false);
         if (Array.isArray(res)) {
-          setSearchedOrgs(
-            res.filter(o => o.id !== orgId && !invitedOrgs.some(p => p.id === o.id))
-          );
+          /* Only what is already listed is filtered out. The host used to be excluded here as
+             well, which was right while it was always taking part and is wrong now that it can be
+             removed — a host taken off the list by mistake has to be findable again. */
+          setSearchedOrgs(res.filter(o => !invitedOrgs.some(p => p.id === o.id)));
         }
       });
     }, 400);
@@ -684,10 +687,36 @@ export default function EntrantsScreen() {
                   Nothing else here gets an icon — a sport tab and a team chip say what they are,
                   and an icon on those would turn the mark into furniture.
                 */}
-                <FieldLabel
-                  label="Organisations invited"
-                  help="The schools and clubs competing in this tournament. Inviting one offers its teams for entry below; it does not give anyone permission to run anything. An organisation that helps run the tournament is appointed under Basic Info instead."
-                />
+                <View className="flex-row items-center justify-between gap-3">
+                  <FieldLabel
+                    label="Organisations"
+                    help="The schools and clubs taking part in this tournament. Listing one offers its teams for entry below; it does not give anyone permission to run anything. The host is here like any other — remove it if it is running the day without competing. An organisation that helps *run* the tournament is appointed under Basic Info instead."
+                  />
+                  {/*
+                    Adding is the rarer act, so it is a control rather than a permanent field. A
+                    search box always on screen reads as something to fill in, and this card is
+                    read far more often than it is added to — the list is the subject, and the box
+                    was pushing it down the card on every visit.
+                  */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      // Closing clears the query, so reopening does not show the last search.
+                      if (isAddingOrg) setOrgSearchText('');
+                      setIsAddingOrg(open => !open);
+                    }}
+                    accessibilityLabel={isAddingOrg ? 'Stop adding an organisation' : 'Add an organisation'}
+                    className="flex-row items-center gap-1 px-2 py-1 active:opacity-80"
+                  >
+                    <Ionicons
+                      name={isAddingOrg ? 'close' : 'add-circle-outline'}
+                      size={15}
+                      color={COLORS.brand.orange}
+                    />
+                    <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                      {isAddingOrg ? 'Cancel' : 'Add'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
                 {invitedOrgs.length > 0 && (
                   <View className="flex-row flex-wrap gap-2 mb-2">
                     {/*
@@ -722,22 +751,28 @@ export default function EntrantsScreen() {
                     ))}
                   </View>
                 )}
-                <TextInput
-                  value={orgSearchText}
-                  onChangeText={setOrgSearchText}
-                  placeholder="Search for an organization to invite..."
-                  placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
-                />
-                {isSearchingOrgs && (
+                {isAddingOrg && (
+                  <TextInput
+                    value={orgSearchText}
+                    onChangeText={setOrgSearchText}
+                    autoFocus
+                    placeholder="Search for an organisation..."
+                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+                  />
+                )}
+                {isAddingOrg && isSearchingOrgs && (
                   <Text className="font-inter text-[10px] text-slate-400 mt-1">Searching...</Text>
                 )}
-                {searchedOrgs.map(o => (
+                {isAddingOrg && searchedOrgs.map(o => (
                   <TouchableOpacity
                     key={o.id}
                     onPress={() => {
                       saveInvites([...invitedOrgs.map(p => p.id), o.id]);
                       setOrgSearchText('');
+                      // Added, so the box has done its job. Adding a second is a second press,
+                      // which is the right weight for something done once or twice a season.
+                      setIsAddingOrg(false);
                     }}
                     className="px-4 py-2.5 border-b border-slate-100 dark:border-white/5 active:opacity-80"
                   >

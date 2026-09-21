@@ -47,6 +47,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260905_referral_resend_and_nominators.ts`: Adds `org_claim_referrals.last_sent_at`, so a re-nomination resends only once the cooldown has passed without losing the original `created_at` (NULL on older rows reads as `created_at`); and `org_claim_referral_nominators`, because one referral row can only credit one nominator while a second person entering the same address must still see "you have referred this org". Backfilled from `referred_by_user_id`. See [docs/nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §2.
     - `20260919_sport_age_groups.ts`: Age groups become a per-sport list. Creates `sport_age_groups` (official entries curated by an admin, custom ones added by users), seeds every sport with the starter list, and replaces the free-text `age_group` on `teams`, `tournament_divisions` and `leagues` with `age_group_id` under a composite foreign key on `(sport_id, age_group_id)` — so an age group can only be held by something of its own sport. Existing values are carried over: a starter name match takes the official entry, anything else becomes a custom one. Managed by [AgeGroupManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/AgeGroupManager.ts); see [database_structure.md §2d](file:///c:/Fred/Coding/SK/docs/database_structure.md).
     - `20260920_event_sport_organizers.ts`: The third organiser scope — one sport of one tournament (D33, widened 2026-09-20). Creates `event_sport_organizers`, keyed on **(event, sport, profile)** with `ON DELETE CASCADE` on both halves, plus the `org_profile_id` index its two sibling grant tables carry. A rule rather than a list: it covers a division of that sport added tomorrow, and stops covering one moved to another sport, without a row being touched.
+    - `20260921_host_is_a_participant.ts`: **Data only, no schema change.** Backfills the host into `event_organizations` for every existing event. Participation used to be implicit for the host and unioned back in by each reader, which left nowhere to record a host that runs a tournament without competing in it — an absent row already meant "never added" and so could not also mean "removed". See "Who is taking part in an event" below.
     - `20260920_org_short_code.ts`: Every organisation gets a short code. Backfills `organizations.short_name` from the name where it was blank, then makes the column `NOT NULL` with a non-blank `CHECK`. Codes are **not** unique by design — see "Organisation short codes" below.
 
 ## The tournaments schema
@@ -141,6 +142,28 @@ both and compare. Two things this catches that reading the diff of your own chan
 `ADD CONSTRAINT` is the one statement with no `IF NOT EXISTS`, so guard each on `pg_constraint` or a
 re-run fails. Guard on the *column* rather than the constraint name when a database might already
 have one under Postgres' auto-generated name — a name check will happily add a duplicate beside it.
+
+## Who is taking part in an event
+
+`event_organizations` is the list of organisations **competing**, and since 2026-09-21 the host is
+an ordinary row in it. `events.org_id` says who *runs* the event and nothing more; the two are
+independent, so a school can host a tournament it does not play in.
+
+It used to be implicit — the table held everybody else and each reader unioned `events.org_id` back
+in. The saving was real and the cost was that hosting and competing could not be told apart:
+an absent row already meant "the host was never added", so it could not also mean "the host was
+removed". `EventManager.addEvent` now writes the host's row, the migration backfilled the old
+events, and `TournamentManager.getEventCandidateTeams` reads `event_organizations` alone — which is
+what makes taking the host off the list actually remove its teams from the entry grid.
+
+Two consequences worth knowing. The single-match screens
+([events/create](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/create.tsx) and
+[games/[gameId]/edit](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/games/%5BgameId%5D/edit.tsx))
+used to filter the acting organisation out of `participatingOrgIds` on the same assumption, and
+`UPDATE_EVENT` replaces the whole set — so they would have silently removed the host from its own
+match. Both now send both sides. And `syncPlayingOrgs` still excludes the host when adding
+organisations whose teams appear in a fixture; harmless, because the host now has its row from
+creation, but it means a host removed by hand is not re-added by playing.
 
 ## Organisation short codes
 

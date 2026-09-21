@@ -101,9 +101,10 @@ export default function CreateEvent() {
       facilityId: form.facilityId || undefined,
       orgId,
       sportIds: form.sportId ? [form.sportId] : [],
-      participatingOrgIds: [form.homeOrgId, form.awayOrgId].filter(
-        id => id && id !== orgId
-      ) as string[],
+      /* Both sides, the acting organisation included. It used to be filtered out on the grounds
+         that the host is implicitly taking part; since 2026-09-21 participation is a row like any
+         other, so leaving it out would be recording that the home side is not in its own match. */
+      participatingOrgIds: [form.homeOrgId, form.awayOrgId].filter(Boolean) as string[],
       status: 'Scheduled' as const,
     };
     const eventResult = await sendAction(SocketAction.ADD_EVENT, eventPayload, {

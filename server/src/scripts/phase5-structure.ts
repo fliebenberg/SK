@@ -190,11 +190,24 @@ async function main() {
   // 4. `FIX-2` — the event carries its participating organisations, named
   // ------------------------------------------------------------------------------------------
 
+  /*
+   * The host is in this list since 2026-09-21, and that is the change rather than a side effect:
+   * `event_organizations` is who is *competing*, `events.org_id` is who is running it, and the two
+   * became independent so that a school can host a tournament it does not play in. These two
+   * expectations named only the visitor while the host was implicit.
+   */
   const reread: any = await eventManager.getEvent(host.id);
-  expect(reread.participatingOrgIds, [created.guestOrgId], 'the event carries its participating org ids');
+  expect(
+    [...reread.participatingOrgIds].sort(),
+    [APP_TEST_ORG_ID, created.guestOrgId].sort(),
+    'the event carries its participating org ids, the host among them'
+  );
   expect(
     (reread.participatingOrgs || []).map((o: any) => [o.id, o.name, o.shortName]),
-    [[created.guestOrgId, 'P5 Visiting School', 'P5V']],
+    [
+      [APP_TEST_ORG_ID, 'App Test Org', 'ATO'],
+      [created.guestOrgId, 'P5 Visiting School', 'P5V'],
+    ],
     'and carries their names, so the screen needs no organisations read at all'
   );
   expect(reread.format, 'Festival', 'the format round-trips back to the client');

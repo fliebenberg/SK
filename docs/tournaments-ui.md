@@ -1046,6 +1046,28 @@ that spans weeks.
 >   nothing being selected. Positions are measured per tab rather than estimated, because the tabs
 >   are not equal width.
 >
+> **Revised 2026-09-21 — the organisations card.** Three changes, and the middle one is a data
+> model change rather than a label.
+>
+> - **"Organisations invited" is now "Organisations"**, because the list is who is *taking part*,
+>   and "invited" invited the reading that it is a separate step before entering teams.
+> - **The host is in the list, and can be taken out.** Participation was implicit for the host —
+>   `event_organizations` held everybody else and every reader unioned `events.org_id` back in —
+>   which left nowhere to record *a school running a tournament it does not play in*. An absent row
+>   already meant "never added" and so could not also mean "removed". The host is now an ordinary
+>   row, written at creation and backfilled for existing events, and `getEventCandidateTeams` reads
+>   `event_organizations` alone — which is what makes removing it actually take its teams out of
+>   the grid. See "Who is taking part in an event" in [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md).
+> - **Adding is a control, not a permanent field.** The search box sat open on every visit, reading
+>   as something to fill in and pushing the list — the card's actual subject — down the page. It is
+>   an **Add** button beside the label now, and the box appears under it when pressed and closes
+>   once an organisation is picked. Adding a school is done once or twice a season; reading the
+>   list happens every visit.
+>
+> The host may also be **re-added**, which is why the search no longer filters it out. That filter
+> was right while the host was always taking part and is wrong now: a host removed by mistake has
+> to be findable again.
+
 > **A team plays in one division of a tournament — and the taken chip is shown, not hidden.**
 > Hiding it was the obvious reading of the rule and is the wrong one: an organiser who put a team
 > in the wrong division goes to the right one, finds it absent, and has nothing on screen saying
