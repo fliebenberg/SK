@@ -90,5 +90,25 @@ export async function enforceProfileAction(
     if (hostOrgId === orgId && (await accessManager.canOrganizeEvent(userId, payload.eventId))) return;
   }
 
+  /*
+   * An **unclaimed** organisation, on creation only (2026-09-21) — the same exception `orgGate`
+   * makes for teams, and for the same reason: nobody owns it, so nobody else can add its people,
+   * and an outsider doing so is an incentive for somebody from it to claim it.
+   *
+   * Cut to a **name**, and the email is the field that matters most to leave behind. `AccessManager`
+   * resolves a user into profiles by verified email, so a profile carrying somebody's address is a
+   * profile that can be matched to them — exactly the takeover route `PEOPLE-2` closed. A name
+   * identifies nobody; the owner adds the rest once they have claimed it.
+   */
+  if (type === SocketAction.ADD_ORG_PROFILE) {
+    const res = await pool.query('SELECT is_claimed FROM organizations WHERE id = $1', [orgId]);
+    if (res.rows.length && res.rows[0].is_claimed !== true) {
+      for (const key of Object.keys(payload)) {
+        if (!['name', 'orgId', 'eventId'].includes(key)) delete payload[key];
+      }
+      return;
+    }
+  }
+
   throw new Error("Unauthorized: Only an organisation's admins and staff may change its people.");
 }

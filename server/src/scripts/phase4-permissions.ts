@@ -78,6 +78,8 @@ const created = {
   userIds: [] as string[],
   profileIds: [] as string[],
   membershipIds: [] as string[],
+  /** Restored in `cleanup`, so the script leaves the shared test org as it found it. */
+  testOrgWasClaimed: true,
 };
 
 async function main() {
@@ -88,6 +90,19 @@ async function main() {
      VALUES ($1, 'App Test Org', 'ATO', true, true) ON CONFLICT (id) DO NOTHING`,
     [APP_TEST_ORG_ID]
   );
+
+  /*
+   * The insert above *intends* a claimed org, but `ON CONFLICT DO NOTHING` never touches a row that
+   * already exists — and on the dev database `app-test-org` was unclaimed. That was harmless until
+   * 2026-09-21, when an unclaimed organisation started accepting a name-only person from anybody
+   * signed in (`orgGate.ts`): the person-record assertions below then passed for the wrong reason,
+   * or rather failed for the right one, and silently stopped testing a claimed org at all. So the
+   * script makes the org it assumes, and puts it back afterwards.
+   */
+  created.testOrgWasClaimed = (
+    await query(`SELECT is_claimed FROM organizations WHERE id = $1`, [APP_TEST_ORG_ID])
+  ).rows[0]?.is_claimed === true;
+  await query(`UPDATE organizations SET is_claimed = true WHERE id = $1`, [APP_TEST_ORG_ID]);
 
   // An organisation with nobody playing here, which the last section needs.
   created.outsideOrgId = `org-p4-outside-${stamp}`;
@@ -771,6 +786,10 @@ async function main() {
 }
 
 async function cleanup() {
+  await query(`UPDATE organizations SET is_claimed = $2 WHERE id = $1`, [
+    APP_TEST_ORG_ID,
+    created.testOrgWasClaimed,
+  ]);
   for (const eventId of [created.eventId, created.otherEventId]) {
     if (eventId) await query(`DELETE FROM events WHERE id = $1`, [eventId]);
   }

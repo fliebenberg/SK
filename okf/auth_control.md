@@ -8,7 +8,7 @@ tags:
   - roles
   - permissions
   - security
-timestamp: 2026-09-03T00:00:00Z
+timestamp: 2026-09-21T12:00:00Z
 ---
 
 # Authentication & Authorization Levels
@@ -107,6 +107,33 @@ it is written to mirror `canEditEventOrGame` rather than to invent a second rule
 | May they join this room / read this query? | `wss/roomAccess.ts` / `wss/dataAccess.ts` |
 | May this tournament write proceed? | `wss/tournamentGate.ts` — one gate for every tournament action |
 | May they write this person record? | `canManageOrgPeople`, enforced by `wss/profileGate.ts` |
+| May they write this organisation's things? | `wss/orgGate.ts` — one table for teams, sites, facilities, members, leagues and events |
+
+**Every action the server handles is authorised somewhere**, and that is now asserted rather than
+hoped: [org-permissions.ts](file:///c:/Fred/Coding/SK/server/src/scripts/org-permissions.ts) reads the
+action handler's `case` list from source and fails on any action that is in none of the four gates
+(tournament, profile, organisation, scoring) and not one of the five that check in their own
+handler. Add a handler without a gate and that script says so, which is the property that was
+missing for forty-five actions until 2026-09-21.
+
+## An organisation's things are written by the people who run it
+
+[orgGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/orgGate.ts) holds one rule per action: how to
+find the organisation it touches, and what the caller must be. Until 2026-09-21 none of these
+actions checked anything — not even a sign-in — and several were serious: `ADD_ORG_MEMBER` would
+make anybody an admin of any organisation, `DELETE_ORG` and `DELETE_TEAM` acted on anybody's, and
+`CLAIM_ORG` took the claimant from the payload.
+
+- **Admin or staff** manage the organisation's things — the same pair `canManageOrgPeople`,
+  `canEditEventOrGame` and `canScoreGame` use.
+- **Admin only** for its identity and who runs it: renaming or deleting it, and **handing out the
+  admin role**. Staff may add an ordinary member, but granting admin is how a staff member would
+  otherwise promote themselves, so it has a check of its own.
+- **App administrators** for the operator's levers — the direct `CLAIM_ORG`, which no client sends,
+  and the cache resets that broadcast a refresh to every connected client.
+- **The caller** for anything naming a user: a payload's `userId` must be the socket's, including a
+  claim by token, which makes that user an admin. A notification is its owner's.
+- **The token** for the email-link actions, whose pages are opened signed out.
 
 ## Person records are identity, and are written by the organisation that holds them
 
@@ -119,6 +146,15 @@ signed-in user.
 
 The one exception is creation: somebody who may organise an event may create a profile in the org
 **hosting that event**, so an organiser can appoint a convenor who is not on the app yet (U12).
+
+**Unclaimed organisations accept a minimum from anybody signed in** (2026-09-21). Nobody owns an
+unclaimed organisation, so nobody else can add its teams or people — and an outsider doing so is an
+incentive for somebody from it to claim it. So any signed-in user may create a team (name, sport and
+age group) or a person (a name) in one, with the gate **cutting the payload down** to those fields
+rather than trusting the client to have sent less. A person's email is the field that matters most
+to leave behind: `AccessManager` matches users to profiles by verified email, so a profile carrying
+somebody's address is one that can be matched to them. Once the organisation is claimed, none of
+this applies and the rest waits for its owners.
 
 **A profile is not a membership.** A person with a profile and no `org_memberships` row is recorded
 by that organisation and belongs to it in no way that confers anything — which is exactly what an

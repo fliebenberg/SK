@@ -33,6 +33,7 @@ import { tournamentManager } from './managers/TournamentManager';
 import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
 import { enforceProfileAction } from './wss/profileGate';
+import { enforceOrgAction } from './wss/orgGate';
 import {
   publishAdjustments,
   publishDivision,
@@ -2136,6 +2137,12 @@ io.on('connection', (socket) => {
         // writing identity. Admins of the holding org, plus an event organiser creating a person to
         // appoint. See `profileGate.ts` for what was open before this (`PEOPLE-2`).
         await enforceProfileAction(authUserId, action.type, action.payload);
+
+        // --- Authorization gate for an organisation's things ---
+        // Teams, sites, facilities, members, leagues, events — and the handful of actions that were
+        // open to anybody, signed in or not, until 2026-09-21. See `orgGate.ts`. May cut the payload
+        // down, for an outsider creating a team in an unclaimed organisation.
+        await enforceOrgAction(authUserId, action.type, action.payload);
 
         // A caller may only act as one of its own org profiles.
         if (authUserId) {
