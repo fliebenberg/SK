@@ -245,8 +245,11 @@ export function AddEntrantModal({
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 bg-black/60 justify-center px-6">
-        <GlassCard className="w-full max-w-lg self-center border border-slate-200 dark:border-white/10 p-5">
+      <View className="flex-1 bg-slate-950/75 justify-center px-6">
+        <GlassCard
+          className="w-full max-w-lg self-center border border-slate-200 dark:border-white/10 p-5 shadow-lg"
+          style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
+        >
           <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider mb-4">
             {title}
           </Text>
