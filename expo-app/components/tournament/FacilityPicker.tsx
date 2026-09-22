@@ -152,23 +152,35 @@ export function FacilityPicker({
 }
 
 /**
- * What a set of facilities is called in one line — for a row that reports rather than edits.
+ * How many fields a division plays on, in a few words — for a list row with room for one line.
+ *
+ * A count rather than names: names ran to a line of their own, and the list is kept to two lines
+ * a row. The names are one tap away, on the division.
+ *
+ * **Worded in the sport's own term** — `Sport.facilityTerm`, so netball says courts and rugby
+ * says pitches — falling back to "field", the word this screen used before it knew the sport.
  *
  * Takes the inheriting case seriously: an empty allocation on a division is not "no venue", it is
- * every venue the tournament has, and saying so is the difference between a row that reads as
- * unfinished and one that reads as deliberate.
+ * every field the tournament has, and saying so is the difference between a row that reads as
+ * unfinished and one that reads as deliberate. It says *any* rather than counting them, because the
+ * tournament's facilities also hold the tuck shop, the parking and the toilets — its count is not
+ * a count of places to play.
  */
-export function facilitySummary(
+export function facilityCount(
   facilityIds: string[] | undefined,
-  facilities: Facility[],
-  inheritLabel: string
+  tournamentHasFacilities: boolean,
+  facilityTerm?: string
 ): string {
+  const term = (facilityTerm || '').trim().toLowerCase() || 'field';
   const ids = facilityIds || [];
-  if (ids.length === 0) return inheritLabel;
-  const names = ids
-    .map(id => facilities.find(f => f.id === id)?.name)
-    .filter(Boolean) as string[];
-  if (names.length === 0) return `${ids.length} facilit${ids.length === 1 ? 'y' : 'ies'}`;
-  if (names.length <= 3) return names.join(', ');
-  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
+  if (ids.length === 1) return `1 ${term}`;
+  if (ids.length > 1) return `${ids.length} ${pluralTerm(term)}`;
+  return tournamentHasFacilities ? `Any ${term}` : `No ${pluralTerm(term)} yet`;
+}
+
+/** English plurals for the handful of shapes a facility term takes: pitch, court, lane, alley. */
+function pluralTerm(term: string): string {
+  if (/(s|sh|ch|x|z)$/.test(term)) return `${term}es`;
+  if (/[^aeiou]y$/.test(term)) return `${term.slice(0, -1)}ies`;
+  return `${term}s`;
 }

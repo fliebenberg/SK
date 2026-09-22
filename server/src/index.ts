@@ -1785,6 +1785,15 @@ io.on('connection', (socket) => {
             case 'division_organizers':
                 callback(request.divisionId ? await divisionOrganizersFor(socket.data?.userId, request.divisionId) : []);
                 break;
+            // Display only — the list rows name who runs each division — so no `canWithdraw`:
+            // withdrawing happens on the division's own screen, which reads `division_organizers`.
+            case 'sport_division_organizers':
+                callback(
+                    request.eventId && request.sportId
+                        ? await dataManager.getSportDivisionOrganizers(request.eventId, request.sportId)
+                        : []
+                );
+                break;
             case 'organizer_candidates': {
                 // Tier 1 is the host and the participating orgs; `global` is the explicit control
                 // that widens it to everybody. Both projections are lean — a picker needs a name,

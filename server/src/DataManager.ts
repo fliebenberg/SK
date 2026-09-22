@@ -336,6 +336,8 @@ export class DataManager {
   getEventOrganizers = (eventId: string) => tournamentManager.getEventOrganizers(eventId);
   getDivisionOrganizers = (divisionId: string) => tournamentManager.getDivisionOrganizers(divisionId);
   getEventDivisionOrganizers = (eventId: string) => tournamentManager.getEventDivisionOrganizers(eventId);
+  getSportDivisionOrganizers = (eventId: string, sportId: string) =>
+    tournamentManager.getSportDivisionOrganizers(eventId, sportId);
   getSportOrganizers = (eventId: string, sportId: string) =>
     tournamentManager.getSportOrganizers(eventId, sportId);
   getEventSportOrganizers = (eventId: string) => tournamentManager.getEventSportOrganizers(eventId);

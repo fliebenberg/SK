@@ -887,6 +887,9 @@ export type GetDataRequest =
   // read is gated by exactly the grant that would let the caller change it — a sport's organiser
   // reads their own sport's list without being handed every other sport's people.
   | { type: 'sport_organizers'; eventId: string; sportId: string }
+  // Every division organiser within that sport, for the division list's rows (2026-09-22). Gated
+  // like `sport_organizers`; display only, so its rows carry no `canWithdraw`.
+  | { type: 'sport_division_organizers'; eventId: string; sportId: string }
   | { type: 'division_organizers'; divisionId: string }
   // The organiser picker's search. Tiered rather than global by default: `eventId` scopes tier 1
   // to the host and participating orgs, and `global: true` is the explicit control that widens it.

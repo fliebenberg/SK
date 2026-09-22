@@ -559,6 +559,7 @@ names people, so it is read through `get_data` at the organiser tier instead:
 | `{ type: 'event_organizers', eventId }` | whoever may organise that event |
 | `{ type: 'sport_organizers', eventId, sportId }` | whoever may organise that sport of that tournament |
 | `{ type: 'division_organizers', divisionId }` | whoever may organise that division |
+| `{ type: 'sport_division_organizers', eventId, sportId }` | whoever may organise that sport of that tournament — every division organiser in it, for the Sports & Divisions list; no `canWithdraw` |
 | `{ type: 'organizer_candidates', eventId, query, global?, sportId?, divisionId? }` | whoever may organise that event, sport or division |
 
 `sport_organizers` is asked **per sport rather than per event**, so the read is gated by exactly the

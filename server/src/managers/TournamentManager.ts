@@ -2346,6 +2346,27 @@ export class TournamentManager extends BaseManager {
     return res.rows;
   }
 
+  /**
+   * Every division organiser within one sport of one tournament, for the Sports & Divisions list
+   * (2026-09-22). One read per sport rather than per division — a sports day has fifteen — and per
+   * sport rather than per event for the reason `getSportOrganizers` is: the read is then gated by
+   * the sport grant, so a netball organiser is not handed who runs the rugby divisions.
+   */
+  async getSportDivisionOrganizers(eventId: string, sportId: string): Promise<TournamentOrganizer[]> {
+    const res = await this.query(
+      `SELECT ${this.organizerColumns('dorg', ['division_id'])}
+         FROM division_organizers dorg
+         JOIN tournament_divisions d ON d.id = dorg.division_id
+         JOIN org_profiles op ON op.id = dorg.org_profile_id
+         LEFT JOIN organizations o ON o.id = op.org_id
+         LEFT JOIN org_profiles gb ON gb.id = dorg.granted_by_org_profile_id
+        WHERE d.event_id = $1 AND d.sport_id = $2
+        ORDER BY op.name`,
+      [eventId, sportId]
+    );
+    return res.rows;
+  }
+
   /** Every organiser of an event *and* of its divisions, for the event screen's role chips. */
   async getEventDivisionOrganizers(eventId: string): Promise<TournamentOrganizer[]> {
     const res = await this.query(

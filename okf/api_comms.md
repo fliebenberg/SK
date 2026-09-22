@@ -141,7 +141,8 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     one between sports, appointing — because for everything else "their sport" is *the sport of the
     division the action already resolved to*, derived rather than listed a third time where it could
     drift. Who runs a sport is read per sport (`get_data { type: 'sport_organizers', eventId,
-    sportId }`), never broadcast: like the other organiser lists it names people and `event:{id}` is
+    sportId }`), and who runs each of its divisions the same way (`sport_division_organizers`), never
+    broadcast: like the other organiser lists it names people and `event:{id}` is
     public. Which scope a payload names is `organizerScopeOf`'s answer, in `shared/`, because a
     sport grant carries an `eventId` alongside its `sportId` and so would otherwise read as event
     scope.

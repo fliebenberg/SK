@@ -757,6 +757,17 @@ that spans weeks.
 > - **`facilityIds` on the division itself**, so the event screen can say where each division plays
 >   without a query per row — and an empty list renders as *"any of the tournament's fields"*,
 >   because inheriting is a state and a blank is not.
+>
+>   **2026-09-22:** on the Sports & Divisions list the row now gives a **count** in the sport's own
+>   `facilityTerm` — *"U13 · 2 courts"*, or *"Any court"* when inheriting — on the same line as the
+>   age group, so every row is two lines. The names ran to a third line, and are one tap away on
+>   the division. The inheriting case says *any* rather than counting the tournament's facilities,
+>   because those include the tuck shop and the parking.
+>
+>   The same list shows **who runs each division**, right-aligned on the name's line: the first
+>   organiser and *+N* for the rest, or nothing when there is none. It is read per sport
+>   (`sport_division_organizers`, gated like `sport_organizers`) rather than per division, and
+>   re-read when the screen regains focus, since appointing happens on the division screen it pushes.
 > - **A second write on the same Save.** Facilities live in their own table behind their own
 >   action, so they go out beside `UPDATE_EVENT` rather than being folded into it. U43's "one save,
 >   not two" is about two buttons racing over the same row, and this is one press.
@@ -1049,7 +1060,8 @@ that spans weeks.
 > **Replaced 2026-09-21 — the entry table (U54).** The grid was rebuilt a day earlier and was
 > still the wrong shape, which the layers gave away: getting to a team was axis → sport → age
 > group → organisation → chip, five levels before anything could be ticked. It is now **one row
-> per competitor, a tick, and the division it plays in.**
+> per competitor, a tick, and the division it plays in.** (The tick has since become the row
+> itself — see below.)
 >
 > **The reason is not that the grid was ugly.** It asked *which teams for this division*, so "a
 > team plays in one division" was a rule it had to defend — a server refusal, a dimmed chip naming
@@ -1079,6 +1091,25 @@ that spans weeks.
 >   selecting between two layouts with two sets of controls. Neither is applied on arrival: a
 >   filter you chose is easier to understand than one that was already on. Filtering by division
 >   shows what *could* be in it as well as what is, because that is where entering happens.
+> - **The tick became the row (2026-09-22).** On a phone the checkbox column, the page's side
+>   padding and the cards' own left too little width for the division beside the name, so it sat
+>   underneath and every row was two lines tall. Now the whole row is the control — pressing it
+>   enters or withdraws the competitor — and a playing row is highlighted (an orange tint and left
+>   edge) rather than ticked. The name and organisation are on the left, the division on the right,
+>   and **a row that is not playing shows no division**: it says *Not playing*, with *Click to add
+>   to tournament* under it (*Tap* on a phone) because nothing else on the row looks pressable — or
+>   "No division" when there is nowhere it could play. The division dropdown is its own touchable,
+>   so opening it does not toggle the row. On a phone the entrants screen's cards also run edge to
+>   edge.
+>
+>   Under every name is the **sport and age group** — a team's own, or for a placeholder or person
+>   the division it is in. The organisation is its **crest in a square on the far left**, as tall as
+>   those two lines, with the name on hover (web) and in the row's accessibility label; it is no
+>   longer repeated as text. A generic placeholder keeps an empty square so the names stay aligned.
+>
+>   A placeholder carries an amber **Placeholder** flag at the start of the line under its name
+>   (beside the name it crowded the name out on a phone), so the slots still waiting for a team stand out in a scan — amber because orange
+>   already means *playing*.
 > - **One button adds what the tournament does not already offer**
 >   ([AddEntrantModal](file:///c:/Fred/Coding/SK/expo-app/components/tournament/AddEntrantModal.tsx)):
 >   a team that is not on the system, a placeholder, or a person in an individual sport. Sport and

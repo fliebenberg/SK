@@ -210,6 +210,12 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
     organiserScope: (req: any) => ({ eventId: req.eventId, sportId: req.sportId }),
   },
   division_organizers:  { standalone: 'tournament-organiser', organiserScope: (req: any) => ({ divisionId: req.divisionId }) },
+  // Who runs each division of one sport — the Sports & Divisions list. Gated as `sport_organizers`
+  // is, and for the same reason: the sport grant is exactly what covers every division in it.
+  sport_division_organizers: {
+    standalone: 'tournament-organiser',
+    organiserScope: (req: any) => ({ eventId: req.eventId, sportId: req.sportId }),
+  },
   // The picker. Gated at the same level as the appointment it feeds, so browsing people is never
   // easier than the action it exists for — which, since convenors may appoint co-convenors and a
   // sport's organiser may appoint within their sport, means a `divisionId` or a `sportId` is

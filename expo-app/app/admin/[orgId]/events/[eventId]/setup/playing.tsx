@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  Facility,
   Sport,
   SocketAction,
   TournamentDivision,
@@ -15,7 +14,7 @@ import { AccessDenied } from '../../../../../../components/AccessDenied';
 import { FieldLabel } from '../../../../../../components/FieldLabel';
 import { GlassCard } from '../../../../../../components/GlassCard';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
-import { facilitySummary } from '../../../../../../components/tournament/FacilityPicker';
+import { facilityCount } from '../../../../../../components/tournament/FacilityPicker';
 import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
 import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
@@ -108,21 +107,8 @@ export default function SetupPlaying() {
     }
   );
 
-  const { items: facilities } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'FACILITIES_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'FACILITY_ADDED':
-        case 'FACILITY_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'FACILITY_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
+  /* The org's facility list was subscribed here only to name each division's fields; the rows
+     now give a count, which needs nothing but the division's own ids and the tournament's. */
 
   // Sports are global reference data that no room owns, so this stays a one-shot read.
   const [sports, setSports] = useState<Sport[]>([]);
@@ -171,6 +157,41 @@ export default function SetupPlaying() {
      shown rather than hidden, in a group of their own, so they can be opened and put right. */
   const unplacedDivisions = orderedDivisions.filter(
     d => !d.sportId || !eventSportIds.includes(d.sportId)
+  );
+
+  /**
+   * Who runs each division, for the rows (2026-09-22). Read per sport — see
+   * `sport_division_organizers` — and on focus rather than once, because the division screen this
+   * list pushes is where they are appointed, and coming back should show the change. No room owns
+   * it: organiser lists name people, and the event's rooms are public.
+   */
+  const [divisionOrganizers, setDivisionOrganizers] = useState<Record<string, TournamentOrganizer[]>>({});
+  const chosenSportKey = chosenSports.map(sport => sport.id).join(',');
+  useFocusEffect(
+    useCallback(() => {
+      if (!isConnected || !eventId || !chosenSportKey) return;
+      let active = true;
+      for (const sportId of chosenSportKey.split(',')) {
+        wsService.emit('get_data', { type: 'sport_division_organizers', eventId, sportId }, (res: any) => {
+          if (!active || !Array.isArray(res)) return;
+          setDivisionOrganizers(prev => {
+            const next = { ...prev };
+            // Clear this sport's divisions first, so a withdrawn last organiser disappears.
+            for (const division of orderedDivisions) {
+              if (division.sportId === sportId) delete next[division.id];
+            }
+            for (const row of res as TournamentOrganizer[]) {
+              if (row.divisionId) (next[row.divisionId] ||= []).push(row);
+            }
+            return next;
+          });
+        });
+      }
+      return () => {
+        active = false;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isConnected, eventId, chosenSportKey, orderedDivisions.length])
   );
 
   /** A sport being removed that still has divisions — the dialog's subject. */
@@ -259,24 +280,37 @@ export default function SetupPlaying() {
       className="flex-row items-center justify-between bg-slate-50 dark:bg-white/5 rounded-xl px-3 py-3"
     >
       <View className="flex-1 min-w-0">
-        <Text className="font-inter-bold text-xs text-slate-800 dark:text-white" numberOfLines={1}>
-          {division.name}
-        </Text>
-        <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-          {division.ageGroup || 'Any age'}
-        </Text>
-        {/* Where this division is played (U47). An empty allocation is *inherit*, not nothing, so
-            it says so rather than showing a blank. */}
-        <Text
-          className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5"
-          numberOfLines={1}
-        >
-          {facilitySummary(
+        {/* Who runs it, right-aligned on the name's line: the first organiser, and "+2" for the
+            rest. Nothing at all when there is none — most divisions are run by the tournament's
+            own organisers, and "None" on every row would read as a gap to fill. */}
+        <View className="flex-row items-center gap-2">
+          <Text className="font-inter-bold text-xs text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+            {division.name}
+          </Text>
+          {(divisionOrganizers[division.id]?.length || 0) > 0 && (
+            <View className="flex-row items-center gap-1 flex-shrink" style={{ maxWidth: '50%' }}>
+              <Text
+                className="font-inter text-[10px] text-slate-500 dark:text-slate-400 flex-shrink"
+                numberOfLines={1}
+              >
+                {divisionOrganizers[division.id][0].name || 'Organiser'}
+              </Text>
+              {/* Its own text, so a long name truncates and the count never does. */}
+              {divisionOrganizers[division.id].length > 1 && (
+                <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400">
+                  +{divisionOrganizers[division.id].length - 1}
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+        {/* Age group and where it is played (U47), on one line so the list stays two lines a row.
+            An empty allocation is *inherit*, not nothing, so it says so rather than showing a blank. */}
+        <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5" numberOfLines={1}>
+          {division.ageGroup || 'Any age'} · {facilityCount(
             division.facilityIds,
-            facilities,
-            eventFacilityIds.length > 0
-              ? "Any of the tournament's fields"
-              : 'No fields chosen for the tournament yet'
+            eventFacilityIds.length > 0,
+            sports.find(sport => sport.id === division.sportId)?.facilityTerm
           )}
         </Text>
       </View>
