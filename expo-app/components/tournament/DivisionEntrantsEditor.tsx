@@ -150,6 +150,7 @@ export function DivisionEntrantsEditor({
         divisions={[division]}
         orgs={orgs}
         divisionLabel={() => division.name || qualifyingLabel || 'This division'}
+        sportName={sportId => sports.find(sport => sport.id === sportId)?.name}
         isBusy={row => !!busyKeys[row.key]}
         onSetDivision={setRowDivision}
         canEdit

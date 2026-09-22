@@ -82,6 +82,13 @@ export default function EntrantsScreen() {
   const { width } = useWindowDimensions();
   /** 768px, the same break `ResponsivePageLayout` and `ResponsiveHeader` use. */
   const isLargeScreen = width >= 768;
+  /**
+   * On a phone the cards run edge to edge: the page's side padding and the cards' own would
+   * otherwise spend a fifth of the width on margins, and the team rows need it to fit the division
+   * beside the name. Square corners, because a rounded card cut off by the screen edge looks broken.
+   */
+  const cardClass = isLargeScreen ? 'p-5' : 'p-4';
+  const cardStyle = isLargeScreen ? undefined : { borderRadius: 0, borderLeftWidth: 0, borderRightWidth: 0 };
   const secondary = getThemeColor(isDark, 'textSecondary');
   const isConnected = useWsStore((state: any) => state.isConnected);
 
@@ -416,12 +423,12 @@ export default function EntrantsScreen() {
           <ActivityIndicator size="large" color={COLORS.brand.orange} />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
+        <ScrollView className={`flex-1 ${isLargeScreen ? 'px-6 py-6' : 'py-3'}`} contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="space-y-5">
             {/* Who is taking part, before which of their teams are in. Writes on press — see the
                 note at the top of this file for why this one list has no save bar. */}
             {canEdit && (
-              <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-1.5">
+              <GlassCard className={`border border-slate-200 dark:border-white/5 ${cardClass} space-y-1.5`} style={cardStyle}>
                 <View className="flex-row items-center justify-between gap-3">
                   {/*
                     `UI-16`. The one field on this screen with something non-obvious to say: the
@@ -540,7 +547,7 @@ export default function EntrantsScreen() {
               of two layouts with two sets of controls. Neither is applied to begin with — a filter
               you chose is easier to understand than one that was already on when you arrived.
             */}
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-3">
+            <GlassCard className={`border border-slate-200 dark:border-white/5 ${cardClass} space-y-3`} style={cardStyle}>
               <View className="flex-row items-center justify-between gap-3">
                 <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Teams · {enteredCount} entered
@@ -591,6 +598,7 @@ export default function EntrantsScreen() {
                 divisions={orderedDivisions}
                 orgs={orgs}
                 divisionLabel={divisionLabel}
+                sportName={sportName}
                 isBusy={row => !!busyKeys[row.key]}
                 onSetDivision={setRowDivision}
                 canEdit={canEdit}
@@ -604,14 +612,16 @@ export default function EntrantsScreen() {
               />
             </GlassCard>
 
-            <SetupStepFooter
-              label={step.label}
-              nextStep={nextStep}
-              onNext={() =>
-                nextStep ? router.replace(nextStep.href(orgId, eventId) as any) : goBackToChecklist()
-              }
-              onBackToChecklist={goBackToChecklist}
-            />
+            <View className={isLargeScreen ? '' : 'px-4'}>
+              <SetupStepFooter
+                label={step.label}
+                nextStep={nextStep}
+                onNext={() =>
+                  nextStep ? router.replace(nextStep.href(orgId, eventId) as any) : goBackToChecklist()
+                }
+                onBackToChecklist={goBackToChecklist}
+              />
+            </View>
           </View>
         </ScrollView>
       )}
