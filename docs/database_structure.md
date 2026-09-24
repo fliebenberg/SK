@@ -642,7 +642,7 @@ System alerts for users.
 - `created_at` (TIMESTAMPTZ)
 
 ### 23. `system_settings`
-Global key/value configuration, seeded by `seed-db.ts` and editable by an app admin.
+Global key/value configuration, seeded by [seedCore.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/seedCore.ts) and editable by an app admin.
 - `key` (TEXT, PK)
 - `value` (TEXT): NOT NULL. A string even when it holds a number — read it through the settings
   accessor rather than casting at each call site.

@@ -10,7 +10,10 @@
     "db:migrate": "ts-node src/scripts/run-all-migrations.ts",
     "db:reset": "ts-node src/scripts/setup/reset-db.ts && npm run db:init",
     "db:seed": "ts-node src/scripts/setup/seed-db.ts",
+    "db:seed:core": "ts-node src/scripts/setup/seed-db.ts --core-only",
     "db:setup": "npm run db:reset && npm run db:seed",
+    "db:test-orgs": "ts-node src/scripts/setup/reset-test-orgs.ts",
+    "db:test:setup": "ts-node src/scripts/setup/test-db.ts",
     "verify:rooms": "ts-node src/scripts/verify-rooms.ts",
     "check:migrations": "node scripts/check-migrations.js"
   },

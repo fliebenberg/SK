@@ -1042,6 +1042,16 @@ only worth it if resets stay frequent; a `pg_dump` covers the same need with no 
 > **Not part of this feature.** Logged as `DATA-3` in `TODO.md`. Flagged here because the
 > tournaments migration is the first thing likely to prompt a reset.
 
+> **Update 2026-09-24: the split is built (`DATA-3` closed).** The core tier is
+> [seedCore.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/seedCore.ts) (`db:seed:core`). The
+> development tier is now a fixed set of test organisations
+> ([fixtures/testOrgs.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/fixtures/testOrgs.ts))
+> rather than Springfield High School. `existing_orgs.json` and `extract-orgs.ts` described above
+> are deleted. The rest of this section is kept as the reasoning at the time. `pg_dump` is still
+> the answer for protecting hand-entered data; no `seed:local` snapshot was built. See
+> [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md), "Seed tiers and the test
+> organisations".
+
 ---
 
 ## 12. Does this change lose any existing data?

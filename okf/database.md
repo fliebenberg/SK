@@ -8,7 +8,7 @@ tags:
   - PostgreSQL
   - migrations
   - persistence
-timestamp: 2026-09-20T12:00:00Z
+timestamp: 2026-09-24T12:00:00Z
 ---
 
 # Database & Data Persistence
@@ -22,8 +22,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
 1. **PostgreSQL Database**:
    - Connection: Configured via environment variables (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`) in [server/.env](file:///c:/Fred/Coding/SK/server/.env).
    - Handles schemas for Organizations, Teams, Events, Games, Memberships, and Users.
-2. **Local Caches & Data Seeds**:
-   - Directory: [server/data/](file:///c:/Fred/Coding/SK/server/data/) holds static data seeds and temporary configuration caches.
+2. **Seeds**: [server/src/scripts/setup/](file:///c:/Fred/Coding/SK/server/src/scripts/setup/) — see "Seed tiers and the test organisations" below.
 
 ## Code Entrypoints
 
@@ -143,6 +142,35 @@ both and compare. Two things this catches that reading the diff of your own chan
 re-run fails. Guard on the *column* rather than the constraint name when a database might already
 have one under Postgres' auto-generated name — a name check will happily add a duplicate beside it.
 
+## Seed tiers and the test organisations
+
+The seed has two tiers (split 2026-09-24, `DATA-3`). **Core**
+([seedCore.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/seedCore.ts)) is what the app needs
+to work, and it is all a production install gets (`db:seed:core`). **Development** is the test
+organisations, [fixtures/testOrgs.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/fixtures/testOrgs.ts):
+four made-up organisations with "Test" in their names, loaded by `db:seed` into every development
+database and by `db:test:setup` into the separate `sk_test` database. Commands and logins are in the
+[setup README](file:///c:/Fred/Coding/SK/server/src/scripts/setup/README.md).
+
+Three rules keep them useful as a known dataset:
+
+*   **Nothing in them is generated at load time.** Ids, dates and the password hash are literals or
+    are derived from literals, so a reload gives identical rows and a test can state what it
+    expects. Membership validity depends on the clock, so every start and end date is a fixed date
+    in the past, never `NOW()`.
+*   **Every row they own starts with `fx-`**, and nothing else uses that prefix. `db:test-orgs`
+    relies on it: it deletes every row whose `id` or `…_id` column starts with `fx-`, then follows
+    foreign keys to remove what depends on those rows. There is no table list to keep up to date.
+    Anything built on a test org through the app (an event it hosted, a game its team played) goes
+    with it.
+*   **A seeded sport belongs to its seed file.** `db:seed` rewrites the settings, sections and
+    templates of every sport in [seeds/sports/](file:///c:/Fred/Coding/SK/server/src/scripts/setup/seeds/sports/)
+    (rugby and netball), so a change made in the sport editor lasts only until the next reseed
+    unless it is copied back into the seed.
+*   **They are a base, not a catalogue of edge cases.** A test that needs a special case adds it on
+    top rather than editing the shared file, so one test's setup can't change another test's
+    expected results.
+
 ## Who is taking part in an event
 
 `event_organizations` is the list of organisations **competing**, and since 2026-09-21 the host is
@@ -195,6 +223,9 @@ organisation already has a code people have seen.
 Organization team/site/member counts are **computed live** by the queries in [OrganizationManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/OrganizationManager.ts), not stored. Caching them previously required background jobs that could not keep them accurate, because membership validity depends on the clock rather than on writes. Before denormalizing any similar value, read [docs/background-tasks.md](file:///c:/Fred/Coding/SK/docs/background-tasks.md).
 
 ## Integration Test Rule: Test Org Reuse
+
+New tests should start from the test organisations above, against `sk_test`. The existing
+integration scripts predate them and still use the rule below until a test framework replaces them (`DB-2`).
 
 To prevent database spam and ensure stable integration tests:
 - **Rule**: Reuse the common "App Test Org" inside all integration tests rather than creating new temporary organizations.
