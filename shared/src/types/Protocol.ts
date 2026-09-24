@@ -617,6 +617,43 @@ export interface SetDivisionEntrantsPayload extends BatchPayload {
     removeEntrantIds?: string[];
 }
 
+/**
+ * Put a different competitor in an entrant's place without redrawing (2026-09-24).
+ *
+ * Name the replacement **either** by identity (`teamId`, `orgProfileId`, or a placeholder's
+ * `label` / `orgId`) **or** as `replacementEntrantId`, an entrant already in the division who is
+ * not in the draw yet — the late entry an organiser swaps in after the fact.
+ *
+ * What happens depends on whether the entrant has played. With no results the replacement takes
+ * over the entrant row itself, so every fixture follows at once — this is how a placeholder is
+ * filled. With results the entrant is kept, marked `withdrawn`, and keeps those results and its row
+ * in the table; the replacement takes its pool place and only the fixtures not yet played.
+ */
+export interface ReplaceEntrantPayload {
+    divisionId: string;
+    orgId: string;
+    entrantId: string;
+    teamId?: string;
+    orgProfileId?: string;
+    label?: string;
+    /** Only read for a placeholder replacement, as on `DivisionEntrantInput`. */
+    replacementOrgId?: string;
+    replacementEntrantId?: string;
+    idempotencyKey?: string;
+}
+
+export interface ReplaceEntrantResult {
+    divisionId: string;
+    /** The entrant now playing the remaining fixtures. The same id as before when `inPlace`. */
+    entrantId: string;
+    /** True when the replacement took over the entrant row; false when the old one was withdrawn. */
+    inPlace: boolean;
+    /** Fixtures that changed hands. */
+    movedFixtures: number;
+    /** Results left with the withdrawn entrant. Zero when `inPlace`. */
+    keptResults: number;
+}
+
 export interface StageEntrantInput {
     entrantId: string;
     poolKey?: string;
@@ -675,6 +712,16 @@ export interface ResolveParticipantPayload {
     teamId?: string;
     orgProfileId?: string;
     entrantId?: string;
+}
+
+/** Somebody else played this match in the entrant's place — see `CHANGE_FIXTURE_SIDE`. */
+export interface ChangeFixtureSidePayload {
+    gameParticipantId: string;
+    orgId: string;
+    teamId?: string;
+    orgProfileId?: string;
+    /** Who the fixture's log entry credits. Checked against the caller, like every initiator field. */
+    initiatorOrgProfileId?: string;
 }
 
 export interface AddAdjustmentPayload {
@@ -858,11 +905,13 @@ export interface ProtocolMap {
     [SocketAction.DELETE_STAGE]: { payload: DeleteStagePayload; response: { id: string } };
     [SocketAction.SET_DIVISION_ENTRANTS]: { payload: SetDivisionEntrantsPayload; response: BatchResponse<TournamentEntrant> };
     [SocketAction.SET_STAGE_ENTRANTS]: { payload: SetStageEntrantsPayload; response: BatchResponse<StageEntrant> };
+    [SocketAction.REPLACE_ENTRANT]: { payload: ReplaceEntrantPayload; response: ReplaceEntrantResult };
     [SocketAction.GENERATE_STAGE_FIXTURES]: { payload: GenerateStageFixturesPayload; response: StageFixturesResult };
     [SocketAction.SCHEDULE_STAGE]: { payload: ScheduleStagePayload; response: StageFixturesResult };
     [SocketAction.ADD_GAMES]: { payload: AddGamesPayload; response: BatchResponse<GameSummary> };
     [SocketAction.UPDATE_GAMES]: { payload: UpdateGamesPayload; response: BatchResponse<GameSummary> };
     [SocketAction.RESOLVE_PARTICIPANT]: { payload: ResolveParticipantPayload; response: GameSummary };
+    [SocketAction.CHANGE_FIXTURE_SIDE]: { payload: ChangeFixtureSidePayload; response: GameSummary };
     [SocketAction.ADD_ADJUSTMENT]: { payload: AddAdjustmentPayload; response: TournamentAdjustment };
     [SocketAction.DELETE_ADJUSTMENT]: { payload: DeleteAdjustmentPayload; response: { id: string } };
     [SocketAction.SET_EVENT_FACILITIES]: { payload: SetEventFacilitiesPayload; response: { eventId: string; facilityIds: string[] } };

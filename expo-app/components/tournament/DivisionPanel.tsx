@@ -5,12 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   CandidateTeam,
   GameSummary,
-  OrgBadge,
   SocketAction,
-  Sport,
   TournamentDivision,
   TournamentEntrant,
   TournamentStage,
+  drawChanges,
   participantLabel,
   hasLiveScore,
   isScoreNotProvided,
@@ -18,8 +17,7 @@ import {
 import { GlassCard } from '../GlassCard';
 import { Tabs, TabItem } from '../Tabs';
 import { ConfirmationModal } from '../ConfirmationModal';
-import { DivisionEntrantsEditor } from './DivisionEntrantsEditor';
-import { candidateFromTeam } from './candidateTeam';
+import { ReplaceEntrantModal } from './ReplaceEntrantModal';
 import { useLiveRoom } from '../../hooks/useLiveRoom';
 import { useDivisionEntrants } from '../../hooks/useDivisionEntrants';
 import { wsService } from '../../services/websocket';
@@ -34,15 +32,16 @@ import { isCollapsed, stageSublabel, structureAnnouncement } from '@sk/shared';
  *
  * **This is the piece the collapse rule shares** (U15). A tournament with one division renders it
  * inline on the event screen — the event screen *is* the division screen — and a tournament with
- * several gives each one its own screen at
- * `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`. Both mount this, so there is one
+ * several gives each one its own schedule screen at
+ * `/admin/[orgId]/events/[eventId]/divisions/[divisionId]/schedule` (U53). Both mount this, so there is one
  * rendering of a division rather than two that drift.
  *
  * It joins `division:{id}:fixtures`, which is public and carries the division, its stages and its
- * fixtures. It joins the member-tier `division:{id}` **only for a viewer who may edit** — that room
- * carries the roster, which may name people rather than teams, and a spectator has no business in
- * it. So the entrants section and the generate control appear together, for the same viewer, off
- * the same room, and a spectator's panel is exactly what it was before.
+ * fixtures. It joins the member-tier roster room **only for a viewer who may edit** — the roster
+ * may name people rather than teams, and a spectator has no business in it. That viewer gets the
+ * generate control, the changes since the draw, and a link to the Entrants step for this division;
+ * a spectator's panel is the stages and fixtures alone. (The roster used to be edited inline here,
+ * for convenors, until they got the Entrants step for their own divisions — `UI-20`.)
  *
  * The schedule grid is Phase 7; until then a fixture's time is entered on the fixture itself.
  */
@@ -75,11 +74,12 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
   const [isAddingStage, setIsAddingStage] = useState(false);
   const [isSavingStage, setIsSavingStage] = useState(false);
-  const [showEntrants, setShowEntrants] = useState(false);
   const [generateFor, setGenerateFor] = useState<TournamentStage | null>(null);
   const [isConfirmingResults, setIsConfirmingResults] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  /** A withdrawn entrant whose remaining fixtures are being handed on, with how many there are. */
+  const [handingOn, setHandingOn] = useState<{ entrant: TournamentEntrant; unplayed: number } | null>(null);
 
   // One room per dataset (rule 4). `division:{id}:fixtures` carried the division record, its
   // stages, its fixtures and its venues until 2026-09-11; `division:{id}` carried the roster, the
@@ -138,29 +138,22 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
   const { entrants } = useDivisionEntrants(divisionId, canEdit);
 
   /**
-   * What could be entered — a one-shot read, because no room owns "teams that could enter".
-   * Addressed by division so a convenor, who holds no event-scope grant, is answered too.
+   * The teams that could take a withdrawn team's place, for the Replace dialog — a one-shot read,
+   * because no room owns "teams that could enter", and only when that dialog opens. Addressed by
+   * division so a convenor, who holds no event-scope grant, is answered too.
    */
   const [candidateTeams, setCandidateTeams] = useState<CandidateTeam[]>([]);
-  /** The organisations that may enter — see `EventCandidateTeams`; not derived from the teams. */
-  const [rosterOrgs, setRosterOrgs] = useState<OrgBadge[]>([]);
-  const [sports, setSports] = useState<Sport[]>([]);
 
   useEffect(() => {
-    if (!isConnected || !divisionId || !canEdit || !showEntrants) return;
+    if (!isConnected || !divisionId || !canEdit || !handingOn) return;
     let active = true;
     wsService.emit('get_data', { type: 'event_candidate_teams', eventId, divisionId }, (res: any) => {
-      if (!active || !res) return;
-      setCandidateTeams(res.teams || []);
-      setRosterOrgs(res.orgs || []);
-    });
-    wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-      if (active && Array.isArray(res)) setSports(res);
+      if (active && res && Array.isArray(res.teams)) setCandidateTeams(res.teams);
     });
     return () => {
       active = false;
     };
-  }, [isConnected, divisionId, eventId, canEdit, showEntrants]);
+  }, [isConnected, divisionId, eventId, canEdit, handingOn]);
 
   const division = divisions.find(d => d.id === divisionId);
   const orderedStages = useMemo(
@@ -223,6 +216,15 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
   // ------------------------------------------------------------------------------------------
 
   const activeEntrants = entrants.filter(entrant => entrant.status !== 'withdrawn');
+
+  /**
+   * How the roster has moved since the draw — only for a viewer who can act on it, since only they
+   * hold the roster. See `drawChanges` for the two kinds.
+   */
+  const changes = useMemo(
+    () => (canEdit ? drawChanges(orderedStages, games, entrants) : null),
+    [canEdit, orderedStages, games, entrants]
+  );
 
   /* `rosterOrgs` used to be deduplicated from the candidate teams here. It came with the same hole
      the entrants screen had: a school with no team of any sport never appeared, so the one place a
@@ -404,6 +406,46 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
         </View>
       )}
 
+      {!!changes && changes.count > 0 && (
+        /*
+          The draw is not topped up or reshuffled behind the organiser's back (D9), so when the
+          roster moves after it, this is where they are told — and offered the two ways out: hand a
+          withdrawn team's fixtures to somebody, or regenerate below.
+        */
+        <View className="mb-4 rounded-xl border border-amber-300 dark:border-amber-400/40 bg-amber-50 dark:bg-amber-400/10 p-3 space-y-2">
+          <Text className="font-orbitron-bold text-[10px] text-amber-800 dark:text-amber-300 uppercase tracking-widest">
+            Changes since the draw
+          </Text>
+          {changes.leftDraw.map(({ entrant, unplayed }) => (
+            <View key={entrant.id} className="flex-row items-center gap-3">
+              <Text className="flex-1 font-inter text-xs text-slate-700 dark:text-slate-200">
+                <Text className="font-inter-bold">{entrant.name || entrant.label || 'A team'}</Text> withdrew with{' '}
+                {unplayed === 1 ? 'a fixture' : `${unplayed} fixtures`} still to play.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setHandingOn({ entrant, unplayed })}
+                className="px-3 py-1.5 rounded-lg bg-brand-orange active:opacity-85"
+              >
+                <Text className="font-inter-bold text-[10px] text-white uppercase tracking-wider">Replace</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+          {changes.notInDraw.map(entrant => (
+            <Text key={entrant.id} className="font-inter text-xs text-slate-700 dark:text-slate-200">
+              <Text className="font-inter-bold">{entrant.name || entrant.label || 'An entrant'}</Text> was entered
+              after the draw and has no fixtures.
+            </Text>
+          ))}
+          <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
+            {changes.leftDraw.length && changes.notInDraw.length
+              ? 'Replace a withdrawn team with a late entry to keep the draw, or regenerate it.'
+              : changes.leftDraw.length
+                ? 'Replace it with another team to keep the draw, or regenerate it.'
+                : 'Regenerate the draw to include them, or add their fixtures by hand.'}
+          </Text>
+        </View>
+      )}
+
       {/* Stage tabs appear only when there is more than one stage to choose between. */}
       {!stagesCollapsed && (
         <View className="mb-4">
@@ -455,48 +497,28 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
       )}
 
       {/*
-        The roster, for the viewer who may change it. Collapsed by default: the panel's subject is
-        the fixtures, and entering teams is a thing you come here to do rather than a thing you
-        read. Opening it is also what triggers the candidate-team read, so a panel nobody expands
-        costs nothing.
+        Who is entered is edited on the Entrants step (2026-09-24, `UI-20`) — convenors included,
+        for their own divisions — so this is a count and a way there rather than a second copy of
+        the editor. Filtered to this division on arrival.
       */}
       {canEdit && (
-        <View className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
-          <TouchableOpacity
-            onPress={() => setShowEntrants(open => !open)}
-            className="flex-row items-center justify-between active:opacity-80"
-          >
-            <View className="flex-row items-center gap-2">
-              <Ionicons name="people-outline" size={16} color={COLORS.brand.orange} />
-              <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
-                Entrants
-              </Text>
-            </View>
-            <View className="flex-row items-center gap-2">
-              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-                {activeEntrants.length} entered
-              </Text>
-              <Ionicons name={showEntrants ? 'chevron-up' : 'chevron-down'} size={14} color={secondary} />
-            </View>
-          </TouchableOpacity>
-
-          {showEntrants && !!division && (
-            <View className="mt-3">
-              <DivisionEntrantsEditor
-                orgId={orgId}
-                division={division}
-                entrants={entrants}
-                candidateTeams={candidateTeams}
-                orgs={rosterOrgs}
-                sports={sports}
-                sportName={sports.find(sport => sport.id === division.sportId)?.name}
-                onTeamCreated={(team) =>
-                  setCandidateTeams(prev => [...prev, candidateFromTeam(team, rosterOrgs)])
-                }
-              />
-            </View>
-          )}
-        </View>
+        <TouchableOpacity
+          onPress={() => router.push(`/admin/${orgId}/events/${eventId}/entrants?divisionId=${divisionId}` as any)}
+          className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex-row items-center justify-between active:opacity-80"
+        >
+          <View className="flex-row items-center gap-2">
+            <Ionicons name="people-outline" size={16} color={COLORS.brand.orange} />
+            <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+              Entrants
+            </Text>
+          </View>
+          <View className="flex-row items-center gap-2">
+            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+              {activeEntrants.length} entered
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={secondary} />
+          </View>
+        </TouchableOpacity>
       )}
 
       {canEdit && (
@@ -580,6 +602,20 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
           setGenerationError(null);
         }}
       />
+
+      {!!division && (
+        <ReplaceEntrantModal
+          isOpen={!!handingOn}
+          onClose={() => setHandingOn(null)}
+          orgId={orgId}
+          division={division}
+          entrant={handingOn?.entrant || null}
+          unplayedCount={handingOn?.unplayed}
+          candidateTeams={candidateTeams}
+          tournamentEntrants={entrants}
+          lateEntrants={changes?.notInDraw || []}
+        />
+      )}
 
       {/* A structural change is never a surprise: say what will happen before it does (U15). */}
       <ConfirmationModal

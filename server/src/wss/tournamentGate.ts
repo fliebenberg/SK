@@ -33,6 +33,10 @@ export const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any
   [SocketAction.DELETE_STAGE]: async (p) => (p?.id ? dataManager.getStageEventId(p.id) : null),
   [SocketAction.SET_DIVISION_ENTRANTS]: async (p) =>
     p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
+  // Addressed by division like the roster it edits; `replaceEntrant` refuses an entrant from any
+  // other division, so naming a division you run cannot reach one you do not.
+  [SocketAction.REPLACE_ENTRANT]: async (p) =>
+    p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null,
   [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
   [SocketAction.GENERATE_STAGE_FIXTURES]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
   [SocketAction.SCHEDULE_STAGE]: async (p) => (p?.stageId ? dataManager.getStageEventId(p.stageId) : null),
@@ -56,6 +60,11 @@ export const TOURNAMENT_ACTION_EVENT: Partial<Record<SocketAction, (payload: any
   [SocketAction.WITHDRAW_ORGANIZER]: async (p) =>
     p?.eventId ?? (p?.divisionId ? dataManager.getDivisionEventId(p.divisionId) : null),
   [SocketAction.RESOLVE_PARTICIPANT]: async (p) => {
+    if (!p?.gameParticipantId) return null;
+    const gameId = await dataManager.getGameIdForParticipant(p.gameParticipantId);
+    return gameId ? (await dataManager.getGameStageContext(gameId)).eventId : null;
+  },
+  [SocketAction.CHANGE_FIXTURE_SIDE]: async (p) => {
     if (!p?.gameParticipantId) return null;
     const gameId = await dataManager.getGameIdForParticipant(p.gameParticipantId);
     return gameId ? (await dataManager.getGameStageContext(gameId)).eventId : null;
@@ -165,6 +174,7 @@ export const TOURNAMENT_ACTION_DIVISION: Partial<Record<SocketAction, (payload: 
   [SocketAction.UPDATE_STAGE]: async (p) => (p?.id ? divisionOfStage(p.id) : null),
   [SocketAction.DELETE_STAGE]: async (p) => (p?.id ? divisionOfStage(p.id) : null),
   [SocketAction.SET_DIVISION_ENTRANTS]: async (p) => p?.divisionId ?? null,
+  [SocketAction.REPLACE_ENTRANT]: async (p) => p?.divisionId ?? null,
   [SocketAction.SET_STAGE_ENTRANTS]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),
   [SocketAction.GENERATE_STAGE_FIXTURES]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),
   [SocketAction.SCHEDULE_STAGE]: async (p) => (p?.stageId ? divisionOfStage(p.stageId) : null),
@@ -180,6 +190,11 @@ export const TOURNAMENT_ACTION_DIVISION: Partial<Record<SocketAction, (payload: 
   [SocketAction.APPOINT_ORGANIZER]: async (p) => (p?.eventId ? null : p?.divisionId ?? null),
   [SocketAction.WITHDRAW_ORGANIZER]: async (p) => (p?.eventId ? null : p?.divisionId ?? null),
   [SocketAction.RESOLVE_PARTICIPANT]: async (p) => {
+    if (!p?.gameParticipantId) return null;
+    const gameId = await dataManager.getGameIdForParticipant(p.gameParticipantId);
+    return gameId ? accessManager.getGameDivisionId(gameId) : null;
+  },
+  [SocketAction.CHANGE_FIXTURE_SIDE]: async (p) => {
     if (!p?.gameParticipantId) return null;
     const gameId = await dataManager.getGameIdForParticipant(p.gameParticipantId);
     return gameId ? accessManager.getGameDivisionId(gameId) : null;
@@ -253,6 +268,61 @@ export function isTournamentAction(type: SocketAction): boolean {
  * `UPDATE_GAME` and `DELETE_GAME` already use.
  */
 export async function enforceTournamentAction(
+  userId: string | null,
+  type: SocketAction,
+  payload: any
+): Promise<void> {
+  await enforceOneScope(userId, type, payload);
+
+  /*
+   * A roster write can reach **other** divisions (2026-09-24). **Move here**
+   * (`takeFromOtherDivisions`) and `removeEntrantIds` take a competitor out of whichever division
+   * holds it, in the same transaction — so authorising the write by its target division alone let
+   * a convenor empty a division they do not run. Harmless while only event organisers had the entry
+   * screen; not once convenors do (`UI-20`). Every division the move touches must pass too.
+   */
+  if (type === SocketAction.SET_DIVISION_ENTRANTS && payload?.divisionId) {
+    for (const otherDivisionId of await divisionsVacatedBy(payload)) {
+      await enforceOneScope(userId, type, {
+        ...payload,
+        divisionId: otherDivisionId,
+        takeFromOtherDivisions: false,
+        removeEntrantIds: [],
+      });
+    }
+  }
+}
+
+/** The divisions a roster write would take a competitor out of, other than its own. */
+async function divisionsVacatedBy(payload: any): Promise<string[]> {
+  const found = new Set<string>();
+  const removeIds: string[] = payload.removeEntrantIds || [];
+  if (removeIds.length) {
+    const res = await pool.query(
+      `SELECT DISTINCT division_id FROM division_entrants WHERE id = ANY($1::text[]) AND division_id <> $2`,
+      [removeIds, payload.divisionId]
+    );
+    res.rows.forEach((r: any) => found.add(r.division_id));
+  }
+  if (payload.takeFromOtherDivisions) {
+    const teamIds = (payload.entrants || [])
+      .filter((e: any) => e?.status !== 'withdrawn' && e?.teamId)
+      .map((e: any) => e.teamId);
+    if (teamIds.length) {
+      const res = await pool.query(
+        `SELECT DISTINCT e.division_id FROM division_entrants e
+           JOIN tournament_divisions d ON d.id = e.division_id
+          WHERE d.event_id = (SELECT event_id FROM tournament_divisions WHERE id = $1)
+            AND d.id <> $1 AND e.team_id = ANY($2::text[]) AND e.status = 'active'`,
+        [payload.divisionId, teamIds]
+      );
+      res.rows.forEach((r: any) => found.add(r.division_id));
+    }
+  }
+  return [...found];
+}
+
+async function enforceOneScope(
   userId: string | null,
   type: SocketAction,
   payload: any

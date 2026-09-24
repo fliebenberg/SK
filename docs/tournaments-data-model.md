@@ -321,6 +321,14 @@ CREATE INDEX IF NOT EXISTS idx_division_entrants_division ON division_entrants(d
 CREATE INDEX IF NOT EXISTS idx_division_entrants_org ON division_entrants(org_id);
 ```
 
+**`withdrawn` means "left after playing" (2026-09-24).** An entrant removed from the roster with a
+finished or live fixture is kept with `status = 'withdrawn'` rather than deleted, because its
+results stand: it keeps its `stage_entrants` row and its table row (listed last, no `rank`), it is
+never drawn again, and progression never picks it. One that has played nothing is simply deleted.
+`REPLACE_ENTRANT` hands its pool place and its **unplayed** fixtures to a replacement — or, with
+nothing played, makes the replacement *be* this row. Rationale in
+[tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) U54.
+
 Ids are `ent-<uuid>`.
 
 The three kinds of entrant from the spec, in one table:
@@ -818,11 +826,13 @@ contract (one transaction, per-item error report, one broadcast, idempotency key
 | `ADD_DIVISION` / `UPDATE_DIVISION` / `DELETE_DIVISION` | a division | no |
 | `ADD_STAGE` / `UPDATE_STAGE` / `DELETE_STAGE` | a stage | no |
 | `SET_DIVISION_ENTRANTS` | `{ divisionId, entrants: [...] }` | **yes** — a whole roster arrives at once |
+| `REPLACE_ENTRANT` | `{ divisionId, entrantId, teamId? \| orgProfileId? \| label? \| replacementEntrantId? }` | no — one entrant's place changes hands (2026-09-24) |
 | `GENERATE_STAGE_FIXTURES` | `{ stageId, mode: 'create' \| 'regenerate' }` | server-side fan-out |
 | `SCHEDULE_STAGE` | `{ stageId, ...constraints }` | server-side fan-out |
 | `ADD_GAMES` | `{ games: [...] }` | **yes** — the 90-fixture case |
 | `UPDATE_GAMES` | `{ games: [...] }` | **yes** — rescheduling a day moves many at once |
 | `RESOLVE_PARTICIPANT` | `{ gameParticipantId, teamId? , entrantId? }` | no — the manual override |
+| `CHANGE_FIXTURE_SIDE` | `{ gameParticipantId, teamId? \| orgProfileId? }` | no — another team played one match; the side keeps its entrant (2026-09-24) |
 | `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no |
 
 `GENERATE_STAGE_FIXTURES` and `SCHEDULE_STAGE` are single actions that write many rows inside one

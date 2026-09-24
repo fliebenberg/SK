@@ -516,11 +516,13 @@ may hold no membership anywhere and so act from no workspace at all.
 | `DELETE_DIVISION` | `{ id, orgId }` | no | `DIVISION_DELETED`, `EVENT_STANDINGS_UPDATED` |
 | `ADD_STAGE` / `UPDATE_STAGE` / `DELETE_STAGE` | a stage | no | `STAGES_SYNC` |
 | `SET_DIVISION_ENTRANTS` | `{ divisionId, orgId, entrants[], idempotencyKey? }` | **yes** | `DIVISION_ENTRANTS_SYNC`, standings, and a `GAME_SUMMARY_UPDATED` per affected fixture |
+| `REPLACE_ENTRANT` | `ReplaceEntrantPayload` — `{ divisionId, orgId, entrantId }` plus `teamId` \| `orgProfileId` \| `label` \| `replacementEntrantId` | no | `DIVISION_ENTRANTS_SYNC`, `STAGE_ENTRANTS_SYNC` per stage, `STAGES_SYNC`, standings, a summary per fixture that changed hands. Answers `{ entrantId, inPlace, movedFixtures, keptResults }` |
 | `SET_STAGE_ENTRANTS` | `{ stageId, orgId, entrants[], idempotencyKey? }` | **yes** | `STAGE_ENTRANTS_SYNC`, `STAGES_SYNC` |
 | `GENERATE_STAGE_FIXTURES` | `{ stageId, orgId, mode, deleteResults? }` | server-side fan-out | `STAGE_FIXTURES_SYNC` (one message), `STAGES_SYNC`, standings |
 | `SCHEDULE_STAGE` | `ScheduleStagePayload` | server-side fan-out | `STAGE_FIXTURES_SYNC`, plus a summary per fixture |
 | `ADD_GAMES` / `UPDATE_GAMES` | `{ games[], idempotencyKey? }` | **yes** | a summary per fixture |
 | `RESOLVE_PARTICIPANT` | `{ gameParticipantId, orgId, teamId? \| orgProfileId? \| entrantId? }` | no | `GAME_SUMMARY_UPDATED`, standings |
+| `CHANGE_FIXTURE_SIDE` | `{ gameParticipantId, orgId, teamId? \| orgProfileId?, initiatorOrgProfileId? }` | no | `GAME_SUMMARY_UPDATED`, standings, and a `SIDE_CHANGED` entry in the fixture's log. The side keeps its entrant |
 | `ADD_ADJUSTMENT` / `DELETE_ADJUSTMENT` | an adjustment | no | `DIVISION_ADJUSTMENTS_SYNC`, standings |
 | `SET_EVENT_FACILITIES` / `SET_DIVISION_FACILITIES` | `{ …Id, orgId, facilityIds }` | no | `EVENT_FACILITIES_SYNC` / `DIVISION_FACILITIES_SYNC` |
 | `APPOINT_ORGANIZER` / `WITHDRAW_ORGANIZER` | `{ eventId \| (eventId + sportId) \| divisionId, orgProfileId, orgId? }` | no | `EVENT_CAPABILITIES_UPDATED` to `user:{id}` — **not** to a division room |

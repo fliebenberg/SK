@@ -1420,6 +1420,17 @@ async function assertNotLastDivisionOfDelegatedSport(
 }
 
 /**
+ * Re-send a division after its stages change, because `firstStageId` rides on the division record
+ * (2026-09-24, `UI-21`). The setup checklist reads it to tell a division's draw from its later
+ * stages without joining a stages room per division; adding, resequencing or deleting a stage can
+ * change which one is first, and the division itself carries no other sign of that.
+ */
+async function publishFirstStage(divisionId: string) {
+    const division = await dataManager.getDivision(divisionId);
+    if (division) await publishDivision(divisionId, 'DIVISION_UPDATED', division, division.eventId);
+}
+
+/**
  * Refuse a division name another division in the same tournament already has, ignoring case and
  * surrounding space. The division screen checks as the name is typed; this is what holds when two
  * people save at once, or a caller skips the screen.
@@ -3155,6 +3166,7 @@ io.on('connection', (socket) => {
             case SocketAction.ADD_STAGE: {
                 result = await dataManager.addStage(action.payload);
                 publishStages(action.payload.divisionId, await dataManager.getStages(action.payload.divisionId));
+                await publishFirstStage(action.payload.divisionId);
                 break;
             }
 
@@ -3162,6 +3174,7 @@ io.on('connection', (socket) => {
                 result = await dataManager.updateStage(action.payload.id, action.payload.data);
                 if (!result) throw new Error('Stage not found.');
                 publishStages(result.divisionId, await dataManager.getStages(result.divisionId));
+                await publishFirstStage(result.divisionId);
                 break;
             }
 
@@ -3171,6 +3184,7 @@ io.on('connection', (socket) => {
                 await dataManager.deleteStage(action.payload.id);
                 result = { id: action.payload.id };
                 publishStages(stageToDelete.divisionId, await dataManager.getStages(stageToDelete.divisionId));
+                await publishFirstStage(stageToDelete.divisionId);
                 await tournamentManager.recalculateDivision(stageToDelete.divisionId);
                 await publishStandings(
                     stageToDelete.divisionId,
@@ -3257,6 +3271,31 @@ io.on('connection', (socket) => {
                         await publishGameSummary(game.id);
                     }
                 }
+                break;
+            }
+
+            case SocketAction.REPLACE_ENTRANT: {
+                const replaceDivisionId = action.payload.divisionId;
+                result = await runIdempotent(action.payload.idempotencyKey, async () => {
+                    const outcome = await tournamentManager.replaceEntrant(action.payload);
+                    return { divisionId: replaceDivisionId, ...outcome };
+                });
+                const replaceEventId = await dataManager.getDivisionEventId(replaceDivisionId);
+                await publishEntrants(
+                    replaceDivisionId,
+                    await dataManager.getDivisionEntrants(replaceDivisionId),
+                    replaceEventId || undefined
+                );
+                // Pool places moved with the replacement, so every stage's membership is republished
+                // — not only the first, which is all the roster mirror touches.
+                for (const stage of await dataManager.getStages(replaceDivisionId)) {
+                    publishStageEntrants(replaceDivisionId, stage.id, await dataManager.getStageEntrants(stage.id));
+                }
+                publishStages(replaceDivisionId, await dataManager.getStages(replaceDivisionId));
+                await publishStandings(replaceDivisionId, replaceEventId);
+                for (const gameId of result.changedGameIds || []) await publishGameSummary(gameId);
+                const { changedGameIds, ...reply } = result;
+                result = reply;
                 break;
             }
 
@@ -3348,6 +3387,35 @@ io.on('connection', (socket) => {
                 // two known competitors, and the table has to count it as such.
                 await dataManager.recalculateStandingsForGame(resolvedGameId);
                 result = await dataManager.getGameSummary(resolvedGameId);
+                break;
+            }
+
+            case SocketAction.CHANGE_FIXTURE_SIDE: {
+                const changed = await tournamentManager.changeFixtureSide(action.payload.gameParticipantId, action.payload);
+                await publishGameSummary(changed.gameId);
+                // Who played changed, and with it which team the result is shown against — the
+                // table still counts it for the entrant, but the choke point is the one place that
+                // rewrites a table, so it runs rather than being reasoned around.
+                await dataManager.recalculateStandingsForGame(changed.gameId);
+                try {
+                    await recordGameEvent({
+                        gameId: changed.gameId,
+                        type: 'STATUS',
+                        subType: 'SIDE_CHANGED',
+                        // The side it is about — also what keeps two quick changes, one per side, from
+                        // being deduplicated into one by the log's five-second identical-entry guard.
+                        gameParticipantId: action.payload.gameParticipantId,
+                        eventData: {
+                            fromName: changed.fromName,
+                            toName: changed.toName,
+                            entrantName: changed.entrantName,
+                        },
+                        initiatorOrgProfileId: action.payload.initiatorOrgProfileId,
+                    });
+                } catch (error: any) {
+                    throw new Error(`The change was applied, but it could not be added to the game log: ${error.message}`);
+                }
+                result = await dataManager.getGameSummary(changed.gameId);
                 break;
             }
 

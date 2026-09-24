@@ -17,6 +17,13 @@ export interface EntrantRow {
   team: CandidateTeam | null;
   /** Present when the competitor is entered; its `divisionId` is where. */
   entrant?: TournamentEntrant;
+  /**
+   * The entry this competitor withdrew from after playing, kept for its results (2026-09-24).
+   *
+   * Never counted as entered — a withdrawn team is not playing — but a row carries it so the table
+   * can say so rather than showing a team that played two games as simply "not playing".
+   */
+  withdrawn?: TournamentEntrant;
 }
 
 /**
@@ -45,8 +52,11 @@ export function buildEntrantRows(
   orgs: OrgBadge[]
 ): EntrantRow[] {
   const entrantByTeamId = new Map<string, TournamentEntrant>();
+  const withdrawnByTeamId = new Map<string, TournamentEntrant>();
   for (const entrant of entrants) {
-    if (entrant.teamId) entrantByTeamId.set(entrant.teamId, entrant);
+    if (!entrant.teamId) continue;
+    if (entrant.status === 'withdrawn') withdrawnByTeamId.set(entrant.teamId, entrant);
+    else entrantByTeamId.set(entrant.teamId, entrant);
   }
 
   const rows: EntrantRow[] = teams.map(team => ({
@@ -56,11 +66,15 @@ export function buildEntrantRows(
     orgId: team.orgId,
     team,
     entrant: entrantByTeamId.get(team.id),
+    withdrawn: entrantByTeamId.has(team.id) ? undefined : withdrawnByTeamId.get(team.id),
   }));
 
   const candidateIds = new Set(teams.map(team => team.id));
   for (const entrant of entrants) {
     if (entrant.teamId && candidateIds.has(entrant.teamId)) continue;
+    const isWithdrawn = entrant.status === 'withdrawn';
+    // A team entered again after withdrawing is one row, shown as entered.
+    if (isWithdrawn && entrant.teamId && entrantByTeamId.has(entrant.teamId)) continue;
     rows.push({
       key: entrant.id,
       kind: entrant.orgProfileId ? 'person' : entrant.teamId ? 'team' : 'placeholder',
@@ -69,7 +83,8 @@ export function buildEntrantRows(
       // Even for a team, `null`: this row exists because the team is *not* a candidate, so its
       // sport and age group were never read and no division can be ruled out on them.
       team: null,
-      entrant,
+      entrant: isWithdrawn ? undefined : entrant,
+      withdrawn: isWithdrawn ? entrant : undefined,
     });
   }
 

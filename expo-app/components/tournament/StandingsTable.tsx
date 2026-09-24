@@ -90,14 +90,22 @@ export function StandingsTable({
             >
               <View className="flex-1 flex-row items-center pr-2">
                 <Text
-                  className="font-inter-bold text-sm text-slate-800 dark:text-white"
+                  className={`font-inter-bold text-sm flex-shrink ${
+                    row.withdrawn ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'
+                  }`}
                   numberOfLines={1}
                 >
                   {/* Entrants no configured factor could separate share a rank (1, 2, 2, 4) — the
                       signal that a human has to decide. So the server's rank is printed when there
-                      is one, rather than the row's position in the list. */}
-                  {row.rank ?? index + 1}. {row.teamName}
+                      is one, rather than the row's position in the list. A withdrawn entrant has no
+                      rank at all: its results stand, but it is not competing for a place. */}
+                  {row.withdrawn ? '–' : row.rank ?? index + 1}. {row.teamName}
                 </Text>
+                {row.withdrawn && (
+                  <Text className="font-inter-bold text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 ml-2">
+                    Withdrawn
+                  </Text>
+                )}
                 {isAdjusted && (
                   <Ionicons
                     name="ellipse"

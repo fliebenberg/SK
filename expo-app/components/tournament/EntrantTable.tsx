@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EntrantRow, OrgBadge, TournamentDivision, divisionsForTeam } from '@sk/shared';
@@ -39,6 +39,11 @@ export interface EntrantTableProps {
   isBusy: (row: EntrantRow) => boolean;
   /** `null` takes the competitor out. */
   onSetDivision: (row: EntrantRow, divisionId: string | null) => void;
+  /**
+   * Put somebody else in a playing row's place, keeping its fixtures (2026-09-24). Offered on
+   * every playing row when given; left out, the table has no replace control at all.
+   */
+  onReplace?: (row: EntrantRow) => void;
   canEdit: boolean;
   emptyText: string;
 }
@@ -51,14 +56,37 @@ export function EntrantTable({
   sportName,
   isBusy,
   onSetDivision,
+  onReplace,
   canEdit,
   emptyText,
 }: EntrantTableProps) {
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
-  /* 768px, the break the rest of the app uses. Below it the division takes about half the row
-     rather than a fixed column, with the name truncating beside it. */
+  /* 768px, the break the rest of the app uses. It only decides how roomy the dropdown is; the
+     column's width is measured either way. */
   const isWide = width >= 768;
+
+  /**
+   * One column width for the table, measured from the longest division name it can show.
+   *
+   * A fixed column left a dropdown of white space next to "U13"; sizing each row to its own text
+   * made the list ragged. So: measure the longest label once, off-screen, add the control's
+   * padding and chevron, and give every row that. Capped at half the row, because the competitor's
+   * name is what the list is for — beyond that the dropdown truncates instead.
+   */
+  const [tableWidth, setTableWidth] = useState(0);
+  const [labelWidth, setLabelWidth] = useState(0);
+  const longestLabel = useMemo(() => {
+    const labels = [...divisions.map(divisionLabel), 'Not playing'];
+    return labels.reduce((longest, label) => (label.length > longest.length ? label : longest), '');
+  }, [divisions, divisionLabel]);
+
+  /** Horizontal padding, the gap and the chevron — what the text itself does not account for. */
+  const controlChrome = isWide ? 58 : 50;
+  const divisionWidth = Math.min(
+    Math.max(labelWidth + controlChrome, 96),
+    tableWidth ? tableWidth * 0.5 : Number.MAX_SAFE_INTEGER
+  );
 
   if (!rows.length) {
     return (
@@ -107,6 +135,11 @@ export function EntrantTable({
       .filter(Boolean)
       .join(' · ');
 
+    /* A team that pulled out after playing is not playing, but it is not a team that never played
+       either: its results are still in the table, and the row says so. */
+    const withdrawnPlayed = !entered ? row.withdrawn?.playedCount || 0 : 0;
+    const withdrawnFrom = row.withdrawn ? divisions.find(d => d.id === row.withdrawn?.divisionId) : undefined;
+
     /*
       Only a playing row has a division, so only a playing row shows one. A row that is not playing
       says so, and says how to change it — the row is the control, and nothing else on it looks
@@ -114,7 +147,9 @@ export function EntrantTable({
       pressing it would seem to do nothing.
     */
     const divisionCell = busy ? (
-      <ActivityIndicator size="small" color={COLORS.brand.orange} />
+      <View className="items-end">
+        <ActivityIndicator size="small" color={COLORS.brand.orange} />
+      </View>
     ) : entered ? (
       options.length > 1 && canEdit ? (
         <CustomSelect
@@ -178,31 +213,63 @@ export function EntrantTable({
               otherwise push the name out of sight, and losing the sport line is the lesser cost. */}
           <View className="flex-row items-center gap-1.5 mt-0.5 min-w-0">
             {row.kind === 'placeholder' && <PlaceholderFlag />}
+            {withdrawnPlayed > 0 && <WithdrawnFlag />}
             <Text
               numberOfLines={1}
               className="font-inter text-[10px] text-slate-500 dark:text-slate-400 flex-shrink"
             >
-              {details || (row.kind === 'placeholder' ? '' : '—')}
+              {withdrawnPlayed > 0
+                ? `${withdrawnFrom ? `${divisionLabel(withdrawnFrom)} · ` : ''}${withdrawnPlayed} result${
+                    withdrawnPlayed === 1 ? '' : 's'
+                  } kept`
+                : details || (row.kind === 'placeholder' ? '' : '—')}
             </Text>
           </View>
         </View>
 
-        <View className={`${isWide ? 'w-64' : 'w-[48%]'} items-end`}>
-          {divisionCell && <View className="w-full items-end">{divisionCell}</View>}
-        </View>
+        {/* Its own touchable, like the dropdown, so pressing it does not take the row out. */}
+        {entered && canEdit && !busy && !!onReplace && (
+          <TouchableOpacity
+            onPress={() => onReplace(row)}
+            accessibilityRole="button"
+            accessibilityLabel={`Replace ${row.name}`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            className="w-8 h-8 items-center justify-center rounded-lg active:bg-slate-200/60 dark:active:bg-white/10"
+          >
+            <Ionicons name="swap-horizontal-outline" size={16} color={getThemeColor(isDark, 'textSecondary')} />
+          </TouchableOpacity>
+        )}
+
+        {/* A fixed column, and the dropdown fills it: sized to its own text, every row's control
+            was a different width and the list read as ragged. */}
+        <View style={{ width: divisionWidth }}>{divisionCell}</View>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View>
+    <View onLayout={event => setTableWidth(event.nativeEvent.layout.width)}>
+      {/* The measuring copy: the same font and size as the control's text, laid out off-screen so
+          it is never constrained by the column it is deciding. */}
+      <Text
+        className="font-inter text-sm absolute opacity-0"
+        style={{ left: 0, top: 0 }}
+        numberOfLines={1}
+        pointerEvents="none"
+        onLayout={event => setLabelWidth(event.nativeEvent.layout.width)}
+      >
+        {longestLabel}
+      </Text>
       {/* A header only where there is room for it; on a phone the controls label themselves. */}
       {isWide && (
         <View className="flex-row items-center gap-3 px-3 pb-2 mb-1 border-b border-slate-200 dark:border-white/10">
           <Text className="flex-1 pl-11 font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
             Team
           </Text>
-          <Text className="w-64 font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+          <Text
+            className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest"
+            style={{ width: divisionWidth }}
+          >
             Division
           </Text>
         </View>
@@ -259,6 +326,20 @@ function OrgSquare({ org, isDark }: { org?: OrgBadge; isDark: boolean }) {
           </Text>
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * Marks a team that withdrew after playing. Slate rather than amber or orange: it is neither
+ * waiting for anything nor playing — it is history, and should read quieter than both.
+ */
+function WithdrawnFlag() {
+  return (
+    <View className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/15">
+      <Text className="font-inter-bold text-[9px] uppercase tracking-wider text-slate-600 dark:text-slate-300">
+        Withdrawn
+      </Text>
     </View>
   );
 }

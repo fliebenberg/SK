@@ -122,6 +122,12 @@ export function getEventLabel(evt: GameEvent, sport: Sport | undefined) {
     case 'CLOCK_RESUMED':
       label = 'CLOCK RESUMED';
       break;
+    case 'SIDE_CHANGED':
+      // Somebody else played in an entrant's place for this match (FIX-20).
+      label = `${String(evt.eventData?.toName || 'ANOTHER TEAM').toUpperCase()} PLAYED FOR ${String(
+        evt.eventData?.fromName || 'THE DRAWN TEAM'
+      ).toUpperCase()}`;
+      break;
     default:
       label = String(key).replace(/_/g, ' ').toUpperCase();
       break;

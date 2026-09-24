@@ -28,6 +28,12 @@ export interface StandingsSubject {
   orgId?: string;
   /** Pool tables are distinguished by this on the row rather than by separate storage. */
   poolKey?: string;
+  /**
+   * Pulled out after playing (2026-09-24). Their results stand and they keep a row, but they are
+   * listed below everybody still competing and carry **no rank** — so progression, which reads
+   * `rank`, can never send a team that has left into the next stage.
+   */
+  withdrawn?: boolean;
 }
 
 export interface StandingsOptions {
@@ -235,6 +241,7 @@ function tally(
       entrantId: s.entrantId ?? s.id,
       orgId: s.orgId,
       poolKey: s.poolKey,
+      ...(s.withdrawn ? { withdrawn: true } : {}),
     });
     index.set(s.id, s);
     if (s.entrantId) index.set(s.entrantId, s);
@@ -459,7 +466,16 @@ export function calculateStandings(
     });
   }
 
-  return rankRows([...rows.values()], games, subjectsById, options);
+  // Withdrawn entrants are ordered among themselves and listed last, unranked. Ranking them with
+  // everybody else would let a team that has left finish first in its pool and be drawn into the
+  // knockout; dropping them would hide results the organiser chose to keep.
+  const all = [...rows.values()];
+  const competing = all.filter(row => !row.withdrawn);
+  const withdrawn = all.filter(row => row.withdrawn);
+  return [
+    ...rankRows(competing, games, subjectsById, options),
+    ...rankRows(withdrawn, games, subjectsById, options).map(({ rank, ...row }) => row),
+  ];
 }
 
 /** One division's finished table, with the weight its points carry in the roll-up (D18). */

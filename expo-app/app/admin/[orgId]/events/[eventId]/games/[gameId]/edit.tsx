@@ -21,6 +21,7 @@ import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabil
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
 import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwitcher';
 import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
+import { ChangeWhoPlayedCard } from '../../../../../../../components/tournament/ChangeWhoPlayedCard';
 import { finishedScoreLine } from '../../../../../../../utils/matchScore';
 
 export default function EditGame() {
@@ -425,6 +426,27 @@ export default function EditGame() {
               </TouchableOpacity>
             </View>
           </GlassCard>
+        )}
+
+        {/* Who played — a tournament fixture's sides, for the one-match change (FIX-20). */}
+        {permissions.canEdit && (
+          <ChangeWhoPlayedCard
+            game={game}
+            orgId={orgId}
+            eventId={eventId}
+            onChanged={(participantId, teamId, name) =>
+              setGame(prev =>
+                prev
+                  ? {
+                      ...prev,
+                      participants: (prev.participants || []).map(p =>
+                        p.id === participantId ? ({ ...p, teamId, name } as any) : p
+                      ),
+                    }
+                  : prev
+              )
+            }
+          />
         )}
 
         {/* DANGER ZONE */}

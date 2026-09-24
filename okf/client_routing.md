@@ -7,7 +7,7 @@ tags:
   - routing
   - pages
   - navigation-guards
-timestamp: 2026-09-13T00:00:00Z
+timestamp: 2026-09-24T12:00:00Z
 ---
 
 # Client Pages & Routing Maps
@@ -93,16 +93,16 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     headed `{tournament} - {division}`. Opened from Sports & Divisions. **Basics only (U53):** no
     entrants, stages, fixtures or table — those are later setup steps.
 *   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]/schedule`: One division's **schedule** —
-    its stages as navigation tabs (U13/U14), its roster and generation controls, and its own table.
+    its stages as navigation tabs (U13/U14), its generation controls, a link to its entrants, and its own table.
     What the Schedule tab opens when there are several divisions (U53).
-*   `/admin/[orgId]/events/[eventId]/entrants`: Getting teams in, on **both axes over one dataset**
+*   `/admin/[orgId]/events/[eventId]/entrants` (`?divisionId=` to open filtered): Getting teams in, on **both axes over one dataset**
     (U21) — *by division* ("who is in the u14 rugby?") and *by organisation* ("what is Northcliff
     entering?"). The organisation axis is where **inline team creation** lives, because that is the
     moment you discover a school has no u16 netball team. Also the **Entrants step** of the setup
     checklist (U48), so it carries the invite list — which writes on press rather than through a
-    save bar, because every other control on the screen does. Event organisers only; a convenor reaches
-    the same per-division editor through their division's schedule screen, since both mount
-    [DivisionEntrantsEditor](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionEntrantsEditor.tsx).
+    save bar, because every other control on the screen does. Convenors and sport organisers use it
+    too, for the divisions they run only and without the invite list (2026-09-24, `UI-20`); their
+    division's schedule screen links here rather than carrying its own editor.
 *   `/admin/[orgId]/events/[eventId]/games/new`, `/games/[gameId]/edit`, `/view`, `/selection`,
     `/score`: One fixture. `/score` is the **Scorekeeper Console** for real-time event entry.
     `new` picks the division and stage a tournament fixture belongs to — silently where the

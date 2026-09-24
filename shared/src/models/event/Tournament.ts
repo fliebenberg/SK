@@ -105,6 +105,15 @@ export interface TournamentDivision {
    * division list can say where each one is played without a query per row.
    */
   facilityIds?: string[];
+  /**
+   * The stage that takes the roster — the lowest `sequence` — derived on read (2026-09-24).
+   *
+   * Carried so a screen holding only the division list can tell a division's draw from its later
+   * stages: the setup checklist asks "has the roster moved since the draw?" of every division at
+   * once, and a stages room per division just to learn one id would be the cost live data avoids.
+   * Ignored on write; the server re-sends the division whenever its stages change.
+   */
+  firstStageId?: string | null;
   stages?: TournamentStage[];
   entrants?: TournamentEntrant[];
 }
@@ -181,6 +190,15 @@ export interface TournamentEntrant {
    * overrides (`FIX-17`).
    */
   teamAgeGroupId?: string | null;
+  /**
+   * Fixtures this entrant has a result in, or is playing now — derived, never stored.
+   *
+   * The line between the two ways an entrant is replaced (2026-09-24): with none, the replacement
+   * simply *becomes* this entrant and takes over every fixture; with some, this entrant is kept as
+   * withdrawn so those results stay with the team that earned them, and the replacement takes over
+   * only what is still to play. A screen reads it to say which of the two will happen.
+   */
+  playedCount?: number;
 }
 
 /**
@@ -280,6 +298,8 @@ export interface TournamentStandingRow extends LeagueStandingRow {
    * that a human has to decide, and D29's manual override is how they do it.
    */
   rank?: number;
+  /** The entrant pulled out after playing: results kept, listed last, never ranked. */
+  withdrawn?: boolean;
 }
 
 /**

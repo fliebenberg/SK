@@ -4,10 +4,9 @@ import { CandidateTeam, OrgBadge, Team } from '@sk/shared';
  * A team created inline, shaped as a candidate so it appears without a second read.
  *
  * `event_candidate_teams` is a one-shot read (no room owns "teams that could enter"), so nothing
- * otherwise tells an open entry screen that the team now exists. Both screens that mount
- * `DivisionEntrantsEditor` — the event-level entrants screen and the division panel — did this
- * conversion inline and identically, which meant two places to keep a field in step with
- * `CandidateTeam`; they had already drifted apart on the org lookup, which one of them ran twice.
+ * otherwise tells an open entry screen that the team now exists. Extracted when two screens did
+ * this conversion inline and had already drifted apart on the org lookup; since the division
+ * panel's editor was removed (2026-09-24, `UI-20`) the Entrants step is the one caller.
  */
 export function candidateFromTeam(team: Team, orgs: OrgBadge[]): CandidateTeam {
   // The org is always one of `orgs`: a team is created from that organisation's own group, and the

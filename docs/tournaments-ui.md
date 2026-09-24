@@ -129,6 +129,7 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U51** | The tournament's sports are chosen first; each division plays one of them. Reverses U46's derivation. | 7 |
 | **U52** | Every sport has at least one division and every division plays one of the tournament's sports. Choosing a sport creates its division; a sport with divisions cannot be removed; deleting its last division removes it. | 7 |
 | **U53** | A division's setup screen holds its basics only — name, sport, age group, organisers, fields. Its stages, fixtures and table move to a schedule screen the Schedule tab opens. Narrows U13. | 5, 7 |
+| **U54** | The Fixtures step lists the divisions and where each one's draw has got to; a row opens that division's schedule screen. Nothing is drawn automatically. A team that pulls out after playing is **withdrawn, not deleted** — its results stand — and **Replace** hands its place and unplayed fixtures to another team without a redraw. Convenors enter teams for their own divisions on the Entrants step; *Who played* corrects one fixture. | 7, 11 |
 
 ### Constraints carried in from the feature spec
 
@@ -925,6 +926,52 @@ that spans weeks.
 > - **Entrants already have their own step** (U21). Stages and fixtures will both be set up in the
 >   Fixtures step (`UI-20`); until that is built they stay on the Schedule tab, which the Fixtures
 >   step already points to. This narrows U13 — a division is still its own screen, just two of them.
+>   *Built the same day as U54: the Fixtures step lists the divisions and opens this screen.*
+
+> **Decided 2026-09-24 — fixtures are set up per division, and a withdrawal keeps its results (U54).**
+> Built what U53 left to `UI-20`.
+>
+> - **The Fixtures step is the list of divisions,**
+>   [setup/fixtures.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/setup/fixtures.tsx).
+>   Each row gives the division's stages (the format, in the organiser's words: *Pools → Knockout*),
+>   its entrant count, and one status: *Needs a sport*, *Needs entrants*, *Ready to draw*,
+>   *12 fixtures · 3 played*, or *2 changes since the draw*. A row opens the division's schedule
+>   screen (U53), where the stages, the Generate control and the fixtures already were. The
+>   checklist row is done when every division that plays a sport has fixtures, not when any fixture
+>   exists.
+> - **No draw is made for the organiser.** A division starts with the stages its tournament's format
+>   implies (D11), and the tournament's format stays on Basic Info as the default for new divisions.
+>   Generating from a roster that is not final means generating again with every late entry.
+> - **Changes since the draw are shown, never applied** (D9 — no silent top-up). The division screen
+>   names each one: a withdrawn team with fixtures still to play, and an entrant with no fixtures.
+>   Both are read off the first stage by `drawChanges`
+>   ([shared/src/utils/drawChanges.ts](file:///c:/Fred/Coding/SK/shared/src/utils/drawChanges.ts)).
+> - **Keep, not void.** Taking a team that has played off the roster withdraws it: its results stay,
+>   it stays in the table listed last with **no rank**, and progression never picks it. Its unplayed
+>   fixtures stay in the draw until somebody takes them over. Voiding a withdrawn team's results
+>   instead is a *Rules & scoring* option for later (`SCORE-15`).
+> - **Replace keeps the draw.** One action (`REPLACE_ENTRANT`) and one dialog, from a row on the
+>   Entrants screen or from a withdrawn team on the division screen. With **nothing played**, the
+>   replacement becomes the entrant: seed, pool and every fixture follow, which is also how a
+>   placeholder is filled. With **results**, the old entrant is withdrawn and keeps them; the
+>   replacement gets its pool place and only the unplayed fixtures. The dialog says which of the two
+>   will happen before it is confirmed. A knockout slot the old team *won* its way into stays with it
+>   for the organiser to settle by hand (D29) — a replacement did not earn it.
+>
+> **Follow-ups the same day.**
+>
+> - **Convenors enter teams on the Entrants step,** for the divisions they run (and a sport's
+>   organiser for that sport's divisions). The division screen links there, filtered to the
+>   division, instead of carrying its own copy of the editor. The invite list and the checklist
+>   footer stay the organisers'.
+> - **A roster move is authorised against every division it touches** — **Move here** takes a team
+>   out of another division, so that division's rights are needed too.
+> - **The checklist sees changes since the draw,** through `firstStageId` on the division record, so
+>   it and the Fixtures step read the same thing and cannot disagree.
+> - **Who played is a per-fixture fact.** When another team turns out for one match, *Who played*
+>   on the fixture changes that side's team and keeps its entrant, so the result counts for the
+>   place in the draw; the change is logged on the fixture. The roster refuses to change who an
+>   entrant is once it has results — that would re-attribute them.
 
 > **Decided 2026-09-19, the same afternoon — sports and divisions move together (U52).** U51 got
 > the direction right (sports first) and the removal rule wrong: moving every division onto a

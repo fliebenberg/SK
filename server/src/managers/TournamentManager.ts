@@ -48,6 +48,16 @@ const EMPTY_LIVE_STATE =
   '{"scores": {}, "sinBins": [], "periodLabel": "1st Period", ' +
   '"clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}';
 
+/**
+ * A fixture that has been played, or is being played, as a `WHERE` fragment over `games g`.
+ *
+ * The line an entrant's replacement is drawn along (2026-09-24): what is on this side stays with
+ * whoever played it, what is not moves to the replacement. A live fixture counts as played — it has
+ * points on it — and so does one with a recorded result that has not been marked finished, which
+ * is the same reading generation's "these have results" count uses.
+ */
+const PLAYED_GAME = `(g.status IN ('Finished', 'Live') OR g.final_score_data IS NOT NULL)`;
+
 /** What a knockout round is called, from how many entrants are still in it. */
 function roundName(slotsRemaining: number): string {
   switch (slotsRemaining) {
@@ -136,7 +146,9 @@ export class TournamentManager extends BaseManager {
       d.scoring_subject as "scoringSubject", d.weighting::float8 as "weighting", d.settings,
       d.sort_order as "sortOrder",
       COALESCE((SELECT json_agg(df.facility_id ORDER BY df.facility_id)
-                  FROM division_facilities df WHERE df.division_id = d.id), '[]'::json) as "facilityIds"`;
+                  FROM division_facilities df WHERE df.division_id = d.id), '[]'::json) as "facilityIds",
+      (SELECT s.id FROM division_stages s WHERE s.division_id = d.id
+        ORDER BY s.sequence, s.created_at LIMIT 1) as "firstStageId"`;
 
   private STAGE_COLUMNS = `
       s.id, s.division_id as "divisionId", s.name, s.format, s.sequence, s.status,
@@ -153,7 +165,9 @@ export class TournamentManager extends BaseManager {
       e.id, e.division_id as "divisionId", e.team_id as "teamId",
       e.org_profile_id as "orgProfileId", e.org_id as "orgId", e.label, e.seed, e.status,
       COALESCE(t.name, op.name, e.label) as "name", o.short_name as "orgShortName",
-      t.age_group_id as "teamAgeGroupId"`;
+      t.age_group_id as "teamAgeGroupId",
+      (SELECT count(DISTINCT g.id)::int FROM game_participants gp JOIN games g ON g.id = gp.game_id
+        WHERE gp.entrant_id = e.id AND ${PLAYED_GAME}) as "playedCount"`;
 
   private ENTRANT_JOINS = `
       FROM division_entrants e
@@ -534,8 +548,8 @@ export class TournamentManager extends BaseManager {
    * A roster arrives at once because that is how an organiser thinks about it, and because the
    * alternative — an add, an update and a remove per competitor — is where a half-applied roster
    * comes from. Entrants the caller sent with an `id` are **updated in place**, so an entrant
-   * keeps the fixtures already generated against it; entrants it omitted are removed, which
-   * cascades their `stage_entrants` and nulls their `game_participants.entrant_id`.
+   * keeps the fixtures already generated against it; entrants it omitted are retired — deleted if
+   * they have played nothing, kept as `withdrawn` if they have (see {@link retireEntrants}).
    *
    * `org_id` is denormalised from the team or the person at write time (data model §3.3) — the
    * organisation roll-up groups by it — so it is rewritten here whenever the identity changes,
@@ -582,7 +596,12 @@ export class TournamentManager extends BaseManager {
        * deliberately not a new refusal: the manual path has always allowed it, and a Move stricter
        * than the untick-then-tick it replaces would be a worse tool than the thing it is for.
        */
-      const incomingTeamIds = entrants.map(e => e.teamId).filter(Boolean) as string[];
+      // A withdrawn row comes back with every roster write, and its team may since have been
+      // entered somewhere else; it is history here, not an entry, so it clashes with nothing.
+      const incomingTeamIds = entrants
+        .filter(e => e.status !== 'withdrawn')
+        .map(e => e.teamId)
+        .filter(Boolean) as string[];
       const vacatedIds = new Set<string>();
 
       /*
@@ -596,12 +615,13 @@ export class TournamentManager extends BaseManager {
        * divisions or in neither.
        */
       for (const entrantId of options.removeEntrantIds || []) {
-        const removed = await tx(
-          `DELETE FROM division_entrants WHERE id = $1 AND division_id <> $2
-           RETURNING division_id as "divisionId"`,
+        const from = await tx(
+          `SELECT division_id as "divisionId" FROM division_entrants WHERE id = $1 AND division_id <> $2`,
           [entrantId, divisionId]
         );
-        if (removed.rows[0]?.divisionId) vacatedIds.add(removed.rows[0].divisionId);
+        if (!from.rows[0]) continue;
+        await this.retireEntrants(tx, [entrantId]);
+        vacatedIds.add(from.rows[0].divisionId);
       }
 
       if (incomingTeamIds.length) {
@@ -611,7 +631,10 @@ export class TournamentManager extends BaseManager {
              JOIN tournament_divisions d ON d.id = e.division_id
             WHERE d.event_id = (SELECT event_id FROM tournament_divisions WHERE id = $1)
               AND d.id <> $1
-              AND e.team_id = ANY($2::text[])`,
+              AND e.team_id = ANY($2::text[])
+              -- A team that withdrew from a division after playing has left it; the row is
+              -- only there to hold its results, and does not stop it being entered elsewhere.
+              AND e.status = 'active'`,
           [divisionId, incomingTeamIds]
         );
 
@@ -626,7 +649,7 @@ export class TournamentManager extends BaseManager {
         }
 
         for (const clash of clashes.rows) {
-          await tx(`DELETE FROM division_entrants WHERE id = $1`, [clash.id]);
+          await this.retireEntrants(tx, [clash.id]);
           vacatedIds.add(clash.divisionId);
         }
       }
@@ -660,7 +683,27 @@ export class TournamentManager extends BaseManager {
           (!teamId && !orgProfileId ? entrant.orgId || null : null);
 
         const previous = existingById.get(id);
-        if (previous && (previous.team_id !== teamId || previous.org_profile_id !== orgProfileId)) {
+        const identityChanged =
+          !!previous && (previous.team_id !== teamId || previous.org_profile_id !== orgProfileId);
+        if (identityChanged) {
+          /*
+           * `FIX-20`: never re-attribute a result through the roster. Changing who an entrant *is*
+           * rewrites every fixture it is in, and a played one would then credit a team that was not
+           * on the field. `REPLACE_ENTRANT` is the path for "somebody else from now on" — it keeps
+           * results with whoever earned them — and `CHANGE_FIXTURE_SIDE` for "somebody else played
+           * this one match".
+           */
+          const played = await tx(
+            `SELECT count(DISTINCT g.id)::int AS n FROM game_participants gp JOIN games g ON g.id = gp.game_id
+              WHERE gp.entrant_id = $1 AND ${PLAYED_GAME}`,
+            [id]
+          );
+          if (played.rows[0].n > 0) {
+            throw new Error(
+              'That entrant has results, so who it is cannot be changed here. Use Replace to hand ' +
+                'its place to another team from now on, or change who played on the fixture itself.'
+            );
+          }
           // D10: a substitution. Every fixture already pointing at this entrant now names somebody
           // else, so the tables that counted those fixtures have to be rebuilt.
           changedIdentityIds.push(id);
@@ -693,21 +736,28 @@ export class TournamentManager extends BaseManager {
         // A resolved entrant fills in every fixture already generated against it, which is the
         // point of the placeholder model (data model §2.0): the fixtures all point at this one
         // row, so confirming who it is updates all of them at once rather than one by one.
-        await tx(
-          `UPDATE game_participants SET team_id = $2, org_profile_id = $3 WHERE entrant_id = $1`,
-          [id, teamId, orgProfileId]
-        );
+        //
+        // Only when who it is actually changed. Every roster save sends every entrant back, and
+        // rewriting all of them each time would undo any one-match change of who played
+        // (`CHANGE_FIXTURE_SIDE`) the next time anybody ticked a team in.
+        if (identityChanged) {
+          await tx(
+            `UPDATE game_participants SET team_id = $2, org_profile_id = $3 WHERE entrant_id = $1`,
+            [id, teamId, orgProfileId]
+          );
+        }
       }
 
-      const removed = keptIds.length
-        ? await tx(
-            `DELETE FROM division_entrants WHERE division_id = $1 AND id <> ALL($2::text[]) RETURNING id`,
-            [divisionId, keptIds]
-          )
-        : await tx(`DELETE FROM division_entrants WHERE division_id = $1 RETURNING id`, [divisionId]);
+      const omitted = await tx(
+        keptIds.length
+          ? `SELECT id FROM division_entrants WHERE division_id = $1 AND id <> ALL($2::text[])`
+          : `SELECT id FROM division_entrants WHERE division_id = $1`,
+        keptIds.length ? [divisionId, keptIds] : [divisionId]
+      );
+      const retired = await this.retireEntrants(tx, omitted.rows.map((r: any) => r.id));
 
       return {
-        removedIds: removed.rows.map((r: any) => r.id),
+        removedIds: retired.deletedIds,
         changedIdentityIds,
         vacatedIds: [...vacatedIds],
       };
@@ -727,6 +777,249 @@ export class TournamentManager extends BaseManager {
     }
 
     return { entrants: await this.getEntrants(divisionId), ...rest, syncedStageIds, vacated };
+  }
+
+  /**
+   * Take entrants out of their division — by deleting them, or by withdrawing them if they played.
+   *
+   * **A result stays with the team that earned it** (2026-09-24, "Keep"). Deleting an entrant that
+   * has played used to null `entrant_id` on its fixtures, which took its row out of the table while
+   * its opponents kept the points they won against it — a table that no longer added up. An entrant
+   * with a result is therefore kept, marked `withdrawn`: it keeps its row (listed last, unranked,
+   * see `calculateStandings`) and its unplayed fixtures stay where they are until the organiser
+   * replaces it, redraws, or deletes them. One with nothing played is deleted as before, because
+   * there is nothing to keep.
+   */
+  private async retireEntrants(tx: Tx, entrantIds: string[]): Promise<{ deletedIds: string[]; withdrawnIds: string[] }> {
+    if (!entrantIds.length) return { deletedIds: [], withdrawnIds: [] };
+    const played = await tx(
+      `SELECT DISTINCT gp.entrant_id AS id
+         FROM game_participants gp JOIN games g ON g.id = gp.game_id
+        WHERE gp.entrant_id = ANY($1::text[]) AND ${PLAYED_GAME}`,
+      [entrantIds]
+    );
+    const withdrawnIds: string[] = played.rows.map((r: any) => r.id);
+    const deletedIds = entrantIds.filter(id => !withdrawnIds.includes(id));
+
+    if (withdrawnIds.length) {
+      await tx(
+        `UPDATE division_entrants SET status = 'withdrawn', updated_at = NOW() WHERE id = ANY($1::text[])`,
+        [withdrawnIds]
+      );
+    }
+    if (deletedIds.length) {
+      await tx(`DELETE FROM division_entrants WHERE id = ANY($1::text[])`, [deletedIds]);
+    }
+    return { deletedIds, withdrawnIds };
+  }
+
+  /**
+   * Put another competitor in an entrant's place, keeping the draw (2026-09-24).
+   *
+   * One operation for three situations an organiser meets: a placeholder is confirmed, a team pulls
+   * out and a replacement is found, and a late entry is swapped into a withdrawn team's remaining
+   * fixtures after the fact. Which of two things happens is decided by whether the entrant has
+   * played — see `ReplaceEntrantPayload`:
+   *
+   * - **Nothing played** — the replacement *becomes* this entrant. Seed, pool place and every
+   *   fixture follow, because they all point at the one row (data model §2.0). When the
+   *   replacement is an existing entrant, that entrant's row is the one kept, so it is deleted from
+   *   the old one instead.
+   * - **Something played** — this entrant is withdrawn and keeps those results. The replacement
+   *   gets its pool place and seed and the fixtures still to play, and nothing else: a result is
+   *   never re-attributed to a team that was not on the field.
+   *
+   * Refused when the replacement is already in the draw (it would end up playing itself), when a
+   * team is already entered in this tournament, or when there is nothing left to take over.
+   */
+  async replaceEntrant(payload: {
+    divisionId: string;
+    entrantId: string;
+    teamId?: string;
+    orgProfileId?: string;
+    label?: string;
+    replacementOrgId?: string;
+    replacementEntrantId?: string;
+  }): Promise<{ entrantId: string; inPlace: boolean; movedFixtures: number; keptResults: number; changedGameIds: string[] }> {
+    const { divisionId, entrantId } = payload;
+
+    const outcome = await this.transaction(async (tx) => {
+      const current = (
+        await tx(
+          `SELECT id, status, seed, team_id, org_profile_id FROM division_entrants
+            WHERE id = $1 AND division_id = $2`,
+          [entrantId, divisionId]
+        )
+      ).rows[0];
+      if (!current) throw new Error('That entrant is not in this division any more.');
+
+      const divisionGames = `g.stage_id IN (SELECT id FROM division_stages WHERE division_id = $1)`;
+      // A slot still filled by a rule — "Winner QF1" — was earned on the field, and a replacement
+      // did not earn it. Those stay where they are for the organiser to settle by hand (D29).
+      const unplayed = await tx(
+        `SELECT gp.id, gp.game_id AS "gameId" FROM game_participants gp JOIN games g ON g.id = gp.game_id
+          WHERE gp.entrant_id = $2 AND ${divisionGames} AND NOT ${PLAYED_GAME}
+            AND gp.source_rule IS NULL`,
+        [divisionId, entrantId]
+      );
+      const played = await tx(
+        `SELECT count(DISTINCT g.id)::int AS n FROM game_participants gp JOIN games g ON g.id = gp.game_id
+          WHERE gp.entrant_id = $1 AND ${PLAYED_GAME}`,
+        [entrantId]
+      );
+      const keptResults: number = played.rows[0].n;
+
+      // --- Who is coming in --------------------------------------------------------------------
+      let replacementId: string | null = null;
+      let teamId: string | null = null;
+      let orgProfileId: string | null = null;
+      let label: string | null = null;
+      let orgId: string | null = null;
+
+      if (payload.replacementEntrantId) {
+        const replacement = (
+          await tx(
+            `SELECT id, status, team_id, org_profile_id, label, org_id FROM division_entrants
+              WHERE id = $1 AND division_id = $2`,
+            [payload.replacementEntrantId, divisionId]
+          )
+        ).rows[0];
+        if (!replacement || replacement.id === entrantId) {
+          throw new Error('The replacement has to be another entrant in this division.');
+        }
+        if (replacement.status !== 'active') {
+          throw new Error('That entrant has withdrawn, so it cannot take over fixtures.');
+        }
+        const drawn = await tx(
+          `SELECT 1 FROM game_participants gp JOIN games g ON g.id = gp.game_id
+            WHERE gp.entrant_id = $2 AND ${divisionGames} LIMIT 1`,
+          [divisionId, replacement.id]
+        );
+        if (drawn.rows.length) {
+          throw new Error('That entrant already has fixtures in this division, so it cannot take over another team\'s.');
+        }
+        replacementId = replacement.id;
+        teamId = replacement.team_id;
+        orgProfileId = replacement.org_profile_id;
+        label = replacement.label;
+        orgId = replacement.org_id;
+      } else {
+        teamId = payload.teamId || null;
+        orgProfileId = payload.orgProfileId || null;
+        label = teamId || orgProfileId ? null : payload.label?.trim() || null;
+        if (!teamId && !orgProfileId && !label) {
+          throw new Error('Choose a team, a person or a placeholder name to put in this place.');
+        }
+        if (teamId && teamId === current.team_id) {
+          throw new Error('That team is already this entrant.');
+        }
+        if (teamId) {
+          // The one-division rule `setDivisionEntrants` enforces, applied to this division as well:
+          // replacing a team with one already entered here would enter it twice.
+          const clash = await tx(
+            `SELECT d.name FROM division_entrants e
+               JOIN tournament_divisions d ON d.id = e.division_id
+              WHERE d.event_id = (SELECT event_id FROM tournament_divisions WHERE id = $1)
+                AND e.team_id = $2 AND e.status = 'active' AND e.id <> $3`,
+            [divisionId, teamId, entrantId]
+          );
+          if (clash.rows.length) {
+            const name = await tx(`SELECT name FROM teams WHERE id = $1`, [teamId]);
+            throw new Error(
+              `${name.rows[0]?.name || 'That team'} is already entered in ${clash.rows[0].name}. ` +
+                `Take it out there first, or replace with a different team.`
+            );
+          }
+        }
+        orgId =
+          (await this.deriveEntrantOrgId(tx, teamId, orgProfileId)) ??
+          (!teamId && !orgProfileId ? payload.replacementOrgId || null : null);
+      }
+
+      // --- Nothing played: the replacement becomes this entrant --------------------------------
+      if (keptResults === 0) {
+        if (current.status !== 'active') {
+          // A withdrawn entrant with no results is not a state this code leaves behind, but one
+          // could exist from before; there is nothing of it worth keeping.
+          throw new Error('That entrant has already been withdrawn.');
+        }
+        if (replacementId) {
+          // Keep the replacement's own row — it may carry a label, adjustments or a person — and
+          // hand it this entrant's place.
+          await this.transferPlace(tx, entrantId, replacementId, teamId, orgProfileId, unplayed.rows.map((r: any) => r.id));
+          await tx(`UPDATE division_entrants SET seed = $2, updated_at = NOW() WHERE id = $1`, [replacementId, current.seed]);
+          await tx(`DELETE FROM division_entrants WHERE id = $1`, [entrantId]);
+          return { entrantId: replacementId, inPlace: false, movedFixtures: unplayed.rows.length, keptResults, games: unplayed.rows };
+        }
+        await tx(
+          `UPDATE division_entrants
+              SET team_id = $2, org_profile_id = $3, org_id = $4, label = $5, updated_at = NOW()
+            WHERE id = $1`,
+          [entrantId, teamId, orgProfileId, orgId, label]
+        );
+        const all = await tx(
+          `UPDATE game_participants SET team_id = $2, org_profile_id = $3 WHERE entrant_id = $1
+           RETURNING game_id AS "gameId"`,
+          [entrantId, teamId, orgProfileId]
+        );
+        return { entrantId, inPlace: true, movedFixtures: all.rows.length, keptResults, games: all.rows };
+      }
+
+      // --- Something played: withdraw this entrant, and hand on what is left ------------------
+      if (!unplayed.rows.length && current.status !== 'active') {
+        throw new Error('That entrant has no fixtures left to play, so there is nothing to hand over.');
+      }
+      if (!replacementId) {
+        replacementId = `ent-${uuidv4()}`;
+        await tx(
+          `INSERT INTO division_entrants (id, division_id, team_id, org_profile_id, org_id, label, seed, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')`,
+          [replacementId, divisionId, teamId, orgProfileId, orgId, label, current.seed]
+        );
+      } else {
+        await tx(`UPDATE division_entrants SET seed = $2, updated_at = NOW() WHERE id = $1`, [replacementId, current.seed]);
+      }
+      await tx(`UPDATE division_entrants SET status = 'withdrawn', updated_at = NOW() WHERE id = $1`, [entrantId]);
+      await this.transferPlace(tx, entrantId, replacementId, teamId, orgProfileId, unplayed.rows.map((r: any) => r.id));
+      return { entrantId: replacementId, inPlace: false, movedFixtures: unplayed.rows.length, keptResults, games: unplayed.rows };
+    });
+
+    await this.syncOpenStageEntrants(divisionId);
+    await this.recalculateDivision(divisionId);
+
+    const { games, ...rest } = outcome;
+    return { ...rest, changedGameIds: [...new Set<string>(games.map((g: any) => g.gameId))] };
+  }
+
+  /**
+   * Give `toId` the pool place `fromId` holds in every stage, and the named fixture sides.
+   *
+   * The stage rows are **copied**, not moved: a withdrawn entrant keeps its own, because that is what
+   * keeps its row in the pool's table. `ON CONFLICT` covers a replacement the roster mirror already
+   * put in the first stage with no pool — it takes the pool the team it replaces was drawn into.
+   */
+  private async transferPlace(
+    tx: Tx,
+    fromId: string,
+    toId: string,
+    teamId: string | null,
+    orgProfileId: string | null,
+    participantIds: string[]
+  ): Promise<void> {
+    await tx(
+      `INSERT INTO stage_entrants (stage_id, entrant_id, pool_key, seed, sort_order)
+       SELECT stage_id, $2, pool_key, seed, sort_order FROM stage_entrants WHERE entrant_id = $1
+       ON CONFLICT (stage_id, entrant_id) DO UPDATE
+         SET pool_key = EXCLUDED.pool_key, seed = EXCLUDED.seed, sort_order = EXCLUDED.sort_order`,
+      [fromId, toId]
+    );
+    if (participantIds.length) {
+      await tx(
+        `UPDATE game_participants SET entrant_id = $2, team_id = $3, org_profile_id = $4
+          WHERE id = ANY($1::text[])`,
+        [participantIds, toId, teamId, orgProfileId]
+      );
+    }
   }
 
   /**
@@ -764,11 +1057,19 @@ export class TournamentManager extends BaseManager {
       const present = await tx(`SELECT entrant_id, sort_order FROM stage_entrants WHERE stage_id = $1`, [first.id]);
       const presentIds = new Set<string>(present.rows.map((r: any) => r.entrant_id));
 
+      // A withdrawn entrant that played in this stage keeps its place in it: that row is what puts
+      // its results in the pool's table. Generation skips it (`planFixtures`), so it is never
+      // drawn again.
       const removed = await tx(
-        rosterIds.length
-          ? `DELETE FROM stage_entrants WHERE stage_id = $1 AND entrant_id <> ALL($2::text[]) RETURNING entrant_id`
-          : `DELETE FROM stage_entrants WHERE stage_id = $1 RETURNING entrant_id`,
-        rosterIds.length ? [first.id, rosterIds] : [first.id]
+        `DELETE FROM stage_entrants se
+          WHERE se.stage_id = $1
+            AND NOT (se.entrant_id = ANY($2::text[]))
+            AND NOT EXISTS (
+              SELECT 1 FROM game_participants gp JOIN games g ON g.id = gp.game_id
+               WHERE gp.entrant_id = se.entrant_id AND g.stage_id = $1 AND ${PLAYED_GAME}
+            )
+          RETURNING entrant_id`,
+        [first.id, rosterIds]
       );
 
       let nextOrder = present.rows.reduce((max: number, r: any) => Math.max(max, (r.sort_order ?? 0) + 1), 0);
@@ -825,13 +1126,16 @@ export class TournamentManager extends BaseManager {
   /** Stage entrants with the names and org ids the standings engine needs as subjects. */
   private async getStageSubjects(stageId: string): Promise<Array<StandingsSubject & { poolKey?: string }>> {
     const res = await this.query(
-      `SELECT se.entrant_id as "id", se.pool_key as "poolKey", e.org_id as "orgId",
+      `SELECT se.entrant_id as "id", se.pool_key as "poolKey", e.org_id as "orgId", e.status,
               COALESCE(t.name, op.name, e.label, 'TBC') as "name"
          FROM stage_entrants se
          JOIN division_entrants e ON e.id = se.entrant_id
          LEFT JOIN teams t ON t.id = e.team_id
          LEFT JOIN org_profiles op ON op.id = e.org_profile_id
-        WHERE se.stage_id = $1 AND e.status = 'active'
+        WHERE se.stage_id = $1
+          AND (e.status = 'active' OR EXISTS (
+                SELECT 1 FROM game_participants gp JOIN games g ON g.id = gp.game_id
+                 WHERE gp.entrant_id = e.id AND g.stage_id = $1 AND ${PLAYED_GAME}))
         ORDER BY se.sort_order, se.entrant_id`,
       [stageId]
     );
@@ -841,6 +1145,7 @@ export class TournamentManager extends BaseManager {
       entrantId: r.id,
       orgId: r.orgId || undefined,
       poolKey: r.poolKey || undefined,
+      withdrawn: r.status === 'withdrawn' || undefined,
     }));
   }
 
@@ -1154,6 +1459,71 @@ export class TournamentManager extends BaseManager {
   }
 
   /**
+   * Somebody else played this one match in an entrant's place (2026-09-24, `FIX-20`).
+   *
+   * The last-minute case: U14 B turned out instead of U14 A, and the score was recorded against
+   * the draw as it stood. The side's team changes, and **its entrant does not** — the fixture shows
+   * who was on the field, and the result still counts for the place in the draw, which is what a
+   * school's entry earned. Nothing else in the draw moves; that is `REPLACE_ENTRANT`'s job.
+   *
+   * `source_rule` is cleared, as for any hand edit (D29), so a later re-score of the fixture that
+   * fed this slot cannot put the original team back over the organiser's correction.
+   */
+  async changeFixtureSide(
+    gameParticipantId: string,
+    identity: { teamId?: string; orgProfileId?: string }
+  ): Promise<{ gameId: string; entrantName: string; fromName: string; toName: string }> {
+    const teamId = identity.teamId || null;
+    const orgProfileId = teamId ? null : identity.orgProfileId || null;
+    if (!teamId && !orgProfileId) throw new Error('Choose who played.');
+
+    const side = (
+      await this.query(
+        `SELECT gp.id, gp.game_id AS "gameId", gp.entrant_id AS "entrantId", gp.team_id AS "teamId",
+                gp.org_profile_id AS "orgProfileId",
+                COALESCE(t.name, op.name) AS "currentName",
+                COALESCE(et.name, eop.name, e.label, 'TBC') AS "entrantName"
+           FROM game_participants gp
+           LEFT JOIN teams t ON t.id = gp.team_id
+           LEFT JOIN org_profiles op ON op.id = gp.org_profile_id
+           LEFT JOIN division_entrants e ON e.id = gp.entrant_id
+           LEFT JOIN teams et ON et.id = e.team_id
+           LEFT JOIN org_profiles eop ON eop.id = e.org_profile_id
+          WHERE gp.id = $1`,
+        [gameParticipantId]
+      )
+    ).rows[0];
+    if (!side) throw new Error('That fixture side does not exist.');
+    if (!side.entrantId) {
+      throw new Error('This side is not a tournament entrant, so change the teams on the fixture itself.');
+    }
+    if ((teamId && side.teamId === teamId) || (orgProfileId && side.orgProfileId === orgProfileId)) {
+      throw new Error('That is who is already down as playing.');
+    }
+    const clash = await this.query(
+      `SELECT 1 FROM game_participants WHERE game_id = $1 AND id <> $2
+          AND ((team_id IS NOT NULL AND team_id = $3) OR (org_profile_id IS NOT NULL AND org_profile_id = $4))`,
+      [side.gameId, gameParticipantId, teamId, orgProfileId]
+    );
+    if (clash.rows.length) throw new Error('That team is the opposition in this match.');
+
+    await this.query(
+      `UPDATE game_participants SET team_id = $2, org_profile_id = $3, source_rule = NULL WHERE id = $1`,
+      [gameParticipantId, teamId, orgProfileId]
+    );
+    const toName = teamId
+      ? (await this.query(`SELECT name FROM teams WHERE id = $1`, [teamId])).rows[0]?.name
+      : (await this.query(`SELECT name FROM org_profiles WHERE id = $1`, [orgProfileId])).rows[0]?.name;
+
+    return {
+      gameId: side.gameId,
+      entrantName: side.entrantName,
+      fromName: side.currentName || side.entrantName,
+      toName: toName || 'Unknown',
+    };
+  }
+
+  /**
    * Rebuild every table under a division, and then the event roll-up.
    *
    * For the changes that are not about one fixture: a roster edit, a new adjustment, a weighting
@@ -1341,7 +1711,14 @@ export class TournamentManager extends BaseManager {
 
   /** Dispatch on format. Every branch returns fixtures that are ready to write. */
   private async planFixtures(stage: TournamentStage, division: TournamentDivision): Promise<PlannedGame[]> {
-    const stageEntrants = await this.getStageEntrants(stage.id);
+    // A withdrawn entrant keeps its stage row so its results stay in the table, and must not be
+    // drawn again because of it.
+    const active = await this.query(
+      `SELECT id FROM division_entrants WHERE division_id = $1 AND status = 'active'`,
+      [division.id]
+    );
+    const activeIds = new Set<string>(active.rows.map((r: any) => r.id));
+    const stageEntrants = (await this.getStageEntrants(stage.id)).filter(e => activeIds.has(e.entrantId));
 
     switch (stage.format) {
       // A festival generates the same round robin, offered as a starting point and then got out
@@ -1867,17 +2244,30 @@ export class TournamentManager extends BaseManager {
     return rollUp;
   }
 
-  /** Every active entrant of a division, as standings subjects. No pools: this is the whole division. */
+  /**
+   * Every entrant of a division that the roll-up counts, as standings subjects. No pools: this is
+   * the whole division. A withdrawn entrant is counted for what it played — its school earned
+   * those points, and the "Keep" rule is that they stand.
+   */
   private async getDivisionSubjects(divisionId: string): Promise<StandingsSubject[]> {
     const res = await this.query(
-      `SELECT e.id, e.org_id as "orgId", COALESCE(t.name, op.name, e.label, 'TBC') as "name"
+      `SELECT e.id, e.org_id as "orgId", e.status, COALESCE(t.name, op.name, e.label, 'TBC') as "name"
          FROM division_entrants e
          LEFT JOIN teams t ON t.id = e.team_id
          LEFT JOIN org_profiles op ON op.id = e.org_profile_id
-        WHERE e.division_id = $1 AND e.status = 'active'`,
+        WHERE e.division_id = $1
+          AND (e.status = 'active' OR EXISTS (
+                SELECT 1 FROM game_participants gp JOIN games g ON g.id = gp.game_id
+                 WHERE gp.entrant_id = e.id AND ${PLAYED_GAME}))`,
       [divisionId]
     );
-    return res.rows.map((r: any) => ({ id: r.id, name: r.name, entrantId: r.id, orgId: r.orgId || undefined }));
+    return res.rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      entrantId: r.id,
+      orgId: r.orgId || undefined,
+      withdrawn: r.status === 'withdrawn' || undefined,
+    }));
   }
 
   /**

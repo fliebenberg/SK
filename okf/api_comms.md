@@ -8,7 +8,7 @@ tags:
   - WebSockets
   - real-time
   - sport-registry
-timestamp: 2026-09-24T15:00:00Z
+timestamp: 2026-09-24T12:00:00Z
 ---
 
 # API & Real-time WebSockets
@@ -186,6 +186,19 @@ For the full detailed lists of routes and socket payloads, see [api_actions.md](
     summaries — because it has viewers of its own and is the side nobody is looking at while the
     change is made. Removing an entrant unresolves every fixture that named it, which is why the
     summaries go out too.
+*   **A result stays with the team that played it** (2026-09-24). Removing an entrant that has a
+    finished or live fixture **withdraws** it instead of deleting it (`retireEntrants`), so its
+    table row survives — listed last, unranked, never drawn again or promoted. `REPLACE_ENTRANT`
+    is the only path that hands an entrant's place to another team: in place when nothing was
+    played, otherwise a new entrant that takes the pool place and the **unplayed** fixtures only.
+    Decision record: [tournaments-ui.md](file:///c:/Fred/Coding/SK/docs/tournaments-ui.md) U54.
+*   **A roster write is authorised against every division it vacates** (2026-09-24). **Move here**
+    and `removeEntrantIds` take competitors out of other divisions, so `enforceTournamentAction`
+    re-runs the check for each of them — the target division alone let a convenor empty a division
+    they do not run.
+*   **Who an entrant is cannot change once it has results.** "Another team from now on" is
+    `REPLACE_ENTRANT`; "another team played this one match" is `CHANGE_FIXTURE_SIDE`, which keeps
+    the side's entrant so the result still counts for the place in the draw.
 *   **`removeEntrantIds`** (2026-09-21) is the same move for a competitor with no team to clash
     on. A placeholder or a person entrant is identified by its `division_entrants` row, which
     belongs to its division and carries the fixtures drawn against it — so moving one is a delete

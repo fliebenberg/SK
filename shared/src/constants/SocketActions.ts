@@ -475,6 +475,14 @@ export enum SocketAction {
      */
     SET_DIVISION_ENTRANTS = 'SET_DIVISION_ENTRANTS',
     /**
+     * Action to put another competitor in an entrant's place, keeping the draw.
+     * Expects payload: `ReplaceEntrantPayload`
+     *
+     * Fills a placeholder, replaces a team that pulled out, or moves a late entry into a withdrawn
+     * team's remaining fixtures. Results already played stay with whoever played them.
+     */
+    REPLACE_ENTRANT = 'REPLACE_ENTRANT',
+    /**
      * Action to replace which entrants take part in a stage, and where they sit in it.
      * Expects payload: `{ stageId, entrants: [...], idempotencyKey? }`
      *
@@ -517,6 +525,14 @@ export enum SocketAction {
      * one placeholder entity rather than two bought us.
      */
     RESOLVE_PARTICIPANT = 'RESOLVE_PARTICIPANT',
+    /**
+     * Action to record that somebody else played one match in an entrant's place.
+     * Expects payload: `ChangeFixtureSidePayload`
+     *
+     * The side's team changes and its entrant does not, so the result still counts for the place
+     * in the draw. Logged on the fixture.
+     */
+    CHANGE_FIXTURE_SIDE = 'CHANGE_FIXTURE_SIDE',
 
     /**
      * Action to record a manual points correction on a division's table (D29).

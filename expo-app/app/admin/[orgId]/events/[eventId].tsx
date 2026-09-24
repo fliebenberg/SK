@@ -25,6 +25,7 @@ import {
   participantLabel,
   hasLiveScore,
   isScoreNotProvided,
+  drawChanges,
 } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { Tabs } from '../../../../components/Tabs';
@@ -267,7 +268,7 @@ export default function EventDetails() {
    * Joined only for a viewer who may edit, because the roster is the organiser's tier — and only
    * a viewer who may edit sees the checklist at all, so there is nothing to load for anybody else.
    */
-  const { entrants } = useEventEntrants(eventId, canEdit);
+  const { entrants, byDivision: entrantsByDivision } = useEventEntrants(eventId, canEdit);
   const entrantCount = entrants.filter(entrant => entrant.status !== 'withdrawn').length;
 
   const roles = useMemo(
@@ -419,6 +420,19 @@ export default function EventDetails() {
    */
   const setupSteps: SetupStep[] = useMemo(() => {
     const fixtureCount = games.length;
+    const playingDivisions = orderedDivisions.filter(division => !!division.sportId);
+    const drawnDivisions = playingDivisions.filter(division =>
+      games.some(game => game.divisionId === division.id)
+    ).length;
+    // The same reading the Fixtures step's rows make (`UI-21`), so the two cannot disagree.
+    const divisionsWithChanges = playingDivisions.filter(
+      division =>
+        drawChanges(
+          division.firstStageId,
+          games.filter(game => game.divisionId === division.id),
+          entrantsByDivision.get(division.id) || []
+        ).count > 0
+    ).length;
     const scoring = event?.settings?.scoring;
     const scoringDetail =
       scoring?.mode === 'byResult'
@@ -495,9 +509,36 @@ export default function EventDetails() {
         detail: scoring ? scoringDetail : undefined,
         hint: 'Points default to 3 / 1 / 0 for a win, draw and loss. Open to confirm or change them.',
       },
+      /**
+       * Done when every division that plays something has fixtures (2026-09-24). "Any fixture at
+       * all" read as done for a sports day with one division drawn and five still waiting, which is
+       * the question this row exists to answer — the draw is per division, so the count is too.
+       */
       fixtures: {
-        status: fixtureCount > 0 ? 'done' : 'todo',
-        detail: fixtureCount > 0 ? `${fixtureCount} added` : undefined,
+        // A draw the roster has moved away from is not done: somebody is due to play and has no
+        // fixture, or a withdrawn team still holds fixtures nobody will turn up for.
+        status:
+          playingDivisions.length > 0
+            ? drawnDivisions === playingDivisions.length && divisionsWithChanges === 0 ? 'done' : 'todo'
+            : fixtureCount > 0 ? 'done' : 'todo',
+        detail:
+          fixtureCount > 0
+            ? [
+                playingDivisions.length > 1
+                  ? drawnDivisions === playingDivisions.length
+                    ? 'All divisions drawn'
+                    : `${drawnDivisions} of ${playingDivisions.length} divisions drawn`
+                  : undefined,
+                divisionsWithChanges > 0
+                  ? playingDivisions.length > 1
+                    ? `${divisionsWithChanges} with changes since the draw`
+                    : 'Changes since the draw'
+                  : undefined,
+                `${fixtureCount} fixture${fixtureCount === 1 ? '' : 's'}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : undefined,
         hint:
           fixtureCount > 0
             ? undefined
@@ -523,7 +564,8 @@ export default function EventDetails() {
     sites,
     organizers.length,
     savedFacilityIds.length,
-    games.length,
+    games,
+    entrantsByDivision,
     entrantCount,
     event?.siteId,
     event?.startDate,
@@ -956,7 +998,7 @@ export default function EventDetails() {
                     <TouchableOpacity
                       key={division.id}
                       onPress={() =>
-                        router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}`)
+                        router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}/schedule`)
                       }
                       activeOpacity={0.85}
                     >

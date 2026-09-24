@@ -329,8 +329,20 @@ async function main() {
     expect(await gateAllows(specialist.userId, type, payload), true, `a convenor may ${what}`);
   }
 
+  // A placeholder in B, for the move below — a placeholder blocks no sport change, so the checks
+  // later in this script that change B are unaffected.
+  const bPlaceholderId = (
+    await tournamentManager.setDivisionEntrants(divisionB.id, [{ label: 'P4 placeholder' }])
+  ).entrants[0].id;
+
   const convenorMayNot: [SocketAction, any, string][] = [
     [SocketAction.SET_DIVISION_ENTRANTS, { divisionId: divisionB.id, entrants: [] }, "set another division's entrants"],
+    // 2026-09-24: a roster write that moves a competitor is checked against the division it leaves.
+    [
+      SocketAction.SET_DIVISION_ENTRANTS,
+      { divisionId: divisionA.id, entrants: [{ label: 'P4 placeholder' }], removeEntrantIds: [bPlaceholderId] },
+      'move a competitor out of a division they do not run into their own',
+    ],
     [SocketAction.ADD_STAGE, { divisionId: divisionB.id, name: 'X', format: 'Festival' }, "add a stage to another division"],
     [SocketAction.GENERATE_STAGE_FIXTURES, { stageId: stageB.id, mode: 'create' }, "generate another division's fixtures"],
     [SocketAction.ADD_DIVISION, { eventId: event.id, name: 'Cricket' }, 'create a division'],

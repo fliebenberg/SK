@@ -28,9 +28,11 @@ import { nextStepAfter, stepByKey } from '../../../../../components/tournament/s
 import { AccessDenied } from '../../../../../components/AccessDenied';
 import { EntrantTable } from '../../../../../components/tournament/EntrantTable';
 import { AddEntrantModal } from '../../../../../components/tournament/AddEntrantModal';
+import { ReplaceEntrantModal } from '../../../../../components/tournament/ReplaceEntrantModal';
 import { RegisterOrgModal } from '../../../../../components/RegisterOrgModal';
 import { useLiveRoom } from '../../../../../hooks/useLiveRoom';
 import { useEventEntrants } from '../../../../../hooks/useEventEntrants';
+import { useDivisionEntrants } from '../../../../../hooks/useDivisionEntrants';
 import { candidateFromTeam } from '../../../../../components/tournament/candidateTeam';
 import { useEventCapabilities } from '../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
@@ -77,7 +79,12 @@ import { COLORS, getThemeColor } from '../../../../../constants/Colors';
 export default function EntrantsScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
-  const { orgId, eventId } = useLocalSearchParams<{ orgId: string; eventId: string }>();
+  const { orgId, eventId, divisionId: divisionParam } = useLocalSearchParams<{
+    orgId: string;
+    eventId: string;
+    /** Opened from a division's screen: start filtered to it. */
+    divisionId?: string;
+  }>();
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
   /** 768px, the same break `ResponsivePageLayout` and `ResponsiveHeader` use. */
@@ -93,7 +100,18 @@ export default function EntrantsScreen() {
   const isConnected = useWsStore((state: any) => state.isConnected);
 
   const { capabilities, isLoading: isLoadingCapabilities } = useEventCapabilities(eventId);
-  const canEdit = !!capabilities?.canEditEvent;
+  /**
+   * Who may enter teams here (2026-09-24, `UI-20`): the tournament's organisers for every
+   * division, and a convenor or a sport's organiser for the divisions they run. The server has
+   * always allowed the second — a convenor's grant covers their division's entrants — and the
+   * screen now does too, instead of sending them to a second copy of this editor on the division's
+   * own screen.
+   */
+  const canEditEvent = !!capabilities?.canEditEvent;
+  const isConvenor =
+    !canEditEvent &&
+    ((capabilities?.convenesDivisionIds.length || 0) > 0 || (capabilities?.convenesSportIds.length || 0) > 0);
+  const canEdit = canEditEvent || isConvenor;
 
   // ------------------------------------------------------------------------------------------
   // Data
@@ -127,7 +145,41 @@ export default function EntrantsScreen() {
     },
   });
 
-  const { entrants, byDivision, isLoading: isLoadingEntrants, accessDenied } = useEventEntrants(eventId);
+  /**
+   * The divisions this viewer enters teams into — every one for an organiser, their own for a
+   * convenor. Everything below reads this list, so a convenor never sees a division they cannot
+   * write to: not in the filter, not as a row's destination, not in the Add dialog.
+   */
+  const orderedDivisions = useMemo(
+    () =>
+      [...divisions]
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        .filter(
+          division =>
+            canEditEvent ||
+            !!capabilities?.convenesDivisionIds.includes(division.id) ||
+            (!!division.sportId && !!capabilities?.convenesSportIds.includes(division.sportId))
+        ),
+    [divisions, canEditEvent, capabilities]
+  );
+  const myDivisionIdsKey = orderedDivisions.map(division => division.id).join(',');
+
+  /* The whole tournament's roster lives in `event:{id}:entrants`, which a convenor cannot join —
+     it is every division's, and a room cannot be filtered per viewer. A convenor reads each of
+     their divisions' own rooms instead (see `ConvenorRosters` below), and the rest of the screen
+     sees one roster either way. */
+  const eventRoster = useEventEntrants(eventId, canEditEvent);
+  const [convenorRosters, setConvenorRosters] = useState<Record<string, TournamentEntrant[]>>({});
+  const entrants = useMemo(
+    () => (canEditEvent ? eventRoster.entrants : Object.values(convenorRosters).flat()),
+    [canEditEvent, eventRoster.entrants, convenorRosters]
+  );
+  const byDivision = useMemo(() => {
+    if (canEditEvent) return eventRoster.byDivision;
+    return new Map(Object.entries(convenorRosters));
+  }, [canEditEvent, eventRoster.byDivision, convenorRosters]);
+  const isLoadingEntrants = canEditEvent && eventRoster.isLoading;
+  const accessDenied = canEditEvent && eventRoster.accessDenied;
 
   /**
    * The teams that could be entered — a one-shot read, because no room owns "teams that could
@@ -147,27 +199,42 @@ export default function EntrantsScreen() {
   useEffect(() => {
     if (!isConnected || !eventId || !canEdit) return;
     let active = true;
-    wsService.emit('get_data', { type: 'event_candidate_teams', eventId }, (res: any) => {
-      if (!active || !res) return;
-      setCandidateTeams(res.teams || []);
-      setOrgs(res.orgs || []);
-    });
+    if (canEditEvent) {
+      wsService.emit('get_data', { type: 'event_candidate_teams', eventId }, (res: any) => {
+        if (!active || !res) return;
+        setCandidateTeams(res.teams || []);
+        setOrgs(res.orgs || []);
+      });
+    } else {
+      // A convenor is answered per division — the narrower check the read already supports — and
+      // the answers are merged, since two of their divisions share most of the same schools.
+      const seenTeams = new Map<string, CandidateTeam>();
+      const seenOrgs = new Map<string, OrgBadge>();
+      for (const division of myDivisionIdsKey ? myDivisionIdsKey.split(',') : []) {
+        wsService.emit('get_data', { type: 'event_candidate_teams', eventId, divisionId: division }, (res: any) => {
+          if (!active || !res) return;
+          (res.teams || []).forEach((team: CandidateTeam) => seenTeams.set(team.id, team));
+          (res.orgs || []).forEach((org: OrgBadge) => seenOrgs.set(org.id, org));
+          setCandidateTeams([...seenTeams.values()]);
+          setOrgs([...seenOrgs.values()].sort((a, b) => a.name.localeCompare(b.name)));
+        });
+      }
+    }
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
       if (active && Array.isArray(res)) setSports(res);
     });
     return () => {
       active = false;
     };
-  }, [isConnected, eventId, canEdit]);
+    // `myDivisionIdsKey` rather than the array, so a re-render with the same divisions does not
+    // read again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, eventId, canEdit, canEditEvent, myDivisionIdsKey]);
 
   // ------------------------------------------------------------------------------------------
   // Derived
   // ------------------------------------------------------------------------------------------
 
-  const orderedDivisions = useMemo(
-    () => [...divisions].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
-    [divisions]
-  );
 
   /* The org list used to be assembled here, by deduplicating the candidate teams and patching in
      `participatingOrgs` for the ones with none. It produced no logo, and it had a hole the patch
@@ -240,7 +307,13 @@ export default function EntrantsScreen() {
 
   /** Back is the checklist, never the previous step (U48). */
   const goBackToChecklist = () =>
-    safeBack(`/admin/${orgId}/events/${eventId}?tab=setup`);
+    safeBack(
+      canEditEvent
+        ? `/admin/${orgId}/events/${eventId}?tab=setup`
+        : divisionParam
+          ? `/admin/${orgId}/events/${eventId}/divisions/${divisionParam}/schedule`
+          : `/admin/${orgId}/events/${eventId}`
+    );
 
 
   const divisionLabel = (division: TournamentDivision) =>
@@ -250,13 +323,18 @@ export default function EntrantsScreen() {
   // Filters — the two axes, demoted from modes to a narrowing of one list
   // ------------------------------------------------------------------------------------------
 
-  const [filterDivisionId, setFilterDivisionId] = useState('');
+  const [filterDivisionId, setFilterDivisionId] = useState(divisionParam || '');
   const [filterOrgId, setFilterOrgId] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   /** Keyed by row, so two rows can never share a spinner. */
   const [busyKeys, setBusyKeys] = useState<Record<string, boolean>>({});
 
   const rosterOf = (divisionId: string) => byDivision.get(divisionId) || [];
+
+  /** The entrant the Replace dialog is open for. */
+  const [replacing, setReplacing] = useState<TournamentEntrant | null>(null);
+  /** A playing row being taken out that has results — confirmed first, because it will be withdrawn. */
+  const [confirmingRemoval, setConfirmingRemoval] = useState<EntrantRow | null>(null);
 
   /** The tournament's own sports, which bound what the Add dialog may create. */
   const tournamentSports = sports.filter(sport => (event?.sportIds || []).includes(sport.id));
@@ -276,13 +354,23 @@ export default function EntrantsScreen() {
     () =>
       rows.filter(row => {
         if (filterOrgId && row.orgId !== filterOrgId) return false;
+        // A convenor's list is what their divisions hold or could hold. Every other team of every
+        // participating school would be a row they can do nothing with.
+        if (
+          !canEditEvent &&
+          !row.entrant &&
+          !row.withdrawn &&
+          divisionsForTeam(row.team, orderedDivisions).qualifying.length === 0
+        ) {
+          return false;
+        }
         if (!filterDivision) return true;
         // Filtering by division shows what *could* be in it as well as what is, because this is
         // where entering happens — a list of only what is already in would have nothing to tick.
         if (row.entrant?.divisionId === filterDivision.id) return true;
         return divisionsForTeam(row.team, [filterDivision]).qualifying.length > 0;
       }),
-    [rows, filterOrgId, filterDivision]
+    [rows, filterOrgId, filterDivision, canEditEvent, orderedDivisions]
   );
 
   const enteredCount = rows.filter(row => !!row.entrant).length;
@@ -338,6 +426,12 @@ export default function EntrantsScreen() {
 
     if (!divisionId) {
       if (!from || !row.entrant) return;
+      // Taking out a team that has played withdraws it rather than deleting it (the server's
+      // "Keep" rule), which is not what a tap on a row suggests — so it is said first.
+      if ((row.entrant.playedCount || 0) > 0 && confirmingRemoval?.key !== row.key) {
+        setConfirmingRemoval(row);
+        return;
+      }
       const entrantId = row.entrant.id;
       writeRoster(from, rosterOf(from).filter(e => e.id !== entrantId), { busyKey: row.key });
       return;
@@ -355,7 +449,10 @@ export default function EntrantsScreen() {
 
     writeRoster(divisionId, [...rosterOf(divisionId), asEntrant], {
       busyKey: row.key,
-      takeFromOtherDivisions: true,
+      // A convenor may move a team only between divisions they run — the ones whose entrants they
+      // can see. A team in somebody else's division gets the server's "already entered in …"
+      // refusal, which names where it is, rather than an authorisation error.
+      takeFromOtherDivisions: canEditEvent || !!from,
       removeEntrantIds: !row.team && row.entrant ? [row.entrant.id] : undefined,
     });
   };
@@ -394,7 +491,7 @@ export default function EntrantsScreen() {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
         <AccessDenied
-          message="Entering teams is the tournament organiser's job. If you convene a division, its own screen has its entrants."
+          message="Entering teams is for the tournament's organisers, and for whoever runs a division — in their own divisions."
           actionLabel="Back to the event"
           onAction={() => safeBack(`/admin/${orgId}/events/${eventId}`)}
         />
@@ -418,6 +515,19 @@ export default function EntrantsScreen() {
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
       <ScreenHeader context={event?.name} title={step.label} onBack={goBackToChecklist} />
 
+      {/* A convenor's roster, one room per division they run — rendered, not looped in a hook,
+          because the number of rooms is data. */}
+      {!canEditEvent &&
+        orderedDivisions.map(division => (
+          <DivisionRosterFeed
+            key={division.id}
+            divisionId={division.id}
+            onRoster={(divisionId, roster) =>
+              setConvenorRosters(prev => (prev[divisionId] === roster ? prev : { ...prev, [divisionId]: roster }))
+            }
+          />
+        ))}
+
       {isLoadingEntrants ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={COLORS.brand.orange} />
@@ -427,7 +537,7 @@ export default function EntrantsScreen() {
           <View className="space-y-5">
             {/* Who is taking part, before which of their teams are in. Writes on press — see the
                 note at the top of this file for why this one list has no save bar. */}
-            {canEdit && (
+            {canEditEvent && (
               <GlassCard className={`border border-slate-200 dark:border-white/5 ${cardClass} space-y-1.5`} style={cardStyle}>
                 <View className="flex-row items-center justify-between gap-3">
                   {/*
@@ -601,6 +711,7 @@ export default function EntrantsScreen() {
                 sportName={sportName}
                 isBusy={row => !!busyKeys[row.key]}
                 onSetDivision={setRowDivision}
+                onReplace={row => row.entrant && setReplacing(row.entrant)}
                 canEdit={canEdit}
                 emptyText={
                   rows.length
@@ -613,14 +724,15 @@ export default function EntrantsScreen() {
             </GlassCard>
 
             <View className={isLargeScreen ? '' : 'px-4'}>
-              <SetupStepFooter
+              {/* The checklist is the organisers'; a convenor came from their division and goes back there. */}
+              {canEditEvent && <SetupStepFooter
                 label={step.label}
                 nextStep={nextStep}
                 onNext={() =>
                   nextStep ? router.replace(nextStep.href(orgId, eventId) as any) : goBackToChecklist()
                 }
                 onBackToChecklist={goBackToChecklist}
-              />
+              />}
             </View>
           </View>
         </ScrollView>
@@ -665,6 +777,61 @@ export default function EntrantsScreen() {
         onTeamCreated={handleTeamCreated}
         onEntrantCreated={handleEntrantCreated}
       />
+
+      {!!replacing && orderedDivisions.some(d => d.id === replacing.divisionId) && (
+        <ReplaceEntrantModal
+          isOpen
+          onClose={() => setReplacing(null)}
+          orgId={orgId}
+          division={orderedDivisions.find(d => d.id === replacing.divisionId)!}
+          entrant={replacing}
+          candidateTeams={candidateTeams}
+          tournamentEntrants={entrants}
+        />
+      )}
+
+      <ConfirmationModal
+        isOpen={!!confirmingRemoval}
+        title="Withdraw this team?"
+        description={(() => {
+          const played = confirmingRemoval?.entrant?.playedCount || 0;
+          const name = confirmingRemoval?.name || 'This team';
+          return `${name} has played ${played === 1 ? 'a fixture' : `${played} fixtures`}. ${
+            played === 1 ? 'Its result stays' : 'Its results stay'
+          } in the table and it is marked withdrawn. Its remaining fixtures stay in the draw until you replace it or redraw — use Replace instead if another team is taking its place.`;
+        })()}
+        confirmText="Withdraw"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          const row = confirmingRemoval;
+          if (row) setRowDivision(row, null);
+          setConfirmingRemoval(null);
+        }}
+        onClose={() => setConfirmingRemoval(null)}
+      />
     </SafeAreaView>
   );
+}
+
+/**
+ * Subscribes to one division's roster and hands it up. Renders nothing.
+ *
+ * A convenor's Entrants step needs a room per division they run, and hooks cannot be called in a
+ * loop — so each room is a component, and the screen collects what they report.
+ */
+function DivisionRosterFeed({
+  divisionId,
+  onRoster,
+}: {
+  divisionId: string;
+  onRoster: (divisionId: string, roster: TournamentEntrant[]) => void;
+}) {
+  const { entrants } = useDivisionEntrants(divisionId);
+  useEffect(() => {
+    onRoster(divisionId, entrants);
+    // `onRoster` is a fresh closure per render of the parent; the roster is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [divisionId, entrants]);
+  return null;
 }
