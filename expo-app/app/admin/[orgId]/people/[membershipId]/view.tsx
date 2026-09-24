@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
@@ -10,6 +10,7 @@ import { useAuthStore } from '../../../../../store/authStore';
 import { OrgMember, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { getAvatarUrl } from '../../../../../services/assets';
+import { InviteModal, InviteStatusCard, useInviteCooldownHours } from '../../../../../components/InviteToScoreKeeper';
 
 const parseImageConfig = (config: any) => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -37,7 +38,10 @@ export default function PersonViewScreen() {
   const user = useAuthStore(state => state.user);
   const orgMemberships = useAuthStore(state => state.orgMemberships || []);
   const { data: org } = useSocketQuery<Organization>('organization', { orgId });
-  const { data: membersData, isLoading: isMembersLoading } = useSocketQuery<OrgMember[]>('org_members', { orgId });
+  const { data: membersData, isLoading: isMembersLoading, setData: setMembersData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
+
+  const inviteCooldownHours = useInviteCooldownHours();
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
 
   const member = useMemo(() => {
     return (membersData || []).find(m => m.membershipId === membershipId) || null;
@@ -186,7 +190,26 @@ export default function PersonViewScreen() {
             </View>
           ) : null}
         </GlassCard>
+
+        {/* SCOREKEEPER ACCOUNT CARD */}
+        <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mt-6">
+          <InviteStatusCard
+            person={member}
+            cooldownHours={inviteCooldownHours}
+            canInvite={canEdit}
+            onInvite={() => setIsInviteOpen(true)}
+          />
+        </GlassCard>
       </ScrollView>
+
+      <InviteModal
+        person={isInviteOpen ? member : null}
+        cooldownHours={inviteCooldownHours}
+        allowResend
+        onClose={() => setIsInviteOpen(false)}
+        // This screen does not subscribe to member updates, so it takes the result directly.
+        onSent={updated => setMembersData(prev => prev ? prev.map(m => m.id === updated.id ? { ...m, ...updated } : m) : prev)}
+      />
     </SafeAreaView>
   );
 }

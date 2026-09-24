@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '../../../../components/GlassCard';
+import { InviteModal, InviteStatusCard, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
 import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
@@ -67,6 +68,8 @@ export default function EditMember() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [imageEditorVisible, setImageEditorVisible] = useState(false);
+  const inviteCooldownHours = useInviteCooldownHours();
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
 
   useEffect(() => {
     if (member && !form) {
@@ -399,6 +402,21 @@ export default function EditMember() {
             </View>
           </View>
 
+          {/* ScoreKeeper Account */}
+          {member ? (
+            <View className="border-t border-slate-200 dark:border-white/5 pt-6">
+              <InviteStatusCard
+                person={member}
+                cooldownHours={inviteCooldownHours}
+                canInvite
+                // The invite may save a new email to the profile; an unsaved edit to the same
+                // field would then be silently overwritten by one or the other.
+                blockedReason={hasChanges ? 'Save or discard your changes before sending an invite.' : undefined}
+                onInvite={() => setIsInviteOpen(true)}
+              />
+            </View>
+          ) : null}
+
           {/* Danger Zone */}
           <View className="border-t border-red-500/20 pt-6 mt-6">
             <Text className="font-orbitron-bold text-[9px] text-red-500/80 uppercase tracking-widest mb-3">
@@ -460,6 +478,21 @@ export default function EditMember() {
           </View>
         </View>
       )}
+
+      <InviteModal
+        person={isInviteOpen && member ? member : null}
+        cooldownHours={inviteCooldownHours}
+        allowResend
+        onClose={() => setIsInviteOpen(false)}
+        onSent={updated => {
+          // The form was seeded once, so take in an email the invite saved — or the next Save
+          // would write the old one back.
+          if (!form) return;
+          const next = { ...form, email: updated.email || '' };
+          setForm(next);
+          setOriginalData(JSON.stringify(next));
+        }}
+      />
 
       {/* DELETE CONFIRMATION MODAL */}
       <ConfirmationModal

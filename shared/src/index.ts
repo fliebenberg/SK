@@ -52,4 +52,5 @@ export * from './utils/organizerScope';
 export * from './utils/orgShortCode';
 export * from './utils/liveForm';
 export * from './utils/entrantRows';
+export * from './utils/memberInvite';
 export * from './constants/TestConstants';

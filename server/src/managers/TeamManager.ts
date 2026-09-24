@@ -140,7 +140,12 @@ export class TeamManager extends BaseManager {
             p.id, p.name, p.email, p.cellphone, p.birthdate, p.national_id as "nationalId",
             p.identifier as "personOrgId",
             p.org_id as "orgId", p.user_id as "userId", p.image, p.primary_role_id as "primaryRoleId",
-            p.last_invite_sent_at as "lastInviteSentAt", p.image_config as "imageConfig",
+            p.last_invite_sent_at as "lastInviteSentAt", p.last_invite_email as "lastInviteEmail", p.image_config as "imageConfig",
+            (
+              p.user_id IS NOT NULL
+              OR EXISTS (SELECT 1 FROM users u WHERE u.email = p.email)
+              OR EXISTS (SELECT 1 FROM user_emails ue WHERE ue.email = p.email AND ue.verified_at IS NOT NULL)
+            ) as "hasAccount",
             tm.team_id as "teamId"
         FROM team_memberships tm
         JOIN org_profiles p ON tm.org_profile_id = p.id

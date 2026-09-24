@@ -8,7 +8,7 @@ export class UserManager extends BaseManager {
   // --- Account Management (Users Table) ---
   private USER_COLUMNS = 'id, name, email, email_verified as "emailVerified", image, password_hash as "passwordHash", global_role as "globalRole", created_at as "createdAt", updated_at as "updatedAt", preferences, force_password_reset as "forcePasswordReset"';
   private USER_EMAIL_COLUMNS = 'id, user_id as "userId", email, is_primary as "isPrimary", verified_at as "verifiedAt", created_at as "createdAt"';
-  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"';
+  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig"';
   private ORG_MEMBERSHIP_COLUMNS = 'id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"';
 
   async getUser(id: string): Promise<User | undefined> {
@@ -206,7 +206,7 @@ export class UserManager extends BaseManager {
   // --- Org Profiles (Replacement for Persons) ---
   
   async getOrgProfile(id: string): Promise<OrgProfile | undefined> {
-    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig" FROM org_profiles WHERE id = $1', [id]);
+    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig" FROM org_profiles WHERE id = $1', [id]);
     return res.rows[0];
   }
 
@@ -235,7 +235,7 @@ export class UserManager extends BaseManager {
            image = COALESCE(EXCLUDED.image, org_profiles.image),
            primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id),
            image_config = COALESCE(EXCLUDED.image_config, org_profiles.image_config)
-         RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`,
+         RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig"`,
         [
           id,
           profile.orgId,
@@ -274,6 +274,7 @@ export class UserManager extends BaseManager {
       image: 'image',
       primaryRoleId: 'primary_role_id',
       lastInviteSentAt: 'last_invite_sent_at',
+      lastInviteEmail: 'last_invite_email',
       imageConfig: 'image_config'
     };
 
@@ -306,7 +307,7 @@ export class UserManager extends BaseManager {
     let res;
     try {
       res = await this.query(
-        `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`,
+        `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig"`,
         values
       );
     } catch (error) {
@@ -324,7 +325,12 @@ export class UserManager extends BaseManager {
             op.id, op.name, op.email, op.cellphone, op.birthdate, op.national_id as "nationalId",
             op.identifier as "personOrgId",
             op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId",
-            op.last_invite_sent_at as "lastInviteSentAt", op.image_config as "imageConfig"
+            op.last_invite_sent_at as "lastInviteSentAt", op.last_invite_email as "lastInviteEmail", op.image_config as "imageConfig",
+            (
+              op.user_id IS NOT NULL
+              OR EXISTS (SELECT 1 FROM users u WHERE u.email = op.email)
+              OR EXISTS (SELECT 1 FROM user_emails ue WHERE ue.email = op.email AND ue.verified_at IS NOT NULL)
+            ) as "hasAccount"
         FROM org_memberships om
         JOIN org_profiles op ON om.org_profile_id = op.id
         WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())

@@ -220,6 +220,7 @@ const createTables = async () => {
                 image TEXT,
                 primary_role_id TEXT,
                 last_invite_sent_at TIMESTAMPTZ,
+                last_invite_email TEXT,
                 image_config JSONB DEFAULT NULL,
                 UNIQUE(org_id, identifier)
             );
@@ -676,7 +677,7 @@ const createTables = async () => {
         `);
 
         // When the invitation email last went out. Re-nominating the same address resends only
-        // once `org_admin_invite_cooldown_hours` has passed since this, so the original
+        // once `invite_cooldown_hours` has passed since this, so the original
         // `created_at` is never rewritten. NULL on rows from before the column existed reads as
         // `created_at`.
         await client.query(`

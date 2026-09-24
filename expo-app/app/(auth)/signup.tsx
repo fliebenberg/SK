@@ -1,5 +1,5 @@
 import { View, Text, TextInput, ActivityIndicator, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '../../components/Button';
 import { GlassCard } from '../../components/GlassCard';
 import { PasswordInput } from '../../components/PasswordInput';
@@ -11,12 +11,15 @@ import * as SecureStore from 'expo-secure-store';
 
 export default function SignupScreen() {
   const router = useRouter();
+  // An invite from an organisation links here with the invited address: signing up with it is
+  // what links the new account to the person's profile there.
+  const { email: invitedEmail } = useLocalSearchParams<{ email?: string }>();
   const login = useAuthStore(state => state.login);
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const placeholderColor = isDark ? '#94A3B8' : '#64748B';
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(typeof invitedEmail === 'string' ? invitedEmail : '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');

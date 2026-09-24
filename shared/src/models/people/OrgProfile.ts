@@ -11,5 +11,7 @@ export interface OrgProfile {
   image?: string;
   primaryRoleId?: string;
   lastInviteSentAt?: string;
+  /** The address `lastInviteSentAt`'s invite went to — what the resend cooldown is keyed on. */
+  lastInviteEmail?: string;
   imageConfig?: { scale: number; x: number; y: number };
 }

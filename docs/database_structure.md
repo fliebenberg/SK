@@ -195,6 +195,9 @@ Core records for individuals in an organization (players, coaches, staff).
 - `last_invite_sent_at` (TIMESTAMPTZ): When this person was last invited to claim an account. A
   profile with a null `user_id` is a first-class citizen — someone the organisation knows about who
   has not signed up — which is what makes it possible to appoint an organiser who has no account yet.
+- `last_invite_email` (TEXT): The address that invite went to, normalised. The resend cooldown is
+  per address and keyed on this, not on `email` — see `SEND_MEMBER_INVITE` in
+  [api_actions.md](file:///c:/Fred/Coding/SK/docs/api_actions.md).
 - `image_config` (JSONB): crop and focal point for `image`.
 - *Constraint*: UNIQUE(`org_id`, `identifier`).
 
@@ -530,7 +533,7 @@ Invites sent to organizations to claim their profile.
 - `claimed_at` (TIMESTAMPTZ)
 - `notified_referrer_at` (TIMESTAMPTZ)
 - `last_sent_at` (TIMESTAMPTZ): when the invitation email last went out. Re-nominating the same
-  address resends only once `org_admin_invite_cooldown_hours` has passed since this; `created_at`
+  address resends only once `invite_cooldown_hours` has passed since this; `created_at`
   is never rewritten. NULL on older rows reads as `created_at`.
 
 ### 19a. `org_claim_referral_nominators`

@@ -8,6 +8,7 @@ import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
+import { InviteButton, InviteModal, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
 import { wsService } from '../../../../services/websocket';
 import { requestKeyFor, sendAction } from '../../../../services/actions';
 import { useRequestScope } from '../../../../hooks/useRequestScope';
@@ -136,7 +137,8 @@ export default function TeamDetailsScreen() {
   const [memberOrgId, setMemberOrgId] = useState('');
   const [memberImage, setMemberImage] = useState('');
   const [memberImageConfig, setMemberImageConfig] = useState<ImageConfig>({ scale: 1, x: 0, y: 0 });
-  const [cooldownHours, setCooldownHours] = useState(168);
+  const inviteCooldownHours = useInviteCooldownHours();
+  const [inviteTarget, setInviteTarget] = useState<TeamMember | null>(null);
   const [imageEditorTarget, setImageEditorTarget] = useState<'player' | 'staff' | null>(null);
 
   // One scope per roster addition, kept across retries (SYNC-3) — see handleAddRosterMember.
@@ -166,14 +168,6 @@ export default function TeamDetailsScreen() {
       wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
         if (!active) return;
         if (res) setOrg(res);
-      });
-
-      // Get system settings for invite cooldown
-      wsService.emit('get_data', { type: 'system_settings' }, (res: any) => {
-        if (!active) return;
-        if (res && res.org_admin_invite_cooldown_hours) {
-          setCooldownHours(parseInt(res.org_admin_invite_cooldown_hours));
-        }
       });
 
       // Get sports
@@ -447,39 +441,11 @@ export default function TeamDetailsScreen() {
   };
 
   // ---------------- ROSTER / ROLES FLOW HELPERS ----------------
-  const handleSendInvite = (member: any) => {
-    if (!member.email) return;
-
-    sendAction(SocketAction.SEND_MEMBER_INVITE, { memberId: member.id }).then(result => {
-      if (!result.ok) {
-        Alert.alert('Invite Error', result.message);
-      } else {
-        Alert.alert('Success', `Invitation sent to ${member.name}`);
-        wsService.emit('get_data', { type: 'team_members', teamId }, (resData: any) => {
-          if (Array.isArray(resData)) setRoster(resData);
-        });
-      }
+  // After an invite, the roster reloads to show when it went.
+  const reloadRoster = () => {
+    wsService.emit('get_data', { type: 'team_members', teamId }, (resData: any) => {
+      if (Array.isArray(resData)) setRoster(resData);
     });
-  };
-
-  const getInviteButtonStatus = (member: any) => {
-    if (member.userId) return null; // already linked
-    if (!member.email) return null;
-
-    if (member.lastInviteSentAt) {
-      const lastSent = new Date(member.lastInviteSentAt);
-      const diffMs = Date.now() - lastSent.getTime();
-      const diffHours = diffMs / (1000 * 60 * 60);
-
-      if (diffHours < cooldownHours) {
-        const remainingHours = Math.ceil(cooldownHours - diffHours);
-        const remainingDays = Math.ceil(remainingHours / 24);
-        const text = remainingDays > 1 ? `Invited (${remainingDays}d)` : `Invited (${remainingHours}h)`;
-        return { disabled: true, text };
-      }
-    }
-
-    return { disabled: false, text: 'Invite' };
   };
 
   const handleAddRosterMember = async (name: string, roleId: string, searchPerson: any, closeFn: () => void) => {
@@ -838,7 +804,6 @@ export default function TeamDetailsScreen() {
                 </View>
               }
               renderItem={(item) => {
-                const inviteStatus = getInviteButtonStatus(item);
                 const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
                 const logoConf = parseImageConfig(item.imageConfig);
                 const contactInfo = [item.email, item.cellphone].filter(Boolean).join('  |  ');
@@ -892,23 +857,7 @@ export default function TeamDetailsScreen() {
                     </View>
 
                     <View className="flex-row items-center gap-1.5 flex-shrink-0">
-                      {inviteStatus && (
-                        <TouchableOpacity
-                          disabled={inviteStatus.disabled}
-                          onPress={() => handleSendInvite(item)}
-                          className={`px-2 py-1 rounded-lg active:scale-95 ${
-                            inviteStatus.disabled
-                              ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
-                              : 'bg-brand-orange'
-                          }`}
-                        >
-                          <Text className={`font-orbitron-bold text-[7px] uppercase tracking-widest ${
-                            inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
-                          }`}>
-                            {inviteStatus.text}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
+                      <InviteButton person={item} cooldownHours={inviteCooldownHours} onPress={() => setInviteTarget(item)} />
                       <TouchableOpacity
                         onPress={() => {
                           setEditingPlayer({ id: item.id, name: item.name });
@@ -970,7 +919,6 @@ export default function TeamDetailsScreen() {
                 </View>
               }
               renderItem={(item) => {
-                const inviteStatus = getInviteButtonStatus(item);
                 const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
                 const logoConf = parseImageConfig(item.imageConfig);
                 const roleName = availableRoles.find(r => r.id === item.roleId)?.name || 'Staff';
@@ -1025,23 +973,7 @@ export default function TeamDetailsScreen() {
                     </View>
 
                     <View className="flex-row items-center gap-1.5 flex-shrink-0">
-                      {inviteStatus && (
-                        <TouchableOpacity
-                          disabled={inviteStatus.disabled}
-                          onPress={() => handleSendInvite(item)}
-                          className={`px-2 py-1 rounded-lg active:scale-95 ${
-                            inviteStatus.disabled
-                              ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
-                              : 'bg-brand-orange'
-                          }`}
-                        >
-                          <Text className={`font-orbitron-bold text-[7px] uppercase tracking-widest ${
-                            inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
-                          }`}>
-                            {inviteStatus.text}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
+                      <InviteButton person={item} cooldownHours={inviteCooldownHours} onPress={() => setInviteTarget(item)} />
                       <TouchableOpacity
                         onPress={() => {
                           setEditingStaff({ membershipId: item.membershipId, id: item.id, name: item.name, roleId: item.roleId });
@@ -1618,6 +1550,13 @@ export default function TeamDetailsScreen() {
       </Modal>
 
       {/* DELETE CONFIRMATION MODAL */}
+      <InviteModal
+        person={inviteTarget}
+        cooldownHours={inviteCooldownHours}
+        onClose={() => setInviteTarget(null)}
+        onSent={reloadRoster}
+      />
+
       <ConfirmationModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}

@@ -392,8 +392,18 @@ export interface UndoGameEventPayload {
 }
 
 export interface SendMemberInvitePayload {
-    /** The org profile to invite — it must have an email. */
+    /** The org profile to invite. Its person must not be on ScoreKeeper yet. */
     memberId: string;
+    /**
+     * Where to send it. Absent means the profile's own email. A different address is saved to the
+     * profile first — the invite is only useful if signing up with it links the account.
+     */
+    email?: string;
+    /**
+     * Send again to an address still inside the resend cooldown. For when the invitee reports the
+     * first one lost; the person's profile offers it, the list's Invite button does not.
+     */
+    resend?: boolean;
 }
 
 export interface RemoveSinBinPayload {
@@ -788,7 +798,7 @@ export interface ProtocolMap {
     [SocketAction.UPDATE_LEAGUE]: { payload: UpdateLeaguePayload; response: League };
     [SocketAction.DELETE_LEAGUE]: { payload: DeleteLeaguePayload; response: void };
     [SocketAction.ADD_AGE_GROUP]: { payload: AddAgeGroupPayload; response: AgeGroup };
-    [SocketAction.SEND_MEMBER_INVITE]: { payload: SendMemberInvitePayload; response: unknown };
+    [SocketAction.SEND_MEMBER_INVITE]: { payload: SendMemberInvitePayload; response: OrgProfile };
     [SocketAction.REMOVE_SIN_BIN]: { payload: RemoveSinBinPayload; response: unknown };
     [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };
     [SocketAction.UPDATE_SEASON]: { payload: UpdateSeasonPayload; response: Season };

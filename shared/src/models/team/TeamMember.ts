@@ -12,5 +12,10 @@ export interface TeamMember {
   cellphone?: string;
   image?: string;
   imageConfig?: any;
+  birthdate?: string;
   lastInviteSentAt?: string;
+  /** See `OrgProfile.lastInviteEmail`. */
+  lastInviteEmail?: string;
+  /** See `OrgMember.hasAccount`. */
+  hasAccount?: boolean;
 }

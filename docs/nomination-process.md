@@ -93,7 +93,7 @@ CREATE TABLE org_claim_referrals (
 ### Expiration, Conflict Resolution & Cooldown Policy
 * **No Token Expiration**: Invitation links/tokens do not expire over time. A nominee can use their link to claim the organization at any time, provided the organization remains unclaimed.
 * **Single Active Claim Rule (Conflict Resolution)**: Once an organization is successfully claimed by *any* nominee, all other remaining `pending` nominations for that organization must automatically have their status updated to `voided`.
-* **Invitation Cooldown (`org_admin_invite_cooldown_hours`)**: 
+* **Invitation Cooldown (`invite_cooldown_hours`)**: 
   * This setting (configured in the `system_settings` table, currently `336` hours / 2 weeks) prevents sending duplicate invitations to the same person in short succession.
   * If a user tries to nominate an email that already has a `pending` nomination for the same organization (**implemented 2026-09-05** in `ReferralManager.createReferrals`; before this, an existing address was skipped outright and never resent):
     * **Either way**: the caller is recorded in `org_claim_referral_nominators`, so their own screens show the org as referred by them (see `org_claim_status` below).

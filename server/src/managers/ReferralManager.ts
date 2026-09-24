@@ -17,10 +17,10 @@ export class ReferralManager {
     return randomBytes(32).toString('hex');
   }
 
-  /** `org_admin_invite_cooldown_hours` from `system_settings`; two weeks if unset. */
+  /** `invite_cooldown_hours` from `system_settings`; two weeks if unset. */
   private async getInviteCooldownHours(client: PoolClient): Promise<number> {
     const res = await client.query(
-      "SELECT value FROM system_settings WHERE key = 'org_admin_invite_cooldown_hours'"
+      "SELECT value FROM system_settings WHERE key = 'invite_cooldown_hours'"
     );
     const hours = res.rows[0] ? parseInt(res.rows[0].value, 10) : NaN;
     return Number.isFinite(hours) ? hours : 336;
@@ -31,7 +31,7 @@ export class ReferralManager {
    *
    * One row per (org, email), whoever nominated it. A fresh address gets a row and an email. An
    * address already pending gets the caller added as a nominator — so their own screens show it
-   * as referred — and is emailed again only once `org_admin_invite_cooldown_hours` has passed
+   * as referred — and is emailed again only once `invite_cooldown_hours` has passed
    * since the last send, with a new token and the credit moved to the caller. An address whose
    * nominee has already claimed, declined or passed the invitation on is left alone. Every
    * address comes back with `emailSent` saying which of those happened; the claim token never

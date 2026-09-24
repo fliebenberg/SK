@@ -192,3 +192,30 @@ export function formatFixtureWhen(
     minute: '2-digit',
   })}`;
 }
+
+/**
+ * A moment something happened — "24 Sep 2026, 14:02" — for a record like "invited on". An instant,
+ * so it carries the time, in the viewer's timezone.
+ */
+export function formatInstant(iso?: string | null): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}, ${time}`;
+}
+
+/**
+ * Is a person with this birthdate younger than `years` on `today`? An unknown or unreadable
+ * birthdate is `false`: the caller is asking whether we *know* they are.
+ *
+ * A birthdate is a `DATE` column that `pg` hands over as the server's local midnight, so it is
+ * read through {@link parseCalendarDate} like every other calendar date here — right while viewer
+ * and server share a timezone, a day out otherwise (`DATE-1`).
+ */
+export function isYoungerThan(birthdate: string | null | undefined, years: number, today: Date = new Date()): boolean {
+  const born = parseCalendarDate(birthdate);
+  if (!born) return false;
+  const comesOfAge = new Date(born.getFullYear() + years, born.getMonth(), born.getDate());
+  return today < comesOfAge;
+}

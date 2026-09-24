@@ -386,8 +386,35 @@ them to any signed-in user.
 *   **`userId` is stripped from `UPDATE_ORG_PROFILE`, always.** Re-pointing a profile at a user
     account hands over every membership it holds; the one legitimate caller
     (`UserManager.ensureProfileForUserInOrg`) is server-side, and no client sends it.
+*   **`lastInviteSentAt` and `lastInviteEmail` are stripped from `UPDATE_ORG_PROFILE` too.** Only
+    `SEND_MEMBER_INVITE` writes them; editable, they would let the resend cooldown be cleared by hand.
 *   The gate is on the **action**, not in `UserManager`, so the server's own writes — the invite
     flow's `lastInviteSentAt`, the claim flow's link — keep working. They are not requests.
+
+#### `SEND_MEMBER_INVITE`
+*   **Payload**: `{ memberId, email?, resend? }` — `memberId` is the org profile. `email` is where
+    to send it; absent means the profile's own. `resend: true` sends to an address still inside the
+    cooldown, for an invite the person reports lost; only the person's profile screen offers it,
+    behind a confirmation.
+*   **Gate**: `manage-org` on the profile's organisation (admin or staff).
+*   **Logic**: Emails a person the organisation has on record an invitation to create a ScoreKeeper
+    account (`MailManager.sendMemberInvitation`, linking to `/signup?email=…`). There is no token:
+    signing up with the invited address is what links the account to the profile, because
+    `AccessManager` matches a profile to an account by email. So an address that differs from the
+    profile's is **saved to the profile** — after the email has gone, so a failed send changes
+    nothing.
+*   **Refused when**: the person already has an account (the same match `AccessManager` uses);
+    there is no address; the address is invalid; the address already belongs to an account (setting
+    it would link that account — an identity change the profile edit screen makes deliberately);
+    the cooldown holds and `resend` is not set; or the email cannot be sent.
+*   **Cooldown** (`system_settings.invite_cooldown_hours`: seeded at 336, two weeks, which is also the fallback; the same setting paces org-claim referrals): per **address**,
+    not per person, so a mistyped address can be corrected at once. It is keyed on
+    `last_invite_email` — where the last invite actually went — not on the profile's current email,
+    so clearing the field and typing the same address back does not reset it. A `resend` restarts it. The rule is
+    `inviteCooldownRemainingHours` in `@sk/shared`, shared with the screens that label the button.
+*   **Minors** are not refused: the modal warns when the birthdate says under 18 (`MEMBER-3` is
+    where a guardian would be invited instead).
+*   **Broadcasts**: `ORG_MEMBER_UPDATED` on `org:{orgId}:members`, with the member.
 
 #### `ADD_ORG_MEMBER`
 *   **Payload**: `{ orgProfileId, organizationId, roleId }`

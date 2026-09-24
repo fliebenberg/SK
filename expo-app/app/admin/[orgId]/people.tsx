@@ -7,6 +7,7 @@ import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
+import { InviteButton, InviteModal, useInviteCooldownHours } from '../../../components/InviteToScoreKeeper';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { requestKeyFor, sendAction } from '../../../services/actions';
@@ -63,7 +64,8 @@ export default function OrgPeople() {
 
   const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers, setData: setMembersData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
-  const { data: settingsData } = useSocketQuery<any>('system_settings');
+  const inviteCooldownHours = useInviteCooldownHours();
+  const [inviteTarget, setInviteTarget] = useState<OrgMember | null>(null);
 
   const members = membersData || [];
   const availableRoles: any[] = rolesData?.org || [];
@@ -122,8 +124,6 @@ export default function OrgPeople() {
     });
     setSelectedPerson(null);
   };
-
-  const cooldownSetting = settingsData?.org_admin_invite_cooldown_hours ? parseInt(settingsData.org_admin_invite_cooldown_hours) : 168;
 
   const isLoading = isMembersLoading || isRolesLoading;
 
@@ -292,39 +292,6 @@ export default function OrgPeople() {
     }
   };
 
-  // Invite action with Cooldown Verification
-  const handleSendInvite = (member: OrgMember) => {
-    if (!member.email) return;
-
-    sendAction(SocketAction.SEND_MEMBER_INVITE, { memberId: member.id }).then(result => {
-      if (!result.ok) {
-        alert(result.message);
-      } else {
-        alert(`Invitation sent to ${member.name}`);
-      }
-    });
-  };
-
-  const getInviteButtonStatus = (member: OrgMember) => {
-    if (member.userId) return null; // already linked
-    if (!member.email) return null;
-
-    if (member.lastInviteSentAt) {
-      const lastSent = new Date(member.lastInviteSentAt);
-      const diffMs = Date.now() - lastSent.getTime();
-      const diffHours = diffMs / (1000 * 60 * 60);
-
-      if (diffHours < cooldownSetting) {
-        const remainingHours = Math.ceil(cooldownSetting - diffHours);
-        const remainingDays = Math.ceil(remainingHours / 24);
-        const text = remainingDays > 1 ? `Invited (${remainingDays}d)` : `Invited (${remainingHours}h)`;
-        return { disabled: true, text };
-      }
-    }
-
-    return { disabled: false, text: 'Invite' };
-  };
-
   // Autocomplete Select Profile callback
   const handleSelectPerson = (person: OrgProfile | null) => {
     setSelectedPerson(person);
@@ -469,7 +436,6 @@ export default function OrgPeople() {
             </View>
           }
           renderItem={(member) => {
-            const inviteStatus = getInviteButtonStatus(member);
             const avatarSrc = getAvatarSource(member);
             const logoConf = parseImageConfig(member.imageConfig || (member as any).settings?.logoConfig);
             const contactInfo = [member.email, member.cellphone].filter(Boolean).join('  |  ');
@@ -548,26 +514,13 @@ export default function OrgPeople() {
                   </View>
 
                   <View className="flex-row items-center gap-1.5 flex-shrink-0">
-                    {inviteStatus && (
-                      <TouchableOpacity
-                        disabled={inviteStatus.disabled}
-                        onPress={(e: any) => {
-                          if (e && e.stopPropagation) e.stopPropagation();
-                          handleSendInvite(member);
-                        }}
-                        className={`px-2 py-1 rounded-lg active:scale-95 ${
-                          inviteStatus.disabled
-                            ? 'bg-slate-200 dark:bg-slate-800 opacity-60'
-                            : 'bg-brand-orange'
-                        }`}
-                      >
-                        <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
-                          inviteStatus.disabled ? 'text-slate-500 dark:text-slate-400' : 'text-white'
-                        }`}>
-                          {inviteStatus.text}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+                    {canEdit ? (
+                      <InviteButton
+                        person={member}
+                        cooldownHours={inviteCooldownHours}
+                        onPress={() => setInviteTarget(member)}
+                      />
+                    ) : null}
 
                     <TouchableOpacity
                       className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
@@ -774,6 +727,12 @@ export default function OrgPeople() {
 
 
       {/* CONFIRM DELETE MODAL */}
+      <InviteModal
+        person={inviteTarget}
+        cooldownHours={inviteCooldownHours}
+        onClose={() => setInviteTarget(null)}
+      />
+
       <ConfirmationModal
         isOpen={confirmDelete !== null && confirmDelete.isOpen}
         onClose={() => setConfirmDelete(null)}

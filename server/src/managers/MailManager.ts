@@ -123,6 +123,75 @@ class MailManager {
         }
         return info;
     }
+
+    /**
+     * Invites a person an organisation already has on record to create a ScoreKeeper account.
+     * Signing up with this address is what links the account to their profile — `AccessManager`
+     * matches a profile to an account by email — so the link pre-fills it.
+     *
+     * Not `sendClaimInvitation`: that one offers ownership of the organisation, which is not what
+     * a coach or a player is being invited to.
+     */
+    async sendMemberInvitation(to: string, personName: string, orgName: string, signupUrl: string) {
+        if (!this.transporter) await this.init();
+
+        const name = escapeHtml(personName);
+        const org = escapeHtml(orgName);
+        const url = escapeHtml(signupUrl);
+
+        const info = await this.transporter!.sendMail({
+            from: '"ScoreKeeper" <noreply@scorekeeper.com>',
+            to,
+            subject: `${orgName} has invited you to ScoreKeeper`,
+            text: `Hi ${personName},\n\n${orgName} uses ScoreKeeper to manage its sports teams, fixtures and results, and has invited you to join.\n\nCreate your free account with this email address and you will be linked to your profile at ${orgName}:\n${signupUrl}\n\nScoreKeeper: https://www.scorekeeper.live\n\nIf you were not expecting this, you can ignore this email.\n\nThanks,\nScoreKeeper Team`,
+            html: `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+                    <div style="background-color: #f97316; padding: 30px 20px; text-align: center;">
+                        <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">You're invited to ScoreKeeper</h1>
+                    </div>
+
+                    <div style="padding: 40px 30px;">
+                        <p style="font-size: 16px; color: #334155; line-height: 1.6; margin-top: 0;">Hi ${name},</p>
+                        <p style="font-size: 16px; color: #334155; line-height: 1.6;"><strong>${org}</strong> uses <strong style="color: #f97316;">ScoreKeeper</strong> to manage its sports teams, fixtures and results, and has invited you to join.</p>
+                        <p style="font-size: 16px; color: #334155; line-height: 1.6;">Create your free account <strong>with this email address</strong> and you will be linked to your profile at ${org}.</p>
+
+                        <div style="text-align: center; margin: 35px 0;">
+                            <a href="${url}" style="display: inline-block; background-color: #f97316; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                                Create my account
+                            </a>
+                        </div>
+
+                        <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+                            To find out more about ScoreKeeper, visit <a href="https://www.scorekeeper.live" style="color: #f97316; text-decoration: none; font-weight: 600;">www.scorekeeper.live</a>.
+                        </p>
+                        <p style="font-size: 12px; color: #94a3b8; line-height: 1.6;">If you were not expecting this, you can ignore this email.</p>
+                    </div>
+
+                    <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
+                        <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+                            &copy; ${new Date().getFullYear()} ScoreKeeper. All rights reserved.
+                        </p>
+                    </div>
+                </div>
+            `,
+        });
+
+        console.log('Member invitation sent to:', to);
+        if (process.env.NODE_ENV !== 'production' && !process.env.SMTP_HOST) {
+            console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
+        }
+        return info;
+    }
+}
+
+/** Names come from admins' typing; they go into HTML. */
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 export const mailManager = new MailManager();

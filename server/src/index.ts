@@ -15,6 +15,11 @@ import {
     findTakenDivisionName,
     organizerScopeFields,
     organizerScopeOf,
+    formatInviteWait,
+    inviteCooldownHoursFrom,
+    inviteCooldownRemainingHours,
+    isValidEmail,
+    normalizeEmail,
 } from '@sk/shared';
 import { parseSportWriteFields } from './utils/sportValidation';
 import pool from './db';
@@ -26,6 +31,7 @@ import { assetBaseUrl, assetStorage, localAssetMountPath } from './services/asse
 import { issueAssetToken, requireAssetToken } from './services/assetAccess';
 import { imageService } from './services/ImageService';
 import { userManager } from './managers/UserManager';
+import { accessManager } from './managers/AccessManager';
 import { mailManager } from './managers/MailManager';
 import { sportManager } from './managers/SportManager';
 import { ageGroupManager, AgeGroupError } from './managers/AgeGroupManager';
@@ -2886,57 +2892,73 @@ io.on('connection', (socket) => {
                 }
                 break;
             case SocketAction.SEND_MEMBER_INVITE: {
+                // Invites a person the org has on record to create an account. There is no token:
+                // signing up with the invited address is what links the account to the profile,
+                // because `AccessManager` matches a profile to an account by email.
                 const { memberId } = action.payload; // org_profile_id
                 console.log(`DataManager: Requesting invite for member profile ${memberId}`);
-                
+
                 const profile = await dataManager.getOrgProfile(memberId);
                 if (!profile) {
                     throw new Error('Member profile not found');
                 }
-                
-                if (!profile.email) {
-                    throw new Error('Member does not have a registered email address');
+                if ((await accessManager.getUserIdsForOrgProfile(memberId)).length > 0) {
+                    throw new Error(`${profile.name} is already on ScoreKeeper.`);
                 }
-                
-                // Get invite cooldown setting from DB system_settings
-                const settingsRes = await pool.query("SELECT value FROM system_settings WHERE key = 'org_admin_invite_cooldown_hours'");
-                const cooldownHours = settingsRes.rows[0] ? parseInt(settingsRes.rows[0].value) : 168; // default to 7 days
-                
-                if (profile.lastInviteSentAt) {
-                    const lastSent = new Date(profile.lastInviteSentAt);
-                    const diffMs = Date.now() - lastSent.getTime();
-                    const diffHours = diffMs / (1000 * 60 * 60);
-                    if (diffHours < cooldownHours) {
-                        const remainingHours = Math.ceil(cooldownHours - diffHours);
-                        throw new Error(`Invite is on cooldown. Please wait another ${remainingHours} hours.`);
-                    }
+
+                const email = normalizeEmail(action.payload.email ?? profile.email);
+                if (!email) {
+                    throw new Error(`${profile.name} has no email address. Enter one to send the invite to.`);
                 }
-                
-                // Update timestamp in DB
-                const nowStr = new Date().toISOString();
-                const updatedProfile = await dataManager.updateOrgProfile(memberId, { lastInviteSentAt: nowStr });
-                
-                // Send email
+                if (!isValidEmail(email)) {
+                    throw new Error(`"${email}" is not a valid email address.`);
+                }
+
+                // Saving an account's address to the profile would link that account to it —
+                // an identity change the profile edit screen makes deliberately, not an invite.
+                const emailHasAccount = await pool.query(
+                    `SELECT 1 FROM users WHERE LOWER(email) = $1
+                     UNION ALL
+                     SELECT 1 FROM user_emails WHERE LOWER(email) = $1 AND verified_at IS NOT NULL
+                     LIMIT 1`,
+                    [email]
+                );
+                if (emailHasAccount.rows.length > 0) {
+                    throw new Error(`${email} already belongs to a ScoreKeeper account, so there is nobody to invite. To link it to ${profile.name}, set it on their profile.`);
+                }
+
+                const settingsRes = await pool.query("SELECT key, value FROM system_settings WHERE key = 'invite_cooldown_hours'");
+                const cooldownHours = inviteCooldownHoursFrom(Object.fromEntries(settingsRes.rows.map((r: any) => [r.key, r.value])));
+                // `resend` is the deliberate override, for an invite that went astray.
+                const waitHours = inviteCooldownRemainingHours(profile, email, cooldownHours);
+                if (waitHours > 0 && action.payload.resend !== true) {
+                    throw new Error(`An invite already went to ${email}. You can send another in ${formatInviteWait(waitHours)}, or to a different address now.`);
+                }
+
+                // Send first: if the email cannot go, nothing is recorded and the admin is told.
                 const org = await dataManager.getOrganization(profile.orgId);
-                const orgName = org ? org.name : 'ScoreKeeper Organization';
-                const claimUrl = `${process.env.APP_URL || 'http://localhost:8081'}/landing`; // fallback invitation link
-                
+                const appUrl = process.env.APP_URL || 'http://localhost:8081';
+                const signupUrl = `${appUrl}/signup?email=${encodeURIComponent(email)}`;
                 try {
-                    // Send Invitation Email using mailManager
-                    await mailManager.sendClaimInvitation(profile.email.toLowerCase().trim(), orgName, claimUrl);
+                    await mailManager.sendMemberInvitation(email, profile.name, org?.name || 'Your organisation', signupUrl);
                 } catch (mailErr) {
-                    console.error('Failed to send mail:', mailErr);
-                    // Do not fail the transaction, as state is updated
+                    console.error('Failed to send member invitation:', mailErr);
+                    throw new Error(`The invite to ${email} could not be sent. Nothing was changed; try again later.`);
                 }
-                
+
+                const updatedProfile = await dataManager.updateOrgProfile(memberId, {
+                    ...(email !== normalizeEmail(profile.email) ? { email } : {}),
+                    lastInviteSentAt: new Date().toISOString(),
+                    lastInviteEmail: email,
+                });
+
                 // Broadcast ORG_MEMBER_UPDATED to all organization admins
                 updateTopic = `org:${profile.orgId}:members`;
                 updateType = 'ORG_MEMBER_UPDATED';
-                
-                // Construct the updated rich member data to broadcast
+
                 const richMember = (await dataManager.getOrganizationMembers(profile.orgId)).find((m: any) => m.id === memberId);
                 result = richMember || updatedProfile;
-                
+
                 break;
             }
             case SocketAction.ADD_ORG_PROFILE: {
@@ -2954,6 +2976,10 @@ io.on('connection', (socket) => {
                 // `UserManager.ensureProfileForUserInOrg`, server-side, when an account claims
                 // its profile. No client sends it (`PEOPLE-2`).
                 const { userId: _rejectedUserId, ...updateData } = { ...action.payload.data };
+                // The invite record is written by SEND_MEMBER_INVITE alone. Editable here, it would
+                // let the resend cooldown be cleared by hand.
+                delete updateData.lastInviteSentAt;
+                delete updateData.lastInviteEmail;
                 // A new, replaced or removed picture is handled by updateOrgProfile itself: saved
                 // before the write, and the old one deleted after it only if nothing else uses it.
                 console.log(`DataManager: Updating org profile ${action.payload.id}`, { ...updateData, image: updateData.image?.startsWith('data:') ? '(upload)' : updateData.image });
