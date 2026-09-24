@@ -87,16 +87,21 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     [useSetupStepScreen](file:///c:/Fred/Coding/SK/expo-app/hooks/useSetupStepScreen.ts); the order
     and the routes are
     [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts).
-*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: One division — its **name, sport and age
-    group** as one form (U50; the only place any of them is edited — the sport from the tournament's
-    own list, U51), deletion (event organisers only, U52), headed `{tournament} - {division}`, its stages as navigation tabs (U13/U14), its roster and generation controls, its own table, and its convenors.
+*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]`: One division's **setup** — its **name,
+    sport and age group** as one form (U50; the only place any of them is edited — the sport from the
+    tournament's own list, U51), its convenors, its fields, and deletion (event organisers only, U52),
+    headed `{tournament} - {division}`. Opened from Sports & Divisions. **Basics only (U53):** no
+    entrants, stages, fixtures or table — those are later setup steps.
+*   `/admin/[orgId]/events/[eventId]/divisions/[divisionId]/schedule`: One division's **schedule** —
+    its stages as navigation tabs (U13/U14), its roster and generation controls, and its own table.
+    What the Schedule tab opens when there are several divisions (U53).
 *   `/admin/[orgId]/events/[eventId]/entrants`: Getting teams in, on **both axes over one dataset**
     (U21) — *by division* ("who is in the u14 rugby?") and *by organisation* ("what is Northcliff
     entering?"). The organisation axis is where **inline team creation** lives, because that is the
     moment you discover a school has no u16 netball team. Also the **Entrants step** of the setup
     checklist (U48), so it carries the invite list — which writes on press rather than through a
     save bar, because every other control on the screen does. Event organisers only; a convenor reaches
-    the same per-division editor through their division's screen, since both mount
+    the same per-division editor through their division's schedule screen, since both mount
     [DivisionEntrantsEditor](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionEntrantsEditor.tsx).
 *   `/admin/[orgId]/events/[eventId]/games/new`, `/games/[gameId]/edit`, `/view`, `/selection`,
     `/score`: One fixture. `/score` is the **Scorekeeper Console** for real-time event entry.
@@ -107,7 +112,7 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 > renders that child inline and shows no picker — so a tournament with one division shows that
 > division's panel directly on its Schedule tab, and a division with one stage shows no stage
 > tabs. **Since U50 this is layout only for divisions:** setup always lists the division and links
-> to `/divisions/[divisionId]`, one included. The rule lives in
+> to `/divisions/[divisionId]`, one included, and the Schedule tab links to `/divisions/[divisionId]/schedule`. The rule lives in
 > [shared/src/utils/collapseRule.ts](file:///c:/Fred/Coding/SK/shared/src/utils/collapseRule.ts) and
 > the shared rendering is
 > [DivisionPanel](file:///c:/Fred/Coding/SK/expo-app/components/tournament/DivisionPanel.tsx), so the

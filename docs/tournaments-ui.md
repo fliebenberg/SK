@@ -128,6 +128,7 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U50** | A tournament always shows its division(s) — one included. The step is `Sports & Divisions`. Narrows U15, renames U46's section. | 6, 7 |
 | **U51** | The tournament's sports are chosen first; each division plays one of them. Reverses U46's derivation. | 7 |
 | **U52** | Every sport has at least one division and every division plays one of the tournament's sports. Choosing a sport creates its division; a sport with divisions cannot be removed; deleting its last division removes it. | 7 |
+| **U53** | A division's setup screen holds its basics only — name, sport, age group, organisers, fields. Its stages, fixtures and table move to a schedule screen the Schedule tab opens. Narrows U13. | 5, 7 |
 
 ### Constraints carried in from the feature spec
 
@@ -906,6 +907,24 @@ that spans weeks.
 >   panel inline rather than a list of one, pickers of one stay hidden (`games/new`, Entrants), and
 >   adding the *second* division is still announced, because that is the add that restructures the
 >   Schedule tab. A first or third division is added without a dialog. For stages U15 is unchanged.
+
+> **Decided 2026-09-24 — a division's setup screen holds its basics only (U53).** Sports & Divisions
+> is where an organiser decides *which* divisions the tournament has, and every division row opened a
+> screen that also asked for its entrants, stages and draw, and showed its table. That is three later
+> setup steps arriving early, on a screen reached while the list of divisions is still being worked
+> out — and it was confusing in use.
+>
+> - **The division's screen is setup, and holds what the division is:** name, sport, age group,
+>   organisers and fields, plus deletion. Route unchanged:
+>   [divisions/[divisionId]](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/divisions/%5BdivisionId%5D/index.tsx).
+> - **Its stages, fixtures and table move to a schedule screen,**
+>   [divisions/[divisionId]/schedule](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/divisions/%5BdivisionId%5D/schedule.tsx),
+>   which is what the Schedule tab opens for a tournament with several divisions. It mounts
+>   `DivisionPanel` and `DivisionStandings`, as the old screen did, so nothing was lost — only moved.
+>   A lone division's panel is still inline on the Schedule tab (U15).
+> - **Entrants already have their own step** (U21). Stages and fixtures will both be set up in the
+>   Fixtures step (`UI-20`); until that is built they stay on the Schedule tab, which the Fixtures
+>   step already points to. This narrows U13 — a division is still its own screen, just two of them.
 
 > **Decided 2026-09-19, the same afternoon — sports and divisions move together (U52).** U51 got
 > the direction right (sports first) and the removal rule wrong: moving every division onto a

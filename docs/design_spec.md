@@ -98,7 +98,7 @@ same shape recurs wherever a container usually holds one child and occasionally 
 Two obligations come with it:
 
 - **One rendering, not two.** The inline case and the routed case must be the same component, or they
-  drift. `DivisionPanel` is mounted by both the event screen and the division route for exactly this
+  drift. `DivisionPanel` is mounted by both the event screen and the division schedule route for exactly this
   reason.
 - **Announce the appearance.** Adding the second child restructures the screen, so say what will
   happen *before* it happens — naming the existing child, since its name is about to become visible
