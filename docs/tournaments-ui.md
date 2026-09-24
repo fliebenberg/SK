@@ -520,6 +520,15 @@ that spans weeks.
 >   what the server would use — so a purely dirtiness-driven bar could never complete the step. A
 >   **Use These Defaults** button in the scoring card marks the form dirty and the bar writes it,
 >   which keeps one save path rather than reintroducing a second one.
+>
+>   **Revised 2026-09-24 — `Next` confirms the defaults.** The button made accepting the defaults
+>   cost two presses (confirm, then Save), and the bar never went away afterwards: the flag cleared
+>   only when the saved points changed, and saving 3 / 1 / 0 over a 3 / 1 / 0 default changes
+>   nothing. It is gone. Pressing `Next` on the Rules & scoring step now writes the scoring
+>   system when the event has none yet, because moving on is the organiser accepting what they see;
+>   `Back to the checklist` does not, so a look without a decision stays possible. The card offers
+>   **Reset to Defaults** only when the boxes differ from 3 / 1 / 0, and resetting is an ordinary
+>   edit — the save bar appears if what is saved is not the defaults.
 
 > **Revised 2026-09-08 — the steps are the sections (U44).** With one save bar, what was left was
 > a tab that read as an undifferentiated column of inputs: the seam between one step's work and

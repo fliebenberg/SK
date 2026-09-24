@@ -23,6 +23,16 @@ interface ScoringDraft {
   loss: string;
 }
 
+/** The shared default (D17) as the three text fields hold it. */
+const DEFAULT_POINTS =
+  DEFAULT_SCORING_SYSTEM.mode === 'byResult'
+    ? {
+        win: String(DEFAULT_SCORING_SYSTEM.pointsPerWin),
+        draw: String(DEFAULT_SCORING_SYSTEM.pointsPerDraw),
+        loss: String(DEFAULT_SCORING_SYSTEM.pointsPerLoss),
+      }
+    : { win: '', draw: '', loss: '' };
+
 /**
  * How the competition is scored (U48).
  *
@@ -55,15 +65,6 @@ export default function SetupScoring() {
   const [ptsWin, setPtsWin] = useState('');
   const [ptsDraw, setPtsDraw] = useState('');
   const [ptsLoss, setPtsLoss] = useState('');
-  /**
-   * "Use these defaults", pressed.
-   *
-   * The step is only `done` once `settings.scoring` exists, but an untouched 3 / 1 / 0 form is not
-   * *dirty* — it already matches what the server would use. So confirming the defaults is a change
-   * the form cannot express, and this flag is how it says so: it makes the page dirty, the save bar
-   * comes up, and Save writes the defaults out like any other edit.
-   */
-  const [confirmDefaultScoring, setConfirmDefaultScoring] = useState(false);
 
   /**
    * Seed from what the server would actually use: the event's own system if it has one, otherwise
@@ -90,11 +91,6 @@ export default function SetupScoring() {
    * keyed on `event.settings.scoring`, an object parsed fresh out of JSONB on every broadcast, so
    * **any** update to the event — a rename, a date — gave it a new identity and re-seeded the form
    * over whatever was being typed.
-   *
-   * `confirmDefaultScoring` is deliberately *outside* the baseline. It is not a value the form
-   * holds but an assertion about one ("the defaults are right"), so it cannot be compared against
-   * anything saved; it is an extra dirty term, and adopting a record clears it because the event
-   * coming back with a scoring system is what confirming meant.
    */
   const [pointsBaseline, setPointsBaseline] = useState<ScoringDraft | null>(null);
   const pointsBaselineForEvent = pointsBaseline?.eventId === eventId ? pointsBaseline : null;
@@ -104,7 +100,6 @@ export default function SetupScoring() {
     setPtsDraw(from.draw);
     setPtsLoss(from.loss);
     setPointsBaseline(from);
-    setConfirmDefaultScoring(false);
   }, []);
 
   useEffect(() => {
@@ -124,10 +119,23 @@ export default function SetupScoring() {
     canEdit &&
     savedScoring.mode === 'byResult' &&
     !!pointsBaselineForEvent &&
-    (confirmDefaultScoring ||
-      ptsWin !== pointsBaselineForEvent.win ||
+    (ptsWin !== pointsBaselineForEvent.win ||
       ptsDraw !== pointsBaselineForEvent.draw ||
       ptsLoss !== pointsBaselineForEvent.loss);
+
+  /** Whether the boxes hold something other than 3 / 1 / 0, which is what offers the reset. */
+  const differsFromDefaults =
+    ptsWin !== DEFAULT_POINTS.win || ptsDraw !== DEFAULT_POINTS.draw || ptsLoss !== DEFAULT_POINTS.loss;
+
+  /**
+   * Puts the defaults back in the boxes. It does not write: if what is saved is not the defaults,
+   * the form is now dirty and the save bar takes it from there, like any other edit.
+   */
+  const resetToDefaults = useCallback(() => {
+    setPtsWin(DEFAULT_POINTS.win);
+    setPtsDraw(DEFAULT_POINTS.draw);
+    setPtsLoss(DEFAULT_POINTS.loss);
+  }, []);
 
   /** Cancel goes back to what is saved now, not to what was saved when the screen opened. */
   const handleCancel = useCallback(() => {
@@ -168,11 +176,18 @@ export default function SetupScoring() {
     [confirmThenNavigate, goBackToChecklist]
   );
 
+  /**
+   * The step is only `done` once `settings.scoring` exists, but an untouched 3 / 1 / 0 form is not
+   * dirty — it already matches what the server would use. Moving on from it is the organiser
+   * accepting what they see, so `Next` writes it out even when nothing changed; that is what marks
+   * the step done. `Back to the checklist` does not, so looking without deciding stays possible.
+   */
   const handleNext = useCallback(() => {
     const go = () => goBackToChecklist(nextStep);
-    if (isDirty) handleSave(go);
+    const unconfirmed = savedScoring.mode === 'byResult' && !event?.settings?.scoring;
+    if (isDirty || unconfirmed) handleSave(go);
     else go();
-  }, [isDirty, handleSave, goBackToChecklist, nextStep]);
+  }, [isDirty, savedScoring.mode, event?.settings?.scoring, handleSave, goBackToChecklist, nextStep]);
 
   if (accessDenied || (!isLoadingCapabilities && !canEdit)) {
     return (
@@ -230,12 +245,7 @@ export default function SetupScoring() {
                           </Text>
                           <TextInput
                             value={value}
-                            onChangeText={text => {
-                              // Typing a number supersedes "use the defaults" — whatever is in the
-                              // boxes at Save time is what gets written either way.
-                              setConfirmDefaultScoring(false);
-                              setValue(text.replace(/[^0-9]/g, ''));
-                            }}
+                            onChangeText={text => setValue(text.replace(/[^0-9]/g, ''))}
                             keyboardType="number-pad"
                             placeholder="0"
                             placeholderTextColor={getThemeColor(isDark, 'placeholder')}
@@ -244,27 +254,14 @@ export default function SetupScoring() {
                         </View>
                       ))}
                     </View>
-                    {/* The step is only done once the event *has* a scoring system, but an
-                        untouched 3 / 1 / 0 is not a change the form can register — so confirming
-                        the defaults needs an affordance of its own. It does not write on its own:
-                        it makes the page dirty and the save bar takes it from there. */}
-                    {!event.settings?.scoring &&
-                      (confirmDefaultScoring ? (
-                        <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-                          The defaults will be confirmed when you save.
-                        </Text>
-                      ) : isDirty ? null : (
-                        <View className="gap-2">
-                          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-                            These are the defaults. Confirm them as they are, or change them first.
-                          </Text>
-                          <Button
-                            title="Use These Defaults"
-                            onPress={() => setConfirmDefaultScoring(true)}
-                            className="py-2.5 rounded-lg"
-                          />
-                        </View>
-                      ))}
+                    {differsFromDefaults && (
+                      <Button
+                        title={`Reset to Defaults (${DEFAULT_POINTS.win} / ${DEFAULT_POINTS.draw} / ${DEFAULT_POINTS.loss})`}
+                        variant="secondary"
+                        onPress={resetToDefaults}
+                        className="py-2.5 rounded-lg"
+                      />
+                    )}
                   </>
                 )}
               </View>
