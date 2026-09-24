@@ -23,26 +23,24 @@ import {
   isAutomaticDivisionName,
   reseedDecision,
 } from '@sk/shared';
-import { FieldLabel } from '../../../../../../components/FieldLabel';
-import { ConfirmationModal } from '../../../../../../components/ConfirmationModal';
-import CustomSelect from '../../../../../../components/CustomSelect';
-import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
-import { GlassCard } from '../../../../../../components/GlassCard';
-import { ScreenHeader } from '../../../../../../components/ScreenHeader';
-import { DivisionPanel } from '../../../../../../components/tournament/DivisionPanel';
-import { enteredTeamCount, useDivisionEntrants } from '../../../../../../hooks/useDivisionEntrants';
-import { DivisionStandings } from '../../../../../../components/tournament/DivisionStandings';
-import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
-import { FacilityPicker } from '../../../../../../components/tournament/FacilityPicker';
-import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
-import { useEventCapabilities } from '../../../../../../hooks/useEventCapabilities';
-import { useSafeBack } from '../../../../../../hooks/useSafeBack';
-import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
-import { wsService } from '../../../../../../services/websocket';
-import { sendAction } from '../../../../../../services/actions';
-import { useWsStore } from '../../../../../../store/wsStore';
-import { useActiveTheme } from '../../../../../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+import { FieldLabel } from '../../../../../../../components/FieldLabel';
+import { ConfirmationModal } from '../../../../../../../components/ConfirmationModal';
+import CustomSelect from '../../../../../../../components/CustomSelect';
+import { AgeGroupPicker } from '../../../../../../../components/AgeGroupPicker';
+import { GlassCard } from '../../../../../../../components/GlassCard';
+import { ScreenHeader } from '../../../../../../../components/ScreenHeader';
+import { enteredTeamCount, useDivisionEntrants } from '../../../../../../../hooks/useDivisionEntrants';
+import { OrganizerPicker } from '../../../../../../../components/OrganizerPicker';
+import { FacilityPicker } from '../../../../../../../components/tournament/FacilityPicker';
+import { useLiveRoom } from '../../../../../../../hooks/useLiveRoom';
+import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
+import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
+import { useUnsavedChanges } from '../../../../../../../hooks/useUnsavedChanges';
+import { wsService } from '../../../../../../../services/websocket';
+import { sendAction } from '../../../../../../../services/actions';
+import { useWsStore } from '../../../../../../../store/wsStore';
+import { useActiveTheme } from '../../../../../../../store/settingsStore';
+import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
 
 /** The fields the details form edits, plus the division they belong to. */
 interface DivisionDraft {
@@ -57,17 +55,20 @@ const same = (a: DivisionDraft, b: DivisionDraft) =>
   a.customName === b.customName && a.sportId === b.sportId && a.ageGroupId === b.ageGroupId;
 
 /**
- * A division's own screen (U13).
+ * A division's setup screen (U13, narrowed by U53).
  *
- * A division is in effect a tournament within a tournament — its own format, venues, entrants and
- * table — which on its own justifies a screen. It is also the unit of delegation (D22/D31/D33), so
- * a convenor needs a link that can be sent to them, and this is that link.
+ * The basics of a division and nothing more: its name, sport, age group, organisers and fields —
+ * what an organiser decides while still working out which divisions the tournament has. It is
+ * also the unit of delegation (D22/D31/D33), so a convenor needs a link that can be sent to them,
+ * and this is that link.
  *
- * **Every division has one, the only division included (U50).** It used to exist only for a
- * tournament with several, because the collapse rule (U15) hid a lone division altogether. Setup now
- * always lists the division and opens it here, since this is where it is given a sport and an age
- * group. The Schedule tab still shows a lone division's fixtures inline, through the same panel
- * this screen mounts, so the two cannot drift.
+ * **Entrants, stages, fixtures and the table are not here (U53).** They are later setup steps,
+ * each with a screen of its own, and asking for them while the divisions are still being decided
+ * was the confusion. A division's stages, fixtures and table are on
+ * [its schedule screen](./schedule.tsx), which the Schedule tab opens.
+ *
+ * **Every division has one, the only division included (U50).** Setup always lists the division
+ * and opens it here, since this is where it is given a sport and an age group.
  */
 export default function DivisionScreen() {
   const router = useRouter();
@@ -812,13 +813,6 @@ export default function DivisionScreen() {
               )}
             </GlassCard>
 
-            <DivisionPanel
-              orgId={orgId}
-              eventId={eventId}
-              divisionId={divisionId}
-              canEdit={canEdit}
-            />
-
             <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-3">
               <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                 Fields in play
@@ -858,20 +852,6 @@ export default function DivisionScreen() {
                 </View>
               )}
             </GlassCard>
-
-            {/*
-              This division's table, ranking its **entrants** (U29) — so a school that entered u14A
-              and u14B is two rows here, and one line in the event's roll-up. The same component
-              the standings tab mounts when its scope selector names a division, so the two cannot
-              drift. Entering teams and generating the draw are inside the panel above, where the
-              fixtures they produce are.
-            */}
-            <View className="space-y-2">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 uppercase tracking-widest pl-1">
-                Standings
-              </Text>
-              <DivisionStandings divisionId={divisionId} canEdit={canEdit} />
-            </View>
 
             {canAppoint && (capabilities?.canEditEvent || !isLastOfSport) && (
               <TouchableOpacity

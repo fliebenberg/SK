@@ -52,8 +52,8 @@ import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
  * their own job, so it admits them — showing only their sports, without the chips that decide
  * which sports the tournament plays, which stays the tournament's decision.
  *
- * A division's own screen is where its name, sport, age group, stages and fields are edited — this
- * one lists them and opens them.
+ * A division's own screen is where its name, sport, age group, organisers and fields are edited —
+ * this one lists them and opens them. Its entrants, stages and fixtures are later steps (U53).
  */
 export default function SetupPlaying() {
   const router = useRouter();
