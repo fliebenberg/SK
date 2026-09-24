@@ -2,11 +2,14 @@ import pool from '../db';
 import { v4 as uuidv4 } from 'uuid';
 
 const migrateParticipants = async () => {
+    // One client for the whole run: through the pool, BEGIN and COMMIT could land on different
+    // connections, so the statements between them would not be a transaction at all (TX-1).
+    const client = await pool.connect();
     try {
-        await pool.query('BEGIN');
+        await client.query('BEGIN');
         
         console.log('Migrating home_team_id to game_participants...');
-        await pool.query(`
+        await client.query(`
             INSERT INTO game_participants (id, game_id, team_id, status)
             SELECT md5(random()::text || clock_timestamp()::text)::uuid::text, id, home_team_id, 'active' 
             FROM games 
@@ -14,7 +17,7 @@ const migrateParticipants = async () => {
         `);
 
         console.log('Migrating away_team_id to game_participants...');
-        await pool.query(`
+        await client.query(`
             INSERT INTO game_participants (id, game_id, team_id, status)
             SELECT md5(random()::text || clock_timestamp()::text)::uuid::text, id, away_team_id, 'active' 
             FROM games 
@@ -22,7 +25,7 @@ const migrateParticipants = async () => {
         `);
 
         console.log('Dropping legacy columns from games...');
-        await pool.query(`
+        await client.query(`
             ALTER TABLE games 
             DROP COLUMN IF EXISTS home_team_id,
             DROP COLUMN IF EXISTS away_team_id,
@@ -31,11 +34,11 @@ const migrateParticipants = async () => {
             DROP COLUMN IF EXISTS away_score;
         `);
 
-        await pool.query('COMMIT');
+        await client.query('COMMIT');
         console.log('Migration complete. Legacy columns dropped and game_participants populated.');
         process.exit(0);
     } catch(e) {
-        await pool.query('ROLLBACK');
+        await client.query('ROLLBACK');
         console.error('Migration failed:', e);
         process.exit(1);
     }

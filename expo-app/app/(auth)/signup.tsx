@@ -56,7 +56,7 @@ export default function SignupScreen() {
       );
       
       // Auto-login upon successful registration
-      login(response.token, response.user);
+      login(response.token, response.user, response.assetToken);
       
       // Check for pending claim token stored during unauthenticated claim link access
       let pendingToken = null;

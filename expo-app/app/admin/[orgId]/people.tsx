@@ -15,7 +15,7 @@ import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, OrgProfile, OrgMember } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../components/PersonnelAutocomplete';
 import { ImageEditor, ImageConfig } from '../../../components/ImageEditor';
-import { getAvatarUrl } from '../../../services/api';
+import { getAvatarUrl } from '../../../services/assets';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useAuthStore } from '../../../store/authStore';
 import { PaginatedList } from '../../../components/PaginatedList';

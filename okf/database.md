@@ -8,7 +8,7 @@ tags:
   - PostgreSQL
   - migrations
   - persistence
-timestamp: 2026-09-24T12:00:00Z
+timestamp: 2026-09-24T18:00:00Z
 ---
 
 # Database & Data Persistence
@@ -27,6 +27,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
 ## Code Entrypoints
 
 *   **Database Config**: [server/src/db.ts](file:///c:/Fred/Coding/SK/server/src/db.ts) initializes the PostgreSQL connection pool (using the `pg` package).
+*   **Transactions run on one connection** — `this.transaction(async (tx) => …)` in a manager ([BaseManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/BaseManager.ts)), `pool.connect()` in a script. `this.query('BEGIN')` or `pool.query('BEGIN')` lets each statement take a different pooled connection, so the block is atomic only while the pool is idle; under 30 concurrent writes it lost 6 of 15 valid events (`TX-1`). **Every statement inside the block, including a helper's, goes through `tx`**, and results are read back after it returns. `npm run check:transactions` (pre-commit) rejects the pooled pattern; [test-transactions.ts](file:///c:/Fred/Coding/SK/server/src/scripts/test-transactions.ts) exercises the converted paths.
 *   **Data Manager**: [server/src/DataManager.ts](file:///c:/Fred/Coding/SK/server/src/DataManager.ts) orchestrates reads and writes across the relational models and cache systems.
 *   **Shared Models**: [shared/src/types/](file:///c:/Fred/Coding/SK/shared/src/types/) contains standard type declarations shared between client and server.
 *   **Migrations**: [server/src/scripts/migrations/](file:///c:/Fred/Coding/SK/server/src/scripts/migrations/) holds sequential database modification scripts.

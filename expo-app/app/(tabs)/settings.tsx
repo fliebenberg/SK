@@ -23,7 +23,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-import { apiService, API_BASE_URL } from "../../services/api";
+import { apiService } from "../../services/api";
+import { getAvatarUrl } from "../../services/assets";
 import { CONSTANTS } from '../../constants';
 
 /** Sections of the settings screen, in the order they appear in the nav rail. */
@@ -375,7 +376,7 @@ export default function SettingsScreen() {
 
   const getAvatarUri = () => {
     if (avatarSource === "custom" && customImage) {
-      return `${API_BASE_URL}/uploads/profiles/${customImage}_medium.webp`;
+      return getAvatarUrl(customImage, 'medium');
     }
 
     if (avatarSource !== "custom") {
@@ -383,7 +384,8 @@ export default function SettingsScreen() {
       if (active?.provider_image) return active.provider_image;
     }
 
-    if (user?.picture) return user.picture;
+    // May be a stored name (a custom picture) as well as a provider URL.
+    if (user?.picture) return getAvatarUrl(user.picture, 'medium') || null;
     return null;
   };
 

@@ -22,6 +22,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { emailService } from './services/EmailService';
+import { assetBaseUrl, assetStorage, localAssetMountPath } from './services/assetStorage';
+import { issueAssetToken, requireAssetToken } from './services/assetAccess';
+import { imageService } from './services/ImageService';
 import { userManager } from './managers/UserManager';
 import { mailManager } from './managers/MailManager';
 import { sportManager } from './managers/SportManager';
@@ -66,7 +69,23 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
+// Uploaded images are served here only while they live on this machine (MEDIA-1). Only the two
+// areas are served: `public/` to anyone, `secure/` with an asset token. Names change on every
+// upload, so a public file never changes and can be cached for long.
+const assetMountPath = localAssetMountPath();
+if (assetMountPath && assetStorage.localRoot) {
+  app.use(`${assetMountPath}/public`, express.static(path.join(assetStorage.localRoot, 'public'), { maxAge: '7d' }));
+  app.use(`${assetMountPath}/secure`, requireAssetToken, express.static(path.join(assetStorage.localRoot, 'secure'), { cacheControl: false }));
+}
+
+/**
+ * Settings the app needs before it can render, announced by the server so that changing them needs
+ * no app rebuild. `assetBaseUrl` is where uploaded images are fetched from: a path on this API, or a
+ * full URL when another server holds them. Public, because signed-out screens show images too.
+ */
+app.get('/api/client-config', (_req, res) => {
+  res.json({ assetBaseUrl });
+});
 
 // HTTP Request Logging Middleware
 app.use((req, res, next) => {
@@ -147,7 +166,7 @@ app.post('/auth/signup', async (req, res) => {
       picture: null
     };
 
-    return res.status(201).json({ token, user: userPayload });
+    return res.status(201).json({ token, user: userPayload, assetToken: issueAssetToken(id) });
   } catch (error) {
     console.error("Signup error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -224,7 +243,7 @@ app.post('/auth/login', async (req, res) => {
       { expiresIn: '30d' }
     );
 
-    return res.status(200).json({ token, user: userPayload });
+    return res.status(200).json({ token, user: userPayload, assetToken: issueAssetToken(user.id) });
   } catch (error) {
     console.error("Login error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -281,7 +300,7 @@ app.get('/auth/me', async (req, res) => {
       isAdminOrCoach
     };
 
-    return res.status(200).json({ user: userPayload });
+    return res.status(200).json({ user: userPayload, assetToken: issueAssetToken(user.id) });
   } catch (error) {
     console.error("Auth verification error:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -304,6 +323,12 @@ const requireAuth = (req: any, res: any, next: any) => {
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
+
+// GET /auth/asset-token — renews the token that lets the app load images from `secure/` (MEDIA-1).
+// Sign-in, sign-up and /auth/me also return one; this is for a session that outlives it.
+app.get('/auth/asset-token', requireAuth, (req: any, res) => {
+  res.json(issueAssetToken(req.userId));
+});
 
 // GET /auth/profile
 app.get('/auth/profile', requireAuth, async (req: any, res) => {
@@ -374,40 +399,39 @@ app.patch('/auth/profile', requireAuth, async (req: any, res) => {
       await pool.query("UPDATE users SET name = $1 WHERE id = $2", [name, userId]);
     }
 
-    let finalCustomImage = customImage || null;
-    if (finalCustomImage && finalCustomImage.startsWith('data:image')) {
-      // Delete old profile image if it exists
-      if (user.custom_image) {
-        const { userManager } = await import('./managers/UserManager');
-        await userManager.safeDeleteProfileImage(user.custom_image);
+    // An empty customImage leaves the picture alone, as it always has.
+    const image = await imageService.stage('profiles', customImage || undefined, userId);
+    try {
+      if (image.value) {
+        await pool.query("UPDATE users SET custom_image = $1 WHERE id = $2", [image.value, userId]);
       }
-      // Process new base64 using imageService
-      const { imageService } = await import('./services/ImageService');
-      finalCustomImage = await imageService.processProfileImage(finalCustomImage, userId);
-      await pool.query("UPDATE users SET custom_image = $1 WHERE id = $2", [finalCustomImage, userId]);
-    } else if (finalCustomImage) {
-      await pool.query("UPDATE users SET custom_image = $1 WHERE id = $2", [finalCustomImage, userId]);
-    }
 
-    if (avatarSource) {
-      await pool.query("UPDATE users SET avatar_source = $1 WHERE id = $2", [avatarSource, userId]);
+      if (avatarSource) {
+        await pool.query("UPDATE users SET avatar_source = $1 WHERE id = $2", [avatarSource, userId]);
 
-      // Sync base 'image' for legacy and compatibility
-      if (avatarSource === 'custom') {
-        const activeImg = finalCustomImage || user.custom_image;
-        if (activeImg) {
-          await pool.query("UPDATE users SET image = $1 WHERE id = $2", [activeImg, userId]);
-        }
-      } else {
-        const accRes = await pool.query(
-          "SELECT provider_image FROM accounts WHERE user_id = $1 AND provider = $2",
-          [userId, avatarSource]
-        );
-        if (accRes.rows[0]?.provider_image) {
-          await pool.query("UPDATE users SET image = $1 WHERE id = $2", [accRes.rows[0].provider_image, userId]);
+        // Sync base 'image' for legacy and compatibility
+        if (avatarSource === 'custom') {
+          const activeImg = image.value || user.custom_image;
+          if (activeImg) {
+            await pool.query("UPDATE users SET image = $1 WHERE id = $2", [activeImg, userId]);
+          }
+        } else {
+          const accRes = await pool.query(
+            "SELECT provider_image FROM accounts WHERE user_id = $1 AND provider = $2",
+            [userId, avatarSource]
+          );
+          if (accRes.rows[0]?.provider_image) {
+            await pool.query("UPDATE users SET image = $1 WHERE id = $2", [accRes.rows[0].provider_image, userId]);
+          }
         }
       }
+    } catch (error) {
+      await image.discard();
+      throw error;
     }
+    // Both columns may have held the old picture; each is deleted only if nothing uses it now.
+    await image.commit(user.custom_image);
+    await imageService.release('profiles', user.image);
 
     if (theme) {
       await pool.query("UPDATE users SET theme = $1 WHERE id = $2", [theme, userId]);
@@ -2919,11 +2943,7 @@ io.on('connection', (socket) => {
                 // `eventId` authorizes the write (an organiser creating a person to appoint); it is
                 // not a column on the profile.
                 const { eventId: _appointingEventId, ...addPayload } = { ...action.payload };
-                // If a base64 image was provided, process and save it as a server file
-                if (addPayload.image && addPayload.image.startsWith('data:')) {
-                    const { imageService } = await import('./services/ImageService');
-                    addPayload.image = await imageService.processProfileImage(addPayload.image, addPayload.id || `new-${Date.now()}`);
-                }
+                // An uploaded picture is saved by addOrgProfile itself, around the database write.
                 result = await dataManager.addOrgProfile(addPayload);
                 break;
             }
@@ -2934,24 +2954,9 @@ io.on('connection', (socket) => {
                 // `UserManager.ensureProfileForUserInOrg`, server-side, when an account claims
                 // its profile. No client sends it (`PEOPLE-2`).
                 const { userId: _rejectedUserId, ...updateData } = { ...action.payload.data };
-                // If a base64 image was provided, process and save it as a server file
-                if (updateData.image && updateData.image.startsWith('data:')) {
-                    const { imageService } = await import('./services/ImageService');
-                    // Delete the old image file if there was one
-                    const existing = await dataManager.getOrgProfile(action.payload.id);
-                    if (existing?.image && !existing.image.startsWith('http') && !existing.image.startsWith('data:')) {
-                        await imageService.deleteProfileImage(existing.image);
-                    }
-                    updateData.image = await imageService.processProfileImage(updateData.image, action.payload.id);
-                } else if (updateData.image === '') {
-                    // Explicit removal — delete old file
-                    const { imageService } = await import('./services/ImageService');
-                    const existing = await dataManager.getOrgProfile(action.payload.id);
-                    if (existing?.image && !existing.image.startsWith('http') && !existing.image.startsWith('data:')) {
-                        await imageService.deleteProfileImage(existing.image);
-                    }
-                }
-                console.log(`DataManager: Updating org profile ${action.payload.id}`, updateData);
+                // A new, replaced or removed picture is handled by updateOrgProfile itself: saved
+                // before the write, and the old one deleted after it only if nothing else uses it.
+                console.log(`DataManager: Updating org profile ${action.payload.id}`, { ...updateData, image: updateData.image?.startsWith('data:') ? '(upload)' : updateData.image });
                 result = await dataManager.updateOrgProfile(action.payload.id, updateData);
                 if (result && result.orgId) {
                     updateTopic = `org:${result.orgId}:members`;

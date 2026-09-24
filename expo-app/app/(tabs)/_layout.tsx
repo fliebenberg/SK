@@ -7,7 +7,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { wsService } from '../../services/websocket';
 import { useWsStore } from '../../store/wsStore';
-import { getOrgLogoUrl } from '../../services/api';
 import { OrgLogo } from '../../components/OrgLogo';
 import { CommonActions } from '@react-navigation/native';
 import { BottomMenu } from '../../components/BottomMenu';

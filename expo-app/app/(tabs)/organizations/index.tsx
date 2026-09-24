@@ -11,7 +11,6 @@ import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
 import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType } from '@sk/shared';
 import { useOrgShortCode } from '../../../hooks/useOrgShortCode';
-import { getOrgLogoUrl } from '../../../services/api';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { getContrastColor } from '@/utils/colorUtils';

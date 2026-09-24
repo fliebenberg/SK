@@ -16,7 +16,7 @@ import { useWsStore } from '../../../../../../store/wsStore';
 import { SocketAction, Season, SeasonTeam, LeagueStandingRow, Game, Team, reseedDecision } from '@sk/shared';
 import { finishedScoreLine } from '../../../../../../utils/matchScore';
 import DatePicker from '../../../../../../components/DatePicker';
-import { getOrgLogoUrl } from '../../../../../../services/api';
+import { getOrgLogoUrl } from '../../../../../../services/assets';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { formatFixtureWhen } from '../../../../../../utils/dates';

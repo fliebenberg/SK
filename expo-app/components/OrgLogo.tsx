@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Image, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getOrgLogoUrl } from '../services/api';
+import { getOrgLogoUrl } from '../services/assets';
 
 interface OrgLogoProps {
   logo?: string;

@@ -12,7 +12,7 @@ import { wsService } from '../../../../services/websocket';
 import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Sport, Organization } from '@sk/shared';
-import { getOrgLogoUrl } from '../../../../services/api';
+import { getOrgLogoUrl } from '../../../../services/assets';
 import CustomSelect from '../../../../components/CustomSelect';
 import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
 import * as ImagePicker from 'expo-image-picker';

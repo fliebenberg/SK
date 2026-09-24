@@ -207,16 +207,6 @@ export class OrganizationManager extends BaseManager {
     this.cacheLoaded = false;
   }
 
-  private cleanLogoField(logo?: string): string {
-    if (!logo) return "";
-    if (logo.includes('/uploads/logos/')) {
-      const parts = logo.split('/uploads/logos/');
-      const filenameWithSuffix = parts[parts.length - 1];
-      return filenameWithSuffix.replace(/_(large|medium|thumb)\.\w+$/, '');
-    }
-    return logo;
-  }
-
   /**
    * A short code, required since 2026-09-20 — derived from the name rather than refused.
    *
@@ -238,43 +228,36 @@ export class OrganizationManager extends BaseManager {
     const supportedRoleIds = org.supportedRoleIds || [];
     const shortName = this.requireShortCode(org.shortName, org.name);
     
-    let logo = org.logo;
-    if (logo) {
-      if (logo.startsWith('data:image')) {
-        logo = await imageService.processLogo(logo, id);
-      } else {
-        logo = this.cleanLogoField(logo);
-      }
-    }
-
     let addressId = org.addressId;
     if (org.address && !addressId) {
       const newAddr = await addressManager.addAddress(org.address);
       addressId = newAddr.id;
     }
-    
-    await this.query('BEGIN');
+
+    const image = await imageService.stage('logos', org.logo, id);
+    const logo = image.value ?? null;
+
     try {
-        await this.query(
-          `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [id, org.name, logo, org.primaryColor, org.secondaryColor, shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null]
-        );
+        await this.transaction(async (tx) => {
+            await tx(
+              `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+              [id, org.name, logo, org.primaryColor, org.secondaryColor, shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null]
+            );
 
-        for (const sportId of supportedSportIds) {
-            await this.query('INSERT INTO organization_sports (org_id, sport_id) VALUES ($1, $2)', [id, sportId]);
-        }
+            for (const sportId of supportedSportIds) {
+                await tx('INSERT INTO organization_sports (org_id, sport_id) VALUES ($1, $2)', [id, sportId]);
+            }
 
-        for (const roleId of supportedRoleIds) {
-            await this.query('INSERT INTO organization_roles (org_id, role_id) VALUES ($1, $2)', [id, roleId]);
-        }
-
-        await this.query('COMMIT');
+            for (const roleId of supportedRoleIds) {
+                await tx('INSERT INTO organization_roles (org_id, role_id) VALUES ($1, $2)', [id, roleId]);
+            }
+        });
     } catch (error) {
-        await this.query('ROLLBACK');
+        await image.discard();
         throw error;
     }
-    
+
     // Don't fully invalidate, just add the new one or refresh if it exists
     return this.getOrgSummary(id) as Promise<Organization>;
   }
@@ -290,19 +273,6 @@ export class OrganizationManager extends BaseManager {
       data.shortName = code;
     }
 
-    // If logo is being updated and it's base64, process it
-    if (data.logo) {
-      if (data.logo.startsWith('data:image')) {
-          const oldOrg = await this.getOrganization(id);
-          if (oldOrg && oldOrg.logo) {
-              await imageService.deleteLogo(oldOrg.logo);
-          }
-          data.logo = await imageService.processLogo(data.logo, id);
-      } else {
-          data.logo = this.cleanLogoField(data.logo);
-      }
-    }
-
     // Handle Address update
     if (data.address) {
       const currentOrg = await this.getOrganization(id);
@@ -315,67 +285,75 @@ export class OrganizationManager extends BaseManager {
       delete data.address; // Don't try to update the column directly
     }
 
-    await this.query('BEGIN');
+    // Staged last before the write, so nothing above can fail with an upload already on disk.
+    // The previous value is read from the table, not the org cache, which may be stale.
+    const previousLogo = data.logo !== undefined
+      ? (await this.query('SELECT logo FROM organizations WHERE id = $1', [id])).rows[0]?.logo
+      : undefined;
+    const image = await imageService.stage('logos', data.logo, id);
+    if (image.value !== undefined) data.logo = image.value ?? '';
+
     try {
-        const supportedSportIds = data.supportedSportIds;
-        const supportedRoleIds = data.supportedRoleIds;
-        delete data.supportedSportIds;
-        delete data.supportedRoleIds;
+        await this.transaction(async (tx) => {
+            const supportedSportIds = data.supportedSportIds;
+            const supportedRoleIds = data.supportedRoleIds;
+            delete data.supportedSportIds;
+            delete data.supportedRoleIds;
 
-        const keys = Object.keys(data).filter(k => k !== 'id');
-        if (keys.length > 0) {
-            const setClauses: string[] = [];
-            const values: any[] = [];
-            let idx = 1;
+            const keys = Object.keys(data).filter(k => k !== 'id');
+            if (keys.length > 0) {
+                const setClauses: string[] = [];
+                const values: any[] = [];
+                let idx = 1;
 
-            const map: Record<string, string> = {
-                name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
-                shortName: 'short_name', isClaimed: 'is_claimed', creatorId: 'creator_id', 
-                isActive: 'is_active', settings: 'settings', addressId: 'address_id',
-                type: 'type', customType: 'custom_type'
-            };
+                const map: Record<string, string> = {
+                    name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
+                    shortName: 'short_name', isClaimed: 'is_claimed', creatorId: 'creator_id', 
+                    isActive: 'is_active', settings: 'settings', addressId: 'address_id',
+                    type: 'type', customType: 'custom_type'
+                };
 
-            keys.forEach(key => {
-                if (map[key]) {
-                    setClauses.push(`${map[key]} = $${idx}`);
-                    values.push((data as any)[key]);
-                    idx++;
+                keys.forEach(key => {
+                    if (map[key]) {
+                        setClauses.push(`${map[key]} = $${idx}`);
+                        values.push((data as any)[key]);
+                        idx++;
+                    }
+                });
+
+                if (setClauses.length > 0) {
+                    values.push(id);
+                    await tx(
+                        `UPDATE organizations SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+                        values
+                    );
                 }
-            });
+            }
 
-            if (setClauses.length > 0) {
-                values.push(id);
-                await this.query(
-                    `UPDATE organizations SET ${setClauses.join(', ')} WHERE id = $${idx}`,
-                    values
+            if (supportedSportIds !== undefined) {
+                await tx('DELETE FROM organization_sports WHERE org_id = $1', [id]);
+                for (const sportId of supportedSportIds) {
+                    await tx('INSERT INTO organization_sports (org_id, sport_id) VALUES ($1, $2)', [id, sportId]);
+                }
+                // Deactivate teams for sports that are no longer supported
+                await tx(
+                    'UPDATE teams SET is_active = false WHERE org_id = $1 AND NOT (sport_id = ANY($2))',
+                    [id, supportedSportIds]
                 );
             }
-        }
 
-        if (supportedSportIds !== undefined) {
-            await this.query('DELETE FROM organization_sports WHERE org_id = $1', [id]);
-            for (const sportId of supportedSportIds) {
-                await this.query('INSERT INTO organization_sports (org_id, sport_id) VALUES ($1, $2)', [id, sportId]);
+            if (supportedRoleIds !== undefined) {
+                await tx('DELETE FROM organization_roles WHERE org_id = $1', [id]);
+                for (const roleId of supportedRoleIds) {
+                    await tx('INSERT INTO organization_roles (org_id, role_id) VALUES ($1, $2)', [id, roleId]);
+                }
             }
-            // Deactivate teams for sports that are no longer supported
-            await this.query(
-                'UPDATE teams SET is_active = false WHERE org_id = $1 AND NOT (sport_id = ANY($2))',
-                [id, supportedSportIds]
-            );
-        }
-
-        if (supportedRoleIds !== undefined) {
-            await this.query('DELETE FROM organization_roles WHERE org_id = $1', [id]);
-            for (const roleId of supportedRoleIds) {
-                await this.query('INSERT INTO organization_roles (org_id, role_id) VALUES ($1, $2)', [id, roleId]);
-            }
-        }
-
-        await this.query('COMMIT');
+        });
     } catch (error) {
-        await this.query('ROLLBACK');
+        await image.discard();
         throw error;
     }
+    await image.commit(previousLogo);
 
     // Only refresh this specific org's summary/cache
     return this.getOrgSummary(id).then(r => r || null);
@@ -490,17 +468,16 @@ export class OrganizationManager extends BaseManager {
       throw new Error(`Cannot delete organization: ${reason}${parts.join(', ')}.`);
     }
 
-    await this.query('BEGIN');
-    try {
-        await this.query('DELETE FROM org_memberships WHERE org_id = $1', [id]);
-        await this.query('DELETE FROM organization_sports WHERE org_id = $1', [id]);
-        await this.query('DELETE FROM organization_roles WHERE org_id = $1', [id]);
-        await this.query('DELETE FROM organizations WHERE id = $1', [id]);
-        await this.query('COMMIT');
-    } catch (error) {
-        await this.query('ROLLBACK');
-        throw error;
-    }
+    const logo = (await this.query('SELECT logo FROM organizations WHERE id = $1', [id])).rows[0]?.logo;
+
+    await this.transaction(async (tx) => {
+        await tx('DELETE FROM org_memberships WHERE org_id = $1', [id]);
+        await tx('DELETE FROM organization_sports WHERE org_id = $1', [id]);
+        await tx('DELETE FROM organization_roles WHERE org_id = $1', [id]);
+        await tx('DELETE FROM organizations WHERE id = $1', [id]);
+    });
+    // Only once the row is gone, so a failed delete leaves the logo it still shows.
+    await imageService.release('logos', logo);
     
     this.organizationCache.delete(id);
   }

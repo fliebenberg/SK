@@ -44,7 +44,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "postinstall": "patch-package",
-    "check:actions": "node scripts/check-actions.js"
+    "check:actions": "node scripts/check-actions.js",
+    "check:images": "node scripts/check-images.js"
   },
   "overrides": {
     "react-native-worklets": "0.7.3"

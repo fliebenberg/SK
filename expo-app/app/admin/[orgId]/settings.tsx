@@ -23,7 +23,7 @@ const orgTypes: { value: OrganizationType; label: string }[] = [
 ];
 import * as ImagePicker from 'expo-image-picker';
 import { CONSTANTS, getThemeColor } from '../../../constants';
-import { getOrgLogoUrl } from '../../../services/api';
+import { getOrgLogoUrl } from '../../../services/assets';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { getContrastColor, hexToRgba } from '@/utils/colorUtils';
@@ -1457,7 +1457,7 @@ export default function OrgSettings() {
       {/* LOGO EDITOR — shared ImageEditor component */}
       <ImageEditor
         visible={isEditingLogo}
-        imageUri={logo.startsWith('data:') || logo.startsWith('http') ? logo : (logo ? getOrgLogoUrl(logo, 'large') : '')}
+        imageUri={getOrgLogoUrl(logo, 'large')}
         config={logoConfig}
         title="Adjust Logo Placement"
         allowRemove

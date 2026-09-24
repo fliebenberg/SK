@@ -149,21 +149,15 @@ export class SiteManager extends BaseManager {
     }
 
     // Wrap in transaction
-    await this.query('BEGIN');
-    try {
+    await this.transaction(async (tx) => {
         // 1. Delete all facilities associated with the site
         if (facilities > 0) {
-            await this.query('DELETE FROM facilities WHERE site_id = $1', [id]);
+            await tx('DELETE FROM facilities WHERE site_id = $1', [id]);
         }
 
         // 2. Delete the site itself
-        await this.query('DELETE FROM sites WHERE id = $1', [id]);
-
-        await this.query('COMMIT');
-    } catch (error) {
-        await this.query('ROLLBACK');
-        throw error;
-    }
+        await tx('DELETE FROM sites WHERE id = $1', [id]);
+    });
 
     this.invalidateCache();
     return site;

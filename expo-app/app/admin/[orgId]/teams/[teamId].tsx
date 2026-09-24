@@ -17,7 +17,7 @@ import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocompl
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
 import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
-import { getAvatarUrl } from '../../../../services/api';
+import { getAvatarUrl } from '../../../../services/assets';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { PaginatedList } from '../../../../components/PaginatedList';
 import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
@@ -1317,7 +1317,7 @@ export default function TeamDetailsScreen() {
                           }}
                         >
                           <Image
-                            source={{ uri: memberImage }}
+                            source={{ uri: getAvatarUrl(memberImage, 'medium') }}
                             style={{ width: '100%', height: '100%' }}
                             resizeMode="cover"
                           />
@@ -1520,7 +1520,7 @@ export default function TeamDetailsScreen() {
                           }}
                         >
                           <Image
-                            source={{ uri: memberImage }}
+                            source={{ uri: getAvatarUrl(memberImage, 'medium') }}
                             style={{ width: '100%', height: '100%' }}
                             resizeMode="cover"
                           />
@@ -1662,7 +1662,7 @@ export default function TeamDetailsScreen() {
       {/* Resolve the image URI to pass to ImageEditor */}
       <ImageEditor
         visible={imageEditorTarget !== null}
-        imageUri={memberImage}
+        imageUri={getAvatarUrl(memberImage, 'large')}
         config={memberImageConfig}
         title="Edit Avatar"
         allowRemove

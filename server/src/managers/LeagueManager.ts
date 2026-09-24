@@ -28,41 +28,30 @@ export class LeagueManager extends BaseManager {
     return res.rows[0] || null;
   }
 
-  private cleanLogoField(logo?: string): string {
-    if (!logo) return "";
-    if (logo.includes('/uploads/logos/')) {
-      const parts = logo.split('/uploads/logos/');
-      const filenameWithSuffix = parts[parts.length - 1];
-      return filenameWithSuffix.replace(/_(large|medium|thumb)\.\w+$/, '');
-    }
-    return logo;
-  }
-
   async createLeague(data: Omit<League, "id"> & { id?: string }): Promise<League> {
     const id = data.id || `lg-${uuidv4()}`;
     
-    let logo = data.logo;
-    if (logo) {
-      if (logo.startsWith('data:image')) {
-        logo = await imageService.processLogo(logo, id);
-      } else {
-        logo = this.cleanLogoField(logo);
-      }
-    }
+    const image = await imageService.stage('logos', data.logo, id);
+    const logo = image.value;
 
-    await this.query(
-      `INSERT INTO leagues (id, name, org_id, sport_id, age_group_id, join_policy, criteria, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [
-        id,
-        data.name,
-        data.orgId,
-        data.sportId,
-        data.ageGroupId || null,
-        data.joinPolicy || 'CLOSED',
-        JSON.stringify(data.criteria || {}),
-        logo || null
-      ]
-    );
+    try {
+      await this.query(
+        `INSERT INTO leagues (id, name, org_id, sport_id, age_group_id, join_policy, criteria, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          id,
+          data.name,
+          data.orgId,
+          data.sportId,
+          data.ageGroupId || null,
+          data.joinPolicy || 'CLOSED',
+          JSON.stringify(data.criteria || {}),
+          logo || null
+        ]
+      );
+    } catch (error) {
+      await image.discard();
+      throw error;
+    }
     return (await this.getLeague(id))!;
   }
 
@@ -71,21 +60,11 @@ export class LeagueManager extends BaseManager {
     const values: any[] = [];
     let idx = 1;
 
-    if (data.logo !== undefined) {
-      let logo = data.logo;
-      if (logo) {
-        if (logo.startsWith('data:image')) {
-          const oldLeague = await this.getLeague(id);
-          if (oldLeague && oldLeague.logo) {
-            await imageService.deleteLogo(oldLeague.logo);
-          }
-          logo = await imageService.processLogo(logo, id);
-        } else {
-          logo = this.cleanLogoField(logo);
-        }
-      }
+    const previousLogo = data.logo !== undefined ? (await this.getLeague(id))?.logo : undefined;
+    const image = await imageService.stage('logos', data.logo, id);
+    if (image.value !== undefined) {
       fields.push(`logo = $${idx++}`);
-      values.push(logo || null);
+      values.push(image.value);
     }
 
     if (data.name !== undefined) {
@@ -108,16 +87,21 @@ export class LeagueManager extends BaseManager {
     if (fields.length === 0) return this.getLeague(id);
 
     values.push(id);
-    await this.query(`UPDATE leagues SET ${fields.join(', ')} WHERE id = $${idx}`, values);
+    try {
+      await this.query(`UPDATE leagues SET ${fields.join(', ')} WHERE id = $${idx}`, values);
+    } catch (error) {
+      await image.discard();
+      throw error;
+    }
+    await image.commit(previousLogo);
     return this.getLeague(id);
   }
 
   async deleteLeague(id: string): Promise<boolean> {
     const league = await this.getLeague(id);
-    if (league && league.logo) {
-      await imageService.deleteLogo(league.logo);
-    }
     const res = await this.query(`DELETE FROM leagues WHERE id = $1`, [id]);
+    // Only once the row is gone, so a failed delete leaves the logo it still shows.
+    await imageService.release('logos', league?.logo);
     return (res.rowCount ?? 0) > 0;
   }
 
@@ -141,28 +125,27 @@ export class LeagueManager extends BaseManager {
   async createSeason(data: Omit<Season, "id" | "cachedStandings" | "createdAt" | "updatedAt"> & { id?: string }): Promise<Season> {
     const id = data.id || `sn-${uuidv4()}`;
 
-    let logo = data.logo;
-    if (logo) {
-      if (logo.startsWith('data:image')) {
-        logo = await imageService.processLogo(logo, id);
-      } else {
-        logo = this.cleanLogoField(logo);
-      }
-    }
+    const image = await imageService.stage('logos', data.logo, id);
+    const logo = image.value;
 
-    await this.query(
-      `INSERT INTO seasons (id, league_id, name, start_date, end_date, status, settings, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [
-        id,
-        data.leagueId,
-        data.name,
-        data.startDate,
-        data.endDate,
-        data.status || 'UPCOMING',
-        JSON.stringify(data.settings || { pointsPerWin: 4, pointsPerDraw: 2, pointsPerLoss: 0 }),
-        logo || null
-      ]
-    );
+    try {
+      await this.query(
+        `INSERT INTO seasons (id, league_id, name, start_date, end_date, status, settings, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          id,
+          data.leagueId,
+          data.name,
+          data.startDate,
+          data.endDate,
+          data.status || 'UPCOMING',
+          JSON.stringify(data.settings || { pointsPerWin: 4, pointsPerDraw: 2, pointsPerLoss: 0 }),
+          logo || null
+        ]
+      );
+    } catch (error) {
+      await image.discard();
+      throw error;
+    }
     return (await this.getSeason(id))!;
   }
 
@@ -171,21 +154,11 @@ export class LeagueManager extends BaseManager {
     const values: any[] = [];
     let idx = 1;
 
-    if (data.logo !== undefined) {
-      let logo = data.logo;
-      if (logo) {
-        if (logo.startsWith('data:image')) {
-          const oldSeason = await this.getSeason(id);
-          if (oldSeason && oldSeason.logo) {
-            await imageService.deleteLogo(oldSeason.logo);
-          }
-          logo = await imageService.processLogo(logo, id);
-        } else {
-          logo = this.cleanLogoField(logo);
-        }
-      }
+    const previousLogo = data.logo !== undefined ? (await this.getSeason(id))?.logo : undefined;
+    const image = await imageService.stage('logos', data.logo, id);
+    if (image.value !== undefined) {
       fields.push(`logo = $${idx++}`);
-      values.push(logo || null);
+      values.push(image.value);
     }
 
     if (data.name !== undefined) {
@@ -212,16 +185,21 @@ export class LeagueManager extends BaseManager {
     if (fields.length === 0) return this.getSeason(id);
 
     values.push(id);
-    await this.query(`UPDATE seasons SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx}`, values);
+    try {
+      await this.query(`UPDATE seasons SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx}`, values);
+    } catch (error) {
+      await image.discard();
+      throw error;
+    }
+    await image.commit(previousLogo);
     return this.getSeason(id);
   }
 
   async deleteSeason(id: string): Promise<boolean> {
     const season = await this.getSeason(id);
-    if (season && season.logo) {
-      await imageService.deleteLogo(season.logo);
-    }
     const res = await this.query(`DELETE FROM seasons WHERE id = $1`, [id]);
+    // Only once the row is gone, so a failed delete leaves the logo it still shows.
+    await imageService.release('logos', season?.logo);
     return (res.rowCount ?? 0) > 0;
   }
 

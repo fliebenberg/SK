@@ -3,7 +3,7 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { OrgMembership, TeamMembership } from '@sk/shared';
-import { apiService } from '../services/api';
+import { apiService, AssetToken } from '../services/api';
 import { useSettingsStore } from './settingsStore';
 import { wsService } from '../services/websocket';
 
@@ -54,6 +54,8 @@ export interface User {
 interface AuthState {
   token: string | null;
   user: User | null;
+  /** Needed to load people's pictures (MEDIA-1). Arrives with the session; renewed by refreshAssetToken. */
+  assetToken: AssetToken | null;
   isAuthenticated: boolean;
   orgMemberships: OrgMembership[];
   teamMemberships: TeamMembership[];
@@ -63,7 +65,9 @@ interface AuthState {
   isSessionVerified: boolean;
   /** True once memberships have been fetched for the current session. */
   membershipsLoaded: boolean;
-  login: (token: string, user: User) => void;
+  login: (token: string, user: User, assetToken?: AssetToken) => void;
+  /** Renews the asset token if it expires within 12 hours. Never throws. */
+  refreshAssetToken: () => Promise<void>;
   logout: () => void;
   updateUser: (user: Partial<User>) => void;
   verifySession: () => Promise<void>;
@@ -72,11 +76,15 @@ interface AuthState {
   markMembershipsResolved: () => void;
 }
 
+/** Renew the asset token once it has less than this left. Tokens last 24–36 hours. */
+const ASSET_TOKEN_RENEW_MS = 12 * 60 * 60 * 1000;
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       token: null,
       user: null,
+      assetToken: null,
       isAuthenticated: false,
       orgMemberships: [],
       teamMemberships: [],
@@ -86,6 +94,18 @@ export const useAuthStore = create<AuthState>()(
       // Deliberately leaves the existing lists alone: a failed fetch is not
       // evidence that the user lost their memberships.
       markMembershipsResolved: () => set({ membershipsLoaded: true }),
+      refreshAssetToken: async () => {
+        const { token, assetToken } = get();
+        if (!token || (assetToken && assetToken.expiresAt - Date.now() > ASSET_TOKEN_RENEW_MS)) return;
+        try {
+          const fresh = await apiService.getAssetToken(token, { suppressToast: true });
+          // The session may have ended while the request was out.
+          if (get().token === token) set({ assetToken: fresh });
+        } catch (error) {
+          // Pictures already shown stay shown; the next check tries again.
+          console.warn('[AuthStore] Could not renew the asset token:', error);
+        }
+      },
       setMemberships: (orgs, teams) => set((state) => {
         const hasAdminOrCoachRole = state.user?.globalRole === 'admin' ||
           (orgs || []).some(m => m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff') ||
@@ -100,7 +120,7 @@ export const useAuthStore = create<AuthState>()(
           user: updatedUser
         };
       }),
-      login: (token, user) => {
+      login: (token, user, assetToken) => {
         // Sanitize theme string
         if (user.theme === 'null' || user.theme === 'undefined') {
           user.theme = null;
@@ -109,6 +129,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           token,
           user,
+          assetToken: assetToken ?? null,
           isAuthenticated: true,
           isSessionVerified: true,
           orgMemberships: [],
@@ -158,6 +179,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           token: null,
           user: null,
+          assetToken: null,
           isAuthenticated: false,
           orgMemberships: [],
           teamMemberships: [],
@@ -187,7 +209,12 @@ export const useAuthStore = create<AuthState>()(
           if (freshUser.theme === 'null' || freshUser.theme === 'undefined') {
             freshUser = { ...freshUser, theme: null };
           }
-          set({ user: freshUser, isAuthenticated: true, isSessionVerified: true });
+          set({
+            user: freshUser,
+            isAuthenticated: true,
+            isSessionVerified: true,
+            ...(response.assetToken ? { assetToken: response.assetToken } : {}),
+          });
 
           // Sync theme preference on session verify
           try {
@@ -229,6 +256,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             token: null,
             user: null,
+            assetToken: null,
             isAuthenticated: false,
             orgMemberships: [],
             teamMemberships: [],
@@ -247,6 +275,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         token: state.token,
         user: state.user,
+        assetToken: state.assetToken,
         isAuthenticated: state.isAuthenticated,
         orgMemberships: state.orgMemberships,
         teamMemberships: state.teamMemberships,

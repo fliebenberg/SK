@@ -15,7 +15,10 @@
     "db:test-orgs": "ts-node src/scripts/setup/reset-test-orgs.ts",
     "db:test:setup": "ts-node src/scripts/setup/test-db.ts",
     "verify:rooms": "ts-node src/scripts/verify-rooms.ts",
-    "check:migrations": "node scripts/check-migrations.js"
+    "check:migrations": "node scripts/check-migrations.js",
+    "check:transactions": "node scripts/check-transactions.js",
+    "assets:migrate": "ts-node src/scripts/migrate-asset-layout.ts",
+    "assets:audit": "ts-node src/scripts/audit-assets.ts"
   },
   "dependencies": {
     "@sk/shared": "file:../shared",

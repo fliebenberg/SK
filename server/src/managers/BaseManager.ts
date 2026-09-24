@@ -20,8 +20,11 @@ export class BaseManager {
    * The block is handed a `Tx` rather than the client itself, so nothing inside can release the
    * connection or start a nested transaction by accident.
    *
-   * (`EventManager` and `LeagueManager` still contain the pooled `BEGIN`/`COMMIT` pattern in
-   * several places; that is `TX-1` in TODO.md, deliberately not swept up here.)
+   * **Every statement in the block must go through `tx`**, including those made by helpers it calls:
+   * one run through `this.query` uses another connection, cannot see the block's uncommitted writes,
+   * and can wait forever on a row the block has locked. Pass `tx` down (see
+   * `EventManager.syncEventOrganizationsFromGames`), and read results back after the block returns.
+   * `npm run check:transactions` rejects the pooled pattern this replaced (`TX-1`).
    */
   protected async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const client: PoolClient = await pool.connect();

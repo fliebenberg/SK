@@ -5,7 +5,8 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { apiService, AdminSearchUserResult, getAvatarUrl } from '../../../services/api';
+import { apiService, AdminSearchUserResult } from '../../../services/api';
+import { getAvatarUrl } from '../../../services/assets';
 
 export default function UserManagement() {
   const token = useAuthStore(state => state.token);

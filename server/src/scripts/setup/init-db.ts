@@ -3,16 +3,19 @@ import * as path from 'path';
 import pool from '../../db';
 
 const createTables = async () => {
+    // One client for the whole run: through the pool, BEGIN and COMMIT could land on different
+    // connections, so the statements between them would not be a transaction at all (TX-1).
+    const client = await pool.connect();
     try {
         console.log('Initializing Database...');
 
-        await pool.query('BEGIN');
+        await client.query('BEGIN');
 
         // Enable pg_trgm for fuzzy search
-        await pool.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+        await client.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
 
         // Addresses Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS addresses (
                 id TEXT PRIMARY KEY,
                 full_address TEXT,
@@ -28,7 +31,7 @@ const createTables = async () => {
         `);
 
         // Sport Categories Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS sport_categories (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -37,7 +40,7 @@ const createTables = async () => {
         `);
 
         // Sports Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS sports (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -53,7 +56,7 @@ const createTables = async () => {
         `);
 
         // Sport Presets
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS sport_presets (
                 id TEXT PRIMARY KEY,
                 sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
@@ -63,7 +66,7 @@ const createTables = async () => {
         `);
 
         // Organizations Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS organizations (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -84,7 +87,7 @@ const createTables = async () => {
         `);
 
         // Organization Sports Join Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS organization_sports (
                 org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
                 sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
@@ -93,7 +96,7 @@ const createTables = async () => {
         `);
 
         // Organization Roles Join Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS organization_roles (
                 org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
                 role_id TEXT NOT NULL,
@@ -102,7 +105,7 @@ const createTables = async () => {
         `);
 
         // Sites Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS sites (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -113,7 +116,7 @@ const createTables = async () => {
         `);
 
         // Facilities Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS facilities (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -129,7 +132,7 @@ const createTables = async () => {
         `);
 
         // Facility Sports Join Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS facility_sports (
                 facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
                 sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
@@ -141,7 +144,7 @@ const createTables = async () => {
         // (added by users under "Other…"). Teams, divisions and leagues reference an entry through
         // (sport_id, age_group_id), so an age group can only be held by something of its own sport.
         // `created_by` has no FK because `users` is created further down, as with `teams.creator_id`.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS sport_age_groups (
                 id TEXT PRIMARY KEY,
                 sport_id TEXT NOT NULL REFERENCES sports(id) ON DELETE CASCADE,
@@ -154,13 +157,13 @@ const createTables = async () => {
                 UNIQUE (sport_id, id)
             );
         `);
-        await pool.query(`
+        await client.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS sport_age_groups_name_key
                 ON sport_age_groups (sport_id, lower(name));
         `);
 
         // Teams Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS teams (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -176,7 +179,7 @@ const createTables = async () => {
         `);
 
         // Users Table (Auth accounts)
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 name TEXT,
@@ -196,14 +199,14 @@ const createTables = async () => {
         `);
 
         // Migration: Ensure force_password_reset column exists on older instances
-        await pool.query(`
+        await client.query(`
             ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_reset BOOLEAN DEFAULT false;
         `);
 
 
 
         // Organization Profiles (Replaces Persons)
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS org_profiles (
                 id TEXT PRIMARY KEY,
                 org_id TEXT REFERENCES organizations(id),
@@ -223,12 +226,12 @@ const createTables = async () => {
         `);
 
         // Migration: Ensure cellphone column exists on older instances of org_profiles
-        await pool.query(`
+        await client.query(`
             ALTER TABLE org_profiles ADD COLUMN IF NOT EXISTS cellphone TEXT;
         `);
 
         // Team Memberships
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS team_memberships (
                 id TEXT PRIMARY KEY,
                 org_profile_id TEXT REFERENCES org_profiles(id),
@@ -240,7 +243,7 @@ const createTables = async () => {
         `);
 
         // Organization Memberships
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS org_memberships (
                 id TEXT PRIMARY KEY,
                 org_profile_id TEXT REFERENCES org_profiles(id),
@@ -252,7 +255,7 @@ const createTables = async () => {
         `);
 
         // Events
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS events (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -277,7 +280,7 @@ const createTables = async () => {
         `);
 
         // Event Sports Join Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS event_sports (
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
                 sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
@@ -286,7 +289,7 @@ const createTables = async () => {
         `);
 
         // Event Organizations Join Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS event_organizations (
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
                 org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
@@ -307,7 +310,7 @@ const createTables = async () => {
         // ---------------------------------------------------------------------------------
 
         // Divisions: the netball, the U14 rugby. A substantial entity, not a join row.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS tournament_divisions (
                 id TEXT PRIMARY KEY,
                 event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -327,7 +330,7 @@ const createTables = async () => {
 
         // Stages: pools then knockout. Every division has at least one (D11); the UI stays
         // silent about staging when it has exactly one.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS division_stages (
                 id TEXT PRIMARY KEY,
                 division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
@@ -347,7 +350,7 @@ const createTables = async () => {
 
         // Entrants: a team, an individual, or an unresolved slot carrying only a label. The
         // CHECK forbids the first two at once; it does not require either.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS division_entrants (
                 id TEXT PRIMARY KEY,
                 division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
@@ -366,7 +369,7 @@ const createTables = async () => {
         // Who takes part in each stage, and where they sit in it. Pool membership lives on the
         // membership row rather than in the stage's JSON, so "which pool is Northcliff in?" is
         // a query rather than a scan.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS stage_entrants (
                 stage_id TEXT REFERENCES division_stages(id) ON DELETE CASCADE,
                 entrant_id TEXT REFERENCES division_entrants(id) ON DELETE CASCADE,
@@ -380,7 +383,7 @@ const createTables = async () => {
         // The facility cascade: the event names what is in play, a division may narrow it to a
         // subset, a division with no rows may use any of the event's. `events.facility_id`
         // stays as it is for SingleMatch, where one facility is the whole story.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS event_facilities (
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
                 facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
@@ -388,7 +391,7 @@ const createTables = async () => {
             );
         `);
 
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS division_facilities (
                 division_id TEXT REFERENCES tournament_divisions(id) ON DELETE CASCADE,
                 facility_id TEXT REFERENCES facilities(id) ON DELETE CASCADE,
@@ -398,7 +401,7 @@ const createTables = async () => {
 
         // D29's standings half: a deduction or a walkover becomes a row with a reason and an
         // author, rather than a quiet edit to a game that never happened.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS division_adjustments (
                 id TEXT PRIMARY KEY,
                 division_id TEXT NOT NULL REFERENCES tournament_divisions(id) ON DELETE CASCADE,
@@ -417,7 +420,7 @@ const createTables = async () => {
         //
         // Grants reference `org_profiles`, never `users` — `AccessManager` resolves a user into
         // a set of profile ids, so someone with no account yet can still be appointed.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS event_organizers (
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
                 org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE CASCADE,
@@ -431,7 +434,7 @@ const createTables = async () => {
         // tournament", which the same sport at next weekend's tournament says nothing about. It is
         // a rule rather than a list — it covers a netball division added tomorrow, and stops
         // covering one moved to hockey, without a row being touched.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS event_sport_organizers (
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
                 sport_id TEXT REFERENCES sports(id) ON DELETE CASCADE,
@@ -442,7 +445,7 @@ const createTables = async () => {
             );
         `);
 
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS division_organizers (
                 division_id TEXT REFERENCES tournament_divisions(id) ON DELETE CASCADE,
                 org_profile_id TEXT REFERENCES org_profiles(id) ON DELETE CASCADE,
@@ -453,7 +456,7 @@ const createTables = async () => {
         `);
 
         // User Emails (Multi-email support)
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS user_emails (
                 id TEXT PRIMARY KEY,
                 user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -465,7 +468,7 @@ const createTables = async () => {
         `);
 
         // NextAuth Accounts (Social providers)
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS accounts (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -485,7 +488,7 @@ const createTables = async () => {
         `);
 
         // NextAuth Sessions
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,
                 session_token TEXT UNIQUE NOT NULL,
@@ -495,7 +498,7 @@ const createTables = async () => {
         `);
 
         // Verification Tokens
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS verification_tokens (
                 identifier TEXT NOT NULL,
                 token TEXT NOT NULL,
@@ -505,7 +508,7 @@ const createTables = async () => {
         `);
 
         // Password Reset Tokens
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -516,7 +519,7 @@ const createTables = async () => {
         `);
 
         // User Favorites
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS user_favorites (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -528,7 +531,7 @@ const createTables = async () => {
         `);
 
          // Games (Generic match entity)
-         await pool.query(`
+         await client.query(`
             CREATE TABLE IF NOT EXISTS games (
                 id TEXT PRIMARY KEY,
                 event_id TEXT REFERENCES events(id) ON DELETE CASCADE,
@@ -553,10 +556,10 @@ const createTables = async () => {
                 stage_id TEXT REFERENCES division_stages(id) ON DELETE SET NULL
             );
         `);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_games_stage ON games(stage_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_games_stage ON games(stage_id);`);
 
         // Game Participants
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS game_participants (
                 id TEXT PRIMARY KEY,
                 game_id TEXT,
@@ -587,7 +590,7 @@ const createTables = async () => {
         `);
 
         // Game Rosters
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS game_rosters (
                 id TEXT PRIMARY KEY,
                 game_participant_id TEXT REFERENCES game_participants(id) ON DELETE CASCADE,
@@ -600,7 +603,7 @@ const createTables = async () => {
         `);
 
         // Game Officials
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS game_officials (
                 id TEXT PRIMARY KEY,
                 game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
@@ -610,7 +613,7 @@ const createTables = async () => {
         `);
 
         // Game Events
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS game_events (
                 id TEXT PRIMARY KEY,
                 game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
@@ -625,7 +628,7 @@ const createTables = async () => {
         `);
 
         // Game Disputes
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS game_disputes (
                 id VARCHAR(255) PRIMARY KEY,
                 game_id VARCHAR(255) NOT NULL REFERENCES games(id) ON DELETE CASCADE,
@@ -643,7 +646,7 @@ const createTables = async () => {
         `);
 
         // Game Dispute Votes
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS game_dispute_votes (
                 id VARCHAR(255) PRIMARY KEY,
                 dispute_id VARCHAR(255) NOT NULL REFERENCES game_disputes(id) ON DELETE CASCADE,
@@ -656,7 +659,7 @@ const createTables = async () => {
         `);
 
         // Org Claim Referrals
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS org_claim_referrals (
                 id TEXT PRIMARY KEY,
                 org_id TEXT REFERENCES organizations(id),
@@ -676,7 +679,7 @@ const createTables = async () => {
         // once `org_admin_invite_cooldown_hours` has passed since this, so the original
         // `created_at` is never rewritten. NULL on rows from before the column existed reads as
         // `created_at`.
-        await pool.query(`
+        await client.query(`
             ALTER TABLE org_claim_referrals ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMPTZ;
         `);
 
@@ -684,7 +687,7 @@ const createTables = async () => {
         // the nominator credited for the current email; this is how a second person who enters an
         // address someone else already invited sees "you have referred this org" without a second
         // email being sent. Backfilled from `referred_by_user_id` so existing rows count.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS org_claim_referral_nominators (
                 referral_id TEXT REFERENCES org_claim_referrals(id) ON DELETE CASCADE,
                 user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -698,7 +701,7 @@ const createTables = async () => {
         `);
 
         // Reports
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS reports (
                 id TEXT PRIMARY KEY,
                 reporter_user_id TEXT REFERENCES users(id),
@@ -714,7 +717,7 @@ const createTables = async () => {
         `);
 
         // User Badges
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS user_badges (
                 id TEXT PRIMARY KEY,
                 user_id TEXT REFERENCES users(id),
@@ -725,7 +728,7 @@ const createTables = async () => {
         `);
         
         // Notifications Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS notifications (
                 id TEXT PRIMARY KEY,
                 user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -739,7 +742,7 @@ const createTables = async () => {
         `);
 
         // Leagues Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS leagues (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -756,7 +759,7 @@ const createTables = async () => {
         `);
 
         // Seasons Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS seasons (
                 id TEXT PRIMARY KEY,
                 league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
@@ -775,7 +778,7 @@ const createTables = async () => {
         `);
 
         // Season Teams Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS season_teams (
                 season_id TEXT REFERENCES seasons(id) ON DELETE CASCADE,
                 team_id TEXT REFERENCES teams(id) ON DELETE CASCADE,
@@ -785,7 +788,7 @@ const createTables = async () => {
         `);
 
         // Game Seasons Table
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS game_seasons (
                 game_id TEXT REFERENCES games(id) ON DELETE CASCADE,
                 season_id TEXT REFERENCES seasons(id) ON DELETE CASCADE,
@@ -795,31 +798,31 @@ const createTables = async () => {
 
         // Indexes for performance
         // Back the live organization counts (and every other org-scoped filter).
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(org_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_sites_org ON sites(org_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_org_memberships_org ON org_memberships(org_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_leagues_org ON leagues(org_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_seasons_league ON seasons(league_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_seasons_season ON game_seasons(season_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(org_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_sites_org ON sites(org_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_org_memberships_org ON org_memberships(org_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_leagues_org ON leagues(org_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_seasons_league ON seasons(league_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_game_seasons_season ON game_seasons(season_id);`);
 
         // Tournaments (mirrored from migrations/20260901_tournaments.ts). Each one backs a
         // lookup that is on the read path of a division screen: children by parent, and the two
         // that answer "what is this person or org involved in?".
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_divisions_event ON tournament_divisions(event_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_stages_division ON division_stages(division_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_entrants_division ON division_entrants(division_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_entrants_org ON division_entrants(org_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_stage_entrants_stage ON stage_entrants(stage_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_facilities_division ON division_facilities(division_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_adjustments_division ON division_adjustments(division_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_event_organizers_profile ON event_organizers(org_profile_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_event_sport_organizers_profile ON event_sport_organizers(org_profile_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_division_organizers_profile ON division_organizers(org_profile_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_participants_entrant ON game_participants(entrant_id);`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_game_participants_source_game ON game_participants(source_game_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_divisions_event ON tournament_divisions(event_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_division_stages_division ON division_stages(division_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_division_entrants_division ON division_entrants(division_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_division_entrants_org ON division_entrants(org_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_stage_entrants_stage ON stage_entrants(stage_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_division_facilities_division ON division_facilities(division_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_division_adjustments_division ON division_adjustments(division_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_event_organizers_profile ON event_organizers(org_profile_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_event_sport_organizers_profile ON event_sport_organizers(org_profile_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_division_organizers_profile ON division_organizers(org_profile_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_game_participants_entrant ON game_participants(entrant_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_game_participants_source_game ON game_participants(source_game_id);`);
 
         // System Settings
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS system_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -837,7 +840,7 @@ const createTables = async () => {
         //
         // The table definition is repeated from run-all-migrations.ts deliberately: whichever
         // script touches a fresh database first has to create it, and both are IF NOT EXISTS.
-        await pool.query(`
+        await client.query(`
             CREATE TABLE IF NOT EXISTS schema_migrations (
                 name VARCHAR(255) PRIMARY KEY,
                 executed_at TIMESTAMPTZ DEFAULT NOW()
@@ -852,18 +855,18 @@ const createTables = async () => {
             : [];
 
         for (const file of migrationFiles) {
-            await pool.query(
+            await client.query(
                 'INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
                 [file]
             );
         }
         console.log(`Stamped ${migrationFiles.length} existing migration(s) as already applied.`);
 
-        await pool.query('COMMIT');
+        await client.query('COMMIT');
         console.log('Tables created successfully.');
         process.exit(0);
     } catch (error) {
-        await pool.query('ROLLBACK');
+        await client.query('ROLLBACK');
         console.error('Error creating tables:', error);
         process.exit(1);
     }

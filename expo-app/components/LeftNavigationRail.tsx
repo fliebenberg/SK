@@ -4,7 +4,7 @@ import { useRouter, useSegments, useGlobalSearchParams, useNavigation } from 'ex
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme, useSettingsStore } from '../store/settingsStore';
 import { useAuthStore } from '../store/authStore';
-import { API_BASE_URL } from '../services/api';
+import { getAvatarUrl } from '../services/assets';
 import { OrgLogo } from './OrgLogo';
 import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
@@ -138,9 +138,10 @@ export function LeftNavigationRail() {
   const getAvatarUri = () => {
     if (!user) return null;
     if (user.avatarSource === "custom" && user.customImage) {
-      return `${API_BASE_URL}/uploads/profiles/${user.customImage}_medium.webp`;
+      return getAvatarUrl(user.customImage, 'medium');
     }
-    if (user.picture) return user.picture;
+    // May be a stored name (a custom picture) as well as a provider URL.
+    if (user.picture) return getAvatarUrl(user.picture, 'medium') || null;
     return null;
   };
 

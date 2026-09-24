@@ -38,7 +38,7 @@ export default function LoginScreen() {
 
     try {
       const response = await apiService.login(email.trim(), password);
-      login(response.token, response.user);
+      login(response.token, response.user, response.assetToken);
 
       // Check for pending claim token stored during unauthenticated claim link access
       let pendingToken = null;

@@ -11,10 +11,11 @@ import { useActiveTheme } from '../store/settingsStore';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Orbitron_400Regular, Orbitron_700Bold } from '@expo-google-fonts/orbitron';
 import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { wsService } from '../services/websocket';
+import { loadAssetConfig } from '../services/assets';
 import { useWsStore } from '../store/wsStore';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../store/authStore';
@@ -43,11 +44,35 @@ export default function RootLayout() {
   const isHydrated = useAuthStore(state => state.isHydrated);
   const isConnected = useWsStore(state => state.isConnected);
 
+  // Where uploaded images are served from comes from the server (MEDIA-1). Nothing that shows an
+  // image renders until it is known; loadAssetConfig never throws and gives up after a few seconds.
+  const [assetsReady, setAssetsReady] = useState(false);
+  useEffect(() => {
+    loadAssetConfig().finally(() => setAssetsReady(true));
+  }, []);
+
+  // People's pictures need the asset token, and a screen that rendered without one would not
+  // re-render when it arrived. So a restored session whose stored token has expired waits for
+  // verifySession, which brings a fresh one; a session with a valid token renders straight away.
+  const isSessionVerified = useAuthStore(state => state.isSessionVerified);
+  const assetToken = useAuthStore(state => state.assetToken);
+  const refreshAssetToken = useAuthStore(state => state.refreshAssetToken);
+  const [launchedAt] = useState(Date.now);
+  const needsFreshAssetToken = isAuthenticated && !(assetToken && assetToken.expiresAt - launchedAt > 60 * 60 * 1000);
+  const imagesReady = assetsReady && isHydrated && (isSessionVerified || !needsFreshAssetToken);
+
+  // Tokens last 24–36 hours; renew well before, for an app left open.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const timer = setInterval(() => { refreshAssetToken(); }, 30 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [isAuthenticated, refreshAssetToken]);
+
   useEffect(() => {
     async function prepare() {
       // Wait for rehydration: verifying first would read a null token and clear
       // the session that storage is about to restore.
-      if (loaded && isHydrated) {
+      if (loaded && isHydrated && assetsReady) {
         try {
           // Check persistent auth token and fetch fresh user profile if present
           await verifySession();
@@ -60,7 +85,7 @@ export default function RootLayout() {
       }
     }
     prepare();
-  }, [loaded, isHydrated]);
+  }, [loaded, isHydrated, assetsReady]);
 
   useEffect(() => {
     if (loaded && isConnected && isAuthenticated && user?.id) {
@@ -109,7 +134,7 @@ export default function RootLayout() {
     }
   }, [loaded, isConnected, isAuthenticated, user?.id]);
 
-  if (!loaded) {
+  if (!loaded || !imagesReady) {
     return null;
   }
 

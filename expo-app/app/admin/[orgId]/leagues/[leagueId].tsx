@@ -15,7 +15,7 @@ import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, League, Season, Sport } from '@sk/shared';
 import DatePicker from '../../../../components/DatePicker';
-import { getOrgLogoUrl } from '../../../../services/api';
+import { getOrgLogoUrl } from '../../../../services/assets';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import CustomSelect from '../../../../components/CustomSelect';

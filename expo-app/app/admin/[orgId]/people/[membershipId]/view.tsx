@@ -9,7 +9,7 @@ import { useActiveTheme } from '../../../../../store/settingsStore';
 import { useAuthStore } from '../../../../../store/authStore';
 import { OrgMember, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
-import { getAvatarUrl } from '../../../../../services/api';
+import { getAvatarUrl } from '../../../../../services/assets';
 
 const parseImageConfig = (config: any) => {
   if (!config) return { scale: 1, x: 0, y: 0 };

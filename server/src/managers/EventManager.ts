@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { Event, Game, GameParticipant, GameClockState, GameEvent, GameSummary, AddGamePayload, UpdateGamePayload } from "@sk/shared";
 import { getPeriodLabel } from "@sk/shared";
-import { BaseManager } from "./BaseManager";
+import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 import { sportManager } from "./SportManager";
 
@@ -172,16 +172,15 @@ export class EventManager extends BaseManager {
     const sportIds = event.sportIds || [];
     const participatingOrgIds = [...new Set(event.participatingOrgIds || [])];
 
-    await this.query('BEGIN');
-    try {
-        await this.query(
+    await this.transaction(async (tx) => {
+        await tx(
             `INSERT INTO events (id, name, type, format, start_date, end_date, site_id, facility_id, org_id, settings, status)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
              [id, event.name, event.type, event.format ?? null, event.startDate, event.endDate, event.siteId, event.facilityId, event.orgId, JSON.stringify(event.settings), event.status]
         );
 
         for (const sportId of sportIds) {
-            await this.query('INSERT INTO event_sports (event_id, sport_id) VALUES ($1, $2)', [id, sportId]);
+            await tx('INSERT INTO event_sports (event_id, sport_id) VALUES ($1, $2)', [id, sportId]);
         }
 
         /*
@@ -192,17 +191,12 @@ export class EventManager extends BaseManager {
           "removed", because it already meant "never added".
         */
         for (const orgId of new Set([event.orgId, ...participatingOrgIds].filter(Boolean))) {
-            await this.query(
+            await tx(
                 'INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
                 [id, orgId]
             );
         }
-
-        await this.query('COMMIT');
-    } catch (error) {
-        await this.query('ROLLBACK');
-        throw error;
-    }
+    });
 
     organizationManager.invalidateCache();
     return (await this.getEvent(id))!;
@@ -212,8 +206,7 @@ export class EventManager extends BaseManager {
      const keys = Object.keys(data).filter(k => k !== 'id');
      if (keys.length === 0) return (await this.getEvent(id)) || null;
 
-     await this.query('BEGIN');
-     try {
+     await this.transaction(async (tx) => {
          const sportIds = data.sportIds;
          const participatingOrgIds = data.participatingOrgIds;
          delete data.sportIds;
@@ -238,32 +231,27 @@ export class EventManager extends BaseManager {
 
          if (setClauses.length > 0) {
              values.push(id);
-             await this.query(
+             await tx(
                  `UPDATE events SET ${setClauses.join(', ')} WHERE id = $${idx}`,
                  values
              );
          }
 
          if (sportIds !== undefined) {
-             await this.query('DELETE FROM event_sports WHERE event_id = $1', [id]);
+             await tx('DELETE FROM event_sports WHERE event_id = $1', [id]);
              for (const sportId of sportIds) {
-                 await this.query('INSERT INTO event_sports (event_id, sport_id) VALUES ($1, $2)', [id, sportId]);
+                 await tx('INSERT INTO event_sports (event_id, sport_id) VALUES ($1, $2)', [id, sportId]);
              }
          }
 
           if (participatingOrgIds !== undefined) {
               const uniqueParticipatingOrgIds = [...new Set(participatingOrgIds)];
-              await this.query('DELETE FROM event_organizations WHERE event_id = $1', [id]);
+              await tx('DELETE FROM event_organizations WHERE event_id = $1', [id]);
               for (const orgId of uniqueParticipatingOrgIds) {
-                  await this.query('INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2)', [id, orgId]);
+                  await tx('INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2)', [id, orgId]);
               }
           }
-
-         await this.query('COMMIT');
-     } catch (error) {
-         await this.query('ROLLBACK');
-         throw error;
-     }
+     });
 
      organizationManager.invalidateCache();
      return (await this.getEvent(id)) || null;
@@ -286,17 +274,12 @@ export class EventManager extends BaseManager {
       [id]
     );
 
-    await this.query('BEGIN');
-    try {
-        await this.query('DELETE FROM games WHERE event_id = $1', [id]);
-        await this.query('DELETE FROM event_sports WHERE event_id = $1', [id]);
-        await this.query('DELETE FROM event_organizations WHERE event_id = $1', [id]);
-        await this.query('DELETE FROM events WHERE id = $1', [id]);
-        await this.query('COMMIT');
-    } catch (error) {
-        await this.query('ROLLBACK');
-        throw error;
-    }
+    await this.transaction(async (tx) => {
+        await tx('DELETE FROM games WHERE event_id = $1', [id]);
+        await tx('DELETE FROM event_sports WHERE event_id = $1', [id]);
+        await tx('DELETE FROM event_organizations WHERE event_id = $1', [id]);
+        await tx('DELETE FROM events WHERE id = $1', [id]);
+    });
 
     await this.recalculateSeasons(affectedSeasons.rows.map(r => r.seasonId));
     organizationManager.invalidateCache();
@@ -384,9 +367,8 @@ export class EventManager extends BaseManager {
       // timestamped. The timestamp form is kept as the fallback for a single hand-added fixture
       // only because existing ids are already in that shape.
       const id = game.id || `game-${uuidv4()}`;
-      await this.query('BEGIN');
-      try {
-          await this.query(
+      await this.transaction(async (tx) => {
+          await tx(
               `INSERT INTO games (id, event_id, sport_id, stage_id, start_time, scheduled_start_time, status, site_id, facility_id, custom_settings, live_state)
                VALUES ($1, $2, $3, $4, $5, $6, 'Scheduled', $7, $8, $9, '{"scores": {}, "sinBins": [], "periodLabel": "1st Period", "clock": {"isRunning": false, "elapsedMS": 0, "isPeriodActive": false, "periodIndex": 0}}'::jsonb)`,
                [id, game.eventId, game.sportId, game.stageId || null, game.startTime, game.scheduledStartTime || game.startTime, game.siteId, game.facilityId, game.customSettings || {}]
@@ -396,7 +378,7 @@ export class EventManager extends BaseManager {
               let orderIdx = 0;
               for (const p of game.participants) {
                   const pid = p.id || `gp-${uuidv4()}`;
-                  await this.query(
+                  await tx(
                       `INSERT INTO game_participants (id, game_id, team_id, org_profile_id, status, sort_order, entrant_id, source_game_id, source_stage_id, source_rule)
                        VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9)`,
                       [
@@ -407,13 +389,10 @@ export class EventManager extends BaseManager {
                   );
               }
           }
-          await this.syncEventOrganizationsFromGames(game.eventId);
-          await this.query('COMMIT');
-          return await this.getGame(id) as Game;
-      } catch (e) {
-          await this.query('ROLLBACK');
-          throw e;
-      }
+          await this.syncEventOrganizationsFromGames(game.eventId, tx);
+      });
+      // Read after the commit: through the pool, the new row is invisible until then.
+      return await this.getGame(id) as Game;
   }
 
   async updateGameStatus(id: string, status: Game['status']): Promise<Game | null> {
@@ -468,11 +447,10 @@ export class EventManager extends BaseManager {
   }
 
   async resetGame(id: string): Promise<Game | null> {
-      await this.query('BEGIN');
-      try {
-          await this.query(`
-              UPDATE games 
-              SET status = 'Scheduled', 
+      await this.transaction(async (tx) => {
+          await tx(`
+              UPDATE games
+              SET status = 'Scheduled',
                   start_time = COALESCE(scheduled_start_time, start_time),
                   scheduled_start_time = NULL,
                   final_score_data = NULL, 
@@ -483,16 +461,11 @@ export class EventManager extends BaseManager {
           `, [id]);
           
           // Also delete all game events and disputes
-          await this.query(`DELETE FROM game_disputes WHERE game_id = $1`, [id]);
-          await this.query(`DELETE FROM game_events WHERE game_id = $1`, [id]);
-          
-          await this.query('COMMIT');
-          await this.recalculateStandingsForGame(id);
-          return (await this.getGame(id)) || null;
-      } catch (e) {
-          await this.query('ROLLBACK');
-          throw e;
-      }
+          await tx(`DELETE FROM game_disputes WHERE game_id = $1`, [id]);
+          await tx(`DELETE FROM game_events WHERE game_id = $1`, [id]);
+      });
+      await this.recalculateStandingsForGame(id);
+      return (await this.getGame(id)) || null;
   }
 
   async updateGameClock(id: string, action: 'START' | 'PAUSE' | 'RESUME' | 'RESET' | 'SET_PERIOD' | 'END_PERIOD' | 'START_PERIOD'): Promise<Game | null> {
@@ -608,8 +581,8 @@ export class EventManager extends BaseManager {
       console.log(`EventManager: updateGame called for ${id}`, data);
       const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'participants');
       
-      await this.query('BEGIN');
       try {
+        await this.transaction(async (tx) => {
           if (keys.length > 0) {
               const fullMap: Record<string, string> = {
                     sportId: 'sport_id', stageId: 'stage_id', startTime: 'start_time', scheduledStartTime: 'scheduled_start_time', status: 'status', siteId: 'site_id', facilityId: 'facility_id', finalScoreData: 'final_score_data', customSettings: 'custom_settings', liveState: 'live_state'
@@ -630,14 +603,14 @@ export class EventManager extends BaseManager {
               
               const updateQuery = `UPDATE games SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${idx}`;
               console.log(`EventManager: Executing update: ${updateQuery} with values:`, values);
-              await this.query(updateQuery, values);
+              await tx(updateQuery, values);
           }
 
           if (data.participants) {
               console.log(`EventManager: Reconciling participants for game ${id}`);
               
               // 1. Get existing participants
-              const existingRes = await this.query('SELECT id, team_id as "teamId", org_profile_id as "orgProfileId", status, sort_order as "sortOrder" FROM game_participants WHERE game_id = $1', [id]);
+              const existingRes = await tx('SELECT id, team_id as "teamId", org_profile_id as "orgProfileId", status, sort_order as "sortOrder" FROM game_participants WHERE game_id = $1', [id]);
               const existing = existingRes.rows;
               
               const claimedExistingIds = new Set<string>();
@@ -655,7 +628,7 @@ export class EventManager extends BaseManager {
                       claimedExistingIds.add(match.id);
                       // Update sort order if provided and changed
                       if (p.sortOrder !== undefined && p.sortOrder !== match.sortOrder) {
-                          await this.query('UPDATE game_participants SET sort_order = $1 WHERE id = $2', [p.sortOrder, match.id]);
+                          await tx('UPDATE game_participants SET sort_order = $1 WHERE id = $2', [p.sortOrder, match.id]);
                       }
                   } else {
                       toAdd.push(p);
@@ -665,34 +638,33 @@ export class EventManager extends BaseManager {
               // 3. Delete those that were not matched
               const toDeleteIds = existing.filter(e => !claimedExistingIds.has(e.id)).map(e => e.id);
               if (toDeleteIds.length > 0) {
-                  await this.query('DELETE FROM game_participants WHERE game_id = $1 AND id = ANY($2)', [id, toDeleteIds]);
+                  await tx('DELETE FROM game_participants WHERE game_id = $1 AND id = ANY($2)', [id, toDeleteIds]);
               }
 
               // 4. Add new ones
               let orderIdx = existing.length;
               for (const p of toAdd) {
                   const pid = p.id || `gp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-                  await this.query(
+                  await tx(
                       `INSERT INTO game_participants (id, game_id, team_id, org_profile_id, status, sort_order) VALUES ($1, $2, $3, $4, 'active', $5)`,
                       [pid, id, p.teamId || null, p.orgProfileId || null, p.sortOrder ?? orderIdx++]
                   );
               }
           }
 
-          const gameObj = await this.getGame(id);
-          if (gameObj) {
-              await this.syncEventOrganizationsFromGames(gameObj.eventId);
+          const eventId = (await tx('SELECT event_id FROM games WHERE id = $1', [id])).rows[0]?.event_id;
+          if (eventId) {
+              await this.syncEventOrganizationsFromGames(eventId, tx);
           }
-
-          await this.query('COMMIT');
-          await this.recalculateStandingsForGame(id);
-          console.log(`EventManager: updateGame successful for ${id}`);
-          return (await this.getGame(id)) || null;
+        });
       } catch (e) {
-          await this.query('ROLLBACK');
           console.error(`EventManager: Error updating game ${id}:`, e);
           throw e;
       }
+
+      await this.recalculateStandingsForGame(id);
+      console.log(`EventManager: updateGame successful for ${id}`);
+      return (await this.getGame(id)) || null;
   }
 
   async deleteGame(id: string): Promise<Game | null> {
@@ -730,25 +702,23 @@ export class EventManager extends BaseManager {
   }
 
   async saveGameRoster(gameId: string, participantId: string, items: { orgProfileId: string, position?: string, jerseyNumber?: string, isReserve: boolean }[]): Promise<boolean> {
-    await this.query('BEGIN');
     try {
-        // Clear existing roster for this participant
-        await this.query('DELETE FROM game_rosters WHERE game_participant_id = $1', [participantId]);
+        await this.transaction(async (tx) => {
+            // Clear existing roster for this participant
+            await tx('DELETE FROM game_rosters WHERE game_participant_id = $1', [participantId]);
 
-        // Insert new items
-        for (const item of items) {
-            const id = `gr-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-            await this.query(
-                `INSERT INTO game_rosters (id, game_participant_id, org_profile_id, position, jersey_number, is_reserve)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [id, participantId, item.orgProfileId, item.position || null, item.jerseyNumber || null, item.isReserve]
-            );
-        }
-
-        await this.query('COMMIT');
+            // Insert new items
+            for (const item of items) {
+                const id = `gr-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                await tx(
+                    `INSERT INTO game_rosters (id, game_participant_id, org_profile_id, position, jersey_number, is_reserve)
+                     VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [id, participantId, item.orgProfileId, item.position || null, item.jerseyNumber || null, item.isReserve]
+                );
+            }
+        });
         return true;
     } catch (e) {
-        await this.query('ROLLBACK');
         console.error('Error saving game roster:', e);
         throw e;
     }
@@ -792,12 +762,16 @@ export class EventManager extends BaseManager {
     }
   }
 
-  async syncEventOrganizationsFromGames(eventId: string): Promise<void> {
-      const eventRes = await this.query('SELECT org_id FROM events WHERE id = $1', [eventId]);
+  /**
+   * @param q Pass the caller's transaction when there is one: run through the pool instead, these
+   *   statements could not see participants the transaction has just written.
+   */
+  async syncEventOrganizationsFromGames(eventId: string, q: Tx = (text, params) => this.query(text, params)): Promise<void> {
+      const eventRes = await q('SELECT org_id FROM events WHERE id = $1', [eventId]);
       const hostOrgId = eventRes.rows[0]?.org_id;
       if (!hostOrgId) return;
 
-      const orgsRes = await this.query(`
+      const orgsRes = await q(`
           SELECT DISTINCT t.org_id 
           FROM game_participants gp
           JOIN games g ON gp.game_id = g.id
@@ -808,7 +782,7 @@ export class EventManager extends BaseManager {
       const playingOrgIds = orgsRes.rows.map(r => r.org_id);
 
       for (const orgId of playingOrgIds) {
-          await this.query(
+          await q(
               'INSERT INTO event_organizations (event_id, org_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
               [eventId, orgId]
           );

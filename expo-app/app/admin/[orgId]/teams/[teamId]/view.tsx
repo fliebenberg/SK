@@ -11,7 +11,7 @@ import { useWsStore } from '../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../store/authStore';
 import { Team, TeamMember, Game, Sport, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
-import { getAvatarUrl } from '../../../../../services/api';
+import { getAvatarUrl } from '../../../../../services/assets';
 import { COLORS } from '../../../../../constants/Colors';
 
 const parseImageConfig = (config: any) => {

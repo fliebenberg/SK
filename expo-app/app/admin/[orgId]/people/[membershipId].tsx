@@ -13,7 +13,7 @@ import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, OrgMember } from '@sk/shared';
 import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
-import { getAvatarUrl } from '../../../../services/api';
+import { getAvatarUrl } from '../../../../services/assets';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';

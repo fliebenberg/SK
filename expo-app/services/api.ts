@@ -24,22 +24,6 @@ const getApiUrl = () => {
 export const API_BASE_URL = getApiUrl();
 console.log(`[API] Resolved base URL: ${API_BASE_URL}`);
 
-export function getOrgLogoUrl(logo?: string, tier: 'large' | 'medium' | 'thumb' = 'medium') {
-  if (!logo) return "";
-  if (logo.startsWith('http') || logo.startsWith('data:')) return logo;
-  return `${API_BASE_URL}/uploads/logos/${logo}_${tier}.webp`;
-}
-
-/**
- * Returns the URL for a member/user avatar stored on the server.
- * Falls through for already-absolute URLs (http/data:) so ImageEditor can display both.
- */
-export function getAvatarUrl(avatar?: string, tier: 'large' | 'medium' | 'thumb' = 'medium') {
-  if (!avatar) return "";
-  if (avatar.startsWith('http') || avatar.startsWith('data:')) return avatar;
-  return `${API_BASE_URL}/uploads/profiles/${avatar}_${tier}.webp`;
-}
-
 export interface UserPayload {
   id: string;
   name: string;
@@ -53,13 +37,22 @@ export interface UserPayload {
   isAdminOrCoach?: boolean;
 }
 
+/** Lets the app load people's pictures from secure/ (MEDIA-1); see services/assets.ts. */
+export interface AssetToken {
+  token: string;
+  /** Epoch milliseconds. */
+  expiresAt: number;
+}
+
 export interface AuthResponse {
   token: string;
   user: UserPayload;
+  assetToken?: AssetToken;
 }
 
 export interface MeResponse {
   user: UserPayload;
+  assetToken?: AssetToken;
 }
 
 export interface ApiRequestOptions {
@@ -146,6 +139,20 @@ export const apiService = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
+      },
+      options
+    );
+  },
+
+  /**
+   * Renew the asset token for a session that outlives it
+   */
+  async getAssetToken(token: string, options?: ApiRequestOptions): Promise<AssetToken> {
+    return apiFetch<AssetToken>(
+      `${API_BASE_URL}/auth/asset-token`,
+      {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
       },
       options
     );

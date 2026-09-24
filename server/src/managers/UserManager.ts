@@ -145,7 +145,10 @@ export class UserManager extends BaseManager {
       )
     `, [primaryUserId, secondaryUserId]);
 
+    const secondary = (await this.query('SELECT image, custom_image FROM users WHERE id = $1', [secondaryUserId])).rows[0];
     await this.query('DELETE FROM users WHERE id = $1', [secondaryUserId]);
+    await imageService.release('profiles', secondary?.custom_image);
+    await imageService.release('profiles', secondary?.image);
   }
 
   // --- Profile / Personalization ---
@@ -207,72 +210,58 @@ export class UserManager extends BaseManager {
     return res.rows[0];
   }
 
-  private cleanAvatarField(avatar?: string): string {
-    if (!avatar) return "";
-    if (avatar.includes('/uploads/profiles/')) {
-      const parts = avatar.split('/uploads/profiles/');
-      const filenameWithSuffix = parts[parts.length - 1];
-      return filenameWithSuffix.replace(/_(large|medium|thumb)\.\w+$/, '');
-    }
-    return avatar;
-  }
-
   async addOrgProfile(profile: Omit<OrgProfile, 'id'> & { id?: string }): Promise<OrgProfile> {
     const id = profile.id || `op-${Date.now()}`;
-    let processedImage: string | null = null;
+    // An add can land on an existing profile (ON CONFLICT below), replacing its picture.
+    const previousImage = (await this.query(
+      'SELECT image FROM org_profiles WHERE org_id = $1 AND identifier = $2',
+      [profile.orgId, profile.identifier]
+    )).rows[0]?.image;
+    const image = await imageService.stage('profiles', profile.image || undefined, id);
+    const processedImage = image.value ?? null;
 
-    if (profile.image) {
-      if (profile.image.startsWith('data:image')) {
-        processedImage = await imageService.processProfileImage(profile.image, id);
-      } else {
-        processedImage = this.cleanAvatarField(profile.image);
-      }
+    let res;
+    try {
+      res = await this.query(
+        `INSERT INTO org_profiles (id, org_id, user_id, name, email, cellphone, birthdate, national_id, identifier, image, primary_role_id, image_config)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (org_id, identifier) DO UPDATE SET
+           user_id = EXCLUDED.user_id,
+           name = EXCLUDED.name,
+           email = COALESCE(org_profiles.email, EXCLUDED.email),
+           cellphone = COALESCE(org_profiles.cellphone, EXCLUDED.cellphone),
+           birthdate = COALESCE(org_profiles.birthdate, EXCLUDED.birthdate),
+           national_id = COALESCE(org_profiles.national_id, EXCLUDED.national_id),
+           image = COALESCE(EXCLUDED.image, org_profiles.image),
+           primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id),
+           image_config = COALESCE(EXCLUDED.image_config, org_profiles.image_config)
+         RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`,
+        [
+          id,
+          profile.orgId,
+          profile.userId,
+          profile.name,
+          profile.email,
+          profile.cellphone,
+          profile.birthdate,
+          profile.nationalId,
+          profile.identifier,
+          processedImage,
+          profile.primaryRoleId,
+          profile.imageConfig ? JSON.stringify(profile.imageConfig) : null
+        ]
+      );
+    } catch (error) {
+      await image.discard();
+      throw error;
     }
-
-    const res = await this.query(
-      `INSERT INTO org_profiles (id, org_id, user_id, name, email, cellphone, birthdate, national_id, identifier, image, primary_role_id, image_config) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
-       ON CONFLICT (org_id, identifier) DO UPDATE SET 
-         user_id = EXCLUDED.user_id,
-         name = EXCLUDED.name,
-         email = COALESCE(org_profiles.email, EXCLUDED.email),
-         cellphone = COALESCE(org_profiles.cellphone, EXCLUDED.cellphone),
-         birthdate = COALESCE(org_profiles.birthdate, EXCLUDED.birthdate),
-         national_id = COALESCE(org_profiles.national_id, EXCLUDED.national_id),
-         image = COALESCE(EXCLUDED.image, org_profiles.image),
-         primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id),
-         image_config = COALESCE(EXCLUDED.image_config, org_profiles.image_config)
-       RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`, 
-      [
-        id, 
-        profile.orgId, 
-        profile.userId, 
-        profile.name, 
-        profile.email, 
-        profile.cellphone,
-        profile.birthdate, 
-        profile.nationalId, 
-        profile.identifier, 
-        processedImage, 
-        profile.primaryRoleId,
-        profile.imageConfig ? JSON.stringify(profile.imageConfig) : null
-      ]
-    );
+    await image.commit(previousImage);
     return res.rows[0];
   }
 
   async updateOrgProfile(id: string, data: Partial<OrgProfile>): Promise<OrgProfile | null> {
     const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'orgId');
     if (keys.length === 0) return null;
-
-    let processedImage: string | undefined = undefined;
-    if (data.image) {
-        if (data.image.startsWith('data:image')) {
-            processedImage = await imageService.processProfileImage(data.image, id);
-        } else {
-            processedImage = this.cleanAvatarField(data.image);
-        }
-    }
 
     const map: Record<string, string> = {
       userId: 'user_id',
@@ -292,20 +281,17 @@ export class UserManager extends BaseManager {
     const values: any[] = [];
     let idx = 1;
 
-    // Optional: Delete old image if it changed
-    if (processedImage !== undefined) {
-        const oldProfile = (await this.query('SELECT image FROM org_profiles WHERE id = $1', [id])).rows[0];
-        if (oldProfile && oldProfile.image && oldProfile.image !== processedImage) {
-            await this.safeDeleteProfileImage(oldProfile.image);
-        }
-    }
+    const previousImage = data.image !== undefined
+      ? (await this.query('SELECT image FROM org_profiles WHERE id = $1', [id])).rows[0]?.image
+      : undefined;
+    const image = await imageService.stage('profiles', data.image, id);
 
     keys.forEach(key => {
       if (map[key]) {
         clauses.push(`${map[key]} = $${idx}`);
         let val = (data as any)[key];
-        if (key === 'image' && processedImage !== undefined) {
-          val = processedImage;
+        if (key === 'image') {
+          val = image.value;
         } else if (key === 'imageConfig' && val !== undefined) {
           val = val ? JSON.stringify(val) : null;
         }
@@ -317,10 +303,17 @@ export class UserManager extends BaseManager {
     if (clauses.length === 0) return null;
 
     values.push(id);
-    const res = await this.query(
-      `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`,
-      values
-    );
+    let res;
+    try {
+      res = await this.query(
+        `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", image_config as "imageConfig"`,
+        values
+      );
+    } catch (error) {
+      await image.discard();
+      throw error;
+    }
+    await image.commit(previousImage);
     return res.rows[0] || null;
   }
 
@@ -607,21 +600,6 @@ export class UserManager extends BaseManager {
     return profile.id;
   }
 
-  async safeDeleteProfileImage(imagePath: string): Promise<void> {
-    if (!imagePath || imagePath.startsWith('http') || imagePath.startsWith('data:')) return;
-    
-    // Check if any org_profile still uses it
-    const profileRes = await this.query('SELECT 1 FROM org_profiles WHERE image = $1 LIMIT 1', [imagePath]);
-    if (profileRes.rowCount! > 0) return;
-
-    // Check if any user still uses it
-    const userRes = await this.query('SELECT 1 FROM users WHERE image = $1 LIMIT 1', [imagePath]);
-    if (userRes.rowCount! > 0) return;
-
-    // Okay to delete
-    await imageService.deleteProfileImage(imagePath);
-  }
-
   async deleteOrgProfile(id: string): Promise<OrgProfile | null> {
       const profile = (await this.query(`SELECT ${this.ORG_PROFILE_COLUMNS} FROM org_profiles WHERE id = $1`, [id])).rows[0];
       if (!profile) return null;
@@ -633,10 +611,8 @@ export class UserManager extends BaseManager {
 
       // Org counts are computed live, so removing the memberships is sufficient.
 
-      // Attempt safe delete of image
-      if (profile.image) {
-          await this.safeDeleteProfileImage(profile.image);
-      }
+      // Deleted only if no other profile or user still shows it.
+      await imageService.release('profiles', profile.image);
 
       return profile;
   }
