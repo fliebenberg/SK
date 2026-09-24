@@ -151,7 +151,7 @@ Product decisions currently recorded as assumptions that no real user has tested
 | Placeholder / TBC entrants | `D7` | Admin §5.8, §14.7 |
 | Consensus undo — a second scorer approves within a time limit | [multi_sport_architecture.md](../multi_sport_architecture.md) §2 | Scorer §7.4, §11.5 |
 | Scoring detail beyond the score is worth capturing live | Event templates, same doc §5 | Scorer §11.4 |
-| Offline scoring is trusted | Offline indicator, [TODO.md](../../TODO.md) | Scorer §11.6 |
+| Offline scoring is trusted | Offline indicator, [TODO-archive.md](../../TODO-archive.md) | Scorer §11.6 |
 | How admin functionality should work as a whole | The whole Reports & Moderation group, `REP-1`…`REP-8`, parked pending this | Admin §11, spectator §7.6 |
 | A supporters' chat is wanted, and moderatable | Not yet specified — future feature | Spectator §7, §10.6 |
 | The app runs the match clock, and periods end by it | [okf/api_comms.md](../../okf/api_comms.md) §"Local Scoring & Clock Engines"; [multi_sport_architecture.md](../multi_sport_architecture.md) §4 | Coach §6.5, scorer §6.1–6.3 |

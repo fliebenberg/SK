@@ -6,19 +6,21 @@ tags:
   - index
   - entrypoint
   - documentation
-timestamp: 2026-09-13T00:00:00Z
+timestamp: 2026-09-24T00:00:00Z
 ---
 
 # ScoreKeeper OKF Index
 
 Welcome to the ScoreKeeper Open Knowledge Format (OKF) index. This directory provides a structured, agent-friendly map of the ScoreKeeper codebase, mapping high-level concepts and system requirements to their respective implementations and detailed documentation.
 
+The OKF files record **intent and rules**: the knowledge the code can't express. For everything else, they link to the code.
+
 ## Knowledge Graph
 
 Below are the key concept files in this bundle. AI agents should read these to ground themselves in specific domains before making codebase modifications:
 
 - **[Project Overview](file:///c:/Fred/Coding/SK/okf/project_overview.md)** (`type: concept`): High-level system context, user archetypes, and project-wide glossary.
-- **[Codebase Architecture](file:///c:/Fred/Coding/SK/okf/architecture.md)** (`type: concept`): Map of project directories and architectural boundaries.
+- **[Codebase Architecture](file:///c:/Fred/Coding/SK/okf/architecture.md)** (`type: concept`): The three packages and the rules that bind them.
 - **[Client Routing & Pages](file:///c:/Fred/Coding/SK/okf/client_routing.md)** (`type: concept`): Map of public and admin routes, layout structures, and navigation guard requirements.
 - **[Authentication & Roles](file:///c:/Fred/Coding/SK/okf/auth_control.md)** (`type: concept`): Authentication strategy, JWT tokens, membership roles, and permission hierarchies.
 - **[Design System](file:///c:/Fred/Coding/SK/okf/design_system.md)** (`type: concept`): Visual/styling rules, colors, typography, and Light Mode AAA accessibility requirements.

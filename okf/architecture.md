@@ -1,40 +1,45 @@
 ---
 type: concept
 title: Codebase Architecture
-description: Codebase layout, folder responsibilities, and architectural boundaries.
+description: The three packages, what each is responsible for, and the architectural rules that bind them.
 tags:
   - concept
   - architecture
   - codebase-map
-timestamp: 2026-09-13T00:00:00Z
+timestamp: 2026-09-24T00:00:00Z
 ---
 
 # Codebase Architecture
 
-The ScoreKeeper project is organized as a multi-platform monorepo of three packages: [expo-app/](file:///c:/Fred/Coding/SK/expo-app/) (the app, on every platform), [server/](file:///c:/Fred/Coding/SK/server/) (the backend), and [shared/](file:///c:/Fred/Coding/SK/shared/) (what both of them agree on). A fourth, `client/` — an older Next.js web-only app that `expo-app/` replaced — was **deleted on 2026-09-13**; entries in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md) that mention it are closed records of work done while it existed and are left as history.
+ScoreKeeper is a monorepo of three packages. The multi-sport design they implement is in [multi_sport_architecture.md](file:///c:/Fred/Coding/SK/docs/multi_sport_architecture.md).
 
-For details on the extensible multi-sport architecture, see [multi_sport_architecture.md](file:///c:/Fred/Coding/SK/docs/multi_sport_architecture.md).
+- **[expo-app/](file:///c:/Fred/Coding/SK/expo-app/)**: the app, on every platform. Expo (React Native), compiled to iOS, Android and web; responsive (bottom tabs on a phone, left rail on a desktop).
+- **[server/](file:///c:/Fred/Coding/SK/server/)**: the backend. Node.js, Express, PostgreSQL and WebSockets.
+- **[shared/](file:///c:/Fred/Coding/SK/shared/)**: what the other two must agree on. Models, socket-action constants and logic both sides run, published as `@sk/shared`. Browse [shared/src/](file:///c:/Fred/Coding/SK/shared/src/) for what is there.
+- **[docs/](file:///c:/Fred/Coding/SK/docs/)**: canonical specifications. Not a package.
 
-## Directory Structure
+A fourth package, `client/` (an older Next.js web-only app that `expo-app/` replaced), was deleted on 2026-09-13. To-do entries that mention it are closed records, kept as history in [TODO-archive.md](file:///c:/Fred/Coding/SK/TODO-archive.md).
 
-*   **[expo-app/](file:///c:/Fred/Coding/SK/expo-app/)**: The active client application built with Expo (React Native). It is responsive (mobile bottom tabs, desktop left rail navigation) and compiles to iOS, Android, and Web viewports.
-*   **[server/](file:///c:/Fred/Coding/SK/server/)**: The backend server built with Node.js, Express, PostgreSQL, and WebSockets.
-*   **[shared/](file:///c:/Fred/Coding/SK/shared/)**: Shares interfaces, constants, and utilities between the frontend and backend. Published as the `@sk/shared` package — renamed from `@sk/types` on 2026-08-15 once the folder outgrew holding only types.
-    - [shared/src/models/](file:///c:/Fred/Coding/SK/shared/src/models/): the shared TypeScript models, including [Tournament.ts](file:///c:/Fred/Coding/SK/shared/src/models/event/Tournament.ts) — divisions, stages, entrants, the `ScoringSystem` that leagues and tournaments share, and the fill rules that stand in for an unknown competitor.
-    - [shared/src/utils/](file:///c:/Fred/Coding/SK/shared/src/utils/): shared logic used by both sides, e.g. [templateSteps.ts](file:///c:/Fred/Coding/SK/shared/src/utils/templateSteps.ts) for reading a sport's event templates, [standings.ts](file:///c:/Fred/Coding/SK/shared/src/utils/standings.ts) for the one standings answer, and [fixtureSide.ts](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts) for what prints on a side of a fixture.
-    - [shared/src/constants/](file:///c:/Fred/Coding/SK/shared/src/constants/): socket actions, undo-window rules.
-    - **What may go in `shared/`: code that is genuinely used by *both* the server and the app.** That is the whole test, and it is a gate rather than a description — "it feels reusable" or "another screen might want it" is not a reason to put something here. Code used by one side belongs to that side: shared logic the server never runs is a dependency the server carries and a boundary that stops meaning anything. Two consequences worth stating, because both have nearly gone wrong. **Nothing viewer-dependent may live here** — anything reading the ambient locale, timezone or "now" gives a different answer on the server than in the browser, so a server importing it renders the *server's* idea of the time to a user somewhere else; if such a thing ever must be shared, it takes an explicit timezone rather than reading the ambient one. And **a formatter shared for consistency is shared because two runtimes must agree on the wording**, which is exactly why [fixtureSide.ts](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts) is here (the server and print paths must say what the screen says) and why [expo-app/utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts) is deliberately **not** (U49 — the server renders no dates for humans). App-only shared code goes in [expo-app/utils/](file:///c:/Fred/Coding/SK/expo-app/utils/); server-only in `server/src/`.
-    - **`shared/` is the only package with a test framework.** `npm test` there runs Vitest over `src/**/*.test.ts` (added 2026-09-01, tournaments Phase 2). It is a plain TypeScript package — no React Native, no sockets, no database — so the whole setup is one dev dependency and [vitest.config.mts](file:///c:/Fred/Coding/SK/shared/vitest.config.mts), and the highest-risk pure logic in the app lives here. `server/` and `expo-app/` still verify with `ts-node` scripts and named manual checks; a `server/` harness waits on a disposable test database.
-*   **[docs/](file:///c:/Fred/Coding/SK/docs/)**: Canonical specifications and documentation.
+## Rules
 
-## Critical Architectural Rules
+### What may go in `shared/`
 
-1. **Reanimated & the Worklets Stack**:
-   - **The incident.** On 2026-06-09 (`f87a18c`) the app was crashing on Android and iOS with an **`installTurboModule` argument count mismatch** — a native JSI/TurboModule signature clash caused by a version-mismatched worklets stack. `expo-app` was carrying `react-native-reanimated@4.2.1` **and** `react-native-worklets-core@^1.6.3` as direct dependencies, plus `'react-native-reanimated/plugin'` in [babel.config.js](file:///c:/Fred/Coding/SK/expo-app/babel.config.js). Dropping all three fixed it, and it has not recurred.
-   - **Still binding.** Do **not** add `react-native-reanimated` or `react-native-worklets-core` to `expo-app`'s dependencies, and do **not** put `'react-native-reanimated/plugin'` back into `babel.config.js`.
-   - **Do not author animations with Reanimated**, and do not use NativeWind animation/transition utility classes (`transition-all`, `transition-colors`, …) — they make NativeWind look for Reanimated at runtime. Animate with React Native's `Animated`, through [`<AnimatedBox>`](file:///c:/Fred/Coding/SK/expo-app/components/AnimatedBox.tsx); [design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md) has the how and why.
-   - **Two things this rule does *not* forbid**, despite its earlier wording. `react-native-worklets@0.7.3` is a **required direct dependency** — re-added 2026-06-16 (`157323b`) to fix Android map rendering, with no recurrence since; it is a different package from `react-native-worklets-core`. And `react-native-reanimated@4.2.1` **is installed**, transitively via `expo-router@55` and via `nativewind` → `react-native-css-interop`, with [_layout.tsx](file:///c:/Fred/Coding/SK/expo-app/app/_layout.tsx) calling `configureReanimatedLogger` at startup — it cannot be removed without dropping expo-router. Its *presence* was never the failure mode; the mismatched direct-dependency stack was. Note that `react-native-css-interop` reaches Reanimated on its own on native (see `UI-7`), which is one more reason to keep our own animations on RN `Animated`.
-   - *Corrected 2026-09-09 (`UI-8`).* The rule previously read "**DO NOT** install or use `react-native-reanimated` or `react-native-worklets-core`", which was false as written and recorded no reason; the `installTurboModule` detail above was recovered from [.clinerules](file:///c:/Fred/Coding/SK/.clinerules) as written in `f87a18c`.
-2. **UI Dialogue & Alerts Boundary**:
-   - **DO NOT** use default native popups (like React Native's `Alert.alert` or standard browser popup dialogs) for warnings or delete confirm actions.
-   - Use custom overlay layouts/modals to ensure consistent styling and prevent silent browser intercept blocks.
+1. **Only code that both the server and the app actually use.** This is a gate. "It feels reusable" or "another screen might want it" is not a reason. Code used by one side belongs to that side: app-only in [expo-app/utils/](file:///c:/Fred/Coding/SK/expo-app/utils/), server-only in `server/src/`. *Why:* shared code the server never runs is a dependency it carries for nothing, and the boundary stops meaning anything.
+2. **Nothing viewer-dependent.** Code that reads the ambient locale, timezone or "now" gives the server a different answer from the browser, so a server importing it renders *its* time to a user somewhere else. If such code must ever be shared, it takes the timezone as a parameter. This is why [expo-app/utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts) is not in `shared/` (the server renders no dates for humans); see the [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md).
+3. **A formatter is shared only when two runtimes must print the same words.** [fixtureSide.ts](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts) qualifies: the server and print paths must say what the screen says.
+
+### Testing
+
+4. **Put high-risk pure logic in `shared/`, where it can be unit tested.** `shared/` is the only package with a test framework: Vitest over `src/**/*.test.ts` via `npm test` ([vitest.config.mts](file:///c:/Fred/Coding/SK/shared/vitest.config.mts)). It has no React Native, sockets or database, so the setup is one dev dependency. `server/` and `expo-app/` are still checked with `ts-node` scripts and manual checks. A `server/` harness is waiting on a disposable test database.
+
+### Reanimated and the worklets stack
+
+5. **Do not add `react-native-reanimated` or `react-native-worklets-core` as direct dependencies of `expo-app`, and do not put `'react-native-reanimated/plugin'` back in [babel.config.js](file:///c:/Fred/Coding/SK/expo-app/babel.config.js).** *Why:* that stack caused an `installTurboModule` argument-count crash on Android and iOS (fixed in `f87a18c`, 2026-06-09).
+6. **Animate with React Native's `Animated`, through [`<AnimatedBox>`](file:///c:/Fred/Coding/SK/expo-app/components/AnimatedBox.tsx). Never author animations with Reanimated, and never use NativeWind `transition-*` classes**, which make NativeWind reach for Reanimated at runtime. The how is in [design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md).
+7. **Rule 5 does not forbid these:** `react-native-worklets` is a **required** direct dependency (for Android map rendering; `157323b`), and is a different package from `react-native-worklets-core`. `react-native-reanimated` **is** installed, transitively through `expo-router` and `nativewind`, and cannot be removed without dropping expo-router. The mismatched direct-dependency stack was the failure, not Reanimated being installed.
+
+The full incident and how this rule was corrected are in `UI-8` ([TODO-archive.md](file:///c:/Fred/Coding/SK/TODO-archive.md)).
+
+### Dialogs
+
+8. **Do not use native popups** (`Alert.alert`, browser `confirm`/`alert`) for warnings or delete confirmations. Use the app's own modals, for consistent styling and because browsers can silently block native popups.

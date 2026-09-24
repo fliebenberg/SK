@@ -4,7 +4,7 @@
 **Supersedes:** the `SportsDay` event type (see [Consolidation](#1-consolidation-sports-day-becomes-a-format)).
 **Review rounds:** round 1 (through Q8) and round 2 (through Q14) processed 2026-08-28;
 the UI review round (2026-08-30) added D33 and closed two open questions.
-**Related:** [TODO.md](file:///c:/Fred/Coding/SK/TODO.md) — "Consolidate Sportsday and Tournament view";
+**Related:** [TODO-archive.md](file:///c:/Fred/Coding/SK/TODO-archive.md) — "Consolidate Sportsday and Tournament view";
 [docs/design_spec.md](file:///c:/Fred/Coding/SK/docs/design_spec.md) (wizards for complex entry);
 [docs/database_structure.md](file:///c:/Fred/Coding/SK/docs/database_structure.md) (`events` and friends).
 

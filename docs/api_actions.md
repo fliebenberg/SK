@@ -29,7 +29,7 @@ query behind a 30-second TTL, so joining several rooms costs one lookup; that ca
 read-path only and never authorizes a write. Access is checked at **join** time and again on
 **revocation**: `USER_MEMBERSHIPS_UPDATED` drops the cached identity and force-leaves any room the
 user may no longer hold, answered with `ROOM_ACCESS_REVOKED`. A purely clock-based expiry is picked
-up at the socket's next reconnect instead (`LIVE-5` in TODO.md).
+up at the socket's next reconnect instead (`LIVE-5` in TODO-archive.md).
 
 **`get_data` authorization.** Queries are classified in
 [wss/dataAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/dataAccess.ts); most resolve to the

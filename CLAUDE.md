@@ -28,8 +28,10 @@ found and deliberately parked, grouped by area, each with a stable ID.
   scope — do not fold it in or skip it silently.
 - **When you find a new issue** outside the current scope, or one whose fix depends on an undecided
   design question, log it in that section instead of fixing it, and say so.
-- **When work closes an item**, check it off; if it only partly closes it, rewrite the entry to
-  describe what remains.
+- **When work closes an item**, check it off and move it to
+  [TODO-archive.md](file:///c:/Fred/Coding/SK/TODO-archive.md), which keeps finished items word for
+  word. If it only partly closes it, leave it in TODO.md and rewrite the entry to describe what
+  remains. IDs are unique across both files, so search both when following an ID.
 
 Full rule: [.agent/skills/todo-checkin/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/todo-checkin/SKILL.md).
 

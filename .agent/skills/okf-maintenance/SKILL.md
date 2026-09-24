@@ -18,7 +18,11 @@ Update the OKF files under `okf/` whenever your task involves:
 
 ## General Principles
 
-1. **Reference-First**: Do not write low-level code implementation details in the OKF. Instead, reference the actual files (e.g. `server/src/db.ts`) or detailed docs (e.g. `docs/design_spec.md`).
+1. **Record intent and rules, not code inventories.** Write down what an agent can't learn by reading the code, and link to the source for everything else:
+   - **Do write**: decisions and *why* they were made, binding rules and constraints, incidents (with the rule that came from them), how the parts fit together, and glossary terms.
+   - **Don't write**: lists that repeat the code, such as route lists, table and column lists, endpoint tables, file-by-file inventories, config values or version numbers. Link to the source instead (e.g. "tables are created in [init-db.ts](file:///c:/Fred/Coding/SK/server/src/scripts/setup/init-db.ts)"). These lists go out of date quietly, and a stale OKF misleads agents, which is worse than having none.
+   - **Keep it short**: one rule, one line of reason, one link. Put incident histories and long explanations in `docs/`, a `TODO.md` entry or the commit log, and link to them.
+   - **Test**: "Could an agent find this in under a minute by reading the code?" If yes, link to it instead of writing it.
 2. **YAML Frontmatter Integrity**: Every OKF document must maintain its frontmatter header:
    ```yaml
    ---
