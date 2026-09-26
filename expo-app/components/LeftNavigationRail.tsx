@@ -26,6 +26,7 @@ export function LeftNavigationRail() {
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
   const { user, isAuthenticated } = useAuthStore();
+  const hasFamily = useAuthStore(state => (state.dependants || []).length > 0);
   const isConnected = useWsStore(state => state.isConnected);
 
   const isSidebarMinimized = useSettingsStore((state) => state.getEffectivePreference('sidebarMinimized') ?? false);
@@ -168,6 +169,12 @@ export function LeftNavigationRail() {
     }
     items.push(
       { name: 'index', label: 'Live Feed', icon: 'pulse' as const, route: '/' },
+    );
+    // My Family, only for someone who is a guardian of at least one child (`MEMBER-3`).
+    if (hasFamily) {
+      items.push({ name: 'family', label: 'My Family', icon: 'heart' as const, route: '/family' });
+    }
+    items.push(
       { name: 'organizations', label: 'Organizations', icon: 'business' as const, route: '/organizations' },
       { name: 'teams', label: 'Teams', icon: 'people' as const, route: '/teams' },
       { name: 'sites', label: 'Sites', icon: 'map' as const, route: '/sites' },

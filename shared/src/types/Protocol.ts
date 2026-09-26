@@ -417,6 +417,13 @@ export interface SetMinorAccountAccessPayload {
     allowed: boolean | null;
 }
 
+export interface SendDependantInvitePayload {
+    playerProfileId: string;
+    email: string;
+    /** As for `SEND_MEMBER_INVITE`: send again to an address still inside the cooldown. */
+    resend?: boolean;
+}
+
 export interface SetOrgMinorsSettingsPayload {
     orgId: string;
     accountsAllowed: boolean;
@@ -882,6 +889,7 @@ export interface ProtocolMap {
     [SocketAction.UPDATE_PROFILE_GUARDIAN]: { payload: UpdateProfileGuardianPayload; response: ProfileGuardian };
     [SocketAction.END_PROFILE_GUARDIAN]: { payload: EndProfileGuardianPayload; response: ProfileGuardian };
     [SocketAction.SET_MINOR_ACCOUNT_ACCESS]: { payload: SetMinorAccountAccessPayload; response: OrgProfile };
+    [SocketAction.SEND_DEPENDANT_INVITE]: { payload: SendDependantInvitePayload; response: OrgProfile };
     [SocketAction.SET_ORG_MINORS_SETTINGS]: { payload: SetOrgMinorsSettingsPayload; response: Organization };
     [SocketAction.REMOVE_SIN_BIN]: { payload: RemoveSinBinPayload; response: unknown };
     [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };

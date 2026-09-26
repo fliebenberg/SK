@@ -2,6 +2,8 @@
  * How a guardian is related to the player, for display and the organisation's records. It grants
  * nothing by itself: every relationship carries the same rights (`MEMBER-3`).
  */
+import type { RestrictedReason } from '../../utils/guardians';
+
 export type GuardianRelationship = 'parent' | 'guardian' | 'grandparent' | 'other';
 
 export const GUARDIAN_RELATIONSHIPS: GuardianRelationship[] = ['parent', 'guardian', 'grandparent', 'other'];
@@ -36,4 +38,41 @@ export interface ProfileGuardian {
   guardianLastInviteEmail?: string;
   /** Whether the guardian has a ScoreKeeper account (derived, like `OrgMember.hasAccount`). */
   guardianHasAccount?: boolean;
+}
+
+/**
+ * A child as their guardian sees them — `USER_MEMBERSHIPS_UPDATED.dependants`, the data behind My
+ * Family (`MEMBER-3`). Only what a guardian may see of their own child: never another child, and
+ * nothing org-wide.
+ */
+export interface Dependant {
+  playerProfileId: string;
+  orgId: string;
+  orgName: string;
+  name: string;
+  image?: string | null;
+  imageConfig?: { scale: number; x: number; y: number } | null;
+  birthdate?: string | null;
+  relationship: GuardianRelationship;
+  isPrimary: boolean;
+  /** The child's own-account value (tri-state) and who last set it. */
+  ownAccountAllowed: boolean | null;
+  ownAccountSetAt?: string | null;
+  ownAccountSetByName?: string | null;
+  /** `null` when the child's membership carries full privileges. */
+  restrictedReason: RestrictedReason | null;
+  /** Whether the child has an account of their own. */
+  hasAccount: boolean;
+  email?: string | null;
+  lastInviteSentAt?: string | null;
+  lastInviteEmail?: string | null;
+  teams: { teamId: string; name: string; roleId: string }[];
+  /** The guardian's own profile in the child's organisation — read-only to them. */
+  guardianProfileId: string;
+  guardianName: string;
+  guardianEmail?: string | null;
+  guardianCellphone?: string | null;
+  /** The org's minors settings, so the screen can say why without a second read. */
+  minorsAccountsAllowed: boolean;
+  minorAge: number;
 }

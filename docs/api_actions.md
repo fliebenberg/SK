@@ -445,6 +445,18 @@ cached access so a restriction takes effect at once.
     player has no active guardian** — never Staff, and never org role once a guardian exists.
     `null` clears the value so the organisation's setting decides again. Records who set it.
     Publishes as above, without the guardian list.
+*   **`SEND_DEPENDANT_INVITE`** `{ playerProfileId, email, resend? }` → `OrgProfile`. A guardian
+    inviting their own child, from My Family. Gate `guardian-of`: an **active guardian** of that
+    player and nobody else — an org admin uses `SEND_MEMBER_INVITE`. Otherwise the same rules and
+    publishing as `SEND_MEMBER_INVITE`, which share `sendMemberInvite` in
+    [wss/memberInvite.ts](file:///c:/Fred/Coding/SK/server/src/wss/memberInvite.ts): refused while
+    the minors rule restricts the child, to an address the guardian and child would share, and
+    inside the cooldown.
+*   **`dependants`** in `USER_MEMBERSHIPS_UPDATED` (`Dependant` in `@sk/shared`): each child the
+    user is an active guardian of — name, org, teams, the child's own-account value and who set it,
+    `restrictedReason`, invite status, the org's minors settings, and the guardian's own details at
+    that org. Republished to the guardian on any change to a link, the child's access or the child's
+    invite.
 *   **`SET_ORG_MINORS_SETTINGS`** `{ orgId, accountsAllowed, minorAge }` → `Organization`. Gate:
     `admin-org`. `minorAge` is a whole number from 1 to 21. The only writer of
     `settings.minors`: `UPDATE_ORG` keeps whatever is stored there, because the settings screen

@@ -3,6 +3,7 @@ import { View, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useSegments } from 'expo-router';
 import { useActiveTheme } from '../store/settingsStore';
+import { useAuthStore } from '../store/authStore';
 
 interface BottomMenuProps {
   onSettingsPress?: () => void;
@@ -14,12 +15,17 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
   const segments = useSegments() as string[];
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
+  // My Family is there only for someone who is a guardian of at least one child (`MEMBER-3`).
+  const hasFamily = useAuthStore(state => (state.dependants || []).length > 0);
 
   // Determine active tab based on router segments
   const getActiveTab = () => {
     // segments might look like: ["(tabs)", "index"] or ["admin", "[orgId]"]
     if (segments.includes('organizations') || segments.includes('admin')) {
       return 'orgs';
+    }
+    if (segments.includes('family')) {
+      return 'family';
     }
     if (segments.includes('teams')) {
       return 'teams';
@@ -102,6 +108,25 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
           Orgs
         </Text>
       </TouchableOpacity>
+
+      {hasFamily ? (
+        <TouchableOpacity
+          onPress={() => handleNavigate('/(tabs)/family', 'family')}
+          className="items-center justify-center flex-1"
+        >
+          <Ionicons
+            name={activeTab === 'family' ? "heart" : "heart-outline"}
+            size={22}
+            color={getIconColor('family')}
+          />
+          <Text
+            style={{ fontSize: 10, color: getTextColor('family'), fontFamily: 'Orbitron_700Bold' }}
+            className="mt-1"
+          >
+            Family
+          </Text>
+        </TouchableOpacity>
+      ) : null}
 
       <TouchableOpacity 
         onPress={() => handleNavigate('/(tabs)/teams', 'teams')}

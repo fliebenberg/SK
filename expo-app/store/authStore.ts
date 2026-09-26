@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { OrgMembership, TeamMembership } from '@sk/shared';
+import { Dependant, OrgMembership, TeamMembership } from '@sk/shared';
 import { apiService, AssetToken } from '../services/api';
 import { useSettingsStore } from './settingsStore';
 import { wsService } from '../services/websocket';
@@ -59,6 +59,8 @@ interface AuthState {
   isAuthenticated: boolean;
   orgMemberships: OrgMembership[];
   teamMemberships: TeamMembership[];
+  /** The children this user is an active guardian of — the data behind My Family (`MEMBER-3`). */
+  dependants: Dependant[];
   /** True once persisted storage has been read back into the store. */
   isHydrated: boolean;
   /** True once any persisted token has been checked against the server. */
@@ -71,7 +73,7 @@ interface AuthState {
   logout: () => void;
   updateUser: (user: Partial<User>) => void;
   verifySession: () => Promise<void>;
-  setMemberships: (orgs: OrgMembership[], teams: TeamMembership[]) => void;
+  setMemberships: (orgs: OrgMembership[], teams: TeamMembership[], dependants?: Dependant[]) => void;
   /** Resolve the membership fetch without data, so guards stop waiting on it. */
   markMembershipsResolved: () => void;
 }
@@ -88,6 +90,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       orgMemberships: [],
       teamMemberships: [],
+      dependants: [],
       isHydrated: false,
       isSessionVerified: false,
       membershipsLoaded: false,
@@ -106,7 +109,7 @@ export const useAuthStore = create<AuthState>()(
           console.warn('[AuthStore] Could not renew the asset token:', error);
         }
       },
-      setMemberships: (orgs, teams) => set((state) => {
+      setMemberships: (orgs, teams, dependants) => set((state) => {
         const hasAdminOrCoachRole = state.user?.globalRole === 'admin' ||
           (orgs || []).some(m => m.roleId === 'role-org-admin' || m.roleId === 'role-org-staff') ||
           (teams || []).some(m => m.roleId === 'role-coach' || m.roleId === 'role-assistant-coach');
@@ -116,6 +119,7 @@ export const useAuthStore = create<AuthState>()(
         return {
           orgMemberships: orgs || [],
           teamMemberships: teams || [],
+          dependants: dependants || [],
           membershipsLoaded: true,
           user: updatedUser
         };
@@ -134,6 +138,7 @@ export const useAuthStore = create<AuthState>()(
           isSessionVerified: true,
           orgMemberships: [],
           teamMemberships: [],
+          dependants: [],
           membershipsLoaded: false,
         });
 
@@ -183,6 +188,7 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           orgMemberships: [],
           teamMemberships: [],
+          dependants: [],
           isSessionVerified: true,
           membershipsLoaded: false,
         });
@@ -260,6 +266,7 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             orgMemberships: [],
             teamMemberships: [],
+            dependants: [],
             isSessionVerified: true,
             membershipsLoaded: false,
           });
@@ -279,6 +286,7 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
         orgMemberships: state.orgMemberships,
         teamMemberships: state.teamMemberships,
+        dependants: state.dependants,
       }),
     }
   )

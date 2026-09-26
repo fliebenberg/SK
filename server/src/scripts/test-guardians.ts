@@ -16,6 +16,8 @@ import { accessManager } from '../managers/AccessManager';
  *    org-wide — yet still coaches and scores what they were appointed to (the team-duty grant).
  *  - The rule: the org switch first, then the minor's own setting; the org's minor age moves it.
  *  - Who may set the minor's own setting: a guardian, or an Admin only while there is none.
+ *  - My Family (Phase 4): what a guardian's `dependants` carry, and a guardian inviting their own
+ *    child — only their own, only once the rule allows it, and never to the guardian's own address.
  *
  * Needs a server on the same database: `PORT=3099 npx ts-node src/index.ts`, then
  * `SOCKET_URL=http://localhost:3099 npx ts-node src/scripts/test-guardians.ts`. Everything it adds is
@@ -155,8 +157,9 @@ async function teardown(original: { settings: any; anika: any; mia: any }) {
   await query(`UPDATE organizations SET settings = $2 WHERE id = $1`, [DKL, original.settings]);
   for (const row of [original.anika, original.mia]) {
     await query(
-      `UPDATE org_profiles SET email = $2, own_account_allowed = $3, own_account_set_at = $4, own_account_set_by = $5 WHERE id = $1`,
-      [row.id, row.email, row.own_account_allowed, row.own_account_set_at, row.own_account_set_by]
+      `UPDATE org_profiles SET email = $2, own_account_allowed = $3, own_account_set_at = $4, own_account_set_by = $5,
+              last_invite_sent_at = $6, last_invite_email = $7 WHERE id = $1`,
+      [row.id, row.email, row.own_account_allowed, row.own_account_set_at, row.own_account_set_by, row.last_invite_sent_at, row.last_invite_email]
     );
   }
 }
@@ -165,7 +168,8 @@ async function main() {
   const org = (await query(`SELECT settings FROM organizations WHERE id = $1`, [DKL])).rows[0];
   if (!org) throw new Error('The test organisations are not loaded — run `npm run db:test-orgs`.');
   const profiles = (await query(
-    `SELECT id, email, own_account_allowed, own_account_set_at, own_account_set_by FROM org_profiles WHERE id = ANY($1)`,
+    `SELECT id, email, own_account_allowed, own_account_set_at, own_account_set_by, last_invite_sent_at, last_invite_email
+       FROM org_profiles WHERE id = ANY($1)`,
     [[ANIKA, MIA]]
   )).rows;
   const original = { settings: org.settings, anika: profiles.find((p: any) => p.id === ANIKA), mia: profiles.find((p: any) => p.id === MIA) };
@@ -299,9 +303,34 @@ async function main() {
     expect((await setOrg(admin, false, 18))?.status, 'ok', 'and lowered again');
     expect(await join(member, `org:${DKL}:members`), 'joined', 'which restores them');
 
+    // --- My Family: what a guardian sees, and inviting their own child ------------------------
+    const seen = (await memberships(parent, PARENT_USER))?.dependants?.[0];
+    expect(
+      [seen?.guardianName, seen?.guardianProfileId, seen?.minorsAccountsAllowed, seen?.minorAge, seen?.ownAccountSetByName],
+      ['Karin Kotzé-Smit', PARENT, false, 18, 'Karin Kotzé-Smit'],
+      'a guardian sees their own details, the org’s minors setting and who last set the child’s'
+    );
+
+    expect((await send(admin, SocketAction.ADD_PROFILE_GUARDIAN, { playerProfileId: MIA, guardianProfileId: PARENT }))?.status, 'ok', 'the same guardian is recorded for a sibling');
+    expect((await memberships(parent, PARENT_USER))?.dependants?.length, 2, 'and sees both children');
+    const inviteChild = (socket: Socket, email: string) =>
+      send(socket, SocketAction.SEND_DEPENDANT_INVITE, { playerProfileId: MIA, email });
+    expect((await inviteChild(admin, 'test-mia@guardians.test'))?.status, 'error', 'an admin cannot use a guardian’s invite');
+    expect((await inviteChild(stranger, 'test-mia@guardians.test'))?.status, 'error', 'nor can anyone else');
+    expect((await inviteChild(parent, 'test-mia@guardians.test'))?.status, 'error', 'a guardian cannot invite a child while the org has minors off');
+    expect((await setOrg(admin, true, 18))?.status, 'ok', 'minors switched on');
+    expect((await inviteChild(parent, PARENT_EMAIL))?.status, 'error', 'a guardian cannot invite a child to their own address');
+    expect((await inviteChild(parent, 'test-mia@guardians.test'))?.status, 'error', 'nor while the child’s own setting is the no an admin set before she had a guardian');
+    expect((await setMinor(parent, MIA, true))?.status, 'ok', 'which her new guardian can now change');
+    const invitedMia = await inviteChild(parent, 'test-mia@guardians.test');
+    expect(invitedMia?.status, 'ok', 'but can invite them once allowed');
+    const miaSeen = (await memberships(parent, PARENT_USER))?.dependants?.find((d: any) => d.playerProfileId === MIA);
+    expect(miaSeen?.lastInviteEmail, 'test-mia@guardians.test', 'and sees the invite on My Family');
+    expect((await setOrg(admin, false, 18))?.status, 'ok', 'minors switched back off');
+
     // --- Ending the last link ----------------------------------------------------------------
     expect((await send(admin, SocketAction.END_PROFILE_GUARDIAN, { id: firstLink }))?.status, 'ok', 'the last link can be ended');
-    expect((await memberships(parent, PARENT_USER))?.dependants?.length, 0, 'and the child leaves the guardian’s view');
+    expect((await memberships(parent, PARENT_USER))?.dependants?.map((d: any) => d.playerProfileId), [MIA], 'and that child leaves the guardian’s view, the sibling stays');
     expect((await setMinor(admin, ANIKA, null))?.status, 'ok', 'with no guardian left, an admin may set the minor’s value again');
   } finally {
     sockets.forEach(s => s.disconnect());

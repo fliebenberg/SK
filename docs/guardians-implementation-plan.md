@@ -1,6 +1,6 @@
 # Guardians — Phased Implementation Plan
 
-**Status:** In progress. **Phases 1–3 done 2026-09-26** (server and access; the admin screens; invites for minors). **Phase 4 is next** — My Family.
+**Status:** In progress. **Phases 1–4 done 2026-09-26** (server and access; the admin screens; invites for minors; My Family). **Phase 5 is next** — close-out.
 **Implements:** `MEMBER-3` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md), designed in
 [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5. This plan changes
 that design in two places (§0.1, §0.3). The design doc is rewritten to match in Phase 5.
@@ -528,6 +528,33 @@ Where it differs from the plan above:
   profile screen shows who switched it off.
 - Inviting the child from My Family works when they are allowed.
 - Ending the link removes the child from My Family live.
+
+### Done — 2026-09-26
+
+Exit criterion met. `test-guardians.ts` grew to 85 checks and passes, now including: what a guardian's
+`dependants` carry (their own details, the org's minors setting, who set the child's value); a
+sibling appearing when linked; a guardian's invite of their own child refused to an admin, to a
+stranger, while minors are off, while the child's own value is an admin's earlier no, and to the
+guardian's own address — then sent once the guardian allows the child; and ending one child's link
+leaving the sibling. `test-member-invite.ts` (31) and `org-permissions.ts` (46) pass. In the web app,
+driven headless as a test guardian of two Doringkloof sisters: My Family shows both, their team and
+the fixture; switching one child on shows who changed it and when, live; inviting the other shows the
+address, date and cooldown; the rail and the phone bottom menu carry My Family; and
+`/admin/fx-org-dkl` is refused. All test data was removed.
+
+Where it differs from the plan above:
+
+- **The child's invite is its own action, `SEND_DEPENDANT_INVITE`**, gated to the child's guardians,
+  rather than a guardian calling `SEND_MEMBER_INVITE` (admin and staff only). Both run
+  `sendMemberInvite`, moved out of the socket handler into `wss/memberInvite.ts`, so the rules cannot
+  drift apart.
+- **The switch records an explicit yes as well as a no**, so "last changed by" names whoever turned
+  it on. Clearing it back to "the organisation's default" is not offered to a guardian; an admin can
+  still do that while there is no guardian.
+- **`Dependant` moved into `@sk/shared`** and carries the org's minors settings, so My Family can say
+  why without reading the org.
+- The rail's footer still labels a guardian with no membership "Member", as it does every signed-in
+  user without an admin or coach role. Left as it is.
 
 ---
 

@@ -1,10 +1,12 @@
 import {
+  Dependant,
   GuardianRelationship,
   GUARDIAN_RELATIONSHIPS,
   OrgProfile,
   ProfileGuardian,
   RestrictedReason,
   guardianLinkProblem,
+  minorsSettingsOf,
 } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { accessManager } from "./AccessManager";
@@ -17,27 +19,6 @@ import { restrictedReasonSql } from "./minorAccess";
  * **Being a guardian is derived from an active link and is never an `org_memberships` row** — a
  * membership row is a permission, and a guardian answers for one child, not for the organisation.
  */
-
-/** A child as their guardian sees them, pushed in `USER_MEMBERSHIPS_UPDATED.dependants`. */
-export interface Dependant {
-  playerProfileId: string;
-  /** The guardian's own profile the link hangs off — theirs, in the child's org. */
-  guardianProfileId: string;
-  orgId: string;
-  orgName: string;
-  name: string;
-  image?: string | null;
-  imageConfig?: { scale: number; x: number; y: number } | null;
-  relationship: GuardianRelationship;
-  isPrimary: boolean;
-  ownAccountAllowed: boolean | null;
-  ownAccountSetAt?: string | null;
-  /** `null` when the child's membership carries full privileges. */
-  restrictedReason: RestrictedReason | null;
-  /** Whether the child has an account of their own. */
-  hasAccount: boolean;
-  teams: { teamId: string; name: string; roleId: string }[];
-}
 
 const LINK_COLUMNS = `
   pg.id, pg.org_id as "orgId", pg.guardian_profile_id as "guardianProfileId",
@@ -307,10 +288,12 @@ export class GuardianManager extends BaseManager {
    */
   async getDependants(userId: string): Promise<Dependant[]> {
     const res = await this.query(
-      `SELECT pg.player_profile_id AS "playerProfileId", pg.guardian_profile_id AS "guardianProfileId",
-              pg.relationship, pg.is_primary AS "isPrimary",
-              p.org_id AS "orgId", o.name AS "orgName", p.name, p.image, p.image_config AS "imageConfig",
+      `SELECT pg.player_profile_id AS "playerProfileId", pg.relationship, pg.is_primary AS "isPrimary",
+              p.org_id AS "orgId", o.name AS "orgName", o.settings AS "orgSettings",
+              p.name, p.image, p.image_config AS "imageConfig", p.birthdate, p.email,
+              p.last_invite_sent_at AS "lastInviteSentAt", p.last_invite_email AS "lastInviteEmail",
               p.own_account_allowed AS "ownAccountAllowed", p.own_account_set_at AS "ownAccountSetAt",
+              setter.name AS "ownAccountSetByName",
               ${restrictedReasonSql('p', 'p.org_id')} AS "restrictedReason",
               (
                 p.user_id IS NOT NULL
@@ -321,15 +304,22 @@ export class GuardianManager extends BaseManager {
                 SELECT json_agg(json_build_object('teamId', t.id, 'name', t.name, 'roleId', tm.role_id) ORDER BY t.name)
                   FROM team_memberships tm JOIN teams t ON t.id = tm.team_id
                  WHERE tm.org_profile_id = p.id AND (tm.end_date IS NULL OR tm.end_date > NOW())
-              ), '[]'::json) AS teams
+              ), '[]'::json) AS teams,
+              g.id AS "guardianProfileId", g.name AS "guardianName",
+              g.email AS "guardianEmail", g.cellphone AS "guardianCellphone"
          FROM profile_guardians pg
          JOIN org_profiles p ON p.id = pg.player_profile_id
+         JOIN org_profiles g ON g.id = pg.guardian_profile_id
          JOIN organizations o ON o.id = p.org_id
+         LEFT JOIN org_profiles setter ON setter.id = p.own_account_set_by
         WHERE ${ACTIVE} AND pg.guardian_profile_id IN (${accessManager.PROFILE_IDS_FOR_USER})
         ORDER BY p.name, o.name`,
       [userId]
     );
-    return res.rows;
+    return res.rows.map(({ orgSettings, ...row }: any) => {
+      const minors = minorsSettingsOf(orgSettings);
+      return { ...row, minorsAccountsAllowed: minors.accountsAllowed, minorAge: minors.minorAge };
+    });
   }
 
   /**

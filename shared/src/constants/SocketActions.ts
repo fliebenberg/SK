@@ -300,6 +300,11 @@ export enum SocketAction {
      * of the minor, or an org Admin while the minor has no guardian — never by org role alone.
      */
     SET_MINOR_ACCOUNT_ACCESS = 'SET_MINOR_ACCOUNT_ACCESS',
+    /**
+     * A guardian inviting their own child to ScoreKeeper, from My Family. An active guardian of that
+     * child only; the same rules as `SEND_MEMBER_INVITE` otherwise.
+     */
+    SEND_DEPENDANT_INVITE = 'SEND_DEPENDANT_INVITE',
     /** The organisation's minors settings (`settings.minors`). Org Admin only. */
     SET_ORG_MINORS_SETTINGS = 'SET_ORG_MINORS_SETTINGS',
 

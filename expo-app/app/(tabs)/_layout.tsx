@@ -138,6 +138,18 @@ export default function TabLayout() {
           unmountOnBlur: true,
         }} 
       />
+      {/* My Family (`MEMBER-3`). Reached from the bottom menu and the rail, which show it only to a
+          guardian; the tab bar itself is `BottomMenu`, so no tab button needs hiding here. */}
+      <Tabs.Screen
+        name="family"
+        options={{
+          headerTitle: 'MY FAMILY',
+          tabBarLabel: 'Family',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "heart" : "heart-outline"} size={22} color={color} />
+          )
+        }}
+      />
       <Tabs.Screen 
         name="teams" 
         options={{ 

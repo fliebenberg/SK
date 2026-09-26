@@ -117,7 +117,7 @@ export default function RootLayout() {
         clearTimeout(releaseGuards);
         if (Array.isArray(update.data?.orgs)) {
           console.log(`[RootLayout] Memberships received.`);
-          setMemberships(update.data.orgs, update.data.teams || []);
+          setMemberships(update.data.orgs, update.data.teams || [], update.data.dependants || []);
         } else {
           markMembershipsResolved();
         }

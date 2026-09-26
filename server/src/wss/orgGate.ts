@@ -80,7 +80,9 @@ type Rule =
    * A minor's own-account value (`MEMBER-3`): an active guardian of that player, or an org Admin
    * while the player has no guardian. Never Staff, and never org role alone once a guardian exists.
    */
-  | { kind: 'minor-access' };
+  | { kind: 'minor-access' }
+  /** An active guardian of the payload's `playerProfileId` — and nobody else, whatever their role. */
+  | { kind: 'guardian-of' };
 
 // -------------------------------------------------------------------------------------------------
 // Where each payload's organisation is
@@ -132,6 +134,7 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.UPDATE_PROFILE_GUARDIAN]: { kind: 'manage-org', org: guardianLinkOrg },
   [SocketAction.END_PROFILE_GUARDIAN]: { kind: 'manage-org', org: guardianLinkOrg },
   [SocketAction.SET_MINOR_ACCOUNT_ACCESS]: { kind: 'minor-access' },
+  [SocketAction.SEND_DEPENDANT_INVITE]: { kind: 'guardian-of' },
   // Whether minors get a member's privileges at all is the admins' decision, not staff's.
   [SocketAction.SET_ORG_MINORS_SETTINGS]: { kind: 'admin-org', org: orgId },
 
@@ -301,6 +304,12 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
           ? "Unauthorized: Only this player's guardians may change that."
           : "Unauthorized: Only this player's guardians, or an organisation admin while they have none, may change that."
       );
+    }
+
+    case 'guardian-of': {
+      const player = payload?.playerProfileId;
+      if (player && (await guardianManager.getCallersGuardianProfileId(userId, player))) return;
+      throw refuse("Unauthorized: Only this player's guardians may do that.");
     }
 
     case 'edit-fixture': {

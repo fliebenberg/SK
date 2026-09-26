@@ -38,6 +38,12 @@ Public view routes are accessible to all unauthenticated users:
 *   `/sites/[id]`: Maps address and Facilities inside a Site.
 *   `/profile`: Personal configuration and preferences.
 *   `/notifications`: In-app notification center.
+*   `/family` (`app/(tabs)/family.tsx`): **My Family** — a guardian's children (`MEMBER-3`): their
+    teams, their fixtures from the org's public fixtures room, whether each may use ScoreKeeper
+    themselves (the guardian's switch), inviting them once allowed, and the guardian's own details
+    at that org, read-only. Signed-in only; it reads the user's own `dependants`, so it shows nothing
+    to anyone who is not a guardian. The rail and the bottom menu list it only when there are
+    dependants. A guardian holds no membership, so `/admin/[orgId]` refuses them.
 
 ## Administrative Dashboard Routes (`/admin/*`)
 
