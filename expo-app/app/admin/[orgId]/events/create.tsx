@@ -12,6 +12,7 @@ import { SocketAction } from '@sk/shared';
 import { useAuthStore } from '../../../../store/authStore';
 import { COLORS } from '../../../../constants/Colors';
 import MatchForm, { MatchFormData } from '../../../../components/MatchForm';
+import { localInputsToInstant } from '../../../../utils/dates';
 
 /**
  * Scheduling **one match** — which is now the only thing this screen does (U45).
@@ -58,6 +59,14 @@ export default function CreateEvent() {
 
   const handleSubmit = async () => {
     if (!form || !isFormValid()) return;
+
+    // The kick-off as the organiser typed it, in their time — or noon that day while it is TBD
+    // (date-formatting skill). Refused before anything is sent if the date or time is half-typed.
+    const scheduledStartTime = localInputsToInstant(form.gameDate, form.isTbd ? null : form.startTime);
+    if (!scheduledStartTime) {
+      useToastStore.getState().showError('Enter the full match date and start time.', 'Date Needed');
+      return;
+    }
     setIsProcessing(true);
 
     // Referrals the form collected against unclaimed organisations, sent before the event so an
@@ -84,19 +93,10 @@ export default function CreateEvent() {
       resolveTeamName(form.awayTeamId),
     ]);
 
-    // Midday UTC when the time is not known yet, so the fixture cannot slide onto the day before
-    // in a timezone west of here.
-    const scheduled = new Date(
-      form.isTbd ? `${form.gameDate}T12:00:00` : `${form.gameDate}T${form.startTime}:00`
-    );
-    const scheduledStartTime = isNaN(scheduled.getTime())
-      ? `${form.gameDate}T12:00:00`
-      : scheduled.toISOString();
-
     const eventPayload = {
       name: `${homeName} vs ${awayName}`,
       type: 'SingleMatch' as const,
-      startDate: `${form.gameDate}T12:00:00.000Z`,
+      startDate: form.gameDate,
       siteId: form.siteId || undefined,
       facilityId: form.facilityId || undefined,
       orgId,

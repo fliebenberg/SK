@@ -26,6 +26,7 @@ import { useWsStore } from '../../store/wsStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../constants/Colors';
 import { isCollapsed, stageSublabel, structureAnnouncement } from '@sk/shared';
+import { formatKickoffTime } from '../../utils/dates';
 
 /**
  * One division: its stages, and the fixtures under them.
@@ -336,12 +337,8 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
     // yet sorts last under "Time TBD" rather than disappearing into the top of the list.
     const groups = new Map<string, GameSummary[]>();
     for (const game of shown) {
-      const iso = game.scheduledStartTime || game.startTime;
-      const time = iso && !game.timeTbd ? new Date(iso) : null;
-      const key =
-        time && !isNaN(time.getTime())
-          ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : 'Time TBD';
+      const time = game.timeTbd ? '' : formatKickoffTime(game.scheduledStartTime || game.startTime);
+      const key = time || 'Time TBD';
       groups.set(key, [...(groups.get(key) || []), game]);
     }
     const orderedGroups = [...groups.entries()].sort(([a], [b]) =>

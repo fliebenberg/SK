@@ -111,7 +111,7 @@ async function main() {
     name: `Replacement ${stamp}`,
     type: 'Tournament',
     format: 'RoundRobin',
-    startDate: new Date().toISOString(),
+    startDate: '2026-10-01',
     orgId: APP_TEST_ORG_ID,
     sportIds: [sport.id],
     participatingOrgIds: created.orgIds,

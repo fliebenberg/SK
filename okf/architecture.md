@@ -6,7 +6,7 @@ tags:
   - concept
   - architecture
   - codebase-map
-timestamp: 2026-09-24T00:00:00Z
+timestamp: 2026-09-26T00:00:00Z
 ---
 
 # Codebase Architecture
@@ -25,7 +25,7 @@ A fourth package, `client/` (an older Next.js web-only app that `expo-app/` repl
 ### What may go in `shared/`
 
 1. **Only code that both the server and the app actually use.** This is a gate. "It feels reusable" or "another screen might want it" is not a reason. Code used by one side belongs to that side: app-only in [expo-app/utils/](file:///c:/Fred/Coding/SK/expo-app/utils/), server-only in `server/src/`. *Why:* shared code the server never runs is a dependency it carries for nothing, and the boundary stops meaning anything.
-2. **Nothing viewer-dependent.** Code that reads the ambient locale, timezone or "now" gives the server a different answer from the browser, so a server importing it renders *its* time to a user somewhere else. If such code must ever be shared, it takes the timezone as a parameter. This is why [expo-app/utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts) is not in `shared/` (the server renders no dates for humans); see the [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md).
+2. **Nothing viewer-dependent.** Code that reads the ambient locale, timezone or "now" gives the server a different answer from the browser, so a server importing it renders *its* time to a user somewhere else. If such code must ever be shared, it takes the timezone as a parameter. This is why [expo-app/utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts) is not in `shared/` (the server renders no dates for humans), while the deterministic calendar-date parts both sides need are in [calendarDate.ts](file:///c:/Fred/Coding/SK/shared/src/utils/calendarDate.ts); see the [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md).
 3. **A formatter is shared only when two runtimes must print the same words.** [fixtureSide.ts](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts) qualifies: the server and print paths must say what the screen says.
 
 ### Testing

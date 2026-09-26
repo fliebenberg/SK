@@ -83,7 +83,7 @@ async function main() {
     name: `Phase 3 Progression ${stamp}`,
     type: 'Tournament',
     format: 'PoolsKnockout',
-    startDate: new Date().toISOString(),
+    startDate: '2026-10-01',
     orgId: APP_TEST_ORG_ID,
     sportIds: [sportId],
     participatingOrgIds: [created.visitorOrgId],

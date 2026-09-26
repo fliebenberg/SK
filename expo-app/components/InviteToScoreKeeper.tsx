@@ -20,7 +20,7 @@ import { sendAction } from '../services/actions';
 import { useSocketQuery } from '../hooks/useSocketQuery';
 import { useActiveTheme } from '../store/settingsStore';
 import { useToastStore } from '../store/toastStore';
-import { formatInstant } from '../utils/dates';
+import { formatInstant, type CalendarDate } from '../utils/dates';
 
 /**
  * Inviting a person the organisation has on record to create a ScoreKeeper account.
@@ -41,7 +41,7 @@ export interface InvitablePerson {
   id: string;
   name: string;
   email?: string;
-  birthdate?: string;
+  birthdate?: CalendarDate | null;
   userId?: string;
   hasAccount?: boolean;
   lastInviteSentAt?: string;

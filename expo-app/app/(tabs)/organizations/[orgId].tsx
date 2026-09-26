@@ -13,6 +13,7 @@ import { OrgLogo } from '@/components/OrgLogo';
 import { getContrastColor } from '@/utils/colorUtils';
 import { useAuthStore } from '@/store/authStore';
 import { COLORS, getThemeColor } from '../../../constants/Colors';
+import { formatInstantDate, formatKickoffTime } from '../../../utils/dates';
 
 interface Team {
   id: string;
@@ -214,15 +215,16 @@ export default function PublicOrgDetail() {
   }));
 
   const mappedFixtures = games.map(g => {
-    const dateObj = g.startTime ? new Date(g.startTime) : new Date();
+    // A fixture with no kick-off says so, rather than borrowing today's date.
+    const kickoff = g.scheduledStartTime || g.startTime;
     return {
       id: g.id,
       title: g.name || 'Match',
       sport: sportsMap[g.sportId] || 'Sport',
       home: getTeamName(g.homeTeamId),
       away: getTeamName(g.awayTeamId),
-      date: dateObj.toLocaleDateString(),
-      time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: formatInstantDate(kickoff) || 'Date TBD',
+      time: (g.timeTbd ? '' : formatKickoffTime(kickoff)) || 'TBD',
       venue: getSiteName(g.siteId)
     };
   });

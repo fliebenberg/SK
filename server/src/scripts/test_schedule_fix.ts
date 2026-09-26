@@ -15,7 +15,7 @@ async function test() {
         await eventManager.addEvent({
             id: eventId,
             name: 'Test Event',
-            startDate: scheduledTime,
+            startDate: '2026-10-10',
             orgId: 'org-1',
             status: 'Scheduled'
         });

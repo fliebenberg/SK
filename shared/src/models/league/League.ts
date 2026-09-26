@@ -1,3 +1,5 @@
+import type { CalendarDate } from '../../utils/calendarDate';
+
 export interface LeagueSettings {
   pointsPerWin: number;
   pointsPerDraw: number;
@@ -24,8 +26,8 @@ export interface Season {
   id: string;
   leagueId: string;
   name: string;
-  startDate: string; // ISO String
-  endDate: string; // ISO String
+  startDate: CalendarDate;
+  endDate: CalendarDate;
   status: 'UPCOMING' | 'ACTIVE' | 'COMPLETED';
   settings: LeagueSettings;
   cachedStandings?: LeagueStandingRow[];

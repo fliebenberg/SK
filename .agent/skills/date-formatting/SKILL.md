@@ -1,103 +1,114 @@
 ---
-description: Standards for handling dates and times — display through the repo's own formatter, store in UTC, and never slice an ISO string.
+description: The date and time policy — the three kinds of "when", how each is stored, sent, entered and shown, and why. Read before adding, storing, sending, comparing or displaying any date or time.
 ---
 
-# Date and Time Handling Standards
+# Dates and Times
 
-Times are entered in local time, stored in UTC, and displayed back in local time. Three rules make
-that work, and the first one is where every bug has actually come from.
+Two requirements drive everything here:
 
-## 1. Displaying dates and times
+1. **Nothing drifts.** A value saved and loaded any number of times, from any timezone, stays the
+   value that was entered.
+2. **What a person sees makes sense where they are.** A kick-off shows in the viewer's own clock.
+   A birthday is the same day for everybody.
 
-**NEVER** render a raw ISO string from the database (`2026-09-19`, `2024-02-01T07:00:00.000Z`).
+Both have been broken before, the same way: something that was one kind of "when" was handled as
+another. `DATE-1` (archived) records the incidents — a birthdate that moved back a day on every
+save, and a kick-off that moved back two hours on every save. **So before touching a date, decide
+which kind it is.**
 
-**NEVER** pull a date or time out with string manipulation — `.split('T')[0]`,
-`.split('T')[1].substring(0, 5)`. It ignores the timezone offset, so it shows the raw **UTC**
-value rather than the viewer's local time, and it puts an ISO value in front of a person.
+## The three kinds
 
-**ALWAYS** format through [`expo-app/utils/dates.ts`](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts).
-Parse to a `Date`, format off the object.
+| Kind | Examples | Column | On the wire | Shown |
+|---|---|---|---|---|
+| **Instant** | a kick-off, when an invite was sent, when a report was filed | `TIMESTAMPTZ` | ISO with `Z` — `2026-09-19T12:30:00.000Z` | in the **viewer's** timezone |
+| **Calendar date** | a birthday, the days an event runs, a season's start and end | `DATE` | `YYYY-MM-DD` — `2026-09-19` | the same day for everyone |
+| **Instant, time not set** | a fixture whose kick-off is TBD | `TIMESTAMPTZ` at **12:00 organiser time**, plus `timeTbd` | ISO with `Z` | the date, then `TBD` |
 
-```tsx
-import { formatDateRange, dateCountdown, formatFixtureWhen } from '../../utils/dates';
+**Which kind is it?** Ask: *would two people in different timezones disagree on what time it is?*
 
-// A calendar date or range — an event, a league season.
-formatDateRange(event.startDate, event.endDate);              // "Sat 19 Sep 2026" / "19–21 Sep 2026"
-formatDateRange(season.startDate, season.endDate, { compact: true }); // no weekday, for list rows
-dateCountdown(event.startDate, event.endDate);                // "in 6 days" / "happening now"
+- A kick-off is one moment. At 14:30 in Johannesburg it is 13:30 in London, and both of them should
+  see their own clock. **Instant.**
+- A birthday, or "the tournament is on Saturday the 19th", is not a moment — it starts at
+  a different moment in every timezone, and it is still the 19th everywhere. There is no time of day
+  to convert, so nothing can move it. **Calendar date.**
+- If you are about to invent a time of day to store something (midnight, noon), it is almost
+  certainly a calendar date. The one exception is the third kind below.
 
-// A fixture's kick-off — an instant, which may be TBD.
-formatFixtureWhen(game.scheduledStartTime, { timeTbd: game.timeTbd });
-```
+### Instants
 
-### Two shapes of "when", and they are not the same job
+- Stored `TIMESTAMPTZ`. Written with `NOW()` when it is "now" on the server.
+- Travel as full ISO strings with `Z`. The `Instant` type in `@sk/shared` names them.
+- **Entered in the organiser's local time, shown in the viewer's.** "Organiser's local time" is
+  currently the timezone of the device doing the entering — there is no venue or organisation
+  timezone yet (`DATE-2`). Every conversion between an instant and a date/time a person typed goes
+  through two functions in `utils/dates.ts`, `instantToLocalInputs` and `localInputsToInstant`, so
+  that when a venue timezone arrives it is a change in one place.
+- **Never fill a form field by cutting up the ISO string.** `iso.split('T')[1].substring(0, 5)` is
+  the **UTC** time. Shown in a time field in Johannesburg, a 14:30 kick-off reads 12:30; saved, it
+  becomes 12:30 local — two hours earlier, and two more on every save. Use `instantToLocalInputs`.
 
-- A **calendar date** (event, season) has no time of day. Nobody's tournament starts at 00:00.
-- A **fixture's kick-off** is an instant and the time of day is the point.
+### Calendar dates
 
-Keep them apart. A kick-off formatted as a calendar date loses the time; a calendar date formatted
-as an instant invents one and invites a timezone bug.
+- Stored `DATE`. The server's `pg` driver is told to leave `DATE` as the plain string it is
+  ([db.ts](file:///c:/Fred/Coding/SK/server/src/db.ts)); without that it builds a JS `Date` at the
+  *server's* midnight, which reaches the app as the previous day in UTC.
+- Travel as `YYYY-MM-DD`. The `CalendarDate` type in `@sk/shared` names them.
+- **Never pass one through `new Date(...)`** to show or compare it. `new Date('2026-09-19')` is
+  **midnight UTC**, which is the 18th anywhere west of Greenwich. Format it from its own year, month
+  and day (`formatCalendarDate`, `formatDateRange`); compare two of them as strings — a zero-padded
+  `YYYY-MM-DD` sorts chronologically.
+- **"Today" is the viewer's today** in the app (`todayCalendarDate()`), and the database's
+  `CURRENT_DATE` on the server. The two can disagree around midnight when the viewer is in another
+  timezone; nothing that matters depends on that hour.
+- The server refuses a calendar date that is not a real `YYYY-MM-DD` (`isCalendarDate` in
+  `@sk/shared`). Postgres would otherwise guess what `01/02/2010` means.
+- Entered with `<DatePicker>`, never a free `TextInput`.
 
-### Need something the file does not do yet?
+### Instant, time not set
 
-**Add it to `utils/dates.ts`.** Do not write a formatter inline in a screen. That is not a style
-preference — it is the whole reason this rule exists. Before U49 the app had four renderings of
-the same idea, two of them one tap apart and disagreeing: the events list card read
-`19 Sep 2026 – 21 Sep 2026` while the event screen behind it read `2026-09-19`, the leagues screen
-showed a season as `2026-09-19 to 2026-12-15`, and three screens each carried a byte-identical copy
-of a kick-off formatter.
+A fixture can have a day before it has a kick-off. It is still an instant — it will have a time —
+so it is stored as one: **12:00 on that day in the organiser's time**, with the `timeTbd` flag set.
+Noon is as far from either midnight as a time can be, so the day survives being shown to a viewer
+up to twelve hours away; when the organiser knows the real time they set it. Shown as the date and
+`TBD` (`formatFixtureWhen(iso, { timeTbd: true })`). `localInputsToInstant(date, null)` builds it.
 
-### Do not import `date-fns`
+## Where the code lives
 
-It is **not** a dependency of `expo-app`. An earlier version of this skill mandated `date-fns`, and
-that made the rule unfollowable for every screen written since. Adding the package is a decision,
-not a detail: raise it rather than doing it in passing.
+- **[`expo-app/utils/dates.ts`](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts)** — everything
+  the app does with a date: formatting, "today", and converting between instants and form fields.
+  Screens do not format, parse or build dates themselves. **Anything it does not do yet is added to
+  it**, not written inline in a screen: before this rule the app had four renderings of the same
+  idea, two of them one tap apart and disagreeing.
+- **[`shared/src/utils/calendarDate.ts`](file:///c:/Fred/Coding/SK/shared/src/utils/calendarDate.ts)**
+  — the deterministic calendar-date parts both sides need: the types, validation, adding days. Only
+  code that reads no timezone, locale or clock goes there (see
+  [architecture.md](file:///c:/Fred/Coding/SK/okf/architecture.md) — nothing viewer-dependent in
+  `shared/`). The formatters stay in the app: the server renders no dates for people. If it ever
+  must (an email, a printable fixture list), the formatter moves with an explicit timezone
+  parameter, never the ambient one.
+- **`date-fns` is not used.** It is not a dependency of `expo-app`; adding it is a decision to raise,
+  not a detail (`UI-12`).
 
-### Where the formatter lives, and when it should move
+## Enforced by `npm run check:dates`
 
-`expo-app/utils/dates.ts`, **not** `shared/`. The general rule is in
-[architecture.md](file:///c:/Fred/Coding/SK/okf/architecture.md): `shared/` is for code genuinely
-used by *both* the server and the app, and nothing viewer-dependent may live there. Dates fail that
-test twice over — the server renders no dates for humans, and these functions are viewer-dependent
-by nature — `formatFixtureWhen` reads the viewer's locale and
-timezone, and `dateCountdown` reads "now". In `shared/` the server could import them and format a
-kick-off in the *server's* timezone, which is wrong for every user not sitting in it.
+Run from `expo-app/` before committing client changes. It fails on any of these outside
+`utils/dates.ts`:
 
-Move it to `shared/src/utils/` only when the server genuinely has to render a date for a person —
-a notification body, an email, a printable fixture list — and then only the deterministic calendar
-parts, with the locale-dependent ones passed an explicit timezone rather than reading the ambient
-one. The precedent to copy in that case is
-[`fixtureSide.ts`](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts), which is shared
-precisely because the server and print paths must say what the screen says.
+- `.split('T')`, or slicing a `toISOString()` result
+- `toLocaleDateString` / `toLocaleTimeString`
+- `getFullYear` / `getMonth` / `getDate` / `getHours` / `getMinutes` — building a date by hand
+- a template string passed to `new Date(...)` — building an instant by hand
 
-## 2. Calendar dates are stored at noon UTC
+A line that genuinely needs one of these (a clock reading for a log, say) says why with a
+`// dates-ok: <reason>` comment on that line. If you find yourself writing that for a date a person
+reads, add a function to `utils/dates.ts` instead.
 
-Event and season `startDate` / `endDate` are calendar dates, and the screens that write them store
-`` `${date}T12:00:00.000Z` `` **deliberately**. Midday is far enough from either midnight that no
-offset from UTC-11 to UTC+11 can drag the timestamp onto the neighbouring day, so "the 19th" reads
-as the 19th in Johannesburg, Auckland and Vancouver alike.
+## Smaller rules
 
-Anything that writes one of these dates must keep the convention. Anything that reads one may use
-local getters, which is what `parseCalendarDate` does. Beware legacy rows written at **midnight**
-UTC — those are off by one west of Greenwich, and no formatter can recover the intent.
-
-## 3. Handling "TBD" or empty times
-
-**NEVER** send an empty string `""` to the backend for a Date/Timestamp field. It causes
-`invalid input syntax` database errors.
-
-**ALWAYS** send `undefined` (new records) or `null` (updates) to omit or clear the value.
-
-```tsx
-startTime: formData.isTbd ? undefined : constructIsoString(formData.startTime)
-// or, for an update that must clear it
-startTime: formData.isTbd ? (null as any) : constructIsoString(formData.startTime)
-```
-
-## 4. Constructing ISO strings for saving
-
-Build `YYYY-MM-DDTHH:mm:00`. JS `Date` parsing treats a string with no `Z` suffix as local time,
-which is usually what is intended before sending to a backend that normalises it.
-
-Seeding a date **input** from a stored value is the one place `.split('T')[0]` is correct — a date
-picker's value is a `YYYY-MM-DD` string, not something shown to a user as prose. Keep it to that.
+- **An empty date is `null` (update) or `undefined` (new record), never `""`.** An empty string is
+  `invalid input syntax` in Postgres.
+- **Kick-off formatting has two separators** (`@` and `·`) pending a design call (`UI-13`); pass
+  `separator` rather than formatting a kick-off yourself.
+- **Server comparisons** use `NOW()` for instants (`end_date > NOW()`) and `CURRENT_DATE` for
+  calendar dates (`start_date >= CURRENT_DATE`). Never compare a `DATE` with `NOW()` or a
+  `TIMESTAMPTZ` with `CURRENT_DATE` without saying which day boundary you mean.

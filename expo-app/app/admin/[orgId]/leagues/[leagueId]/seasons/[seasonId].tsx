@@ -19,41 +19,14 @@ import DatePicker from '../../../../../../components/DatePicker';
 import { getOrgLogoUrl } from '../../../../../../services/assets';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { formatFixtureWhen } from '../../../../../../utils/dates';
+import { calendarRangeStatus, formatFixtureWhen, isCalendarDate } from '../../../../../../utils/dates';
 
-const calculateSeasonStatus = (startDateStr: string, endDateStr: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
-  if (!startDateStr || !endDateStr) return 'UPCOMING';
-  try {
-    const cleanStart = startDateStr.split('T')[0];
-    const cleanEnd = endDateStr.split('T')[0];
-    
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(cleanStart) || !dateRegex.test(cleanEnd)) {
-      return 'UPCOMING';
-    }
-
-    const [startYear, startMonth, startDay] = cleanStart.split('-').map(Number);
-    const [endYear, endMonth, endDay] = cleanEnd.split('-').map(Number);
-    
-    const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
-    const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
-    
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return 'UPCOMING';
-    }
-
-    const now = new Date();
-    
-    if (now < start) {
-      return 'UPCOMING';
-    } else if (now > end) {
-      return 'COMPLETED';
-    } else {
-      return 'ACTIVE';
-    }
-  } catch (e) {
-    return 'UPCOMING';
-  }
+/** Where a season sits against the viewer's today. Its dates are calendar dates, both inclusive. */
+const calculateSeasonStatus = (startDate: string, endDate: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
+  const status = calendarRangeStatus(startDate, endDate);
+  if (status === 'during') return 'ACTIVE';
+  if (status === 'after') return 'COMPLETED';
+  return 'UPCOMING';
 };
 
 /** The season settings form — the fields the Save bar above the season covers. */
@@ -70,8 +43,8 @@ interface SeasonSettingsForm {
 /** A season record, in the shape the settings form holds it. Defaults match the form's own. */
 const seasonSettingsOf = (season: any): SeasonSettingsForm => ({
   name: season?.name || '',
-  startDate: season?.startDate ? season.startDate.split('T')[0] : '',
-  endDate: season?.endDate ? season.endDate.split('T')[0] : '',
+  startDate: season?.startDate || '',
+  endDate: season?.endDate || '',
   ptsWin: String(season?.settings?.pointsPerWin ?? 4),
   ptsDraw: String(season?.settings?.pointsPerDraw ?? 2),
   ptsLoss: String(season?.settings?.pointsPerLoss ?? 0),
@@ -398,9 +371,12 @@ export default function SeasonDetails() {
       return;
     }
 
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(startDateStr) || !dateRegex.test(endDateStr)) {
+    if (!isCalendarDate(startDateStr) || !isCalendarDate(endDateStr)) {
       setActionError("Dates must be in YYYY-MM-DD format.");
+      return;
+    }
+    if (endDateStr < startDateStr) {
+      setActionError("The season must end on or after the day it starts.");
       return;
     }
 
@@ -411,8 +387,8 @@ export default function SeasonDetails() {
       id: seasonId,
       data: {
         name: seasonName.trim(),
-        startDate: new Date(startDateStr).toISOString(),
-        endDate: new Date(endDateStr).toISOString(),
+        startDate: startDateStr,
+        endDate: endDateStr,
         status: computedStatus,
         settings: {
           pointsPerWin: parseInt(ptsWin) || 4,

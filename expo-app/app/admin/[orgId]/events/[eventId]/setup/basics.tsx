@@ -10,7 +10,7 @@ import { FloatingSaveBar, FLOATING_SAVE_BAR_PADDING } from '../../../../../../co
 import { OrganizerPicker } from '../../../../../../components/OrganizerPicker';
 import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { FieldLabel } from '../../../../../../components/FieldLabel';
-import { addDaysToDateString, isCompleteDateString } from '../../../../../../utils/dates';
+import { addCalendarDays, isCalendarDate } from '../../../../../../utils/dates';
 import { FacilityPicker } from '../../../../../../components/tournament/FacilityPicker';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
 import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
@@ -177,9 +177,9 @@ export default function SetupBasics() {
   const savedIdentity: EventIdentity = {
     eventId,
     name: event?.name || '',
-    startDate: event?.startDate?.split('T')[0] || '',
+    startDate: event?.startDate || '',
     isMultiDay: !!event?.endDate,
-    endDate: event?.endDate?.split('T')[0] || '',
+    endDate: event?.endDate || '',
     siteId: event?.siteId || '',
   };
 
@@ -275,13 +275,16 @@ export default function SetupBasics() {
    *
    * The end must be strictly **after** the start, because that is what the switch beside it claims.
    * A zero-padded `YYYY-MM-DD` compares chronologically as a plain string, so no parsing is needed
-   * once both are known to be complete dates.
+   * once both are known to be complete dates. The start is checked first: a half-typed one would
+   * otherwise reach the server, which refuses anything that is not a whole `YYYY-MM-DD`.
    */
-  const dateError = !isMultiDay
+  const dateError = !isCalendarDate(editStartDate)
+    ? 'Pick the day it starts.'
+    : !isMultiDay
     ? null
-    : !isCompleteDateString(editEndDate)
+    : !isCalendarDate(editEndDate)
     ? 'Pick the day it ends.'
-    : isCompleteDateString(editStartDate) && editEndDate <= editStartDate
+    : editEndDate <= editStartDate
     ? 'The last day must be after the first.'
     : null;
 
@@ -295,8 +298,8 @@ export default function SetupBasics() {
    */
   const handleMultiDayChange = (next: boolean) => {
     setIsMultiDay(next);
-    if (next && (!isCompleteDateString(editEndDate) || editEndDate <= editStartDate)) {
-      setEditEndDate(addDaysToDateString(editStartDate, 1) || '');
+    if (next && (!isCalendarDate(editEndDate) || editEndDate <= editStartDate)) {
+      setEditEndDate(addCalendarDays(editStartDate, 1) || '');
     }
   };
 
@@ -347,8 +350,8 @@ export default function SetupBasics() {
         orgId,
         data: {
           name: editName.trim(),
-          startDate: `${editStartDate}T12:00:00.000Z`,
-          endDate: isMultiDay && editEndDate ? `${editEndDate}T12:00:00.000Z` : null,
+          startDate: editStartDate,
+          endDate: isMultiDay && editEndDate ? editEndDate : null,
           siteId: editSiteId || null,
         },
       });

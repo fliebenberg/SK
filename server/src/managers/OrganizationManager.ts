@@ -65,7 +65,7 @@ export class OrganizationManager extends BaseManager {
         a.longitude,
         c.team_count as "teamCount",
         c.site_count as "siteCount",
-        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND (e.start_date IS NULL OR COALESCE(e.end_date, e.start_date) >= CURRENT_DATE)) as "eventCount",
         c.member_count as "memberCount"
       FROM organizations o
       LEFT JOIN addresses a ON o.address_id = a.id${ORG_COUNTS_JOIN}
@@ -177,7 +177,7 @@ export class OrganizationManager extends BaseManager {
         a.longitude,
         c.team_count as "teamCount",
         c.site_count as "siteCount",
-        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND (e.start_date IS NULL OR e.start_date > (NOW() - INTERVAL '24 hours'))) as "eventCount",
+        (SELECT COUNT(*)::int FROM events e WHERE (e.org_id = o.id OR EXISTS (SELECT 1 FROM event_organizations eo WHERE eo.event_id = e.id AND eo.org_id = o.id) OR EXISTS (SELECT 1 FROM games g JOIN game_participants gp ON gp.game_id = g.id JOIN teams t ON gp.team_id = t.id WHERE g.event_id = e.id AND t.org_id = o.id)) AND (e.start_date IS NULL OR COALESCE(e.end_date, e.start_date) >= CURRENT_DATE)) as "eventCount",
         c.member_count as "memberCount"
       FROM organizations o
       LEFT JOIN addresses a ON o.address_id = a.id${ORG_COUNTS_JOIN}

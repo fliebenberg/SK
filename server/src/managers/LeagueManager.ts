@@ -1,7 +1,11 @@
 import { BaseManager } from "./BaseManager";
-import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, ScoringSystem, calculateStandings } from "@sk/shared";
+import { League, Season, SeasonTeam, LeagueStandingRow, Game, Team, ScoringSystem, calculateStandings, assertCalendarDates } from "@sk/shared";
+
 import { v4 as uuidv4 } from "uuid";
 import { imageService } from "../services/ImageService";
+
+/** Calendar dates, never timestamps (date-formatting skill). */
+const SEASON_DATE_FIELDS = { startDate: 'Start date', endDate: 'End date' };
 
 export class LeagueManager extends BaseManager {
   // --- Leagues CRUD ---
@@ -123,6 +127,7 @@ export class LeagueManager extends BaseManager {
   }
 
   async createSeason(data: Omit<Season, "id" | "cachedStandings" | "createdAt" | "updatedAt"> & { id?: string }): Promise<Season> {
+    assertCalendarDates(data as Record<string, unknown>, SEASON_DATE_FIELDS);
     const id = data.id || `sn-${uuidv4()}`;
 
     const image = await imageService.stage('logos', data.logo, id);
@@ -150,6 +155,7 @@ export class LeagueManager extends BaseManager {
   }
 
   async updateSeason(id: string, data: Partial<Season>): Promise<Season | null> {
+    assertCalendarDates(data as Record<string, unknown>, SEASON_DATE_FIELDS);
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;

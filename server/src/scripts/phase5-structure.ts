@@ -88,7 +88,7 @@ async function main() {
       name: `P5 ${format} ${stamp}`,
       type: 'Tournament',
       format,
-      startDate: new Date().toISOString(),
+      startDate: '2026-10-01',
       orgId: APP_TEST_ORG_ID,
       sportIds: opts.sportIds,
       participatingOrgIds: opts.participatingOrgIds,
@@ -150,7 +150,7 @@ async function main() {
   const singleMatch = await eventManager.addEvent({
     name: `P5 Single ${stamp}`,
     type: 'SingleMatch',
-    startDate: new Date().toISOString(),
+    startDate: '2026-10-01',
     orgId: APP_TEST_ORG_ID,
     status: 'Scheduled',
   } as any);

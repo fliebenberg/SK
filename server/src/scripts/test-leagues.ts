@@ -68,8 +68,8 @@ async function runTest() {
             id: seasonId,
             leagueId: leagueId,
             name: "2026 Season",
-            startDate: new Date('2026-03-01').toISOString(),
-            endDate: new Date('2026-09-01').toISOString(),
+            startDate: '2026-03-01',
+            endDate: '2026-09-01',
             status: "ACTIVE",
             settings: { pointsPerWin: 4, pointsPerDraw: 2, pointsPerLoss: 0 }
         });
@@ -90,7 +90,7 @@ async function runTest() {
             id: eventId,
             name: "Derby Day Cup",
             orgId: orgId,
-            startDate: new Date().toISOString()
+            startDate: '2026-10-01'
         } as any);
 
         // 7. Create Test Games

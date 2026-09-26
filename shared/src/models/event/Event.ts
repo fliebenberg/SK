@@ -12,6 +12,7 @@ export type EventType = 'SingleMatch' | 'Tournament';
 
 import type { ScoringSystem } from './Tournament';
 import type { OrgBadge } from '../organization/Organization';
+import type { CalendarDate } from '../../utils/calendarDate';
 
 /**
  * How a tournament is structured — what the event screen keys its tabs and setup steps off.
@@ -66,9 +67,10 @@ export interface Event {
   /** Set on a `Tournament`, absent on a `SingleMatch`. */
   format?: EventFormat;
   date?: string; // Legacy field
-  startDate: string;
-  /** `null` on an update clears it. */
-  endDate?: string | null;
+  /** The day it starts — a calendar date, never a timestamp (date-formatting skill). */
+  startDate: CalendarDate;
+  /** The last day, for an event over several. `null` on an update clears it. */
+  endDate?: CalendarDate | null;
   /** `null` on an update clears it. */
   siteId?: string | null;
   /** `null` on an update clears it. */

@@ -1,5 +1,6 @@
 import { GameClockState } from "./Game";
 import { ParticipantSourceRule } from "./Tournament";
+import type { Instant } from "../../utils/calendarDate";
 
 /**
  * A participant as a list needs it: who is playing, and under whose badge.
@@ -63,9 +64,9 @@ export interface GameSummary {
   /** The division that stage belongs to. Derived, and carried for the same reason. */
   divisionId?: string;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
-  scheduledStartTime?: string;
-  startTime?: string;
-  finishTime?: string;
+  scheduledStartTime?: Instant;
+  startTime?: Instant;
+  finishTime?: Instant;
   siteId?: string;
   facilityId?: string;
   /** Kick-off deliberately not set yet, as opposed to simply absent. */

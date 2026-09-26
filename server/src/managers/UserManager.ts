@@ -1,9 +1,12 @@
-import { OrgProfile, OrgMembership, User, UserEmail, OrgMember } from "@sk/shared";
+import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, assertCalendarDates } from "@sk/shared";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { memberPrivilegedSql, restrictedReasonSql } from "./minorAccess";
 import { organizationManager } from "./OrganizationManager";
 import { imageService } from "../services/ImageService";
+
+/** A birthdate is a calendar date, never a timestamp (date-formatting skill, DATE-1). */
+const PROFILE_DATE_FIELDS = { birthdate: 'Birthdate' };
 
 /**
  * `restrictedReason` is an explicit `null` on a membership with full privileges, never absent: the
@@ -222,6 +225,7 @@ export class UserManager extends BaseManager {
   }
 
   async addOrgProfile(profile: Omit<OrgProfile, 'id'> & { id?: string }): Promise<OrgProfile> {
+    assertCalendarDates(profile as Record<string, unknown>, PROFILE_DATE_FIELDS);
     const id = profile.id || `op-${Date.now()}`;
     // An add can land on an existing profile (ON CONFLICT below), replacing its picture.
     const previousImage = (await this.query(
@@ -273,6 +277,7 @@ export class UserManager extends BaseManager {
   async updateOrgProfile(id: string, data: Partial<OrgProfile>): Promise<OrgProfile | null> {
     const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'orgId');
     if (keys.length === 0) return null;
+    assertCalendarDates(data as Record<string, unknown>, PROFILE_DATE_FIELDS);
 
     const map: Record<string, string> = {
       userId: 'user_id',

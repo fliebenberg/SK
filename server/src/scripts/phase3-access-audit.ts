@@ -74,7 +74,7 @@ async function main() {
     name: `Phase 3 Access Audit ${stamp}`,
     type: 'Tournament',
     format: 'Festival',
-    startDate: new Date().toISOString(),
+    startDate: '2026-10-01',
     orgId: APP_TEST_ORG_ID,
     sportIds: [sportId],
     settings: {},

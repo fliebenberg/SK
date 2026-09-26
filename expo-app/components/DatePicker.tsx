@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useActiveTheme } from '../store/settingsStore';
 import { COLORS } from '../constants/Colors';
+import { calendarDateForPicker, calendarDateOf } from '../utils/dates';
 
 const FIELD_HEIGHT = 44;
 
@@ -13,35 +14,20 @@ interface DatePickerProps {
   placeholder?: string;
 }
 
-/** Format a Date as `YYYY-MM-DD` using local calendar fields. */
-function toDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-/**
- * Parse a `YYYY-MM-DD` string as a local date; fall back to today when empty or invalid.
- * Anchoring at midday avoids `new Date('YYYY-MM-DD')` being read as UTC midnight,
- * which shows the previous day in negative-offset timezones.
- */
-function toLocalDate(value: string): Date {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const parsed = new Date(`${value}T12:00:00`);
-    if (!isNaN(parsed.getTime())) return parsed;
-  }
-  return new Date();
-}
+/*
+  The value is a calendar date (`YYYY-MM-DD`); the native picker speaks `Date`. Both conversions
+  are in utils/dates.ts — the picker opens on the value's day at local noon, and the day picked is
+  read off in local time (date-formatting skill).
+*/
 
 export default function DatePicker({ value, onChange, placeholder }: DatePickerProps) {
   const isDark = useActiveTheme() === 'dark';
   const [showPicker, setShowPicker] = useState(false);
   // iOS only: the date being browsed in the modal before the user taps Done.
-  const [pendingDate, setPendingDate] = useState<Date>(() => toLocalDate(value));
+  const [pendingDate, setPendingDate] = useState<Date>(() => calendarDateForPicker(value));
 
   const openPicker = () => {
-    setPendingDate(toLocalDate(value));
+    setPendingDate(calendarDateForPicker(value));
     setShowPicker(true);
   };
 
@@ -49,12 +35,12 @@ export default function DatePicker({ value, onChange, placeholder }: DatePickerP
   const handleAndroidChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     setShowPicker(false);
     if (event.type === 'set' && selectedDate) {
-      onChange(toDateString(selectedDate));
+      onChange(calendarDateOf(selectedDate));
     }
   };
 
   const confirmIos = () => {
-    onChange(toDateString(pendingDate));
+    onChange(calendarDateOf(pendingDate));
     setShowPicker(false);
   };
 
@@ -83,7 +69,7 @@ export default function DatePicker({ value, onChange, placeholder }: DatePickerP
 
       {/* Android: the picker is a native dialog and adds nothing to the layout. */}
       {Platform.OS === 'android' && showPicker && (
-        <DateTimePicker value={toLocalDate(value)} mode="date" display="default" onChange={handleAndroidChange} />
+        <DateTimePicker value={calendarDateForPicker(value)} mode="date" display="default" onChange={handleAndroidChange} />
       )}
 
       {/* iOS: the inline calendar must live in a modal, otherwise it expands the input row. */}

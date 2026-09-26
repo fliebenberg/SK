@@ -67,6 +67,7 @@ export interface Organization {
   address?: Address;
   teamCount?: number;
   siteCount?: number;
+  /** Events not over yet: undated, or whose last day is today or later (the database's today). */
   eventCount?: number;
   memberCount?: number;
   isClaimed?: boolean;

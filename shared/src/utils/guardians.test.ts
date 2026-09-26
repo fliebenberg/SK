@@ -32,11 +32,10 @@ describe('coming of age', () => {
     expect(isUnderAge('not a date', 18)).toBe(false);
   });
 
-  it('reads a timestamp in local time, as pg hands a DATE over, not by slicing its date part', () => {
-    // Local midnight on 1 January 2012, however far from UTC this runs — the way the server sends it.
-    const serverMidnight = new Date(2012, 0, 1).toISOString();
-    expect(isUnderAge(serverMidnight, 14, on(2025, 12, 31))).toBe(true);
-    expect(isUnderAge(serverMidnight, 14, on(2026, 1, 1))).toBe(false);
+  it('reads only a calendar date, never a timestamp', () => {
+    // A timestamp is an instant, and which day it falls on depends on where it is read (DATE-1).
+    expect(isUnderAge('2012-01-01T00:00:00.000Z', 14, on(2025, 12, 31))).toBe(false);
+    expect(isUnderAge('2012-01-01', 14, on(2025, 12, 31))).toBe(true);
   });
 });
 

@@ -187,7 +187,8 @@ Core records for individuals in an organization (players, coaches, staff).
 - `name` (TEXT): Full name.
 - `email` (TEXT): Contact email.
 - `cellphone` (TEXT): Contact number.
-- `birthdate` (DATE): Date of birth.
+- `birthdate` (DATE): Date of birth. A calendar date: it reaches the app as `YYYY-MM-DD`, never a
+  timestamp, and the server refuses anything else (date-formatting skill, `DATE-1`).
 - `national_id` (TEXT): Optional identity number.
 - `identifier` (TEXT): Organization-specific ID (e.g., Student Number).
 - `image` (TEXT): Organization-specific profile image.
@@ -265,8 +266,9 @@ A single match, or a tournament containing many.
   gone — a sports day is a `Tournament` whose `format` is `'Festival'`. An event without a type
   raises rather than defaulting to one.
 - `name` (TEXT)
-- `start_date` (TIMESTAMPTZ)
-- `end_date` (TIMESTAMPTZ)
+- `start_date` (DATE): the day it starts. A calendar date, the same day for every viewer; was
+  `TIMESTAMPTZ` at noon UTC until `20260926_calendar_dates.ts`.
+- `end_date` (DATE): the last day, for an event over several; `NULL` for one day.
 - `site_id` (TEXT): FK to `sites.id`.
 - `facility_id` (TEXT): FK to `facilities.id`. Still the whole story for a `SingleMatch`; a
   tournament names its facilities in `event_facilities` instead.
@@ -605,7 +607,9 @@ One running of a league — the thing with a table, a fixture list and a winner.
 - `id` (TEXT, PK)
 - `league_id` (TEXT): NOT NULL, FK to `leagues.id` (ON DELETE CASCADE).
 - `name` (TEXT): NOT NULL.
-- `start_date` / `end_date` (TIMESTAMPTZ): both NOT NULL.
+- `start_date` / `end_date` (DATE): both NOT NULL, both inclusive. Calendar dates since
+  `20260926_calendar_dates.ts`; the season screens used to write them at midnight UTC, a day early
+  west of Greenwich.
 - `status` (TEXT): NOT NULL DEFAULT `'UPCOMING'`.
 - `settings` (JSONB): DEFAULT `{"pointsPerWin": 3, "pointsPerDraw": 1, "pointsPerLoss": 0}`. **This
   is the same `ScoringSystem` shape a tournament uses** (D19), which is the point — the same

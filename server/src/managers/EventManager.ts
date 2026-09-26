@@ -1,9 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { Event, Game, GameParticipant, GameClockState, GameEvent, GameSummary, AddGamePayload, UpdateGamePayload } from "@sk/shared";
-import { getPeriodLabel } from "@sk/shared";
+import { getPeriodLabel, assertCalendarDates } from "@sk/shared";
 import { BaseManager, Tx } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 import { sportManager } from "./SportManager";
+
+const EVENT_DATE_FIELDS = { startDate: 'Start date', endDate: 'End date' };
 
 export class EventManager extends BaseManager {
   private EVENT_COLUMNS = 'id, name, type, format, start_date as "startDate", end_date as "endDate", site_id as "siteId", facility_id as "facilityId", org_id as "orgId", ARRAY(SELECT org_id FROM event_organizations WHERE event_id = events.id) as "participatingOrgIds", COALESCE((SELECT jsonb_agg(jsonb_build_object(\'id\', o.id, \'name\', o.name, \'shortName\', o.short_name, \'logo\', o.logo, \'logoConfig\', o.settings->\'logoConfig\', \'primaryColor\', o.primary_color, \'isClaimed\', o.is_claimed) ORDER BY o.name) FROM event_organizations eo JOIN organizations o ON o.id = eo.org_id WHERE eo.event_id = events.id), \'[]\'::jsonb) as "participatingOrgs", ARRAY(SELECT sport_id FROM event_sports WHERE event_id = events.id) as "sportIds", settings, status';
@@ -168,6 +170,8 @@ export class EventManager extends BaseManager {
   }
 
   async addEvent(event: Omit<Event, "id"> & { id?: string }): Promise<Event> {
+    // Calendar dates, never timestamps (date-formatting skill).
+    assertCalendarDates(event as Record<string, unknown>, EVENT_DATE_FIELDS);
     const id = event.id || `event-${Date.now()}`;
     const sportIds = event.sportIds || [];
     const participatingOrgIds = [...new Set(event.participatingOrgIds || [])];
@@ -205,6 +209,7 @@ export class EventManager extends BaseManager {
   async updateEvent(id: string, data: Partial<Event>): Promise<Event | null> {
      const keys = Object.keys(data).filter(k => k !== 'id');
      if (keys.length === 0) return (await this.getEvent(id)) || null;
+     assertCalendarDates(data as Record<string, unknown>, EVENT_DATE_FIELDS);
 
      await this.transaction(async (tx) => {
          const sportIds = data.sportIds;

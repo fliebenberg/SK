@@ -32,6 +32,8 @@ import { getAvatarUrl } from '../../../../services/assets';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import { PaginatedList } from '../../../../components/PaginatedList';
 import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
+import DatePicker from '../../../../components/DatePicker';
+import { formatInstantDate, isCalendarDate } from '../../../../utils/dates';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -476,6 +478,10 @@ export default function TeamDetailsScreen() {
     const guardianProblem = withGuardian ? guardianDraftProblem(guardianDraft) : null;
     if (guardianProblem) {
       setRosterAddError(guardianProblem);
+      return;
+    }
+    if (memberBirthdate && !isCalendarDate(memberBirthdate)) {
+      setRosterAddError('Enter the full birthdate, YYYY-MM-DD.');
       return;
     }
     setRosterAddError(null);
@@ -1067,7 +1073,7 @@ export default function TeamDetailsScreen() {
                   <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4">
                     <View className="flex-row justify-between items-center mb-2">
                       <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
-                        {(game.scheduledStartTime || game.startTime) ? new Date(game.scheduledStartTime || game.startTime || '').toLocaleDateString() : 'Date TBD'}
+                        {formatInstantDate(game.scheduledStartTime || game.startTime) || 'Date TBD'}
                       </Text>
                       <View className={`px-2 py-0.5 rounded ${
                         game.status === 'Live' ? 'bg-red-500' : 'bg-slate-200 dark:bg-white/10'
@@ -1347,13 +1353,7 @@ export default function TeamDetailsScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Birthdate</Text>
-                    <TextInput
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#94A3B8"
-                      value={memberBirthdate}
-                      onChangeText={setMemberBirthdate}
-                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
-                    />
+                    <DatePicker value={memberBirthdate} onChange={setMemberBirthdate} placeholder="Birthdate" />
                   </View>
                 </View>
               </ScrollView>
@@ -1570,13 +1570,7 @@ export default function TeamDetailsScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Birthdate</Text>
-                    <TextInput
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#94A3B8"
-                      value={memberBirthdate}
-                      onChangeText={setMemberBirthdate}
-                      className="font-inter text-xs text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
-                    />
+                    <DatePicker value={memberBirthdate} onChange={setMemberBirthdate} placeholder="Birthdate" />
                   </View>
                 </View>
               </ScrollView>

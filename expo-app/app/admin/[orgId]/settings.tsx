@@ -34,6 +34,7 @@ import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { NominationModal } from '@/components/NominationModal';
 import { OrgMinorsSettingsCard } from '@/components/guardians/OrgMinorsSettingsCard';
 import { useAuthStore } from '../../../store/authStore';
+import { formatInstantDate } from '../../../utils/dates';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -991,7 +992,7 @@ export default function OrgSettings() {
                         {ref.referredEmail}
                       </Text>
                       <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                        Nominated: {new Date(ref.createdAt).toLocaleDateString()}
+                        Nominated: {formatInstantDate(ref.createdAt)}
                       </Text>
                     </View>
                     

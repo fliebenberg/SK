@@ -19,6 +19,7 @@ import { finishedScoreLine } from '../../../../../../../utils/matchScore';
 import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
 import { EventLogFeed } from '../../../../../../../components/sports/shared/EventLogFeed';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
+import { formatInstantDate, formatKickoffTime } from '../../../../../../../utils/dates';
 
 export default function ViewGame() {
   const router = useRouter();
@@ -152,8 +153,10 @@ export default function ViewGame() {
   }
 
   // Format Date and Time
-  const dateBase = game.scheduledStartTime ? game.scheduledStartTime.split('T')[0] : (game.startTime ? game.startTime.split('T')[0] : '');
-  const timeBase = game.scheduledStartTime ? game.scheduledStartTime.split('T')[1]?.substring(0, 5) : (game.startTime ? game.startTime.split('T')[1]?.substring(0, 5) : '');
+  // In the viewer's own time. Cutting up the ISO string here showed the UTC time (DATE-1).
+  const kickoff = game.scheduledStartTime || game.startTime;
+  const dateBase = formatInstantDate(kickoff);
+  const timeBase = formatKickoffTime(kickoff);
 
   const permissions = getMatchPermissions({
     game,

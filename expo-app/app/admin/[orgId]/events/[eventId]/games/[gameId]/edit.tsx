@@ -23,6 +23,8 @@ import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwit
 import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
 import { ChangeWhoPlayedCard } from '../../../../../../../components/tournament/ChangeWhoPlayedCard';
 import { finishedScoreLine } from '../../../../../../../utils/matchScore';
+import { instantToLocalInputs, localInputsToInstant } from '../../../../../../../utils/dates';
+import { useToastStore } from '../../../../../../../store/toastStore';
 
 export default function EditGame() {
   const router = useRouter();
@@ -132,9 +134,11 @@ export default function EditGame() {
 
     const checkComplete = () => {
       if (loadedHome && loadedAway) {
-        const dateBase = game.scheduledStartTime ? game.scheduledStartTime.split('T')[0] : (game.startTime ? game.startTime.split('T')[0] : (event.startDate?.split('T')[0] || ''));
-        const timeBase = game.scheduledStartTime ? game.scheduledStartTime.split('T')[1]?.substring(0, 5) : (game.startTime ? game.startTime.split('T')[1]?.substring(0, 5) : '09:00');
-        
+        // The kick-off in the viewer's own time. This used to cut up the ISO string, which gave
+        // the UTC time — and saving it back as local time moved the kick-off by the viewer's
+        // offset on every save (DATE-1).
+        const kickoff = instantToLocalInputs(game.scheduledStartTime || game.startTime);
+
         setInitialData({
           sportId: game.sportId || '',
           homeOrgId,
@@ -143,8 +147,8 @@ export default function EditGame() {
           awayTeamId: awayTeamId || '',
           siteId: game.siteId || '',
           facilityId: game.facilityId || '',
-          gameDate: dateBase,
-          startTime: timeBase || '09:00',
+          gameDate: kickoff?.date || event.startDate || '',
+          startTime: kickoff?.time || '09:00',
           isTbd: !(game.scheduledStartTime || game.startTime) || game.customSettings?.timeTbd,
           status: game.status || 'Scheduled',
         });
@@ -187,18 +191,16 @@ export default function EditGame() {
   // Submit Handler
   const handleSubmit = () => {
     if (!event || !game || !formData || !formData.homeTeamId || !formData.awayTeamId) return;
-    setIsProcessing(true);
 
-    const dateBase = formData.gameDate || event.startDate.split('T')[0];
-    let scheduledTime: string | null = null;
-
-    if (formData.isTbd) {
-      const dateObj = new Date(`${dateBase}T12:00:00`);
-      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T12:00:00`;
-    } else {
-      const dateObj = new Date(`${dateBase}T${formData.startTime}:00`);
-      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${formData.startTime}:00`;
+    // The kick-off as typed, in the organiser's time — or noon that day while it is TBD
+    // (date-formatting skill). Refused before anything is sent if the date or time is half-typed.
+    const dateBase = formData.gameDate || event.startDate;
+    const scheduledTime = localInputsToInstant(dateBase, formData.isTbd ? null : formData.startTime);
+    if (!scheduledTime) {
+      useToastStore.getState().showError('Enter the full game date and start time.', 'Date Needed');
+      return;
     }
+    setIsProcessing(true);
 
     const payload = {
       id: gameId,
@@ -238,7 +240,7 @@ export default function EditGame() {
           orgId,
           data: {
             name: eventNameStr,
-            startDate: `${dateBase}T12:00:00.000Z`,
+            startDate: dateBase,
             siteId: formData.siteId || null,
             facilityId: formData.facilityId || null,
             sportIds: formData.sportId ? [formData.sportId] : [],

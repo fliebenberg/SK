@@ -436,7 +436,8 @@ What was built, and where it differs from the plan above:
   an updated member row over the old one, and an absent key left a stale reason in place.
 - **Fixed on the way:** `isUnderAge` sliced the date out of a birthdate timestamp, which is a day
   early because `pg` sends a `DATE` as the server's local midnight in UTC (`DATE-1`); it now reads a
-  timestamp in local time, as the app's `parseCalendarDate` does. The roster's add-a-person errors
+  timestamp in local time, as the app's `parseCalendarDate` does. *(Superseded 2026-09-26: a
+  `DATE` now arrives as `YYYY-MM-DD` and `isUnderAge` reads only that — `DATE-1`.)* The roster's add-a-person errors
   now show in the modal instead of through `Alert.alert`, which does nothing on web (`UI-17`).
 - Logged: `UI-22` (the People "+" and the roster's Invite buttons show to people who cannot use
   them).
@@ -496,7 +497,7 @@ Where it differs from the plan above:
   default-off rule now correctly refuses; it uses an adult 1st XV player instead.
 - **Found and added to `DATE-1`:** saving a profile moves its birthdate back a day — the edit form
   sends back the timestamp it was seeded with. Pre-existing, and now more serious because a birthdate
-  decides who is a minor.
+  decides who is a minor. *(Fixed 2026-09-26 with the rest of `DATE-1`.)*
 
 ---
 

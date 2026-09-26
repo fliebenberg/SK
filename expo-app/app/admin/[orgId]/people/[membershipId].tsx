@@ -23,6 +23,8 @@ import { useOrgGuardians } from '../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
 import { GuardiansCard } from '../../../../components/guardians/GuardiansCard';
 import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCard';
+import DatePicker from '../../../../components/DatePicker';
+import { isCalendarDate } from '../../../../utils/dates';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -168,8 +170,12 @@ export default function EditMember() {
 
   useUnsavedChanges(hasChanges && !isProcessing, handleCancel);
 
+  // A birthdate half-typed on native's free-text picker is not one yet; it is refused here with a
+  // line under the field, rather than by the server after the round trip.
+  const birthdateIncomplete = !!form?.birthdate && !isCalendarDate(form.birthdate);
+
   const handleSave = async () => {
-    if (!form || !form.name.trim()) return;
+    if (!form || !form.name.trim() || birthdateIncomplete) return;
 
     setIsProcessing(true);
     try {
@@ -180,7 +186,8 @@ export default function EditMember() {
           name: form.name,
           email: form.email || undefined,
           cellphone: form.cellphone || undefined,
-          birthdate: form.birthdate || undefined,
+          // `null` clears a birthdate that was removed; `undefined` would leave the old one.
+          birthdate: form.birthdate || null,
           nationalId: form.nationalId || undefined,
           image: form.image || undefined,
           imageConfig: form.imageConfig,
@@ -377,13 +384,14 @@ export default function EditMember() {
               <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
                 Birthdate
               </Text>
-              <TextInput
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#94A3B8"
+              <DatePicker
                 value={form.birthdate}
-                onChangeText={(text) => setForm(prev => prev ? ({ ...prev, birthdate: text }) : null)}
-                className="font-inter text-sm text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 outline-none"
+                onChange={(value) => setForm(prev => prev ? ({ ...prev, birthdate: value }) : null)}
+                placeholder="Birthdate"
               />
+              {birthdateIncomplete && (
+                <Text className="font-inter text-xs text-red-500 mt-1.5">Enter the full date, YYYY-MM-DD.</Text>
+              )}
             </View>
           </View>
 
@@ -496,7 +504,7 @@ export default function EditMember() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
-              disabled={isProcessing || !form.name.trim()}
+              disabled={isProcessing || !form.name.trim() || birthdateIncomplete}
               className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
             >
               {isProcessing ? (

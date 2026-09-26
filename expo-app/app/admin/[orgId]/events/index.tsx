@@ -23,7 +23,14 @@ import {
   isScoreNotProvided,
 } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
-import { formatDateRange, formatFixtureWhen } from '../../../../utils/dates';
+import {
+  formatDateRange,
+  formatFixtureWhen,
+  isCalendarDate,
+  startOfTodayMs,
+  todayCalendarDate,
+  whenMs,
+} from '../../../../utils/dates';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import { useLiveRoom } from '../../../../hooks/useLiveRoom';
 import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
@@ -109,13 +116,8 @@ export default function OrgEventsList() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const openTournamentPrompt = () => {
-    const today = new Date();
     setNewTournamentName('');
-    setNewTournamentDate(
-      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
-        today.getDate()
-      ).padStart(2, '0')}`
-    );
+    setNewTournamentDate(todayCalendarDate());
     setIsNamingTournament(true);
   };
 
@@ -130,13 +132,13 @@ export default function OrgEventsList() {
    */
   const handleCreateTournament = () => {
     const name = newTournamentName.trim();
-    if (!name || !newTournamentDate) return;
+    if (!name || !isCalendarDate(newTournamentDate)) return;
     setIsProcessing(true);
     sendAction(SocketAction.ADD_EVENT, {
       name,
       type: 'Tournament',
       format: 'Festival',
-      startDate: `${newTournamentDate}T12:00:00.000Z`,
+      startDate: newTournamentDate,
       orgId,
       status: 'Scheduled',
     }).then(result => {
@@ -325,6 +327,9 @@ export default function OrgEventsList() {
   };
 
   // Filter & Sort Events
+  const today = todayCalendarDate();
+  const startOfToday = startOfTodayMs();
+
   const filteredEvents = (events || [])
     .filter(e => {
       if (!e) return false;
@@ -346,25 +351,17 @@ export default function OrgEventsList() {
         return false;
       }
 
-      const eventDate = new Date(e.startDate);
-      if (isNaN(eventDate.getTime())) {
+      if (!isCalendarDate(e.startDate)) {
         console.warn('[OrgEventsList] Invalid startDate for event:', e.id, e.startDate);
         return false;
       }
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (viewMode === 'upcoming') {
-        return eventDate >= today;
-      } else {
-        return eventDate < today;
-      }
+      // Calendar dates, so they compare as strings against the viewer's today.
+      return viewMode === 'upcoming' ? e.startDate >= today : e.startDate < today;
     })
     .sort((a, b) => {
-      const dateA = a?.startDate ? new Date(a.startDate).getTime() : 0;
-      const dateB = b?.startDate ? new Date(b.startDate).getTime() : 0;
-      return viewMode === 'upcoming' ? dateA - dateB : dateB - dateA;
+      const order = (a?.startDate || '').localeCompare(b?.startDate || '');
+      return viewMode === 'upcoming' ? order : -order;
     });
 
   const eventsById: Record<string, Event> = (events || []).reduce((acc, e) => {
@@ -380,9 +377,8 @@ export default function OrgEventsList() {
    * both halves of the Upcoming / Past split.
    */
   const gameWhen = (game: GameSummary): number => {
-    const iso = game.scheduledStartTime || game.startTime || eventsById[game.eventId || '']?.startDate;
-    const parsed = iso ? new Date(iso).getTime() : NaN;
-    return isNaN(parsed) ? 0 : parsed;
+    const when = whenMs(game.scheduledStartTime || game.startTime || eventsById[game.eventId || '']?.startDate);
+    return isNaN(when) ? 0 : when;
   };
 
   const filteredGames = (gameSummaries || [])
@@ -403,9 +399,7 @@ export default function OrgEventsList() {
 
       const when = gameWhen(game);
       if (!when) return false;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return viewMode === 'upcoming' ? when >= today.getTime() : when < today.getTime();
+      return viewMode === 'upcoming' ? when >= startOfToday : when < startOfToday;
     })
     .sort((a, b) => (viewMode === 'upcoming' ? gameWhen(a) - gameWhen(b) : gameWhen(b) - gameWhen(a)));
 
@@ -1021,9 +1015,9 @@ export default function OrgEventsList() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleCreateTournament}
-                disabled={!newTournamentName.trim() || !newTournamentDate || isProcessing}
+                disabled={!newTournamentName.trim() || !isCalendarDate(newTournamentDate) || isProcessing}
                 className={`flex-1 py-2.5 rounded-lg bg-brand-orange items-center active:opacity-85 ${
-                  !newTournamentName.trim() || !newTournamentDate || isProcessing ? 'opacity-40' : ''
+                  !newTournamentName.trim() || !isCalendarDate(newTournamentDate) || isProcessing ? 'opacity-40' : ''
                 }`}
               >
                 {isProcessing ? (

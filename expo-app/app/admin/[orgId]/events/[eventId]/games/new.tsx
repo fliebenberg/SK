@@ -29,6 +29,8 @@ import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
 import DatePicker from '../../../../../../components/DatePicker';
 import CustomSelect from '../../../../../../components/CustomSelect';
 import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
+import { localInputsToInstant } from '../../../../../../utils/dates';
+import { useToastStore } from '../../../../../../store/toastStore';
 
 export default function ScheduleGame() {
   const router = useRouter();
@@ -181,8 +183,7 @@ export default function ScheduleGame() {
   // Fallback gameDate to event.startDate if not set
   useEffect(() => {
     if (event && !gameDate) {
-      const d = event.startDate?.split('T')[0] || '';
-      setGameDate(d);
+      setGameDate(event.startDate || '');
     }
   }, [event, gameDate]);
 
@@ -283,6 +284,14 @@ export default function ScheduleGame() {
   const handleSubmit = (ignoreConflict = false) => {
     if (!event || !selectedHomeTeamId || !selectedAwayTeamId) return;
 
+    // The kick-off as the organiser typed it, in their time — or noon that day while it is TBD
+    // (date-formatting skill). Refused before anything is sent if the date or time is half-typed.
+    const scheduledTime = localInputsToInstant(gameDate || event.startDate, isTbd ? null : startTime);
+    if (!scheduledTime) {
+      useToastStore.getState().showError('Enter the full game date and start time.', 'Date Needed');
+      return;
+    }
+
     // Emit pending referrals if any exist
     const currentUserId = useAuthStore.getState().user?.id;
     if (currentUserId) {
@@ -298,17 +307,6 @@ export default function ScheduleGame() {
       });
     }
 
-    const dateBase = gameDate || event.startDate.split('T')[0];
-    let scheduledTime: string | undefined = undefined;
-
-    if (isTbd) {
-      const dateObj = new Date(`${dateBase}T12:00:00`);
-      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T12:00:00`;
-    } else {
-      const dateObj = new Date(`${dateBase}T${startTime}:00`);
-      scheduledTime = !isNaN(dateObj.getTime()) ? dateObj.toISOString() : `${dateBase}T${startTime}:00`;
-    }
-
     // Conflict Check
     if (!isTbd && scheduledTime && !ignoreConflict) {
       const matchConflict = games.find(g => {
@@ -316,7 +314,7 @@ export default function ScheduleGame() {
         
         // Compare same site and same time
         const gTime = new Date(g.startTime).getTime();
-        const propTime = new Date(scheduledTime!).getTime();
+        const propTime = new Date(scheduledTime).getTime();
         return g.siteId === selectedSiteId && gTime === propTime;
       });
 

@@ -44,6 +44,17 @@ clearing unsaved changes). Run `npm run check:actions` in `expo-app/` before com
 changes. Full rule, including the three reply formats:
 [.agent/skills/action-replies/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/action-replies/SKILL.md).
 
+## Dates and times: decide which kind first
+
+Every date is one of three kinds — an **instant** (a kick-off: `TIMESTAMPTZ`, shown in the viewer's
+time), a **calendar date** (a birthday, an event's days: `DATE`, sent as `YYYY-MM-DD`, the same day
+for everyone), or an **instant whose time is not set** (noon organiser time plus `timeTbd`). All app
+date handling goes through
+[expo-app/utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts); screens never format,
+parse or build dates themselves. Run `npm run check:dates` in `expo-app/` before committing client
+changes. Full policy and the reasons:
+[.agent/skills/date-formatting/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md).
+
 ## Keep the docs in step
 
 Feature, schema, API and workflow changes must be reflected in `okf/` and `docs/` as part of the same

@@ -1,4 +1,5 @@
 import { GameParticipant } from "./GameParticipant";
+import type { Instant } from "../../utils/calendarDate";
 
 export interface GameClockState {
   isRunning: boolean;
@@ -44,8 +45,9 @@ export interface Game {
    * hide the scoring control from somebody the server would let through.
    */
   divisionId?: string;
-  startTime?: string;
-  scheduledStartTime?: string;
+  startTime?: Instant;
+  /** The kick-off. At 12:00 organiser time when `customSettings.timeTbd` (date-formatting skill). */
+  scheduledStartTime?: Instant;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
   /** `null` on an update clears it. */
   siteId?: string | null;
@@ -62,5 +64,5 @@ export interface Game {
   };
   participants?: GameParticipant[];
   updatedAt?: string;
-  finishTime?: string;
+  finishTime?: Instant;
 }

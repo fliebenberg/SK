@@ -30,6 +30,8 @@ import {
 } from '../../../components/guardians/guardianDraft';
 import { useOrgGuardians, guardianSummary } from '../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../hooks/useOrgMinorsSettings';
+import DatePicker from '../../../components/DatePicker';
+import { isCalendarDate } from '../../../utils/dates';
 
 interface OrgRole {
   id: string;
@@ -221,6 +223,10 @@ export default function OrgPeople() {
   // Add Member Submission
   const handleAddMember = async () => {
     if (!newMemberData.name.trim()) return;
+    if (newMemberData.birthdate && !isCalendarDate(newMemberData.birthdate)) {
+      setAddError('Enter the full birthdate, YYYY-MM-DD.');
+      return;
+    }
     const withGuardian = isGuardianDraftStarted(guardianDraft);
     const guardianProblem = withGuardian ? guardianDraftProblem(guardianDraft) : null;
     if (guardianProblem) {
@@ -706,12 +712,10 @@ export default function OrgPeople() {
                   <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
                     Birthdate
                   </Text>
-                  <TextInput
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94A3B8"
+                  <DatePicker
                     value={newMemberData.birthdate}
-                    onChangeText={(text) => setNewMemberData(prev => ({ ...prev, birthdate: text }))}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
+                    onChange={(value) => setNewMemberData(prev => ({ ...prev, birthdate: value }))}
+                    placeholder="Birthdate"
                   />
                 </View>
               </View>

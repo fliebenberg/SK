@@ -286,8 +286,9 @@ const createTables = async () => {
                 -- than defaulted. 'SportsDay' is gone (D1) — a sports day is a Tournament whose
                 -- format is 'Festival'.
                 type TEXT NOT NULL,
-                start_date TIMESTAMPTZ,
-                end_date TIMESTAMPTZ,
+                -- Calendar dates, not instants (20260926_calendar_dates.ts, date-formatting skill).
+                start_date DATE,
+                end_date DATE,
                 site_id TEXT REFERENCES sites(id),
                 facility_id TEXT REFERENCES facilities(id),
                 org_id TEXT REFERENCES organizations(id),
@@ -787,8 +788,9 @@ const createTables = async () => {
                 id TEXT PRIMARY KEY,
                 league_id TEXT NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
                 name TEXT NOT NULL,
-                start_date TIMESTAMPTZ NOT NULL,
-                end_date TIMESTAMPTZ NOT NULL,
+                -- Calendar dates, not instants (20260926_calendar_dates.ts, date-formatting skill).
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
                 status TEXT NOT NULL DEFAULT 'UPCOMING',
                 -- D17: 3/1/0, the same ScoringSystem shape a tournament uses (D19). Existing
                 -- seasons store their values explicitly, so changing this moved no league's table.

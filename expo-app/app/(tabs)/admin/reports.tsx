@@ -4,6 +4,7 @@ import { GlassCard } from '../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { COLORS, getThemeColor } from '../../../constants/Colors';
+import { formatInstantDate } from '../../../utils/dates';
 
 export default function SystemReports() {
   const isDark = useActiveTheme() === 'dark';
@@ -159,7 +160,7 @@ export default function SystemReports() {
                   </Text>
                 </View>
                 <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">
-                  {new Date(report.createdAt).toLocaleDateString()}
+                  {formatInstantDate(report.createdAt)}
                 </Text>
               </View>
 
@@ -167,7 +168,7 @@ export default function SystemReports() {
                 <View className="mt-3 flex-row items-center gap-1">
                   <Ionicons name="checkmark-done" size={12} color="#10B981" />
                   <Text className="font-inter text-[9px] italic text-slate-400 dark:text-slate-500">
-                    Resolved on {new Date(report.resolvedAt).toLocaleDateString()}
+                    Resolved on {formatInstantDate(report.resolvedAt)}
                   </Text>
                 </View>
               )}

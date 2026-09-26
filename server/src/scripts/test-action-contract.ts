@@ -88,7 +88,7 @@ async function main() {
 
   // --- SYNC-4 and the rest of SYNC-1 ----------------------------------------------------------
   const event = await eventManager.addEvent({
-    name: `Contract ${stamp}`, type: 'SingleMatch', startDate: new Date().toISOString(),
+    name: `Contract ${stamp}`, type: 'SingleMatch', startDate: '2026-10-01',
     orgId: APP_TEST_ORG_ID, sportIds: [sportId], status: 'Scheduled', settings: {},
   } as any);
   created.eventId = event.id;

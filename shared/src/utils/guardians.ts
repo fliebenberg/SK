@@ -8,6 +8,7 @@
  * See docs/guardians-implementation-plan.md §0.3 for why the rule is shaped this way.
  */
 import { normalizeEmail } from './memberInvite';
+import { calendarDateParts, type CalendarDate } from './calendarDate';
 
 /** The age below which a player is a minor, when the organisation has not set one. */
 export const DEFAULT_MINOR_AGE = 18;
@@ -41,19 +42,12 @@ export function isValidMinorAge(age: unknown): age is number {
 }
 
 /**
- * A calendar date from a birthdate as it arrives. A bare `YYYY-MM-DD` is taken as written. A full
- * timestamp is what `pg` makes of a `DATE` — the server's local midnight, sent as UTC, so
- * `2012-01-01` arrives as `2011-12-31T22:00:00.000Z` from a server two hours east (`DATE-1`) — and
- * is read in local time, the same way the app's `parseCalendarDate` reads it. Slicing its date part
- * would make every birthday a day early.
+ * A birthdate is a {@link CalendarDate} — `YYYY-MM-DD`, the same day for everybody. Anything else
+ * (a timestamp, a half-typed value) is not a birthdate we know, and reads as `null`.
  */
-function calendarParts(birthdate: string | null | undefined): [number, number, number] | null {
-  if (!birthdate) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(birthdate).trim());
-  if (match) return [Number(match[1]), Number(match[2]) - 1, Number(match[3])];
-  const parsed = new Date(birthdate);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return [parsed.getFullYear(), parsed.getMonth(), parsed.getDate()];
+function calendarParts(birthdate: CalendarDate | null | undefined): [number, number, number] | null {
+  const parts = calendarDateParts(birthdate);
+  return parts ? [parts[0], parts[1] - 1, parts[2]] : null;
 }
 
 /**
@@ -63,7 +57,7 @@ function calendarParts(birthdate: string | null | undefined): [number, number, n
  * non-leap year — `new Date(y, 1, 29)` rolls over — which is also what the server's SQL gives
  * (`birthdate > CURRENT_DATE - make_interval(years => n)`).
  */
-export function isUnderAge(birthdate: string | null | undefined, years: number, today: Date = new Date()): boolean {
+export function isUnderAge(birthdate: CalendarDate | null | undefined, years: number, today: Date = new Date()): boolean {
   const parts = calendarParts(birthdate);
   if (!parts) return false;
   const [y, m, d] = parts;

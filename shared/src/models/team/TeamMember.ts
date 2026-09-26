@@ -1,4 +1,5 @@
 import type { RestrictedReason } from "../../utils/guardians";
+import type { CalendarDate } from "../../utils/calendarDate";
 
 export interface TeamMember {
   id: string; // profile id
@@ -14,7 +15,7 @@ export interface TeamMember {
   cellphone?: string;
   image?: string;
   imageConfig?: any;
-  birthdate?: string;
+  birthdate?: CalendarDate;
   lastInviteSentAt?: string;
   /** See `OrgProfile.lastInviteEmail`. */
   lastInviteEmail?: string;

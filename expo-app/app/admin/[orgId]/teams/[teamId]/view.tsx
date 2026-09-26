@@ -13,6 +13,7 @@ import { Team, TeamMember, Game, Sport, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { getAvatarUrl } from '../../../../../services/assets';
 import { COLORS } from '../../../../../constants/Colors';
+import { formatInstantDate } from '../../../../../utils/dates';
 
 const parseImageConfig = (config: any) => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -300,7 +301,7 @@ export default function TeamViewScreen() {
                   <View className="flex-1 mr-3">
                     <View className="flex-row justify-between items-center mb-1">
                       <Text className="font-orbitron-bold text-[9px] text-slate-400 uppercase tracking-widest">{game.status}</Text>
-                      <Text className="font-inter text-[10px] text-slate-400">{game.scheduledStartTime ? new Date(game.scheduledStartTime).toLocaleDateString() : ''}</Text>
+                      <Text className="font-inter text-[10px] text-slate-400">{formatInstantDate(game.scheduledStartTime)}</Text>
                     </View>
                     <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">
                       {game.participants?.[0]?.teamId || 'TBD'} vs {game.participants?.[1]?.teamId || 'TBD'}

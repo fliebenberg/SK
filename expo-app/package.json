@@ -45,6 +45,7 @@
     "web": "expo start --web",
     "postinstall": "patch-package",
     "check:actions": "node scripts/check-actions.js",
+    "check:dates": "node scripts/check-dates.js",
     "check:images": "node scripts/check-images.js"
   },
   "overrides": {

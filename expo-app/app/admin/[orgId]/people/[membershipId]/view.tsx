@@ -15,6 +15,7 @@ import { useOrgGuardians } from '../../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../../hooks/useOrgMinorsSettings';
 import { GuardiansCard } from '../../../../../components/guardians/GuardiansCard';
 import { MinorAccessCard } from '../../../../../components/guardians/MinorAccessCard';
+import { formatCalendarDate } from '../../../../../utils/dates';
 
 const parseImageConfig = (config: any) => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -190,7 +191,7 @@ export default function PersonViewScreen() {
               <View className="flex-1">
                 <Text className="font-inter-bold text-[10px] text-slate-400 uppercase tracking-wider">Birthdate</Text>
                 <Text className="font-inter text-sm text-slate-800 dark:text-white mt-0.5">
-                  {member.birthdate}
+                  {formatCalendarDate(member.birthdate) ?? 'Not a valid date'}
                 </Text>
               </View>
             </View>

@@ -1,3 +1,5 @@
+import type { CalendarDate } from '../../utils/calendarDate';
+
 export interface OrgProfile {
   id: string;
   orgId: string;
@@ -5,7 +7,8 @@ export interface OrgProfile {
   name: string;
   email?: string;
   cellphone?: string;
-  birthdate?: string;
+  /** A calendar date (`YYYY-MM-DD`), never a timestamp. `null` on an update clears it. */
+  birthdate?: CalendarDate | null;
   nationalId?: string;
   identifier?: string;
   image?: string;

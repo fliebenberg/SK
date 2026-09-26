@@ -1,90 +1,107 @@
 /**
- * Saying *when* something is, in words a person reads rather than the string the column stores.
+ * Everything the app does with a date or a time: saying *when* something is in words a person
+ * reads, working out "today", and converting between a stored instant and the date and time fields
+ * a person types into. Screens do none of this themselves.
  *
- * The one home for it. Before this existed the app had four renderings of the same idea — the
- * event header printed `startDate.split('T')[0]`, the events list built a range out of
- * `toLocaleDateString` inline, the leagues screen printed a season's dates as raw ISO, and three
- * screens each carried their own copy of a fixture's kick-off formatter. Two of those sat one tap
- * apart and disagreed: the list card read `19 Sep 2026 – 21 Sep 2026` and the detail header behind
- * it read `2026-09-19`.
+ * **The policy is the [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md)
+ * — read it first.** In short, there are three kinds of "when", and every bug so far came from
+ * handling one as another (DATE-1):
  *
- * **Two shapes of "when", and they are not the same job.**
- * - A **calendar date** or a range of them — an event, a league season. It has no time of day;
- *   nobody's tournament starts at 00:00. {@link formatDateRange} and {@link dateCountdown}.
- * - A **fixture's kick-off** — an instant, which may be marked TBD. {@link formatFixtureWhen}.
+ * - An **instant** (`Instant`, ISO with `Z`) — a kick-off, when an invite was sent. Shown in the
+ *   viewer's timezone. Typed in the organiser's, and converted only by {@link instantToLocalInputs}
+ *   and {@link localInputsToInstant}.
+ * - A **calendar date** (`CalendarDate`, `YYYY-MM-DD`) — a birthday, the days an event runs, a
+ *   season. The same day for everyone, so it is formatted from its own year, month and day and
+ *   **never passed to `new Date(...)`**, which would read it as midnight UTC.
+ * - An **instant whose time is not set** — a TBD kick-off: noon organiser time plus `timeTbd`.
  *
- * **Calendar dates are stored at noon UTC, and that is load-bearing.** The basics step writes
- * `` `${date}T12:00:00.000Z` `` deliberately: midday is far enough from either midnight that no
- * offset from UTC-11 to UTC+11 can drag the timestamp onto the neighbouring day, which is what
- * makes "the 19th" still read as the 19th in Johannesburg, Auckland and Vancouver alike. So a
- * plain `new Date(iso)` read through the local getters is correct here, and anything that *writes*
- * one of these dates must keep the convention.
+ * **Anything this file does not do yet belongs in it**, not inline in a screen — that is how the
+ * app once had four renderings of the same idea, two of them one tap apart and disagreeing.
+ * `npm run check:dates` fails on date handling written anywhere else.
  *
- * Parsing goes through `new Date` and formatting comes off the `Date` object — never
- * `.split('T')` — which is the rule the
- * [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md)
- * exists to enforce; the skill points back here, and **anything this file does not do yet belongs
- * in this file** rather than inline in a screen, which is how the four renderings happened.
- *
- * **It lives in `expo-app/utils/`, not `shared/`, deliberately.** These functions are
- * viewer-dependent by nature — `formatFixtureWhen` reads the viewer's locale and timezone,
- * `dateCountdown` reads "now" — and the server renders no dates for humans. In `shared/` the
- * server could import them and format a kick-off in the *server's* timezone, which is wrong for
- * every user not sitting in it. It moves only when the server genuinely must render a date for a
- * person, and then only the deterministic calendar parts, taking an explicit timezone. `UI-12`
- * records that reasoning and why `date-fns` is not used here.
+ * **It lives in `expo-app/utils/`, not `shared/`, deliberately.** These functions read the viewer's
+ * locale, timezone and "now", and the server renders no dates for people; in `shared/` the server
+ * could import them and format a kick-off in the *server's* timezone. The deterministic parts both
+ * sides need — the types, validation, adding days — are in `@sk/shared`'s `calendarDate.ts` and
+ * re-exported here, so a screen has one place to import from.
  */
+import {
+  addCalendarDays,
+  calendarDateParts,
+  isCalendarDate,
+  toCalendarDate,
+  type CalendarDate,
+  type Instant,
+} from '@sk/shared';
+
+export { addCalendarDays, isCalendarDate, type CalendarDate, type Instant };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-/** Local midnight on the calendar date an ISO timestamp falls on, or `null` if it is not one. */
-export function parseCalendarDate(iso?: string | null): Date | null {
-  if (!iso) return null;
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/* ------------------------------------------------------------------------------------------------
+ * Calendar dates
+ * --------------------------------------------------------------------------------------------- */
+
+/**
+ * A calendar date as a local-midnight `Date`, for arithmetic on the viewer's calendar. `null` for
+ * anything that is not a real `YYYY-MM-DD` — including a timestamp, which is an instant and whose
+ * day depends on where it is read.
+ */
+export function parseCalendarDate(value?: CalendarDate | null): Date | null {
+  const parts = calendarDateParts(value);
+  return parts ? new Date(parts[0], parts[1] - 1, parts[2]) : null;
+}
+
+/** The calendar date a `Date` falls on in the viewer's timezone. */
+export function calendarDateOf(date: Date): CalendarDate {
+  return toCalendarDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
+}
+
+/** Today, on the viewer's calendar. */
+export function todayCalendarDate(): CalendarDate {
+  return calendarDateOf(new Date());
 }
 
 /**
- * Is this picker value a complete calendar date?
- *
- * A `<DatePicker>` is a free-text field on native, so its value passes through every prefix of a
- * date on the way to one — `2026`, `2026-0`, `2026-09-1`. Anything validating or arithmetic-ing a
- * picker value has to know the difference between "not finished typing" and "wrong".
+ * The `Date` a native date picker should open on for this value: its day at local noon (midday,
+ * so no daylight-saving shift can move it), or today when the field is empty or half-typed.
  */
-export function isCompleteDateString(value?: string | null): boolean {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const parsed = new Date(`${value}T12:00:00`);
-  if (Number.isNaN(parsed.getTime())) return false;
-  /* `new Date('2026-02-30T12:00:00')` is a valid Date — it rolls over to 2 March. Reading the
-     components back is what separates a date from a date-shaped string that means another day. */
-  return (
-    parsed.getFullYear() === year && parsed.getMonth() + 1 === month && parsed.getDate() === day
-  );
+export function calendarDateForPicker(value?: CalendarDate | null): Date {
+  const date = parseCalendarDate(value) ?? new Date();
+  date.setHours(12, 0, 0, 0);
+  return date;
 }
 
 /**
- * Shift a `YYYY-MM-DD` picker value by whole days, staying on the local calendar.
- *
- * Built at midday for the same reason everything else here is (see the file comment): a date
- * constructed at midnight and shifted can land on the wrong side of a DST boundary. `null` for a
- * value that is not a complete date, so a caller cannot silently turn a half-typed one into a real
- * one.
- *
- * Note for anything comparing two of these: a zero-padded `YYYY-MM-DD` sorts chronologically as a
- * plain string, so `end <= start` is a correct comparison once {@link isCompleteDateString} has
- * vouched for both — no parsing needed.
+ * Is a date range before, during or after today? Both ends inclusive; an open end means the range
+ * is a single day. `null` when the start is not a date.
  */
-export function addDaysToDateString(value: string, days: number): string | null {
-  if (!isCompleteDateString(value)) return null;
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+export function calendarRangeStatus(
+  start?: CalendarDate | null,
+  end?: CalendarDate | null,
+  today: CalendarDate = todayCalendarDate()
+): 'before' | 'during' | 'after' | null {
+  if (!isCalendarDate(start)) return null;
+  const last = isCalendarDate(end) && end > start ? end : start;
+  if (today < start) return 'before';
+  if (today > last) return 'after';
+  return 'during';
+}
+
+/**
+ * One calendar date — "6 Feb 2010", or with `weekday` "Fri 6 Feb 2010". A birthday has no use for
+ * its weekday; a day somebody has to keep free does. `null` when it is not a date.
+ */
+export function formatCalendarDate(value?: CalendarDate | null, options?: { weekday?: boolean }): string | null {
+  const date = parseCalendarDate(value);
+  if (!date) return null;
+  const weekday = options?.weekday ? `${DAYS[date.getDay()]} ` : '';
+  return `${weekday}${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 /**
@@ -100,29 +117,28 @@ export function addDaysToDateString(value: string, days: number): string | null 
  * its top line.
  */
 export function formatDateRange(
-  startIso?: string | null,
-  endIso?: string | null,
+  start?: CalendarDate | null,
+  end?: CalendarDate | null,
   options?: { compact?: boolean }
 ): string | null {
-  const start = parseCalendarDate(startIso);
-  if (!start) return null;
-  const end = parseCalendarDate(endIso);
+  const first = parseCalendarDate(start);
+  if (!first) return null;
+  const last = parseCalendarDate(end);
 
   const day = (date: Date) => date.getDate();
   const month = (date: Date) => MONTHS[date.getMonth()];
   const year = (date: Date) => date.getFullYear();
 
-  if (!end || end.getTime() <= start.getTime()) {
-    const weekday = options?.compact ? '' : `${DAYS[start.getDay()]} `;
-    return `${weekday}${day(start)} ${month(start)} ${year(start)}`;
+  if (!last || last.getTime() <= first.getTime()) {
+    return formatCalendarDate(start, { weekday: !options?.compact });
   }
-  if (year(end) !== year(start)) {
-    return `${day(start)} ${month(start)} ${year(start)} – ${day(end)} ${month(end)} ${year(end)}`;
+  if (year(last) !== year(first)) {
+    return `${day(first)} ${month(first)} ${year(first)} – ${day(last)} ${month(last)} ${year(last)}`;
   }
-  if (end.getMonth() !== start.getMonth()) {
-    return `${day(start)} ${month(start)} – ${day(end)} ${month(end)} ${year(start)}`;
+  if (last.getMonth() !== first.getMonth()) {
+    return `${day(first)} ${month(first)} – ${day(last)} ${month(last)} ${year(first)}`;
   }
-  return `${day(start)}–${day(end)} ${month(start)} ${year(start)}`;
+  return `${day(first)}–${day(last)} ${month(first)} ${year(first)}`;
 }
 
 /**
@@ -135,17 +151,15 @@ export function formatDateRange(
  *
  * `null` when there is no start date, which is the only case the caller has to render around.
  */
-export function dateCountdown(startIso?: string | null, endIso?: string | null): string | null {
-  const start = parseCalendarDate(startIso);
-  if (!start) return null;
-  const parsedEnd = parseCalendarDate(endIso);
-  const end = parsedEnd && parsedEnd.getTime() > start.getTime() ? parsedEnd : start;
+export function dateCountdown(start?: CalendarDate | null, end?: CalendarDate | null): string | null {
+  const first = parseCalendarDate(start);
+  if (!first) return null;
+  const parsedEnd = parseCalendarDate(end);
+  const last = parsedEnd && parsedEnd.getTime() > first.getTime() ? parsedEnd : first;
 
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  const daysToStart = Math.round((start.getTime() - today.getTime()) / MS_PER_DAY);
-  const daysSinceEnd = Math.round((today.getTime() - end.getTime()) / MS_PER_DAY);
+  const today = parseCalendarDate(todayCalendarDate())!;
+  const daysToStart = Math.round((first.getTime() - today.getTime()) / MS_PER_DAY);
+  const daysSinceEnd = Math.round((today.getTime() - last.getTime()) / MS_PER_DAY);
 
   if (daysToStart > 0) {
     if (daysToStart === 1) return 'tomorrow';
@@ -157,6 +171,73 @@ export function dateCountdown(startIso?: string | null, endIso?: string | null):
   if (daysSinceEnd === 1) return 'finished yesterday';
   if (daysSinceEnd < 14) return `finished ${daysSinceEnd} days ago`;
   return 'finished';
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Instants
+ * --------------------------------------------------------------------------------------------- */
+
+function parseInstant(iso?: Instant | null): Date | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * A stored instant as the date and time fields a person edits, **in their local time**.
+ *
+ * The one way to fill a form from an instant. Cutting the ISO string instead —
+ * `iso.split('T')[1].substring(0, 5)` — gives the **UTC** time: a 14:30 kick-off in Johannesburg
+ * showed as 12:30, and saving the form stored 12:30 local, two hours earlier, and two more on every
+ * save (DATE-1).
+ *
+ * "Local" is the device's timezone, which stands in for the organiser's until venues carry one
+ * (`DATE-2`); that change belongs here and in {@link localInputsToInstant}, and nowhere else.
+ */
+export function instantToLocalInputs(iso?: Instant | null): { date: CalendarDate; time: string } | null {
+  const date = parseInstant(iso);
+  if (!date) return null;
+  return { date: calendarDateOf(date), time: `${pad2(date.getHours())}:${pad2(date.getMinutes())}` };
+}
+
+/**
+ * The instant a person means by a date and a time typed in their local time — or, with no time
+ * (`null`), **noon** that day: the stored form of a kick-off whose time is not set yet, which the
+ * caller marks `timeTbd`. Noon is as far from either midnight as a time can be, so the day survives
+ * being shown to a viewer up to twelve hours away.
+ *
+ * `null` when the date is not complete or the time is not `HH:mm`, so a half-typed field is never
+ * saved as a real kick-off.
+ */
+export function localInputsToInstant(date: CalendarDate, time: string | null): Instant | null {
+  const parts = calendarDateParts(date);
+  if (!parts) return null;
+  let hours = 12;
+  let minutes = 0;
+  if (time !== null) {
+    const match = TIME_OF_DAY.exec(time);
+    if (!match) return null;
+    hours = Number(match[1]);
+    minutes = Number(match[2]);
+  }
+  return new Date(parts[0], parts[1] - 1, parts[2], hours, minutes).toISOString();
+}
+
+/**
+ * Where an instant falls against the viewer's calendar, as a sortable number — or a calendar date's
+ * local midnight, for a list that mixes the two (a fixture with no kick-off yet sorts by its
+ * event's day). `NaN` when it is neither.
+ */
+export function whenMs(value?: Instant | CalendarDate | null): number {
+  if (!value) return NaN;
+  const calendar = parseCalendarDate(value);
+  if (calendar) return calendar.getTime();
+  return parseInstant(value)?.getTime() ?? NaN;
+}
+
+/** Local midnight at the start of the viewer's today, for comparing against {@link whenMs}. */
+export function startOfTodayMs(): number {
+  return parseCalendarDate(todayCalendarDate())!.getTime();
 }
 
 /**
@@ -177,45 +258,38 @@ export function dateCountdown(startIso?: string | null, endIso?: string | null):
  * on five screens smuggled in under a refactor.
  */
 export function formatFixtureWhen(
-  iso?: string | null,
+  iso?: Instant | null,
   options?: { timeTbd?: boolean; separator?: string }
 ): string {
-  if (!iso) return 'Date TBD';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'Date TBD';
+  const date = parseInstant(iso);
+  if (!date) return 'Date TBD';
 
   const separator = options?.separator ?? '@';
   const dateLabel = date.toLocaleDateString();
   if (options?.timeTbd) return `${dateLabel} ${separator} TBD`;
-  return `${dateLabel} ${separator} ${date.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`;
+  return `${dateLabel} ${separator} ${formatKickoffTime(iso)}`;
+}
+
+/** The time of day an instant falls at for the viewer — "14:30". Empty when it is not one. */
+export function formatKickoffTime(iso?: Instant | null): string {
+  const date = parseInstant(iso);
+  if (!date) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/** The day an instant falls on for the viewer — "24 Sep 2026". Empty when it is not one. */
+export function formatInstantDate(iso?: Instant | null): string {
+  const date = parseInstant(iso);
+  if (!date) return '';
+  return formatCalendarDate(calendarDateOf(date)) ?? '';
 }
 
 /**
  * A moment something happened — "24 Sep 2026, 14:02" — for a record like "invited on". An instant,
  * so it carries the time, in the viewer's timezone.
  */
-export function formatInstant(iso?: string | null): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}, ${time}`;
-}
-
-/**
- * Is a person with this birthdate younger than `years` on `today`? An unknown or unreadable
- * birthdate is `false`: the caller is asking whether we *know* they are.
- *
- * A birthdate is a `DATE` column that `pg` hands over as the server's local midnight, so it is
- * read through {@link parseCalendarDate} like every other calendar date here — right while viewer
- * and server share a timezone, a day out otherwise (`DATE-1`).
- */
-export function isYoungerThan(birthdate: string | null | undefined, years: number, today: Date = new Date()): boolean {
-  const born = parseCalendarDate(birthdate);
-  if (!born) return false;
-  const comesOfAge = new Date(born.getFullYear() + years, born.getMonth(), born.getDate());
-  return today < comesOfAge;
+export function formatInstant(iso?: Instant | null): string {
+  const date = parseInstant(iso);
+  if (!date) return '';
+  return `${formatInstantDate(iso)}, ${formatKickoffTime(iso)}`;
 }

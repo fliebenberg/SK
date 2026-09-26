@@ -1333,6 +1333,8 @@ that spans weeks.
 >   [utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts) holds the formatting; it
 >   parses through `new Date` rather than slicing the string, which is safe because the basics step
 >   stores these at **noon UTC** precisely so no offset can drag them onto the neighbouring day.
+>   *(Superseded 2026-09-26: event and season dates are now `DATE` columns carried as
+>   `YYYY-MM-DD`, and nothing converts them — see the date-formatting skill and `DATE-1`.)*
 >   **It became the app's one date formatter rather than a fifth.** Checking for an existing helper
 >   turned up four renderings of the same idea, two of them one tap apart and disagreeing — the
 >   events list card built its own range (`19 Sep 2026 – 21 Sep 2026`) while this header printed

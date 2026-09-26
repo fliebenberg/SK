@@ -3,6 +3,7 @@
  * nothing by itself: every relationship carries the same rights (`MEMBER-3`).
  */
 import type { RestrictedReason } from '../../utils/guardians';
+import type { CalendarDate } from '../../utils/calendarDate';
 
 export type GuardianRelationship = 'parent' | 'guardian' | 'grandparent' | 'other';
 
@@ -52,7 +53,7 @@ export interface Dependant {
   name: string;
   image?: string | null;
   imageConfig?: { scale: number; x: number; y: number } | null;
-  birthdate?: string | null;
+  birthdate?: CalendarDate | null;
   relationship: GuardianRelationship;
   isPrimary: boolean;
   /** The child's own-account value (tri-state) and who last set it. */
