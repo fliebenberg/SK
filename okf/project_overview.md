@@ -7,7 +7,7 @@ tags:
   - overview
   - domains
   - glossary
-timestamp: 2026-09-01T21:30:00Z
+timestamp: 2026-09-26T12:00:00Z
 ---
 
 # Project Overview & Core Domains
@@ -35,10 +35,11 @@ For the full details on client page layouts and user authentication, see the OKF
   - **Organisation roles** (`OrganizationManager.organizationRoles`) — exactly three: **Admin**
     (`role-org-admin`), **Staff** (`role-org-staff`), **Member** (`role-org-member`). There is **no
     Player org role**; `Member` is the catch-all affiliation every player, parent and helper
-    receives. `AccessManager` treats Staff as admin-equivalent. Roles named in
-    [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.6 —
-    `role-org-guardian`, `role-trusted-contact` — are **designed, not built**, and that document
-    says so.
+    receives. `AccessManager` treats Staff as admin-equivalent. **A guardian is not a role**: being
+    one is derived from an active `profile_guardians` link, and a guardian holds no membership
+    ([identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.1). A
+    **minor's** membership may carry no member privileges, per the org's minors setting and the
+    minor's own (§5.3). `role-trusted-contact` (§5.5) is **designed, not built** (`MEMBER-5`).
   - **Team roles** (`TeamManager.teamRoles`) — seven: **Player**, **Coach**, **Assistant Coach**,
     **Manager**, **Scorer**, **Staff**, **Medic**.
   - **A co-opted outsider gets no role at all.** Somebody brought in for one job — an external

@@ -175,11 +175,13 @@ This document is a space to jot down brilliant ideas for the application while w
     - **Change and cancellation notices that carry the change**, so a moved kick-off updates the
       schedule rather than scrolling away as text.
     - **Guardian-scoped delivery** — messages addressed to the responsible party for a player rather
-      than to whoever is in a group. Depends on `MEMBER-3` /
-      [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.
+      than to whoever is in a group. The guardian link it needs is built (`MEMBER-3`,
+      [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5); the delivery
+      itself is `MEMBER-6`.
     - **Trusted Contacts** — a guardian, or an adult player for themselves, grants a nanny,
       grandparent, driver or partner the same *view* of one player's schedule without any of their
-      authority ([identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.5).
+      authority ([identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.5,
+      `MEMBER-5`).
       Logged-in users only; only very general information is ever public to a signed-out visitor.
 
     - **Polls and structured requests** — a coach or organiser asks a set question of a squad and
@@ -286,8 +288,9 @@ This document is a space to jot down brilliant ideas for the application while w
       type where it is the main case rather than an exception, so it is the right place to design it
       generally — a tournament's photographer or first-aider is the same kind of person.
     - **Watch the counting rule.** [TeamManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/TeamManager.ts)
-      gives anyone added to a team a `role-org-member` membership, and `MEMBER-3` records the agreed
-      rule that anyone involved with a team holds a counting (priced) role. A parent or photographer
+      gives anyone added to a team a `role-org-member` membership, and
+      [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5.6 records the
+      agreed rule that anyone involved with a team holds a counting (priced) role. A parent or photographer
       added to a team event must **not** become a billable member through that path, so taking part in
       an event has to be separate from being on the team.
     - **Outside individuals need a person record.** `game_officials` points at an `org_profile`, which

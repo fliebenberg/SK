@@ -40,67 +40,98 @@ External entities that operate across multiple organizations (like centralized r
 
 ## 5. Guardians and Responsible Parties
 
-> **Status: being built** — see
-> [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md),
-> which changes two things below: a guardian holds **no** membership (§5.1 — being a guardian is
-> derived from the link), and account access for minors **is** decided by age, per organisation
-> (§5.3). Phase 1 (schema, rules, access) is done; this section is rewritten when the plan closes.
-> Raised
-> by user research — two interviews (Tableview FC 2026-09-09, Wynberg Boys' Primary 2026-09-11)
-> both showed that for a **minor** player, availability decisions, transport arrangements and
-> essentially all communication happen with an adult, not with the player. For an **adult** player
-> the same decisions are made by the player. The identity model currently has no way to express that
-> difference. Tracked as `MEMBER-3`.
+> **Status: built 2026-09-26** (`MEMBER-3`, closed), in five phases recorded in
+> [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md).
+> Raised by user research — two interviews (Tableview FC 2026-09-09, Wynberg Boys' Primary
+> 2026-09-11) both showed that for a **minor** player, availability decisions, transport
+> arrangements and essentially all communication happen with an adult, not with the player; for an
+> **adult** player the same decisions are made by the player. Still open: Trusted Contacts (§5.5,
+> `MEMBER-5`), guardians acting for a child (§5.4, `MEMBER-6`), and a Guardians view on the People
+> screen (`PEOPLE-9`).
 
-### 5.1 A guardian is an ordinary org profile
+### 5.1 A guardian is an ordinary org profile — and holds no membership
 
-A guardian is an `org_profile` in the **same organization as the player**, holding a `Guardian`
-membership role. Nothing new is invented, and three existing properties do real work:
+A guardian is an `org_profile` in the **same organisation as the player**, with their own email.
+Three existing properties do real work:
 
 *   **Unlinked profiles (§2)** — a school can record every child's parents at registration, long
-    before any of them log in. That is already the normal state for students.
-*   **The claim / invite flow** — `last_invite_sent_at` and the existing nomination machinery turn an
-    unlinked guardian profile into a real account when the guardian is ready.
+    before any of them sign in.
+*   **The invite flow** — a guardian is invited like anyone else, and signing up with the invited
+    address links the account to their profile by email.
 *   **Persona isolation (§2)** — the same human is a parent at their child's school and possibly a
     coach at a club, with separate profiles and no bleed between them.
 
+**Being a guardian is derived from an active link (§5.2), never stored as a role or an
+`org_memberships` row.** The original design (2026-09-12) gave guardians a `Guardian` membership
+role; it was changed before building, for three reasons found in the code:
+
+*   **A membership row is a permission.** Any active membership opens the org's member list (every
+    person's contact and identity details), every roster and every game's internals, and the admin
+    area in the app (`PEOPLE-8`). A parent would have seen every other child in the school.
+*   **A person holds one active org role at a time.** `addOrganizationMember` replaces the role, so a
+    teacher who is also a parent would have lost `Staff`.
+*   **Every role check would have needed an exception**, and a missed one is a data leak.
+
+This is the same principle as "External is derived, never stored" (`MEMBER-2`). A parent who is also
+staff or a coach keeps their own membership; the link adds to it.
+
 ### 5.2 The link itself
 
-A new join table, `profile_guardians`:
-
-| Column | Notes |
-|---|---|
-| `id` | |
-| `org_id` | Scoped like everything else |
-| `guardian_profile_id` | → `org_profiles` |
-| `player_profile_id` | → `org_profiles` |
-| `relationship` | `parent` / `guardian` / `grandparent` / `other` — for display and the org's records |
-| `is_primary` | Which guardian is the default contact. Schools work this way |
-| `start_date`, `end_date` | Mirrors `org_memberships`; the link lapses without deleting history |
+`profile_guardians` ([database_structure.md](file:///c:/Fred/Coding/SK/docs/database_structure.md)
+§8a): `guardian_profile_id` and `player_profile_id` in one `org_id`, a `relationship` (`parent` /
+`guardian` / `grandparent` / `other`, display only), `is_primary` (the default contact — one active
+primary per player), and `start_date` / `end_date` so ending a link keeps its history.
 
 **Many-to-many on purpose.** One guardian to several children (siblings — one of the strongest
 reasons a parent wants a single view), and one child to several guardians (both parents; separated
 parents who each need the fixture and may each do transport on different days).
 
-### 5.3 Who answers for a player is *derived*, never stored
+A guardian and their child may **never share an email**: access is matched by email, so the one
+would *become* the other. It is refused when a link is made, when either profile's email is edited,
+and when an invite would save an address to either.
 
-Resolve at read time: **if a player has active guardian links, the guardians are the responsible
-party; otherwise it is the player's own linked user.** An adult player therefore needs no special
-casing — they simply have no guardian links.
+### 5.3 Who answers for a player, and who may use their own account
 
-**Age is a prompt, not a rule.** `org_profiles.birthdate` may drive whether registration *asks* for
-a guardian, but must never decide the answer: a 17-year-old may self-manage, and an adult may have a
-guardian. This follows the same principle as the "External is derived, never stored" decision in
-`MEMBER-2` — a status that can be computed from relationships should not become a stored role.
+**Who answers is derived, never stored:** if a player has active guardian links, the guardians are
+the responsible party; otherwise it is the player's own account. An adult player needs no special
+case — they simply have no guardian links.
+
+**Whether a minor's membership carries a member's privileges** is decided per organisation — and,
+unlike the original design, **age does decide it**, deliberately, because an organisation needs a
+rule it can state ("members under 16 do not use the app themselves"):
+
+1.  A player is a **minor** in an org when they are younger than the org's **minor age**
+    (`settings.minors.minorAge`, default 18, 1–21), **or** have any active guardian, whatever their
+    age. No birthdate and no guardian means an adult.
+2.  While the org's switch **"Minors may have member access"** is **off** — the default — no minor
+    has member privileges, whatever their guardians say.
+3.  While it is on, a minor has them **unless their own setting is an explicit no**
+    (`org_profiles.own_account_allowed`, tri-state: `NULL` follows the org). Any active guardian may
+    change it; an org Admin only while the minor has no guardian.
+
+A restricted minor is **still a member**: their account links to their profile, they see the org as
+theirs, and a team duty still works — a pupil appointed to coach or score does that job for that team
+or game only. What they lose is every org-wide privilege check. The rule is `memberAccess` in
+[guardians.ts](file:///c:/Fred/Coding/SK/shared/src/utils/guardians.ts), mirrored in SQL by
+[minorAccess.ts](file:///c:/Fred/Coding/SK/server/src/managers/minorAccess.ts); see
+[auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) §5–6.
 
 ### 5.4 What the link grants
 
-*   **Read:** that child's fixtures, selection, times, venue and field, kit requirements, attendance.
-*   **Act (guardian only):** respond to availability, acknowledge selection, and hold the consent
-    flags for the child's name and photograph.
+*   **See** (built): on **My Family**, that child's teams and fixtures, whether they may use their own
+    account, their invite status, and the guardian's own details at that org. The data arrives in the
+    guardian's own `USER_MEMBERSHIPS_UPDATED` (`dependants`); fixtures come from the org's public
+    fixtures room.
+*   **Decide** (built): the child's own-account setting (§5.3), and inviting the child once allowed
+    (`SEND_DEPENDANT_INVITE`).
+*   **Act** (not built — `MEMBER-6`): respond to availability, acknowledge selection, receive the
+    messages meant for whoever answers for the player; and hold the name and photo consent flags
+    (`PEOPLE-4`).
 *   **Never:** anything about another child, or any org-wide administration. A guardian is not a
-    member of the organisation in the administrative sense — they are a responsible party for one
-    person in it.
+    member of the organisation in the administrative sense — they answer for one person in it.
+
+Admins and staff record guardians on the player's profile and when adding a player, and a minor's
+invite goes to the guardian by default; a minor the rule restricts is not invited at all.
 
 ### 5.5 Trusted Contacts — the nanny, the grandparent, the lift club
 
@@ -152,55 +183,32 @@ those people asks it to do something it demonstrably cannot do.
 
 **This belongs to the public / consumer side of the app, which is not built yet.** It is recorded
 here so the guardian link in §5.2 is not designed in a way that forecloses it; it should not be
-built before the consumer side exists.
+built before the consumer side exists. Tracked as `MEMBER-5`.
 
 ### 5.6 Only counting roles may be priced
 
-**This is a live trap, not a hypothetical.** `member_count` is a raw count of active memberships —
-`COUNT(*) FROM org_memberships WHERE org_id = … AND (end_date IS NULL OR end_date > NOW())` in
-[OrganizationManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/OrganizationManager.ts) (also
-`active_people`). The moment a guardian holds an `org_membership`, every one of those counts silently
-includes them.
+**Pricing counts players and staff, and explicitly does not count parents, spectators or fans.** A
+school of ~800 learners has on the order of 1,200–1,600 parents; counting them would roughly triple
+its bill for people who are supposed to be free.
 
-That matters because **pricing counts players and staff, and explicitly does not count parents,
-spectators or fans**. A school of ~800 learners has on the order of 1,200–1,600 parents; counting
-them would roughly triple its bill for people who are supposed to be free.
+**Guardians are not counted, by construction:** they hold no `org_memberships` row (§5.1), and
+`member_count` / `active_people` in
+[OrganizationManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/OrganizationManager.ts) count
+memberships. Trusted Contacts (§5.5) are not memberships either.
 
-**The rule: the priced count is an allow-list of *counting roles*, never "everyone with a
-membership."**
+Two rules were agreed on 2026-09-13 for the guardian-as-a-role design and are **kept for any future
+role that is a membership but must not be priced**. Nothing needs them today — `Admin`, `Staff` and
+`Member` are the whole of `OrganizationManager.organizationRoles`, and all three count — but whoever
+adds such a role must apply both in the same change:
 
-| Role | Counts | Why |
-|---|---|---|
-| `role-org-admin` | **Yes** | Staff |
-| `role-org-staff` | **Yes** | Staff — and already treated as admin-equivalent throughout `AccessManager` |
-| `role-org-member` | **Yes** | The affiliation every player receives (see below) |
-| `role-org-guardian` | **No** | A responsible party for one member, not a member |
-| `role-trusted-contact` | **No** | A consumer, and not an org membership at all |
-
-**Today this allow-list changes no number** — `Admin`, `Staff` and `Member` are the complete
-canonical list in `OrganizationManager.organizationRoles`. Its whole value is forward-looking: it
-**inverts the default**, so a new consumer-shaped role cannot silently become billable. Cheap
-insurance, not a fix.
-
-#### The latent bug this exposes
-
-**Anyone involved with a team must hold at least one counting role.** Today that happens
-automatically: [TeamManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/TeamManager.ts) gives
-anyone added to a team a `role-org-member` org membership. But it inserts that row **only when no
-active membership exists at all**:
-
-```
-WHERE org_profile_id = $1 AND org_id = $2 AND (end_date IS NULL OR end_date > NOW())
-→ if rowCount === 0, INSERT role-org-member
-```
-
-Once a non-counting role exists, a parent who is a `Guardian` and then joins a team — as a
-social-side player, or as a coach — **already has a membership**, so the check passes and they never
-receive `Member`. The result is a real player who is never counted, and who also misses the baseline
-affiliation that `role-org-member` grants.
-
-**The check must test for a *counting* role, not for any role.** Harmless today; must be fixed in
-the same change that introduces the first non-counting role.
+*   **The priced count is an allow-list of counting roles**, never "everyone with a membership", so a
+    new consumer-shaped role cannot silently become billable.
+*   **Anyone involved with a team must hold at least one counting role.**
+    [TeamManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/TeamManager.ts) gives anyone added
+    to a team a `role-org-member` membership, but only when they hold **no** active membership at all.
+    With a non-counting role in existence, a person holding only that role who joins a team would
+    never receive `Member` — under-counted, and missing the baseline affiliation. The check must test
+    for a *counting* role, not for any role.
 
 ## 6. Image Update Permissions
 

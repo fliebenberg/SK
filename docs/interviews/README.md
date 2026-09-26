@@ -158,7 +158,7 @@ Product decisions currently recorded as assumptions that no real user has tested
 | ~~Pricing tiers by organisation size — what a tier would actually count~~ **Settled 2026-09-12** — price on **players and staff**; spectators, parents and fans are free and uncounted. See the note below. | Decided — pricing | Admin §8.8–8.9, coach §1.8, scorer §1.8, spectator §1.9 |
 | How results reach spectators today, and who cannot be reached at all | Not yet specified — the spectator half of the product | Admin §9.7–9.8, coach §8.10–8.11, spectator §4, §6 |
 | Everyone around one team is a potential user, not just the coach | Not yet specified — roles beyond coach / admin / scorer. **Strongly supported** — three unmodelled adults across two interviews: a volunteer scorekeeper, a class rep, and the adult who does the school run | Coach §2.7–2.9 |
-| For a **minor**, an adult decides availability and receives the communication; an adult player does both themselves | **Evidenced in both interviews.** Designed 2026-09-12 in [identity_structure.md](../identity_structure.md) §5, tracked as `MEMBER-3` | Admin §8.6–8.7, coach §8.9, spectator §8 |
+| For a **minor**, an adult decides availability and receives the communication; an adult player does both themselves | **Evidenced in both interviews.** Designed 2026-09-12 and **built 2026-09-26** ([identity_structure.md](../identity_structure.md) §5, `MEMBER-3`); guardians acting for a child — availability, selection — is `MEMBER-6` | Admin §8.6–8.7, coach §8.9, spectator §8 |
 | A league is a user in its own right, and the route to its clubs | [FUTURE_IDEAS.md](../../FUTURE_IDEAS.md) — leagues feature, parked | League §13, §14.6–14.7 |
 | Fixture generation is worth more to an organiser than live scoring | [tournaments.md](../tournaments.md) §6, field note 2026-09-09 | League §4.6, §14.4 |
 | Results can arrive structured rather than as a photographed team sheet | [tournaments.md](../tournaments.md) §6 | League §8.3–8.4, §14.5 |
@@ -171,8 +171,9 @@ without hesitation, and neither could give an adult/parent count** — Tableview
 parents from its ~450. So pricing on players and staff counts what an organisation already knows
 about itself, and never asks the question nobody can answer. Indirect monetisation of the consumer
 side (advertising and similar) is deliberately deferred until there are thousands of consumers.
-**Watch the counting boundary** — `member_count` is a bare count of active memberships, so any
-guardian role must be excluded from priced counts; see
+**Watch the counting boundary** — `member_count` is a bare count of active memberships. Guardians
+hold no membership (built 2026-09-26), so they are not counted; any future role that is a
+membership but must not be priced has to be excluded explicitly — see
 [identity_structure.md](../identity_structure.md) §5.6.
 
 **On the last one:** a fan chat would need the moderation workflow that `REP-1` says does not exist

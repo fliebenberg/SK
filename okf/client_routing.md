@@ -7,7 +7,7 @@ tags:
   - routing
   - pages
   - navigation-guards
-timestamp: 2026-09-24T12:00:00Z
+timestamp: 2026-09-26T12:00:00Z
 ---
 
 # Client Pages & Routing Maps

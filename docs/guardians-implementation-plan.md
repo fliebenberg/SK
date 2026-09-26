@@ -1,6 +1,6 @@
 # Guardians — Phased Implementation Plan
 
-**Status:** In progress. **Phases 1–4 done 2026-09-26** (server and access; the admin screens; invites for minors; My Family). **Phase 5 is next** — close-out.
+**Status:** **Complete, 2026-09-26.** All five phases done; `MEMBER-3` is closed and archived. What remains is tracked as `MEMBER-5` (Trusted Contacts), `MEMBER-6` (guardians acting for a child) and `PEOPLE-9` (a Guardians view on the People screen). The design as built is [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5; this plan is the record of how it got there.
 **Implements:** `MEMBER-3` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md), designed in
 [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5. This plan changes
 that design in two places (§0.1, §0.3). The design doc is rewritten to match in Phase 5.
@@ -567,19 +567,35 @@ Where it differs from the plan above:
   on the People screen). The finished part goes word for word to `TODO-archive.md`.
 - `npm run check:actions` in `expo-app/`.
 
+### Done — 2026-09-26
+
+- [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5 rewritten to what
+  was built: a guardian is derived from the link and holds no membership (§5.1, with why the role was
+  dropped), the link and its email rule (§5.2), who answers and the minors rule with its per-org age
+  (§5.3), what the link grants — built and not (§5.4) — and pricing, where guardians are uncounted by
+  construction and the two counting rules are kept for any future non-counting role (§5.6).
+- The glossary in `okf/project_overview.md` no longer lists `role-org-guardian`; the interviews
+  summary and `FUTURE_IDEAS.md` point at what is built and at the new IDs.
+- **`MEMBER-3` was archived whole rather than rewritten in place.** Its problem — nothing linked a
+  guardian to a player — is closed; what was left are separate features, each logged with its own ID
+  (`MEMBER-5`, `MEMBER-6`, `PEOPLE-9`) so each can be picked up on its own.
+- The OKF files this feature touched carry a new timestamp. Every check still passes:
+  `check:actions`, `check:migrations`, the shared tests, and the server and app type-checks.
+
 ---
 
 ## Carried forward, deliberately
 
 - **A Guardians view on the People screen:** guardian-only profiles, searchable, with their
-  children.
-- **Guardians answering availability and acknowledging selection:** the "Act" half of §5.4.
+  children — `PEOPLE-9`.
+- **Guardians answering availability and acknowledging selection:** the "Act" half of §5.4 —
+  `MEMBER-6`.
 - **Name/photo consent held by the guardian:** `PEOPLE-4`. It can reuse the `organizations.settings`
   `minors` shape and the per-profile tri-state pattern introduced here.
 - **What a minor with access can see:** `PEOPLE-8`. With the org switch on, an allowed minor who is
   a `Member` still reads the whole people list until `PEOPLE-8` is settled. **Worth saying on the
   org-settings switch until then.**
-- **Trusted Contacts:** §5.5. Waits for the public side of the app.
+- **Trusted Contacts:** §5.5 — `MEMBER-5`. Waits for the public side of the app.
 - **Outside coaches:** `MEMBER-4`. A local profile with no membership, building on the team-duty
   grant from Phase 1.
 

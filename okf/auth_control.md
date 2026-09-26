@@ -8,7 +8,7 @@ tags:
   - roles
   - permissions
   - security
-timestamp: 2026-09-21T12:00:00Z
+timestamp: 2026-09-26T12:00:00Z
 ---
 
 # Authentication & Authorization Levels
