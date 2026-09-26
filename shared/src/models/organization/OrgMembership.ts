@@ -12,5 +12,5 @@ export interface OrgMembership {
    * carries no member privileges, so the app shows it as theirs but keeps them out of the admin
    * area. See `OrgMember.restrictedReason`.
    */
-  restrictedReason?: RestrictedReason;
+  restrictedReason?: RestrictedReason | null;
 }

@@ -18,6 +18,11 @@ import { getAvatarUrl } from '../../../../services/assets';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
+import { useAuthStore } from '../../../../store/authStore';
+import { useOrgGuardians } from '../../../../hooks/useOrgGuardians';
+import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
+import { GuardiansCard } from '../../../../components/guardians/GuardiansCard';
+import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCard';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -70,6 +75,16 @@ export default function EditMember() {
   const [imageEditorVisible, setImageEditorVisible] = useState(false);
   const inviteCooldownHours = useInviteCooldownHours();
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+
+  // Guardians and the minors rule (`MEMBER-3`). This screen is reached only by those who may edit
+  // the org's people, so the guardian controls are always on; setting a minor's own access is an
+  // Admin's alone, and only while the minor has no guardian.
+  const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
+  const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
+  const viewer = useAuthStore(state => state.user);
+  const viewerOrgRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId && !m.restrictedReason)?.roleId);
+  const isOrgAdmin = viewer?.globalRole === 'admin' || viewerOrgRole === 'role-org-admin';
+  const guardians = member ? guardiansByPlayer.get(member.id) || [] : [];
 
   useEffect(() => {
     if (member && !form) {
@@ -413,6 +428,26 @@ export default function EditMember() {
                 // field would then be silently overwritten by one or the other.
                 blockedReason={hasChanges ? 'Save or discard your changes before sending an invite.' : undefined}
                 onInvite={() => setIsInviteOpen(true)}
+              />
+            </View>
+          ) : null}
+
+          {/* Guardians, and whether a minor's membership carries member access */}
+          {member ? (
+            <View className="border-t border-slate-200 dark:border-white/5 pt-6 space-y-6">
+              <GuardiansCard
+                orgId={orgId}
+                playerProfileId={member.id}
+                playerName={member.name}
+                guardians={guardians}
+                canEdit
+              />
+              <MinorAccessCard
+                player={member}
+                settings={minorsSettings}
+                guardians={guardians}
+                isOrgAdmin={isOrgAdmin}
+                nameOfProfile={id => membersData?.find(m => m.id === id)?.name}
               />
             </View>
           ) : null}

@@ -38,7 +38,7 @@ should be merged, and it says it by convention rather than by declaration — wh
 
 ## The rooms
 
-36 room names are joinable, and each carries **one dataset** (rule 4). `Join push` is what the
+37 room names are joinable, and each carries **one dataset** (rule 4). `Join push` is what the
 joining socket receives immediately; that push **is** the initial load, so a screen that joins must
 not also query for the same data.
 
@@ -55,7 +55,8 @@ not also query for the same data.
 | `org:{id}:sites` | public | `SITES_SYNC` | `SITE_ADDED/UPDATED/DELETED` |
 | `org:{id}:facilities` | public | `FACILITIES_SYNC` | `FACILITY_ADDED/UPDATED/DELETED` |
 | `org:{id}:leagues` | public | `LEAGUES_SYNC` | `LEAGUE_*`, `SEASON_*` |
-| `org:{id}:members` | member | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED`, `ORG_MEMBERS_SYNC` (a minors-setting change), `PROFILE_GUARDIANS_UPDATED` (`{ playerProfileId, guardians }`, the player's whole current list) |
+| `org:{id}:members` | member | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED`, `ORG_MEMBERS_SYNC` (a minors-setting change) |
+| `org:{id}:guardians` | member | `GUARDIANS_SYNC` (every active `ProfileGuardian` in the org) | `PROFILE_GUARDIANS_UPDATED` (`{ playerProfileId, guardians }` — one player's whole current list; replace that player's slice) |
 | `org:{id}:referrals` | member | `ORG_REFERRALS_SYNC` | `ORG_REFERRAL_ADDED` |
 
 "Member" here means a membership that carries a member's privileges: a **restricted minor's**

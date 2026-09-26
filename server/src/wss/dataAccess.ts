@@ -100,7 +100,7 @@ export const DATA_ACCESS: Record<string, DataAccessRule> = {
   org_profiles:         { room: orgRoom('members') },
   org_memberships:      { room: orgRoom('members') },
   // Who answers for a player (`MEMBER-3`) — people data, at the member list's level.
-  profile_guardians:    { room: orgRoom('members') },
+  profile_guardians:    { room: orgRoom('guardians') },
   // Cross-org by nature: it is how you find a person to invite. Narrowed from
   // "anyone" to "a signed-in user" rather than guessed at — see `DATA-1`.
   search_people:        { standalone: 'authenticated' },

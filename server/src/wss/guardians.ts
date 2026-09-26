@@ -3,16 +3,16 @@ import { teamManager } from '../managers/TeamManager';
 import { userManager } from '../managers/UserManager';
 import { broadcast } from './broadcast';
 import { publishUserMemberships } from './memberships';
-import { orgMembersRoom, teamMembersRoom } from './rooms';
+import { orgGuardiansRoom, orgMembersRoom, teamMembersRoom } from './rooms';
 
 /**
  * Publishing a change to a player's guardians, or to whether their membership carries privileges
  * (`MEMBER-3`). Data, not a nudge — each message carries what changed (live-data rule 1).
  *
  * One change reaches four audiences:
- *  - **the org's people screens** (`org:{id}:members`): the player's whole current guardian list,
- *    and the player's member row, whose `restrictedReason` a guardian link can change (a link
- *    makes the player a minor whatever their age);
+ *  - **the org's people screens**: the player's whole current guardian list on `org:{id}:guardians`,
+ *    and the player's member row on `org:{id}:members`, whose `restrictedReason` a guardian link can
+ *    change (a link makes the player a minor whatever their age);
  *  - **the player's rosters** (`team:{id}:members`), which show the same reason;
  *  - **the player's own account** and **every guardian's**, through `USER_MEMBERSHIPS_UPDATED`,
  *    which also drops their cached access so a restriction takes effect at once rather than after
@@ -21,12 +21,7 @@ import { orgMembersRoom, teamMembersRoom } from './rooms';
 export async function publishPlayerChange(orgId: string, playerProfileId: string, options: { guardians?: boolean } = {}): Promise<void> {
   const room = orgMembersRoom(orgId);
 
-  if (options.guardians !== false) {
-    broadcast(room, 'PROFILE_GUARDIANS_UPDATED', {
-      playerProfileId,
-      guardians: await guardianManager.getGuardiansForPlayer(playerProfileId),
-    });
-  }
+  if (options.guardians !== false) await publishGuardianList(orgId, playerProfileId);
 
   const members = await userManager.getOrganizationMembers(orgId);
   for (const member of members.filter(m => m.id === playerProfileId)) {
@@ -52,5 +47,23 @@ export async function publishOrgMinorsChange(orgId: string, widestMinorAge: numb
   broadcast(orgMembersRoom(orgId), 'ORG_MEMBERS_SYNC', await userManager.getOrganizationMembers(orgId));
   for (const userId of await guardianManager.getMinorsAffectedByOrgChange(orgId, widestMinorAge)) {
     await publishUserMemberships(userId);
+  }
+}
+
+/** One player's whole current guardian list, on the org's guardians room. */
+export async function publishGuardianList(orgId: string, playerProfileId: string): Promise<void> {
+  broadcast(orgGuardiansRoom(orgId), 'PROFILE_GUARDIANS_UPDATED', {
+    playerProfileId,
+    guardians: await guardianManager.getGuardiansForPlayer(playerProfileId),
+  });
+}
+
+/**
+ * A guardian's own profile changed — a name, an email, an invite sent. Every guardian list they
+ * appear in carries those fields, so each is republished whole.
+ */
+export async function publishGuardianProfileChange(guardianProfileId: string): Promise<void> {
+  for (const link of await guardianManager.getActiveLinksOfGuardian(guardianProfileId)) {
+    await publishGuardianList(link.orgId, link.playerProfileId);
   }
 }

@@ -5,9 +5,13 @@ import { memberPrivilegedSql, restrictedReasonSql } from "./minorAccess";
 import { organizationManager } from "./OrganizationManager";
 import { imageService } from "../services/ImageService";
 
-/** `restrictedReason` is absent, not `null`, on a membership with full privileges. */
-export function withoutNullReason<T extends { restrictedReason?: unknown }>(row: T): T {
-  if (row.restrictedReason == null) delete row.restrictedReason;
+/**
+ * `restrictedReason` is an explicit `null` on a membership with full privileges, never absent: the
+ * screens merge an updated row over the old one, and an absent key would leave a reason that no
+ * longer applies in place.
+ */
+export function withReason<T extends { restrictedReason?: unknown }>(row: T): T {
+  if (row.restrictedReason === undefined) row.restrictedReason = null;
   return row;
 }
 
@@ -345,7 +349,7 @@ export class UserManager extends BaseManager {
         WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
     `, [orgId]);
     
-    const members: OrgMember[] = res.rows.map((row: any) => withoutNullReason({
+    const members: OrgMember[] = res.rows.map((row: any) => withReason({
         ...row,
         roleName: organizationManager.getOrganizationRole(row.roleId)?.name
     }));
@@ -427,7 +431,7 @@ export class UserManager extends BaseManager {
           SELECT email FROM users WHERE id = $1
         )) AND (om.end_date IS NULL OR om.end_date > NOW())
     `, [userId]);
-    return res.rows.map(withoutNullReason);
+    return res.rows.map(withReason);
   }
 
   async getUserTeamMemberships(userId: string): Promise<any[]> {
@@ -445,7 +449,7 @@ export class UserManager extends BaseManager {
           SELECT email FROM users WHERE id = $1
         )) AND (tm.end_date IS NULL OR tm.end_date > NOW())
     `, [userId]);
-    return res.rows.map(withoutNullReason);
+    return res.rows.map(withReason);
   }
 
   /** One profile's current team memberships — for publishing a change to that person's rosters. */

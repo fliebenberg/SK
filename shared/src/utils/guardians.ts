@@ -41,12 +41,15 @@ export function isValidMinorAge(age: unknown): age is number {
 }
 
 /**
- * A calendar date from a birthdate as it arrives — `YYYY-MM-DD`, or a full timestamp where `pg`
- * turned a `DATE` into the server's local midnight. The date part is what matters.
+ * A calendar date from a birthdate as it arrives. A bare `YYYY-MM-DD` is taken as written. A full
+ * timestamp is what `pg` makes of a `DATE` — the server's local midnight, sent as UTC, so
+ * `2012-01-01` arrives as `2011-12-31T22:00:00.000Z` from a server two hours east (`DATE-1`) — and
+ * is read in local time, the same way the app's `parseCalendarDate` reads it. Slicing its date part
+ * would make every birthday a day early.
  */
 function calendarParts(birthdate: string | null | undefined): [number, number, number] | null {
   if (!birthdate) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(birthdate));
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(birthdate).trim());
   if (match) return [Number(match[1]), Number(match[2]) - 1, Number(match[3])];
   const parsed = new Date(birthdate);
   if (Number.isNaN(parsed.getTime())) return null;

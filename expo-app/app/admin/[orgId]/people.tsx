@@ -20,6 +20,16 @@ import { getAvatarUrl } from '../../../services/assets';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useAuthStore } from '../../../store/authStore';
 import { PaginatedList } from '../../../components/PaginatedList';
+import { GuardianBlock } from '../../../components/guardians/GuardianBlock';
+import {
+  GuardianDraft,
+  emptyGuardianDraft,
+  guardianDraftProblem,
+  isGuardianDraftStarted,
+  saveGuardianDraft,
+} from '../../../components/guardians/guardianDraft';
+import { useOrgGuardians, guardianSummary } from '../../../hooks/useOrgGuardians';
+import { useOrgMinorsSettings } from '../../../hooks/useOrgMinorsSettings';
 
 interface OrgRole {
   id: string;
@@ -107,6 +117,14 @@ export default function OrgPeople() {
   // One scope per person being added, kept across retries (SYNC-3) — see handleAddMember.
   const addRequestScope = useRequestScope();
 
+  // An optional guardian for the person being added (`MEMBER-3`), and the guardian shown beside
+  // each player in the list.
+  const [guardianDraft, setGuardianDraft] = useState<GuardianDraft>(emptyGuardianDraft);
+  const [guardianOpen, setGuardianOpen] = useState<boolean | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
+  const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
+
   const handleCloseAddModal = () => {
     setIsAdding(false);
     addRequestScope.renew();
@@ -123,6 +141,9 @@ export default function OrgPeople() {
       imageConfig: { scale: 1, x: 0, y: 0 },
     });
     setSelectedPerson(null);
+    setGuardianDraft(emptyGuardianDraft());
+    setGuardianOpen(null);
+    setAddError(null);
   };
 
   const isLoading = isMembersLoading || isRolesLoading;
@@ -200,8 +221,15 @@ export default function OrgPeople() {
   // Add Member Submission
   const handleAddMember = async () => {
     if (!newMemberData.name.trim()) return;
+    const withGuardian = isGuardianDraftStarted(guardianDraft);
+    const guardianProblem = withGuardian ? guardianDraftProblem(guardianDraft) : null;
+    if (guardianProblem) {
+      setAddError(guardianProblem);
+      return;
+    }
 
     setIsProcessing(true);
+    setAddError(null);
     try {
       let profileId = selectedPerson?.id;
 
@@ -264,12 +292,19 @@ export default function OrgPeople() {
         if (!memberResult.ok) throw new Error(`Failed to add organization member: ${memberResult.message}`);
       }
 
+      // The guardian last, under the same scope, so a retry after it fails re-sends the person and
+      // membership (answered from the first attempt) and tries only the guardian again.
+      if (profileId && withGuardian) {
+        const guardianResult = await saveGuardianDraft(orgId!, profileId, guardianDraft, addRequestScope.current(), { quiet: true });
+        if (!guardianResult.ok) throw new Error(`${newMemberData.name} was added, but ${guardianResult.message.charAt(0).toLowerCase()}${guardianResult.message.slice(1)} Press Add Person again to retry the guardian.`);
+      }
+
       // Reset and close
       handleCloseAddModal();
     } catch (error: any) {
       console.error(error);
       // Names the step that failed; the modal stays open so nothing typed is lost.
-      alert(error?.message || 'Failed to add member');
+      setAddError(error?.message || 'Failed to add member');
     } finally {
       setIsProcessing(false);
     }
@@ -510,6 +545,11 @@ export default function OrgPeople() {
                           (ID: {member.personOrgId})
                         </Text>
                       ) : null}
+                      {guardianSummary(guardiansByPlayer.get(member.id)) ? (
+                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500" numberOfLines={1}>
+                          · Guardian: {guardianSummary(guardiansByPlayer.get(member.id))}
+                        </Text>
+                      ) : null}
                     </View>
                   </View>
 
@@ -702,6 +742,22 @@ export default function OrgPeople() {
                   ))}
                 </View>
               </View>
+
+              {/* Row 5: an optional guardian (`MEMBER-3`) */}
+              <GuardianBlock
+                orgId={orgId!}
+                draft={guardianDraft}
+                onChange={setGuardianDraft}
+                open={guardianOpen}
+                onOpenChange={setGuardianOpen}
+                birthdate={newMemberData.birthdate}
+                settings={minorsSettings}
+                playerProfileId={selectedPerson?.id}
+              />
+
+              {addError ? (
+                <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#EF4444', marginTop: 16 }}>{addError}</Text>
+              ) : null}
             </ScrollView>
 
             {/* Fixed Footer Action Buttons */}

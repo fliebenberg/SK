@@ -160,6 +160,7 @@ function buildProbes(ids: Awaited<ReturnType<typeof resolveIds>>): Probe[] {
     org('facilities', 'FACILITIES_SYNC'),
     org('leagues', 'LEAGUES_SYNC'),
     org('members', 'ORG_MEMBERS_SYNC'),
+    org('guardians', 'GUARDIANS_SYNC'),
     org('referrals', 'ORG_REFERRALS_SYNC'),
 
     { label: 'team:{id}', room: teamId ? `team:${teamId}` : null, expect: 'TEAM_UPDATED' },

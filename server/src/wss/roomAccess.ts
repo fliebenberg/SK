@@ -73,6 +73,9 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
         // An org's people and its commercial relationships.
         case 'members':
         case 'referrals':
+        // Who answers for which player (`MEMBER-3`) — its own dataset, so a screen that wants the
+        // guardians is not handed the whole member list, and the other way round.
+        case 'guardians':
           return { access: 'member', orgsFor: async () => [id] };
         // Fixtures, venues, teams and competitions are public information.
         case 'summary':

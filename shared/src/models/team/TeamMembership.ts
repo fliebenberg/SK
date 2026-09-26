@@ -8,5 +8,5 @@ export interface TeamMembership {
   startDate?: string;
   endDate?: string;
   /** On the signed-in user's own memberships. See `OrgMembership.restrictedReason`. */
-  restrictedReason?: RestrictedReason;
+  restrictedReason?: RestrictedReason | null;
 }

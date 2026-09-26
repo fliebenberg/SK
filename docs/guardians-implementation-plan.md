@@ -1,6 +1,6 @@
 # Guardians — Phased Implementation Plan
 
-**Status:** In progress. **Phase 1 done 2026-09-26** (server, shared rules, access). **Phase 2 is next** — the admin screens.
+**Status:** In progress. **Phases 1 and 2 done 2026-09-26** (server and access; the admin screens). **Phase 3 is next** — invites for minors.
 **Implements:** `MEMBER-3` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md), designed in
 [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5. This plan changes
 that design in two places (§0.1, §0.3). The design doc is rewritten to match in Phase 5.
@@ -403,6 +403,43 @@ Raise `PEOPLE-7` first (§0.4).
 
 A second window on the People screen shows each change without a refresh. Staff and plain members
 cannot change the minors setting.
+
+### Done — 2026-09-26
+
+Exit criterion met, by driving the web app rather than by hand
+([no-browser-verification](file:///c:/Fred/Coding/SK/.agent/skills/no-browser-verification/SKILL.md)):
+headless Chrome, signed in as Doringkloof's admin, added a guardian to a U14 player through the
+profile's modal and watched the card, the People list and the roster pick it up live; opened Add
+Person and Add Player with a 2012–2013 birthdate and saw the guardian block open by itself; and
+checked the Minors card on Org Settings. `test-guardians.ts` grew to 72 checks and passes, with
+`test-member-invite.ts`, `org-permissions.ts` and `verify:rooms` (which now includes the new room).
+The data the UI check created was removed.
+
+What was built, and where it differs from the plan above:
+
+- **Guardians got a room of their own, `org:{id}:guardians`**, instead of riding on
+  `org:{id}:members`. Rule 2 of [live-data](file:///c:/Fred/Coding/SK/.agent/skills/live-data/SKILL.md)
+  makes the join push the initial load, and the member list's push carries no guardians; rule 4 makes
+  it a room rather than a field on every member. Same tier as the member list. `useOrgGuardians`
+  holds it; `PROFILE_GUARDIANS_UPDATED` replaces one player's slice.
+- **Editing a guardian's own details republishes every list they appear in**, and
+  `UPDATE_ORG_PROFILE` now refuses an email that would make a guardian and their child share an
+  address — the link check alone missed an edit made afterwards.
+- **`PEOPLE-7` was not brought in.** The guardian block never asks for an org ID number, so a guardian
+  cannot hit the collision, and the player forms behave exactly as before.
+- **Guardian changes are not blocked while the profile form is dirty**, unlike the invite card. The
+  invite can overwrite the profile's email; a guardian change touches nothing on the form, so there
+  is nothing to protect.
+- **The Minors settings save on their own, behind a confirmation**, not through the settings
+  screen's save bar — one switch changes what every minor in the org can see.
+- **`restrictedReason` is an explicit `null` for full access**, not an absent key: the screens merge
+  an updated member row over the old one, and an absent key left a stale reason in place.
+- **Fixed on the way:** `isUnderAge` sliced the date out of a birthdate timestamp, which is a day
+  early because `pg` sends a `DATE` as the server's local midnight in UTC (`DATE-1`); it now reads a
+  timestamp in local time, as the app's `parseCalendarDate` does. The roster's add-a-person errors
+  now show in the modal instead of through `Alert.alert`, which does nothing on web (`UI-17`).
+- Logged: `UI-22` (the People "+" and the roster's Invite buttons show to people who cannot use
+  them).
 
 ---
 

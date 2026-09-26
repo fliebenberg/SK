@@ -25,6 +25,8 @@ export const orgSitesRoom = (orgId: string) => `org:${orgId}:sites`;
 export const orgFacilitiesRoom = (orgId: string) => `org:${orgId}:facilities`;
 export const orgLeaguesRoom = (orgId: string) => `org:${orgId}:leagues`;
 export const orgMembersRoom = (orgId: string) => `org:${orgId}:members`;
+/** Every active guardian link in the org (`MEMBER-3`). People data, at the member list's tier. */
+export const orgGuardiansRoom = (orgId: string) => `org:${orgId}:guardians`;
 export const orgReferralsRoom = (orgId: string) => `org:${orgId}:referrals`;
 
 // --- Team, site, facility ---

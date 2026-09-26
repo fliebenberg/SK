@@ -21,5 +21,5 @@ export interface TeamMember {
   /** See `OrgMember.hasAccount`. */
   hasAccount?: boolean;
   /** See `OrgMember.restrictedReason`. A restricted coach still coaches this team (plan §0.3). */
-  restrictedReason?: RestrictedReason;
+  restrictedReason?: RestrictedReason | null;
 }

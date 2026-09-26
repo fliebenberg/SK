@@ -12,6 +12,16 @@ import { InviteButton, InviteModal, useInviteCooldownHours } from '../../../../c
 import { wsService } from '../../../../services/websocket';
 import { requestKeyFor, sendAction } from '../../../../services/actions';
 import { useRequestScope } from '../../../../hooks/useRequestScope';
+import { GuardianBlock } from '../../../../components/guardians/GuardianBlock';
+import {
+  GuardianDraft,
+  emptyGuardianDraft,
+  guardianDraftProblem,
+  isGuardianDraftStarted,
+  saveGuardianDraft,
+} from '../../../../components/guardians/guardianDraft';
+import { useOrgGuardians, guardianSummary } from '../../../../hooks/useOrgGuardians';
+import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
 import { useWsStore } from '../../../../store/wsStore';
 import { SocketAction, Team, Sport, Organization, TeamMember, GameSummary, participantLabel, reseedDecision, isScoreNotProvided } from '@sk/shared';
 import { PersonnelAutocomplete } from '../../../../components/PersonnelAutocomplete';
@@ -144,8 +154,19 @@ export default function TeamDetailsScreen() {
   // One scope per roster addition, kept across retries (SYNC-3) — see handleAddRosterMember.
   const addRequestScope = useRequestScope();
 
+  // An optional guardian for a player being added (`MEMBER-3`), and the guardian shown on each row.
+  const [guardianDraft, setGuardianDraft] = useState<GuardianDraft>(emptyGuardianDraft);
+  const [guardianOpen, setGuardianOpen] = useState<boolean | null>(null);
+  // Shown in the open modal: `Alert.alert` does nothing on web (`UI-17`).
+  const [rosterAddError, setRosterAddError] = useState<string | null>(null);
+  const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
+  const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
+
   const resetMemberForm = () => {
     addRequestScope.renew();
+    setGuardianDraft(emptyGuardianDraft());
+    setGuardianOpen(null);
+    setRosterAddError(null);
     setMemberEmail('');
     setMemberCellphone('');
     setMemberBirthdate('');
@@ -450,6 +471,14 @@ export default function TeamDetailsScreen() {
 
   const handleAddRosterMember = async (name: string, roleId: string, searchPerson: any, closeFn: () => void) => {
     if (!name.trim()) return;
+    // Only a player is offered a guardian here; the staff modal never fills the draft.
+    const withGuardian = roleId === 'role-player' && isGuardianDraftStarted(guardianDraft);
+    const guardianProblem = withGuardian ? guardianDraftProblem(guardianDraft) : null;
+    if (guardianProblem) {
+      setRosterAddError(guardianProblem);
+      return;
+    }
+    setRosterAddError(null);
     setIsProcessing(true);
 
     try {
@@ -496,6 +525,15 @@ export default function TeamDetailsScreen() {
         if (!memberResult.ok) throw new Error(`Failed to add team member: ${memberResult.message}`);
       }
 
+      // 4. The guardian, under the same scope: a retry after it fails re-sends steps 2 and 3,
+      //    answered from the first attempt, and tries only the guardian again.
+      if (profileId && withGuardian) {
+        const guardianResult = await saveGuardianDraft(orgId, profileId, guardianDraft, addRequestScope.current(), { quiet: true });
+        if (!guardianResult.ok) {
+          throw new Error(`${name.trim()} was added, but ${guardianResult.message.charAt(0).toLowerCase()}${guardianResult.message.slice(1)} Press Add Player again to retry the guardian.`);
+        }
+      }
+
       closeFn();
       resetMemberForm();
       // Re-fetch local data just in case
@@ -503,7 +541,8 @@ export default function TeamDetailsScreen() {
         if (Array.isArray(res)) setRoster(res);
       });
     } catch (e: any) {
-      Alert.alert('Roster Action Failed', e.message || 'An error occurred');
+      // The modal stays open with everything typed, and says which step failed.
+      setRosterAddError(e.message || 'An error occurred');
     } finally {
       setIsProcessing(false);
     }
@@ -851,6 +890,11 @@ export default function TeamDetailsScreen() {
                         {contactInfo ? (
                           <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500" numberOfLines={1}>
                             · {contactInfo}
+                          </Text>
+                        ) : null}
+                        {guardianSummary(guardiansByPlayer.get(item.id)) ? (
+                          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500" numberOfLines={1}>
+                            · Guardian: {guardianSummary(guardiansByPlayer.get(item.id))}
                           </Text>
                         ) : null}
                       </View>
@@ -1315,6 +1359,26 @@ export default function TeamDetailsScreen() {
               </ScrollView>
             )}
 
+            {/* An optional guardian, once there is a player to attach one to (`MEMBER-3`) */}
+            {!editingPlayer && (isCreatingNewPlayer || selectedPerson) ? (
+              <View className="mb-4" style={{ zIndex: 40 }}>
+                <GuardianBlock
+                  orgId={orgId}
+                  draft={guardianDraft}
+                  onChange={setGuardianDraft}
+                  open={guardianOpen}
+                  onOpenChange={setGuardianOpen}
+                  birthdate={memberBirthdate}
+                  settings={minorsSettings}
+                  playerProfileId={selectedPerson?.id}
+                />
+              </View>
+            ) : null}
+
+            {rosterAddError ? (
+              <Text className="font-inter text-xs text-red-500 mb-3">{rosterAddError}</Text>
+            ) : null}
+
             <View className="flex-row gap-3 mt-2">
               <Button
                 title="Cancel"
@@ -1517,6 +1581,10 @@ export default function TeamDetailsScreen() {
                 </View>
               </ScrollView>
             )}
+
+            {rosterAddError ? (
+              <Text className="font-inter text-xs text-red-500 mb-3">{rosterAddError}</Text>
+            ) : null}
 
             <View className="flex-row gap-3 mt-2">
               <Button

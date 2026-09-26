@@ -2,7 +2,7 @@ import { Team, TeamRole, TeamMembership, TeamMember } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
 import { restrictedReasonSql } from "./minorAccess";
-import { withoutNullReason } from "./UserManager";
+import { withReason } from "./UserManager";
 
 export class TeamManager extends BaseManager {
   teamRoles: TeamRole[] = [
@@ -157,7 +157,7 @@ export class TeamManager extends BaseManager {
         WHERE tm.team_id = $1 AND (tm.end_date IS NULL OR tm.end_date > NOW())
     `, [teamId]);
 
-    return res.rows.map(row => withoutNullReason({
+    return res.rows.map(row => withReason({
         ...row,
         roleName: this.getTeamRole(row.roleId)?.name
     }));

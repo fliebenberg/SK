@@ -32,8 +32,8 @@ export interface Dependant {
   isPrimary: boolean;
   ownAccountAllowed: boolean | null;
   ownAccountSetAt?: string | null;
-  /** Absent when the child's membership carries full privileges. */
-  restrictedReason?: RestrictedReason;
+  /** `null` when the child's membership carries full privileges. */
+  restrictedReason: RestrictedReason | null;
   /** Whether the child has an account of their own. */
   hasAccount: boolean;
   teams: { teamId: string; name: string; roleId: string }[];
@@ -91,6 +91,32 @@ export class GuardianManager extends BaseManager {
       [id]
     );
     return res.rows[0] ? stripNulls(res.rows[0]) : null;
+  }
+
+  /**
+   * Would giving `profileId` this email make it share an address with someone it is linked to, as
+   * guardian or as child? Compared normalised, as `guardianLinkProblem` compares.
+   */
+  async linkedEmailClash(profileId: string, email: string): Promise<boolean> {
+    const res = await this.query(
+      `SELECT 1 FROM profile_guardians pg
+         JOIN org_profiles other ON other.id = CASE WHEN pg.guardian_profile_id = $1 THEN pg.player_profile_id ELSE pg.guardian_profile_id END
+        WHERE (pg.guardian_profile_id = $1 OR pg.player_profile_id = $1) AND ${ACTIVE}
+          AND LOWER(TRIM(other.email)) = LOWER(TRIM($2))
+        LIMIT 1`,
+      [profileId, email]
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  /** The players this profile is currently a guardian of. */
+  async getActiveLinksOfGuardian(guardianProfileId: string): Promise<{ orgId: string; playerProfileId: string }[]> {
+    const res = await this.query(
+      `SELECT pg.org_id AS "orgId", pg.player_profile_id AS "playerProfileId"
+         FROM profile_guardians pg WHERE pg.guardian_profile_id = $1 AND ${ACTIVE}`,
+      [guardianProfileId]
+    );
+    return res.rows;
   }
 
   async hasActiveGuardian(playerProfileId: string): Promise<boolean> {
@@ -280,10 +306,7 @@ export class GuardianManager extends BaseManager {
         ORDER BY p.name, o.name`,
       [userId]
     );
-    return res.rows.map((row: any) => {
-      if (row.restrictedReason == null) delete row.restrictedReason;
-      return row;
-    });
+    return res.rows;
   }
 
   /**

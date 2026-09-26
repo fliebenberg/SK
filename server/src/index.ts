@@ -59,7 +59,7 @@ import {
 } from './wss/tournaments';
 import { canReadData } from './wss/dataAccess';
 import { publishUserMemberships, getUserMemberships } from './wss/memberships';
-import { publishPlayerChange, publishOrgMinorsChange } from './wss/guardians';
+import { publishPlayerChange, publishOrgMinorsChange, publishGuardianProfileChange } from './wss/guardians';
 import { guardianManager } from './managers/GuardianManager';
 import { attachSocketLogging } from './wss/socketLog';
 import {
@@ -1910,6 +1910,8 @@ io.on('connection', (socket) => {
         if (kind === 'org') {
             if (sub === 'members') {
                 pushToSocket(socket, room, 'ORG_MEMBERS_SYNC', await dataManager.getOrganizationMembers(id));
+            } else if (sub === 'guardians') {
+                pushToSocket(socket, room, 'GUARDIANS_SYNC', await guardianManager.getGuardiansForOrg(id));
             } else if (sub === 'teams') {
                 pushToSocket(socket, room, 'TEAMS_SYNC', await dataManager.getTeams(id));
             } else if (sub === 'sites') {
@@ -3043,6 +3045,12 @@ io.on('connection', (socket) => {
                 // `UserManager.ensureProfileForUserInOrg`, server-side, when an account claims
                 // its profile. No client sends it (`PEOPLE-2`).
                 const { userId: _rejectedUserId, ...updateData } = { ...action.payload.data };
+                // A guardian and their child may not share an address (`MEMBER-3`): access is
+                // matched by email, so the one would *become* the other. Checked when a link is
+                // made, and here, where either side's email can change afterwards.
+                if (updateData.email && await guardianManager.linkedEmailClash(action.payload.id, updateData.email)) {
+                    throw new Error('A guardian and the player they are recorded for cannot share an email address.');
+                }
                 // The invite record is written by SEND_MEMBER_INVITE alone. Editable here, it would
                 // let the resend cooldown be cleared by hand.
                 delete updateData.lastInviteSentAt;
@@ -3054,6 +3062,8 @@ io.on('connection', (socket) => {
                 if (result && result.orgId) {
                     updateTopic = `org:${result.orgId}:members`;
                     updateType = 'ORG_MEMBER_UPDATED';
+                    // A guardian's name and contact details travel in their links (`MEMBER-3`).
+                    await publishGuardianProfileChange(result.id);
                 }
                 break;
             }

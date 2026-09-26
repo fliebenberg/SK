@@ -11,6 +11,10 @@ import { OrgMember, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { getAvatarUrl } from '../../../../../services/assets';
 import { InviteModal, InviteStatusCard, useInviteCooldownHours } from '../../../../../components/InviteToScoreKeeper';
+import { useOrgGuardians } from '../../../../../hooks/useOrgGuardians';
+import { useOrgMinorsSettings } from '../../../../../hooks/useOrgMinorsSettings';
+import { GuardiansCard } from '../../../../../components/guardians/GuardiansCard';
+import { MinorAccessCard } from '../../../../../components/guardians/MinorAccessCard';
 
 const parseImageConfig = (config: any) => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -42,6 +46,8 @@ export default function PersonViewScreen() {
 
   const inviteCooldownHours = useInviteCooldownHours();
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
+  const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
 
   const member = useMemo(() => {
     return (membersData || []).find(m => m.membershipId === membershipId) || null;
@@ -198,6 +204,24 @@ export default function PersonViewScreen() {
             cooldownHours={inviteCooldownHours}
             canInvite={canEdit}
             onInvite={() => setIsInviteOpen(true)}
+          />
+        </GlassCard>
+
+        {/* GUARDIANS — read-only here; they are changed from the edit screen (`MEMBER-3`) */}
+        <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mt-6 space-y-6">
+          <GuardiansCard
+            orgId={orgId}
+            playerProfileId={member.id}
+            playerName={member.name}
+            guardians={guardiansByPlayer.get(member.id) || []}
+            canEdit={false}
+          />
+          <MinorAccessCard
+            player={member}
+            settings={minorsSettings}
+            guardians={guardiansByPlayer.get(member.id) || []}
+            isOrgAdmin={false}
+            nameOfProfile={id => membersData?.find(m => m.id === id)?.name}
           />
         </GlassCard>
       </ScrollView>

@@ -32,6 +32,8 @@ import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { NominationModal } from '@/components/NominationModal';
+import { OrgMinorsSettingsCard } from '@/components/guardians/OrgMinorsSettingsCard';
+import { useAuthStore } from '../../../store/authStore';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -152,6 +154,11 @@ export default function OrgSettings() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
+  // The minors settings are an Admin's alone — not Staff's (`MEMBER-3`).
+  const isOrgAdminViewer = useAuthStore(state =>
+    state.user?.globalRole === 'admin' ||
+    state.orgMemberships.some((m: any) => m.orgId === orgId && m.roleId === 'role-org-admin' && !m.restrictedReason)
+  );
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore(state => state.isConnected);
 
@@ -952,6 +959,9 @@ export default function OrgSettings() {
             )}
           </GlassCard>
         </View>
+
+        {/* Minors (`MEMBER-3`) — saved on its own, not through this screen's form */}
+        <OrgMinorsSettingsCard orgId={orgId} isOrgAdmin={isOrgAdminViewer} />
 
         {/* Nominations Section */}
         <View className="mb-6 mt-6">

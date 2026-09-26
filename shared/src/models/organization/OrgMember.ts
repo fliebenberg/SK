@@ -16,8 +16,8 @@ export interface OrgMember extends OrgProfile {
   /**
    * Set when this is a minor whose membership carries **no member privileges** — the organisation
    * does not allow minors their own account, or the minor's own setting says no (`MEMBER-3`).
-   * Absent means full access. Derived by the read, never stored; see `memberAccess` in
+   * `null` means full access. Derived by the read, never stored; see `memberAccess` in
    * `@sk/shared`.
    */
-  restrictedReason?: RestrictedReason;
+  restrictedReason?: RestrictedReason | null;
 }

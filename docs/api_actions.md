@@ -420,8 +420,8 @@ them to any signed-in user.
 #### Guardians and minors (`MEMBER-3`)
 See [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md).
 Every change below publishes the same way (`wss/guardians.ts`): `PROFILE_GUARDIANS_UPDATED`
-(`{ playerProfileId, guardians }`, the whole current list) and `ORG_MEMBER_UPDATED` for the player on
-`org:{orgId}:members`; `TEAM_MEMBERS_SYNC` for each of the player's teams; and
+(`{ playerProfileId, guardians }`, the whole current list) on `org:{orgId}:guardians`;
+`ORG_MEMBER_UPDATED` for the player on `org:{orgId}:members`; `TEAM_MEMBERS_SYNC` for each of the player's teams; and
 `USER_MEMBERSHIPS_UPDATED` to the player's and every guardian's account, which also drops their
 cached access so a restriction takes effect at once.
 
@@ -447,8 +447,12 @@ cached access so a restriction takes effect at once.
     minor and guardian account in the org (under the wider of the old and new minor age), and
     `ORGANIZATION_UPDATED` on the summary room.
 *   **`get_data profile_guardians`** `{ orgId, playerProfileId? }` → `ProfileGuardian[]`, active
-    links only, primary first. Authorized on `org:{orgId}:members`, and held to that org: naming a
-    player from another org returns nothing.
+    links only, primary first. Authorized on `org:{orgId}:guardians` (the member list's tier), and
+    held to that org: naming a player from another org returns nothing. Screens use the room instead
+    (`useOrgGuardians`); this is for one-off reads.
+*   **`UPDATE_ORG_PROFILE`** refuses an email that would make a guardian and a child they are linked
+    to share an address, in either direction, and republishes the guardian lists a changed guardian
+    appears in — their name and contact details travel in the links.
 
 #### `ADD_ORG_MEMBER`
 *   **Payload**: `{ orgProfileId, organizationId, roleId }`

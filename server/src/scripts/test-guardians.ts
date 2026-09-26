@@ -190,14 +190,14 @@ async function main() {
     expect((await send(stranger, SocketAction.ADD_PROFILE_GUARDIAN, addParent))?.status, 'error', 'another org’s admin cannot record a guardian');
     expect((await send(member, SocketAction.ADD_PROFILE_GUARDIAN, addParent))?.status, 'error', 'a plain member cannot record a guardian');
 
-    expect(await join(admin, `org:${DKL}:members`, true), 'joined', 'the admin can watch the member list');
-    const broadcastSeen = nextMessage(admin, `org:${DKL}:members`, 'PROFILE_GUARDIANS_UPDATED');
+    expect(await join(admin, `org:${DKL}:guardians`, true), 'joined', 'the admin can watch the org’s guardians');
+    const broadcastSeen = nextMessage(admin, `org:${DKL}:guardians`, 'PROFILE_GUARDIANS_UPDATED');
     const added = await send(staff, SocketAction.ADD_PROFILE_GUARDIAN, addParent);
     expect(added?.status, 'ok', 'staff can record a guardian');
     expect(added?.data?.isPrimary, true, 'the first guardian is the primary one');
     const pushed = await broadcastSeen;
-    expect([pushed?.playerProfileId, pushed?.guardians?.length], [ANIKA, 1], 'the member list hears the player’s whole guardian list');
-    admin.emit('leave_room', `org:${DKL}:members`);
+    expect([pushed?.playerProfileId, pushed?.guardians?.length], [ANIKA, 1], 'the guardians room hears the player’s whole guardian list');
+    admin.emit('leave_room', `org:${DKL}:guardians`);
     const firstLink = added?.data?.id;
 
     expect((await send(admin, SocketAction.ADD_PROFILE_GUARDIAN, addParent))?.status, 'error', 'the same guardian cannot be recorded twice');
@@ -210,6 +210,15 @@ async function main() {
     expect(second?.status, 'ok', 'a second guardian can be recorded as the primary one');
     const primaries = (await query(`SELECT count(*)::int AS n FROM profile_guardians WHERE player_profile_id = $1 AND is_primary AND end_date IS NULL`, [ANIKA])).rows[0].n;
     expect(primaries, 1, 'which leaves exactly one primary');
+
+    expect(await join(staff, `org:${DKL}:guardians`, true), 'joined', 'staff can watch the org’s guardians');
+    const renamedSeen = nextMessage(staff, `org:${DKL}:guardians`, 'PROFILE_GUARDIANS_UPDATED');
+    expect((await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: PARENT, data: { name: 'Karin Kotzé-Smit' } }))?.status, 'ok', 'a guardian’s own details can be edited');
+    const renamed = await renamedSeen;
+    expect(renamed?.guardians?.find((g: any) => g.guardianProfileId === PARENT)?.guardianName, 'Karin Kotzé-Smit', 'and every list they appear in is republished');
+    staff.emit('leave_room', `org:${DKL}:guardians`);
+    expect((await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: PARENT, data: { email: MINOR_EMAIL } }))?.status, 'error', 'a guardian cannot be given the child’s email afterwards');
+    expect((await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: ANIKA, data: { email: PARENT_EMAIL } }))?.status, 'error', 'nor the child the guardian’s');
 
     const changed = await send(admin, SocketAction.UPDATE_PROFILE_GUARDIAN, { id: firstLink, relationship: 'grandparent' });
     expect(changed?.data?.relationship, 'grandparent', 'the relationship can be changed');
@@ -232,6 +241,8 @@ async function main() {
     expect(parentView?.dependants?.[0]?.teams?.map((t: any) => t.teamId).sort(), [TEAM_OWN, TEAM_COACHED].sort(), 'with the child’s teams');
     expect(await join(parent, `org:${DKL}:members`), 'denied', 'the guardian cannot read the member list');
     expect(await join(parent, `team:${TEAM_OWN}:members`), 'denied', 'or the child’s roster');
+    expect(await join(parent, `org:${DKL}:guardians`), 'denied', 'or the org’s guardians');
+    expect(await join(stranger, `org:${DKL}:guardians`), 'denied', 'and nor can another org');
     expect(refused(await read(parent, { type: 'org_members', orgId: DKL })), true, 'or query the members');
 
     // --- A restricted minor: linked, but no member privileges --------------------------------
@@ -272,7 +283,7 @@ async function main() {
     expect(await join(minor, `org:${DKL}:members`), 'denied', 'so the minor still cannot read the member list');
 
     expect((await setMinor(parent, ANIKA, null))?.status, 'ok', 'the guardian can clear their no');
-    expect((await memberships(minor, MINOR_USER))?.orgs?.[0]?.restrictedReason, undefined, 'and the minor has full access by default');
+    expect((await memberships(minor, MINOR_USER))?.orgs?.[0]?.restrictedReason, null, 'and the minor has full access by default');
     expect(await join(minor, `org:${DKL}:members`), 'joined', 'at once, without reconnecting');
     expect(await accessManager.getOrganizationRole(MINOR_USER, DKL), 'role-org-member', 'with their org role back');
 
