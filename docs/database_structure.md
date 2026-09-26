@@ -199,7 +199,46 @@ Core records for individuals in an organization (players, coaches, staff).
   per address and keyed on this, not on `email` — see `SEND_MEMBER_INVITE` in
   [api_actions.md](file:///c:/Fred/Coding/SK/docs/api_actions.md).
 - `image_config` (JSONB): crop and focal point for `image`.
+- `own_account_allowed` (BOOLEAN, **nullable on purpose**): a minor's own say in whether their
+  membership carries a member's privileges (`MEMBER-3`). `NULL` means nobody has said, so the
+  organisation's setting decides; `false` is an explicit refusal and restricts them even when the
+  organisation allows minors. Never collapse the two. Set only by `SET_MINOR_ACCOUNT_ACCESS`.
+- `own_account_set_at` (TIMESTAMPTZ), `own_account_set_by` (TEXT, FK to `org_profiles.id`, `ON
+  DELETE SET NULL`): when, and by whose profile — a guardian's, or an admin's while the minor had
+  none.
 - *Constraint*: UNIQUE(`org_id`, `identifier`).
+
+#### Minors and member privileges (`MEMBER-3`)
+A player is a **minor** in an organisation when they have an active guardian link, or their
+birthdate makes them younger than the org's minor age (`organizations.settings.minors.minorAge`,
+default 18, 1–21). A minor's membership carries a member's privileges only if the organisation
+allows minors their own account (`settings.minors.accountsAllowed`, off unless exactly `true`)
+**and** `own_account_allowed` is not `false`. The rule is `memberAccess` in `@sk/shared` and, in SQL,
+[minorAccess.ts](file:///c:/Fred/Coding/SK/server/src/managers/minorAccess.ts); the shared tests
+define both. A restricted minor is still linked to their profile and still a member — only the
+org-wide privilege checks treat them as an outsider, and team duties (coach, scorer) still work. See
+[guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md)
+§0.3.
+
+### 8a. `profile_guardians`
+Links a guardian's org profile to a player's, in the same organisation (`MEMBER-3`). **Being a
+guardian is derived from an active link, never stored as an `org_memberships` row** — a membership
+row is a permission, and a guardian answers for one child, not for the organisation. A guardian's
+profile usually has no membership at all, and so reads nothing org-wide.
+- `id` (TEXT, PK)
+- `org_id` (TEXT, NOT NULL): FK to `organizations.id`, `ON DELETE CASCADE`. Equal to both profiles'
+  org, checked by `GuardianManager`.
+- `guardian_profile_id`, `player_profile_id` (TEXT, NOT NULL): FKs to `org_profiles.id`, `ON DELETE
+  CASCADE`. *Check*: not the same profile.
+- `relationship` (TEXT): `parent` / `guardian` / `grandparent` / `other`. Display only.
+- `is_primary` (BOOLEAN): the default contact. At most one active primary per player (partial
+  unique index). The first guardian recorded is primary; ending the primary promotes the
+  longest-standing remaining one.
+- `start_date`, `end_date` (TIMESTAMPTZ): mirrors `org_memberships` — ending a link keeps the row.
+  One active link per guardian–player pair (partial unique index).
+- `created_by_profile_id` (TEXT): FK to `org_profiles.id`, `ON DELETE SET NULL`.
+- A guardian may not share the player's email: access is matched by email, so the guardian would
+  *become* the child in every access check.
 
 ### 9. `team_memberships`
 Links a profile to a specific team with a role.

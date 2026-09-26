@@ -1,14 +1,21 @@
 import { OrgProfile, OrgMembership, User, UserEmail, OrgMember } from "@sk/shared";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
+import { memberPrivilegedSql, restrictedReasonSql } from "./minorAccess";
 import { organizationManager } from "./OrganizationManager";
 import { imageService } from "../services/ImageService";
+
+/** `restrictedReason` is absent, not `null`, on a membership with full privileges. */
+export function withoutNullReason<T extends { restrictedReason?: unknown }>(row: T): T {
+  if (row.restrictedReason == null) delete row.restrictedReason;
+  return row;
+}
 
 export class UserManager extends BaseManager {
   // --- Account Management (Users Table) ---
   private USER_COLUMNS = 'id, name, email, email_verified as "emailVerified", image, password_hash as "passwordHash", global_role as "globalRole", created_at as "createdAt", updated_at as "updatedAt", preferences, force_password_reset as "forcePasswordReset"';
   private USER_EMAIL_COLUMNS = 'id, user_id as "userId", email, is_primary as "isPrimary", verified_at as "verifiedAt", created_at as "createdAt"';
-  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig"';
+  private ORG_PROFILE_COLUMNS = 'id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"';
   private ORG_MEMBERSHIP_COLUMNS = 'id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"';
 
   async getUser(id: string): Promise<User | undefined> {
@@ -206,7 +213,7 @@ export class UserManager extends BaseManager {
   // --- Org Profiles (Replacement for Persons) ---
   
   async getOrgProfile(id: string): Promise<OrgProfile | undefined> {
-    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig" FROM org_profiles WHERE id = $1', [id]);
+    const res = await this.query('SELECT id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy" FROM org_profiles WHERE id = $1', [id]);
     return res.rows[0];
   }
 
@@ -235,7 +242,7 @@ export class UserManager extends BaseManager {
            image = COALESCE(EXCLUDED.image, org_profiles.image),
            primary_role_id = COALESCE(EXCLUDED.primary_role_id, org_profiles.primary_role_id),
            image_config = COALESCE(EXCLUDED.image_config, org_profiles.image_config)
-         RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig"`,
+         RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"`,
         [
           id,
           profile.orgId,
@@ -307,7 +314,7 @@ export class UserManager extends BaseManager {
     let res;
     try {
       res = await this.query(
-        `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig"`,
+        `UPDATE org_profiles SET ${clauses.join(', ')} WHERE id = $${idx} RETURNING id, org_id as "orgId", user_id as "userId", name, email, cellphone, birthdate, national_id as "nationalId", identifier, image, primary_role_id as "primaryRoleId", last_invite_sent_at as "lastInviteSentAt", last_invite_email as "lastInviteEmail", image_config as "imageConfig", own_account_allowed as "ownAccountAllowed", own_account_set_at as "ownAccountSetAt", own_account_set_by as "ownAccountSetBy"`,
         values
       );
     } catch (error) {
@@ -326,6 +333,8 @@ export class UserManager extends BaseManager {
             op.identifier as "personOrgId",
             op.org_id as "orgId", op.user_id as "userId", op.image, op.primary_role_id as "primaryRoleId",
             op.last_invite_sent_at as "lastInviteSentAt", op.last_invite_email as "lastInviteEmail", op.image_config as "imageConfig",
+            op.own_account_allowed as "ownAccountAllowed", op.own_account_set_at as "ownAccountSetAt", op.own_account_set_by as "ownAccountSetBy",
+            ${restrictedReasonSql('op', 'om.org_id')} as "restrictedReason",
             (
               op.user_id IS NOT NULL
               OR EXISTS (SELECT 1 FROM users u WHERE u.email = op.email)
@@ -336,7 +345,7 @@ export class UserManager extends BaseManager {
         WHERE om.org_id = $1 AND (om.end_date IS NULL OR om.end_date > NOW())
     `, [orgId]);
     
-    const members: OrgMember[] = res.rows.map((row: any) => ({
+    const members: OrgMember[] = res.rows.map((row: any) => withoutNullReason({
         ...row,
         roleName: organizationManager.getOrganizationRole(row.roleId)?.name
     }));
@@ -400,52 +409,69 @@ export class UserManager extends BaseManager {
 
   // --- User-Centric Membership Queries ---
 
+  /**
+   * Every org the user belongs to — **identity, not privilege**. A restricted minor's membership is
+   * listed like any other, carrying `restrictedReason`, so the app shows the org as theirs and keeps
+   * them out of the admin area (`MEMBER-3`). Privileges come from `AccessManager`, never from here.
+   */
   async getUserOrgMemberships(userId: string): Promise<OrgMembership[]> {
     const res = await this.query(`
-      SELECT id, org_profile_id as "orgProfileId", org_id as "orgId", role_id as "roleId", start_date as "startDate", end_date as "endDate"
-      FROM org_memberships
-      WHERE org_profile_id IN (
-        SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
+      SELECT om.id, om.org_profile_id as "orgProfileId", om.org_id as "orgId", om.role_id as "roleId",
+             om.start_date as "startDate", om.end_date as "endDate",
+             ${restrictedReasonSql('op', 'om.org_id')} as "restrictedReason"
+      FROM org_memberships om
+      JOIN org_profiles op ON op.id = om.org_profile_id
+      WHERE (op.user_id = $1 OR op.email IN (
           SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
           UNION
           SELECT email FROM users WHERE id = $1
-        )
-      ) AND (end_date IS NULL OR end_date > NOW())
+        )) AND (om.end_date IS NULL OR om.end_date > NOW())
     `, [userId]);
-    return res.rows;
+    return res.rows.map(withoutNullReason);
   }
 
   async getUserTeamMemberships(userId: string): Promise<any[]> {
     const res = await this.query(`
-      SELECT 
+      SELECT
         tm.id, tm.org_profile_id as "orgProfileId", tm.team_id as "teamId", tm.role_id as "roleId", tm.start_date as "startDate", tm.end_date as "endDate",
-        t.org_id as "orgId", t.name as "teamName"
+        t.org_id as "orgId", t.name as "teamName",
+        ${restrictedReasonSql('op', 't.org_id')} as "restrictedReason"
       FROM team_memberships tm
       JOIN teams t ON tm.team_id = t.id
-      WHERE tm.org_profile_id IN (
-        SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
+      JOIN org_profiles op ON op.id = tm.org_profile_id
+      WHERE (op.user_id = $1 OR op.email IN (
           SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
           UNION
           SELECT email FROM users WHERE id = $1
-        )
-      ) AND (tm.end_date IS NULL OR tm.end_date > NOW())
+        )) AND (tm.end_date IS NULL OR tm.end_date > NOW())
     `, [userId]);
+    return res.rows.map(withoutNullReason);
+  }
+
+  /** One profile's current team memberships — for publishing a change to that person's rosters. */
+  async getUserTeamMembershipsForProfile(orgProfileId: string): Promise<{ id: string; teamId: string }[]> {
+    const res = await this.query(
+      `SELECT id, team_id as "teamId" FROM team_memberships
+        WHERE org_profile_id = $1 AND (end_date IS NULL OR end_date > NOW())`,
+      [orgProfileId]
+    );
     return res.rows;
   }
 
   async isAdminOrCoach(userId: string, globalRole: string): Promise<boolean> {
     if (globalRole === 'admin') return true;
 
-    // Check org memberships for 'role-org-admin'
+    // Check org memberships for 'role-org-admin' — one that carries privileges (`MEMBER-3`). The
+    // coach half below is a team duty, which a restricted minor keeps.
     const orgRes = await this.query(`
-      SELECT 1 FROM org_memberships
-      WHERE org_profile_id IN (
-        SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
+      SELECT 1 FROM org_memberships om
+      JOIN org_profiles op ON op.id = om.org_profile_id
+      WHERE (op.user_id = $1 OR op.email IN (
           SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
           UNION
           SELECT email FROM users WHERE id = $1
-        )
-      ) AND role_id = 'role-org-admin' AND (end_date IS NULL OR end_date > NOW())
+        )) AND om.role_id = 'role-org-admin' AND (om.end_date IS NULL OR om.end_date > NOW())
+        AND ${memberPrivilegedSql('op', 'om.org_id')}
       LIMIT 1
     `, [userId]);
 

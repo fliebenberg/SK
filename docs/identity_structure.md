@@ -40,7 +40,12 @@ External entities that operate across multiple organizations (like centralized r
 
 ## 5. Guardians and Responsible Parties
 
-> **Status: designed, not built.** Nothing in the schema links a guardian to a player today. Raised
+> **Status: being built** — see
+> [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md),
+> which changes two things below: a guardian holds **no** membership (§5.1 — being a guardian is
+> derived from the link), and account access for minors **is** decided by age, per organisation
+> (§5.3). Phase 1 (schema, rules, access) is done; this section is rewritten when the plan closes.
+> Raised
 > by user research — two interviews (Tableview FC 2026-09-09, Wynberg Boys' Primary 2026-09-11)
 > both showed that for a **minor** player, availability decisions, transport arrangements and
 > essentially all communication happen with an adult, not with the player. For an **adult** player

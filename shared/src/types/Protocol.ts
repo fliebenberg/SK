@@ -10,6 +10,7 @@ import { Event } from "../models/event/Event";
 import { Game } from "../models/event/Game";
 import { GameParticipant } from "../models/event/GameParticipant";
 import { OrgProfile } from "../models/people/OrgProfile";
+import { ProfileGuardian, GuardianRelationship } from "../models/people/ProfileGuardian";
 import { UserBadge } from "../models/people/UserBadge";
 import { FeedHomeResponse } from "../models/feed/Feed";
 import { GameEvent } from "../models/event/GameEvent";
@@ -389,6 +390,37 @@ export interface UndoGameEventPayload {
     gameId: string;
     eventId: string;
     initiatorId: string;
+}
+
+export interface AddProfileGuardianPayload {
+    playerProfileId: string;
+    guardianProfileId: string;
+    relationship?: GuardianRelationship;
+    /** Makes this the player's primary guardian, demoting any other. */
+    isPrimary?: boolean;
+    id?: string;
+}
+
+export interface UpdateProfileGuardianPayload {
+    id: string;
+    relationship?: GuardianRelationship;
+    isPrimary?: boolean;
+}
+
+export interface EndProfileGuardianPayload {
+    id: string;
+}
+
+export interface SetMinorAccountAccessPayload {
+    playerProfileId: string;
+    /** `null` clears it, so the organisation's setting decides again. */
+    allowed: boolean | null;
+}
+
+export interface SetOrgMinorsSettingsPayload {
+    orgId: string;
+    accountsAllowed: boolean;
+    minorAge: number;
 }
 
 export interface SendMemberInvitePayload {
@@ -846,6 +878,11 @@ export interface ProtocolMap {
     [SocketAction.DELETE_LEAGUE]: { payload: DeleteLeaguePayload; response: void };
     [SocketAction.ADD_AGE_GROUP]: { payload: AddAgeGroupPayload; response: AgeGroup };
     [SocketAction.SEND_MEMBER_INVITE]: { payload: SendMemberInvitePayload; response: OrgProfile };
+    [SocketAction.ADD_PROFILE_GUARDIAN]: { payload: AddProfileGuardianPayload; response: ProfileGuardian };
+    [SocketAction.UPDATE_PROFILE_GUARDIAN]: { payload: UpdateProfileGuardianPayload; response: ProfileGuardian };
+    [SocketAction.END_PROFILE_GUARDIAN]: { payload: EndProfileGuardianPayload; response: ProfileGuardian };
+    [SocketAction.SET_MINOR_ACCOUNT_ACCESS]: { payload: SetMinorAccountAccessPayload; response: OrgProfile };
+    [SocketAction.SET_ORG_MINORS_SETTINGS]: { payload: SetOrgMinorsSettingsPayload; response: Organization };
     [SocketAction.REMOVE_SIN_BIN]: { payload: RemoveSinBinPayload; response: unknown };
     [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };
     [SocketAction.UPDATE_SEASON]: { payload: UpdateSeasonPayload; response: Season };

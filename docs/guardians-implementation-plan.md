@@ -1,6 +1,6 @@
 # Guardians — Phased Implementation Plan
 
-**Status:** Planned 2026-09-26, all §0 decisions made. **Not started** — waiting for the go-ahead.
+**Status:** In progress. **Phase 1 done 2026-09-26** (server, shared rules, access). **Phase 2 is next** — the admin screens.
 **Implements:** `MEMBER-3` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md), designed in
 [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5. This plan changes
 that design in two places (§0.1, §0.3). The design doc is rewritten to match in Phase 5.
@@ -323,6 +323,38 @@ pass unchanged. `npm run check:migrations` and `verify:rooms` pass.
 
 Docs: `database_structure.md`, `okf/database.md`, `api_actions.md`, `okf/live_rooms.md`,
 `auth_control.md`.
+
+### Done — 2026-09-26
+
+Exit criterion met: `test-guardians.ts` passes all 65 checks; `org-permissions.ts` (46),
+`test-member-invite.ts` (19), `test-transactions.ts` and `verify:rooms` pass unchanged; the shared
+minors rule has 25 Vitest tests (166 in `shared/` in all); `check:migrations` passes; a fresh
+`init-db.ts` build matches the migrated database for `profile_guardians` and the new `org_profiles`
+columns. `phase4-permissions.ts` and `phase3-access-audit.ts` fail 2 and 5 checks — **the same
+checks on the committed code before this phase**, all from the division room made public on
+2026-09-11 and already logged as `LIVE-20`.
+
+What was built, and where it differs from the plan above:
+
+- **Only three places decide privilege, not the thirteen email matches.** Sorting them showed most
+  answer *identity*. `ownsOrgProfile` and `PROFILE_IDS_FOR_USER` both mean "is this profile mine" —
+  the second also carries the tournament-organiser grants, which are duties like coaching — so they
+  stay identity, not privilege as §0.3's table first said. The rule sits in `getOrganizationRole`,
+  `getMembershipSnapshot` and the org-admin half of `isAdminOrCoach`, through one SQL fragment in
+  [minorAccess.ts](file:///c:/Fred/Coding/SK/server/src/managers/minorAccess.ts) that mirrors
+  `memberAccess` in [guardians.ts](file:///c:/Fred/Coding/SK/shared/src/utils/guardians.ts).
+- **`canScoreGame`'s coach and scorer checks now match by identity**, not `user_id` alone. They used
+  to miss everyone linked by email, which would have stopped a minor who signed up by email from
+  scoring as a coach — and also affected adults.
+- **The minors setting has its own action**, `SET_ORG_MINORS_SETTINGS`, rather than going through
+  `UPDATE_ORG`. The settings screen saves the whole `settings` object, so an open screen would have
+  undone a minors change; `UPDATE_ORG` now keeps whatever `settings.minors` holds.
+- The restriction reasons are `org-off` and `minor-off` (not `guardian-off`), because an Admin can
+  also set the minor's value while there is no guardian.
+- **Pulled forward from Phase 4:** the app's `AuthGuard` keeps a restricted member out of the org
+  workspace — unless they coach a team there, since coaching happens in those screens.
+- Found and logged, not fixed: `DB-3` (`last_invite_email`'s column position differs between a
+  migrated and a fresh database, from 2026-09-24).
 
 ---
 

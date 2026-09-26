@@ -34,6 +34,13 @@ export interface RoomPolicy {
    * and the check below admits a grant on either.
    */
   grantsFor?: (id: string) => Promise<{ eventId?: string | null; divisionId?: string | null } | null>;
+  /**
+   * The team duties that also open this `member` room (`MEMBER-3` plan §0.3): a coach of one of
+   * `teamIds`, or the appointed scorer of `gameId`. The same reasoning as `grantsFor` — a duty is
+   * business here without a membership — and needed because a restricted minor's membership opens
+   * nothing while their coaching or scoring must still work, for that team or game only.
+   */
+  dutiesFor?: (id: string) => Promise<{ teamIds?: string[]; gameId?: string | null } | null>;
   /** The user id that must match the socket, for `self` rooms. */
   selfId?: string;
 }
@@ -92,6 +99,8 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
           const orgId = await accessManager.getTeamOrgId(id);
           return orgId ? [orgId] : null;
         },
+        // A coach reads their own team's roster through the duty, not the membership.
+        dutiesFor: async () => ({ teamIds: [id] }),
       };
 
     case 'game':
@@ -119,6 +128,11 @@ export function classifyRoom(room: unknown): RoomPolicy | null {
             grantsFor: async () => ({
               eventId: await accessManager.getGameEventId(id),
               divisionId: await accessManager.getGameDivisionId(id),
+            }),
+            // Its scorer, and the coaches of the teams playing in it.
+            dutiesFor: async () => ({
+              gameId: id,
+              teamIds: await accessManager.getGameTeamIds(id),
             }),
           };
         default:
@@ -241,6 +255,9 @@ interface CachedMembership {
   /** Tournament grants, resolved in the same burst and under the same TTL. */
   grantedEventIds: Set<string>;
   grantedDivisionIds: Set<string>;
+  /** Team duties (`getDutySnapshot`): teams coached, games scored. */
+  dutyTeamIds: Set<string>;
+  dutyGameIds: Set<string>;
   expiresAt: number;
 }
 
@@ -253,14 +270,17 @@ async function getMembership(userId: string): Promise<CachedMembership> {
 
   // Both halves of the identity in one burst: a screen joining several rooms asks about the same
   // user each time, and a grant lookup per room is the cost this cache exists to remove.
-  const [snapshot, grants] = await Promise.all([
+  const [snapshot, grants, duties] = await Promise.all([
     accessManager.getMembershipSnapshot(userId),
     accessManager.getGrantSnapshot(userId),
+    accessManager.getDutySnapshot(userId),
   ]);
   const entry: CachedMembership = {
     ...snapshot,
     grantedEventIds: grants.eventIds,
     grantedDivisionIds: grants.divisionIds,
+    dutyTeamIds: duties.teamIds,
+    dutyGameIds: duties.gameIds,
     expiresAt: now + MEMBERSHIP_TTL_MS,
   };
   membershipCache.set(userId, entry);
@@ -319,6 +339,14 @@ export async function canJoinRoom(userId: string, room: unknown): Promise<boolea
     const scope = await policy.grantsFor(subjectId);
     if (scope?.eventId && membership.grantedEventIds.has(scope.eventId)) return true;
     if (scope?.divisionId && membership.grantedDivisionIds.has(scope.divisionId)) return true;
+  }
+
+  // A team duty is the third, checked last for the same reason: it only matters to someone whose
+  // membership does not already open the room — in practice a restricted minor who coaches or scores.
+  if (policy.dutiesFor && (membership.dutyTeamIds.size || membership.dutyGameIds.size)) {
+    const duty = await policy.dutiesFor(subjectId);
+    if (duty?.gameId && membership.dutyGameIds.has(duty.gameId)) return true;
+    if (duty?.teamIds?.some(teamId => membership.dutyTeamIds.has(teamId))) return true;
   }
 
   return false;

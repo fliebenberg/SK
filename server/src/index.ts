@@ -19,6 +19,7 @@ import {
     inviteCooldownHoursFrom,
     inviteCooldownRemainingHours,
     isValidEmail,
+    minorsSettingsOf,
     normalizeEmail,
 } from '@sk/shared';
 import { parseSportWriteFields } from './utils/sportValidation';
@@ -32,6 +33,7 @@ import { issueAssetToken, requireAssetToken } from './services/assetAccess';
 import { imageService } from './services/ImageService';
 import { userManager } from './managers/UserManager';
 import { accessManager } from './managers/AccessManager';
+import { organizationManager } from './managers/OrganizationManager';
 import { mailManager } from './managers/MailManager';
 import { sportManager } from './managers/SportManager';
 import { ageGroupManager, AgeGroupError } from './managers/AgeGroupManager';
@@ -56,7 +58,9 @@ import {
   divisionFixturesRoom,
 } from './wss/tournaments';
 import { canReadData } from './wss/dataAccess';
-import { publishUserMemberships } from './wss/memberships';
+import { publishUserMemberships, getUserMemberships } from './wss/memberships';
+import { publishPlayerChange, publishOrgMinorsChange } from './wss/guardians';
+import { guardianManager } from './managers/GuardianManager';
 import { attachSocketLogging } from './wss/socketLog';
 import {
   divisionFacilitiesRoom,
@@ -1628,6 +1632,16 @@ io.on('connection', (socket) => {
                     callback([]);
                 }
                 break;
+            case 'profile_guardians': {
+                // `MEMBER-3`. Authorized on `org:{orgId}:members`, so the answer is held to that org:
+                // naming a player from another one returns nothing rather than their guardians.
+                if (!orgId) { callback([]); break; }
+                const links = request.playerProfileId
+                    ? await guardianManager.getGuardiansForPlayer(request.playerProfileId)
+                    : await guardianManager.getGuardiansForOrg(orgId);
+                callback(links.filter(link => link.orgId === orgId));
+                break;
+            }
             case 'team_members':
                 // Fetch members for a specific team strictly via teamId
                 if (teamId) {
@@ -1646,14 +1660,8 @@ io.on('connection', (socket) => {
                 break;
             case 'user_memberships':
                 if (id) {
-                    const [orgs, teams] = await Promise.all([
-                        dataManager.getUserOrgMemberships(id),
-                        dataManager.getUserTeamMemberships(id)
-                    ]);
-                    // Combine into unified list or send separate?
-                    // Let's assume client expects list of memberships
-                    // Wait, getUserOrgMemberships returns OrgMembership[]
-                    callback({ orgs, teams }); 
+                    // The same shape the `user:{id}:memberships` push and broadcast carry.
+                    callback(await getUserMemberships(id));
                 } else {
                     callback({});
                 }
@@ -2076,11 +2084,8 @@ io.on('connection', (socket) => {
 
         } else if (kind === 'user' && sub === 'memberships') {
             // Joining is the load, so the root layout need not query for this at all (rule 2). Same
-            // `{ orgs, teams }` shape the `user_memberships` query and the broadcast both use.
-            pushToSocket(socket, room, 'USER_MEMBERSHIPS_UPDATED', {
-                orgs: await userManager.getUserOrgMemberships(id),
-                teams: await userManager.getUserTeamMemberships(id),
-            });
+            // `{ orgs, teams, dependants }` shape the `user_memberships` query and the broadcast use.
+            pushToSocket(socket, room, 'USER_MEMBERSHIPS_UPDATED', await getUserMemberships(id));
 
         } else if (kind === 'user' && sub === 'capabilities') {
             // What this user may do, across every event they hold a grant on. Its own room rather
@@ -2970,6 +2975,57 @@ io.on('connection', (socket) => {
                 const richMember = (await dataManager.getOrganizationMembers(profile.orgId)).find((m: any) => m.id === memberId);
                 result = richMember || updatedProfile;
 
+                break;
+            }
+            // --- Guardians (`MEMBER-3`) ---------------------------------------------------------
+            // The gate has already checked the caller manages this org's people (or, for a minor's
+            // access, is the player's guardian or an admin while they have none).
+            case SocketAction.ADD_PROFILE_GUARDIAN: {
+                const player = await dataManager.getOrgProfile(action.payload.playerProfileId);
+                if (!player) throw new Error('That player does not exist.');
+                result = await guardianManager.addGuardian({
+                    ...action.payload,
+                    createdByProfileId: authUserId ? await guardianManager.getCallersProfileIdInOrg(authUserId, player.orgId) : null,
+                });
+                await publishPlayerChange(result.orgId, result.playerProfileId);
+                break;
+            }
+            case SocketAction.UPDATE_PROFILE_GUARDIAN: {
+                const { id, relationship, isPrimary } = action.payload;
+                result = await guardianManager.updateGuardian(id, { relationship, isPrimary });
+                await publishPlayerChange(result.orgId, result.playerProfileId);
+                break;
+            }
+            case SocketAction.END_PROFILE_GUARDIAN: {
+                result = await guardianManager.endGuardian(action.payload.id);
+                await publishPlayerChange(result.orgId, result.playerProfileId);
+                break;
+            }
+            case SocketAction.SET_MINOR_ACCOUNT_ACCESS: {
+                const { playerProfileId, allowed } = action.payload;
+                if (allowed !== null && typeof allowed !== 'boolean') {
+                    throw new Error('Bad request: allowed must be true, false or null.');
+                }
+                const player = await dataManager.getOrgProfile(playerProfileId);
+                if (!player) throw new Error('That player does not exist.');
+                // Who set it, for the record: the caller's guardian profile if they are one, else
+                // their profile in the org (an admin, for a minor with no guardian).
+                const setBy = authUserId
+                    ? (await guardianManager.getCallersGuardianProfileId(authUserId, playerProfileId))
+                      ?? (await guardianManager.getCallersProfileIdInOrg(authUserId, player.orgId))
+                    : null;
+                await guardianManager.setMinorAccountAccess(playerProfileId, allowed, setBy);
+                result = await dataManager.getOrgProfile(playerProfileId);
+                await publishPlayerChange(player.orgId, playerProfileId, { guardians: false });
+                break;
+            }
+            case SocketAction.SET_ORG_MINORS_SETTINGS: {
+                const { orgId: minorsOrgId, accountsAllowed, minorAge } = action.payload;
+                const before = minorsSettingsOf((await dataManager.getOrganization(minorsOrgId))?.settings);
+                const after = await organizationManager.setMinorsSettings(minorsOrgId, { accountsAllowed, minorAge });
+                result = await dataManager.getOrganization(minorsOrgId);
+                await publishOrgMinorsChange(minorsOrgId, Math.max(before.minorAge, after.minorAge));
+                await broadcastOrgSummaries([minorsOrgId]);
                 break;
             }
             case SocketAction.ADD_ORG_PROFILE: {

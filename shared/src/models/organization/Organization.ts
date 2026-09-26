@@ -1,4 +1,5 @@
 import { Address } from "../Address";
+import type { OrgMinorsSettings } from "../../utils/guardians";
 
 export type OrganizationType = 'SCHOOL' | 'CLUB' | 'LEAGUE' | 'ACADEMY' | 'CORPORATE' | 'COMMUNITY' | 'OTHER';
 
@@ -35,6 +36,16 @@ export interface OrgBadge {
   isClaimed?: boolean;
 }
 
+/**
+ * `organizations.settings`. Still an open bag for the keys that predate this type (`logoConfig`
+ * and others); **a new key with any weight gets a declared shape here** rather than another loose
+ * one (`PEOPLE-4`).
+ */
+export type OrgSettings = Record<string, any> & {
+  /** Minors' own accounts (`MEMBER-3`). Read it through `minorsSettingsOf`, which fills the defaults. */
+  minors?: Partial<OrgMinorsSettings>;
+};
+
 export interface Organization {
   id: string;
   name: string;
@@ -61,7 +72,7 @@ export interface Organization {
   isClaimed?: boolean;
   creatorId?: string;
   isActive?: boolean;
-  settings?: Record<string, any>;
+  settings?: OrgSettings;
   type?: OrganizationType;
   /** `null` on an update clears it. */
   customType?: string | null;

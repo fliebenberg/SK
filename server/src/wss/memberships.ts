@@ -1,4 +1,5 @@
 import { userManager } from '../managers/UserManager';
+import { guardianManager } from '../managers/GuardianManager';
 import { broadcast } from './broadcast';
 import { userMembershipsRoom } from './rooms';
 
@@ -23,9 +24,22 @@ import { userMembershipsRoom } from './rooms';
  */
 export async function publishUserMemberships(userId?: string | null): Promise<void> {
   if (!userId) return;
-  const [orgs, teams] = await Promise.all([
+  broadcast(userMembershipsRoom(userId), 'USER_MEMBERSHIPS_UPDATED', await getUserMemberships(userId));
+}
+
+/**
+ * What a user belongs to — the payload of `USER_MEMBERSHIPS_UPDATED` and the answer to `get_data
+ * user_memberships`, one shape for both.
+ *
+ * `dependants` (`MEMBER-3`) are the children this user is an active guardian of. They ride here
+ * rather than in a room of their own because the same changes move them — a link added or ended,
+ * a minor's access changed — and they are the user's own, like the rest of this message.
+ */
+export async function getUserMemberships(userId: string) {
+  const [orgs, teams, dependants] = await Promise.all([
     userManager.getUserOrgMemberships(userId),
     userManager.getUserTeamMemberships(userId),
+    guardianManager.getDependants(userId),
   ]);
-  broadcast(userMembershipsRoom(userId), 'USER_MEMBERSHIPS_UPDATED', { orgs, teams });
+  return { orgs, teams, dependants };
 }

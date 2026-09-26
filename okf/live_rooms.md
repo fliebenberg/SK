@@ -55,15 +55,19 @@ not also query for the same data.
 | `org:{id}:sites` | public | `SITES_SYNC` | `SITE_ADDED/UPDATED/DELETED` |
 | `org:{id}:facilities` | public | `FACILITIES_SYNC` | `FACILITY_ADDED/UPDATED/DELETED` |
 | `org:{id}:leagues` | public | `LEAGUES_SYNC` | `LEAGUE_*`, `SEASON_*` |
-| `org:{id}:members` | member | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED` |
+| `org:{id}:members` | member | `ORG_MEMBERS_SYNC` | `ORG_MEMBER_UPDATED`, `ORG_MEMBERS_SYNC` (a minors-setting change), `PROFILE_GUARDIANS_UPDATED` (`{ playerProfileId, guardians }`, the player's whole current list) |
 | `org:{id}:referrals` | member | `ORG_REFERRALS_SYNC` | `ORG_REFERRAL_ADDED` |
+
+"Member" here means a membership that carries a member's privileges: a **restricted minor's**
+membership opens none of these rooms (`MEMBER-3`; see
+[auth_control.md](file:///c:/Fred/Coding/SK/okf/auth_control.md) §6).
 
 ### Team, site, facility
 
 | Room | Access | Join push | Published afterwards |
 | --- | --- | --- | --- |
-| `team:{id}` | member | `TEAM_UPDATED` | `TEAM_ADDED/UPDATED/DELETED` |
-| `team:{id}:members` | member | `TEAM_MEMBERS_SYNC` | `TEAM_MEMBERS_SYNC` |
+| `team:{id}` | member, or the team's coach | `TEAM_UPDATED` | `TEAM_ADDED/UPDATED/DELETED` |
+| `team:{id}:members` | member, or the team's coach | `TEAM_MEMBERS_SYNC` | `TEAM_MEMBERS_SYNC` |
 | `site:{id}` | public | `SITE_UPDATED` | `SITE_ADDED/UPDATED/DELETED` |
 | `facility:{id}` | public | `FACILITY_UPDATED` | `FACILITY_ADDED/UPDATED/DELETED` |
 
@@ -107,12 +111,16 @@ record moved would have taken the division's name away from anyone reading its d
 The two tiers are different rooms, and the split is load-bearing (`LIVE-4`): a list wants the
 summary and must never join `:events`, which hands over the whole match feed.
 
+The internal tiers admit, besides a member of an org with a stake in the game, an organiser of its
+event or division (a grant) and — since 2026-09-26 — a **duty**: the game's appointed scorer, or a
+coach of a team playing in it (`MEMBER-3`).
+
 | Room | Access | Join push | Published afterwards |
 | --- | --- | --- | --- |
 | `game:{id}:summary` | public | `GAME_SUMMARY_UPDATED` | `GAME_SUMMARY_UPDATED`, `GAME_SUMMARY_REMOVED` |
-| `game:{id}` | member | `GAME_UPDATED` (full `Game`) | `GAME_UPDATED` (always the full `Game`, clock actions included), `GAME_DELETED`, `GAME_RESET`, `GAME_EVENT_ADDED`, `GAME_EVENT_UPDATED`, `GAME_ROSTER_UPDATED` |
-| `game:{id}:events` | member | `GAME_EVENTS_SYNC` | `GAME_EVENT_ADDED/UPDATED/REMOVED`, `GAME_EVENTS_BATCH_UPDATED`, `GAME_EVENTS_SYNC`, `GAME_RESET` |
-| `game:{id}:disputes` | member | `ACTIVE_DISPUTES_SYNC` | `DISPUTE_STARTED`, `DISPUTE_VOTE_UPDATED`, `DISPUTE_RESOLVED` |
+| `game:{id}` | member, a grant, or a duty | `GAME_UPDATED` (full `Game`) | `GAME_UPDATED` (always the full `Game`, clock actions included), `GAME_DELETED`, `GAME_RESET`, `GAME_EVENT_ADDED`, `GAME_EVENT_UPDATED`, `GAME_ROSTER_UPDATED` |
+| `game:{id}:events` | member, a grant, or a duty | `GAME_EVENTS_SYNC` | `GAME_EVENT_ADDED/UPDATED/REMOVED`, `GAME_EVENTS_BATCH_UPDATED`, `GAME_EVENTS_SYNC`, `GAME_RESET` |
+| `game:{id}:disputes` | member, a grant, or a duty | `ACTIVE_DISPUTES_SYNC` | `DISPUTE_STARTED`, `DISPUTE_VOTE_UPDATED`, `DISPUTE_RESOLVED` |
 
 ### League, season, user
 
@@ -121,7 +129,7 @@ summary and must never join `:events`, which hands over the whole match feed.
 | `league:{id}:seasons` | public | `SEASONS_SYNC` | `SEASON_ADDED/UPDATED/DELETED` |
 | `season:{id}:standings` | public | `STANDINGS_UPDATED` | `STANDINGS_UPDATED` |
 | `user:{id}:notifications` | self | `NOTIFICATIONS_SYNC` | `NOTIFICATION_ADDED` |
-| `user:{id}:memberships` | self | `USER_MEMBERSHIPS_UPDATED` (`{orgs, teams}`) | `USER_MEMBERSHIPS_UPDATED` |
+| `user:{id}:memberships` | self | `USER_MEMBERSHIPS_UPDATED` (`{orgs, teams, dependants}`) | `USER_MEMBERSHIPS_UPDATED` |
 | `user:{id}:capabilities` | self | `EVENT_GRANTS_SYNC` | `EVENT_CAPABILITIES_UPDATED` (one event), `EVENT_GRANTS_SYNC` (the set) |
 
 There is no bare `user:{id}` room. It carried all three of the above, so a screen wanting one of

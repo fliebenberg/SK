@@ -44,9 +44,18 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
   const isSessionVerified = useAuthStore((state) => state.isSessionVerified);
   const membershipsLoaded = useAuthStore((state) => state.membershipsLoaded);
   const orgMemberships = useAuthStore((state) => state.orgMemberships);
+  const teamMemberships = useAuthStore((state) => state.teamMemberships);
 
   const isGlobalAdmin = user?.globalRole === 'admin';
-  const isOrgMember = !!orgId && (orgMemberships || []).some((m: any) => m.orgId === orgId);
+  const membership = orgId ? (orgMemberships || []).find((m: any) => m.orgId === orgId) : undefined;
+  // A minor whose membership carries no member privileges (`MEMBER-3`) is still a member, but the
+  // server refuses them everything org-wide — so the workspace is theirs only for a team duty they
+  // hold there (coach or assistant coach), which the server still honours.
+  const holdsTeamDuty = !!orgId && (teamMemberships || []).some(
+    (t: any) => t.orgId === orgId && (t.roleId === 'role-coach' || t.roleId === 'role-assistant-coach')
+  );
+  const isRestricted = !!membership?.restrictedReason && !holdsTeamDuty;
+  const isOrgMember = !!membership && !isRestricted;
 
   // A persisted session is only trustworthy once storage has rehydrated and any
   // stored token has been checked against the server. Redirecting before that
@@ -84,8 +93,12 @@ export function AuthGuard({ children, orgId, requireGlobalAdmin, deniedMessage }
     return (
       <AccessDenied
         message={
-          deniedMessage ||
-          'You do not have a role in this organization, so its admin workspace is not available to you.'
+          isRestricted
+            ? membership?.restrictedReason === 'org-off'
+              ? 'This organisation does not give members under its minor age access to its workspace.'
+              : 'Your guardian has not allowed access to this organisation’s workspace yet.'
+            : deniedMessage ||
+              'You do not have a role in this organization, so its admin workspace is not available to you.'
         }
         actionLabel="Back to Organizations"
         onAction={() => router.replace('/(tabs)/organizations' as any)}

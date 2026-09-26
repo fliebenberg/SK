@@ -222,6 +222,9 @@ const createTables = async () => {
                 last_invite_sent_at TIMESTAMPTZ,
                 last_invite_email TEXT,
                 image_config JSONB DEFAULT NULL,
+                own_account_allowed BOOLEAN,
+                own_account_set_at TIMESTAMPTZ,
+                own_account_set_by TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
                 UNIQUE(org_id, identifier)
             );
         `);
@@ -252,6 +255,25 @@ const createTables = async () => {
                 role_id TEXT,
                 start_date TIMESTAMPTZ,
                 end_date TIMESTAMPTZ
+            );
+        `);
+
+        // Guardians of players (mirrored from migrations/20260926_profile_guardians.ts). Being a
+        // guardian is derived from an active link, never stored as a membership — a membership
+        // row is a permission (docs/guardians-implementation-plan.md §0.1).
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS profile_guardians (
+                id TEXT PRIMARY KEY,
+                org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                guardian_profile_id TEXT NOT NULL REFERENCES org_profiles(id) ON DELETE CASCADE,
+                player_profile_id TEXT NOT NULL REFERENCES org_profiles(id) ON DELETE CASCADE,
+                relationship TEXT NOT NULL DEFAULT 'parent'
+                    CHECK (relationship IN ('parent', 'guardian', 'grandparent', 'other')),
+                is_primary BOOLEAN NOT NULL DEFAULT false,
+                start_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                end_date TIMESTAMPTZ,
+                created_by_profile_id TEXT REFERENCES org_profiles(id) ON DELETE SET NULL,
+                CHECK (guardian_profile_id <> player_profile_id)
             );
         `);
 
@@ -802,6 +824,10 @@ const createTables = async () => {
         await client.query(`CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(org_id);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_sites_org ON sites(org_id);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_org_memberships_org ON org_memberships(org_id);`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_guardians_active_pair ON profile_guardians(guardian_profile_id, player_profile_id) WHERE end_date IS NULL;`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_guardians_one_primary ON profile_guardians(player_profile_id) WHERE is_primary AND end_date IS NULL;`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_profile_guardians_player ON profile_guardians(player_profile_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_profile_guardians_guardian ON profile_guardians(guardian_profile_id);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_leagues_org ON leagues(org_id);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_seasons_league ON seasons(league_id);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_game_seasons_season ON game_seasons(season_id);`);

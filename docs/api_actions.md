@@ -412,9 +412,43 @@ them to any signed-in user.
     `last_invite_email` — where the last invite actually went — not on the profile's current email,
     so clearing the field and typing the same address back does not reset it. A `resend` restarts it. The rule is
     `inviteCooldownRemainingHours` in `@sk/shared`, shared with the screens that label the button.
-*   **Minors** are not refused: the modal warns when the birthdate says under 18 (`MEMBER-3` is
-    where a guardian would be invited instead).
+*   **Minors** are not refused yet: the modal warns when the birthdate says under 18. Phase 3 of the
+    guardians plan makes the invite offer the guardian and refuses a child the minors rule would
+    restrict.
 *   **Broadcasts**: `ORG_MEMBER_UPDATED` on `org:{orgId}:members`, with the member.
+
+#### Guardians and minors (`MEMBER-3`)
+See [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md).
+Every change below publishes the same way (`wss/guardians.ts`): `PROFILE_GUARDIANS_UPDATED`
+(`{ playerProfileId, guardians }`, the whole current list) and `ORG_MEMBER_UPDATED` for the player on
+`org:{orgId}:members`; `TEAM_MEMBERS_SYNC` for each of the player's teams; and
+`USER_MEMBERSHIPS_UPDATED` to the player's and every guardian's account, which also drops their
+cached access so a restriction takes effect at once.
+
+*   **`ADD_PROFILE_GUARDIAN`** `{ playerProfileId, guardianProfileId, relationship?, isPrimary?, id? }`
+    → `ProfileGuardian`. Gate: `manage-org` on the player's org (admin or staff). Refused for a
+    person as their own guardian, profiles in different orgs, a guardian sharing the player's email,
+    and a guardian already recorded for that player. The first guardian is primary unless
+    `isPrimary: false`; `isPrimary: true` demotes the current primary.
+*   **`UPDATE_PROFILE_GUARDIAN`** `{ id, relationship?, isPrimary? }` → `ProfileGuardian`. Same gate,
+    on the link's org. Active links only.
+*   **`END_PROFILE_GUARDIAN`** `{ id }` → `ProfileGuardian` (with `endDate`). Same gate. Keeps the
+    row. Ending the primary promotes the longest-standing remaining guardian.
+*   **`SET_MINOR_ACCOUNT_ACCESS`** `{ playerProfileId, allowed: boolean | null }` → `OrgProfile`.
+    Gate `minor-access`: an **active guardian** of that player, or an **org Admin only while the
+    player has no active guardian** — never Staff, and never org role once a guardian exists.
+    `null` clears the value so the organisation's setting decides again. Records who set it.
+    Publishes as above, without the guardian list.
+*   **`SET_ORG_MINORS_SETTINGS`** `{ orgId, accountsAllowed, minorAge }` → `Organization`. Gate:
+    `admin-org`. `minorAge` is a whole number from 1 to 21. The only writer of
+    `settings.minors`: `UPDATE_ORG` keeps whatever is stored there, because the settings screen
+    saves the whole `settings` object and would otherwise undo a minors change it opened before.
+    Publishes `ORG_MEMBERS_SYNC` on `org:{orgId}:members`, `USER_MEMBERSHIPS_UPDATED` to every
+    minor and guardian account in the org (under the wider of the old and new minor age), and
+    `ORGANIZATION_UPDATED` on the summary room.
+*   **`get_data profile_guardians`** `{ orgId, playerProfileId? }` → `ProfileGuardian[]`, active
+    links only, primary first. Authorized on `org:{orgId}:members`, and held to that org: naming a
+    player from another org returns nothing.
 
 #### `ADD_ORG_MEMBER`
 *   **Payload**: `{ orgProfileId, organizationId, roleId }`

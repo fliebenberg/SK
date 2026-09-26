@@ -85,7 +85,40 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
       set every reader has to know about — every reader is asking "may they join this division's
       room?", and the answer is the same whichever scope supplies it.
 
-5.  **Global Admin**:
+5.  **Team duty (coach, assistant coach, appointed scorer)** — added 2026-09-26 (`MEMBER-3`):
+    - **A third way into a `member` room**, after membership and tournament grants. An active
+      `role-coach` / `role-assistant-coach` team membership opens that team's `team:{id}` and
+      `team:{id}:members` rooms and the `game:*` rooms of games it plays; a `game_officials`
+      `SCORER` entry opens that game's rooms. `canScoreGame`'s coach and scorer checks are the
+      write-side half. Both match the user's profiles by **identity** (`PROFILE_IDS_FOR_USER`: user
+      id or verified email) — until 2026-09-26 `canScoreGame` matched `user_id` only, which missed
+      everyone linked by email.
+    - It changes nothing for an ordinary member, whose membership already opens the same rooms. It
+      exists for a **restricted minor** (below) appointed to coach or score, and is the foundation
+      for outside coaches (`MEMBER-4`).
+
+6.  **Minors: a membership without a member's privileges** — added 2026-09-26 (`MEMBER-3`):
+    - A minor (younger than the org's minor age, or anyone with an active guardian) has member
+      privileges only if the organisation allows minors their own account **and** the minor's own
+      setting is not an explicit no. Otherwise the membership is **restricted**.
+    - **Privilege, not identity.** A restricted minor is still linked to their profile by email,
+      still listed in their own memberships (with `restrictedReason`), and still sees the org as
+      theirs. Only the org-wide privilege checks — `getOrganizationRole`, `getMembershipSnapshot`
+      (and everything built on them), the admin half of `isAdminOrCoach` — treat them as an
+      outsider, through one SQL rule in
+      [minorAccess.ts](file:///c:/Fred/Coding/SK/server/src/managers/minorAccess.ts) that must match
+      `memberAccess` in `@sk/shared`. Identity checks (`ownsOrgProfile`, `PROFILE_IDS_FOR_USER`,
+      organiser grants) and team duties are untouched.
+    - The app's `AuthGuard` keeps a restricted member out of the org workspace unless they hold a
+      coaching duty there.
+    - **Guardians hold no membership.** Being a guardian is derived from an active
+      `profile_guardians` link, so a guardian reads nothing org-wide; what they see of their child
+      arrives as `dependants` in their own `USER_MEMBERSHIPS_UPDATED`.
+    - Who may change what: guardian links — admin or staff; a minor's own setting — an active
+      guardian, or an Admin only while the minor has none; the org's minors setting — Admin only.
+      See [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md).
+
+7.  **Global Admin**:
     - **Single Source of Truth**: Global Admin status (`globalRole === 'admin'`) is derived dynamically from active membership in the System Administration Organization (`org-system-admins`, `id: 'org-system-admins'`).
     - **Privileged Account Isolation**: Global Admins use dedicated admin user accounts that belong exclusively to `org-system-admins` and cannot hold memberships in standard user organizations/teams, preventing profile collision.
     - **Platform Access**: Has complete, unrestricted read/write administrative access across the platform.

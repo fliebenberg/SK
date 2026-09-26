@@ -283,10 +283,25 @@ export enum SocketAction {
     REMOVE_ORG_MEMBER = 'REMOVE_ORG_MEMBER',
 
     /**
-     * Action to invite an unlinked member profile to join the app.
-     * Expects payload: { memberId: string }
+     * Invite a profile that is not on ScoreKeeper yet to create an account.
+     * Payload: `SendMemberInvitePayload` — `{ memberId, email?, resend? }`.
      */
     SEND_MEMBER_INVITE = 'SEND_MEMBER_INVITE',
+
+    // --- Guardians (`MEMBER-3`) ---
+    /** Link a guardian's profile to a player's, in the same org. Admin or Staff of that org. */
+    ADD_PROFILE_GUARDIAN = 'ADD_PROFILE_GUARDIAN',
+    /** Change a link's relationship or make it the primary one. Admin or Staff. */
+    UPDATE_PROFILE_GUARDIAN = 'UPDATE_PROFILE_GUARDIAN',
+    /** End a link. The row is kept with an `end_date`, like a membership. Admin or Staff. */
+    END_PROFILE_GUARDIAN = 'END_PROFILE_GUARDIAN',
+    /**
+     * A minor's own say in whether their membership carries member privileges. An active guardian
+     * of the minor, or an org Admin while the minor has no guardian — never by org role alone.
+     */
+    SET_MINOR_ACCOUNT_ACCESS = 'SET_MINOR_ACCOUNT_ACCESS',
+    /** The organisation's minors settings (`settings.minors`). Org Admin only. */
+    SET_ORG_MINORS_SETTINGS = 'SET_ORG_MINORS_SETTINGS',
 
     // --- Memberships (Team) ---
     /**

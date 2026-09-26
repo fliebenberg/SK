@@ -1,3 +1,5 @@
+import type { RestrictedReason } from "../../utils/guardians";
+
 export interface TeamMember {
   id: string; // profile id
   userId?: string;
@@ -18,4 +20,6 @@ export interface TeamMember {
   lastInviteEmail?: string;
   /** See `OrgMember.hasAccount`. */
   hasAccount?: boolean;
+  /** See `OrgMember.restrictedReason`. A restricted coach still coaches this team (plan §0.3). */
+  restrictedReason?: RestrictedReason;
 }

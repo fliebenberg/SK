@@ -1,4 +1,5 @@
 import { BaseManager } from "./BaseManager";
+import { memberPrivilegedSql } from "./minorAccess";
 
 export class AccessManager extends BaseManager {
   async isAppAdmin(userId: string): Promise<boolean> {
@@ -10,18 +11,24 @@ export class AccessManager extends BaseManager {
     return res.rows.length > 0;
   }
 
+  /**
+   * The user's org role, for every privilege decision built on it. A minor's membership that
+   * carries no member privileges (`MEMBER-3`, `memberPrivilegedSql`) counts as no role at all here —
+   * they are still a member, and `getUserOrgMemberships` still lists the org as theirs.
+   */
   async getOrganizationRole(userId: string, orgId: string): Promise<string | null> {
     const res = await this.query(`
-      SELECT role_id 
+      SELECT om.role_id
       FROM org_memberships om
-      WHERE org_profile_id IN (
-        SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
+      JOIN org_profiles op ON op.id = om.org_profile_id
+      WHERE (op.user_id = $1 OR op.email IN (
           SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
           UNION
           SELECT email FROM users WHERE id = $1
-        )
-      ) AND org_id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())
-      ORDER BY CASE WHEN role_id = 'role-org-admin' THEN 0 ELSE 1 END
+        ))
+        AND om.org_id = $2 AND (om.end_date IS NULL OR om.end_date > NOW())
+        AND ${memberPrivilegedSql('op', 'om.org_id')}
+      ORDER BY CASE WHEN om.role_id = 'role-org-admin' THEN 0 ELSE 1 END
       LIMIT 1
     `, [userId, orgId]);
     
@@ -93,6 +100,8 @@ export class AccessManager extends BaseManager {
           SELECT email FROM users WHERE id = $1
         )
       ) AND (om.end_date IS NULL OR om.end_date > NOW())
+        -- A restricted minor's membership opens no member room (MEMBER-3).
+        AND ${memberPrivilegedSql('op', 'om.org_id')}
     `, [userId]);
 
     const orgIds = new Set<string>();
@@ -258,7 +267,7 @@ export class AccessManager extends BaseManager {
    *
    * `$1` is the user id in every query that embeds it.
    */
-  private readonly PROFILE_IDS_FOR_USER = `
+  readonly PROFILE_IDS_FOR_USER = `
     SELECT id FROM org_profiles WHERE user_id = $1 OR email IN (
       SELECT email FROM user_emails WHERE user_id = $1 AND verified_at IS NOT NULL
       UNION
@@ -441,6 +450,50 @@ export class AccessManager extends BaseManager {
       (row.scope === 'event' ? eventIds : divisionIds).add(row.id);
     }
     return { eventIds, divisionIds };
+  }
+
+  /**
+   * The team duties this user holds — the third way into a `member` room, after membership and
+   * tournament grants (`MEMBER-3` plan §0.3).
+   *
+   * A coach or assistant coach may read their own team's record, roster and games; an appointed
+   * scorer may read the game they score. Until now that came from the org membership, which is why
+   * it was never needed. It is needed now because a restricted minor's membership opens nothing, and
+   * a pupil appointed to coach or score must still be able to do the job — for that team or game
+   * and nothing else. For everybody else it changes nothing: their membership already opens the
+   * same rooms.
+   *
+   * Matched through `PROFILE_IDS_FOR_USER` — identity, not privilege — so a restriction never
+   * removes a duty. Resolved beside the membership snapshot and cached with it.
+   */
+  async getDutySnapshot(userId: string): Promise<{ teamIds: Set<string>; gameIds: Set<string> }> {
+    const res = await this.query(`
+      SELECT 'team' AS scope, tm.team_id AS id
+        FROM team_memberships tm
+       WHERE tm.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+         AND tm.role_id IN ('role-coach', 'role-assistant-coach')
+         AND (tm.end_date IS NULL OR tm.end_date > NOW())
+      UNION ALL
+      SELECT 'game' AS scope, go.game_id AS id
+        FROM game_officials go
+       WHERE go.role = 'SCORER' AND go.org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+    `, [userId]);
+
+    const teamIds = new Set<string>();
+    const gameIds = new Set<string>();
+    for (const row of res.rows) {
+      (row.scope === 'team' ? teamIds : gameIds).add(row.id);
+    }
+    return { teamIds, gameIds };
+  }
+
+  /** The teams playing in a game, for the team-duty check on `game:*` rooms. */
+  async getGameTeamIds(gameId: string): Promise<string[]> {
+    const res = await this.query(
+      'SELECT DISTINCT team_id FROM game_participants WHERE game_id = $1 AND team_id IS NOT NULL',
+      [gameId]
+    );
+    return res.rows.map((r: any) => r.team_id);
   }
 
   /**
@@ -739,13 +792,14 @@ export class AccessManager extends BaseManager {
       if (eventOrgRole === 'role-org-admin' || eventOrgRole === 'role-org-staff') return true;
     }
 
-    // 2. Check if official SCORER for the game
+    // 2. Check if official SCORER for the game. This and the coach check in 3 are team duties: they
+    // match the user's profiles by identity (`PROFILE_IDS_FOR_USER` — user id or verified email),
+    // not by `user_id` alone, which missed everyone linked by email; and they ignore the minors
+    // restriction on org privileges, because a pupil appointed to score must be able to (`MEMBER-3`).
     const scorerRes = await this.query(`
       SELECT 1 FROM game_officials
-      WHERE game_id = $1 AND role = 'SCORER' AND org_profile_id IN (
-        SELECT id FROM org_profiles WHERE user_id = $2
-      )
-    `, [gameId, userId]);
+      WHERE game_id = $2 AND role = 'SCORER' AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+    `, [userId, gameId]);
     if (scorerRes.rows[0]) return true;
 
     // 3. Check if coach of any participating team or admin/staff of that team's organization
@@ -757,10 +811,10 @@ export class AccessManager extends BaseManager {
       const teamId = row.team_id;
       const coachRes = await this.query(`
         SELECT 1 FROM team_memberships
-        WHERE team_id = $1 AND role_id IN ('role-coach', 'role-assistant-coach') AND org_profile_id IN (
-          SELECT id FROM org_profiles WHERE user_id = $2
-        ) AND (end_date IS NULL OR end_date > NOW())
-      `, [teamId, userId]);
+        WHERE team_id = $2 AND role_id IN ('role-coach', 'role-assistant-coach')
+          AND org_profile_id IN (${this.PROFILE_IDS_FOR_USER})
+          AND (end_date IS NULL OR end_date > NOW())
+      `, [userId, teamId]);
       if (coachRes.rows[0]) return true;
 
       const teamOrgRes = await this.query('SELECT org_id FROM teams WHERE id = $1', [teamId]);

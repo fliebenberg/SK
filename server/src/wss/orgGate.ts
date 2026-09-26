@@ -1,6 +1,7 @@
-import { SocketAction } from '@sk/shared';
+import { SocketAction, maySetMinorAccess } from '@sk/shared';
 import pool from '../db';
 import { accessManager } from '../managers/AccessManager';
+import { guardianManager } from '../managers/GuardianManager';
 
 /**
  * Who may write an organisation's things — its teams, sites, facilities, members, leagues and
@@ -74,7 +75,12 @@ type Rule =
   /** The notification must be the caller's own. */
   | { kind: 'own-notification' }
   /** The token in the payload is the authorisation, and the pages that send it work signed out. */
-  | { kind: 'token' };
+  | { kind: 'token' }
+  /**
+   * A minor's own-account value (`MEMBER-3`): an active guardian of that player, or an org Admin
+   * while the player has no guardian. Never Staff, and never org role alone once a guardian exists.
+   */
+  | { kind: 'minor-access' };
 
 // -------------------------------------------------------------------------------------------------
 // Where each payload's organisation is
@@ -96,6 +102,8 @@ const teamMemberOrg: OrgResolver = p =>
   one('SELECT t.org_id FROM team_memberships tm JOIN teams t ON t.id = tm.team_id WHERE tm.id = $1', p?.id);
 const orgMemberOrg: OrgResolver = p => one('SELECT org_id FROM org_memberships WHERE id = $1', p?.id);
 const profileOrg: OrgResolver = p => one('SELECT org_id FROM org_profiles WHERE id = $1', p?.memberId);
+const playerProfileOrg: OrgResolver = p => one('SELECT org_id FROM org_profiles WHERE id = $1', p?.playerProfileId);
+const guardianLinkOrg: OrgResolver = p => one('SELECT org_id FROM profile_guardians WHERE id = $1', p?.id);
 const leagueOrg = (field: string): OrgResolver => p =>
   one('SELECT org_id FROM leagues WHERE id = $1', p?.[field]);
 const seasonOrg = (field: string): OrgResolver => p =>
@@ -118,6 +126,14 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.UPDATE_ORG_MEMBER]: { kind: 'grant-role', org: orgMemberOrg },
   [SocketAction.REMOVE_ORG_MEMBER]: { kind: 'manage-org', org: orgMemberOrg },
   [SocketAction.SEND_MEMBER_INVITE]: { kind: 'manage-org', org: profileOrg },
+
+  // Guardians (`MEMBER-3`). Recording who answers for a player is managing the org's people.
+  [SocketAction.ADD_PROFILE_GUARDIAN]: { kind: 'manage-org', org: playerProfileOrg },
+  [SocketAction.UPDATE_PROFILE_GUARDIAN]: { kind: 'manage-org', org: guardianLinkOrg },
+  [SocketAction.END_PROFILE_GUARDIAN]: { kind: 'manage-org', org: guardianLinkOrg },
+  [SocketAction.SET_MINOR_ACCOUNT_ACCESS]: { kind: 'minor-access' },
+  // Whether minors get a member's privileges at all is the admins' decision, not staff's.
+  [SocketAction.SET_ORG_MINORS_SETTINGS]: { kind: 'admin-org', org: orgId },
 
   // Its things.
   [SocketAction.ADD_TEAM]: { kind: 'create-in-org', org: orgId, keep: TEAM_MINIMUM },
@@ -269,6 +285,21 @@ export async function enforceOrgAction(userId: string | null, type: SocketAction
         type === SocketAction.DELETE_EVENT
           ? 'Unauthorized: You do not have permission to delete this event.'
           : 'Unauthorized: You do not have permission to edit this event.'
+      );
+    }
+
+    case 'minor-access': {
+      const player = payload?.playerProfileId;
+      const org = await playerProfileOrg(payload);
+      if (!player || !org) throw refuse('Bad request: that player does not exist.');
+      const isActiveGuardian = !!(await guardianManager.getCallersGuardianProfileId(userId, player));
+      const playerHasActiveGuardian = isActiveGuardian || (await guardianManager.hasActiveGuardian(player));
+      const isOrgAdmin = !playerHasActiveGuardian && (await accessManager.isOrganizationAdmin(userId, org));
+      if (maySetMinorAccess({ isActiveGuardian, isOrgAdmin }, playerHasActiveGuardian)) return;
+      throw refuse(
+        playerHasActiveGuardian
+          ? "Unauthorized: Only this player's guardians may change that."
+          : "Unauthorized: Only this player's guardians, or an organisation admin while they have none, may change that."
       );
     }
 

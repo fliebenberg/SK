@@ -1,4 +1,4 @@
-import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode } from "@sk/shared";
+import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
@@ -262,6 +262,30 @@ export class OrganizationManager extends BaseManager {
     return this.getOrgSummary(id) as Promise<Organization>;
   }
 
+  /**
+   * The organisation's minors settings (`MEMBER-3`): whether minors may have their own account, and
+   * the age below which a player is a minor. The only writer of `settings.minors`.
+   */
+  async setMinorsSettings(orgId: string, input: { accountsAllowed: boolean; minorAge: number }): Promise<OrgMinorsSettings> {
+    if (typeof input.accountsAllowed !== 'boolean') {
+      throw new Error('Say whether minors may have their own account.');
+    }
+    if (!isValidMinorAge(input.minorAge)) {
+      throw new Error('The minor age must be a whole number from 1 to 21.');
+    }
+    const minors: OrgMinorsSettings = { accountsAllowed: input.accountsAllowed, minorAge: input.minorAge };
+    const res = await this.query(
+      `UPDATE organizations
+          SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{minors}', $2::jsonb, true)
+        WHERE id = $1
+        RETURNING settings`,
+      [orgId, JSON.stringify(minors)]
+    );
+    if (!res.rowCount) throw new Error('That organisation does not exist.');
+    this.invalidateCache();
+    return minorsSettingsOf(res.rows[0].settings);
+  }
+
   async updateOrganization(id: string, data: Partial<Organization>): Promise<Organization | null> {
     // An update that *names* the short code may not blank it. Deriving a replacement would be
     // wrong here in a way it is not on create: the organisation already has a code people have
@@ -271,6 +295,16 @@ export class OrganizationManager extends BaseManager {
       const code = normalizeOrgShortCode(data.shortName);
       if (!code) throw new Error('An organisation needs a short code.');
       data.shortName = code;
+    }
+
+    // `settings` arrives whole — the settings screen carries the object across — so a screen opened
+    // before a minors change would silently undo it on save. The minors settings are written by
+    // `setMinorsSettings` alone, behind their own action and gate (`MEMBER-3`); here they are kept.
+    if (data.settings !== undefined) {
+      const stored = await this.query('SELECT settings FROM organizations WHERE id = $1', [id]);
+      const { minors: _ignored, ...rest } = (data.settings || {}) as Record<string, any>;
+      const storedMinors = stored.rows[0]?.settings?.minors;
+      data.settings = storedMinors !== undefined ? { ...rest, minors: storedMinors } : rest;
     }
 
     // Handle Address update

@@ -1,6 +1,8 @@
 import { Team, TeamRole, TeamMembership, TeamMember } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { organizationManager } from "./OrganizationManager";
+import { restrictedReasonSql } from "./minorAccess";
+import { withoutNullReason } from "./UserManager";
 
 export class TeamManager extends BaseManager {
   teamRoles: TeamRole[] = [
@@ -141,6 +143,8 @@ export class TeamManager extends BaseManager {
             p.identifier as "personOrgId",
             p.org_id as "orgId", p.user_id as "userId", p.image, p.primary_role_id as "primaryRoleId",
             p.last_invite_sent_at as "lastInviteSentAt", p.last_invite_email as "lastInviteEmail", p.image_config as "imageConfig",
+            p.own_account_allowed as "ownAccountAllowed",
+            ${restrictedReasonSql('p', 't.org_id')} as "restrictedReason",
             (
               p.user_id IS NOT NULL
               OR EXISTS (SELECT 1 FROM users u WHERE u.email = p.email)
@@ -149,10 +153,11 @@ export class TeamManager extends BaseManager {
             tm.team_id as "teamId"
         FROM team_memberships tm
         JOIN org_profiles p ON tm.org_profile_id = p.id
+        JOIN teams t ON t.id = tm.team_id
         WHERE tm.team_id = $1 AND (tm.end_date IS NULL OR tm.end_date > NOW())
     `, [teamId]);
-    
-    return res.rows.map(row => ({
+
+    return res.rows.map(row => withoutNullReason({
         ...row,
         roleName: this.getTeamRole(row.roleId)?.name
     }));
