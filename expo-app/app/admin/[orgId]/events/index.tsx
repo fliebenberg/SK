@@ -24,6 +24,7 @@ import {
 } from '@sk/shared';
 import { COLORS, getThemeColor } from '../../../../constants/Colors';
 import {
+  calendarRangeStatus,
   formatDateRange,
   formatFixtureWhen,
   isCalendarDate,
@@ -328,6 +329,7 @@ export default function OrgEventsList() {
 
   // Filter & Sort Events
   const today = todayCalendarDate();
+  const lastDayOf = (e?: Event) => e?.endDate || e?.startDate || '';
   const startOfToday = startOfTodayMs();
 
   const filteredEvents = (events || [])
@@ -356,13 +358,17 @@ export default function OrgEventsList() {
         return false;
       }
 
-      // Calendar dates, so they compare as strings against the viewer's today.
-      return viewMode === 'upcoming' ? e.startDate >= today : e.startDate < today;
+      // An event is past only once its last day is (FIX-22): a tournament still running stays
+      // under Upcoming, rather than moving to Past on its second day.
+      const finished = calendarRangeStatus(e.startDate, e.endDate, today) === 'after';
+      return viewMode === 'upcoming' ? !finished : finished;
     })
-    .sort((a, b) => {
-      const order = (a?.startDate || '').localeCompare(b?.startDate || '');
-      return viewMode === 'upcoming' ? order : -order;
-    });
+    .sort((a, b) =>
+      // Upcoming soonest first; Past most recently finished first.
+      viewMode === 'upcoming'
+        ? (a?.startDate || '').localeCompare(b?.startDate || '')
+        : lastDayOf(b).localeCompare(lastDayOf(a))
+    );
 
   const eventsById: Record<string, Event> = (events || []).reduce((acc, e) => {
     if (e?.id) acc[e.id] = e;

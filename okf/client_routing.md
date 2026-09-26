@@ -70,7 +70,8 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 
 *   `/admin/[orgId]/events`: The fixture list, split into **Events** and **Games** tabs (U2/U36) over
     one room, with multi-select role chips — Hosting / Convening / Attending — beside the
-    `Upcoming / Past` toggle (U4/U5).
+    `Upcoming / Past` toggle (U4/U5). An event is **Past only once its last day is**, so a
+    tournament still running stays under Upcoming (`FIX-22`).
 *   `/admin/[orgId]/events/create`: Scheduling **one match**, and nothing else. A tournament has no
     creation screen: it is named and dated in a prompt on the events list, written as a `Festival`
     (D1/U34) and opened on its own Setup tab, where the format and everything else is edited
