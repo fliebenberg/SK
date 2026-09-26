@@ -104,6 +104,9 @@ High-level entities like schools, clubs, or federations.
 - `address_id` (TEXT): FK to `addresses.id`.
 - `type` (TEXT): DEFAULT `'OTHER'` — 'SCHOOL', 'CLUB', 'ORGANIZATION', 'OTHER'.
 - `custom_type` (TEXT): the label when `type` is 'OTHER'.
+- `timezone` (TEXT): NOT NULL, DEFAULT `'Africa/Johannesburg'`. IANA name; the timezone kick-offs are
+  typed in at a venue without its own (`DATE-2`). Set from the creator's device on create, changeable in
+  the org's settings; the server refuses a name `Intl` does not know.
 
 > `supported_sport_ids` and `supported_role_ids` are **not columns**, though the `Organization` API
 > model presents them as arrays. They are the `organization_sports` and `organization_roles` join
@@ -129,6 +132,9 @@ Primary locations managed by an organization (e.g., 'Main Campus').
 - `address_id` (TEXT): FK to `addresses.id`.
 - `org_id` (TEXT): FK to `organizations.id`.
 - `is_active` (BOOLEAN): DEFAULT true.
+- `timezone` (TEXT, nullable): IANA name, **looked up from the address pin** by `SiteManager` whenever
+  the address is saved (`geo-tz`); never set from a request. `NULL` — no pin, or a pin at sea — means
+  the organisation's timezone (`DATE-2`).
 
 ### 5. `facilities`
 Specific playing areas within a site (e.g., 'A-Field', 'Court 1').

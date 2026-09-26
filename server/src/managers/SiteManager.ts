@@ -1,6 +1,7 @@
 import { Site } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { addressManager } from "./AddressManager";
+import { timeZoneAt } from "../utils/timeZoneLookup";
 
 export class SiteManager extends BaseManager {
   private siteCache: Site[] | null = null;
@@ -8,7 +9,7 @@ export class SiteManager extends BaseManager {
   async getSites(orgId?: string): Promise<Site[]> {
     let queryText = `
         SELECT s.id, s.name, s.org_id as "orgId", s.address_id as "addressId", s.is_active as "isActive",
-               a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
+               s.timezone, a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
                a.city, a.province, a.postal_code as "postalCode", a.country,
                a.latitude, a.longitude
         FROM sites s
@@ -40,7 +41,7 @@ export class SiteManager extends BaseManager {
   async getSite(id: string): Promise<Site | undefined> {
     const res = await this.query(`
         SELECT s.id, s.name, s.org_id as "orgId", s.address_id as "addressId", s.is_active as "isActive",
-               a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
+               s.timezone, a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
                a.city, a.province, a.postal_code as "postalCode", a.country,
                a.latitude, a.longitude
         FROM sites s
@@ -78,11 +79,12 @@ export class SiteManager extends BaseManager {
     }
 
     const isActive = site.isActive !== undefined ? site.isActive : true;
+    const timezone = await this.timeZoneOfAddress(addressId);
 
     await this.query(
-        `INSERT INTO sites (id, name, address_id, org_id, is_active)
-         VALUES ($1, $2, $3, $4, $5)`,
-         [id, site.name, addressId, site.orgId, isActive]
+        `INSERT INTO sites (id, name, address_id, org_id, is_active, timezone)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+         [id, site.name, addressId, site.orgId, isActive, timezone]
     );
     this.invalidateCache();
     return (await this.getSite(id))!;
@@ -92,6 +94,10 @@ export class SiteManager extends BaseManager {
     const currentSite = await this.getSite(id);
     if (!currentSite) return null;
 
+    // Never taken from the request: a site's timezone comes from its pin alone (`DATE-2`).
+    delete data.timezone;
+
+    let locationSaved = false;
     if (data.address) {
         if (currentSite.addressId) {
             await addressManager.updateAddress(currentSite.addressId, data.address);
@@ -100,11 +106,15 @@ export class SiteManager extends BaseManager {
             data.addressId = newAddr.id;
         }
         delete data.address;
+        locationSaved = true;
+    }
+    if (locationSaved || (data.addressId !== undefined && data.addressId !== currentSite.addressId)) {
+        data.timezone = await this.timeZoneOfAddress(data.addressId ?? currentSite.addressId);
     }
 
     const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'orgId');
     if (keys.length > 0) {
-        const map: Record<string, string> = { name: 'name', addressId: 'address_id', isActive: 'is_active' };
+        const map: Record<string, string> = { name: 'name', addressId: 'address_id', isActive: 'is_active', timezone: 'timezone' };
         const clauses: string[] = [];
         const values: any[] = [];
         let idx = 1;
@@ -161,6 +171,19 @@ export class SiteManager extends BaseManager {
 
     this.invalidateCache();
     return site;
+  }
+
+  /**
+   * The timezone at an address's pin, looked up now — the one moment a site's timezone is set
+   * (`DATE-2`). Called whenever the address is saved, so moving the pin moves the timezone and
+   * clearing it hands the site back to its organisation's. Saving an address without moving the pin
+   * looks up the same answer again, which is cheap and keeps "did the pin move?" out of the picture.
+   */
+  private async timeZoneOfAddress(addressId?: string | null): Promise<string | null> {
+    if (!addressId) return null;
+    const res = await this.query('SELECT latitude, longitude FROM addresses WHERE id = $1', [addressId]);
+    const row = res.rows[0];
+    return row ? timeZoneAt(row.latitude, row.longitude) : null;
   }
 
   invalidateCache() {

@@ -14,6 +14,7 @@ import { useOrgShortCode } from '../../../hooks/useOrgShortCode';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { getContrastColor } from '@/utils/colorUtils';
+import { deviceTimeZone } from '@/utils/dates';
 
 export default function OrganizationsPage() {
   const router = useRouter();
@@ -150,6 +151,8 @@ export default function OrganizationsPage() {
       isActive: true,
       type: newOrgType,
       customType: newOrgType === 'OTHER' ? newOrgCustomType.trim() : undefined,
+      // Whoever sets an organisation up is most likely where it plays (DATE-2); changeable in its settings.
+      timezone: deviceTimeZone(),
     };
 
     sendAction(SocketAction.ADD_ORG, payload).then(result => {

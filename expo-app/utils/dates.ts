@@ -8,12 +8,13 @@
  * handling one as another (DATE-1):
  *
  * - An **instant** (`Instant`, ISO with `Z`) — a kick-off, when an invite was sent. Shown in the
- *   viewer's timezone. Typed in the organiser's, and converted only by {@link instantToLocalInputs}
- *   and {@link localInputsToInstant}.
+ *   viewer's timezone. **Typed in the venue's** (`DATE-2`) — the site's timezone, or its
+ *   organisation's — found by {@link venueTimeZone} and converted only by {@link instantToVenueInputs}
+ *   and {@link venueInputsToInstant}.
  * - A **calendar date** (`CalendarDate`, `YYYY-MM-DD`) — a birthday, the days an event runs, a
  *   season. The same day for everyone, so it is formatted from its own year, month and day and
  *   **never passed to `new Date(...)`**, which would read it as midnight UTC.
- * - An **instant whose time is not set** — a TBD kick-off: noon organiser time plus `timeTbd`.
+ * - An **instant whose time is not set** — a TBD kick-off: noon venue time plus `timeTbd`.
  *
  * **Anything this file does not do yet belongs in it**, not inline in a screen — that is how the
  * app once had four renderings of the same idea, two of them one tap apart and disagreeing.
@@ -22,19 +23,25 @@
  * **It lives in `expo-app/utils/`, not `shared/`, deliberately.** These functions read the viewer's
  * locale, timezone and "now", and the server renders no dates for people; in `shared/` the server
  * could import them and format a kick-off in the *server's* timezone. The deterministic parts both
- * sides need — the types, validation, adding days — are in `@sk/shared`'s `calendarDate.ts` and
- * re-exported here, so a screen has one place to import from.
+ * sides need — the types, validation, adding days, converting to a named timezone — are in
+ * `@sk/shared`'s `calendarDate.ts` and `zonedTime.ts`, and re-exported or wrapped here, so a screen has one place to import from.
  */
 import {
+  DEFAULT_TIME_ZONE,
   addCalendarDays,
   calendarDateParts,
+  canConvertTimeZones,
+  instantToZonedInputs,
   isCalendarDate,
+  isTimeZone,
   toCalendarDate,
+  zonedInputsToInstant,
   type CalendarDate,
   type Instant,
+  type TimeZone,
 } from '@sk/shared';
 
-export { addCalendarDays, isCalendarDate, type CalendarDate, type Instant };
+export { addCalendarDays, isCalendarDate, type CalendarDate, type Instant, type TimeZone };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -183,33 +190,84 @@ function parseInstant(iso?: Instant | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/* ------------------------------------------------------------------------------------------------
+ * Venue time — typing a kick-off (DATE-2)
+ * --------------------------------------------------------------------------------------------- */
+
 /**
- * A stored instant as the date and time fields a person edits, **in their local time**.
+ * The timezone this device is set to, as an IANA name — what a new organisation starts with, since
+ * whoever sets one up is most likely where it plays. `DEFAULT_TIME_ZONE` if the engine will not say.
+ */
+export function deviceTimeZone(): TimeZone {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (isTimeZone(zone)) return zone;
+  } catch {
+    // Fall through to the default.
+  }
+  return DEFAULT_TIME_ZONE;
+}
+
+/**
+ * The timezone a kick-off at this venue is typed in: the venue's own, looked up from its pin, or its
+ * organisation's when it has none (no pin, or no venue chosen yet). The device's only if the
+ * organisation has not loaded, so a form never stalls for want of one.
+ *
+ * The one place the fallback is worked out. A screen passes what it has, and never picks between
+ * the two itself.
+ */
+export function venueTimeZone(
+  site?: { timezone?: TimeZone | null } | null,
+  org?: { timezone?: TimeZone | null } | null,
+): TimeZone {
+  if (site?.timezone && isTimeZone(site.timezone)) return site.timezone;
+  if (org?.timezone && isTimeZone(org.timezone)) return org.timezone;
+  return deviceTimeZone();
+}
+
+let warnedNoConversion = false;
+
+/**
+ * Can this engine convert to a timezone other than the device's? Checked once (`canConvertTimeZones`).
+ * If not, typing falls back to the device's own time — how every kick-off was entered before DATE-2,
+ * and right for anyone at the venue — and says so once in the log rather than storing a wrong time.
+ */
+function convertsTimeZones(): boolean {
+  const ok = canConvertTimeZones();
+  if (!ok && !warnedNoConversion) {
+    warnedNoConversion = true;
+    console.warn('[dates] Intl cannot convert between timezones on this engine; kick-offs use the device time.');
+  }
+  return ok;
+}
+
+/**
+ * A stored instant as the date and time fields a person edits: **the venue's clock**, in `timeZone`
+ * (from {@link venueTimeZone}).
  *
  * The one way to fill a form from an instant. Cutting the ISO string instead —
  * `iso.split('T')[1].substring(0, 5)` — gives the **UTC** time: a 14:30 kick-off in Johannesburg
  * showed as 12:30, and saving the form stored 12:30 local, two hours earlier, and two more on every
  * save (DATE-1).
- *
- * "Local" is the device's timezone, which stands in for the organiser's until venues carry one
- * (`DATE-2`); that change belongs here and in {@link localInputsToInstant}, and nowhere else.
  */
-export function instantToLocalInputs(iso?: Instant | null): { date: CalendarDate; time: string } | null {
+export function instantToVenueInputs(iso: Instant | null | undefined, timeZone: TimeZone): { date: CalendarDate; time: string } | null {
+  if (convertsTimeZones()) return instantToZonedInputs(iso, timeZone);
   const date = parseInstant(iso);
   if (!date) return null;
   return { date: calendarDateOf(date), time: `${pad2(date.getHours())}:${pad2(date.getMinutes())}` };
 }
 
 /**
- * The instant a person means by a date and a time typed in their local time — or, with no time
- * (`null`), **noon** that day: the stored form of a kick-off whose time is not set yet, which the
- * caller marks `timeTbd`. Noon is as far from either midnight as a time can be, so the day survives
- * being shown to a viewer up to twelve hours away.
+ * The instant a person means by a date and a time on the venue's clock, in `timeZone` (from
+ * {@link venueTimeZone}) — or, with no time (`null`), **noon** there that day: the stored form of a
+ * kick-off whose time is not set yet, which the caller marks `timeTbd`. Noon is as far from either
+ * midnight as a time can be, so the day survives being shown to a viewer up to twelve hours away.
  *
  * `null` when the date is not complete or the time is not `HH:mm`, so a half-typed field is never
  * saved as a real kick-off.
  */
-export function localInputsToInstant(date: CalendarDate, time: string | null): Instant | null {
+export function venueInputsToInstant(date: CalendarDate, time: string | null, timeZone: TimeZone): Instant | null {
+  if (convertsTimeZones()) return zonedInputsToInstant(date, time, timeZone);
   const parts = calendarDateParts(date);
   if (!parts) return null;
   let hours = 12;
@@ -222,6 +280,93 @@ export function localInputsToInstant(date: CalendarDate, time: string | null): I
   }
   return new Date(parts[0], parts[1] - 1, parts[2], hours, minutes).toISOString();
 }
+
+/** A timezone's place name, as a person says it: `America/Argentina/Buenos_Aires` → "Buenos Aires". */
+export function timeZonePlace(timeZone: TimeZone): string {
+  const last = timeZone.split('/').pop() || timeZone;
+  return last.replace(/_/g, ' ');
+}
+
+/** How far a timezone's clock is ahead of UTC right now, in minutes; `null` if it cannot be read. */
+function offsetMinutesNow(timeZone: TimeZone): number | null {
+  const now = Date.now();
+  const clock = instantToVenueInputs(new Date(now).toISOString(), timeZone);
+  const parts = clock && calendarDateParts(clock.date);
+  const time = clock && TIME_OF_DAY.exec(clock.time);
+  if (!parts || !time) return null;
+  const asIfUtc = Date.UTC(parts[0], parts[1] - 1, parts[2], Number(time[1]), Number(time[2]));
+  return Math.round((asIfUtc - now) / 60000);
+}
+
+/** A timezone for a picker: "Windhoek (UTC+2)", with the offset as it is today. */
+export function timeZoneLabel(timeZone: TimeZone): string {
+  const minutes = offsetMinutesNow(timeZone);
+  if (minutes === null) return timeZonePlace(timeZone);
+  const sign = minutes < 0 ? '−' : '+';
+  const abs = Math.abs(minutes);
+  const offset = abs % 60 ? `${Math.floor(abs / 60)}:${pad2(abs % 60)}` : `${abs / 60}`;
+  return `${timeZonePlace(timeZone)} (UTC${minutes === 0 ? '' : sign + offset})`;
+}
+
+/**
+ * The line a kick-off form shows under its time field when the venue's clock is not the device's —
+ * "Times are Windhoek time" — so an organiser typing from elsewhere knows which clock they are
+ * typing on. `null` when the two clocks agree, which is the ordinary case and needs no words.
+ */
+export function venueTimeHint(timeZone: TimeZone): string | null {
+  if (!convertsTimeZones()) return null;
+  const venue = offsetMinutesNow(timeZone);
+  const device = offsetMinutesNow(deviceTimeZone());
+  if (venue === null || venue === device) return null;
+  return `Times are ${timeZonePlace(timeZone)} time (${timeZone}).`;
+}
+
+/**
+ * The timezones an organisation can pick from, Southern Africa first. Not every zone there is —
+ * a list someone can scroll — and the picker adds the organisation's current one if it is missing.
+ */
+export const TIME_ZONE_CHOICES: TimeZone[] = [
+  'Africa/Johannesburg',
+  'Africa/Windhoek',
+  'Africa/Gaborone',
+  'Africa/Maputo',
+  'Africa/Harare',
+  'Africa/Lusaka',
+  'Africa/Maseru',
+  'Africa/Mbabane',
+  'Africa/Blantyre',
+  'Africa/Luanda',
+  'Africa/Nairobi',
+  'Africa/Kampala',
+  'Africa/Dar_es_Salaam',
+  'Africa/Lagos',
+  'Africa/Accra',
+  'Africa/Cairo',
+  'Indian/Mauritius',
+  'Europe/London',
+  'Europe/Dublin',
+  'Europe/Lisbon',
+  'Europe/Amsterdam',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Europe/Athens',
+  'Asia/Dubai',
+  'Asia/Kolkata',
+  'Asia/Singapore',
+  'Asia/Hong_Kong',
+  'Asia/Tokyo',
+  'Australia/Perth',
+  'Australia/Brisbane',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+  'America/Sao_Paulo',
+  'America/Argentina/Buenos_Aires',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'UTC',
+];
 
 /**
  * Where an instant falls against the viewer's calendar, as a sortable number — or a calendar date's

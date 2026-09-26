@@ -29,7 +29,7 @@ import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
 import DatePicker from '../../../../../../components/DatePicker';
 import CustomSelect from '../../../../../../components/CustomSelect';
 import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
-import { localInputsToInstant } from '../../../../../../utils/dates';
+import { venueInputsToInstant, venueTimeHint, venueTimeZone } from '../../../../../../utils/dates';
 import { useToastStore } from '../../../../../../store/toastStore';
 
 export default function ScheduleGame() {
@@ -46,6 +46,8 @@ export default function ScheduleGame() {
   const [games, setGames] = useState<Game[]>([]);
   const [sports, setSports] = useState<Sport[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  /** Whose venues these are, and whose timezone a venue without one uses (DATE-2). */
+  const [hostOrg, setHostOrg] = useState<Organization | null>(null);
   const [orgsList, setOrgsList] = useState<Organization[]>([]);
 
   // Team cache by organization
@@ -171,6 +173,10 @@ export default function ScheduleGame() {
       if (Array.isArray(res)) setSites(res);
     });
 
+    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+      if (res) setHostOrg(res);
+    });
+
     wsService.emit('get_data', { type: 'organizations' }, (res: any) => {
       if (res && Array.isArray(res.items)) {
         setOrgsList(res.items);
@@ -280,13 +286,22 @@ export default function ScheduleGame() {
     });
   };
 
+  // The clock the kick-off is typed on: the chosen venue's, else the organisation's (DATE-2).
+  const timeZone = hostOrg ? venueTimeZone(sites.find(s => s.id === selectedSiteId), hostOrg) : null;
+  const timeHint = timeZone ? venueTimeHint(timeZone) : null;
+
   // Submit Handler
   const handleSubmit = (ignoreConflict = false) => {
     if (!event || !selectedHomeTeamId || !selectedAwayTeamId) return;
+    if (!timeZone) {
+      useToastStore.getState().showError('Still loading the venue — try again in a moment.', 'Not Ready');
+      return;
+    }
 
-    // The kick-off as the organiser typed it, in their time — or noon that day while it is TBD
-    // (date-formatting skill). Refused before anything is sent if the date or time is half-typed.
-    const scheduledTime = localInputsToInstant(gameDate || event.startDate, isTbd ? null : startTime);
+    // The kick-off as the organiser typed it, on the venue's clock — or noon there that day while it
+    // is TBD (date-formatting skill, DATE-2). Refused before anything is sent if the date or time is
+    // half-typed.
+    const scheduledTime = venueInputsToInstant(gameDate || event.startDate, isTbd ? null : startTime, timeZone);
     if (!scheduledTime) {
       useToastStore.getState().showError('Enter the full game date and start time.', 'Date Needed');
       return;
@@ -735,6 +750,9 @@ export default function ScheduleGame() {
                   onChangeText={setStartTime}
                   className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
                 />
+              )}
+              {!isTbd && timeHint && (
+                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{timeHint}</Text>
               )}
             </View>
           </View>

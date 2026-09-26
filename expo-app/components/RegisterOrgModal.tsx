@@ -7,6 +7,7 @@ import { sendAction } from '../services/actions';
 import { useOrgShortCode } from '../hooks/useOrgShortCode';
 import { useActiveTheme } from '../store/settingsStore';
 import { getThemeColor } from '../constants/Colors';
+import { deviceTimeZone } from '../utils/dates';
 
 /**
  * Registering an organisation that is not on the system yet — somebody else's, unclaimed.
@@ -68,6 +69,9 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
       joinPolicy: 'request',
       supportedSportIds: sportId ? [sportId] : [],
       isClaimed: false,
+      // A guess until it is claimed: an organisation registered to play against is most likely
+      // near whoever registered it (DATE-2). Its admins can change it in its settings.
+      timezone: deviceTimeZone(),
     } as any).then(result => {
       setIsSaving(false);
       // A refusal is already toasted; the dialog stays open with what was typed.

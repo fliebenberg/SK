@@ -80,7 +80,9 @@ const createTables = async () => {
                 settings JSONB DEFAULT '{}'::jsonb,
                 address_id TEXT REFERENCES addresses(id),
                 type TEXT DEFAULT 'OTHER',
-                custom_type TEXT DEFAULT NULL
+                custom_type TEXT DEFAULT NULL,
+                -- IANA name; set from the creator's device, changeable in settings (20260926_venue_timezones.ts).
+                timezone TEXT NOT NULL DEFAULT 'Africa/Johannesburg'
                 -- Team/member/site counts are computed live by the org queries, not stored here.
                 -- See migration 20260814_derive_org_counts.ts.
             );
@@ -111,7 +113,9 @@ const createTables = async () => {
                 name TEXT NOT NULL,
                 address_id TEXT REFERENCES addresses(id),
                 org_id TEXT REFERENCES organizations(id),
-                is_active BOOLEAN DEFAULT true
+                is_active BOOLEAN DEFAULT true,
+                -- Looked up from the pin when it is saved; NULL means the organisation's (20260926_venue_timezones.ts).
+                timezone TEXT
             );
         `);
 

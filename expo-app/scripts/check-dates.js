@@ -23,7 +23,7 @@ const PATTERNS = [
   { re: /toISOString\(\)\s*\.\s*(slice|substring|substr|split)\(/, what: 'slicing toISOString() — the UTC date, not the viewer\'s' },
   { re: /\.toLocale(Date|Time)String\(/, what: 'toLocaleDateString / toLocaleTimeString — format through utils/dates.ts' },
   { re: /\.get(FullYear|Month|Date|Hours|Minutes)\(\)/, what: 'reading date parts by hand — build dates in utils/dates.ts' },
-  { re: /new Date\(\s*`/, what: 'new Date(`…`) — building an instant by hand; use localInputsToInstant' },
+  { re: /new Date\(\s*`/, what: 'new Date(`…`) — building an instant by hand; use venueInputsToInstant' },
 ];
 /** Comment lines: prose about the old bugs is not the bug. */
 const COMMENT = /^\s*(\/\/|\/?\*|\{\/\*)/;

@@ -22,7 +22,7 @@ which kind it is.**
 |---|---|---|---|---|
 | **Instant** | a kick-off, when an invite was sent, when a report was filed | `TIMESTAMPTZ` | ISO with `Z` — `2026-09-19T12:30:00.000Z` | in the **viewer's** timezone |
 | **Calendar date** | a birthday, the days an event runs, a season's start and end | `DATE` | `YYYY-MM-DD` — `2026-09-19` | the same day for everyone |
-| **Instant, time not set** | a fixture whose kick-off is TBD | `TIMESTAMPTZ` at **12:00 organiser time**, plus `timeTbd` | ISO with `Z` | the date, then `TBD` |
+| **Instant, time not set** | a fixture whose kick-off is TBD | `TIMESTAMPTZ` at **12:00 venue time**, plus `timeTbd` | ISO with `Z` | the date, then `TBD` |
 
 **Which kind is it?** Ask: *would two people in different timezones disagree on what time it is?*
 
@@ -38,14 +38,22 @@ which kind it is.**
 
 - Stored `TIMESTAMPTZ`. Written with `NOW()` when it is "now" on the server.
 - Travel as full ISO strings with `Z`. The `Instant` type in `@sk/shared` names them.
-- **Entered in the organiser's local time, shown in the viewer's.** "Organiser's local time" is
-  currently the timezone of the device doing the entering — there is no venue or organisation
-  timezone yet (`DATE-2`). Every conversion between an instant and a date/time a person typed goes
-  through two functions in `utils/dates.ts`, `instantToLocalInputs` and `localInputsToInstant`, so
-  that when a venue timezone arrives it is a change in one place.
+- **Entered in the venue's time, shown in the viewer's** (`DATE-2`). A kick-off is typed on the
+  clock where the match is played, whichever timezone the organiser's device is in. "The venue's
+  time" is the site's timezone, **looked up from its map pin** by the server whenever the address
+  is saved (`sites.timezone`, never typed), or else **the organisation's** (`organizations.timezone`,
+  set from the creator's device and changeable in the org's settings) — for a venue with no pin, or
+  a fixture with no venue yet. `venueTimeZone(site, org)` in `utils/dates.ts` is the one place that
+  choice is made.
+- Every conversion between an instant and a date/time a person typed goes through
+  `instantToVenueInputs` and `venueInputsToInstant`, which take that timezone. They wrap
+  `@sk/shared`'s `zonedTime.ts`, which is tested (daylight saving included). A kick-off form shows
+  `venueTimeHint` — "Times are Windhoek time" — when the venue's clock is not the device's.
+- A venue's timezone changing (its pin moved) does **not** move its saved kick-offs: they are
+  instants, the same moments they were.
 - **Never fill a form field by cutting up the ISO string.** `iso.split('T')[1].substring(0, 5)` is
   the **UTC** time. Shown in a time field in Johannesburg, a 14:30 kick-off reads 12:30; saved, it
-  becomes 12:30 local — two hours earlier, and two more on every save. Use `instantToLocalInputs`.
+  becomes 12:30 local — two hours earlier, and two more on every save. Use `instantToVenueInputs`.
 
 ### Calendar dates
 
@@ -67,10 +75,10 @@ which kind it is.**
 ### Instant, time not set
 
 A fixture can have a day before it has a kick-off. It is still an instant — it will have a time —
-so it is stored as one: **12:00 on that day in the organiser's time**, with the `timeTbd` flag set.
+so it is stored as one: **12:00 on that day in the venue's time**, with the `timeTbd` flag set.
 Noon is as far from either midnight as a time can be, so the day survives being shown to a viewer
 up to twelve hours away; when the organiser knows the real time they set it. Shown as the date and
-`TBD` (`formatFixtureWhen(iso, { timeTbd: true })`). `localInputsToInstant(date, null)` builds it.
+`TBD` (`formatFixtureWhen(iso, { timeTbd: true })`). `venueInputsToInstant(date, null, timeZone)` builds it.
 
 ## Where the code lives
 
@@ -86,6 +94,14 @@ up to twelve hours away; when the organiser knows the real time they set it. Sho
   `shared/`). The formatters stay in the app: the server renders no dates for people. If it ever
   must (an email, a printable fixture list), the formatter moves with an explicit timezone
   parameter, never the ambient one.
+- **[`shared/src/utils/zonedTime.ts`](file:///c:/Fred/Coding/SK/shared/src/utils/zonedTime.ts)**
+  — converting between an instant and a date and time on a *named* timezone's clock. Shared because
+  the timezone is a parameter, not the device's; the server uses `isTimeZone` to refuse a bad one.
+  It uses `Intl` alone and only reads the digits of `format()`, since `formatToParts` is newer than
+  some engines; whether Hermes on a phone passes its self-check is `DATE-3`.
+- **[`server/src/utils/timeZoneLookup.ts`](file:///c:/Fred/Coding/SK/server/src/utils/timeZoneLookup.ts)**
+  — a venue's timezone from its pin (`geo-tz`, offline boundary data, no API). Run once per save of
+  the site's address by `SiteManager`, never on a read.
 - **`date-fns` is not used.** It is not a dependency of `expo-app`; adding it is a decision to raise,
   not a detail (`UI-12`).
 

@@ -46,7 +46,7 @@ export interface Game {
    */
   divisionId?: string;
   startTime?: Instant;
-  /** The kick-off. At 12:00 organiser time when `customSettings.timeTbd` (date-formatting skill). */
+  /** The kick-off. At 12:00 venue time when `customSettings.timeTbd` (date-formatting skill). */
   scheduledStartTime?: Instant;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
   /** `null` on an update clears it. */

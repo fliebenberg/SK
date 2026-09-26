@@ -16,6 +16,7 @@ import { NominationModal } from './NominationModal';
 import { GlassCard } from './GlassCard';
 import { AgeGroupPicker } from './AgeGroupPicker';
 import { getContrastColor } from '../utils/colorUtils';
+import { venueTimeHint, venueTimeZone, type TimeZone } from '../utils/dates';
 
 export interface MatchFormData {
   sportId: string;
@@ -28,6 +29,12 @@ export interface MatchFormData {
   gameDate: string;
   startTime: string;
   isTbd: boolean;
+  /**
+   * The timezone `gameDate` and `startTime` are on: the chosen venue's, or the organisation's
+   * (`DATE-2`). `null` until the organisation has loaded — the caller must not save until it is
+   * set, or the kick-off would be read on the wrong clock.
+   */
+  timeZone: TimeZone | null;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
   referrals?: Record<string, string[]>;
 }
@@ -51,6 +58,8 @@ export default function MatchForm({
   // Metadata Lists
   const [sports, setSports] = useState<Sport[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  /** The organisation the match is being scheduled for: whose venues these are, and whose timezone a venue without one uses. */
+  const [hostOrg, setHostOrg] = useState<Organization | null>(null);
   const [orgsList, setOrgsList] = useState<Organization[]>([]);
   const [homeTeams, setHomeTeams] = useState<Team[]>([]);
   const [awayTeams, setAwayTeams] = useState<Team[]>([]);
@@ -122,6 +131,10 @@ export default function MatchForm({
 
     wsService.emit('get_data', { type: 'sites', orgId }, (res: any) => {
       if (Array.isArray(res)) setSites(res);
+    });
+
+    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+      if (res) setHostOrg(res);
     });
 
     wsService.emit('get_data', { type: 'organizations' }, (res: any) => {
@@ -309,6 +322,13 @@ export default function MatchForm({
     }
   }, [initialData?.status]);
 
+  // The clock the kick-off is typed on: the chosen venue's, else the organisation's (DATE-2).
+  const timeZone = useMemo(
+    () => (hostOrg ? venueTimeZone(sites.find(s => s.id === selectedSiteId), hostOrg) : null),
+    [hostOrg, sites, selectedSiteId],
+  );
+  const timeHint = timeZone ? venueTimeHint(timeZone) : null;
+
   // Notify parent on change
   useEffect(() => {
     if (isInitializing) return;
@@ -324,11 +344,13 @@ export default function MatchForm({
       gameDate,
       startTime,
       isTbd,
+      timeZone,
       status: gameStatus,
       referrals: pendingReferrals,
     });
   }, [
     isInitializing,
+    timeZone,
     selectedSportId,
     selectedHomeOrg,
     selectedHomeTeamId,
@@ -924,6 +946,9 @@ export default function MatchForm({
                       onChangeText={setStartTime}
                       className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
                     />
+                  )}
+                  {!isTbd && timeHint && (
+                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{timeHint}</Text>
                   )}
                 </View>
               </View>

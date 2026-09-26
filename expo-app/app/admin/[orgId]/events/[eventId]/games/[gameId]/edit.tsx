@@ -23,7 +23,7 @@ import { MatchViewSwitcher } from '../../../../../../../components/MatchViewSwit
 import { RecordResultModal } from '../../../../../../../components/RecordResultModal';
 import { ChangeWhoPlayedCard } from '../../../../../../../components/tournament/ChangeWhoPlayedCard';
 import { finishedScoreLine } from '../../../../../../../utils/matchScore';
-import { instantToLocalInputs, localInputsToInstant } from '../../../../../../../utils/dates';
+import { instantToVenueInputs, venueInputsToInstant, venueTimeZone } from '../../../../../../../utils/dates';
 import { useToastStore } from '../../../../../../../store/toastStore';
 
 export default function EditGame() {
@@ -44,6 +44,10 @@ export default function EditGame() {
   const [event, setEvent] = useState<Event | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [orgsList, setOrgsList] = useState<Organization[]>([]);
+  // The kick-off is shown for editing on its venue's clock (DATE-2), so the form waits for the
+  // venue and its organisation. `undefined` is "not loaded yet"; a game with no venue has `null`.
+  const [hostOrg, setHostOrg] = useState<Organization | null | undefined>(undefined);
+  const [gameSite, setGameSite] = useState<Site | null | undefined>(undefined);
 
   // Static once resolved initial state
   const [initialData, setInitialData] = useState<any>(null);
@@ -118,11 +122,28 @@ export default function EditGame() {
         setOrgsList(res);
       }
     });
+
+    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
+      setHostOrg(res || null);
+    });
   }, [isConnected, orgId, eventId, gameId]);
+
+  // The game's venue, for its timezone.
+  useEffect(() => {
+    if (!game) return;
+    if (!game.siteId) {
+      setGameSite(null);
+      return;
+    }
+    wsService.emit('get_data', { type: 'site', id: game.siteId }, (res: any) => {
+      setGameSite(res || null);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.id, game?.siteId]);
 
   // Load team details to resolve participant organization IDs
   useEffect(() => {
-    if (!event || orgsList.length === 0 || !game) return;
+    if (!event || orgsList.length === 0 || !game || hostOrg === undefined || gameSite === undefined) return;
 
     const homeTeamId = game.participants?.[0]?.teamId;
     const awayTeamId = game.participants?.[1]?.teamId;
@@ -134,10 +155,10 @@ export default function EditGame() {
 
     const checkComplete = () => {
       if (loadedHome && loadedAway) {
-        // The kick-off in the viewer's own time. This used to cut up the ISO string, which gave
-        // the UTC time — and saving it back as local time moved the kick-off by the viewer's
-        // offset on every save (DATE-1).
-        const kickoff = instantToLocalInputs(game.scheduledStartTime || game.startTime);
+        // The kick-off on its venue's clock, which is the clock the form saves it on (DATE-2). This
+        // used to cut up the ISO string, which gave the UTC time — and saving it back as local time
+        // moved the kick-off by the viewer's offset on every save (DATE-1).
+        const kickoff = instantToVenueInputs(game.scheduledStartTime || game.startTime, venueTimeZone(gameSite, hostOrg));
 
         setInitialData({
           sportId: game.sportId || '',
@@ -186,16 +207,21 @@ export default function EditGame() {
     // Keyed on the id, not the object: recording a result or cancelling updates `game` in place, and
     // re-running this would reset the form's starting point under any unsaved edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event, orgsList, orgId, game?.id]);
+  }, [event, orgsList, orgId, game?.id, hostOrg, gameSite]);
 
   // Submit Handler
   const handleSubmit = () => {
     if (!event || !game || !formData || !formData.homeTeamId || !formData.awayTeamId) return;
+    if (!formData.timeZone) {
+      useToastStore.getState().showError('Still loading the venue — try again in a moment.', 'Not Ready');
+      return;
+    }
 
-    // The kick-off as typed, in the organiser's time — or noon that day while it is TBD
-    // (date-formatting skill). Refused before anything is sent if the date or time is half-typed.
+    // The kick-off as typed, on the venue's clock — or noon there that day while it is TBD
+    // (date-formatting skill, DATE-2). Refused before anything is sent if the date or time is
+    // half-typed.
     const dateBase = formData.gameDate || event.startDate;
-    const scheduledTime = localInputsToInstant(dateBase, formData.isTbd ? null : formData.startTime);
+    const scheduledTime = venueInputsToInstant(dateBase, formData.isTbd ? null : formData.startTime, formData.timeZone);
     if (!scheduledTime) {
       useToastStore.getState().showError('Enter the full game date and start time.', 'Date Needed');
       return;

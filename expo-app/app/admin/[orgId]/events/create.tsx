@@ -12,7 +12,7 @@ import { SocketAction } from '@sk/shared';
 import { useAuthStore } from '../../../../store/authStore';
 import { COLORS } from '../../../../constants/Colors';
 import MatchForm, { MatchFormData } from '../../../../components/MatchForm';
-import { localInputsToInstant } from '../../../../utils/dates';
+import { venueInputsToInstant } from '../../../../utils/dates';
 
 /**
  * Scheduling **one match** — which is now the only thing this screen does (U45).
@@ -37,7 +37,7 @@ export default function CreateEvent() {
   const [form, setForm] = useState<MatchFormData | null>(null);
 
   const isFormValid = () =>
-    !!form?.homeTeamId && !!form?.awayTeamId && !!form?.sportId && !!form?.siteId;
+    !!form?.homeTeamId && !!form?.awayTeamId && !!form?.sportId && !!form?.siteId && !!form?.timeZone;
 
   /**
    * A match names itself after the teams playing it.
@@ -58,11 +58,12 @@ export default function CreateEvent() {
   const saveRequestScope = useRequestScope();
 
   const handleSubmit = async () => {
-    if (!form || !isFormValid()) return;
+    if (!form || !form.timeZone || !isFormValid()) return;
 
-    // The kick-off as the organiser typed it, in their time — or noon that day while it is TBD
-    // (date-formatting skill). Refused before anything is sent if the date or time is half-typed.
-    const scheduledStartTime = localInputsToInstant(form.gameDate, form.isTbd ? null : form.startTime);
+    // The kick-off as the organiser typed it, on the venue's clock — or noon there that day while it
+    // is TBD (date-formatting skill, DATE-2). Refused before anything is sent if the date or time is
+    // half-typed.
+    const scheduledStartTime = venueInputsToInstant(form.gameDate, form.isTbd ? null : form.startTime, form.timeZone);
     if (!scheduledStartTime) {
       useToastStore.getState().showError('Enter the full match date and start time.', 'Date Needed');
       return;

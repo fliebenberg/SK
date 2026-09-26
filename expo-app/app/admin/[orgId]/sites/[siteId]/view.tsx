@@ -11,6 +11,7 @@ import { useWsStore } from '../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../store/authStore';
 import { Site, Facility, Sport, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
+import { venueTimeZone } from '../../../../../utils/dates';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -166,6 +167,16 @@ export default function SiteViewScreen() {
             <Ionicons name="map-outline" size={14} color="#94A3B8" />
             <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
               {site.address?.fullAddress || 'No Address registered'}
+            </Text>
+          </View>
+
+          {/* Read-only: a venue's timezone comes from its pin, and moving the pin is how to change it (DATE-2). */}
+          <View className="flex-row items-center gap-2 mt-1">
+            <Ionicons name="time-outline" size={14} color="#94A3B8" />
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+              {site.timezone
+                ? `Timezone: ${site.timezone}, from its location`
+                : `Timezone: ${venueTimeZone(null, org)}, the organisation's — set a map pin to use the venue's own`}
             </Text>
           </View>
         </GlassCard>

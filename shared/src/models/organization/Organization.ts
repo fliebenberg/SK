@@ -1,5 +1,6 @@
 import { Address } from "../Address";
 import type { OrgMinorsSettings } from "../../utils/guardians";
+import type { TimeZone } from "../../utils/zonedTime";
 
 export type OrganizationType = 'SCHOOL' | 'CLUB' | 'LEAGUE' | 'ACADEMY' | 'CORPORATE' | 'COMMUNITY' | 'OTHER';
 
@@ -77,5 +78,12 @@ export interface Organization {
   type?: OrganizationType;
   /** `null` on an update clears it. */
   customType?: string | null;
+  /**
+   * Where the organisation plays, as an IANA name: the timezone kick-offs are typed in at a venue
+   * with no timezone of its own (`DATE-2`). Always present on a record read from the database.
+   * On create the app sends the creator's device timezone; the server falls back to
+   * `DEFAULT_TIME_ZONE` without one.
+   */
+  timezone?: TimeZone;
 }
 

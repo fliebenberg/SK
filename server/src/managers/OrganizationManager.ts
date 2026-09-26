@@ -1,4 +1,4 @@
-import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf } from "@sk/shared";
+import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
@@ -55,6 +55,7 @@ export class OrganizationManager extends BaseManager {
         o.settings,
         o.type,
         o.custom_type as "customType",
+        o.timezone,
         o.address_id as "addressId",
         a.full_address as "fullAddress",
         a.city,
@@ -167,6 +168,7 @@ export class OrganizationManager extends BaseManager {
         o.settings,
         o.type,
         o.custom_type as "customType",
+        o.timezone,
         o.address_id as "addressId",
         a.full_address as "fullAddress",
         a.city,
@@ -222,11 +224,20 @@ export class OrganizationManager extends BaseManager {
     return code;
   }
 
+  /** A timezone the app can convert kick-offs with, or a refusal a person can read. */
+  private requireTimeZone(value: unknown): string {
+    if (!isTimeZone(value)) throw new Error('Choose a timezone from the list.');
+    return value;
+  }
+
   async addOrganization(org: Omit<Organization, "id"> & { id?: string }): Promise<Organization> {
     const id = org.id || `org-${Date.now()}`;
     const supportedSportIds = org.supportedSportIds || [];
     const supportedRoleIds = org.supportedRoleIds || [];
     const shortName = this.requireShortCode(org.shortName, org.name);
+    // The creator's device timezone, sent by the create screens (`DATE-2`). An older client or a
+    // script sends none, and gets the one every organisation had before timezones existed.
+    const timezone = org.timezone === undefined ? DEFAULT_TIME_ZONE : this.requireTimeZone(org.timezone);
     
     let addressId = org.addressId;
     if (org.address && !addressId) {
@@ -240,9 +251,9 @@ export class OrganizationManager extends BaseManager {
     try {
         await this.transaction(async (tx) => {
             await tx(
-              `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-              [id, org.name, logo, org.primaryColor, org.secondaryColor, shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null]
+              `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type, timezone) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+              [id, org.name, logo, org.primaryColor, org.secondaryColor, shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null, timezone]
             );
 
             for (const sportId of supportedSportIds) {
@@ -297,6 +308,8 @@ export class OrganizationManager extends BaseManager {
       data.shortName = code;
     }
 
+    if ('timezone' in data) data.timezone = this.requireTimeZone(data.timezone);
+
     // `settings` arrives whole — the settings screen carries the object across — so a screen opened
     // before a minors change would silently undo it on save. The minors settings are written by
     // `setMinorsSettings` alone, behind their own action and gate (`MEMBER-3`); here they are kept.
@@ -344,7 +357,7 @@ export class OrganizationManager extends BaseManager {
                     name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
                     shortName: 'short_name', isClaimed: 'is_claimed', creatorId: 'creator_id', 
                     isActive: 'is_active', settings: 'settings', addressId: 'address_id',
-                    type: 'type', customType: 'custom_type'
+                    type: 'type', customType: 'custom_type', timezone: 'timezone'
                 };
 
                 keys.forEach(key => {

@@ -48,7 +48,7 @@ changes. Full rule, including the three reply formats:
 
 Every date is one of three kinds — an **instant** (a kick-off: `TIMESTAMPTZ`, shown in the viewer's
 time), a **calendar date** (a birthday, an event's days: `DATE`, sent as `YYYY-MM-DD`, the same day
-for everyone), or an **instant whose time is not set** (noon organiser time plus `timeTbd`). All app
+for everyone), or an **instant whose time is not set** (noon venue time plus `timeTbd`). All app
 date handling goes through
 [expo-app/utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts); screens never format,
 parse or build dates themselves. Run `npm run check:dates` in `expo-app/` before committing client

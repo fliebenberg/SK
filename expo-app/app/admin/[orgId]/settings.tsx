@@ -10,7 +10,7 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
-import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, normalizeOrgShortCode, reseedDecision } from '@sk/shared';
+import { DEFAULT_TIME_ZONE, ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, normalizeOrgShortCode, reseedDecision } from '@sk/shared';
 
 const orgTypes: { value: OrganizationType; label: string }[] = [
   { value: 'SCHOOL', label: 'School' },
@@ -34,7 +34,8 @@ import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { NominationModal } from '@/components/NominationModal';
 import { OrgMinorsSettingsCard } from '@/components/guardians/OrgMinorsSettingsCard';
 import { useAuthStore } from '../../../store/authStore';
-import { formatInstantDate } from '../../../utils/dates';
+import { TIME_ZONE_CHOICES, formatInstantDate, timeZoneLabel } from '../../../utils/dates';
+import CustomSelect from '../../../components/CustomSelect';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -130,6 +131,8 @@ interface OrgForm {
   supportedSportIds: string[];
   type: OrganizationType | null;
   customType: string;
+  /** The timezone kick-offs are typed in at a venue with none of its own (DATE-2). */
+  timezone: string;
 }
 
 /**
@@ -149,7 +152,8 @@ const sameOrgForm = (a: OrgForm, b: OrgForm) =>
   a.logoConfig.y === b.logoConfig.y &&
   [...a.supportedSportIds].sort().join() === [...b.supportedSportIds].sort().join() &&
   a.type === b.type &&
-  a.customType === b.customType;
+  a.customType === b.customType &&
+  a.timezone === b.timezone;
 
 export default function OrgSettings() {
   const router = useRouter();
@@ -180,6 +184,7 @@ export default function OrgSettings() {
   const [supportedSportIds, setSupportedSportIds] = useState<string[]>([]);
   const [type, setType] = useState<OrganizationType | null>(null);
   const [customType, setCustomType] = useState('');
+  const [timezone, setTimezone] = useState('');
 
   /**
    * What the form was last seeded from — moved in the same batch as the fields, so the save bar
@@ -262,6 +267,7 @@ export default function OrgSettings() {
       supportedSportIds: orgData.supportedSportIds || [],
       type: orgData.type || null,
       customType: orgData.customType || '',
+      timezone: orgData.timezone || DEFAULT_TIME_ZONE,
     };
     const drafts: OrgForm = {
       orgName,
@@ -274,6 +280,7 @@ export default function OrgSettings() {
       supportedSportIds,
       type,
       customType,
+      timezone,
     };
 
     if (reseedDecision({ baseline: originalData, drafts, incoming, same: sameOrgForm }) !== 'adopt') {
@@ -292,9 +299,17 @@ export default function OrgSettings() {
     setSupportedSportIds(incoming.supportedSportIds);
     setType(incoming.type);
     setCustomType(incoming.customType);
+    setTimezone(incoming.timezone);
     setOriginalData(incoming);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgData]);
+
+  // The organisation's own timezone stays choosable even if it is not one the list offers.
+  const timeZoneOptions = useMemo(
+    () => (timezone && !TIME_ZONE_CHOICES.includes(timezone) ? [timezone, ...TIME_ZONE_CHOICES] : TIME_ZONE_CHOICES)
+      .map(zone => ({ value: zone, label: timeZoneLabel(zone), description: zone })),
+    [timezone],
+  );
 
   const isLoading = isOrgLoading || !sportsList || !teamsList || !orgData;
 
@@ -594,9 +609,10 @@ export default function OrgSettings() {
       logoConfig.y !== originalData.logoConfig.y ||
       JSON.stringify([...supportedSportIds].sort()) !== JSON.stringify([...originalData.supportedSportIds].sort()) ||
       type !== originalData.type ||
-      customType !== originalData.customType
+      customType !== originalData.customType ||
+      timezone !== originalData.timezone
     ) : false;
-  }, [orgName, shortName, primaryColor, secondaryColor, logo, description, logoConfig, supportedSportIds, type, customType, originalData]);
+  }, [orgName, shortName, primaryColor, secondaryColor, logo, description, logoConfig, supportedSportIds, type, customType, timezone, originalData]);
 
   const handleCancel = useCallback(() => {
     if (!originalData) return;
@@ -610,6 +626,7 @@ export default function OrgSettings() {
     setSupportedSportIds(originalData.supportedSportIds);
     setType(originalData.type);
     setCustomType(originalData.customType);
+    setTimezone(originalData.timezone);
   }, [originalData]);
 
   useUnsavedChanges(hasChanges, handleCancel);
@@ -650,6 +667,7 @@ export default function OrgSettings() {
         type: type,
         // null clears the column; undefined would be dropped from the JSON and leave it as it was.
         customType: type === 'OTHER' ? customType.trim() : null,
+        timezone,
         settings: {
           ...settings,
           logoConfig: logoConfig
@@ -672,6 +690,7 @@ export default function OrgSettings() {
           supportedSportIds: supportedSportIds,
           type: type,
           customType: type === 'OTHER' ? customType.trim() : '',
+          timezone,
         });
         useUnsavedChangesStore.getState().clear();
         setTimeout(() => setSaveSuccess(false), 3000);
@@ -817,6 +836,23 @@ export default function OrgSettings() {
             </View>
           )}
  
+          {/* Timezone (DATE-2): the clock kick-offs are typed on at a venue without its own. */}
+          <View>
+            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
+              Timezone
+            </Text>
+            <CustomSelect
+              value={timezone}
+              onChange={(value: string) => { if (value) setTimezone(value); }}
+              options={timeZoneOptions}
+              showSearch={true}
+              searchPlaceholder="Search timezones..."
+            />
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+              Kick-offs are entered in this time at venues without a map pin. A venue with a pin uses the timezone where it is.
+            </Text>
+          </View>
+
           {/* Combined Row: Abbreviation & Brand Colors */}
           <View className="flex-row items-center gap-6 flex-wrap">
             {/* Short Name / Abbreviation Field */}

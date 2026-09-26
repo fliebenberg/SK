@@ -53,6 +53,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260924_rename_invite_cooldown_setting.ts`: **Data only, no schema change.** Renames the `system_settings` key `org_admin_invite_cooldown_hours` to `invite_cooldown_hours`, keeping its value: one setting paces both org-claim referrals and member invites, and the old name suggested only the first.
     - `20260926_profile_guardians.ts`: Guardians of players (`MEMBER-3`). Creates `profile_guardians` — a guardian's org profile linked to a player's in the same org, many-to-many, with `relationship`, `is_primary` (one active primary per player) and `start_date` / `end_date` — and adds `org_profiles.own_account_allowed` (tri-state: `NULL` means the org's setting decides) with `own_account_set_at` / `own_account_set_by`. Being a guardian is derived from an active link and is **never** an `org_memberships` row, because a membership row is a permission. See [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md) §0.1 and §0.3.
     - `20260926_calendar_dates.ts`: `events.start_date` / `end_date` and `seasons.start_date` / `end_date` become `DATE`. They are calendar dates — "the tournament is on the 19th" is the 19th for every viewer — and as `TIMESTAMPTZ` they depended on a noon-UTC convention the season screens never followed. Existing values keep their **UTC** date. See the [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md) and `DATE-1`.
+    - `20260926_venue_timezones.ts`: Kick-offs are typed in the venue's time (`DATE-2`). Adds `organizations.timezone` (IANA name, `NOT NULL`, default `Africa/Johannesburg`, which every existing organisation got) and `sites.timezone` (nullable — `NULL` means the organisation's), and looks up the timezone of every existing site with a pin.
 
 ## The tournaments schema
 
@@ -229,7 +230,9 @@ Which column type a "when" gets is a policy, not a per-table choice: an instant 
 calendar date (birthday, event days, season dates) is `DATE`. [db.ts](file:///c:/Fred/Coding/SK/server/src/db.ts)
 tells `pg` to hand a `DATE` over as the `YYYY-MM-DD` string it is; its default builds a JS `Date` at
 the server's midnight, which reached the app as the day before (`DATE-1`). Compare instants with
-`NOW()` and calendar dates with `CURRENT_DATE`. The rules and the reasons are in the
+`NOW()` and calendar dates with `CURRENT_DATE`. A kick-off is typed in its venue's timezone:
+`sites.timezone` is **written only by `SiteManager`, from the address pin**, whenever the address is
+saved — never from a request — and `NULL` falls back to `organizations.timezone` (`DATE-2`). The rules and the reasons are in the
 [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md).
 
 ## Derived vs Stored Values
