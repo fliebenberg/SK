@@ -132,19 +132,71 @@ class MailManager {
      * Not `sendClaimInvitation`: that one offers ownership of the organisation, which is not what
      * a coach or a player is being invited to.
      */
-    async sendMemberInvitation(to: string, personName: string, orgName: string, signupUrl: string) {
+    async sendMemberInvitation(to: string, personName: string, orgName: string, signupUrl: string, guardianOf: string[] = []) {
         if (!this.transporter) await this.init();
 
-        const name = escapeHtml(personName);
-        const org = escapeHtml(orgName);
-        const url = escapeHtml(signupUrl);
-
+        const content = memberInvitationContent(personName, orgName, signupUrl, guardianOf);
         const info = await this.transporter!.sendMail({
             from: '"ScoreKeeper" <noreply@scorekeeper.com>',
             to,
-            subject: `${orgName} has invited you to ScoreKeeper`,
-            text: `Hi ${personName},\n\n${orgName} uses ScoreKeeper to manage its sports teams, fixtures and results, and has invited you to join.\n\nCreate your free account with this email address and you will be linked to your profile at ${orgName}:\n${signupUrl}\n\nScoreKeeper: https://www.scorekeeper.live\n\nIf you were not expecting this, you can ignore this email.\n\nThanks,\nScoreKeeper Team`,
-            html: `
+            subject: content.subject,
+            text: content.text,
+            html: content.html,
+        });
+
+        console.log('Member invitation sent to:', to);
+        if (process.env.NODE_ENV !== 'production' && !process.env.SMTP_HOST) {
+            console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
+        }
+        return info;
+    }
+}
+
+/** "Anika", "Anika and Mia", "Anika, Mia and Zoe". */
+export function listOfNames(names: string[]): string {
+    if (names.length <= 1) return names[0] || '';
+    return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/**
+ * The words of a member invitation. A **guardian** (`guardianOf` names their children) is told why
+ * they are being asked — they are recorded as those children's parent or guardian — rather than
+ * being invited as though they played there themselves. Pure, so a test can read it without sending.
+ */
+export function memberInvitationContent(personName: string, orgName: string, signupUrl: string, guardianOf: string[] = []) {
+    const name = escapeHtml(personName);
+    const org = escapeHtml(orgName);
+    const url = escapeHtml(signupUrl);
+    const children = listOfNames(guardianOf);
+    const why = children
+        ? `${orgName} uses ScoreKeeper to manage its sports teams, fixtures and results, and has recorded you as ${children}'s parent or guardian.`
+        : `${orgName} uses ScoreKeeper to manage its sports teams, fixtures and results, and has invited you to join.`;
+    const whyHtml = children
+        ? `<strong>${org}</strong> uses <strong style="color: #f97316;">ScoreKeeper</strong> to manage its sports teams, fixtures and results, and has recorded you as <strong>${escapeHtml(children)}</strong>'s parent or guardian.`
+        : `<strong>${org}</strong> uses <strong style="color: #f97316;">ScoreKeeper</strong> to manage its sports teams, fixtures and results, and has invited you to join.`;
+    const what = children
+        ? `Create your free account with this email address to see ${children}'s teams and fixtures, and to decide whether they may use ScoreKeeper themselves.`
+        : `Create your free account with this email address and you will be linked to your profile at ${orgName}.`;
+    const whatHtml = children
+        ? `Create your free account <strong>with this email address</strong> to see ${escapeHtml(children)}'s teams and fixtures, and to decide whether they may use ScoreKeeper themselves.`
+        : `Create your free account <strong>with this email address</strong> and you will be linked to your profile at ${org}.`;
+
+    return {
+        subject: `${orgName} has invited you to ScoreKeeper`,
+        text: `Hi ${personName},
+
+${why}
+
+${what}
+${signupUrl}
+
+ScoreKeeper: https://www.scorekeeper.live
+
+If you were not expecting this, you can ignore this email.
+
+Thanks,
+ScoreKeeper Team`,
+        html: `
                 <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
                     <div style="background-color: #f97316; padding: 30px 20px; text-align: center;">
                         <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">You're invited to ScoreKeeper</h1>
@@ -152,8 +204,8 @@ class MailManager {
 
                     <div style="padding: 40px 30px;">
                         <p style="font-size: 16px; color: #334155; line-height: 1.6; margin-top: 0;">Hi ${name},</p>
-                        <p style="font-size: 16px; color: #334155; line-height: 1.6;"><strong>${org}</strong> uses <strong style="color: #f97316;">ScoreKeeper</strong> to manage its sports teams, fixtures and results, and has invited you to join.</p>
-                        <p style="font-size: 16px; color: #334155; line-height: 1.6;">Create your free account <strong>with this email address</strong> and you will be linked to your profile at ${org}.</p>
+                        <p style="font-size: 16px; color: #334155; line-height: 1.6;">${whyHtml}</p>
+                        <p style="font-size: 16px; color: #334155; line-height: 1.6;">${whatHtml}</p>
 
                         <div style="text-align: center; margin: 35px 0;">
                             <a href="${url}" style="display: inline-block; background-color: #f97316; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
@@ -174,14 +226,7 @@ class MailManager {
                     </div>
                 </div>
             `,
-        });
-
-        console.log('Member invitation sent to:', to);
-        if (process.env.NODE_ENV !== 'production' && !process.env.SMTP_HOST) {
-            console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
-        }
-        return info;
-    }
+    };
 }
 
 /** Names come from admins' typing; they go into HTML. */

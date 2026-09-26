@@ -228,6 +228,8 @@ export default function PersonViewScreen() {
 
       <InviteModal
         person={isInviteOpen ? member : null}
+        guardians={guardiansByPlayer.get(member.id)}
+        minorsSettings={minorsSettings}
         cooldownHours={inviteCooldownHours}
         allowResend
         onClose={() => setIsInviteOpen(false)}

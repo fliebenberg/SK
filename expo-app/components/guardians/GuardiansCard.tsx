@@ -5,6 +5,7 @@ import { GuardianRelationship, GUARDIAN_RELATIONSHIPS, ProfileGuardian, SocketAc
 import { GlassCard } from '../GlassCard';
 import { Button } from '../Button';
 import { ConfirmationModal } from '../ConfirmationModal';
+import { InviteButton, InviteModal, guardianAsPerson, useInviteCooldownHours } from '../InviteToScoreKeeper';
 import { useActiveTheme } from '../../store/settingsStore';
 import { sendAction } from '../../services/actions';
 import { useRequestScope } from '../../hooks/useRequestScope';
@@ -41,6 +42,8 @@ export function GuardiansCard({ orgId, playerProfileId, playerName, guardians, c
   const [ending, setEnding] = useState<ProfileGuardian | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [endError, setEndError] = useState<string | null>(null);
+  const [inviting, setInviting] = useState<ProfileGuardian | null>(null);
+  const inviteCooldownHours = useInviteCooldownHours();
   const controlsBlocked = Boolean(blockedReason);
 
   const makePrimary = async (link: ProfileGuardian) => {
@@ -123,6 +126,13 @@ export function GuardiansCard({ orgId, playerProfileId, playerName, guardians, c
             </View>
             {canEdit ? (
               <View className="flex-row items-center gap-1">
+                {!controlsBlocked ? (
+                  <InviteButton
+                    person={guardianAsPerson(link)}
+                    cooldownHours={inviteCooldownHours}
+                    onPress={() => setInviting(link)}
+                  />
+                ) : null}
                 {!link.isPrimary ? (
                   <IconButton
                     icon="star-outline"
@@ -154,6 +164,13 @@ export function GuardiansCard({ orgId, playerProfileId, playerName, guardians, c
         onClose={() => setIsAdding(false)}
       />
       <EditGuardianModal link={editing} onClose={() => setEditing(null)} />
+      {/* A guardian's own invite; the list updates from the guardians room once it has gone. */}
+      <InviteModal
+        person={inviting ? guardianAsPerson(inviting) : null}
+        cooldownHours={inviteCooldownHours}
+        allowResend
+        onClose={() => setInviting(null)}
+      />
       <ConfirmationModal
         isOpen={!!ending}
         onClose={() => setEnding(null)}

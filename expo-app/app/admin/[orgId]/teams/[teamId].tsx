@@ -1620,6 +1620,8 @@ export default function TeamDetailsScreen() {
       {/* DELETE CONFIRMATION MODAL */}
       <InviteModal
         person={inviteTarget}
+        guardians={inviteTarget ? guardiansByPlayer.get(inviteTarget.id) : undefined}
+        minorsSettings={minorsSettings}
         cooldownHours={inviteCooldownHours}
         onClose={() => setInviteTarget(null)}
         onSent={reloadRoster}

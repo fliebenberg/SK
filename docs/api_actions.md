@@ -406,16 +406,22 @@ them to any signed-in user.
 *   **Refused when**: the person already has an account (the same match `AccessManager` uses);
     there is no address; the address is invalid; the address already belongs to an account (setting
     it would link that account — an identity change the profile edit screen makes deliberately);
-    the cooldown holds and `resend` is not set; or the email cannot be sent.
+    the cooldown holds and `resend` is not set; the email cannot be sent; the person is a **minor the
+    minors rule restricts** (`MEMBER-3` — the account would link to a membership that grants
+    nothing, so their guardian is invited instead); or the address is one a **guardian and their
+    child** would then share.
 *   **Cooldown** (`system_settings.invite_cooldown_hours`: seeded at 336, two weeks, which is also the fallback; the same setting paces org-claim referrals): per **address**,
     not per person, so a mistyped address can be corrected at once. It is keyed on
     `last_invite_email` — where the last invite actually went — not on the profile's current email,
     so clearing the field and typing the same address back does not reset it. A `resend` restarts it. The rule is
     `inviteCooldownRemainingHours` in `@sk/shared`, shared with the screens that label the button.
-*   **Minors** are not refused yet: the modal warns when the birthdate says under 18. Phase 3 of the
-    guardians plan makes the invite offer the guardian and refuses a child the minors rule would
-    restrict.
-*   **Broadcasts**: `ORG_MEMBER_UPDATED` on `org:{orgId}:members`, with the member.
+*   **Guardians**: a profile that is an active guardian gets a guardian invitation, naming every child
+    they are recorded for (`memberInvitationContent` in `MailManager`), rather than the ordinary one.
+    In the app the invite modal offers each of a player's guardians as well as the player, and opens
+    on a guardian for a minor.
+*   **Broadcasts**: `ORG_MEMBER_UPDATED` on `org:{orgId}:members`, with the member — only when the
+    profile holds a membership; and `PROFILE_GUARDIANS_UPDATED` for every list a guardian appears in,
+    since their invite status travels in the links.
 
 #### Guardians and minors (`MEMBER-3`)
 See [guardians-implementation-plan.md](file:///c:/Fred/Coding/SK/docs/guardians-implementation-plan.md).

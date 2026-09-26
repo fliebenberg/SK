@@ -1,6 +1,6 @@
 # Guardians — Phased Implementation Plan
 
-**Status:** In progress. **Phases 1 and 2 done 2026-09-26** (server and access; the admin screens). **Phase 3 is next** — invites for minors.
+**Status:** In progress. **Phases 1–3 done 2026-09-26** (server and access; the admin screens; invites for minors). **Phase 4 is next** — My Family.
 **Implements:** `MEMBER-3` in [TODO.md](file:///c:/Fred/Coding/SK/TODO.md), designed in
 [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §5. This plan changes
 that design in two places (§0.1, §0.3). The design doc is rewritten to match in Phase 5.
@@ -471,6 +471,32 @@ What was built, and where it differs from the plan above:
 - the cooldown still applied per address.
 
 In the app, a U14 player's invite defaults to their guardian.
+
+### Done — 2026-09-26
+
+Exit criterion met. `test-member-invite.ts` grew from 19 to 31 checks and passes: a guardian with no
+membership is invited; the invitation names both sisters; a minor is refused while the org has
+minors off and while her own setting says no, and invited once allowed; an invite cannot give a
+guardian their child's address or the other way round; the cooldown checks are unchanged.
+`test-guardians.ts` (72) and `org-permissions.ts` (46) pass. In the web app, driven headless as
+Doringkloof's admin: a U14 player's invite opens on her guardian, and choosing her directly shows why
+she cannot be invited, with Send disabled; the guardian row on her profile has its own Invite.
+
+Where it differs from the plan above:
+
+- **The player with no guardian gets no "Add a guardian" link**, only the words "Record a guardian
+  on their profile to invite them instead": the modal is opened from lists that hold no route to the
+  profile, and on the profile the Guardians card sits directly below.
+- **Guardians can also be invited from the Guardians card** on the child's profile — an Invite pill
+  per guardian not on ScoreKeeper — which covers a child already on ScoreKeeper, whose own Invite
+  button is gone.
+- **The invitation's wording moved into `memberInvitationContent`**, a pure function, so the test
+  reads the guardian wording without sending mail.
+- **An existing check changed its subject.** It invited a U16 player (Ruan Potgieter), whom the
+  default-off rule now correctly refuses; it uses an adult 1st XV player instead.
+- **Found and added to `DATE-1`:** saving a profile moves its birthdate back a day — the edit form
+  sends back the timestamp it was seeded with. Pre-existing, and now more serious because a birthdate
+  decides who is a minor.
 
 ---
 

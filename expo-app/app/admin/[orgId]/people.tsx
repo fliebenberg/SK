@@ -785,6 +785,8 @@ export default function OrgPeople() {
       {/* CONFIRM DELETE MODAL */}
       <InviteModal
         person={inviteTarget}
+        guardians={inviteTarget ? guardiansByPlayer.get(inviteTarget.id) : undefined}
+        minorsSettings={minorsSettings}
         cooldownHours={inviteCooldownHours}
         onClose={() => setInviteTarget(null)}
       />

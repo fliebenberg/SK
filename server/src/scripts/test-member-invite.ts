@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { io, Socket } from 'socket.io-client';
 import { SocketAction } from '@sk/shared';
 import pool, { query } from '../db';
+import { memberInvitationContent } from '../managers/MailManager';
 
 /**
  * `SEND_MEMBER_INVITE`, end to end over a real socket, against the test organisations (Doringkloof).
@@ -13,6 +14,9 @@ import pool, { query } from '../db';
  *    clearing the profile's email and typing the same address back does not reset it.
  *  - `resend` sends to the same address inside the cooldown, and restarts it.
  *  - `UPDATE_ORG_PROFILE` cannot clear the invite record.
+ *  - Minors (`MEMBER-3`): a guardian is invited with wording that names their children; a minor the
+ *    org's minors rule restricts is refused, and allowed once the rule allows them; an invite may not
+ *    give a guardian their child's address.
  *
  * Needs a server running against the same database, **with mail going to Ethereal rather than a
  * real SMTP host**: `SMTP_HOST= PORT=3099 npx ts-node src/index.ts`, then
@@ -26,8 +30,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'sk-jwt-secret-key-2026-secure-deve
 const ADMIN = 'fx-user-johan-van-der-merwe';
 const COACH_NO_ACCOUNT = 'fx-prof-dkl-marelize-coetzee';
 const COACH_WITH_ACCOUNT = 'fx-prof-dkl-pieter-joubert';
-const PLAYER_NO_EMAIL = 'fx-prof-dkl-ruan-potgieter';
+// An adult (born 2008-02-06) with no email. Not a U16: minors are restricted by default (`MEMBER-3`),
+// and a restricted minor is not invited at all.
+const PLAYER_NO_EMAIL = 'fx-prof-dkl-wikus-labuschagne';
 const TOUCHED = [COACH_NO_ACCOUNT, PLAYER_NO_EMAIL];
+
+// Minors (`MEMBER-3`). Two U14 sisters and a guardian made for the test.
+const DKL = 'fx-org-dkl';
+const ANIKA = 'fx-prof-dkl-anika-kotze';
+const MIA = 'fx-prof-dkl-mia-strydom';
+const GUARDIAN = 'test-prof-invite-guardian';
+const MINORS = [ANIKA, MIA];
 
 let checks = 0;
 const failures: string[] = [];
@@ -67,6 +80,11 @@ async function main() {
     [TOUCHED]
   )).rows;
   if (originals.length !== TOUCHED.length) throw new Error('The test organisations are not loaded — run `npm run db:test-orgs`.');
+  const minorOriginals = (await query(
+    `SELECT id, email, last_invite_sent_at, last_invite_email, own_account_allowed FROM org_profiles WHERE id = ANY($1)`,
+    [MINORS]
+  )).rows;
+  const orgSettings = (await query(`SELECT settings FROM organizations WHERE id = $1`, [DKL])).rows[0]?.settings;
 
   // Start from "never invited", whatever an earlier run or a person clicking about left behind.
   await query(`UPDATE org_profiles SET last_invite_sent_at = NULL, last_invite_email = NULL WHERE id = ANY($1)`, [TOUCHED]);
@@ -109,16 +127,56 @@ async function main() {
     const takenAddress = await invite(socket, PLAYER_NO_EMAIL, 'pieter.joubert@doringkloof.test');
     expect(takenAddress?.status, 'error', 'an address that already has an account is refused');
     expect((await profile(PLAYER_NO_EMAIL)).email, null, 'and nothing was saved');
-    const entered = await invite(socket, PLAYER_NO_EMAIL, 'ruan.potgieter@doringkloof.test');
+    const entered = await invite(socket, PLAYER_NO_EMAIL, 'wikus.labuschagne@doringkloof.test');
     expect(entered?.status, 'ok', 'an entered address is sent to');
-    expect((await profile(PLAYER_NO_EMAIL)).email, 'ruan.potgieter@doringkloof.test', 'and saved to the profile');
+    expect((await profile(PLAYER_NO_EMAIL)).email, 'wikus.labuschagne@doringkloof.test', 'and saved to the profile');
     expect(entered?.data?.hasAccount, false, 'the reply is the member, still without an account');
 
     // --- Someone on ScoreKeeper --------------------------------------------------------------
     const onScoreKeeper = await invite(socket, COACH_WITH_ACCOUNT);
     expect(onScoreKeeper?.status, 'error', 'a person who has an account is not invited');
+
+    // --- Minors and their guardians (`MEMBER-3`) ---------------------------------------------
+    await query(`UPDATE organizations SET settings = COALESCE(settings, '{}'::jsonb) - 'minors' WHERE id = $1`, [DKL]);
+    await query(`UPDATE org_profiles SET last_invite_sent_at = NULL, last_invite_email = NULL, own_account_allowed = NULL, email = NULL WHERE id = ANY($1)`, [MINORS]);
+    // Whatever an interrupted run left behind.
+    await query(`DELETE FROM profile_guardians WHERE guardian_profile_id = $1`, [GUARDIAN]);
+    await query(`DELETE FROM org_profiles WHERE id = $1`, [GUARDIAN]);
+    await query(`INSERT INTO org_profiles (id, org_id, name, email) VALUES ($1, $2, 'Elsa Kotzé', 'test-elsa@guardians.test')`, [GUARDIAN, DKL]);
+    for (const child of MINORS) {
+      expect((await send(socket, SocketAction.ADD_PROFILE_GUARDIAN, { playerProfileId: child, guardianProfileId: GUARDIAN }))?.status, 'ok', 'a guardian is recorded for each sister');
+    }
+
+    const toGuardian = await invite(socket, GUARDIAN);
+    expect(toGuardian?.status, 'ok', 'a guardian with no membership can be invited');
+    expect((await profile(GUARDIAN)).sentTo, 'test-elsa@guardians.test', 'and the address it went to is recorded');
+    const wording = memberInvitationContent('Elsa Kotzé', 'Test Hoërskool Doringkloof', 'https://x', ['Anika Kotzé', 'Mia Strydom']);
+    expect(wording.text.includes("recorded you as Anika Kotzé and Mia Strydom's parent or guardian"), true, 'a guardian’s invitation names every child they are recorded for');
+    expect(memberInvitationContent('Pieter', 'DKL', 'https://x').text.includes('has invited you to join'), true, 'an ordinary invitation is unchanged');
+
+    const childWhileOff = await invite(socket, ANIKA, 'test-anika-invite@guardians.test');
+    expect(childWhileOff?.status, 'error', 'a minor is not invited while the org has minors switched off');
+    expect((await profile(ANIKA)).email, null, 'and nothing was saved to her profile');
+
+    await query(`UPDATE organizations SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{minors}', '{"accountsAllowed": true, "minorAge": 18}') WHERE id = $1`, [DKL]);
+    await query(`UPDATE org_profiles SET own_account_allowed = false WHERE id = $1`, [ANIKA]);
+    expect((await invite(socket, ANIKA, 'test-anika-invite@guardians.test'))?.status, 'error', 'nor while her own setting says no');
+    await query(`UPDATE org_profiles SET own_account_allowed = NULL WHERE id = $1`, [ANIKA]);
+    expect((await invite(socket, ANIKA, 'test-anika-invite@guardians.test'))?.status, 'ok', 'but is, once the rule allows her');
+
+    expect((await invite(socket, GUARDIAN, 'test-anika-invite@guardians.test'))?.status, 'error', 'a guardian is not invited to their child’s address');
+    expect((await invite(socket, MIA, 'test-elsa@guardians.test'))?.status, 'error', 'nor a child to their guardian’s');
   } finally {
     socket.disconnect();
+    await query(`DELETE FROM profile_guardians WHERE guardian_profile_id = $1`, [GUARDIAN]);
+    await query(`DELETE FROM org_profiles WHERE id = $1`, [GUARDIAN]);
+    await query(`UPDATE organizations SET settings = $2 WHERE id = $1`, [DKL, orgSettings]);
+    for (const row of minorOriginals) {
+      await query(
+        `UPDATE org_profiles SET email = $2, last_invite_sent_at = $3, last_invite_email = $4, own_account_allowed = $5 WHERE id = $1`,
+        [row.id, row.email, row.last_invite_sent_at, row.last_invite_email, row.own_account_allowed]
+      );
+    }
     for (const row of originals) {
       await query(
         `UPDATE org_profiles SET email = $2, last_invite_sent_at = $3, last_invite_email = $4 WHERE id = $1`,

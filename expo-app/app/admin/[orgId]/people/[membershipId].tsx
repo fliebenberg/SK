@@ -516,6 +516,8 @@ export default function EditMember() {
 
       <InviteModal
         person={isInviteOpen && member ? member : null}
+        guardians={guardians}
+        minorsSettings={minorsSettings}
         cooldownHours={inviteCooldownHours}
         allowResend
         onClose={() => setIsInviteOpen(false)}

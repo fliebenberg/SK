@@ -2923,6 +2923,15 @@ io.on('connection', (socket) => {
                 if ((await accessManager.getUserIdsForOrgProfile(memberId)).length > 0) {
                     throw new Error(`${profile.name} is already on ScoreKeeper.`);
                 }
+                // A minor the rule would restrict is not invited (`MEMBER-3`): the account would link
+                // to a membership that grants nothing. Their guardian is invited instead.
+                const restricted = await guardianManager.getRestrictedReason(memberId);
+                if (restricted === 'org-off') {
+                    throw new Error(`${profile.name} is under this organisation's minor age, and minors do not have member access here (Org Settings › Minors). Invite their guardian instead.`);
+                }
+                if (restricted === 'minor-off') {
+                    throw new Error(`${profile.name} has not been allowed their own access. Invite their guardian instead, who can change that.`);
+                }
 
                 const email = normalizeEmail(action.payload.email ?? profile.email);
                 if (!email) {
@@ -2944,6 +2953,11 @@ io.on('connection', (socket) => {
                 if (emailHasAccount.rows.length > 0) {
                     throw new Error(`${email} already belongs to a ScoreKeeper account, so there is nobody to invite. To link it to ${profile.name}, set it on their profile.`);
                 }
+                // The invite saves the address to the profile, so it may not be one a guardian and
+                // their child would then share (`MEMBER-3`).
+                if (await guardianManager.linkedEmailClash(memberId, email)) {
+                    throw new Error(`${email} is the email of someone ${profile.name} is linked to as guardian or child. Each needs their own address.`);
+                }
 
                 const settingsRes = await pool.query("SELECT key, value FROM system_settings WHERE key = 'invite_cooldown_hours'");
                 const cooldownHours = inviteCooldownHoursFrom(Object.fromEntries(settingsRes.rows.map((r: any) => [r.key, r.value])));
@@ -2957,8 +2971,10 @@ io.on('connection', (socket) => {
                 const org = await dataManager.getOrganization(profile.orgId);
                 const appUrl = process.env.APP_URL || 'http://localhost:8081';
                 const signupUrl = `${appUrl}/signup?email=${encodeURIComponent(email)}`;
+                // A guardian is told whose guardian they are, not invited as though they played there.
+                const guardianOf = await guardianManager.getChildNames(memberId);
                 try {
-                    await mailManager.sendMemberInvitation(email, profile.name, org?.name || 'Your organisation', signupUrl);
+                    await mailManager.sendMemberInvitation(email, profile.name, org?.name || 'Your organisation', signupUrl, guardianOf);
                 } catch (mailErr) {
                     console.error('Failed to send member invitation:', mailErr);
                     throw new Error(`The invite to ${email} could not be sent. Nothing was changed; try again later.`);
@@ -2970,12 +2986,15 @@ io.on('connection', (socket) => {
                     lastInviteEmail: email,
                 });
 
-                // Broadcast ORG_MEMBER_UPDATED to all organization admins
-                updateTopic = `org:${profile.orgId}:members`;
-                updateType = 'ORG_MEMBER_UPDATED';
-
                 const richMember = (await dataManager.getOrganizationMembers(profile.orgId)).find((m: any) => m.id === memberId);
                 result = richMember || updatedProfile;
+                // The member list hears about members; a guardian with no membership is not one, and
+                // their invite status travels in the guardian lists they appear in instead.
+                if (richMember) {
+                    updateTopic = `org:${profile.orgId}:members`;
+                    updateType = 'ORG_MEMBER_UPDATED';
+                }
+                await publishGuardianProfileChange(memberId);
 
                 break;
             }

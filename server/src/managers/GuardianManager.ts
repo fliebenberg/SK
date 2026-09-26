@@ -109,6 +109,29 @@ export class GuardianManager extends BaseManager {
     return (res.rowCount ?? 0) > 0;
   }
 
+  /**
+   * Why this profile's membership would carry no member privileges — `'org-off'` or `'minor-off'` —
+   * or `null`. The same rule as the privilege checks, for refusing an invite that would link an
+   * account to nothing (`SEND_MEMBER_INVITE`).
+   */
+  async getRestrictedReason(profileId: string): Promise<RestrictedReason | null> {
+    const res = await this.query(
+      `SELECT ${restrictedReasonSql('op', 'op.org_id')} AS reason FROM org_profiles op WHERE op.id = $1`,
+      [profileId]
+    );
+    return res.rows[0]?.reason ?? null;
+  }
+
+  /** The names of the players this profile is an active guardian of, for their invitation. */
+  async getChildNames(guardianProfileId: string): Promise<string[]> {
+    const res = await this.query(
+      `SELECT p.name FROM profile_guardians pg JOIN org_profiles p ON p.id = pg.player_profile_id
+        WHERE pg.guardian_profile_id = $1 AND ${ACTIVE} ORDER BY p.name`,
+      [guardianProfileId]
+    );
+    return res.rows.map((r: any) => r.name);
+  }
+
   /** The players this profile is currently a guardian of. */
   async getActiveLinksOfGuardian(guardianProfileId: string): Promise<{ orgId: string; playerProfileId: string }[]> {
     const res = await this.query(
