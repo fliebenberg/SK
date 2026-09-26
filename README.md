@@ -15,18 +15,19 @@ npm run hooks:install     # from the repo root — or just `npm install` there, 
 ```
 
 It points `core.hooksPath` at [.githooks/](file:///c:/Fred/Coding/SK/.githooks/), where `pre-commit`
-runs four static checks on every commit:
+runs five static checks on every commit:
 
 | Check | Fails when |
 | --- | --- |
 | `expo-app/scripts/check-actions.js` | a socket action is sent outside `sendAction`, which puts the reply contract back in the hands of the call site |
 | `expo-app/scripts/check-images.js` | an uploaded-image URL is built outside `services/assets.ts`, which would break when images move to another server or need their access token |
+| `expo-app/scripts/check-dates.js` | a date is parsed, built or formatted outside `utils/dates.ts`, which is how a birthdate and a kick-off came to drift on every save — see the [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md) |
 | `server/scripts/check-transactions.js` | a transaction is started with `this.query('BEGIN')` or `pool.query('BEGIN')`, whose statements can land on different pooled connections — use `this.transaction()` or `pool.connect()` |
 | `server/scripts/check-migrations.js` | a migration is missing from the catalogue in [okf/database.md](file:///c:/Fred/Coding/SK/okf/database.md), or touches a table `init-db.ts` never mentions |
 
 All are dependency-free node scripts and together take well under a second, so they work in a fresh
-clone with nothing installed. Each can be run on its own — `npm run check:actions` and
-`npm run check:images` in `expo-app/`, `npm run check:migrations` and
+clone with nothing installed. Each can be run on its own — `npm run check:actions`,
+`npm run check:images` and `npm run check:dates` in `expo-app/`, `npm run check:migrations` and
 `npm run check:transactions` in `server/`.
 
 Git config is per-clone and not cloned with the repo, which is why the step above is needed at all.

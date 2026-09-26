@@ -2,7 +2,7 @@
 #
 # ScoreKeeper pre-commit checks.
 #
-# Four static checks that each exist because the thing they catch is invisible until much later:
+# Five static checks that each exist because the thing they catch is invisible until much later:
 #
 #   check:actions     — a socket action sent outside `sendAction` interprets the reply on its own,
 #                       which is how the app came to have failures nobody saw (LIVE-19).
@@ -12,6 +12,8 @@
 #                       images move to another server or a picture needs its token (MEDIA-1).
 #   check:transactions — a transaction started through the connection pool, which is atomic only
 #                       while the pool happens to hand back the same connection (TX-1).
+#   check:dates       — a date parsed, built or formatted outside expo-app/utils/dates.ts, which is
+#                       how a birthdate and a kick-off each came to drift on every save (DATE-1).
 #
 # All are plain node scripts with no dependencies, so this works in a fresh clone with nothing
 # installed, and together they run in well under a second — a pre-commit hook that costs real time is a
@@ -39,3 +41,4 @@ run server/scripts/check-migrations.js
 run server/scripts/check-transactions.js
 run expo-app/scripts/check-actions.js
 run expo-app/scripts/check-images.js
+run expo-app/scripts/check-dates.js
