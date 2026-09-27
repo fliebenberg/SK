@@ -55,6 +55,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260926_calendar_dates.ts`: `events.start_date` / `end_date` and `seasons.start_date` / `end_date` become `DATE`. They are calendar dates — "the tournament is on the 19th" is the 19th for every viewer — and as `TIMESTAMPTZ` they depended on a noon-UTC convention the season screens never followed. Existing values keep their **UTC** date. See the [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md) and `DATE-1`.
     - `20260926_venue_timezones.ts`: Kick-offs are typed in the venue's time (`DATE-2`). Adds `organizations.timezone` (IANA name, `NOT NULL`, default `Africa/Johannesburg`, which every existing organisation got) and `sites.timezone` (nullable — `NULL` means the organisation's), and looks up the timezone of every existing site with a pin.
     - `20260927_admin_takeover_min_days.ts`: **Data only, no schema change.** Adds the `system_settings` key `admin_takeover_min_days` (30): how long a member must have belonged to an org with no admin before taking the role without a claim email (`TAKE_ORG_ADMIN`).
+    - `20260927_game_event_sequence.ts`: Adds `game_events.sequence` (`DB-4`), the order of a game's log, which the server had written and read since March although nothing created the column. Numbers every game's events from 1 — keeping any existing order, then by `timestamp` — sets it `NOT NULL` and adds `UNIQUE (game_id, sequence)`.
 
 ## The tournaments schema
 

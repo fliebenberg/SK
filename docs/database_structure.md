@@ -565,6 +565,7 @@ The immutable audit log for any events during a game.
 - `type` (TEXT)
 - `sub_type` (TEXT)
 - `event_data` (JSONB)
+- `sequence` (INTEGER): NOT NULL, `UNIQUE (game_id, sequence)`. The event's place in its game's log, from 1. `GameEventManager.ingestEvent` assigns `MAX + 1` while holding a lock on the game row, so simultaneous events cannot share a number. The log is read, and replayed to recalculate scores, in this order.
 
 ### 19. `org_claim_referrals`
 Invites sent to organizations to claim their profile.

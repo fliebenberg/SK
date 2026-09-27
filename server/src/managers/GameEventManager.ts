@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from "uuid";
 import { BaseManager } from "./BaseManager";
 import { GameEvent } from "@sk/shared";
 import { dataManager } from "../DataManager";
@@ -117,50 +118,8 @@ export class GameEventManager extends BaseManager {
     subType?: string;
     eventData?: any;
   }): Promise<GameEvent | { error: string }> {
-    // 1. Deduplication check
-    // Silently ignore if an identical event was submitted within the last 5 seconds
-    const dedupRes = await this.query(`
-      SELECT id FROM game_events 
-      WHERE game_id = $1 
-        AND type = $2
-        AND (sub_type = $3 OR (sub_type IS NULL AND $3 IS NULL))
-        AND (game_participant_id = $4 OR (game_participant_id IS NULL AND $4 IS NULL))
-        AND timestamp > (NOW() - INTERVAL '5 seconds')
-      LIMIT 1
-    `, [data.gameId, data.type, data.subType, data.gameParticipantId]);
-
-    if (dedupRes.rows.length > 0) {
-      return { error: 'Deduplicated: Identical event recently submitted.' };
-    }
-
-    // 2. Compute next sequence
-    const seqRes = await this.query(`
-      SELECT COALESCE(MAX(sequence), 0) + 1 as next_seq 
-      FROM game_events 
-      WHERE game_id = $1
-    `, [data.gameId]);
-    const nextSeq = seqRes.rows[0].next_seq;
-
-    const newEventId = `ge-${Date.now()}`;
-
-    // 3. Rugby-specific check: Prevent double conversions
-    if (data.type === 'SCORE' && data.subType === 'Conversion' && data.eventData?.linkedEventId) {
-      const existingConv = await this.query(`
-        SELECT id FROM game_events 
-        WHERE game_id = $1 
-          AND type = 'SCORE'
-          AND sub_type = 'Conversion'
-          AND event_data->>'linkedEventId' = $2
-          AND (event_data->>'status' IS NULL OR event_data->>'status' != 'REMOVED')
-        LIMIT 1
-      `, [data.gameId, data.eventData.linkedEventId]);
-
-      if (existingConv.rows.length > 0) {
-        return { error: 'Validation failed: A conversion already exists for this try.' };
-      }
-    }
-
-    // 4. Insert into game_events
+    // 1. Prepare the row. These reads run before the transaction below, which must not reach
+    // outside its own connection while it holds the game's lock.
     // Stamp the authoritative undo expiry so every client counts down to the same instant.
     // The window opens here and only here — it is never re-opened or extended later.
     const eventDataToStore = { ...(data.eventData || {}) };
@@ -184,15 +143,59 @@ export class GameEventManager extends BaseManager {
       }
     }
 
-    const insertRes = await this.query(`
-      INSERT INTO game_events (id, game_id, sequence, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING ${this.GAME_EVENT_COLUMNS}
-    `, [newEventId, data.gameId, nextSeq, data.gameParticipantId, actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, eventDataToStore]);
+    // 2. Check, number and insert, one event per game at a time (DB-4). Locking the game row
+    // serialises writers to the same game, so two scorers logging at once cannot both pass the
+    // duplicate checks, or both take the same next sequence number.
+    const inserted = await this.transaction(async (tx): Promise<GameEvent | { error: string }> => {
+      const gameRes = await tx(`SELECT id FROM games WHERE id = $1 FOR UPDATE`, [data.gameId]);
+      if (gameRes.rows.length === 0) {
+        return { error: 'Game not found.' };
+      }
 
-    const newEvent = insertRes.rows[0] as GameEvent;
+      // Deduplication: silently ignore an identical event submitted within the last 5 seconds
+      const dedupRes = await tx(`
+        SELECT id FROM game_events
+        WHERE game_id = $1
+          AND type = $2
+          AND (sub_type = $3 OR (sub_type IS NULL AND $3 IS NULL))
+          AND (game_participant_id = $4 OR (game_participant_id IS NULL AND $4 IS NULL))
+          AND timestamp > (NOW() - INTERVAL '5 seconds')
+        LIMIT 1
+      `, [data.gameId, data.type, data.subType, data.gameParticipantId]);
 
-    // 4. Trigger live_state mutation in games table for scoring
+      if (dedupRes.rows.length > 0) {
+        return { error: 'Deduplicated: Identical event recently submitted.' };
+      }
+
+      // Rugby-specific check: Prevent double conversions
+      if (data.type === 'SCORE' && data.subType === 'Conversion' && data.eventData?.linkedEventId) {
+        const existingConv = await tx(`
+          SELECT id FROM game_events
+          WHERE game_id = $1
+            AND type = 'SCORE'
+            AND sub_type = 'Conversion'
+            AND event_data->>'linkedEventId' = $2
+            AND (event_data->>'status' IS NULL OR event_data->>'status' != 'REMOVED')
+          LIMIT 1
+        `, [data.gameId, data.eventData.linkedEventId]);
+
+        if (existingConv.rows.length > 0) {
+          return { error: 'Validation failed: A conversion already exists for this try.' };
+        }
+      }
+
+      const insertRes = await tx(`
+        INSERT INTO game_events (id, game_id, sequence, game_participant_id, actor_org_profile_id, initiator_org_profile_id, type, sub_type, event_data)
+        VALUES ($1, $2, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM game_events WHERE game_id = $2), $3, $4, $5, $6, $7, $8)
+        RETURNING ${this.GAME_EVENT_COLUMNS}
+      `, [`ge-${uuidv4()}`, data.gameId, data.gameParticipantId, actorOrgProfileId, data.initiatorOrgProfileId, data.type, data.subType, eventDataToStore]);
+
+      return insertRes.rows[0] as GameEvent;
+    });
+    if ('error' in inserted) return inserted;
+    const newEvent = inserted;
+
+    // 3. Trigger live_state mutation in games table for scoring
     if (data.type === 'SCORE') {
       let latestScores = null;
 
@@ -239,7 +242,7 @@ export class GameEventManager extends BaseManager {
       }
     }
     
-    // 5. Trigger live_state mutation for cards (Sin Bin)
+    // 4. Trigger live_state mutation for cards (Sin Bin)
     await this.syncSinBin(data.gameId, newEvent.id);
 
     // Broadcast via socket occurs in the route/controller layer after this manager returns.

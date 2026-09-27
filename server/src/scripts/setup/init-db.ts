@@ -651,7 +651,9 @@ const createTables = async () => {
                 initiator_org_profile_id TEXT REFERENCES org_profiles(id),
                 type TEXT NOT NULL,
                 sub_type TEXT,
-                event_data JSONB DEFAULT '{}'::jsonb
+                event_data JSONB DEFAULT '{}'::jsonb,
+                sequence INTEGER NOT NULL,
+                UNIQUE (game_id, sequence)
             );
         `);
 
