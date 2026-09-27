@@ -36,6 +36,7 @@ import { OrgMinorsSettingsCard } from '@/components/guardians/OrgMinorsSettingsC
 import { useAuthStore } from '../../../store/authStore';
 import { TIME_ZONE_CHOICES, formatInstantDate, timeZoneLabel } from '../../../utils/dates';
 import CustomSelect from '../../../components/CustomSelect';
+import { FieldLabel } from '../../../components/FieldLabel';
 
 function hslToHex(h: number, s: number, l: number): string {
   l /= 100;
@@ -836,23 +837,6 @@ export default function OrgSettings() {
             </View>
           )}
  
-          {/* Timezone (DATE-2): the clock kick-offs are typed on at a venue without its own. */}
-          <View>
-            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">
-              Timezone
-            </Text>
-            <CustomSelect
-              value={timezone}
-              onChange={(value: string) => { if (value) setTimezone(value); }}
-              options={timeZoneOptions}
-              showSearch={true}
-              searchPlaceholder="Search timezones..."
-            />
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-1.5">
-              Kick-offs are entered in this time at venues without a map pin. A venue with a pin uses the timezone where it is.
-            </Text>
-          </View>
-
           {/* Combined Row: Abbreviation & Brand Colors */}
           <View className="flex-row items-center gap-6 flex-wrap">
             {/* Short Name / Abbreviation Field */}
@@ -999,6 +983,27 @@ export default function OrgSettings() {
 
         {/* Minors (`MEMBER-3`) — saved on its own, not through this screen's form */}
         <OrgMinorsSettingsCard orgId={orgId} isOrgAdmin={isOrgAdminViewer} />
+
+        {/* Timezone (DATE-2): the clock kick-offs are typed on at a venue without its own. Set once
+            and rarely changed, so it sits down here rather than among the name and brand fields. */}
+        <View className="mb-6 mt-6">
+          <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+            Timezone
+          </Text>
+          <GlassCard className="border border-slate-200 dark:border-white/5 p-5 gap-1.5">
+            <FieldLabel
+              label="Default timezone"
+              help="Kick-offs are entered in this time at venues without a map pin. A venue with a pin uses the timezone where it is."
+            />
+            <CustomSelect
+              value={timezone}
+              onChange={(value: string) => { if (value) setTimezone(value); }}
+              options={timeZoneOptions}
+              showSearch={true}
+              searchPlaceholder="Search timezones..."
+            />
+          </GlassCard>
+        </View>
 
         {/* Nominations Section */}
         <View className="mb-6 mt-6">
