@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { BottomMenu } from '../../../components/BottomMenu';
 import { AuthGuard } from '../../../components/AuthGuard';
+import { UnclaimedOrgBanner } from '../../../components/UnclaimedOrgBanner';
 
 /**
  * Every screen in the org workspace — including the scoring control room — is
@@ -128,6 +129,8 @@ function OrgAdminWorkspace() {
 
   const mainView = (
     <View className="flex-1 bg-slate-50 dark:bg-slate-950 relative">
+      {/* While the org has no administrator, on every workspace page (docs/nomination-process.md §4). */}
+      <UnclaimedOrgBanner org={orgData} />
       {stackContent}
 
       {/* Floating Workspace Hub Button (Mobile Only) - Positioned higher to clear the bottom menu */}

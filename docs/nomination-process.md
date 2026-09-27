@@ -100,6 +100,7 @@ CREATE TABLE org_claim_referrals (
     * **Within Cooldown**: no new email is sent. The result row carries `emailSent: false`.
     * **Outside Cooldown** (measured from `last_sent_at`, falling back to `created_at`): a new token is generated, `referred_by_user_id` moves to the new nominator (so they get credit), `last_sent_at` is set to `NOW()` and a new invitation email is sent. `created_at` is never rewritten.
   * An address whose nominee has already `claimed`, `declined` or passed the invitation on (`referred`) is left alone and comes back with `emailSent: false`.
+  * **A deliberate resend** (`resend: true`, 2026-09-27, `ORG-7`) sends again inside the cooldown with a new token and restarts it, without moving the credit; see §4.
   * The result of `REFER_ORG_CONTACT` never includes `claim_token`: it is the credential the email carries, and a caller re-nominating someone else's address must not receive it.
 
 ---
@@ -108,7 +109,8 @@ CREATE TABLE org_claim_referrals (
 
 The backend exposes several methods to manage nominations:
 
-1. **`createReferrals(orgId, contactEmails, referredByUserId)`**
+1. **`createReferrals(orgId, contactEmails, referredByUserId, { resend })`**
+   * `referredByUserId` is the signed-in caller, set by the handler — never read from the payload (it was until 2026-09-27, which let a caller nominate, and earn the badges, as someone else).
    * Normalizes emails to lowercase.
    * Checks for existing referrals for the same organization and email to prevent duplication.
    * Generates a 32-byte hex token.
@@ -139,57 +141,96 @@ The backend exposes several methods to manage nominations:
 
 ## 4. Front-End User Experience & Flow
 
-### Phase A: Nominating (Initiator Side)
-To ensure the nomination flow is consistent and easy to access, a single **Reusable Nomination Form/Modal** should be created. This component handles inputting one or more contact emails for a specific `orgId`.
+### Phase A: Getting an organisation an administrator (one process, decided 2026-09-27)
 
-#### Key Entry Points:
-1. **Organization Admin Dashboard:**
-   * **Where:** Admin Settings screen for a claimed/unmanaged organization.
-   * **Behavior:** Shows a management dashboard including the active nomination history and a form to invite additional administrators.
-2. **Match or Event Setup Flows (Creation & Editing):**
-   * **Where:** When creating/editing a match, game, or event, users can select an existing organization (which may be unmanaged/unclaimed) or create a new one as a placeholder.
-   * **Behavior & Phrasing:**
-     * **If an unmanaged organization is selected:** Present a prompt with a helpful, community-driven tone:
-       > **Title:** *"Help us get this organization claimed!"*
-       > **Prompt:** *"If you know who manages **{orgName}** (e.g. school head of sports, club secretary), add their email below. We'll send them an invitation to claim administrative access so they can manage their own teams, rosters, and schedules."*
-     * **If a new organization is created as a placeholder:** Show the organization registration completion along with the same referral/nomination block inline:
-       > **Title:** *"Known Contacts?"*
-       > **Prompt:** *"Help us get this organization claimed! If you know who manages **{orgName}**, add their email below. We'll send them an invite to claim it."*
+An organisation with no administrator is asked about in one way everywhere: **one dialog,
+[NominateAdminModal](file:///c:/Fred/Coding/SK/expo-app/components/NominateAdminModal.tsx), opened
+from three places**, with the same colours meaning the same thing — amber while *you* have not
+nominated anyone for it, green once you have. Its server calls are
+[services/nominations.ts](file:///c:/Fred/Coding/SK/expo-app/services/nominations.ts), and what it
+knows about the org comes from `useOrgClaimStatus` (`get_data org_claim_status`). This replaced five
+separate implementations (`ORG-6`), two of which held the email until a form was saved.
 
----
+#### The dialog
 
-#### Nominating from an organisation chip (`UnclaimedOrgBadge`)
+* **Nominate anyone by email**, sent the moment it is submitted. A nomination is never part of
+  whatever form the org was being added to, so cancelling that form cannot lose it.
+* **A member of the org can pick a fellow member** from its people, which fills in their address.
+* **"It's me: take on the admin role"** is offered only when the server says the caller may
+  (`OrgClaimStatus.canTakeOver`, below). It takes the role at once, with no email.
+* **Nobody nominates their own address.** The server refuses one of the caller's known addresses
+  (`ReferralManager.refuseOwnAddress`): a claim email to yourself proves nothing a signed-in account
+  does not, and someone who may not take the role must not get round that by inviting themselves. A
+  second address never added to their account cannot be told apart from anyone's (`ORG-9`).
+* **Every answer is said by name.** An address that has declined or passed the invitation on is not
+  an invitation sent; the dialog says so and offers "Nominate a different contact". An address that
+  has claimed needs no invitation. One invited inside the cooldown gets no second email, and the
+  caller is recorded as a nominator of it.
+* **For a claimed org** (settings only) the same dialog invites a further administrator, and words
+  itself to match.
 
-Wherever a screen lets a user add organisations they do not belong to — the tournament create
-screen's participating-organisation chips are the first — the appeal to nominate an administrator
-lives behind a small icon on the chip, not inline on the form. Rationale and behaviour (decided
-2026-09-05):
+#### Where it opens from
 
-* **Not inline.** A card per unclaimed organisation dominated the tournament form and distracted
-  from its purpose. The chip shows a **yellow** alert icon for an unclaimed org the caller has not
-  yet referred anyone for, and a **green** mail icon once they have. Hovering explains either
-  state; clicking opens a modal with the appeal and an email field.
-* **Prompted on add, not only on click.** With `autoPrompt` (the create screen sets it), a chip
-  the user has just added opens the modal itself as soon as its status comes back yellow, so the
-  appeal does not depend on them wondering what the icon means. Once per org; they can cancel. A
-  chip that comes back green is simply shown green. Screens that render chips which were already
-  there when they opened should leave `autoPrompt` off.
-* **An address that has already answered is said so.** If the nominee has `declined`, the modal
-  says so by name and offers "Nominate a different contact", which returns to the empty field; the
-  org stays yellow. The same for an address that passed the invitation on (`referred`). An address
-  that has `claimed` the org is reported as needing no invitation.
-* **Sent immediately.** Submitting the email emits `REFER_ORG_CONTACT` there and then. The
-  nomination is not part of whatever process the org is being added to, so it must not wait for
-  that form to save (or be lost when it is cancelled). The match form's older inline prompt still
-  batches its emails until save — see the TODO entry `ORG-6`.
-* **Asked once per person.** The badge reads `get_data { type: "org_claim_status", orgId }` on
-  mount (classified `authenticated` in `dataAccess.ts`) and returns `OrgClaimStatus`: whether the
-  org is claimed and the caller's **own** pending nominations. Another user's nomination is not
-  reported at all — the org stays yellow for this caller until they name a contact themselves. If
-  they name the address someone else already used, they become a nominator of it (green for them)
-  and the cooldown above decides whether the email goes again. Nominations do not expire, so a
-  pending one is current, and an organiser setting up several events in one day sees green rather
-  than being asked about the same school each time. They may still invite a further contact.
+1. **The workspace banner** ([UnclaimedOrgBanner](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBanner.tsx)),
+   one line across the top of every page of `/admin/[orgId]` while the org is unclaimed: *"{Org}
+   has no administrator yet. Please nominate someone to run it."* The same words for members and
+   outsiders; whether the viewer may take the role is the dialog's to offer. It cannot be
+   dismissed, and goes when the org is claimed — `isClaimed` arrives with the org summary, which is
+   broadcast on every membership change that can alter it.
+2. **The chip badge** ([UnclaimedOrgBadge](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBadge.tsx)),
+   an icon on an organisation chip wherever a form picks *someone else's* org: the match form's two
+   sides, the add-game screen's opponent, the tournament entrants screen. Not an inline card: one
+   per unclaimed org dominated the tournament form (decided 2026-09-05). With `autoPrompt`, a chip
+   the user has **just added** opens the dialog by itself once its status comes back amber — once
+   per org, and never for chips already there when the screen opened or for the workspace's own org.
+3. **Settings › Administrator Nominations**: the org's nomination history, a Nominate button, and
+   **Resend** on each pending row (below).
+
+The register-an-org dialog ([RegisterOrgModal](file:///c:/Fred/Coding/SK/expo-app/components/RegisterOrgModal.tsx))
+keeps its own contact field, since the org has no chip yet; its callers send it through the same
+`nominateOrgContact` straight away.
+
+#### Taking the empty role (`TAKE_ORG_ADMIN`)
+
+An org can end up with no administrator — most likely one left unattended, which someone now wants
+to revive. It should rarely happen, and when it does anyone suitable may take the role, with no
+email. `ReferralManager.getAdminTakeover` decides, and `takeOrgAdmin` re-checks it:
+
+* **Only while the org has no active admin.**
+* **A member of `admin_takeover_min_days` standing** (a system setting, 30 by default), counted from
+  their membership's `start_date`. Member and staff are equal here. Someone newer is told the date
+  from which they may (`takeOverFrom`) and is not offered "It's me".
+* **Or anyone, when no one else with an account is a member** — a never-claimed org, where nobody is
+  left to protect. People an outsider added by name to an unclaimed org cannot sign in, so they do
+  not count. Nobody can make themselves a member of an unclaimed org without an admin: an outsider
+  may create a person there by name only, which matches no account (`profileGate.ts`).
+* A membership counts as the caller's by linked account or verified email, as everywhere else. A
+  restricted minor's does not qualify, and platform admin accounts never do.
+* A member's own membership is promoted in place, keeping its start date; anyone else gets a profile
+  and an admin membership. `creator_id` is not touched.
+
+Other members are not told; notifying them, or letting them vote, is in
+[FUTURE_IDEAS.md](file:///c:/Fred/Coding/SK/FUTURE_IDEAS.md).
+
+#### Resending a lost invitation (`ORG-7`)
+
+`REFER_ORG_CONTACT` with `resend: true` sends a pending nomination's invitation again **inside** the
+cooldown, with a new claim token (the earlier link stops working) and a restarted cooldown. It is
+not a nomination, so the credit and nominators stay as they were. It is refused unless the caller
+can see the org's nominations (`org:{id}:referrals`: its members, and platform admins), and the only
+place that offers it is the settings list — behind a warning, as for member invites: check the spam
+folder first, and the old link will stop working.
+
+#### Asked once per person
+
+`get_data { type: "org_claim_status", orgId }` (classified `authenticated` in `dataAccess.ts`)
+returns `OrgClaimStatus`: whether the org is claimed, the caller's **own** pending nominations,
+whether they are a member, and whether and from when they may take the role. Another user's
+nomination is not reported — the org stays amber for this caller until they name a contact
+themselves. If they name the address someone else already used, they become a nominator of it
+(green for them) and the cooldown decides whether the email goes again. Nominations do not expire,
+so a pending one is current, and an organiser setting up several events in one day sees green
+rather than being asked about the same school each time.
 
 ### Phase B: Receiving & Processing (Invitee Side)
 1. **Landing/Claim Screen (`/claim?token=<token>`)**

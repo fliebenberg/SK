@@ -8,7 +8,7 @@ tags:
   - styling
   - theme
   - accessibility
-timestamp: 2026-09-26T00:00:00Z
+timestamp: 2026-09-27T00:00:00Z
 ---
 
 # Design System & Styling Rules
@@ -44,6 +44,8 @@ Because `#00E5FF` has a low contrast ratio (1.25:1) on white/light backgrounds, 
 
 The same rule binds the success green: `#00E676` scores **1.67:1** on white, so text, functional icons and meaningful fills swap to **Deep Emerald** (`text-emerald-800` / `#065F46`, **7.7:1**) in Light Mode — the `success` token in [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts). A bare `text-brand-green` is a light-mode contrast bug wherever it carries meaning; see [design_spec §1.1](file:///c:/Fred/Coding/SK/docs/design_spec.md).
 
+The brand yellow (`#FFC400`) is worse still on white. Where it is the whole signal — an alert icon, a warning line — light mode uses amber (`#B45309` / `text-amber-800` on `bg-amber-50`), as the no-admin banner and badge do.
+
 ## Custom Overlays & Dialogs (No Native Popups)
 
 To maintain a consistent, premium live-sports aesthetic and prevent silent failures across multiple targets:
@@ -57,6 +59,8 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 *   **Generic Component Reuse**: Consume the reusable `<SegmentedControl>` component (`expo-app/components/SegmentedControl.tsx`) across all view switchers and preference selectors to prevent duplicate UI code and ensure single-source-of-truth styling.
 
 ## One Component Per Repeated Concept
+
+*   **An organisation with no administrator**: Ask about it only through [`<NominateAdminModal>`](file:///c:/Fred/Coding/SK/expo-app/components/NominateAdminModal.tsx), opened from the workspace's one-line [`<UnclaimedOrgBanner>`](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBanner.tsx), the [`<UnclaimedOrgBadge>`](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBadge.tsx) icon on an org chip, or the settings nominations list — never an inline card or an email field held until a form saves (`ORG-6`). Amber means *you* have not nominated anyone for it, green that you have. The process: [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §4.
 
 *   **A side of a fixture**: Render it with [`<FixtureSide>`](file:///c:/Fred/Coding/SK/expo-app/components/FixtureSide.tsx), never with ad-hoc text. A side is in one of three states — a known competitor, an entrant awaiting confirmation ("TBC — awaiting confirmation"), or a slot awaiting a result ("Winner QF1") — and the fixtures list, the schedule, the bracket, the game screen, the standings and anything printed all show them. Five independent renderings of "TBC" is a guaranteed inconsistency. The wording itself is derived in [`shared/src/utils/fixtureSide.ts`](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts), so the server and print paths say the same thing the screen does; a placeholder is drawn in secondary text (AAA in Light Mode) rather than at a lower opacity, so it stays legible.
 

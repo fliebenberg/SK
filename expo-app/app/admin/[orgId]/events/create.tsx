@@ -9,7 +9,6 @@ import { requestKeyFor, sendAction } from '../../../../services/actions';
 import { useRequestScope } from '../../../../hooks/useRequestScope';
 import { useToastStore } from '../../../../store/toastStore';
 import { SocketAction } from '@sk/shared';
-import { useAuthStore } from '../../../../store/authStore';
 import { COLORS } from '../../../../constants/Colors';
 import MatchForm, { MatchFormData } from '../../../../components/MatchForm';
 import { venueInputsToInstant } from '../../../../utils/dates';
@@ -69,25 +68,6 @@ export default function CreateEvent() {
       return;
     }
     setIsProcessing(true);
-
-    // Referrals the form collected against unclaimed organisations, sent before the event so an
-    // invitation is not lost if the save that follows fails.
-    const currentUserId = useAuthStore.getState().user?.id;
-    if (currentUserId && form.referrals) {
-      Object.entries(form.referrals).forEach(([referredOrgId, value]) => {
-        const emails = Array.isArray(value) ? value : [value];
-        emails.forEach(email => {
-          const trimmed = (email || '').trim();
-          if (trimmed && trimmed.includes('@')) {
-            void sendAction(SocketAction.REFER_ORG_CONTACT, {
-              orgId: referredOrgId,
-              contactEmails: [trimmed],
-              referredByUserId: currentUserId,
-            });
-          }
-        });
-      });
-    }
 
     const [homeName, awayName] = await Promise.all([
       resolveTeamName(form.homeTeamId),

@@ -11,7 +11,6 @@ import { useActiveTheme } from '../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../services/websocket';
 import { sendAction } from '../../../../../../services/actions';
 import { useWsStore } from '../../../../../../store/wsStore';
-import { useAuthStore } from '../../../../../../store/authStore';
 import {
   SocketAction,
   Event,
@@ -25,6 +24,8 @@ import {
   isCollapsed,
 } from '@sk/shared';
 import { RegisterOrgModal } from '../../../../../../components/RegisterOrgModal';
+import { UnclaimedOrgBadge } from '../../../../../../components/UnclaimedOrgBadge';
+import { nominateOrgContact } from '../../../../../../services/nominations';
 import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
 import DatePicker from '../../../../../../components/DatePicker';
 import CustomSelect from '../../../../../../components/CustomSelect';
@@ -73,7 +74,6 @@ export default function ScheduleGame() {
   const [newTeamAgeGroupId, setNewTeamAgeGroupId] = useState<string | null>(null);
   const [targetOrgIdForTeam, setTargetOrgIdForTeam] = useState('');
 
-  const [pendingReferrals, setPendingReferrals] = useState<Record<string, string>>({});
 
   /**
    * Where this fixture belongs, on a tournament (`FIX-12`).
@@ -305,21 +305,6 @@ export default function ScheduleGame() {
     if (!scheduledTime) {
       useToastStore.getState().showError('Enter the full game date and start time.', 'Date Needed');
       return;
-    }
-
-    // Emit pending referrals if any exist
-    const currentUserId = useAuthStore.getState().user?.id;
-    if (currentUserId) {
-      Object.entries(pendingReferrals).forEach(([rOrgId, email]) => {
-        const trimmedEmail = email.trim();
-        if (trimmedEmail && trimmedEmail.includes('@')) {
-          void sendAction(SocketAction.REFER_ORG_CONTACT, {
-            orgId: rOrgId,
-            contactEmails: [trimmedEmail],
-            referredByUserId: currentUserId
-          });
-        }
-      });
     }
 
     // Conflict Check
@@ -625,40 +610,17 @@ export default function ScheduleGame() {
                         : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
                     }`}
                   >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {o.name}
-                    </Text>
+                    <View className="flex-row items-center gap-1.5">
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {o.name}
+                      </Text>
+                      {/* An org with no administrator: the way to nominate one (docs/nomination-process.md §4). */}
+                      {o.id !== orgId && <UnclaimedOrgBadge org={o} size={13} />}
+                    </View>
                   </TouchableOpacity>
                 );
               })}
             </View>
-
-            {/* Unclaimed Org Contact Referral section */}
-            {(() => {
-              const selectedAwayOrg = orgsList.find(o => o.id === selectedAwayOrgId);
-              if (selectedAwayOrg && selectedAwayOrg.isClaimed === false) {
-                return (
-                  <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/20 rounded-xl p-4 mt-2 space-y-2">
-                    <Text className="font-orbitron-bold text-[10px] text-brand-orange uppercase tracking-wider">
-                      Help us get this organization claimed!
-                    </Text>
-                    <Text className="font-inter text-xs text-slate-650 dark:text-slate-400 leading-4">
-                      If you know who manages {selectedAwayOrg.name} (e.g. head of sports, club secretary), add their email below so we can invite them to claim administrative access and manage their own teams, rosters, and schedules.
-                    </Text>
-                    <TextInput
-                      placeholder="contact@school.edu"
-                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                      value={pendingReferrals[selectedAwayOrgId] || ''}
-                      onChangeText={(email) => setPendingReferrals(prev => ({ ...prev, [selectedAwayOrgId]: email }))}
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2 font-inter text-sm text-slate-850 dark:text-white"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                  </View>
-                );
-              }
-              return null;
-            })()}
           </View>
 
           {/* Away Team Selection */}
@@ -778,14 +740,7 @@ export default function ScheduleGame() {
         sportId={selectedSportId || undefined}
         onRegistered={(org, contactEmail) => {
           // A failed invitation is announced on its own and does not undo the organisation.
-          const currentUserId = useAuthStore.getState().user?.id;
-          if (contactEmail && currentUserId) {
-            void sendAction(SocketAction.REFER_ORG_CONTACT, {
-              orgId: org.id,
-              contactEmails: [contactEmail],
-              referredByUserId: currentUserId,
-            });
-          }
+          if (contactEmail) void nominateOrgContact(org.id, contactEmail);
           setOrgsList(prev => [...prev, org]);
           setSelectedAwayOrgId(org.id);
         }}

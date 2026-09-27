@@ -11,8 +11,8 @@ import { sendAction } from '../services/actions';
 import { useWsStore } from '../store/wsStore';
 import { SocketAction, Sport, Site, Team, Organization, Facility } from '@sk/shared';
 import { RegisterOrgModal } from './RegisterOrgModal';
-import { useAuthStore } from '../store/authStore';
-import { NominationModal } from './NominationModal';
+import { UnclaimedOrgBadge } from './UnclaimedOrgBadge';
+import { nominateOrgContact } from '../services/nominations';
 import { GlassCard } from './GlassCard';
 import { AgeGroupPicker } from './AgeGroupPicker';
 import { getContrastColor } from '../utils/colorUtils';
@@ -36,7 +36,6 @@ export interface MatchFormData {
    */
   timeZone: TimeZone | null;
   status: 'Scheduled' | 'Live' | 'Finished' | 'Cancelled';
-  referrals?: Record<string, string[]>;
 }
 
 interface MatchFormProps {
@@ -99,8 +98,6 @@ export default function MatchForm({
   const [newTeamShortName, setNewTeamShortName] = useState('');
   const [newTeamAgeGroupId, setNewTeamAgeGroupId] = useState<string | null>(null);
 
-  const [isNominationModalVisible, setIsNominationModalVisible] = useState(false);
-  const [pendingReferrals, setPendingReferrals] = useState<Record<string, string[]>>({});
 
   // Loading indicator for edit mode initialization
   const [isInitializing, setIsInitializing] = useState(isEdit);
@@ -346,7 +343,6 @@ export default function MatchForm({
       isTbd,
       timeZone,
       status: gameStatus,
-      referrals: pendingReferrals,
     });
   }, [
     isInitializing,
@@ -362,7 +358,6 @@ export default function MatchForm({
     startTime,
     isTbd,
     gameStatus,
-    pendingReferrals,
   ]);
 
   // Filter home teams by sport
@@ -528,9 +523,19 @@ export default function MatchForm({
                   {selectedHomeOrg ? (
                     <View className="space-y-2">
                       <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
-                        <Text className="font-inter text-sm text-slate-800 dark:text-white">
-                          {selectedHomeOrg.name} ({selectedHomeOrg.shortName || 'N/A'})
-                        </Text>
+                        <View className="flex-1 flex-row items-center mr-2">
+                          <Text className="font-inter text-sm text-slate-800 dark:text-white flex-shrink">
+                            {selectedHomeOrg.name} ({selectedHomeOrg.shortName || 'N/A'})
+                          </Text>
+                          {/* An org with no administrator: the way to nominate one (docs/nomination-process.md §4).
+                              It asks by itself for an org the user has just picked, not for the workspace's own. */}
+                          <UnclaimedOrgBadge
+                            org={selectedHomeOrg}
+                            size={16}
+                            className="ml-2"
+                            autoPrompt={!isEdit && selectedHomeOrg.id !== orgId}
+                          />
+                        </View>
                         <TouchableOpacity onPress={() => {
                           setSelectedHomeOrg(null);
                           setSelectedHomeTeamId('');
@@ -538,28 +543,6 @@ export default function MatchForm({
                           <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
                         </TouchableOpacity>
                       </View>
-
-                      {!selectedHomeOrg.isClaimed && (
-                        <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/20 p-4 rounded-xl flex-row items-center justify-between">
-                          <View className="flex-1 mr-4">
-                            <Text className="font-orbitron-bold text-[10px] text-brand-orange mb-1 uppercase tracking-wider">
-                              Invite Administrator
-                            </Text>
-                            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-4">
-                              {selectedHomeOrg.name} doesn't have an administrator on Scorekeeper yet. Help bring this organization to life by nominating a contact email—we'll invite them to claim it, manage their teams, and keep schedules up to date.
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => {
-                              setTargetOrgIdForTeam(selectedHomeOrg.id);
-                              setIsNominationModalVisible(true);
-                            }}
-                            className="bg-brand-orange px-3 py-1.5 rounded-lg active:opacity-80 align-self-center"
-                          >
-                            <Text className="font-inter-bold text-xs text-white">Nominate</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
                     </View>
                   ) : (
                     <View className="relative z-35">
@@ -696,9 +679,19 @@ export default function MatchForm({
                   {selectedAwayOrg ? (
                     <View className="space-y-2">
                       <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
-                        <Text className="font-inter text-sm text-slate-800 dark:text-white">
-                          {selectedAwayOrg.name} ({selectedAwayOrg.shortName || 'N/A'})
-                        </Text>
+                        <View className="flex-1 flex-row items-center mr-2">
+                          <Text className="font-inter text-sm text-slate-800 dark:text-white flex-shrink">
+                            {selectedAwayOrg.name} ({selectedAwayOrg.shortName || 'N/A'})
+                          </Text>
+                          {/* An org with no administrator: the way to nominate one (docs/nomination-process.md §4).
+                              It asks by itself for an org the user has just picked, not for the workspace's own. */}
+                          <UnclaimedOrgBadge
+                            org={selectedAwayOrg}
+                            size={16}
+                            className="ml-2"
+                            autoPrompt={!isEdit && selectedAwayOrg.id !== orgId}
+                          />
+                        </View>
                         <TouchableOpacity onPress={() => {
                           setSelectedAwayOrg(null);
                           setSelectedAwayTeamId('');
@@ -706,28 +699,6 @@ export default function MatchForm({
                           <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
                         </TouchableOpacity>
                       </View>
-
-                      {!selectedAwayOrg.isClaimed && (
-                        <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/20 p-4 rounded-xl flex-row items-center justify-between">
-                          <View className="flex-1 mr-4">
-                            <Text className="font-orbitron-bold text-[10px] text-brand-orange mb-1 uppercase tracking-wider">
-                              Invite Administrator
-                            </Text>
-                            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-4">
-                              {selectedAwayOrg.name} doesn't have an administrator on Scorekeeper yet. Help bring this organization to life by nominating a contact email—we'll invite them to claim it, manage their teams, and keep schedules up to date.
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => {
-                              setTargetOrgIdForTeam(selectedAwayOrg.id);
-                              setIsNominationModalVisible(true);
-                            }}
-                            className="bg-brand-orange px-3 py-1.5 rounded-lg active:opacity-80 align-self-center"
-                          >
-                            <Text className="font-inter-bold text-xs text-white">Nominate</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
                     </View>
                   ) : (
                     <View className="relative z-25">
@@ -995,17 +966,16 @@ export default function MatchForm({
       </Modal>
 
       {/* Registering a school that is not on the system — the shared dialog (2026-09-21). The
-          invitation to its contact is held until this form is saved, as it always was here. */}
+          invitation to its contact goes at once, like every nomination (docs/nomination-process.md §4):
+          it is not part of this match, so cancelling the form must not lose it. */}
       <RegisterOrgModal
         isOpen={isCreatingOrg}
         onClose={() => setIsCreatingOrg(false)}
         initialName={newOrgName}
         sportId={selectedSportId || undefined}
         onRegistered={(org, contactEmail) => {
-          const currentUserId = useAuthStore.getState().user?.id;
-          if (contactEmail && currentUserId) {
-            setPendingReferrals(prev => ({ ...prev, [org.id]: [contactEmail] }));
-          }
+          // A failed invitation is announced on its own and does not undo the organisation.
+          if (contactEmail) void nominateOrgContact(org.id, contactEmail);
           if (isCreatingHomeOrg) {
             setSelectedHomeOrg(org);
             setHomeOrgSearchText('');
@@ -1075,13 +1045,6 @@ export default function MatchForm({
           </View>
         </View>
       </Modal>
-
-      <NominationModal
-        visible={isNominationModalVisible}
-        onClose={() => setIsNominationModalVisible(false)}
-        orgId={targetOrgIdForTeam}
-        orgName={targetOrgIdForTeam === selectedHomeOrg?.id ? (selectedHomeOrg?.name || '') : (selectedAwayOrg?.name || '')}
-      />
     </View>
   );
 }

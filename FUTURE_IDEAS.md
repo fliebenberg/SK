@@ -4,6 +4,18 @@ This document is a space to jot down brilliant ideas for the application while w
 
 ## Ideas Bucket
 
+- [ ] **Tell an organisation's people when someone takes its empty admin role, and perhaps let them
+  vote on it.** Raised 2026-09-27 with the admin takeover. Since then a member of a month's standing
+  may take the admin role of an organisation left with none, at once and without a claim email
+  (`TAKE_ORG_ADMIN`, docs/nomination-process.md §4) — the reviving-an-abandoned-org case. Nobody
+  else in the org hears about it. The idea: notify its other members and staff when it happens,
+  and optionally make it a request instead — the role passes unless enough of them object within a
+  few days. Open questions: who gets a vote (staff only, or every member with an account); what
+  counts as enough; whether the takeover applies at once and is undone by the vote, or waits for it;
+  and what happens in an org whose members never answer. The game-dispute votes in
+  [GameEventManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/GameEventManager.ts) are a
+  precedent for a timed vote. Related: `ORG-9`.
+
 - [ ] **Let a tournament's organiser open entry to the schools taking part, so each fills in its own
   teams and players.** Raised 2026-09-21 while settling who may create records in another
   organisation. Today the organiser enters everybody: they may add a team or a person to an

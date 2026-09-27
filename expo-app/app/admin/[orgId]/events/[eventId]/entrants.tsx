@@ -36,7 +36,8 @@ import { useDivisionEntrants } from '../../../../../hooks/useDivisionEntrants';
 import { candidateFromTeam } from '../../../../../components/tournament/candidateTeam';
 import { useEventCapabilities } from '../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../hooks/useSafeBack';
-import { useAuthStore } from '../../../../../store/authStore';
+import { UnclaimedOrgBadge } from '../../../../../components/UnclaimedOrgBadge';
+import { nominateOrgContact } from '../../../../../services/nominations';
 import { wsService } from '../../../../../services/websocket';
 import { sendAction } from '../../../../../services/actions';
 import { useWsStore } from '../../../../../store/wsStore';
@@ -247,7 +248,6 @@ export default function EntrantsScreen() {
   // The invite list (U48)
   // ------------------------------------------------------------------------------------------
 
-  const user = useAuthStore((state: any) => state.user);
   /** Whether the add-an-organisation search is open. Closed by default: see the card below. */
   const [isAddingOrg, setIsAddingOrg] = useState(false);
   /** The register dialog, for a school the search did not find. */
@@ -257,6 +257,8 @@ export default function EntrantsScreen() {
   const [isSearchingOrgs, setIsSearchingOrgs] = useState(false);
 
   const invitedOrgs = event?.participatingOrgs || [];
+  /** The org the user has just added, whose chip asks for a nomination by itself if it needs one. */
+  const [justAddedOrgId, setJustAddedOrgId] = useState<string | null>(null);
 
   /**
    * The invite picker: a search, not a list of every organisation.
@@ -592,6 +594,10 @@ export default function EntrantsScreen() {
                         <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
                           {isLargeScreen ? `${o.name} (${o.shortName})` : o.shortName}
                         </Text>
+                        {/* An org with no administrator: the way to nominate one (docs/nomination-process.md §4). */}
+                        {o.id !== orgId && (
+                          <UnclaimedOrgBadge org={o} size={14} autoPrompt={o.id === justAddedOrgId} />
+                        )}
                         <TouchableOpacity
                           onPress={() => saveInvites(invitedOrgs.filter(p => p.id !== o.id).map(p => p.id))}
                           accessibilityLabel={`Remove ${o.name}`}
@@ -622,6 +628,7 @@ export default function EntrantsScreen() {
                       key={o.id}
                       onPress={() => {
                         saveInvites([...invitedOrgs.map(p => p.id), o.id]);
+                        setJustAddedOrgId(o.id);
                         setOrgSearchText('');
                         setIsAddingOrg(false);
                       }}
@@ -750,14 +757,10 @@ export default function EntrantsScreen() {
         sportId={event?.sportIds?.length === 1 ? event.sportIds[0] : undefined}
         onRegistered={(org, contactEmail) => {
           saveInvites([...invitedOrgs.map(p => p.id), org.id]);
-          if (contactEmail && user?.id) {
-            // A failed invitation is announced on its own and does not undo the organisation.
-            void sendAction(SocketAction.REFER_ORG_CONTACT, {
-              orgId: org.id,
-              contactEmails: [contactEmail],
-              referredByUserId: user.id,
-            });
-          }
+          // A failed invitation is announced on its own and does not undo the organisation. With no
+          // contact given, the new chip asks for one.
+          if (contactEmail) void nominateOrgContact(org.id, contactEmail);
+          else setJustAddedOrgId(org.id);
           setOrgSearchText('');
           setIsAddingOrg(false);
         }}

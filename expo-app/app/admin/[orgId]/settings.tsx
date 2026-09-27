@@ -31,7 +31,11 @@ import { ImageEditor } from '../../../components/ImageEditor';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
-import { NominationModal } from '@/components/NominationModal';
+import { NominateAdminModal } from '@/components/NominateAdminModal';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { useOrgClaimStatus } from '@/hooks/useOrgClaimStatus';
+import { nominateOrgContact } from '@/services/nominations';
+import { useToastStore } from '@/store/toastStore';
 import { OrgMinorsSettingsCard } from '@/components/guardians/OrgMinorsSettingsCard';
 import { useAuthStore } from '../../../store/authStore';
 import { TIME_ZONE_CHOICES, formatInstantDate, timeZoneLabel } from '../../../utils/dates';
@@ -227,11 +231,33 @@ export default function OrgSettings() {
   const [deactivationPending, setDeactivationPending] = useState<{ sportIds: string[]; details: { id: string; name: string; activeTeams: any[] }[] } | null>(null);
 
   const [isNominationModalVisible, setIsNominationModalVisible] = useState(false);
+  /** A pending nomination whose invitation is to be sent again (`ORG-7`), awaiting confirmation. */
+  const [resendTarget, setResendTarget] = useState<{ email: string; sentAt: string } | null>(null);
+  const [isResending, setIsResending] = useState(false);
 
   const { data: sportsList } = useSocketQuery('sports');
   const { data: teamsList } = useSocketQuery('teams', { orgId });
   const { data: orgData, isLoading: isOrgLoading, refetch: refetchOrg, setData: setOrgData } = useSocketQuery('organization', { id: orgId });
   const { data: nominations, refetch: refetchNominations } = useSocketQuery('org_referrals', { orgId });
+  // Claimed or not: the nominations list serves both, and the dialog words itself to match.
+  const { status: claimStatus, refresh: refreshClaimStatus } = useOrgClaimStatus(orgId, true);
+
+  /** Send a pending nomination's invitation again, inside the cooldown — a new link, the old one void. */
+  const confirmResend = () => {
+    if (!resendTarget || !orgId) return;
+    setIsResending(true);
+    nominateOrgContact(orgId, resendTarget.email, { resend: true }).then(result => {
+      setIsResending(false);
+      if (!result.ok) return;
+      setResendTarget(null);
+      refetchNominations();
+      if (result.outcome === 'sent') {
+        useToastStore.getState().showSuccess(`The invitation went to ${result.email} again, with a new link.`, 'Invitation Resent');
+      } else {
+        useToastStore.getState().showInfo(`${result.email} has already answered this invitation, so nothing was sent.`, 'Not Resent');
+      }
+    });
+  };
 
   useEffect(() => {
     if (Array.isArray(sportsList)) {
@@ -1016,12 +1042,12 @@ export default function OrgSettings() {
               className="flex-row items-center gap-1 active:opacity-60"
             >
               <Ionicons name="add-circle" size={16} color="#F97316" />
-              <Text className="font-inter-bold text-xs text-brand-orange">Nominate Manager</Text>
+              <Text className="font-inter-bold text-xs text-brand-orange">Nominate</Text>
             </TouchableOpacity>
           </View>
           <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
             <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Invite people to manage this organization. Once claimed, they will gain full administrator rights.
+              Invite people to run this organization. Whoever claims an invitation becomes an administrator.
             </Text>
             
             {Array.isArray(nominations) && nominations.length > 0 ? (
@@ -1034,11 +1060,25 @@ export default function OrgSettings() {
                       </Text>
                       <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                         Nominated: {formatInstantDate(ref.createdAt)}
+                        {ref.status === 'pending' && ref.lastSentAt && ref.lastSentAt !== ref.createdAt
+                          ? ` · last sent ${formatInstantDate(ref.lastSentAt)}`
+                          : ''}
                       </Text>
                     </View>
                     
                     {/* Status Badge */}
-                    <View className="flex-row items-center gap-2">
+                    <View className="flex-row items-center gap-3">
+                      {/* A lost invitation can be sent again here, deliberately (`ORG-7`). */}
+                      {ref.status === 'pending' && (
+                        <TouchableOpacity
+                          onPress={() => setResendTarget({ email: ref.referredEmail, sentAt: ref.lastSentAt || ref.createdAt })}
+                          className="active:opacity-60"
+                          accessibilityRole="button"
+                          accessibilityLabel={`Resend the invitation to ${ref.referredEmail}`}
+                        >
+                          <Text className="font-inter-bold text-xs text-brand-orange">Resend</Text>
+                        </TouchableOpacity>
+                      )}
                       <View className={`px-2.5 py-0.5 rounded-full border ${
                         ref.status === 'claimed' 
                           ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30' 
@@ -1517,12 +1557,26 @@ export default function OrgSettings() {
         onCancel={() => setIsEditingLogo(false)}
       />
 
-      <NominationModal
+      <NominateAdminModal
         visible={isNominationModalVisible}
         onClose={() => setIsNominationModalVisible(false)}
-        orgId={orgId}
-        orgName={orgName}
-        onSuccess={() => refetchNominations()}
+        org={{ id: orgId, name: orgData?.name || orgName }}
+        status={claimStatus}
+        onNominated={() => { refetchNominations(); refreshClaimStatus(); }}
+        onTookOver={() => { refreshClaimStatus(); refetchOrg(); }}
+      />
+
+      <ConfirmationModal
+        isOpen={resendTarget !== null}
+        onClose={() => { if (!isResending) setResendTarget(null); }}
+        title="Resend Invitation?"
+        description={resendTarget
+          ? `An invitation already went to ${resendTarget.email} on ${formatInstantDate(resendTarget.sentAt)}. Only send it again if they say it did not arrive, and ask them to check their spam folder first. Resending sends a new link, so the earlier one will stop working.`
+          : ''}
+        confirmText="Resend"
+        variant="primary"
+        onConfirm={confirmResend}
+        isProcessing={isResending}
       />
 
       {/* FLOATING SAVE CHANGES BAR */}
