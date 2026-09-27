@@ -4,13 +4,14 @@ async function testNomination() {
   console.log('Testing nomination and referral fetching...');
 
   // 1. Get an organization (assume we have at least one)
+  // Only an org with no administrator can be nominated for (ORG-10).
   const orgs = await dataManager.getOrganizations();
-  if (orgs.items.length === 0) {
-    console.log('No organizations found to test with.');
+  const testOrg = orgs.items.find(o => !o.isClaimed);
+  if (!testOrg) {
+    console.log('No unclaimed organizations found to test with.');
     process.exit(0);
   }
 
-  const testOrg = orgs.items[0];
   console.log(`Using organization: ${testOrg.name} (${testOrg.id})`);
 
   // 2. Create a referral (nomination)

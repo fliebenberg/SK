@@ -484,7 +484,7 @@ cached access so a restriction takes effect at once.
 
 #### `REFER_ORG_CONTACT`
 *   **Payload**: `{ orgId, contactEmails, resend? }`
-*   **Logic**: Creates pending referral records and sends invitation emails, per the cooldown rules in [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §2. The nominator is the signed-in caller; a `referredByUserId` in the payload is ignored. Refuses any of the caller's own addresses. `resend: true` sends a pending address again inside the cooldown with a new token, and is refused unless the caller can see the org's nominations (`org:{id}:referrals`).
+*   **Logic**: Creates pending referral records and sends invitation emails, per the cooldown rules in [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §2. The nominator is the signed-in caller; a `referredByUserId` in the payload is ignored. Refuses an org that already has an active administrator (`ORG-10`), and any of the caller's own addresses. `resend: true` sends a pending address again inside the cooldown with a new token, and is refused unless the caller can see the org's nominations (`org:{id}:referrals`).
 *   **Returns**: `OrgClaimReferral[]`, each with `emailSent`.
 *   **Broadcasts**: `ORG_REFERRAL_ADDED` on `org:{orgId}:referrals`, per row.
 
@@ -497,11 +497,11 @@ cached access so a restriction takes effect at once.
 #### `GET_CLAIM_INFO`
 *   **Payload**: `{ token }`
 *   **Logic**: Retrieves organization information associated with a claim token.
-*   **Returns**: `{ organizationId, organizationName, ... }`
+*   **Returns**: `{ orgId, organizationName, organizationLogo, status }`, plus `adminNames` when `status` is `voided`.
 
 #### `CLAIM_ORG_VIA_TOKEN`
 *   **Payload**: `{ token, userId }`
-*   **Logic**: Claims the organization for the user, sets them as admin, and awards "Community Builder" badge if referral threshold met.
+*   **Logic**: Claims the organization for the user, sets them as admin, voids every other pending nomination for the org, and awards "Community Builder" badge if referral threshold met. Refused if the org already has an active admin. Leaves `creator_id` alone.
 *   **Broadcasts**:
     *   **Topic**: `organizations`
     *   **Event**: `ORGANIZATIONS_UPDATED`

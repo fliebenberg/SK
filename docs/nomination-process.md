@@ -88,11 +88,16 @@ CREATE TABLE org_claim_referrals (
 * **`claimed`**: Invitee logged in and successfully took ownership of the organization.
 * **`declined`**: Invitee rejected the invitation.
 * **`referred`**: Invitee selected "Refer Someone Else" and provided a different email. A new referral record was spawned.
-* **`voided`**: Another nominee claimed the organization first, making this nomination inactive.
+* **`voided`**: The organisation got an administrator while this nomination was pending — another
+  nominee claimed it, a member took the empty role, or an admin was added some other way — so it can
+  no longer be claimed. Distinct from `expired` (a time limit ran out; nominations have none today).
+  Following a voided link shows *"{Org} has already been claimed"* and names its current
+  administrators to contact.
 
 ### Expiration, Conflict Resolution & Cooldown Policy
 * **No Token Expiration**: Invitation links/tokens do not expire over time. A nominee can use their link to claim the organization at any time, provided the organization remains unclaimed.
-* **Single Active Claim Rule (Conflict Resolution)**: Once an organization is successfully claimed by *any* nominee, all other remaining `pending` nominations for that organization must automatically have their status updated to `voided`.
+* **Single Active Claim Rule (Conflict Resolution)**: Once an organisation has an administrator, however it got one, every remaining `pending` nomination for it is `voided` (implemented 2026-09-27, `ORG-10`): by `claimOrgViaToken` in the claim's own transaction, and by `OrganizationManager.syncClaimedStatus`, which every other way of adding or promoting an admin runs. The org row is locked during a claim, so two nominees claiming at once cannot both become admin.
+* **Nominating is only for an organisation with no administrator.** `createReferrals` refuses one that has an active admin. Its admins make someone else an admin by adding them as a member with the admin role and inviting them — a different process (decided 2026-09-27).
 * **Invitation Cooldown (`invite_cooldown_hours`)**: 
   * This setting (configured in the `system_settings` table, currently `336` hours / 2 weeks) prevents sending duplicate invitations to the same person in short succession.
   * If a user tries to nominate an email that already has a `pending` nomination for the same organization (**implemented 2026-09-05** in `ReferralManager.createReferrals`; before this, an existing address was skipped outright and never resent):
@@ -111,6 +116,7 @@ The backend exposes several methods to manage nominations:
 
 1. **`createReferrals(orgId, contactEmails, referredByUserId, { resend })`**
    * `referredByUserId` is the signed-in caller, set by the handler — never read from the payload (it was until 2026-09-27, which let a caller nominate, and earn the badges, as someone else).
+   * Refuses an organisation that already has an active administrator (see §2).
    * Normalizes emails to lowercase.
    * Checks for existing referrals for the same organization and email to prevent duplication.
    * Generates a 32-byte hex token.
@@ -119,12 +125,14 @@ The backend exposes several methods to manage nominations:
 
 2. **`getClaimInfo(token)`**
    * Retrieves the organization's name, logo, and the status of the referral using the token.
+   * For a `voided` referral, also `adminNames`: the names of the org's current administrators, for the "already claimed" message. Nothing else about them.
 
 3. **`claimOrgViaToken(token, userId)`**
    * Validates the token is `pending` (and not expired by time).
    * Updates referral status to `claimed` and records the claimant's user ID.
-   * Updates the organization record: sets `is_claimed = true` (**Note**: The original `creator_id` of the organization must NOT be modified. It remains assigned to the person who originally created the organization).
-   * Voids other nominations: Updates all other `pending` nominations for the same `org_id` to `expired`.
+   * Refuses if the organisation already has an active administrator, with the organisation row locked so concurrent claims are serialised.
+   * Updates the organization record: sets `is_claimed = true` (**Note**: The original `creator_id` of the organization must NOT be modified. It remains assigned to the person who originally created the organization. The claimant runs the org; they did not create it. The app-admin `CLAIM_ORG` follows the same rule.)
+   * Voids other nominations: Updates all other `pending` nominations for the same `org_id` to `voided`.
    * Elevates the claimant to administrator:
      * Creates/ensures an organization profile for the user in the org.
      * Inserts an entry in `org_memberships` with `role_id = 'role-org-admin'`.
@@ -166,8 +174,9 @@ separate implementations (`ORG-6`), two of which held the email until a form was
   an invitation sent; the dialog says so and offers "Nominate a different contact". An address that
   has claimed needs no invitation. One invited inside the cooldown gets no second email, and the
   caller is recorded as a nominator of it.
-* **For a claimed org** (settings only) the same dialog invites a further administrator, and words
-  itself to match.
+* **Only for an org with no administrator.** Settings hides Nominate once the org has one, and keeps
+  the list as history; the server refuses a nomination anyway (`ORG-10`). Further admins are added
+  as members and invited (until 2026-09-27 settings used this dialog to invite them).
 
 #### Where it opens from
 
@@ -235,6 +244,7 @@ rather than being asked about the same school each time.
 ### Phase B: Receiving & Processing (Invitee Side)
 1. **Landing/Claim Screen (`/claim?token=<token>`)**
    * Validates token on load. Shows error if invalid or expired.
+   * A `voided` token shows *"{Org} has already been claimed, so this invitation no longer works"*, with the administrators' names to contact.
    * Shows organization identity (logo and name).
    * **Authentication check**:
      * If user is **not authenticated**, prompts them to log in or register. The token is preserved (e.g., in persistent storage or URL callbacks) so they return directly here after authentication.

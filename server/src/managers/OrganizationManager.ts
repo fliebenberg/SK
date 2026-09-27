@@ -489,6 +489,14 @@ export class OrganizationManager extends BaseManager {
     
     const isClaimed = res.rows[0].count > 0;
     await this.query('UPDATE organizations SET is_claimed = $1 WHERE id = $2', [isClaimed, orgId]);
+    // Once an org has an administrator, however it got one, no nomination may still make someone
+    // admin (docs/nomination-process.md §2). Every path that gives an org an admin lands here.
+    if (isClaimed) {
+      await this.query(
+        `UPDATE org_claim_referrals SET status = 'voided' WHERE org_id = $1 AND status = 'pending'`,
+        [orgId]
+      );
+    }
     await this.getOrgSummary(orgId);
   }
 

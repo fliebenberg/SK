@@ -90,12 +90,8 @@ export default function OrgControlDashboard() {
   const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
 
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const isOwner = orgData.creatorId === user?.id;
-
   let role: string | null = null;
-  if (isOwner) {
-    role = 'Owner';
-  } else if (userMembership) {
+  if (userMembership) {
     if (userMembership.roleId === 'role-org-admin') role = 'Admin';
     else if (userMembership.roleId === 'role-org-staff') role = 'Staff';
     else if (userMembership.roleId === 'role-org-member') role = 'Member';

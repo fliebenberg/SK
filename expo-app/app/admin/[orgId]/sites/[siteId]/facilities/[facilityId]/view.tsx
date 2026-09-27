@@ -9,7 +9,7 @@ import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../../store/authStore';
-import { Facility, Site, Sport, Organization } from '@sk/shared';
+import { Facility, Site, Sport } from '@sk/shared';
 import { useSocketQuery } from '../../../../../../../hooks/useSocketQuery';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
@@ -35,16 +35,13 @@ export default function FacilityViewScreen() {
   const [facility, setFacility] = useState<Facility | null>(null);
   const [parentSite, setParentSite] = useState<Site | null>(null);
   const { data: sportsData } = useSocketQuery<Sport[]>('sports');
-  const { data: org } = useSocketQuery<Organization>('organization', { orgId });
 
   // User & Permissions
   const user = useAuthStore(state => state.user);
   const orgMemberships = useAuthStore(state => state.orgMemberships || []);
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const isOwner = org?.creatorId === user?.id;
   const canEdit = Boolean(
     user?.globalRole === 'admin' ||
-    isOwner ||
     (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
   );
 

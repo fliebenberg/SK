@@ -67,10 +67,8 @@ export default function OrgPeople() {
   const { data: org } = useSocketQuery<any>('organization', { orgId });
 
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const isOwner = org?.creatorId === user?.id;
   const canEdit = Boolean(
     user?.globalRole === 'admin' ||
-    isOwner ||
     (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
   );
 

@@ -239,7 +239,7 @@ export default function OrgSettings() {
   const { data: teamsList } = useSocketQuery('teams', { orgId });
   const { data: orgData, isLoading: isOrgLoading, refetch: refetchOrg, setData: setOrgData } = useSocketQuery('organization', { id: orgId });
   const { data: nominations, refetch: refetchNominations } = useSocketQuery('org_referrals', { orgId });
-  // Claimed or not: the nominations list serves both, and the dialog words itself to match.
+  // The list is kept as history either way; nominating is only for an org with no administrator.
   const { status: claimStatus, refresh: refreshClaimStatus } = useOrgClaimStatus(orgId, true);
 
   /** Send a pending nomination's invitation again, inside the cooldown — a new link, the old one void. */
@@ -1037,17 +1037,21 @@ export default function OrgSettings() {
             <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest">
               Administrator Nominations
             </Text>
-            <TouchableOpacity
-              onPress={() => setIsNominationModalVisible(true)}
-              className="flex-row items-center gap-1 active:opacity-60"
-            >
-              <Ionicons name="add-circle" size={16} color="#F97316" />
-              <Text className="font-inter-bold text-xs text-brand-orange">Nominate</Text>
-            </TouchableOpacity>
+            {claimStatus && !claimStatus.isClaimed && (
+              <TouchableOpacity
+                onPress={() => setIsNominationModalVisible(true)}
+                className="flex-row items-center gap-1 active:opacity-60"
+              >
+                <Ionicons name="add-circle" size={16} color="#F97316" />
+                <Text className="font-inter-bold text-xs text-brand-orange">Nominate</Text>
+              </TouchableOpacity>
+            )}
           </View>
           <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
             <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Invite people to run this organization. Whoever claims an invitation becomes an administrator.
+              {claimStatus?.isClaimed
+                ? 'Invitations to claim this organisation while it had no administrator. Once it had one, any still open were voided. To make someone else an administrator, add them under People with the admin role and invite them.'
+                : 'Invite people to run this organisation. The first to claim an invitation becomes its administrator, and the rest are voided.'}
             </Text>
             
             {Array.isArray(nominations) && nominations.length > 0 ? (

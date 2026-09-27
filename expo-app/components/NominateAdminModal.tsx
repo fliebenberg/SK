@@ -25,8 +25,8 @@ import { formatInstantDate } from '../utils/dates';
  * Every answer the server can give is said by name: an address that declined, claimed, or passed
  * the invitation on is not an invitation sent.
  *
- * The settings screen also opens it for a claimed org, to invite a further administrator; the
- * wording follows `status.isClaimed`.
+ * Only for an org with no administrator: once it has one, the server refuses nominations and voids
+ * any still pending (`ORG-10`). Its admins add further admins as members and invite them instead.
  */
 export interface NominateAdminModalProps {
   visible: boolean;
@@ -184,9 +184,7 @@ export function NominateAdminModal({ visible, onClose, org, status, onNominated,
   const renderForm = () => (
     <View className="gap-4">
       <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-5">
-        {status?.isClaimed
-          ? `Invite someone to become an administrator of ${org.name}. We'll email them a link to claim admin access.`
-          : `${org.name} doesn't have an administrator on ScoreKeeper yet. Nominate someone who runs it and we'll invite them to claim it, manage its teams and keep its schedules up to date.`}
+        {`${org.name} doesn't have an administrator on ScoreKeeper yet. Nominate someone who runs it and we'll invite them to claim it, manage its teams and keep its schedules up to date.`}
       </Text>
 
       {status?.canTakeOver && (

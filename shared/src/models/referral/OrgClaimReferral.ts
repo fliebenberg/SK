@@ -33,7 +33,11 @@ export interface OrgClaimReferral {
     referredEmail: string;
     referredByUserId: string;
     claimToken?: string; // Private to server usually, but might be needed for debug or specific flows? referManager returns it.
-    status: 'pending' | 'claimed' | 'expired' | 'declined' | 'referred';
+    /**
+     * `voided`: the org got an administrator — by this or another nomination, or any other way —
+     * so this pending nomination can no longer be claimed (docs/nomination-process.md §2).
+     */
+    status: 'pending' | 'claimed' | 'expired' | 'declined' | 'referred' | 'voided';
     claimedByUserId?: string;
     createdAt: string; // ISO UTC
     claimedAt?: string; // ISO UTC

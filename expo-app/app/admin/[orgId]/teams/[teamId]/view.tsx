@@ -9,7 +9,7 @@ import { useActiveTheme } from '../../../../../store/settingsStore';
 import { wsService } from '../../../../../services/websocket';
 import { useWsStore } from '../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../store/authStore';
-import { Team, TeamMember, Game, Sport, Organization } from '@sk/shared';
+import { Team, TeamMember, Game, Sport } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { getAvatarUrl } from '../../../../../services/assets';
 import { COLORS } from '../../../../../constants/Colors';
@@ -49,16 +49,13 @@ export default function TeamViewScreen() {
   const [roster, setRoster] = useState<TeamMember[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const { data: sportsData } = useSocketQuery<Sport[]>('sports');
-  const { data: org } = useSocketQuery<Organization>('organization', { orgId });
 
   // User & Permissions
   const user = useAuthStore(state => state.user);
   const orgMemberships = useAuthStore(state => state.orgMemberships || []);
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const isOwner = org?.creatorId === user?.id;
   const canEdit = Boolean(
     user?.globalRole === 'admin' ||
-    isOwner ||
     (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
   );
 

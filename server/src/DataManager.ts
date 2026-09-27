@@ -85,7 +85,8 @@ export class DataManager {
     const org = await organizationManager.getOrganization(id);
     if (!org) throw new Error("Organization not found.");
     if (org.isClaimed) throw new Error("Organization is already claimed.");
-    await organizationManager.updateOrganization(id, { isClaimed: true, creatorId: userId });
+    // The claimant runs the org; `creator_id` stays whoever created it.
+    await organizationManager.updateOrganization(id, { isClaimed: true });
     
     const user = await userManager.getUser(userId);
     if (user && user.globalRole !== 'admin') {

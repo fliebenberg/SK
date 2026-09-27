@@ -7,7 +7,7 @@ import { GlassCard } from '../../../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../../../store/settingsStore';
 import { useAuthStore } from '../../../../../store/authStore';
-import { OrgMember, Organization } from '@sk/shared';
+import { OrgMember } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { getAvatarUrl } from '../../../../../services/assets';
 import { InviteModal, InviteStatusCard, useInviteCooldownHours } from '../../../../../components/InviteToScoreKeeper';
@@ -42,7 +42,6 @@ export default function PersonViewScreen() {
   // User & Permissions
   const user = useAuthStore(state => state.user);
   const orgMemberships = useAuthStore(state => state.orgMemberships || []);
-  const { data: org } = useSocketQuery<Organization>('organization', { orgId });
   const { data: membersData, isLoading: isMembersLoading, setData: setMembersData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
 
   const inviteCooldownHours = useInviteCooldownHours();
@@ -55,10 +54,8 @@ export default function PersonViewScreen() {
   }, [membersData, membershipId]);
 
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const isOwner = org?.creatorId === user?.id;
   const canEdit = Boolean(
     user?.globalRole === 'admin' ||
-    isOwner ||
     (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
   );
 

@@ -42,10 +42,8 @@ export default function SiteViewScreen() {
   const user = useAuthStore(state => state.user);
   const orgMemberships = useAuthStore(state => state.orgMemberships || []);
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const isOwner = org?.creatorId === user?.id;
   const canEdit = Boolean(
     user?.globalRole === 'admin' ||
-    isOwner ||
     (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
   );
 

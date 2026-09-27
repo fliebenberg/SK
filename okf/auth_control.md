@@ -28,7 +28,7 @@ ScoreKeeper secures routes and resources using JWT tokens and membership-based p
     - Manage their own profiles, save user preferences, and follow teams.
 3.  **Organization/Team Member**:
     - Permissions are granted at the **Membership** level, not the User level. A single User can have different roles across different organizations.
-    - **Owner / Admin**: Full administrative control over the Organization.
+    - **Admin**: Full administrative control over the Organization. There is no separate owner role: the org's creator (`creator_id`) is a record of who created it, not a permission or a label (`ORG-11`).
     - **Manager**: Manage event schedules, add teams, and edit rosters.
     - **Scorekeeper / Official**: Authorized to open the scoring console and update game states in real-time.
     - **Coach**: Manage team lineups and view restricted rosters.

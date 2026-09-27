@@ -16,6 +16,7 @@ import pool, { query } from '../db';
  *  - `resend` (`ORG-7`) sends again inside the cooldown with a new token, only for someone who can
  *    see the org's nominations, and leaves the nomination's credit alone.
  *  - Deleting the only admin's profile leaves the org unclaimed.
+ *  - A takeover voids the org's pending nominations (`ORG-10`; the claim paths: test-claim-voiding.ts).
  *
  * Needs a server running against the same database, **with mail going to Ethereal rather than a
  * real SMTP host**: `SMTP_HOST= PORT=3099 npx ts-node src/index.ts`, then
@@ -165,6 +166,8 @@ async function main() {
     )).rows[0];
     expect([promoted.roleId, promoted.keptStart], ['role-org-admin', true], 'promoted in place, start date kept');
     expect((await query(`SELECT COUNT(*)::int AS n FROM org_memberships WHERE org_id = $1`, [ORG])).rows[0].n, 2, 'no extra membership');
+    // Once the org has an admin, however it got one, no nomination may still make someone admin (ORG-10).
+    expect((await query(`SELECT status FROM org_claim_referrals WHERE id = $1`, [ref.id])).rows[0].status, 'voided', 'takeover voids the pending nomination');
 
     s = await claimStatus(newcomer);
     expect([s.isClaimed, s.canTakeOver], [true, false], 'once claimed, nobody else may take over');

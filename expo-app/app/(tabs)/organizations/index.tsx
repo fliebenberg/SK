@@ -95,14 +95,10 @@ export default function OrganizationsPage() {
   // Map database properties dynamically
   const mappedOrgs = organizations.map(org => {
     const userMembership = orgMemberships.find(m => m.orgId === org.id);
-    const isOwner = org.creatorId === user?.id;
-    
     const isManaged = (user?.globalRole === 'admin') || (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'));
 
     let role = 'Guest';
-    if (isOwner) {
-      role = 'Owner';
-    } else if (userMembership) {
+    if (userMembership) {
       if (userMembership.roleId === 'role-org-admin') role = 'Admin';
       else if (userMembership.roleId === 'role-org-staff') role = 'Staff';
       else if (userMembership.roleId === 'role-org-member') role = 'Member';

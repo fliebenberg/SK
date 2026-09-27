@@ -32,10 +32,8 @@ export default function OrgTeams() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [org, setOrg] = useState<Organization | null>(null);
 
-  const isOwner = org?.creatorId === user?.id;
   const canEdit = Boolean(
     user?.globalRole === 'admin' ||
-    isOwner ||
     (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
   );
 

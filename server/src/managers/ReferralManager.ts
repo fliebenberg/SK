@@ -237,6 +237,17 @@ export class ReferralManager {
 
       const orgRes = await client.query('SELECT name FROM organizations WHERE id = $1', [orgId]);
       orgName = orgRes.rows[0]?.name || orgName;
+
+      // Nominating is how an org without an administrator gets one. Once it has one, its admins
+      // add further admins as members and invite them — a different process (decided 2026-09-27).
+      const adminRes = await client.query(
+        `SELECT 1 FROM org_memberships WHERE org_id = $1 AND role_id = 'role-org-admin'
+         AND (end_date IS NULL OR end_date > NOW()) LIMIT 1`,
+        [orgId]
+      );
+      if (adminRes.rows.length > 0) {
+        throw new Error(`${orgName} already has an administrator, so nobody can be nominated for it. Its administrators can add someone as a member, give them the admin role and invite them.`);
+      }
       const cooldownHours = await this.getInviteCooldownHours(client);
 
       for (const email of contactEmails) {
@@ -516,6 +527,11 @@ export class ReferralManager {
     return this.createReferrals(org_id, contactEmails, referred_by_user_id);
   }
 
+  /**
+   * What the claim screen shows for a token. A voided one also names the org's current
+   * administrators, so its holder knows whom to contact — they were invited, so the names are theirs
+   * to know; nothing else about the admins is given.
+   */
   async getClaimInfo(token: string): Promise<any> {
     const res = await this.pool.query(
       `SELECT r.id, r.org_id as "orgId", o.name as "organizationName", o.logo as "organizationLogo", r.status
@@ -524,7 +540,19 @@ export class ReferralManager {
        WHERE r.claim_token = $1`,
       [token]
     );
-    return res.rows[0];
+    const info = res.rows[0];
+    if (info?.status === 'voided') {
+      const admins = await this.pool.query(
+        `SELECT DISTINCT op.name FROM org_memberships om
+         JOIN org_profiles op ON op.id = om.org_profile_id
+         WHERE om.org_id = $1 AND om.role_id = 'role-org-admin'
+           AND (om.end_date IS NULL OR om.end_date > NOW())
+         ORDER BY op.name`,
+        [info.orgId]
+      );
+      info.adminNames = admins.rows.map((r: any) => r.name).filter(Boolean);
+    }
+    return info;
   }
 
   async claimOrgViaToken(token: string, userId: string): Promise<any> {
@@ -539,6 +567,20 @@ export class ReferralManager {
       if (refDataRes.rows.length === 0) throw new Error('Invalid or expired claim token');
       
       const { org_id: orgId, referred_by_user_id: referredByUserId } = refDataRes.rows[0];
+
+      // The org row is locked so two nominees claiming at once cannot both become admin: the
+      // second waits, then finds the first's admin membership and its own nomination voided.
+      // `NO KEY`, so the profile `ensureProfileForUserInOrg` inserts on another connection is not
+      // blocked by our own lock.
+      const orgLock = await client.query('SELECT name FROM organizations WHERE id = $1 FOR NO KEY UPDATE', [orgId]);
+      const adminRes = await client.query(
+        `SELECT 1 FROM org_memberships WHERE org_id = $1 AND role_id = 'role-org-admin'
+         AND (end_date IS NULL OR end_date > NOW()) LIMIT 1`,
+        [orgId]
+      );
+      if (adminRes.rows.length > 0) {
+        throw new Error(`${orgLock.rows[0]?.name || 'This organisation'} has already been claimed, so this invitation no longer works.`);
+      }
 
       // Update referral status
       await client.query(
@@ -587,10 +629,13 @@ export class ReferralManager {
           }
       }
 
-      // Update organization ownership
+      // The claimant runs the org from now on; `creator_id` stays whoever created it.
+      await client.query(`UPDATE organizations SET is_claimed = true WHERE id = $1`, [orgId]);
+
+      // One claim is enough: every other pending nomination for the org stops working.
       await client.query(
-        `UPDATE organizations SET is_claimed = true, creator_id = $1 WHERE id = $2`,
-        [userId, orgId]
+        `UPDATE org_claim_referrals SET status = 'voided' WHERE org_id = $1 AND status = 'pending'`,
+        [orgId]
       );
 
       // Add user as Org Admin

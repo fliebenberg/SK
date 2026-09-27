@@ -152,10 +152,14 @@ export default function ClaimIndexScreen() {
             <Ionicons name="close-circle" size={36} color="#64748B" />
           </View>
           <Text className="font-orbitron-bold text-2xl text-slate-900 dark:text-white mb-2 text-center">
-            INVITATION VOIDED
+            ALREADY CLAIMED
           </Text>
+          {/* Voided: the org got an administrator after this invitation was sent (`ORG-10`). */}
           <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center max-w-sm mb-8 leading-6">
-            This invitation to manage <Text className="font-inter-bold text-slate-900 dark:text-white">{claimInfo.organizationName}</Text> was voided because another nominee successfully claimed the organization.
+            <Text className="font-inter-bold text-slate-900 dark:text-white">{claimInfo.organizationName}</Text> has already been claimed, so this invitation no longer works.
+            {Array.isArray(claimInfo.adminNames) && claimInfo.adminNames.length > 0
+              ? ` If you'd like to help run it, please contact its administrator${claimInfo.adminNames.length > 1 ? 's' : ''}, ${claimInfo.adminNames.join(', ')}.`
+              : ' If you\'d like to help run it, please contact its administrator.'}
           </Text>
           <Button 
             title="Back to Home" 

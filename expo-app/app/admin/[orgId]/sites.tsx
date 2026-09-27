@@ -11,7 +11,7 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, Site, Facility, Address, Organization } from '@sk/shared';
+import { SocketAction, Site, Facility, Address } from '@sk/shared';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useAuthStore } from '../../../store/authStore';
 
@@ -36,13 +36,10 @@ export default function OrgSitesList() {
   // User & Permissions
   const user = useAuthStore(state => state.user);
   const orgMemberships = useAuthStore(state => state.orgMemberships || []);
-  const { data: org } = useSocketQuery<Organization>('organization', { orgId });
 
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const isOwner = org?.creatorId === user?.id;
   const canEdit = Boolean(
     user?.globalRole === 'admin' ||
-    isOwner ||
     (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
   );
 

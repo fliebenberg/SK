@@ -182,13 +182,9 @@ export default function PublicOrgDetail() {
   const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
 
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const isOwner = orgData.creatorId === user?.id;
-
   let membershipStatus: string | null = null;
   if (isAuthenticated) {
-    if (isOwner) {
-      membershipStatus = 'Owner';
-    } else if (userMembership) {
+    if (userMembership) {
       if (userMembership.roleId === 'role-org-admin') membershipStatus = 'Admin';
       else if (userMembership.roleId === 'role-org-staff') membershipStatus = 'Staff';
       else if (userMembership.roleId === 'role-org-member') membershipStatus = 'Member';
@@ -338,7 +334,7 @@ export default function PublicOrgDetail() {
             </View>
           </View>
 
-          {(org.membershipStatus === 'Owner' || org.membershipStatus === 'Admin' || org.membershipStatus === 'Staff') && (
+          {(org.membershipStatus === 'Admin' || org.membershipStatus === 'Staff') && (
             <View style={{ borderTopColor: borderColor }} className="mt-4 border-t pt-4">
               <TouchableOpacity
                 style={{
