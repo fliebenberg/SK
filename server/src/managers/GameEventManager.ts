@@ -344,7 +344,7 @@ export class GameEventManager extends BaseManager {
     }
     // -------------------
     
-    const id = `gd-${Date.now()}`;
+    const id = `gd-${uuidv4()}`;
     
     let durationMinutes = 5; // Default
     try {
@@ -613,7 +613,7 @@ export class GameEventManager extends BaseManager {
   }
 
   private async castVote(gameId: string, disputeId: string, officialId: string, vote: 'APPROVE' | 'REJECT'): Promise<{ success: boolean; dispute?: any; resolved?: boolean; error?: string }> {
-    const id = `gdv-${Date.now()}`;
+    const id = `gdv-${uuidv4()}`;
     
     // Upsert the vote (so they can change it if they want)
     await this.query(`
