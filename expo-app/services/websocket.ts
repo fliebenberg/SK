@@ -10,8 +10,24 @@ export interface EmitOptions {
   suppressToast?: boolean;
 }
 
+/** Local wall-clock time for a log line, to the millisecond. Metro prints none of its own. */
+const logClock = () => {
+  const now = new Date();
+  return `${now.toTimeString().slice(0, 8)}.${String(now.getMilliseconds()).padStart(3, '0')}`; // dates-ok: clock reading for a dev log
+};
+
+/**
+ * Counts services created in this JS runtime. Kept on `globalThis` so it survives Fast Refresh,
+ * which re-runs this module and builds a fresh service without closing the old one's socket —
+ * a second number in the logs means an orphaned socket is still alive.
+ */
+const runtime = globalThis as { __skWsInstances?: number };
+
 class WebSocketService {
   private socket: Socket | null = null;
+  private readonly instance = (runtime.__skWsInstances = (runtime.__skWsInstances ?? 0) + 1);
+  /** The id of the current connection, kept past `disconnect` (which clears `socket.id`). */
+  private socketId: string | null = null;
   private url: string;
   private serverOffset: number = 0;
   /**
@@ -24,6 +40,11 @@ class WebSocketService {
 
   constructor(url: string) {
     this.url = url;
+  }
+
+  /** `[WS 14:03:22.481 #1 aB3xY9…]` — when, which service, which connection. */
+  private log(level: 'log' | 'warn' | 'error', message: string, ...rest: unknown[]) {
+    console[level](`[WS ${logClock()} #${this.instance} ${this.socketId ?? '-'}] ${message}`, ...rest);
   }
 
   setTokenGetter(getter: () => string | null) {
@@ -56,8 +77,9 @@ class WebSocketService {
           const rtt = receiveTime - sendTime;
           this.serverOffset = (res.serverTime + Math.floor(rtt / 2)) - receiveTime;
           this.serverOffsetRTT = rtt;
-          console.log(
-            `[WS] Time synced via ping-pong. Offset: ${this.serverOffset}ms ` +
+          this.log(
+            'log',
+            `Time synced via ping-pong. Offset: ${this.serverOffset}ms ` +
             `(RTT: ${rtt}ms, worst case ±${this.getServerTimeAccuracyMS()}ms)`
           );
         }
@@ -85,7 +107,8 @@ class WebSocketService {
       this.socket.on('update', (message: RoomMessage) => this.rooms.record(message));
 
       this.socket.on('connect', () => {
-        console.log(`[WS] Connected to Socket.io server at ${this.url}`);
+        this.socketId = this.socket?.id ?? null;
+        this.log('log', `Connected to Socket.io server at ${this.url}`);
         useWsStore.getState().setConnected(true);
         this.syncTime();
 
@@ -94,7 +117,7 @@ class WebSocketService {
         this.rooms.resetLogs();
         for (const room of this.rooms.heldRooms()) {
           if (this.socket && this.socket.connected) {
-            console.log(`[WS] Re-joining room on connect: ${room}`);
+            this.log('log', `Re-joining room on connect: ${room}`);
             this.socket.emit('join_room', room);
           }
         }
@@ -110,17 +133,18 @@ class WebSocketService {
         if (data?.serverTime) {
           if (this.serverOffsetRTT !== Infinity) return;
           this.serverOffset = data.serverTime - Date.now();
-          console.log(`[WS] Server time seed applied. Offset: ${this.serverOffset}ms (uncompensated)`);
+          this.log('log', `Server time seed applied. Offset: ${this.serverOffset}ms (uncompensated)`);
         }
       });
 
-      this.socket.on('disconnect', () => {
-        console.log('[WS] Disconnected from Socket.io server');
+      this.socket.on('disconnect', (reason) => {
+        this.log('log', `Disconnected from Socket.io server (${reason})`);
+        this.socketId = null;
         useWsStore.getState().setConnected(false);
       });
 
       this.socket.on('connect_error', (error) => {
-        console.warn('[WS] Connection error:', error.message);
+        this.log('warn', `Connection error: ${error.message}`);
         useWsStore.getState().setConnected(false);
       });
     }
@@ -149,7 +173,7 @@ class WebSocketService {
     if (this.socket && this.socket.connected) {
       this.socket.emit(event, data);
     } else {
-      console.warn('[WS] Cannot emit event. Socket is not connected.');
+      this.log('warn', 'Cannot emit event. Socket is not connected.');
     }
   }
 
@@ -173,21 +197,21 @@ class WebSocketService {
     const { token, isFirst, replay } = this.rooms.subscribe(room);
 
     if (isFirst) {
-      console.log(`[WS] Subscribing to room: ${room}`);
+      this.log('log', `Subscribing to room: ${room}`);
       this.send('join_room', room);
     } else if (replay === 'overflow') {
       // The log grew past what is worth replaying. Socket.io's join is idempotent, so asking
       // again costs one re-push of the room's state, which every holder absorbs as a replace.
-      console.log(`[WS] Re-joining room for a late subscriber (replay log overflowed): ${room}`);
+      this.log('log', `Re-joining room for a late subscriber (replay log overflowed): ${room}`);
       this.send('join_room', room);
     } else if (replay && onReplay) {
-      if (replay.length) console.log(`[WS] Replaying ${replay.length} message(s) to a late subscriber: ${room}`);
+      if (replay.length) this.log('log', `Replaying ${replay.length} message(s) to a late subscriber: ${room}`);
       for (const message of replay) onReplay(message);
     }
 
     return () => {
       if (this.rooms.unsubscribe(room, token)) {
-        console.log(`[WS] Unsubscribing from room: ${room}`);
+        this.log('log', `Unsubscribing from room: ${room}`);
         this.send('leave_room', room);
       }
     };
@@ -207,8 +231,9 @@ class WebSocketService {
     // because the count never saw either call (`LIVE-17`). Refused rather than forwarded, because
     // forwarding is what made it look like it worked.
     if (event === 'join_room' || event === 'leave_room') {
-      console.error(
-        `[WS] Refusing a direct '${event}' for ${JSON.stringify(data)}. ` +
+      this.log(
+        'error',
+        `Refusing a direct '${event}' for ${JSON.stringify(data)}. ` +
         `Use subscribeToRoom() / the returned release function, or the useLiveRoom hook.`
       );
       return;
@@ -223,7 +248,7 @@ class WebSocketService {
       const timer = setTimeout(() => {
         if (!called) {
           called = true;
-          console.warn(`[WS] Ack timeout (${timeoutMs}ms) for event: ${event}`, data);
+          this.log('warn', `Ack timeout (${timeoutMs}ms) for event: ${event}`, data);
           if (!options?.suppressToast) {
             useToastStore.getState().showError('Server request timed out. Please try again.', 'Connection Timeout');
           }
@@ -251,7 +276,7 @@ class WebSocketService {
         }
       });
     } else {
-      console.warn('[WS] Cannot emit event. Socket is not connected.');
+      this.log('warn', 'Cannot emit event. Socket is not connected.');
       if (!options?.suppressToast) {
         useToastStore.getState().showError('Cannot complete request. Network connection offline.', 'Offline');
       }
