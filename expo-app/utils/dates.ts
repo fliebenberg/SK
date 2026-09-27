@@ -289,7 +289,8 @@ export function timeZonePlace(timeZone: TimeZone): string {
 
 /** How far a timezone's clock is ahead of UTC right now, in minutes; `null` if it cannot be read. */
 function offsetMinutesNow(timeZone: TimeZone): number | null {
-  const now = Date.now();
+  // Whole minutes: the clock below is read to the minute, so leftover seconds would turn +2:00 into +1:59.
+  const now = Math.floor(Date.now() / 60000) * 60000;
   const clock = instantToVenueInputs(new Date(now).toISOString(), timeZone);
   const parts = clock && calendarDateParts(clock.date);
   const time = clock && TIME_OF_DAY.exec(clock.time);
