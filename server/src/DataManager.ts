@@ -203,8 +203,11 @@ export class DataManager {
   linkUserToProfile = (email: string, orgProfileId: string) => userManager.linkUserToProfile(email, orgProfileId);
 
   // Referrals
-  referOrgContact = (orgId: string, contactEmails: string[], referredByUserId: string) => 
-    referralManager.createReferrals(orgId, contactEmails, referredByUserId);
+  referOrgContact = (orgId: string, contactEmails: string[], referredByUserId: string, options?: { resend?: boolean }) =>
+    referralManager.createReferrals(orgId, contactEmails, referredByUserId, options);
+  refuseOwnAddress = (orgId: string, userId: string, contactEmails: string[]) =>
+    referralManager.refuseOwnAddress(orgId, userId, contactEmails);
+  takeOrgAdmin = (orgId: string, userId: string) => referralManager.takeOrgAdmin(orgId, userId);
   getReferralsForOrg = (orgId: string) => referralManager.getReferralsForOrg(orgId);
   getOrgClaimStatus = (orgId: string, userId: string) => referralManager.getClaimStatus(orgId, userId);
   getReferralsByUser = (userId: string) => referralManager.getReferralsByUser(userId);

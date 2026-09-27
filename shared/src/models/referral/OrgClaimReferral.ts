@@ -12,6 +12,19 @@ export interface OrgClaimStatus {
     isClaimed: boolean;
     /** Pending nominations for this org that the caller made or joined. */
     myPendingEmails: string[];
+    /** The caller holds a current membership of the org, of any role. */
+    isMember: boolean;
+    /**
+     * The caller may take the empty admin role now (`TAKE_ORG_ADMIN`), without a claim email: the
+     * org has no active admin, and the caller has been a member for `admin_takeover_min_days` or
+     * the org has no other members with an account. See docs/nomination-process.md §4.
+     */
+    canTakeOver: boolean;
+    /**
+     * For a member who is too new to take over: when they will be able to (an instant). Absent
+     * otherwise, including when another member's arrival could still change the answer.
+     */
+    takeOverFrom?: string | null;
 }
 
 export interface OrgClaimReferral {

@@ -483,9 +483,16 @@ cached access so a restriction takes effect at once.
 ### 6. Referrals & Claiming
 
 #### `REFER_ORG_CONTACT`
-*   **Payload**: `{ organizationId, contactEmails, referredByUserId }`
-*   **Logic**: Creates pending referral records and sends invitation emails.
-*   **Returns**: `OrgClaimReferral[]`
+*   **Payload**: `{ orgId, contactEmails, resend? }`
+*   **Logic**: Creates pending referral records and sends invitation emails, per the cooldown rules in [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §2. The nominator is the signed-in caller; a `referredByUserId` in the payload is ignored. Refuses any of the caller's own addresses. `resend: true` sends a pending address again inside the cooldown with a new token, and is refused unless the caller can see the org's nominations (`org:{id}:referrals`).
+*   **Returns**: `OrgClaimReferral[]`, each with `emailSent`.
+*   **Broadcasts**: `ORG_REFERRAL_ADDED` on `org:{orgId}:referrals`, per row.
+
+#### `TAKE_ORG_ADMIN`
+*   **Payload**: `{ orgId }`
+*   **Logic**: Makes the caller the admin of an org that has none, without a claim email — when they have been a member for `admin_takeover_min_days`, or when no one else with an account is a member. Rules: [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §4. A member's membership is promoted in place.
+*   **Returns**: the `Organization`, now claimed.
+*   **Broadcasts**: `ORGANIZATION_UPDATED` on `org:{orgId}:summary`, `ORG_MEMBER_UPDATED` on `org:{orgId}:members`, and the caller's `USER_MEMBERSHIPS_UPDATED`.
 
 #### `GET_CLAIM_INFO`
 *   **Payload**: `{ token }`

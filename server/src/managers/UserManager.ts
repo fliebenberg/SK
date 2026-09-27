@@ -650,7 +650,9 @@ export class UserManager extends BaseManager {
 
       await this.query('DELETE FROM org_profiles WHERE id = $1', [id]);
 
-      // Org counts are computed live, so removing the memberships is sufficient.
+      // Org counts are computed live, so removing the memberships is sufficient for them — but
+      // `is_claimed` is stored: deleting the only admin's profile must leave the org unclaimed.
+      await organizationManager.syncClaimedStatus(profile.orgId);
 
       // Deleted only if no other profile or user still shows it.
       await imageService.release('profiles', profile.image);

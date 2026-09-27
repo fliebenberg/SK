@@ -329,10 +329,17 @@ export enum SocketAction {
 
     // --- Referrals ---
     /**
-     * Action to refer a contact person for an organization.
-     * Expects payload: { orgId: string, contactEmail: string, referredByUserId: string }
+     * Nominate contacts to claim an organization. The nominator is the signed-in caller.
+     * Expects payload: { orgId: string, contactEmails: string[], resend?: boolean }
      */
     REFER_ORG_CONTACT = 'REFER_ORG_CONTACT',
+
+    /**
+     * Take the admin role of an organization that has none, without a claim email — for a member of
+     * long enough standing, or anyone when the org has no other members (see `OrgClaimStatus`).
+     * Expects payload: { orgId: string }
+     */
+    TAKE_ORG_ADMIN = 'TAKE_ORG_ADMIN',
 
     /**
      * Action to claim an organization via a unique token.

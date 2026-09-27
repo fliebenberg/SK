@@ -272,7 +272,16 @@ export interface RemoveTeamMemberPayload {
 export interface ReferOrgContactPayload {
     orgId: string;
     contactEmails: string[];
-    referredByUserId: string;
+    /**
+     * Send again to an address still pending inside the invite cooldown, for an invitation that went
+     * astray. Issues a new claim token, so the earlier link stops working. Only someone who can see
+     * the org's nominations may ask for it.
+     */
+    resend?: boolean;
+}
+
+export interface TakeOrgAdminPayload {
+    orgId: string;
 }
 
 export interface ClaimOrgViaTokenPayload {
@@ -862,6 +871,7 @@ export interface ProtocolMap {
     [SocketAction.CLAIM_ORG]: { payload: ClaimOrgPayload; response: Organization };
     [SocketAction.DELETE_ORG]: { payload: DeleteOrgPayload; response: void };
     [SocketAction.REFER_ORG_CONTACT]: { payload: ReferOrgContactPayload; response: OrgClaimReferral[] };
+    [SocketAction.TAKE_ORG_ADMIN]: { payload: TakeOrgAdminPayload; response: Organization };
     [SocketAction.CLAIM_ORG_VIA_TOKEN]: { payload: ClaimOrgViaTokenPayload; response: Organization };
     
     [SocketAction.ADD_TEAM]: { payload: AddTeamPayload; response: Team };

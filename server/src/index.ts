@@ -2369,19 +2369,45 @@ io.on('connection', (socket) => {
                 }
                 break;
 
-            case SocketAction.REFER_ORG_CONTACT:
-                const { orgId, contactEmails, referredByUserId } = action.payload;
-                result = await dataManager.referOrgContact(orgId, contactEmails, referredByUserId);
+            case SocketAction.REFER_ORG_CONTACT: {
+                const { orgId, contactEmails, resend } = action.payload;
+                if (!Array.isArray(contactEmails) || contactEmails.length === 0) {
+                    throw new Error('Enter an email address to nominate.');
+                }
+                // The nominator is the signed-in caller. It used to be read from the payload, which
+                // let a caller nominate — and earn the claim badges — as somebody else.
+                await dataManager.refuseOwnAddress(orgId, authUserId!, contactEmails);
+                // A deliberate resend inside the cooldown (`ORG-7`) is for whoever can see the org's
+                // nominations, where the Resend button lives.
+                if (resend === true && !(await canJoinRoom(authUserId!, `org:${orgId}:referrals`))) {
+                    throw new Error('Only people who can see this organisation\'s nominations can resend an invitation.');
+                }
+                result = await dataManager.referOrgContact(orgId, contactEmails, authUserId!, { resend: resend === true });
                 if (Array.isArray(result)) {
                     result.forEach(ref => {
-                        additionalBroadcasts.push({ 
-                            topic: `org:${orgId}:referrals`, 
-                            type: 'ORG_REFERRAL_ADDED', 
-                            data: ref 
+                        additionalBroadcasts.push({
+                            topic: `org:${orgId}:referrals`,
+                            type: 'ORG_REFERRAL_ADDED',
+                            data: ref
                         });
                     });
                 }
                 break;
+            }
+
+            case SocketAction.TAKE_ORG_ADMIN: {
+                // Eligibility is `ReferralManager.getAdminTakeover`, re-checked there.
+                const takenOrgId = action.payload.orgId;
+                result = await dataManager.takeOrgAdmin(takenOrgId, authUserId!);
+                await publishUserMemberships(authUserId);
+                for (const member of await dataManager.getOrganizationMembers(takenOrgId)) {
+                    if ((member as any).userId === authUserId) {
+                        additionalBroadcasts.push({ topic: `org:${takenOrgId}:members`, type: 'ORG_MEMBER_UPDATED', data: member });
+                    }
+                }
+                await broadcastOrgSummaries([takenOrgId]);
+                break;
+            }
 
             case SocketAction.ADD_SITE:
                 result = await dataManager.addSite(action.payload);
@@ -2883,6 +2909,9 @@ io.on('connection', (socket) => {
                 if (result) {
                     updateTopic = `org:${result.orgId}:members`;
                     updateType = 'ORG_MEMBER_UPDATED';
+                    // A role change can leave the org with no admin, or give it one: the summary
+                    // carries `isClaimed`, which the workspace's no-admin banner follows.
+                    await broadcastOrgSummaries([result.orgId]);
                     // Re-fetch rich member data for broadcast
                     const richMember = (await dataManager.getOrganizationMembers(result.orgId)).find((m: any) => m.membershipId === result.id);
                     if (richMember) result = richMember;
@@ -3006,6 +3035,8 @@ io.on('connection', (socket) => {
             case SocketAction.DELETE_ORG_PROFILE:
                 console.log(`DataManager: Deleting org profile ${action.payload.id}`);
                 result = await dataManager.deleteOrgProfile(action.payload.id);
+                // The profile may have been the only admin's (`syncClaimedStatus`).
+                if (result?.orgId) await broadcastOrgSummaries([result.orgId]);
                 break;
             case SocketAction.LINK_USER_PROFILE:
                 result = await dataManager.linkUserToProfile(action.payload.email, action.payload.orgProfileId);

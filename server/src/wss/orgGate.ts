@@ -188,6 +188,9 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   // Anybody signed in.
   [SocketAction.SUBMIT_REPORT]: { kind: 'signed-in' },
   [SocketAction.REFER_ORG_CONTACT]: { kind: 'signed-in' },
+  // Who may take an empty admin role depends on membership standing, not on a role the gate can
+  // read — `ReferralManager.getAdminTakeover` decides, and refuses with the reason.
+  [SocketAction.TAKE_ORG_ADMIN]: { kind: 'signed-in' },
   [SocketAction.GET_SYSTEM_SETTINGS]: { kind: 'signed-in' },
   // Claiming makes you an admin, so it needs a user to make one of; the token says which org.
   [SocketAction.CLAIM_ORG_VIA_TOKEN]: { kind: 'self', field: 'userId' },

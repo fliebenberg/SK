@@ -8,7 +8,7 @@ tags:
   - roles
   - permissions
   - security
-timestamp: 2026-09-26T12:00:00Z
+timestamp: 2026-09-27T12:00:00Z
 ---
 
 # Authentication & Authorization Levels
@@ -186,6 +186,14 @@ make anybody an admin of any organisation, `DELETE_ORG` and `DELETE_TEAM` acted 
 - **The caller** for anything naming a user: a payload's `userId` must be the socket's, including a
   claim by token, which makes that user an admin. A notification is its owner's.
 - **The token** for the email-link actions, whose pages are opened signed out.
+
+**Two ways to become an admin without being made one** (docs/nomination-process.md §4). A claim
+link: whoever holds it becomes admin — nobody may nominate their own address, but a nomination proves
+nothing about who is nominated (`ORG-9`). And `TAKE_ORG_ADMIN`, for an org with **no active admin**:
+a member of `admin_takeover_min_days` standing (member and staff alike), or anyone when no one else
+with an account is a member. The gate only requires a sign-in; `ReferralManager.getAdminTakeover`
+decides. `is_claimed` is stored, so every path that changes an org's memberships must end in
+`syncClaimedStatus`, or an org keeps claiming an admin it no longer has.
 
 ## Person records are identity, and are written by the organisation that holds them
 
