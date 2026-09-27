@@ -56,6 +56,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20260926_venue_timezones.ts`: Kick-offs are typed in the venue's time (`DATE-2`). Adds `organizations.timezone` (IANA name, `NOT NULL`, default `Africa/Johannesburg`, which every existing organisation got) and `sites.timezone` (nullable — `NULL` means the organisation's), and looks up the timezone of every existing site with a pin.
     - `20260927_admin_takeover_min_days.ts`: **Data only, no schema change.** Adds the `system_settings` key `admin_takeover_min_days` (30): how long a member must have belonged to an org with no admin before taking the role without a claim email (`TAKE_ORG_ADMIN`).
     - `20260927_game_event_sequence.ts`: Adds `game_events.sequence` (`DB-4`), the order of a game's log, which the server had written and read since March although nothing created the column. Numbers every game's events from 1 — keeping any existing order, then by `timestamp` — sets it `NOT NULL` and adds `UNIQUE (game_id, sequence)`.
+    - `20260927_one_open_dispute_per_event.ts`: Adds the partial unique index `game_disputes_one_open_per_event` on `game_event_id` `WHERE status = 'OPEN'` (`SCORE-17`), so two challenges to one event arriving together cannot both open a vote. Stops, naming them, if any event already has two open disputes.
 
 ## The tournaments schema
 

@@ -65,6 +65,11 @@ parent's current trigger. A child whose `subType` is no longer triggered is mark
 outcome and clearing the outcome back to unset. Scores are then re-derived from the earliest
 affected sequence, so the removed child's points drop out automatically.
 
+A child is disputed on its own, not through its parent, but it cannot outlive it. Removing a try
+removes its conversion whatever else is happening to the conversion: an open dispute on it is
+closed as `VOIDED`, and a correction approved afterwards leaves a removed event as it is. The same
+holds for any removed event, not only a child.
+
 **Consensus.** Nothing is written until the change is authorised. Inside the undo window the
 event's creator applies it directly; otherwise it goes to a vote and the proposed change waits in
 `game_disputes.update_data`. The parent edit and its child removals apply together on approval, and

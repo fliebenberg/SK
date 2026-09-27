@@ -641,13 +641,13 @@ create one from the tournament side is missing.
 
 ### 19f. `game_disputes`
 A challenge to something that was recorded during a match — an undo, or a correction — put to a vote
-rather than applied unilaterally. See [live-scoring.md](live-scoring.md) for the flow.
+rather than applied unilaterally. See [rugby/events.md](rugby/events.md) for the flow.
 - `id` (VARCHAR, PK)
 - `game_id` (VARCHAR): NOT NULL.
 - `game_event_id` (VARCHAR): NOT NULL. The event being disputed.
 - `initiator_org_profile_id` (VARCHAR): who raised it.
 - `initiator_id` (VARCHAR): legacy identity column, superseded by the profile above.
-- `status` (VARCHAR): NOT NULL DEFAULT `'OPEN'`.
+- `status` (VARCHAR): NOT NULL DEFAULT `'OPEN'`. Then `RESOLVED_APPROVED` or `RESOLVED_REJECTED` by vote, or `VOIDED` when its event is removed while the vote is open (a conversion whose try is removed, say): nothing of a voided dispute is applied. At most one `OPEN` dispute per event, enforced by the partial unique index `game_disputes_one_open_per_event`.
 - `type` (VARCHAR): DEFAULT `'UNDO'`.
 - `update_data` (JSONB): for a correction, what it should become.
 - `dispute_config` (JSONB): the voting rules this dispute was opened under, captured so that

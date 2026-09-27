@@ -292,17 +292,9 @@ export class GameEventManager extends BaseManager {
     if (!template && templateId) {
         console.warn(`[Dispute Guard] Could not find template for ID: "${templateId}" in sport: ${sportId}`);
     }
-    
-    let targetEventId = eventId;
-    let targetEvt = evt;
-    if (evt.eventData?.linkedEventId) {
-        const parentRes = await this.query(`SELECT type, sub_type as "subType", event_data as "eventData" FROM game_events WHERE id = $1`, [evt.eventData.linkedEventId]);
-        if (parentRes.rows.length > 0 && parentRes.rows[0].eventData?.status !== 'REMOVED') {
-            targetEventId = evt.eventData.linkedEventId;
-            targetEvt = parentRes.rows[0];
-        }
-    }
 
+    // A linked event (a try's conversion) is disputed on its own, not through its parent. Removing
+    // the parent removes it anyway, and voids its open dispute (see `voidOpenDisputes`).
     const isUndo = !updateData;
 
     if (isUndo) {
@@ -367,6 +359,11 @@ export class GameEventManager extends BaseManager {
       `, [id, gameId, eventId, initiatorId, expiresAt, updateData ? JSON.stringify(updateData) : null, updateData ? 'UPDATE' : 'UNDO']);
       console.log(`[Dispute] DB expires_at set to: ${expiresAt.toISOString()} for ${updateData ? 'UPDATE' : 'UNDO'}`);
     } catch (err: any) {
+      // The check above passed, but another challenge to this event opened its dispute in the
+      // meantime: `game_disputes_one_open_per_event` refuses a second (SCORE-17).
+      if (err.code === '23505' && err.constraint === 'game_disputes_one_open_per_event') {
+        return { success: false, error: 'A dispute is already active for this event.' };
+      }
       console.error(`[Dispute] SQL Error during initiation:`, err.message);
       return { success: false, error: `Database error: ${err.message}` };
     }
@@ -918,6 +915,29 @@ export class GameEventManager extends BaseManager {
   }
 
   /**
+   * Closes any open dispute on an event that has just been removed, as `VOIDED`: neither approved
+   * nor rejected, because nothing of it is applied. Its resolution timer is cancelled, and clients
+   * drop it from their list on `DISPUTE_RESOLVED` as they do any other resolution.
+   */
+  private async voidOpenDisputes(eventId: string): Promise<void> {
+    const res = await this.query(`
+      UPDATE game_disputes SET status = 'VOIDED', resolved_at = NOW()
+      WHERE game_event_id = $1 AND status = 'OPEN'
+      RETURNING ${this.DISPUTE_COLUMNS}
+    `, [eventId]);
+
+    for (const dispute of res.rows) {
+      const timer = this.activeTimers.get(dispute.id);
+      if (timer) {
+        clearTimeout(timer);
+        this.activeTimers.delete(dispute.id);
+      }
+      console.log(`[Dispute] Voided ${dispute.id}: its event ${eventId} was removed.`);
+      broadcast(gameDisputesRoom(dispute.gameId), 'DISPUTE_RESOLVED', { disputeId: dispute.id, dispute });
+    }
+  }
+
+  /**
    * Applies a mutation (undo or update) to an event and its children.
    * This is the core of the Template-Driven Mutation Engine.
    */
@@ -960,6 +980,11 @@ export class GameEventManager extends BaseManager {
                WHERE id = $1
             `, [eventId]);
             console.log(`[Mutation Engine] Event ${eventId} marked as REMOVED in DB`);
+
+            // A removed event is no longer part of the game, so a vote on it has nothing left to
+            // decide — whichever way it would have gone. This is how a conversion's dispute ends
+            // when its try is removed: the cascade below removes the conversion, and lands here.
+            await this.voidOpenDisputes(eventId);
 
             // If it's a card event, remove from live_state.sinBins
             if (this.isCardSubType(evt.subType)) {
@@ -1008,6 +1033,11 @@ export class GameEventManager extends BaseManager {
                 }
             }
         }
+    } else if (isAlreadyRemoved) {
+        // A removed event stays removed: a correction approved after it went (or cascaded onto
+        // it from its parent) must not rewrite it, or bring it back if it carries a status.
+        console.log(`[Mutation Engine] Event ${eventId} is removed. Update skipped.`);
+        return [];
     } else {
         console.log(`[Mutation Engine] Updating event: ${eventId}`);
         // Merge strategy: Start with template-derived values if outcome changed

@@ -208,7 +208,6 @@ dedicated cleanup pass.
   red, `upgraded_red` → permanent, `timed` on a direct red → timed — and degrades to permanent when
   `allowTimedRedCard` is off. The four `subType === 'timed_red_card'` tests went with the template,
   collapsed into one `isCardSubType` helper.
-- [ ] `SCORE-17` **Two officials can open two disputes on the same event at once.** `initiateDispute` in [GameEventManager.ts](file:///c:/Fred/Coding/SK/server/src/managers/GameEventManager.ts) checks for an `OPEN` dispute on the event and then inserts one, as two separate queries with nothing in `game_disputes` to refuse a second, so two requests arriving together can both pass the check. The event then has two open votes, each resolving on its own timer and each able to apply its own undo or correction. Found 2026-09-27 while testing `SCORE-16`; in that test the second request happened to arrive late enough to be refused. Fix: a partial unique index on `game_disputes (game_event_id) WHERE status = 'OPEN'` (migration plus `init-db.ts`), with the insert's unique-violation turned into the existing "A dispute is already active for this event." reply — or the same game-row lock `ingestEvent` takes.
 
 ### Sport Configuration
 *Surfaced 2026-08-20 while making the system-admin sport editor writable ([\[sportId\].tsx](file:///c:/Fred/Coding/SK/expo-app/app/(tabs)/admin/sports/%5BsportId%5D.tsx)). Everything the editor now writes lives on the `sports` row; the items below are the parts of a sport it still cannot reach.*

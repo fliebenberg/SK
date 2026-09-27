@@ -674,6 +674,11 @@ const createTables = async () => {
                 resolved_at TIMESTAMP WITH TIME ZONE
             );
         `);
+        // One open dispute per event: two challenges arriving together cannot both open a vote.
+        await client.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS game_disputes_one_open_per_event
+                ON game_disputes (game_event_id) WHERE status = 'OPEN';
+        `);
 
         // Game Dispute Votes
         await client.query(`

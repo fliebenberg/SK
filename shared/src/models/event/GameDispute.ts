@@ -4,7 +4,8 @@ export interface GameDispute {
   gameEventId: string;
   type: 'UNDO' | 'UPDATE';
   initiatorOrgProfileId: string;
-  status: 'OPEN' | 'RESOLVED_APPROVED' | 'RESOLVED_REJECTED';
+  /** `VOIDED`: its event was removed while the vote was open (e.g. a conversion whose try went), so nothing was applied. */
+  status: 'OPEN' | 'RESOLVED_APPROVED' | 'RESOLVED_REJECTED' | 'VOIDED';
   expiresAt: string;
   createdAt: string;
   resolvedAt?: string;
