@@ -91,3 +91,19 @@ export function assertCalendarDates(data: Record<string, unknown> | null | undef
     }
   }
 }
+
+/**
+ * A spreadsheet's date cell, which Excel stores as a count of days, as a calendar date.
+ *
+ * Counted in UTC from 30 December 1899, the epoch that makes Excel's serials come out right — it
+ * treats 1900 as a leap year, so every serial from 61 (1 March 1900) on is one day further along
+ * than a true count from 1 January. Serials before that are refused rather than corrected: nobody
+ * we record was born in the first two months of 1900. A fraction (a time of day) is dropped.
+ * Workbooks saved on the 1904 date system (old Mac Excel) would read four years early; none of
+ * ours are, and the template is not.
+ */
+export function calendarDateFromSpreadsheetSerial(serial: number): CalendarDate | null {
+  if (typeof serial !== 'number' || !isFinite(serial) || serial < 61) return null;
+  const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000);
+  return toCalendarDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+}

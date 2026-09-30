@@ -42,7 +42,7 @@ All theme colors must be referenced using the centralized [Colors.ts](file:///c:
 
 Because `#00E5FF` has a low contrast ratio (1.25:1) on white/light backgrounds, all ghost buttons, text links, and role badges must adaptively swap to **Deep Slate** (`text-slate-700` / `#334155`) or **Deep Ocean Cyan** (`text-cyan-800` / `#155e75`) when Light Mode is active, ensuring a **7.6:1+ contrast ratio** (AAA compliance).
 
-The same rule binds the success green: `#00E676` scores **1.67:1** on white, so text, functional icons and meaningful fills swap to **Deep Emerald** (`text-emerald-800` / `#065F46`, **7.7:1**) in Light Mode — the `success` token in [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts). A bare `text-brand-green` is a light-mode contrast bug wherever it carries meaning; see [design_spec §1.1](file:///c:/Fred/Coding/SK/docs/design_spec.md).
+The same rule binds the success green: `#00E676` scores **1.67:1** on white, so text, functional icons and meaningful fills swap to **Deep Emerald** (`text-emerald-800` / `#065F46`, **7.7:1**) in Light Mode — the `success` token in [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts). A bare `text-brand-green` is a light-mode contrast bug wherever it carries meaning; see [design_spec §1.1](file:///c:/Fred/Coding/SK/docs/design_spec.md). The `warning` (amber-700 / brand yellow) and `danger` (red-700 / brand red) tokens do the same for warning and refusal text and icons.
 
 The brand yellow (`#FFC400`) is worse still on white. Where it is the whole signal — an alert icon, a warning line — light mode uses amber (`#B45309` / `text-amber-800` on `bg-amber-50`), as the no-admin banner and badge do.
 

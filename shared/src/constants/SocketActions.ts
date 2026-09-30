@@ -308,6 +308,15 @@ export enum SocketAction {
     /** The organisation's minors settings (`settings.minors`). Org Admin only. */
     SET_ORG_MINORS_SETTINGS = 'SET_ORG_MINORS_SETTINGS',
 
+    // --- Importing people ---
+    /**
+     * Add and update an organisation's people, and their guardians, from rows read out of a
+     * spreadsheet. `mode: 'preview'` writes nothing and reports what each row would do; `'apply'`
+     * writes every row in one transaction, or none if any row is refused. Admin or Staff.
+     * Payload: `ImportOrgPeoplePayload`; reply: `PeopleImportReport`.
+     */
+    IMPORT_ORG_PEOPLE = 'IMPORT_ORG_PEOPLE',
+
     // --- Memberships (Team) ---
     /**
      * Action to add a person to a team.

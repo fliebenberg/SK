@@ -7,6 +7,7 @@ import { GlassCard } from '../../../components/GlassCard';
 import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
+import { OverflowMenu } from '../../../components/OverflowMenu';
 import { InviteButton, InviteModal, useInviteCooldownHours } from '../../../components/InviteToScoreKeeper';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
@@ -405,12 +406,27 @@ export default function OrgPeople() {
         <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
           People & Roles
         </Text>
-        <TouchableOpacity
-          className="w-8 h-8 rounded-lg bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
-          onPress={() => setIsAdding(true)}
-        >
-          <Ionicons name="person-add-outline" size={16} color="white" />
-        </TouchableOpacity>
+        <View className="flex-row items-center gap-2">
+          {canEdit && (
+            <OverflowMenu
+              accessibilityLabel="People actions"
+              items={[
+                {
+                  label: 'Import from a spreadsheet',
+                  description: 'Add and update people and their guardians from an .xlsx or .csv file. You see every change before it is saved.',
+                  icon: 'cloud-upload-outline',
+                  onPress: () => router.push(`/admin/${orgId}/people/import`),
+                },
+              ]}
+            />
+          )}
+          <TouchableOpacity
+            className="w-8 h-8 rounded-lg bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
+            onPress={() => setIsAdding(true)}
+          >
+            <Ionicons name="person-add-outline" size={16} color="white" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView className="flex-1 px-4 py-3" contentContainerStyle={{ paddingBottom: 40 }}>

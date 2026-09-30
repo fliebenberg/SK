@@ -4,6 +4,9 @@ This list tracks the tasks we need to accomplish in your application.
 
 ## Pending Tasks
 
+- [ ] **Import people from a spreadsheet — invites, then team placement.** The import itself is built (2026-09-27): `IMPORT_ORG_PEOPLE` with preview and apply, people and up to two guardians per row, and the screen at `/admin/[orgId]/people/import` with a downloadable template. Rules in [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8. Remaining:
+    - **Invites**, optional at import time, for new people with an email who are not on ScoreKeeper — through `sendMemberInvite` and its cooldown, after the commit, reporting any that failed.
+    - A separate import for **team placement**, later.
 - [ ] Add address input to the org and venue pages
 - [ ] Add the ability to make a copy of an event
 - [ ] Prevent saving duplicate events (i.e. events that are exactly the same)

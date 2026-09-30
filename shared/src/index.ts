@@ -57,5 +57,6 @@ export * from './utils/drawChanges';
 export * from './utils/memberInvite';
 export * from './utils/guardians';
 export * from './utils/calendarDate';
+export * from './utils/peopleImport';
 export * from './utils/zonedTime';
 export * from './constants/TestConstants';

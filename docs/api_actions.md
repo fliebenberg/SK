@@ -472,6 +472,33 @@ cached access so a restriction takes effect at once.
     to share an address, in either direction, and republishes the guardian lists a changed guardian
     appears in — their name and contact details travel in the links.
 
+#### `IMPORT_ORG_PEOPLE`
+Adds and updates an organisation's people, and their guardians, from rows read out of a
+spreadsheet. The rules — what an import will and will not do — are
+[identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.
+*   **Payload** (`ImportOrgPeoplePayload`): `{ orgId, rows, mode: 'preview' | 'apply', idempotencyKey? }`.
+    `rows` are `PeopleImportRow`s — every value **text as typed**, with a `rowNumber` for messages —
+    as `readPeopleSheet` in `@sk/shared` reads them from a sheet. The server never takes a file, so
+    another source (an external system's API) only has to produce the same rows. At most 2,000.
+*   **Gate**: `manage-org` on `orgId` (admin or staff). No exception for an unclaimed organisation.
+*   **Reply**: `PeopleImportReport` — one result per row (`new`, `update`, `unchanged` or `error`,
+    with the changed fields, each guardian's outcome, errors and warnings) and the counts.
+*   **`preview`** writes nothing. **`apply`** plans again inside one transaction, holding the
+    organisation's row so two imports cannot interleave, and writes every row — or, if any row has
+    an error, **nothing**, refusing with `"N rows have problems, so nothing was imported. First: …"`.
+    The app sends only the rows the admin kept. Both modes run the same plan
+    (`PeopleImportManager.plan`), so the preview is what an apply writes.
+*   **Idempotency**: batch rule 4 — a retried `apply` with the same key returns the first report
+    with `replayed: true`.
+*   **Broadcasts**, once, after the commit (`wss/peopleImport.ts`): `ORG_MEMBERS_SYNC` on
+    `org:{orgId}:members` (the whole list, never one message per row); `PROFILE_GUARDIANS_UPDATED`
+    for each player given a guardian or whose guardian's details changed; `TEAM_MEMBERS_SYNC` for the
+    rosters those people are on; `USER_MEMBERSHIPS_UPDATED` to every account whose access changed;
+    the "added to organisation" notification `ADD_ORG_MEMBER` sends, to each account given a
+    membership; and `ORGANIZATION_UPDATED` on the summary room. Publishing never fails the action:
+    the import is already committed.
+*   **Not yet**: sending invites to the people it adds. Invite them from the People screen.
+
 #### `ADD_ORG_MEMBER`
 *   **Payload**: `{ orgProfileId, organizationId, roleId }`
 *   **Logic**: Adds a member to an organization.

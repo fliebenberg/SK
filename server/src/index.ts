@@ -56,6 +56,8 @@ import { publishUserMemberships, getUserMemberships } from './wss/memberships';
 import { publishPlayerChange, publishOrgMinorsChange, publishGuardianProfileChange } from './wss/guardians';
 import { sendMemberInvite } from './wss/memberInvite';
 import { guardianManager } from './managers/GuardianManager';
+import { peopleImportManager, PeopleImportEffects } from './managers/PeopleImportManager';
+import { publishPeopleImport } from './wss/peopleImport';
 import { attachSocketLogging } from './wss/socketLog';
 import {
   divisionFacilitiesRoom,
@@ -2993,6 +2995,36 @@ io.on('connection', (socket) => {
                 result = await dataManager.getOrganization(minorsOrgId);
                 await publishOrgMinorsChange(minorsOrgId, Math.max(before.minorAge, after.minorAge));
                 await broadcastOrgSummaries([minorsOrgId]);
+                break;
+            }
+            case SocketAction.IMPORT_ORG_PEOPLE: {
+                // People and their guardians from a spreadsheet (docs/identity_structure.md §8). The
+                // gate checked the caller manages this org's people. A preview writes nothing; an
+                // apply writes every row or, if any is refused, none.
+                const { orgId: importOrgId, rows: importRows, mode: importMode } = action.payload;
+                if (importMode === 'preview') {
+                    result = await peopleImportManager.preview(importOrgId, importRows);
+                    break;
+                }
+                if (importMode !== 'apply') throw new Error("Bad request: mode must be 'preview' or 'apply'.");
+                const importActorProfileId = authUserId ? await guardianManager.getCallersProfileIdInOrg(authUserId, importOrgId) : null;
+                let importEffects: PeopleImportEffects | undefined;
+                result = await runIdempotent(action.payload.idempotencyKey, async () => {
+                    const outcome = await peopleImportManager.apply(importOrgId, importRows, importActorProfileId);
+                    if (outcome.errors.length) {
+                        const first = outcome.errors[0].message;
+                        throw new Error(outcome.errors.length === 1
+                            ? `Nothing was imported. ${first}`
+                            : `${outcome.errors.length} rows have problems, so nothing was imported. First: ${first}`);
+                    }
+                    importEffects = outcome.effects;
+                    return outcome.report;
+                });
+                // Not on a replay: the first attempt published. Never throws — the import is saved.
+                if (importEffects) {
+                    await publishPeopleImport(importEffects);
+                    await broadcastOrgSummaries([importOrgId]).catch(err => console.error('[PeopleImport] Summary broadcast failed:', err));
+                }
                 break;
             }
             case SocketAction.ADD_ORG_PROFILE: {

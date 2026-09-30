@@ -311,3 +311,66 @@ serve from now on, and the UI should not imply more than that.
 *   **Whether a league can impose a policy its clubs cannot relax.** The interviews README notes the
     league is where minors' policy usually originates; nothing here models a constraint arriving
     from above the organisation.
+
+## 8. Importing people from a spreadsheet
+
+An admin or staff member can add and update the organisation's people, and their guardians, from a
+spreadsheet (`IMPORT_ORG_PEOPLE`, [api_actions.md](file:///c:/Fred/Coding/SK/docs/api_actions.md)).
+Decided with the user on 2026-09-24 and 2026-09-27: one workbook template, `.xlsx`, people and
+guardians only. Team placement is a separate import, later.
+
+### 8.1 The shape
+
+*   **One row per person**, with up to **two guardians** in columns on the same row — the shape a
+    school's own system exports. The columns are `PEOPLE_IMPORT_COLUMNS` in
+    [peopleImport.ts](file:///c:/Fred/Coding/SK/shared/src/utils/peopleImport.ts).
+*   **The app reads the file; the server takes rows.** The server never parses a workbook, so any
+    later source — an external system's API — produces the same rows and needs no server change.
+    What a row means is decided by `normalizePeopleImportRow`, which the app and server both run.
+*   **Preview, then apply.** The preview is a report per row: new, update, unchanged, or an error
+    with its reason. The apply writes every row or none.
+*   **In the app** ([people/import.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/people/import.tsx),
+    from the People screen's `⋯` menu): download the template, choose a file, read the preview,
+    import. **Rows with problems are left out** rather than blocking the rest, and to include them
+    the admin fixes the file and chooses it again — the file stays the record of what was imported.
+    Only new and changed rows are sent; the server matches them again before writing.
+*   **The template** has a People sheet with only the column names (an example row there would be
+    imported by whoever forgot to delete it) and an Instructions sheet. ID and phone columns are
+    formatted as text so Excel keeps leading zeros. There is **no Role dropdown**: the free SheetJS
+    cannot write data validation, so the Instructions sheet and the preview say what Role may be.
+
+### 8.2 Who a row is
+
+*   **Matched by Member ID** (`identifier`), **then by email.** Never by name alone: two children with
+    the same name is ordinary, and the preview would not make a wrong match obvious. A new row whose
+    name is already on record is added, with a warning that it may be the same person.
+*   **A guardian is matched by email**, or with no email by **name and cellphone number together**,
+    and only when exactly one person on record fits. A guardian therefore **needs an email or a
+    cellphone number.** The same guardian on several rows — brothers and sisters — is one profile.
+*   A guardian who is also a person in the sheet (a teacher who is a parent) is that person's profile.
+
+### 8.3 What an import does not do
+
+Each of these would let a spreadsheet move somebody's access, or undo a decision made on purpose:
+
+*   **Remove nobody.** A person missing from the sheet is left alone; so is a guardian link.
+*   **Make nobody an Admin, and change no Admin's role.** Those decide who runs the organisation, and
+    are made one at a time.
+*   **Leave a blank cell alone.** Clearing a value is done on the person's profile.
+*   **Not change the email of someone on ScoreKeeper.** Access is matched by email (§1), so a new
+    address would hand their access to whoever owns it.
+*   **Not edit a guardian already on record** — only link them. The guardian may keep their own
+    details up to date; a school's sheet is not the better source.
+*   **Not change who is a player's primary guardian.** The first guardian a player gets is primary,
+    as when one is added by hand.
+
+What it does do, and says so in the preview: an email that already belongs to a ScoreKeeper account
+gives that account its access **straight away**, and a guardian with an account sees the child in My
+Family at once. A minor's account is linked but restricted by the minors rule (§5.3), as always.
+
+### 8.4 Still open
+
+*   **Invites.** The import does not yet invite the people it adds — the finished screen says to
+    invite them from the People list. Next step; it will reuse `sendMemberInvite` and its cooldown.
+*   **Team placement** — a separate import.
+*   **Name and photo consent** (§7) cannot be imported until it exists.

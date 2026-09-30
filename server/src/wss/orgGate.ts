@@ -128,6 +128,8 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.UPDATE_ORG_MEMBER]: { kind: 'grant-role', org: orgMemberOrg },
   [SocketAction.REMOVE_ORG_MEMBER]: { kind: 'manage-org', org: orgMemberOrg },
   [SocketAction.SEND_MEMBER_INVITE]: { kind: 'manage-org', org: profileOrg },
+  // Adds and updates people and their guardians. Never an Admin, so managing people is enough.
+  [SocketAction.IMPORT_ORG_PEOPLE]: { kind: 'manage-org', org: orgId },
 
   // Guardians (`MEMBER-3`). Recording who answers for a player is managing the org's people.
   [SocketAction.ADD_PROFILE_GUARDIAN]: { kind: 'manage-org', org: playerProfileOrg },

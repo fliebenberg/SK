@@ -6,7 +6,7 @@ tags:
   - concept
   - architecture
   - codebase-map
-timestamp: 2026-09-26T00:00:00Z
+timestamp: 2026-09-27T00:00:00Z
 ---
 
 # Codebase Architecture
@@ -36,6 +36,8 @@ A fourth package, `client/` (an older Next.js web-only app that `expo-app/` repl
 
 5. **Do not add `react-native-reanimated` or `react-native-worklets-core` as direct dependencies of `expo-app`, and do not put `'react-native-reanimated/plugin'` back in [babel.config.js](file:///c:/Fred/Coding/SK/expo-app/babel.config.js).** *Why:* that stack caused an `installTurboModule` argument-count crash on Android and iOS (fixed in `f87a18c`, 2026-06-09).
 6. **Animate with React Native's `Animated`, through [`<AnimatedBox>`](file:///c:/Fred/Coding/SK/expo-app/components/AnimatedBox.tsx). Never author animations with Reanimated, and never use NativeWind `transition-*` classes**, which make NativeWind reach for Reanimated at runtime. The how is in [design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md).
+6a. **SheetJS (`xlsx`) comes from `cdn.sheetjs.com`, pinned to an exact tarball in [expo-app/package.json](file:///c:/Fred/Coding/SK/expo-app/package.json) — never the npm `xlsx` package.** *Why:* SheetJS stopped publishing to npm at 0.18.5, which has known vulnerabilities. Upgrade by changing the version in the URL. Read cells directly, not through `sheet_to_json`, which turns date cells into device-local `Date`s ([peopleSpreadsheet.ts](file:///c:/Fred/Coding/SK/expo-app/utils/peopleSpreadsheet.ts)).
+
 7. **Rule 5 does not forbid these:** `react-native-worklets` is a **required** direct dependency (for Android map rendering; `157323b`), and is a different package from `react-native-worklets-core`. `react-native-reanimated` **is** installed, transitively through `expo-router` and `nativewind`, and cannot be removed without dropping expo-router. The mismatched direct-dependency stack was the failure, not Reanimated being installed.
 
 The full incident and how this rule was corrected are in `UI-8` ([TODO-archive.md](file:///c:/Fred/Coding/SK/TODO-archive.md)).

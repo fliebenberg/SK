@@ -21,6 +21,7 @@ import { AgeGroup } from "../models/sport/AgeGroup";
 import { Notification } from "../models/notification/Notification";
 import { League, Season, SeasonTeam, LeagueSettings, LeagueStandingRow } from "../models/league/League";
 import { GameSummary } from "../models/event/GameSummary";
+import type { PeopleImportRow, PeopleImportReport } from "../utils/peopleImport";
 import {
     ScoringSubject,
     StageEntrant,
@@ -437,6 +438,16 @@ export interface SetOrgMinorsSettingsPayload {
     orgId: string;
     accountsAllowed: boolean;
     minorAge: number;
+}
+
+export interface ImportOrgPeoplePayload {
+    orgId: string;
+    /** As read by `readPeopleSheet`, or produced by any other source. At most `PEOPLE_IMPORT_MAX_ROWS`. */
+    rows: PeopleImportRow[];
+    /** `preview` writes nothing; `apply` writes all of it or none of it. */
+    mode: 'preview' | 'apply';
+    /** For `apply`: a retry with the same key returns the first report rather than writing again. */
+    idempotencyKey?: string;
 }
 
 export interface SendMemberInvitePayload {
@@ -901,6 +912,7 @@ export interface ProtocolMap {
     [SocketAction.SET_MINOR_ACCOUNT_ACCESS]: { payload: SetMinorAccountAccessPayload; response: OrgProfile };
     [SocketAction.SEND_DEPENDANT_INVITE]: { payload: SendDependantInvitePayload; response: OrgProfile };
     [SocketAction.SET_ORG_MINORS_SETTINGS]: { payload: SetOrgMinorsSettingsPayload; response: Organization };
+    [SocketAction.IMPORT_ORG_PEOPLE]: { payload: ImportOrgPeoplePayload; response: PeopleImportReport };
     [SocketAction.REMOVE_SIN_BIN]: { payload: RemoveSinBinPayload; response: unknown };
     [SocketAction.ADD_SEASON]: { payload: AddSeasonPayload; response: Season };
     [SocketAction.UPDATE_SEASON]: { payload: UpdateSeasonPayload; response: Season };

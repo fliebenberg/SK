@@ -23,6 +23,13 @@ export const COLORS = {
      * `brand.green` remains correct for *fills* on a dark surface and for dark mode generally.
      */
     success: '#065F46',
+    /**
+     * "Worth knowing" as text or an icon: amber-700, the light-mode swap design_system.md names for
+     * the brand yellow (`#FFC400` is unreadable on white).
+     */
+    warning: '#B45309',
+    /** "This was refused" as text or an icon: red-700, 6.5:1 on white. The brand red is 3.9:1, under the 4.5:1 floor. */
+    danger: '#B91C1C',
   },
   dark: {
     background: '#0F172A',
@@ -33,6 +40,8 @@ export const COLORS = {
     placeholder: '#94A3B8',
     /** 10.7:1 on the dark background — the brand green needs no swap here. */
     success: '#00E676',
+    warning: '#FFC400',
+    danger: '#FF003C',
   }
 } as const;
 
