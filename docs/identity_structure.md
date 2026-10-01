@@ -341,15 +341,41 @@ guardians only. Team placement is a separate import, later.
 
 ### 8.2 Who a row is
 
-*   **Matched by Member ID** (`identifier`), **then by email.** Never by name alone: two children with
+*   **Matched by Member ID** (`identifier`), **then by email, then by national ID** — each belongs to
+    one person. A value already on record for someone *else* than the row's match is a problem row,
+    and so is the same email or national ID on two rows. Never by name alone: two children with
     the same name is ordinary, and the preview would not make a wrong match obvious. A new row whose
     name is already on record is added, with a warning that it may be the same person.
+*   **Never by cellphone** (decided 2026-09-30). A child's row often carries a parent's number, and
+    brothers and sisters share it, so matching on it would merge them. A number already on record
+    for somebody else is a **warning** on the row instead.
+*   **National IDs** are compared without spaces or dashes. A thirteen-digit one is taken to be a South
+    African ID number and checked — its check digit, a real date, and agreement with the birthdate
+    — and a failure is a **warning**, since a school may hold a number it cannot correct today.
+    Passport numbers and other countries' IDs are not checked (`saIdNumberProblem`).
 *   **A guardian is matched by email**, or with no email by **name and cellphone number together**,
     and only when exactly one person on record fits. A guardian therefore **needs an email or a
     cellphone number.** The same guardian on several rows — brothers and sisters — is one profile.
 *   A guardian who is also a person in the sheet (a teacher who is a parent) is that person's profile.
 
-### 8.3 What an import does not do
+### 8.3 Cellphone numbers
+
+Decided 2026-09-30, and **not only for the import**: every write of a profile's cellphone — the
+import, the People and roster forms, guardian forms — goes through `parseCellphone` in
+[phone.ts](file:///c:/Fred/Coding/SK/shared/src/utils/phone.ts).
+
+*   **Stored in international form**, `+27825550100`, however it was typed — `082 555 0100`,
+    `+27 82 555 0100`, `0027…`, or `825550100` where Excel dropped the 0. One form is what comparing
+    two people needs, and what a WhatsApp or SMS link needs later.
+*   **South Africa is assumed** for a number without a country code; any other country's number is
+    typed with `+` and its code. Nothing records an organisation's country yet.
+*   **A number that cannot be read is refused**, with examples of ones that can — except a number
+    saved earlier that an edit does not change, which is left as it was so an old record can still
+    be saved.
+*   **Shown as written here**, `082 555 0100` (`formatCellphone` in the app); searching `082 555`
+    finds `+27825550…`.
+
+### 8.4 What an import does not do
 
 Each of these would let a spreadsheet move somebody's access, or undo a decision made on purpose:
 
@@ -368,7 +394,7 @@ What it does do, and says so in the preview: an email that already belongs to a 
 gives that account its access **straight away**, and a guardian with an account sees the child in My
 Family at once. A minor's account is linked but restricted by the minors rule (§5.3), as always.
 
-### 8.4 Still open
+### 8.5 Still open
 
 *   **Invites.** The import does not yet invite the people it adds — the finished screen says to
     invite them from the People list. Next step; it will reuse `sendMemberInvite` and its cooldown.

@@ -15,6 +15,8 @@
 import { isValidEmail, normalizeEmail } from './memberInvite';
 import { calendarDateFromSpreadsheetSerial, isCalendarDate, type CalendarDate } from './calendarDate';
 import { GUARDIAN_RELATIONSHIPS, type GuardianRelationship } from '../models/people/ProfileGuardian';
+import { CELLPHONE_EXAMPLES, parseCellphone } from './phone';
+import { normalizeNationalId, saIdNumberProblem } from './nationalId';
 
 /** The most rows one import may carry. Past this the preview stops being something a person reads. */
 export const PEOPLE_IMPORT_MAX_ROWS = 2000;
@@ -52,19 +54,19 @@ function guardianColumns(n: number): PeopleImportColumn[] {
   return [
     { header: `Guardian ${n} name`, field: 'guardianName', guardian: n, help: `Parent or guardian ${n}. Leave the guardian columns empty if there is none.`, example: n === 1 ? 'Sarah Botha' : '' },
     { header: `Guardian ${n} email`, field: 'guardianEmail', guardian: n, help: 'A guardian needs an email or a cellphone number. The same guardian on several rows (brothers and sisters) is recorded once.', example: n === 1 ? 'sarah.botha@example.com' : '' },
-    { header: `Guardian ${n} cellphone`, field: 'guardianCellphone', guardian: n, text: true, help: 'Formatted as text, so a leading 0 is kept.', example: n === 1 ? '082 555 0101' : '' },
+    { header: `Guardian ${n} cellphone`, field: 'guardianCellphone', guardian: n, text: true, help: `As for Cellphone: ${CELLPHONE_EXAMPLES}.`, example: n === 1 ? '082 555 0101' : '' },
     { header: `Guardian ${n} relationship`, field: 'guardianRelationship', guardian: n, help: 'Parent, Guardian, Grandparent or Other. Empty means Parent.', example: n === 1 ? 'Parent' : '' },
   ];
 }
 
 /** The template's columns, in order. The app builds the workbook from this list. */
 export const PEOPLE_IMPORT_COLUMNS: PeopleImportColumn[] = [
-  { header: 'Member ID', field: 'identifier', text: true, help: "Your organisation's own number for the person, such as a student or membership number. Rows are matched to people already on record by this, then by email.", example: 'S1042' },
+  { header: 'Member ID', field: 'identifier', text: true, help: "Your organisation's own number for the person, such as a student or membership number. Rows are matched to people already on record by this, then by email, then by national ID.", example: 'S1042' },
   { header: 'Full name', field: 'name', required: true, help: 'Required.', example: 'Anika Botha' },
   { header: 'Email', field: 'email', help: 'If this address is already on ScoreKeeper, that account gets access to your organisation straight away.', example: 'anika.botha@example.com' },
-  { header: 'Cellphone', field: 'cellphone', text: true, help: 'Formatted as text, so a leading 0 is kept.', example: '082 555 0100' },
+  { header: 'Cellphone', field: 'cellphone', text: true, help: `A South African number, with or without +27, or an international one starting with + and its country code: ${CELLPHONE_EXAMPLES}. Spaces and dashes are fine. A South African number whose leading 0 was lost is read correctly.`, example: '082 555 0100' },
   { header: 'Birthdate', field: 'birthdate', help: 'A date cell, or text in the form YYYY-MM-DD.', example: '2012-03-05' },
-  { header: 'National ID', field: 'nationalId', text: true, help: 'Formatted as text, so a long number is not rounded.', example: '' },
+  { header: 'National ID', field: 'nationalId', text: true, help: 'A South African ID number, or a passport number. A South African one is checked, and a probable typing mistake is pointed out. Formatted as text, so a long number is not rounded.', example: '' },
   { header: 'Role', field: 'role', help: 'Member or Staff. Empty means Member for someone new, and no change for someone on record. Admins are made on their profile, not by an import.', example: 'Member' },
   ...guardianColumns(1),
   ...guardianColumns(2),
@@ -121,6 +123,7 @@ export interface PeopleImportGuardian {
   name: string;
   /** Normalized (trimmed, lower-case), as it is stored and compared. */
   email?: string;
+  /** International form, as for the person's. */
   cellphone?: string;
   relationship: GuardianRelationship;
 }
@@ -131,8 +134,10 @@ export interface NormalizedPeopleImportRow {
   identifier?: string;
   name: string;
   email?: string;
+  /** International form, `+27825550100` (`parseCellphone`). */
   cellphone?: string;
   birthdate?: CalendarDate;
+  /** Without spaces or dashes, upper-case (`normalizeNationalId`). */
   nationalId?: string;
   roleId?: PeopleImportRoleId;
   guardians: PeopleImportGuardian[];
@@ -249,8 +254,18 @@ const trimmed = (value: unknown): string => (typeof value === 'string' ? value.t
  * date, an unknown role, a guardian with no way to tell them apart. Whether it clashes with who is
  * already on record is the server's to say, because only the server knows.
  */
-export function normalizePeopleImportRow(row: PeopleImportRow): { row: NormalizedPeopleImportRow; errors: string[] } {
+export function normalizePeopleImportRow(row: PeopleImportRow): { row: NormalizedPeopleImportRow; errors: string[]; warnings: string[] } {
   const errors: string[] = [];
+  const warnings: string[] = [];
+
+  /** A cell's number in its stored form, or the reason it cannot be read. */
+  const cellphoneOf = (label: string, text: string): string | undefined => {
+    const parsed = parseCellphone(text);
+    if (!parsed) return undefined;
+    if (parsed.ok) return parsed.value;
+    errors.push(`${label}: ${parsed.problem}`);
+    return undefined;
+  };
 
   const name = trimmed(row.name);
   if (!name) errors.push('Full name is empty.');
@@ -271,20 +286,26 @@ export function normalizePeopleImportRow(row: PeopleImportRow): { row: Normalize
     roleId = role.roleId;
   }
 
+  const cellphone = cellphoneOf('Cellphone', trimmed(row.cellphone));
+  const nationalId = normalizeNationalId(trimmed(row.nationalId)) || undefined;
+  const idProblem = saIdNumberProblem(nationalId, birthdate && isCalendarDate(birthdate) ? birthdate : null);
+  if (idProblem) warnings.push(idProblem);
+
   const guardians: PeopleImportGuardian[] = [];
   (row.guardians || []).slice(0, PEOPLE_IMPORT_GUARDIANS).forEach((cells, i) => {
     const position = i + 1;
     const g = {
       name: trimmed(cells?.name),
       email: normalizeEmail(trimmed(cells?.email)) || undefined,
-      cellphone: trimmed(cells?.cellphone) || undefined,
+      cellphoneText: trimmed(cells?.cellphone),
       relationshipText: trimmed(cells?.relationship) || undefined,
     };
-    if (!g.name && !g.email && !g.cellphone && !g.relationshipText) return;
+    if (!g.name && !g.email && !g.cellphoneText && !g.relationshipText) return;
 
     const label = `Guardian ${position}`;
+    const guardianCellphone = cellphoneOf(`${label}'s cellphone`, g.cellphoneText);
     if (!g.name) errors.push(`${label} has no name.`);
-    if (!g.email && !g.cellphone) {
+    if (!g.email && !g.cellphoneText) {
       errors.push(`${label} needs an email or a cellphone number, so they can be told apart from anyone else with the same name.`);
     }
     if (g.email && !isValidEmail(g.email)) errors.push(`${label}'s email "${trimmed(cells?.email)}" is not a valid email address.`);
@@ -296,7 +317,7 @@ export function normalizePeopleImportRow(row: PeopleImportRow): { row: Normalize
     if (g.email && email && g.email === email) {
       errors.push(`${label} has the same email as the person. Give each their own.`);
     }
-    guardians.push({ position, name: g.name, email: g.email, cellphone: g.cellphone, relationship: relationship || 'parent' });
+    guardians.push({ position, name: g.name, email: g.email, cellphone: guardianCellphone, relationship: relationship || 'parent' });
   });
   if (guardians.length === 2 && guardians[0].email && guardians[0].email === guardians[1].email) {
     errors.push('Guardian 1 and Guardian 2 have the same email, so they are the same person.');
@@ -308,20 +329,17 @@ export function normalizePeopleImportRow(row: PeopleImportRow): { row: Normalize
       identifier: trimmed(row.identifier) || undefined,
       name,
       email,
-      cellphone: trimmed(row.cellphone) || undefined,
+      cellphone,
       birthdate: birthdate && isCalendarDate(birthdate) ? birthdate : undefined,
-      nationalId: trimmed(row.nationalId) || undefined,
+      nationalId,
       roleId,
       guardians,
     },
     errors,
+    warnings,
   };
 }
 
-/** A cellphone number reduced to its digits, for telling two guardians apart. `082 555-0100` → `0825550100`. */
-export function cellphoneDigits(cellphone: string | null | undefined): string {
-  return (cellphone || '').replace(/\D/g, '');
-}
 
 // -------------------------------------------------------------------------------------------------
 // The report

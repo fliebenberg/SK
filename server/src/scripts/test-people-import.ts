@@ -81,6 +81,10 @@ function nextMessage(socket: Socket, room: string, type: string): Promise<any> {
   });
 }
 
+function read(socket: Socket, request: any): Promise<any> {
+  return new Promise((resolve) => socket.emit('get_data', request, resolve));
+}
+
 const importPeople = (socket: Socket, rows: PeopleImportRow[], mode: 'preview' | 'apply', idempotencyKey?: string) =>
   send(socket, SocketAction.IMPORT_ORG_PEOPLE, { orgId: DKL, rows, mode, idempotencyKey });
 
@@ -111,7 +115,7 @@ const SHEET: PeopleImportRow[] = [
 const GOOD_ROWS = SHEET.slice(0, 5);
 
 async function snapshot() {
-  const profiles = (await query(`SELECT id, name, email, cellphone, identifier FROM org_profiles WHERE id = ANY($1)`, [TOUCHED])).rows;
+  const profiles = (await query(`SELECT id, name, email, cellphone, identifier, national_id FROM org_profiles WHERE id = ANY($1)`, [TOUCHED])).rows;
   const memberships = (await query(
     `SELECT id, org_profile_id, role_id FROM org_memberships WHERE org_profile_id = ANY($1) AND org_id = $2 AND end_date IS NULL`,
     [TOUCHED, DKL]
@@ -136,8 +140,8 @@ async function teardown(original: Awaited<ReturnType<typeof snapshot>>) {
   await query(`DELETE FROM org_memberships WHERE org_profile_id = ANY($1)`, [ids]);
   await query(`DELETE FROM org_profiles WHERE id = ANY($1)`, [ids]);
   for (const p of original.profiles) {
-    await query(`UPDATE org_profiles SET name = $2, email = $3, cellphone = $4, identifier = $5 WHERE id = $1`,
-      [p.id, p.name, p.email, p.cellphone, p.identifier]);
+    await query(`UPDATE org_profiles SET name = $2, email = $3, cellphone = $4, identifier = $5, national_id = $6 WHERE id = $1`,
+      [p.id, p.name, p.email, p.cellphone, p.identifier, p.national_id]);
   }
   // A membership the import gave a fixture profile goes; one it re-roled gets its role back.
   const kept = original.memberships.map((m: any) => m.id);
@@ -224,7 +228,7 @@ async function main() {
     expect(guardians, [
       { name: 'PI Test Shared Parent', email: SHARED_PARENT, cellphone: null, player: 'PI-1', relationship: 'parent', is_primary: true, member: false },
       { name: 'PI Test Shared Parent', email: SHARED_PARENT, cellphone: null, player: 'PI-2', relationship: 'parent', is_primary: true, member: false },
-      { name: 'PI Test Gran', email: null, cellphone: '082 000 0001', player: 'PI-2', relationship: 'grandparent', is_primary: false, member: false },
+      { name: 'PI Test Gran', email: null, cellphone: '+27820000001', player: 'PI-2', relationship: 'grandparent', is_primary: false, member: false },
     ], 'guardians: one profile per person, the first is primary, and none is a member');
 
     const hennie = (await query(
@@ -233,7 +237,7 @@ async function main() {
         WHERE op.id = $1`,
       [HENNIE, DKL]
     )).rows;
-    expect(hennie, [{ cellphone: '082 000 0003', role_id: 'role-org-staff' }], 'Hennie is updated');
+    expect(hennie, [{ cellphone: '+27820000003', role_id: 'role-org-staff' }], 'Hennie is updated, his number stored in international form');
     const johan = (await query(`SELECT role_id FROM org_memberships WHERE org_profile_id = $1 AND end_date IS NULL`, [JOHAN])).rows;
     expect(johan, [{ role_id: 'role-org-admin' }], 'the Admin is still an Admin');
 
@@ -265,6 +269,41 @@ async function main() {
       { rowNumber: 3, identifier: 'PI-9', name: 'PI Test B' },
     ], 'preview');
     expect(twice?.data?.counts?.error, 2, 'the same Member ID on two rows refuses both');
+
+    // --- Cellphone numbers and national IDs (2026-09-30) -----------------------------------------
+    await query(`UPDATE org_profiles SET national_id = '8001015009087' WHERE id = $1`, [HENNIE]);
+    const byNationalId = await importPeople(admin, [{ rowNumber: 2, name: 'Hennie Steyn', nationalId: '800101 5009 087' }], 'preview');
+    expect(byNationalId?.data?.rows?.[0]?.outcome, 'unchanged', 'a row with no Member ID or email is matched by national ID, however it is spaced');
+    const idClash = await importPeople(admin, [{ rowNumber: 2, identifier: 'PI-1', name: 'PI Test Kid One', nationalId: '8001015009087' }], 'preview');
+    expect(idClash?.data?.rows?.[0]?.errors?.[0]?.startsWith("The national ID 8001015009087 is already Hennie Steyn"), true, "a national ID already someone else's is refused");
+    const idTwice = await importPeople(admin, [
+      { rowNumber: 2, identifier: 'PI-10', name: 'PI Test C', nationalId: '0101015009083' },
+      { rowNumber: 3, identifier: 'PI-11', name: 'PI Test D', nationalId: '0101015009083' },
+    ], 'preview');
+    expect(idTwice?.data?.counts?.error, 2, 'the same national ID on two rows refuses both');
+    const badId = await importPeople(admin, [{ rowNumber: 2, identifier: 'PI-12', name: 'PI Test E', nationalId: '0101015009084' }], 'preview');
+    expect(badId?.data?.rows?.[0]?.outcome, 'new', 'a mistyped South African ID number is not refused');
+    expect(badId?.data?.rows?.[0]?.warnings?.[0]?.includes('fails the South African ID number check'), true, 'but it is pointed out');
+
+    const sameNumber = await importPeople(admin, [{ rowNumber: 2, identifier: 'PI-13', name: 'PI Test F', cellphone: '+27 82 000 0003' }], 'preview');
+    expect(sameNumber?.data?.rows?.[0]?.outcome, 'new', 'a cellphone already on record does not match anyone');
+    expect(sameNumber?.data?.rows?.[0]?.warnings?.[0]?.startsWith('Cellphone +27820000003 is also on record for Hennie Steyn'), true, 'but it is pointed out');
+    const sameAsBefore = await importPeople(admin, [{ rowNumber: 2, name: 'Hennie Steyn', email: 'hennie.steyn@doringkloof.test', cellphone: '082-000-0003' }], 'preview');
+    expect(sameAsBefore?.data?.rows?.[0]?.outcome, 'unchanged', 'the same number typed another way is not a change');
+    const badNumber = await importPeople(admin, [{ rowNumber: 2, identifier: 'PI-14', name: 'PI Test G', cellphone: '082 000' }], 'preview');
+    expect(badNumber?.data?.rows?.[0]?.errors?.[0]?.startsWith('Cellphone: "082 000" is not a cellphone number we can read'), true, 'a number it cannot read is refused');
+
+    // The forms go through the same rule, on the server.
+    const added = await send(admin, SocketAction.ADD_ORG_PROFILE, { name: 'PI Test Form', orgId: DKL, cellphone: '082 555 0199' });
+    expect(added?.data?.cellphone, '+27825550199', 'a person added by hand has their number stored in international form');
+    expect((await send(admin, SocketAction.ADD_ORG_PROFILE, { name: 'PI Test Form 2', orgId: DKL, cellphone: '0800' }))?.status, 'error', 'and one it cannot read is refused');
+    await query(`UPDATE org_profiles SET cellphone = '0800' WHERE id = $1`, [added?.data?.id]);
+    expect((await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: added?.data?.id, data: { name: 'PI Test Form', cellphone: '0800' } }))?.status, 'ok', 'an old number the edit does not change can still be saved');
+    const changed = await send(admin, SocketAction.UPDATE_ORG_PROFILE, { id: added?.data?.id, data: { cellphone: '+27 82 555 0198' } });
+    expect(changed?.data?.cellphone, '+27825550198', 'a changed number is stored in international form');
+
+    const found = await read(admin, { type: 'search_people', query: '082 555 0198', orgId: DKL });
+    expect(Array.isArray(found) && found.some((p: any) => p.id === added?.data?.id), true, 'searching the number as it is usually typed finds it');
   } finally {
     sockets.forEach(s => s.disconnect());
     await teardown(original);

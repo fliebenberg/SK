@@ -7,6 +7,7 @@ import {
   PEOPLE_IMPORT_COLUMNS,
   PEOPLE_IMPORT_GUARDIANS,
   PEOPLE_IMPORT_MAX_ROWS,
+  parseCellphone,
   readPeopleSheet,
   type SheetReadResult,
 } from '@sk/shared';
@@ -29,6 +30,22 @@ import {
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 export const PEOPLE_TEMPLATE_FILE_NAME = 'ScoreKeeper people import.xlsx';
 const PEOPLE_SHEET = 'People';
+
+/** How people type cellphone numbers, each with why it is worth showing. All read as valid. */
+const CELLPHONE_TEMPLATE_EXAMPLES: [string, string][] = [
+  ['082 555 0100', ''],
+  ['082-555-0100', ''],
+  ['0825550100', ''],
+  ['+27 82 555 0100', 'with the country code'],
+  ['0027 82 555 0100', ''],
+  ['825550100', 'the leading 0 lost, as Excel does to a number cell'],
+  ['+44 7700 900123', 'a number from another country: + and its country code'],
+];
+
+const readAs = (typed: string) => {
+  const parsed = parseCellphone(typed);
+  return parsed?.ok ? parsed.value : '';
+};
 
 /** Rows of the People sheet pre-formatted as text where that matters. More than most orgs need. */
 const TEMPLATE_ROWS = 1000;
@@ -69,6 +86,11 @@ export function buildPeopleTemplate(): XLSX.WorkBook {
     [],
     ['Column', 'Required', 'What to put in it', 'Example'],
     ...PEOPLE_IMPORT_COLUMNS.map(c => [c.header, c.required ? 'Yes' : '', c.help, c.example]),
+    [],
+    ['Cellphone numbers', '', 'Typed like this', 'Read as'],
+    // Each worked out by `parseCellphone`, so the table cannot promise what the import does not do.
+    ...CELLPHONE_TEMPLATE_EXAMPLES.map(([typed, note]) => ['', '', note ? `${typed}   (${note})` : typed, readAs(typed)]),
+    ['', '', 'A number with too few or too many digits, or with letters in it, is shown as a problem in the preview.'],
   ]);
   instructions['!cols'] = [{ wch: 26 }, { wch: 10 }, { wch: 100 }, { wch: 26 }];
 

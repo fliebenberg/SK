@@ -34,6 +34,7 @@ import { PaginatedList } from '../../../../components/PaginatedList';
 import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
 import DatePicker from '../../../../components/DatePicker';
 import { formatInstantDate, isCalendarDate } from '../../../../utils/dates';
+import { formatCellphone } from '../../../../utils/phone';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -851,7 +852,7 @@ export default function TeamDetailsScreen() {
               renderItem={(item) => {
                 const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
                 const logoConf = parseImageConfig(item.imageConfig);
-                const contactInfo = [item.email, item.cellphone].filter(Boolean).join('  |  ');
+                const contactInfo = [item.email, formatCellphone(item.cellphone)].filter(Boolean).join('  |  ');
 
                 return (
                   <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 py-1.5 px-3 flex-row items-center justify-between">
@@ -972,7 +973,7 @@ export default function TeamDetailsScreen() {
                 const avatarSource = item.image ? { uri: getAvatarUrl(item.image, 'thumb') } : null;
                 const logoConf = parseImageConfig(item.imageConfig);
                 const roleName = availableRoles.find(r => r.id === item.roleId)?.name || 'Staff';
-                const contactInfo = [item.email, item.cellphone].filter(Boolean).join('  |  ');
+                const contactInfo = [item.email, formatCellphone(item.cellphone)].filter(Boolean).join('  |  ');
 
                 return (
                   <GlassCard key={item.membershipId} className="border border-slate-200 dark:border-white/5 py-1.5 px-3 flex-row items-center justify-between">
@@ -1256,7 +1257,7 @@ export default function TeamDetailsScreen() {
                       setSelectedPerson(person);
                       if (person) {
                         setMemberEmail(person.email || '');
-                        setMemberCellphone(person.cellphone || '');
+                        setMemberCellphone(formatCellphone(person.cellphone));
                         setMemberBirthdate(person.birthdate || '');
                         setMemberOrgId(person.identifier || '');
                         setMemberImage(person.image || '');
@@ -1451,7 +1452,7 @@ export default function TeamDetailsScreen() {
                       setSelectedStaffPerson(person);
                       if (person) {
                         setMemberEmail(person.email || '');
-                        setMemberCellphone(person.cellphone || '');
+                        setMemberCellphone(formatCellphone(person.cellphone));
                         setMemberBirthdate(person.birthdate || '');
                         setMemberOrgId(person.identifier || '');
                         setMemberImage(person.image || '');

@@ -1,4 +1,4 @@
-import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, assertCalendarDates } from "@sk/shared";
+import { OrgProfile, OrgMembership, User, UserEmail, OrgMember, assertCalendarDates, cellphoneSearchDigits, parseCellphone } from "@sk/shared";
 import { randomBytes } from "crypto";
 import { BaseManager } from "./BaseManager";
 import { memberPrivilegedSql, restrictedReasonSql } from "./minorAccess";
@@ -7,6 +7,18 @@ import { imageService } from "../services/ImageService";
 
 /** A birthdate is a calendar date, never a timestamp (date-formatting skill, DATE-1). */
 const PROFILE_DATE_FIELDS = { birthdate: 'Birthdate' };
+
+/**
+ * A cellphone number as it is stored — international form, `+27825550100` — or the refusal a person
+ * reads when it cannot be read (`parseCellphone`, decided 2026-09-30). Blank stores nothing.
+ */
+function storedCellphone(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const parsed = parseCellphone(String(value));
+  if (!parsed) return null;
+  if (!parsed.ok) throw new Error(`Cellphone: ${parsed.problem}`);
+  return parsed.value;
+}
 
 /**
  * `restrictedReason` is an explicit `null` on a membership with full privileges, never absent: the
@@ -226,6 +238,7 @@ export class UserManager extends BaseManager {
 
   async addOrgProfile(profile: Omit<OrgProfile, 'id'> & { id?: string }): Promise<OrgProfile> {
     assertCalendarDates(profile as Record<string, unknown>, PROFILE_DATE_FIELDS);
+    const cellphone = storedCellphone(profile.cellphone);
     const id = profile.id || `op-${Date.now()}`;
     // An add can land on an existing profile (ON CONFLICT below), replacing its picture.
     const previousImage = (await this.query(
@@ -257,7 +270,7 @@ export class UserManager extends BaseManager {
           profile.userId,
           profile.name,
           profile.email,
-          profile.cellphone,
+          cellphone,
           profile.birthdate,
           profile.nationalId,
           profile.identifier,
@@ -278,6 +291,12 @@ export class UserManager extends BaseManager {
     const keys = Object.keys(data).filter(k => k !== 'id' && k !== 'orgId');
     if (keys.length === 0) return null;
     assertCalendarDates(data as Record<string, unknown>, PROFILE_DATE_FIELDS);
+    // A number saved before numbers were checked is left as it is while the edit does not touch it,
+    // so an old record can still be saved; a new or changed one is stored in international form.
+    if (typeof data.cellphone === 'string' && data.cellphone.trim()) {
+      const current = (await this.query('SELECT cellphone FROM org_profiles WHERE id = $1', [id])).rows[0]?.cellphone;
+      if (data.cellphone !== current) data = { ...data, cellphone: storedCellphone(data.cellphone) ?? undefined };
+    }
 
     const map: Record<string, string> = {
       userId: 'user_id',
@@ -551,7 +570,8 @@ export class UserManager extends BaseManager {
           (CASE WHEN op.email ILIKE $4 THEN 1 ELSE 0 END) as domain_match
         FROM org_profiles op
         LEFT JOIN organizations o ON o.id = op.org_id
-        WHERE (op.name % $1 OR op.email % $1 OR op.name ILIKE $3 OR op.email ILIKE $3 OR op.cellphone ILIKE $3)
+        WHERE (op.name % $1 OR op.email % $1 OR op.name ILIKE $3 OR op.email ILIKE $3 OR op.cellphone ILIKE $3
+               OR ($6::text IS NOT NULL AND regexp_replace(COALESCE(op.cellphone, ''), '\\D', '', 'g') LIKE $6::text))
           AND (op.org_id = $2 OR $2 IS NULL)
           AND ($5::text[] IS NULL OR op.org_id = ANY($5))
       )
@@ -563,7 +583,9 @@ export class UserManager extends BaseManager {
     `;
 
     const domainPattern = orgDomain ? `%@${orgDomain}%` : `%@no-domain.com%`;
-    const res = await this.query(queryStr, [searchTerm, orgId || null, `%${searchTerm}%`, domainPattern, orgIds]);
+    // Numbers are stored as +27825550100 (`parseCellphone`): `082 555` is looked for as `82555`.
+    const phoneDigits = cellphoneSearchDigits(searchTerm);
+    const res = await this.query(queryStr, [searchTerm, orgId || null, `%${searchTerm}%`, domainPattern, orgIds, phoneDigits ? `%${phoneDigits}%` : null]);
     return res.rows;
   }
 

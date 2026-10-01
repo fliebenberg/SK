@@ -11,6 +11,7 @@ import { getAvatarUrl } from '../../services/assets';
 import { formatFixtureWhen, formatInstant } from '../../utils/dates';
 import { RELATIONSHIP_LABELS } from '../../components/guardians/guardianDraft';
 import { useInviteCooldownHours } from '../../components/InviteToScoreKeeper';
+import { formatCellphone } from '../../utils/phone';
 
 /**
  * My Family (`MEMBER-3`, Phase 4): what a guardian sees of the children they are recorded for.
@@ -114,7 +115,7 @@ function DependantCard({ child }: { child: Dependant }) {
         <Text className={SECTION}>Your details at {child.orgName}</Text>
         <Text className="font-inter text-sm text-slate-800 dark:text-white">{child.guardianName}</Text>
         <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          {[child.guardianEmail, child.guardianCellphone].filter(Boolean).join(' · ') || 'No contact details on record'}
+          {[child.guardianEmail, formatCellphone(child.guardianCellphone)].filter(Boolean).join(' · ') || 'No contact details on record'}
         </Text>
         <Text className="font-inter text-[11px] text-slate-400 mt-1">Ask {child.orgName} to change these.</Text>
       </View>

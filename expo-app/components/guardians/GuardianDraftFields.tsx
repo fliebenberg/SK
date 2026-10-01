@@ -5,6 +5,7 @@ import { GUARDIAN_RELATIONSHIPS } from '@sk/shared';
 import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
 import { useActiveTheme } from '../../store/settingsStore';
 import { GuardianDraft, RELATIONSHIP_LABELS } from './guardianDraft';
+import { formatCellphone } from '../../utils/phone';
 
 interface GuardianDraftFieldsProps {
   orgId: string;
@@ -55,7 +56,7 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
             onChangeText={name => set({ name })}
             onSelectPerson={person => {
               if (!person || person.id === excludeProfileId) return;
-              set({ existingId: person.id, name: person.name, email: person.email || '', cellphone: person.cellphone || '' });
+              set({ existingId: person.id, name: person.name, email: person.email || '', cellphone: formatCellphone(person.cellphone) });
             }}
           />
         )}

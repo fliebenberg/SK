@@ -366,6 +366,11 @@ The admin operations are REST, under `requireAdmin`, and each answers with the s
 
 #### Person records — `ADD_ORG_PROFILE`, `UPDATE_ORG_PROFILE`, `DELETE_ORG_PROFILE`, `LINK_USER_PROFILE`
 
+**Cellphone numbers** (2026-09-30): `ADD_ORG_PROFILE` and `UPDATE_ORG_PROFILE` store `cellphone` in
+international form (`+27825550100`) however it was typed, and refuse one `parseCellphone` cannot
+read. An update that sends back a number saved earlier, unchanged, is not checked. See
+[identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.3.
+
 All four go through [wss/profileGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/profileGate.ts),
 added 2026-09-03 (`PEOPLE-2`). **Before that they had no permission check at all**, and two of them
 handed over an admin membership to anybody signed in: `LINK_USER_PROFILE` sets a profile's email,

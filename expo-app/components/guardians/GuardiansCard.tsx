@@ -10,6 +10,7 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { sendAction } from '../../services/actions';
 import { useRequestScope } from '../../hooks/useRequestScope';
 import { GuardianDraftFields } from './GuardianDraftFields';
+import { formatCellphone, sameCellphone } from '../../utils/phone';
 import {
   GuardianDraft,
   RELATIONSHIP_LABELS,
@@ -118,7 +119,7 @@ export function GuardiansCard({ orgId, playerProfileId, playerName, guardians, c
                 ) : null}
               </View>
               <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {[link.guardianEmail, link.guardianCellphone].filter(Boolean).join(' · ') || 'No contact details'}
+                {[link.guardianEmail, formatCellphone(link.guardianCellphone)].filter(Boolean).join(' · ') || 'No contact details'}
               </Text>
               <Text className={`font-inter text-[11px] mt-0.5 ${link.guardianHasAccount ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
                 {link.guardianHasAccount ? 'On ScoreKeeper' : 'Not on ScoreKeeper yet'}
@@ -314,7 +315,7 @@ function EditGuardianModal({ link, onClose }: { link: ProfileGuardian | null; on
     setSeededFor(link.id);
     setName(link.guardianName || '');
     setEmail(link.guardianEmail || '');
-    setCellphone(link.guardianCellphone || '');
+    setCellphone(formatCellphone(link.guardianCellphone));
     setRelationship(link.relationship);
     setError(null);
   }
@@ -333,7 +334,7 @@ function EditGuardianModal({ link, onClose }: { link: ProfileGuardian | null; on
 
     const detailsChanged = name.trim() !== (link.guardianName || '')
       || email.trim() !== (link.guardianEmail || '')
-      || cellphone.trim() !== (link.guardianCellphone || '');
+      || !sameCellphone(cellphone, link.guardianCellphone);
     if (detailsChanged) {
       const result = await sendAction(
         SocketAction.UPDATE_ORG_PROFILE,

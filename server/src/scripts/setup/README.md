@@ -52,6 +52,9 @@ lists every person with `account: true`.
 
 Anything a test needs beyond this, it adds itself. Keep this file as the shared base.
 
+**A people-import sample** for Doringkloof, with valid rows and one for each kind of refusal, is
+[fixtures/people-import/](fixtures/people-import/README.md), with the preview it should give.
+
 **Ids** are built from names (`fx-team-dkl-rugby-u16a`, `fx-prof-dkl-ruan-potgieter`) by
 `fixtureIds` in [testOrgs.ts](fixtures/testOrgs.ts). A test should import that helper rather than
 write the ids out by hand.

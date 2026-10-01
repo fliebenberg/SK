@@ -16,6 +16,7 @@ import {
     organizerScopeFields,
     organizerScopeOf,
     minorsSettingsOf,
+    cellphoneSearchDigits,
 } from '@sk/shared';
 import { parseSportWriteFields } from './utils/sportValidation';
 import pool from './db';
@@ -922,6 +923,10 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
     const nameLike = nameParam ? `%${nameParam}%` : null;
     const emailLike = emailParam ? `%${emailParam}%` : null;
     const idLike = idParam ? `%${idParam}%` : null;
+    // Numbers are stored as +27825550100 (`parseCellphone`), so `082 555` is looked for as the digits
+    // `82555`; a number typed with spaces or a leading 0 would never match the stored form.
+    const phoneDigits = cellphoneSearchDigits(idParam);
+    const phoneLike = phoneDigits ? `%${phoneDigits}%` : null;
 
     const queryStr = `
       WITH user_candidates AS (
@@ -974,6 +979,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
               CASE WHEN op.national_id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.identifier ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.cellphone ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN $9::text IS NOT NULL AND regexp_replace(COALESCE(op.cellphone, ''), '\\D', '', 'g') LIKE $9::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN u.id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.id ILIKE $6::text THEN 1.0 ELSE 0.0 END
             )
@@ -1022,6 +1028,7 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
               CASE WHEN op.national_id ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.identifier ILIKE $6::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.cellphone ILIKE $6::text THEN 1.0 ELSE 0.0 END,
+              CASE WHEN $9::text IS NOT NULL AND regexp_replace(COALESCE(op.cellphone, ''), '\\D', '', 'g') LIKE $9::text THEN 1.0 ELSE 0.0 END,
               CASE WHEN op.id ILIKE $6::text THEN 1.0 ELSE 0.0 END
             )
           ELSE 0.0 END) AS id_score
@@ -1053,7 +1060,8 @@ app.get('/api/admin/users/search', requireAdmin, async (req: any, res: any) => {
       nameParam, nameLike,
       emailParam, emailLike,
       idParam, idLike,
-      parsedLimit, offset
+      parsedLimit, offset,
+      phoneLike
     ]);
 
     const results = dbRes.rows;

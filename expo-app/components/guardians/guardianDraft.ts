@@ -1,5 +1,6 @@
 import { GuardianRelationship, SocketAction, isValidEmail } from '@sk/shared';
 import { sendAction, requestKeyFor } from '../../services/actions';
+import { cellphoneProblem } from '../../utils/phone';
 
 /**
  * A guardian being entered on a form, before it is saved (`MEMBER-3`).
@@ -44,6 +45,8 @@ export function isGuardianDraftStarted(draft: GuardianDraft): boolean {
 export function guardianDraftProblem(draft: GuardianDraft): string | null {
   if (!draft.existingId && !draft.name.trim()) return 'Enter the guardian’s name, or pick someone already on record.';
   if (!draft.existingId && draft.email.trim() && !isValidEmail(draft.email)) return 'The guardian’s email is not a valid address.';
+  const phone = draft.existingId ? null : cellphoneProblem(draft.cellphone);
+  if (phone) return `The guardian’s cellphone: ${phone}`;
   return null;
 }
 

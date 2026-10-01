@@ -3,7 +3,6 @@ import { calendarDateFromSpreadsheetSerial } from './calendarDate';
 import {
   PEOPLE_IMPORT_COLUMNS,
   PEOPLE_IMPORT_MAX_ROWS,
-  cellphoneDigits,
   normalizePeopleImportRow,
   readPeopleSheet,
 } from './peopleImport';
@@ -83,7 +82,7 @@ describe('checking a row', () => {
     expect(row).toEqual({
       rowNumber: 2, identifier: 'S1042', name: 'Anika Botha', email: 'anika@example.com',
       cellphone: undefined, birthdate: undefined, nationalId: undefined, roleId: 'role-org-staff',
-      guardians: [{ position: 1, name: 'Sarah Botha', email: undefined, cellphone: '082 555 0101', relationship: 'parent' }],
+      guardians: [{ position: 1, name: 'Sarah Botha', email: undefined, cellphone: '+27825550101', relationship: 'parent' }],
     });
   });
 
@@ -130,9 +129,31 @@ describe('checking a row', () => {
   });
 });
 
-describe('cellphone digits', () => {
-  it('ignores spacing and punctuation', () => {
-    expect(cellphoneDigits('082 555-0100')).toBe('0825550100');
-    expect(cellphoneDigits(null)).toBe('');
+describe('cellphone numbers and national IDs in a row', () => {
+  it('stores a cellphone in international form, however it was typed', () => {
+    const { row, errors } = normalizePeopleImportRow({
+      rowNumber: 2, name: 'A', cellphone: '+27 82 555 0100', guardians: [{ name: 'G', cellphone: '825550101' }],
+    });
+    expect(errors).toEqual([]);
+    expect(row.cellphone).toBe('+27825550100');
+    expect(row.guardians[0].cellphone).toBe('+27825550101');
+  });
+
+  it('refuses a cellphone it cannot read, saying whose', () => {
+    const { errors } = normalizePeopleImportRow({ rowNumber: 2, name: 'A', cellphone: '082 555', guardians: [{ name: 'G', cellphone: 'n/a' }] });
+    expect(errors[0]).toMatch(/^Cellphone: "082 555" is not a cellphone number we can read/);
+    expect(errors[1]).toMatch(/^Guardian 1's cellphone: "n\/a" is not a cellphone number we can read/);
+  });
+
+  it('compares a national ID without its spacing, and warns about a mistyped South African one', () => {
+    const { row, errors, warnings } = normalizePeopleImportRow({ rowNumber: 2, name: 'A', nationalId: '800101 5009 088' });
+    expect(errors).toEqual([]);
+    expect(row.nationalId).toBe('8001015009088');
+    expect(warnings[0]).toMatch(/fails the South African ID number check/);
+  });
+
+  it('warns when the ID and the birthdate disagree', () => {
+    const { warnings } = normalizePeopleImportRow({ rowNumber: 2, name: 'A', nationalId: '8001015009087', birthdate: '1981-01-01' });
+    expect(warnings[0]).toMatch(/but the birthdate is 1981-01-01/);
   });
 });

@@ -7,11 +7,12 @@ import {
   PeopleImportReport,
   PeopleImportRow,
   PeopleImportRowResult,
-  cellphoneDigits,
+  cellphoneKey,
   guardianLinkProblem,
   memberAccess,
   minorsSettingsOf,
   normalizeEmail,
+  normalizeNationalId,
   normalizePeopleImportRow,
 } from '@sk/shared';
 import { BaseManager, Tx } from './BaseManager';
@@ -232,7 +233,7 @@ export class PeopleImportManager extends BaseManager {
 
     const normalized = input.map((raw, index) => {
       const checked = normalizePeopleImportRow({ ...(raw || {}), rowNumber: Number(raw?.rowNumber) || index + 1 });
-      return { ...checked, errors: [...checked.errors] };
+      return { ...checked, errors: [...checked.errors], warnings: [...checked.warnings] };
     });
 
     // --- What is on record -----------------------------------------------------------------------
@@ -287,11 +288,17 @@ export class PeopleImportManager extends BaseManager {
     const byIdentifier = new Map<string, ExistingProfile>();
     const byEmail = new Map<string, ExistingProfile[]>();
     const byName = new Map<string, ExistingProfile[]>();
+    // Compared in one form whatever was typed: numbers and IDs saved by hand are as they were typed.
+    const byNationalId = new Map<string, ExistingProfile[]>();
+    const byCellphone = new Map<string, ExistingProfile[]>();
     for (const p of profiles) {
       if (p.identifier) byIdentifier.set(p.identifier, p);
       if (p.email) pushTo(byEmail, lower(p.email), p);
+      if (p.nationalId) pushTo(byNationalId, normalizeNationalId(p.nationalId), p);
+      if (p.cellphone) pushTo(byCellphone, cellphoneKey(p.cellphone), p);
       pushTo(byName, lower(p.name), p);
     }
+    const describe = (p: ExistingProfile) => `${p.name}${p.identifier ? ` (Member ID ${p.identifier})` : ''}`;
     const membershipOf = new Map<string, { id: string; roleId: string }>();
     for (const m of memberships) if (!membershipOf.has(m.profileId)) membershipOf.set(m.profileId, m);
     const linked = new Set(links.map(l => `${l.guardianId}|${l.playerId}`));
@@ -328,6 +335,17 @@ export class PeopleImportManager extends BaseManager {
       if (indexes.length < 2) continue;
       for (const i of indexes) normalized[i].errors.push(`${email} is on more than one row (rows ${rowList(indexes)}). Two people cannot share an email.`);
     }
+    for (const [nationalId, indexes] of rowsWith(r => r.nationalId)) {
+      if (indexes.length < 2) continue;
+      for (const i of indexes) normalized[i].errors.push(`National ID ${nationalId} is on more than one row (rows ${rowList(indexes)}). Two people cannot share one.`);
+    }
+
+    /** A number already on record for somebody else: said, not refused (decided 2026-09-30). */
+    const sharedCellphone = (cellphone: string, selfId: string | undefined, warnings: string[]) => {
+      const others = (byCellphone.get(cellphone) || []).filter(p => p.id !== selfId);
+      if (!others.length) return;
+      warnings.push(`Cellphone ${cellphone} is also on record for ${others.map(describe).join(', ')}. If this row is one of them, add their Member ID so it updates them rather than adding someone new. A parent's number shared by brothers and sisters is fine.`);
+    };
 
     // --- Pass 1: each row's person ---------------------------------------------------------------
 
@@ -337,8 +355,7 @@ export class PeopleImportManager extends BaseManager {
     const personByEmail = new Map<string, Person>();
     const claimedBy = new Map<string, number>();
 
-    normalized.forEach(({ row, errors }, index) => {
-      const warnings: string[] = [];
+    normalized.forEach(({ row, errors, warnings }, index) => {
       const result: PeopleImportRowResult = {
         index, rowNumber: row.rowNumber, name: row.name, outcome: 'unchanged',
         changes: [], guardians: [], errors, warnings,
@@ -348,20 +365,28 @@ export class PeopleImportManager extends BaseManager {
       writes.push(w);
       if (errors.length) return;
 
-      // Matched by Member ID, then by email. Never by name: two children called the same thing is
-      // ordinary, and updating the wrong one is not something a preview makes obvious.
+      // Matched by Member ID, then by email, then by national ID: each belongs to one person, so
+      // each identifies them. Never by name: two children called the same thing is ordinary, and
+      // updating the wrong one is not something a preview makes obvious. Nor by cellphone: a
+      // child's row often carries a parent's number, which brothers and sisters share, so a shared
+      // number is only pointed out (`sharedCellphone`).
       let existing = row.identifier ? byIdentifier.get(row.identifier) : undefined;
-      if (row.email) {
-        const sameEmail = byEmail.get(row.email) || [];
+      const keys: [string, string | undefined, Map<string, ExistingProfile[]>][] = [
+        ['email', row.email, byEmail],
+        ['national ID', row.nationalId, byNationalId],
+      ];
+      for (const [label, value, index] of keys) {
+        if (!value) continue;
+        const same = index.get(value) || [];
         if (existing) {
-          const other = sameEmail.find(p => p.id !== existing!.id);
-          if (other) errors.push(`${row.email} is already ${other.name}'s email${other.identifier ? ` (Member ID ${other.identifier})` : ''}. Two people cannot share one.`);
-        } else if (sameEmail.length > 1) {
-          errors.push(`${row.email} is the email of more than one person on record (${sameEmail.map(p => p.name).join(', ')}). Add their Member ID to say which.`);
-        } else if (sameEmail.length === 1) {
-          const match = sameEmail[0];
+          const other = same.find(p => p.id !== existing!.id);
+          if (other) errors.push(`The ${label} ${value} is already ${describe(other)}'s. Two people cannot share one.`);
+        } else if (same.length > 1) {
+          errors.push(`The ${label} ${value} is on record for more than one person (${same.map(describe).join(', ')}). Add their Member ID to say which.`);
+        } else if (same.length === 1) {
+          const match = same[0];
           if (row.identifier && match.identifier && match.identifier !== row.identifier) {
-            errors.push(`${row.email} belongs to ${match.name}, whose Member ID is ${match.identifier}, not ${row.identifier}.`);
+            errors.push(`The ${label} ${value} belongs to ${match.name}, whose Member ID is ${match.identifier}, not ${row.identifier}.`);
           } else {
             existing = match;
           }
@@ -387,6 +412,7 @@ export class PeopleImportManager extends BaseManager {
         result.profileId = id;
         const accountHere = !!row.email && accountEmails.has(row.email);
         if (accountHere) warnings.push(`${row.email} is already on ScoreKeeper, so that account gets access as ${roleName(roleId)} straight away.`);
+        if (row.cellphone) sharedCellphone(row.cellphone, undefined, warnings);
         const namesake = byName.get(lower(row.name));
         if (namesake?.length) {
           const who = namesake.map(p => p.identifier ? `Member ID ${p.identifier}` : p.email || 'no Member ID or email').join('; ');
@@ -428,9 +454,13 @@ export class PeopleImportManager extends BaseManager {
           }
         }
       }
-      if (row.cellphone && row.cellphone !== (existing.cellphone || '')) change('cellphone', existing.cellphone, row.cellphone);
+      // The same number or ID typed another way is not a change.
+      if (row.cellphone && row.cellphone !== cellphoneKey(existing.cellphone)) {
+        change('cellphone', existing.cellphone, row.cellphone);
+        sharedCellphone(row.cellphone, existing.id, warnings);
+      }
       if (row.birthdate && row.birthdate !== (existing.birthdate || '')) change('birthdate', existing.birthdate, row.birthdate);
-      if (row.nationalId && row.nationalId !== (existing.nationalId || '')) change('national_id', existing.nationalId, row.nationalId);
+      if (row.nationalId && row.nationalId !== normalizeNationalId(existing.nationalId)) change('national_id', existing.nationalId, row.nationalId);
       if (row.identifier && !existing.identifier) change('identifier', null, row.identifier);
       if (Object.keys(set).length) w.profileUpdate = { id: existing.id, set };
 
@@ -484,7 +514,7 @@ export class PeopleImportManager extends BaseManager {
 
       for (const g of row.guardians) {
         const label = `Guardian ${g.position}`;
-        const key = g.email ? `e:${g.email}` : `p:${lower(g.name)}|${cellphoneDigits(g.cellphone)}`;
+        const key = g.email ? `e:${g.email}` : `p:${lower(g.name)}|${cellphoneKey(g.cellphone)}`;
         let target = guardianTargets.get(key);
 
         if (!target && g.email && personByEmail.has(g.email)) {
@@ -501,8 +531,8 @@ export class PeopleImportManager extends BaseManager {
         }
         if (!target && !g.email) {
           // No email: the same name *and* cellphone number, and only if exactly one person has both.
-          const digits = cellphoneDigits(g.cellphone);
-          const same = (byName.get(lower(g.name)) || []).filter(p => cellphoneDigits(p.cellphone) === digits);
+          const number = cellphoneKey(g.cellphone);
+          const same = (byName.get(lower(g.name)) || []).filter(p => cellphoneKey(p.cellphone) === number);
           if (same.length > 1) {
             errors.push(`${label}, ${g.name}, matches more than one person on record with that cellphone number. Add their email to say which.`);
             continue;

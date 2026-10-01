@@ -8,7 +8,7 @@ tags:
   - PostgreSQL
   - migrations
   - persistence
-timestamp: 2026-09-26T12:00:00Z
+timestamp: 2026-09-30T00:00:00Z
 ---
 
 # Database & Data Persistence
@@ -237,6 +237,14 @@ the server's midnight, which reached the app as the day before (`DATE-1`). Compa
 `sites.timezone` is **written only by `SiteManager`, from the address pin**, whenever the address is
 saved — never from a request — and `NULL` falls back to `organizations.timezone` (`DATE-2`). The rules and the reasons are in the
 [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md).
+
+## Cellphone numbers
+
+`org_profiles.cellphone` holds the **international form**, `+27825550100`, whatever was typed: every
+profile write runs `parseCellphone` ([phone.ts](file:///c:/Fred/Coding/SK/shared/src/utils/phone.ts))
+and refuses what it cannot read. Numbers saved before 2026-09-30 are still as typed (`PEOPLE-11`), so
+compare with `cellphoneKey`, never the raw column, and search on digits (`cellphoneSearchDigits`).
+Rules: [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.3.
 
 ## Derived vs Stored Values
 

@@ -33,6 +33,7 @@ import { useOrgGuardians, guardianSummary } from '../../../hooks/useOrgGuardians
 import { useOrgMinorsSettings } from '../../../hooks/useOrgMinorsSettings';
 import DatePicker from '../../../components/DatePicker';
 import { isCalendarDate } from '../../../utils/dates';
+import { formatCellphone } from '../../../utils/phone';
 
 interface OrgRole {
   id: string;
@@ -341,7 +342,7 @@ export default function OrgPeople() {
         ...prev,
         name: person.name,
         email: person.email || prev.email,
-        cellphone: person.cellphone || prev.cellphone,
+        cellphone: formatCellphone(person.cellphone) || prev.cellphone,
         birthdate: person.birthdate || prev.birthdate,
         nationalId: person.nationalId || prev.nationalId,
         personOrgId: person.identifier || prev.personOrgId,
@@ -493,7 +494,7 @@ export default function OrgPeople() {
           renderItem={(member) => {
             const avatarSrc = getAvatarSource(member);
             const logoConf = parseImageConfig(member.imageConfig || (member as any).settings?.logoConfig);
-            const contactInfo = [member.email, member.cellphone].filter(Boolean).join('  |  ');
+            const contactInfo = [member.email, formatCellphone(member.cellphone)].filter(Boolean).join('  |  ');
 
             return (
               <TouchableOpacity

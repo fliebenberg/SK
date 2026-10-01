@@ -25,6 +25,7 @@ import { GuardiansCard } from '../../../../components/guardians/GuardiansCard';
 import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCard';
 import DatePicker from '../../../../components/DatePicker';
 import { isCalendarDate } from '../../../../utils/dates';
+import { formatCellphone } from '../../../../utils/phone';
 
 const parseImageConfig = (config: any): ImageConfig => {
   if (!config) return { scale: 1, x: 0, y: 0 };
@@ -96,7 +97,8 @@ export default function EditMember() {
         membershipId: member.membershipId,
         name: member.name,
         email: member.email || '',
-        cellphone: member.cellphone || '',
+        // Shown as it is written here; the server stores it in international form.
+        cellphone: formatCellphone(member.cellphone),
         birthdate: member.birthdate || '',
         nationalId: member.nationalId || '',
         personOrgId: member.personOrgId || '',
