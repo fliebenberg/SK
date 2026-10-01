@@ -80,12 +80,16 @@ export default function ImportPeople() {
     [report]
   );
 
+  // Keyed on `renew`, not `scope`: `useRequestScope` returns a new object every render (its
+  // functions are stable), and a `reset` that changed every render made `useUnsavedChanges` write
+  // the store every render — which re-renders this screen, and so on forever.
+  const renewScope = scope.renew;
   const reset = useCallback(() => {
     setLoaded(null);
     setProblem(null);
     setFilter('all');
-    scope.renew();
-  }, [scope]);
+    renewScope();
+  }, [renewScope]);
 
   // A previewed file is work the admin has not saved; a finished import is not.
   const { confirmThenNavigate } = useUnsavedChanges(!!report && toImport.length > 0 && !done, reset);

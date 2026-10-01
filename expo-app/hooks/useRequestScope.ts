@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { newRequestId } from '../services/actions';
 
 /**
@@ -13,5 +13,8 @@ export function useRequestScope() {
   const renew = useCallback(() => {
     scope.current = newRequestId();
   }, []);
-  return { current, renew };
+  // The same object every render, so a callback or effect keyed on the scope stays put. A fresh one
+  // each render made the import screen's discard callback new every render, and
+  // `useUnsavedChanges` looped on it ("Maximum update depth exceeded").
+  return useMemo(() => ({ current, renew }), [current, renew]);
 }
