@@ -23,6 +23,20 @@ The color system relies on a deep, dark foundation punctuated by highly saturate
 - **Success Accent**: **Emerald Green** (`#00E676`). Used for positive confirmations and "Match Won" states.
   - *Light Mode Accessibility Rule*: `#00E676` scores **1.67:1** on white — a worse failure than the cyan above, and for the same reason. Any **text or functional icon** meaning "done", "won" or "confirmed" must swap to **Deep Emerald** (`text-emerald-800` / `#065F46`, **7.7:1**, AAA) in Light Mode; containers pair it with `bg-emerald-50` / `border-emerald-200`. The same applies to *fills* that must be distinguishable from a light surface, such as a completed progress bar. `#00E676` stays correct on dark surfaces, where it scores 10.7:1. The swap is available as the `success` theme token in [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts) — prefer `getThemeColor(isDark, 'success')` or `text-emerald-800 dark:text-brand-green` over a bare `text-brand-green`, which is a light-mode bug wherever it carries meaning.
 - **Text**: High contrast pure white (`#FFFFFF`) for primary data, soft silver (`#94A3B8`) for secondary labels.
+- **Badges and tags — one colour per meaning.** A small pill after a name says one thing, and that
+  thing has one colour everywhere, so a reader learns it once. Text shades are the ones that reach
+  AAA (7:1) on their own tint — the lighter shades of the same hues do not (orange-700 is 4.9:1):
+
+  | Meaning | Light mode (text on fill) | Dark mode text | Where |
+  |---|---|---|---|
+  | Admin | `orange-900` on `orange-50` (8.8:1) | `orange-300` | `RoleBadge` |
+  | Staff | `blue-800` on `blue-50` (8.0:1) | `blue-300` | `RoleBadge` |
+  | Minor | `amber-900` on `amber-50` (8.7:1) | `amber-300` | `GuardianshipTag` |
+  | Dependant | `violet-800` on `violet-50` (8.2:1) | `violet-300` | `GuardianshipTag` |
+  | Done / on ScoreKeeper | `emerald-800` (7.7:1) | `emerald-400` | `PersonBanner`, guardian rows |
+
+  Neutral facts (Primary guardian) are slate on `slate-100`. A new meaning gets a new hue, not a
+  shade of one already in use; the default state gets no pill at all (no badge for Member).
 
 ### 1.2 Typography
 - **Primary Display Font**: **Orbitron**. This highly geometric, sci-fi/digital font will be used exclusively for prominent numerical displays (Live Scoreboards, Game Clocks) and the primary App Logo to give the app a unique, high-tech identity.
@@ -178,7 +192,8 @@ Managing complex hierarchies (Users, Memberships, Organizations, Events) require
 ### 5.3 Data Submission UX (Auto-Save vs Explicit Save)
 To prevent confusion, the app uses a hybrid data submission approach:
 - **Instant/Auto-Save**: Used for all Live Scoring actions (WebSockets) and simple boolean toggles in settings.
-- **Explicit Save/Cancel**: Used for complex forms (editing a roster, creating an event, changing organization details). These forms require a deliberate "Save" button click. 
+- **Explicit Save/Cancel**: Used for complex forms (editing a roster, creating an event). These forms require a deliberate "Save" button click. 
+- **Per-card save (read-first record pages)**: A record that is read more often than it is edited — an organisation's profile and settings, a person — shows its values as text, and each card's Edit opens a dialog that saves only that card's fields. Such a page has **no form and no floating save bar**; the rules are *Read-first record pages* in [design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md). The floating bar below is for the forms above, not for these.
 - **Navigation Guards**: Whenever a user is in an Explicit Save view, any attempt to navigate away with unsaved changes must trigger a warning modal to prevent data loss.
 - **Floating Save Changes Bar (Mobile App UI)**:
   - For pages with explicit save forms, the save/cancel actions should not be placed inline at the bottom of form cards.
@@ -188,14 +203,17 @@ To prevent confusion, the app uses a hybrid data submission approach:
   - The bar should include a compact "Cancel" (or "Clear" for new creation forms) button and a primary themed "Save" (or "Create") button (with an `ActivityIndicator` spinner during saving operations).
   - **Race Condition Prevention**: To prevent the navigation guard from intercepting programmatic redirect navigation after a successful save (which causes a race condition before the dirty state is updated), the guard hook should accept `hasChanges && !isProcessing` (or similar loading state check) as its dirty flag. When the page is saving, the guard is temporarily bypassed to allow smooth navigation.
 
-### 5.4 Card Actions Consistency (List Screens)
-To maintain a clean and consistent layout across administrative list screens (e.g., Teams, Sites/Facilities, People):
-- **Avoid Large Bottom Action Buttons**: Do not use full-width action buttons (e.g., "Manage Roster") at the bottom of cards on list screens.
-- **Top-Right Mini Action Row**: Instead, place small, interactive action buttons in the top-right corner of the card.
-  - Buttons should be styled as `44x44px` minimum touch target (visually `w-7 h-7` with padding/hitSlop) using a clean, border-defined background.
-  - Use standard icons (e.g., `pencil` for edit/manage, `trash-outline` for delete).
-  - Destructive actions (like Delete) must utilize the warning/red colors (e.g., `bg-red-500/10 border-red-500/20 text-[#EF4444]`) and require a confirmation modal before execution.
-- **Card Title & Meta Layout**: Keep the entity name (card title) in the top-left section (adjacent to the action buttons) and arrange meta-information (e.g., badges, tags, statistics) below the title.
+### 5.4 List Screens
+Agreed 2026-10-03 on the People list ([people.md](file:///c:/Fred/Coding/SK/docs/people.md)), for every administrative list (Teams, Sites, People). Exceptions are dealt with as they come up, not designed in advance.
+- **A row shows the record at a glance and opens it.** Actions on one record — edit, invite, delete — live on that record's page, not on its row. A row carries no buttons; the whole row is the link, with a chevron at its end. (This replaces the earlier top-right mini action row on list cards.)
+- **Destructive actions belong to the record**, in its header `⋯` menu and behind a confirmation — never on a list row, and never a "Danger Zone" box on the page.
+- **One list, one container.** Rows sit in one bordered card, divided by hairlines, not each in its own card. The list is capped at the page's reading width (960px).
+- **At most two lines on a phone.** Wide-screen columns either fold into those two lines — email on the left and cell number on the right of one line — or give way to a tag, as the People list's guardian column becomes a Minor or Dependant tag.
+- **Wide, secondary facts get columns**, each stacking its values (email over cell number) and labelling itself only when the value alone is ambiguous ("Guardian" over a name).
+- **Mark only what is not the default.** A badge for Staff and Admin, none for Member; nothing for someone already on ScoreKeeper. Badges follow the name, in the colours of §1.1, and the record's own page shows the same badges in the same order.
+- **An identifier whose meaning varies is shown bare, in a fixed place** — an org ID under the name, never "Student #" in front of a staff number.
+- **The add action is a labelled button in the header** ("Add person"; the icon alone on a phone), shown only to people who may use it. Rarer list actions (import) go in the header `⋯` menu.
+- **Filter by the one property most worth narrowing to** (role, on People), with a count per option, as a segmented control when there are four options or fewer. Search covers the values a record is looked up by — name, email, an ID.
 
 ---
 
