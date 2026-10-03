@@ -78,7 +78,6 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
       secondaryColor: colors.secondary || null,
       joinPolicy: 'request',
       supportedSportIds: sportId ? [sportId] : [],
-      isClaimed: false,
       // A guess until it is claimed: an organisation registered to play against is most likely
       // near whoever registered it (DATE-2). Its admins can change it in its settings.
       timezone: deviceTimeZone(),

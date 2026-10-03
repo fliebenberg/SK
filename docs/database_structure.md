@@ -97,8 +97,8 @@ High-level entities like schools, clubs, or federations.
 - `logo` (TEXT): URL or path to the logo image.
 - `primary_color` (TEXT): CSS-compatible color code.
 - `secondary_color` (TEXT): CSS-compatible color code.
-- `is_claimed` (BOOLEAN): Whether the org has been claimed by a user.
-- `creator_id` (TEXT): User ID who added the org.
+- `is_claimed` (BOOLEAN): Whether the org has an active `role-org-admin` membership. Derived and stored: only `OrganizationManager.syncClaimedStatus` (and the claim-by-token transaction) writes it; new orgs start `false`.
+- `creator_id` (TEXT): User ID who added the org. Set once on create; never changed, not even by a claim.
 - `is_active` (BOOLEAN): Status toggle.
 - `settings` (JSONB): Organization-specific configuration.
 - `address_id` (TEXT): FK to `addresses.id`.

@@ -52,7 +52,7 @@ async function main() {
   // ---------------------------------------------------------------------------------------
   await query(
     `INSERT INTO organizations (id, name, short_name, is_claimed, is_active)
-     VALUES ($1, $2, 'ATO', true, true) ON CONFLICT (id) DO NOTHING`,
+     VALUES ($1, $2, 'ATO', false, true) ON CONFLICT (id) DO NOTHING`,
     [APP_TEST_ORG_ID, APP_TEST_ORG_NAME]
   );
 

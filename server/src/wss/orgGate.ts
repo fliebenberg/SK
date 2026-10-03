@@ -120,8 +120,6 @@ const RULES: Partial<Record<SocketAction, Rule>> = {
   [SocketAction.ADD_ORG]: { kind: 'signed-in' },
   [SocketAction.UPDATE_ORG]: { kind: 'admin-org', org: orgById },
   [SocketAction.DELETE_ORG]: { kind: 'admin-org', org: orgById },
-  // No client sends this, and it took the claimant from the payload. The real claim is by token.
-  [SocketAction.CLAIM_ORG]: { kind: 'app-admin' },
 
   // Who runs it.
   [SocketAction.ADD_ORG_MEMBER]: { kind: 'grant-role', org: orgId },

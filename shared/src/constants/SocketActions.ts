@@ -18,12 +18,6 @@ export enum SocketAction {
     UPDATE_ORG = 'UPDATE_ORG',
 
     /**
-     * Action to claim an organization.
-     * Expects payload: { id: string, userId: string }
-     */
-    CLAIM_ORG = 'CLAIM_ORG',
-
-    /**
      * Action to delete an organization.
      * Expects payload: { id: string }
      */

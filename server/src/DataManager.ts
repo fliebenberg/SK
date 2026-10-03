@@ -63,38 +63,20 @@ export class DataManager {
   getOrganization = (id?: string) => organizationManager.getOrganization(id);
   searchSimilarOrganizations = (name: string) => organizationManager.searchSimilarOrganizations(name);
   addOrganization = async (org: AddOrgPayload): Promise<Organization> => {
-    const creatorId = org.creatorId;
-    const { creatorId: _, ...orgData } = org;
-    // Set isClaimed to true if we have a creatorId (placeholder orgs are unclaimed)
-    const isClaimed = !!creatorId || orgData.isClaimed;
-    const newOrg = await organizationManager.addOrganization({ ...orgData, creatorId, isClaimed });
-    
-    if (creatorId) {
-      const user = await userManager.getUser(creatorId);
-      // Only add as Org Admin if they are NOT a Global Admin
-      if (user && user.globalRole !== 'admin' && newOrg.id) {
-        const orgProfileId = await userManager.ensureProfileForUserInOrg(user.id, newOrg.id);
-        await userManager.addOrganizationMember(orgProfileId, newOrg.id, 'role-org-admin');
-      }
-    }
-    return newOrg;
+    const newOrg = await organizationManager.addOrganization(org);
+    if (!org.creatorId) return newOrg;
+
+    // The creator runs it, unless they are an app admin: those are never an org's admin, so the
+    // org stays unclaimed and they nominate someone, as anyone would (`ORG-12`).
+    const user = await userManager.getUser(org.creatorId);
+    if (!user || user.globalRole === 'admin') return newOrg;
+    const orgProfileId = await userManager.ensureProfileForUserInOrg(user.id, newOrg.id);
+    // Marks the org claimed (`syncClaimedStatus`), so the reply is read again after it.
+    await userManager.addOrganizationMember(orgProfileId, newOrg.id, 'role-org-admin');
+    return (await organizationManager.getOrgSummary(newOrg.id)) as Organization;
   };
 
   updateOrganization = (id: string, data: Partial<Organization>) => organizationManager.updateOrganization(id, data);
-  claimOrganization = async (id: string, userId: string) => {
-    const org = await organizationManager.getOrganization(id);
-    if (!org) throw new Error("Organization not found.");
-    if (org.isClaimed) throw new Error("Organization is already claimed.");
-    // The claimant runs the org; `creator_id` stays whoever created it.
-    await organizationManager.updateOrganization(id, { isClaimed: true });
-    
-    const user = await userManager.getUser(userId);
-    if (user && user.globalRole !== 'admin') {
-      const orgProfileId = await userManager.ensureProfileForUserInOrg(userId, id);
-      await userManager.addOrganizationMember(orgProfileId, id, 'role-org-admin');
-    }
-    return organizationManager.getOrganization(id);
-  };
 
   getOrganizationRoles = () => organizationManager.getOrganizationRoles();
   getOrganizationRole = (id: string) => organizationManager.getOrganizationRole(id);

@@ -184,8 +184,9 @@ make anybody an admin of any organisation, `DELETE_ORG` and `DELETE_TEAM` acted 
 - **Admin only** for its identity and who runs it: renaming or deleting it, and **handing out the
   admin role**. Staff may add an ordinary member, but granting admin is how a staff member would
   otherwise promote themselves, so it has a check of its own.
-- **App administrators** for the operator's levers — the direct `CLAIM_ORG`, which no client sends,
-  and the cache resets that broadcast a refresh to every connected client.
+- **App administrators** for the operator's levers — the cache resets that broadcast a refresh to
+  every connected client. (The direct `CLAIM_ORG` was removed 2026-10-03, `ORG-12`: an app admin is
+  never an org's admin, so it could only mark an org claimed with nobody running it.)
 - **The caller** for anything naming a user: a payload's `userId` must be the socket's, including a
   claim by token, which makes that user an admin. A notification is its owner's.
 - **The token** for the email-link actions, whose pages are opened signed out.
@@ -196,7 +197,9 @@ nothing about who is nominated (`ORG-9`). And `TAKE_ORG_ADMIN`, for an org with 
 a member of `admin_takeover_min_days` standing (member and staff alike), or anyone when no one else
 with an account is a member. The gate only requires a sign-in; `ReferralManager.getAdminTakeover`
 decides. `is_claimed` is stored, so every path that changes an org's memberships must end in
-`syncClaimedStatus`, or an org keeps claiming an admin it no longer has.
+`syncClaimedStatus`, or an org keeps claiming an admin it no longer has — and **nothing else writes
+it** (`ORG-12`): a new org is saved unclaimed, and `ADD_ORG` and `UPDATE_ORG` ignore `isClaimed`.
+The one exception is `claimOrgViaToken`, which sets it in the transaction that inserts the admin.
 
 ## Person records are identity, and are written by the organisation that holds them
 

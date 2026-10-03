@@ -269,10 +269,12 @@ export class OrganizationManager extends BaseManager {
 
     try {
         await this.transaction(async (tx) => {
+            // Every org starts unclaimed, whatever the caller sent: `is_claimed` means "has an active
+            // admin", and only `syncClaimedStatus` writes it, once an admin membership exists (`ORG-12`).
             await tx(
               `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type, timezone) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-              [id, org.name, logo, primaryColor, secondaryColor, shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null, timezone]
+               VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8, $9, $10, $11, $12, $13)`,
+              [id, org.name, logo, primaryColor, secondaryColor, shortName, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null, timezone]
             );
 
             for (const sportId of supportedSportIds) {
@@ -385,9 +387,11 @@ export class OrganizationManager extends BaseManager {
                 const values: any[] = [];
                 let idx = 1;
 
+                // Not `is_claimed` (only `syncClaimedStatus` writes it) nor `creator_id` (set once, on
+                // create): neither is the editor's to change (`ORG-12`).
                 const map: Record<string, string> = {
                     name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
-                    shortName: 'short_name', isClaimed: 'is_claimed', creatorId: 'creator_id', 
+                    shortName: 'short_name',
                     isActive: 'is_active', settings: 'settings', addressId: 'address_id',
                     type: 'type', customType: 'custom_type', timezone: 'timezone', description: 'description'
                 };

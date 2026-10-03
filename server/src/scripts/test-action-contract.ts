@@ -60,7 +60,7 @@ async function main() {
   if (!admin) throw new Error('No admin user to sign in as — run the seed.');
   await query(
     `INSERT INTO organizations (id, name, short_name, is_claimed, is_active)
-     VALUES ($1, $2, 'ATO', true, true) ON CONFLICT (id) DO NOTHING`,
+     VALUES ($1, $2, 'ATO', false, true) ON CONFLICT (id) DO NOTHING`,
     [APP_TEST_ORG_ID, APP_TEST_ORG_NAME]
   );
   const sportId = (await query(`SELECT id FROM sports ORDER BY id LIMIT 1`)).rows[0].id;

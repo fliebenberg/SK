@@ -3081,26 +3081,6 @@ io.on('connection', (socket) => {
             case SocketAction.LINK_USER_PROFILE:
                 result = await dataManager.linkUserToProfile(action.payload.email, action.payload.orgProfileId);
                 break;
-            case SocketAction.CLAIM_ORG:
-                result = await dataManager.claimOrganization(action.payload.id, action.payload.userId);
-                 if (result) {
-                    await publishUserMemberships(action.payload.userId);
-                    
-                    const role = await dataManager.getOrganizationRole('role-org-admin');
-                    const notification = await dataManager.createNotification(
-                        action.payload.userId,
-                        'Organization Claimed',
-                        `You have successfully claimed ${result.name} and are now an ${role?.name || 'Administrator'}.`,
-                        'org_added',
-                        `/admin/organizations/${result.id}`
-                    );
-                    if (notification) {
-                        broadcast(userNotificationsRoom(action.payload.userId), 'NOTIFICATION_ADDED', notification);
-                    }
-
-                    await broadcastOrgSummaries([result.id]);
-                 }
-                break;
             case SocketAction.CLAIM_ORG_VIA_TOKEN:
                 result = await dataManager.claimOrgViaToken(action.payload.token, action.payload.userId);
                 if (result) {

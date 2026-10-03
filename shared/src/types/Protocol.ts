@@ -75,18 +75,13 @@ export interface AddOrgPayload {
     logo?: string;
     colors?: { primary: string; secondary: string };
     creatorId?: string;
-    isClaimed?: boolean;
     supportedSportIds?: string[];
 }
 
 export interface UpdateOrgPayload {
     id: string;
-    data: Partial<Organization>;
-}
-
-export interface ClaimOrgPayload {
-    id: string;
-    userId: string;
+    /** Not `isClaimed`, which follows the org's admins, nor `creatorId`, set once on create (`ORG-12`). */
+    data: Omit<Partial<Organization>, 'isClaimed' | 'creatorId'>;
 }
 
 export interface DeleteOrgPayload {
@@ -879,7 +874,6 @@ export type SocketActionPayloadMap = ProtocolMap;
 export interface ProtocolMap {
     [SocketAction.ADD_ORG]: { payload: AddOrgPayload; response: Organization };
     [SocketAction.UPDATE_ORG]: { payload: UpdateOrgPayload; response: Organization };
-    [SocketAction.CLAIM_ORG]: { payload: ClaimOrgPayload; response: Organization };
     [SocketAction.DELETE_ORG]: { payload: DeleteOrgPayload; response: void };
     [SocketAction.REFER_ORG_CONTACT]: { payload: ReferOrgContactPayload; response: OrgClaimReferral[] };
     [SocketAction.TAKE_ORG_ADMIN]: { payload: TakeOrgAdminPayload; response: Organization };

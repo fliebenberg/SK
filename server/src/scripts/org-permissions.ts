@@ -265,12 +265,11 @@ async function main() {
 
   expect(
     [
-      await allows(stranger, SocketAction.CLAIM_ORG, { id: unclaimed, userId: stranger }),
       await allows(stranger, SocketAction.RESET_CACHE, {}),
       await allows(stranger, SocketAction.GLOBAL_CACHE_REFRESH, {}),
     ],
-    [false, false, false],
-    'claiming directly and forcing every client to refresh are for app administrators'
+    [false, false],
+    'forcing every client to refresh is for app administrators'
   );
 
   expect(
