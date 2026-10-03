@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { orgColors } from '@sk/shared';
 import { Stack, useGlobalSearchParams, useRouter, useSegments } from 'expo-router';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { useWindowDimensions, View, TouchableOpacity, Text, Alert } from 'react-native';
 import { LeftNavigationRail } from '../../../components/LeftNavigationRail';
-import { wsService } from '../../../services/websocket';
+import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useWsStore } from '../../../store/wsStore';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,9 +38,8 @@ function OrgAdminWorkspace() {
   const segments = useSegments();
 
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
-  const [orgData, setOrgData] = useState<any>(null);
+  const { org: orgData } = useOrgSummary(orgId);
   const [workspaceMenuVisible, setWorkspaceMenuVisible] = useState(false);
-  const lastFetchedId = useRef<string | null>(null);
   const isConnected = useWsStore(state => state.isConnected);
   const { isDirty, onDiscard, clear, triggerDiscardPrompt } = useUnsavedChangesStore();
 
@@ -49,45 +48,9 @@ function OrgAdminWorkspace() {
     triggerDiscardPrompt(action);
   }, [triggerDiscardPrompt]);
 
+  // The workspace menu belongs to the org on screen; it should not survive a switch or a drop.
   useEffect(() => {
-    if (!isConnected || !orgId) {
-      setOrgData(null);
-      lastFetchedId.current = null;
-      setWorkspaceMenuVisible(false);
-      return;
-    }
-
-    let active = true;
-
-    if (lastFetchedId.current !== orgId) {
-      wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-        if (!active) return;
-        if (res && !res.error) {
-          setOrgData(res);
-          lastFetchedId.current = orgId;
-        }
-      });
-    }
-
-    const room = `org:${orgId}:summary`;
-    const unsubscribe = wsService.subscribeToRoom(room);
-
-    const handleUpdate = (event: any) => {
-      if (!active) return;
-      if (event && event.type === 'ORGANIZATION_UPDATED') {
-        if (event.data && event.data.id === orgId) {
-          setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      active = false;
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
+    setWorkspaceMenuVisible(false);
   }, [isConnected, orgId]);
 
   const getContrastColor = (hexColor: string) => {
@@ -101,7 +64,7 @@ function OrgAdminWorkspace() {
     return yiq >= 128 ? '#0F172A' : '#FFFFFF';
   };
 
-  const fabTextColor = orgData ? getContrastColor(orgData.primaryColor) : '#FFFFFF';
+  const fabTextColor = orgData ? getContrastColor(orgData.primaryColor ?? '') : '#FFFFFF';
 
   const stackContent = (
     <Stack

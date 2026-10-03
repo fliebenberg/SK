@@ -5,9 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { getThemeColor } from '../../constants/Colors';
 import { useWindowDimensions, View, TouchableOpacity, Text, Image } from 'react-native';
 import { LeftNavigationRail } from '../../components/LeftNavigationRail';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { wsService } from '../../services/websocket';
+import { useOrgSummary } from '../../hooks/useOrgSummary';
 import { useWsStore } from '../../store/wsStore';
 import { OrgLogo } from '../../components/OrgLogo';
 import { CommonActions } from '@react-navigation/native';
@@ -28,52 +28,16 @@ export default function TabLayout() {
 
   // Phase 2: Mobile Workspace Navigation
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
-  const [orgData, setOrgData] = useState<any>(null);
   const [workspaceMenuVisible, setWorkspaceMenuVisible] = useState(false);
-  const lastFetchedId = useRef<string | null>(null);
 
   const isOrgAdmin = false;
 
+  const { org: orgData } = useOrgSummary(isOrgAdmin ? orgId : null);
+
+  // The workspace menu belongs to the org on screen; it should not survive a switch or a drop.
   useEffect(() => {
-    if (!isConnected || !orgId || !isOrgAdmin) {
-      setOrgData(null);
-      lastFetchedId.current = null;
-      setWorkspaceMenuVisible(false);
-      return;
-    }
-
-    let active = true;
-
-    if (lastFetchedId.current !== orgId) {
-      wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-        if (!active) return;
-        if (res && !res.error) {
-          setOrgData(res);
-          lastFetchedId.current = orgId;
-        }
-      });
-    }
-
-    const room = `org:${orgId}:summary`;
-    const unsubscribe = wsService.subscribeToRoom(room);
-
-    const handleUpdate = (event: any) => {
-      if (!active) return;
-      if (event && event.type === 'ORGANIZATION_UPDATED') {
-        if (event.data && event.data.id === orgId) {
-          setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      active = false;
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, orgId, isOrgAdmin]);
+    setWorkspaceMenuVisible(false);
+  }, [isConnected, orgId]);
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
   
@@ -207,7 +171,7 @@ export default function TabLayout() {
     return yiq >= 128 ? '#0F172A' : '#FFFFFF';
   };
 
-  const fabTextColor = orgData ? getContrastColor(orgData.primaryColor) : '#FFFFFF';
+  const fabTextColor = orgData ? getContrastColor(orgData.primaryColor ?? '') : '#FFFFFF';
 
   const mainView = (
     <View className="flex-grow h-full bg-slate-50 dark:bg-slate-950">

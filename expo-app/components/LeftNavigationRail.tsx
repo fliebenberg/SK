@@ -7,8 +7,7 @@ import { useActiveTheme, useSettingsStore } from '../store/settingsStore';
 import { useAuthStore } from '../store/authStore';
 import { getAvatarUrl } from '../services/assets';
 import { OrgLogo } from './OrgLogo';
-import { wsService } from '../services/websocket';
-import { useWsStore } from '../store/wsStore';
+import { useOrgSummary } from '../hooks/useOrgSummary';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { AnimatedBox } from './AnimatedBox';
 import { getThemeColor } from '../constants/Colors';
@@ -29,7 +28,6 @@ export function LeftNavigationRail() {
   const isDark = activeTheme === 'dark';
   const { user, isAuthenticated } = useAuthStore();
   const hasFamily = useAuthStore(state => (state.dependants || []).length > 0);
-  const isConnected = useWsStore(state => state.isConnected);
 
   const isSidebarMinimized = useSettingsStore((state) => state.getEffectivePreference('sidebarMinimized') ?? false);
   const setLocalOverride = useSettingsStore((state) => state.setLocalOverride);
@@ -74,8 +72,6 @@ export function LeftNavigationRail() {
   }, [isSidebarMinimized, setLocalOverride]);
 
   const { orgId } = useGlobalSearchParams<{ orgId?: string }>();
-  const [orgData, setOrgData] = useState<any>(null);
-  const lastFetchedId = useRef<string | null>(null);
   const { triggerDiscardPrompt } = useUnsavedChangesStore();
 
   const confirmThenNavigate = useCallback((action: () => void) => {
@@ -85,41 +81,7 @@ export function LeftNavigationRail() {
   // Check if we are in the org admin panel
   const isOrgAdmin = segments[0] === 'admin';
   const orgSubTab = isOrgAdmin ? (segments[2] || 'dashboard') : '';
-
-  useEffect(() => {
-    if (!isConnected || !orgId || !isOrgAdmin) {
-      setOrgData(null);
-      lastFetchedId.current = null;
-      return;
-    }
-
-    if (lastFetchedId.current !== orgId) {
-      wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-        if (res && !res.error) {
-          setOrgData(res);
-          lastFetchedId.current = orgId;
-        }
-      });
-    }
-
-    const room = `org:${orgId}:summary`;
-    const unsubscribe = wsService.subscribeToRoom(room);
-
-    const handleUpdate = (event: any) => {
-      if (event && event.type === 'ORGANIZATION_UPDATED') {
-        if (event.data && event.data.id === orgId) {
-          setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, orgId, isOrgAdmin]);
+  const { org: orgData } = useOrgSummary(isOrgAdmin ? orgId : null);
 
   const showAdminPortal = isAuthenticated && user?.globalRole === 'admin';
 

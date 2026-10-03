@@ -15,6 +15,7 @@ import { getContrastColor } from '@/utils/colorUtils';
 import { useAuthStore } from '@/store/authStore';
 import { COLORS, getThemeColor } from '../../../constants/Colors';
 import { formatInstantDate, formatKickoffTime } from '../../../utils/dates';
+import { useOrgSummary } from '../../../hooks/useOrgSummary';
 
 interface Team {
   id: string;
@@ -70,7 +71,8 @@ export default function PublicOrgDetail() {
   const isConnected = useWsStore(state => state.isConnected);
   const { isAuthenticated, user, orgMemberships } = useAuthStore();
 
-  const [orgData, setOrgData] = useState<any>(null);
+  // The organisation itself comes from its summary room, not a query (`LIVE-12`).
+  const { org: orgData, isLoading: isOrgLoading } = useOrgSummary(orgId);
   const [teams, setTeams] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
@@ -84,14 +86,15 @@ export default function PublicOrgDetail() {
     let active = true;
     setIsLoading(true);
     let loadedCount = 0;
-    // Five queries, not six: the leagues list is no longer read, it arrives on the
-    // `org:{id}:leagues` join push (`LIVE-14`). It is deliberately not counted here — a room push
-    // has no ack and no timeout, so gating the whole screen on one would hang it outright if the
-    // join were ever refused. The list fills in a moment later, as every room-backed list does.
+    // Four queries: the leagues list is not read, it arrives on the `org:{id}:leagues` join push
+    // (`LIVE-14`), and the organisation comes from `useOrgSummary` (`LIVE-12`). The leagues are
+    // deliberately not counted here — a room push has no ack and no timeout, so gating the whole
+    // screen on one would hang it outright if the join were ever refused. The list fills in a
+    // moment later, as every room-backed list does.
     const checkDone = () => {
       if (!active) return;
       loadedCount++;
-      if (loadedCount === 5) setIsLoading(false);
+      if (loadedCount === 4) setIsLoading(false);
     };
 
     wsService.emit('get_data', { type: 'sports' }, (res: any) => {
@@ -99,12 +102,6 @@ export default function PublicOrgDetail() {
       const map: Record<string, string> = {};
       if (Array.isArray(res)) res.forEach((s: any) => { map[s.id] = s.name; });
       setSportsMap(map);
-      checkDone();
-    });
-
-    wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-      if (!active) return;
-      setOrgData(res);
       checkDone();
     });
 
@@ -127,15 +124,12 @@ export default function PublicOrgDetail() {
     });
 
 
-    const room = `org:${orgId}:summary`;
     const leagueRoom = `org:${orgId}:leagues`;
 
     const handleUpdate = (event: any) => {
       if (!active) return;
       if (event) {
-        if (event.type === 'ORGANIZATION_UPDATED' && event.data && event.data.id === orgId) {
-          setOrgData((prev: any) => prev ? { ...prev, ...event.data } : event.data);
-        } else if (event.type === 'LEAGUES_SYNC') {
+        if (event.type === 'LEAGUES_SYNC') {
           if (Array.isArray(event.data)) setLeagues(event.data);
         } else if (event.type === 'LEAGUE_ADDED') {
           setLeagues(prev => {
@@ -153,18 +147,16 @@ export default function PublicOrgDetail() {
     };
 
     wsService.on('update', handleUpdate);
-    const unsubscribe = wsService.subscribeToRoom(room, handleUpdate);
     const unsubscribeLeagues = wsService.subscribeToRoom(leagueRoom, handleUpdate);
 
     return () => {
       active = false;
-      unsubscribe();
       unsubscribeLeagues();
       wsService.off('update', handleUpdate);
     };
   }, [isConnected, orgId]);
 
-  if (isLoading || !orgData) {
+  if (isLoading || isOrgLoading || !orgData) {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center" edges={['top', 'left', 'right']}>
         <ActivityIndicator size="large" color="#FF3E00" />
