@@ -191,7 +191,7 @@ export default function PublicOrgDetail() {
   };
   const getSiteName = (siteId: string) => {
     const s = sites.find(s => s.id === siteId);
-    return s ? s.name : 'Unknown Venue';
+    return s ? s.name : 'Unknown Site';
   };
 
   const mappedTeams = teams.map(t => ({
@@ -220,7 +220,7 @@ export default function PublicOrgDetail() {
   const mappedFacilities = sites.map(s => ({
     id: s.id,
     name: s.name,
-    type: s.type || 'Venue',
+    type: s.type || 'Site',
     location: s.address?.city || 'Location TBD'
   }));
 

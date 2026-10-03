@@ -277,7 +277,7 @@ export default function ViewGame() {
           </View>
 
           <View className="flex-row justify-between py-2.5 border-b border-slate-100 dark:border-white/5">
-            <Text className="font-inter text-xs text-slate-500">Venue</Text>
+            <Text className="font-inter text-xs text-slate-500">Where</Text>
             <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
               {site?.name || 'Main Site'} {facility?.name ? `• ${facility.name}` : ''}
             </Text>

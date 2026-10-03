@@ -822,7 +822,7 @@ export default function EventDetails() {
                       </Text>
                     </View>
                     <View className="items-center">
-                      <Text className="font-inter text-[10px] text-slate-500 uppercase">Venue</Text>
+                      <Text className="font-inter text-[10px] text-slate-500 uppercase">Where</Text>
                       <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white mt-0.5">
                         {getVenueLabel(game.siteId, game.facilityId) || 'Default Site'}
                       </Text>

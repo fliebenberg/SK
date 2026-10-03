@@ -19,7 +19,7 @@ For the full details on client page layouts and user authentication, see the OKF
 ## Target User Archetypes
 
 1. **Fans / Viewers (Public/Unauthenticated)**:
-   - Browse registered sports organizations, teams, and venues.
+   - Browse registered sports organizations, teams, and sites.
    - Follow active games with live play-by-play timelines, statistics, and scores updated instantly via WebSockets.
 2. **Administrators / Officials (Authenticated Members)**:
    - Manage organizations, events, schedules, rosters, and facilities.
@@ -67,8 +67,11 @@ For the full details on client page layouts and user authentication, see the OKF
 - **Game**: A single fixture between participants (teams or individuals).
 - **Site**: A physical location/address (e.g., "City Sports Hub"). **Never called a "venue" in the
   interface** — that word had drifted onto three different things at once (a Site, a Site + Facility
-  pair, and `venue_hall`, one of the Facility *categories*), which is worse than having no word.
-  `UI-14` tracks the screens still saying it.
+  pair, and a Facility *category*), which is worse than having no word. `UI-14` took it off every
+  screen (2026-10-03): a Site is "Site", the hall category is `indoor_hall` ("Indoor Hall"), and
+  where a screen shows a Site and Facility together as one value (`site · facility`) its label is
+  **Where**. "Venue time" in the date code and the date policy is a different, deliberate term — the
+  clock a kick-off is typed on — and stays.
 - **Facility**: Anything at a Site worth putting a pin on — a field, court, hall, clubhouse, shop,
   car park or toilet block (the `category` values), each with its own `latitude`/`longitude`. It is
   **not** a synonym for a playing surface, and the UI must not call the set of them "fields": half

@@ -1950,7 +1950,7 @@ export class TournamentManager extends BaseManager {
     if (!facilityIds.length) facilityIds = await this.getEventFacilities(division.eventId);
     if (!facilityIds.length) {
       throw new Error(
-        `${division.name} has no facilities to schedule into. Give the event its venues first, or ` +
+        `${division.name} has no facilities to schedule into. Give the event its facilities first, or ` +
           `name the facilities in this request.`
       );
     }

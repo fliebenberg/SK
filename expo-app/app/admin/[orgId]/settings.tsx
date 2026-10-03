@@ -53,7 +53,7 @@ export default function OrgSettings() {
 
             <ReadCard
               label="Timezone"
-              help="Kick-offs are entered in this time at venues without a map pin. A venue with a pin uses the timezone where it is."
+              help="Kick-offs are entered in this time at sites without a map pin. A site with a pin uses the timezone where it is."
               onEdit={() => setEditingTimezone(true)}
             >
               <ReadRow label={timeZoneLabel(timezone)} sub={timezone} />

@@ -32,7 +32,7 @@ export default function SitesPage() {
         <View className="mb-6">
           {isLargeScreen && (
             <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
-              Sites & Venues
+              Sites & Facilities
             </Text>
           )}
           <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
@@ -44,7 +44,7 @@ export default function SitesPage() {
         <View className="flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 mb-6 shadow-sm">
           <Ionicons name="search-outline" size={18} color="#94A3B8" />
           <TextInput
-            placeholder="Search venues..."
+            placeholder="Search sites..."
             placeholderTextColor="#94A3B8"
             className="flex-1 font-inter text-slate-800 dark:text-white text-sm ml-2.5 outline-none"
             editable={false}

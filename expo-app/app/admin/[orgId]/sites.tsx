@@ -307,7 +307,7 @@ export default function OrgSitesList() {
                           } else {
                             switch(fac.category) {
                               case 'sport_field': iconName = 'tennisball-outline'; break;
-                              case 'venue_hall': iconName = 'business-outline'; break;
+                              case 'indoor_hall': iconName = 'business-outline'; break;
                               case 'clubhouse': iconName = 'home-outline'; break;
                               case 'shop': iconName = 'cart-outline'; break;
                               case 'parking': iconName = 'car-outline'; break;

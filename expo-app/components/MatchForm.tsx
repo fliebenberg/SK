@@ -191,9 +191,9 @@ export default function MatchForm({
   const getFacilityLabel = () => {
     if (selectedSportId) {
       const sport = sports.find(s => s.id === selectedSportId);
-      return sport?.facilityTerm || 'Venue';
+      return sport?.facilityTerm || 'Facility';
     }
-    return 'Venue';
+    return 'Facility';
   };
 
   // Load home organization teams when selectedHomeOrg?.id changes
@@ -938,7 +938,7 @@ export default function MatchForm({
         <View className="flex-1 bg-black/60 justify-center px-6">
           <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl">
             <Text className="font-orbitron-bold text-base text-slate-850 dark:text-white mb-4 uppercase tracking-wider">
-              Create Site Venue
+              Create Site
             </Text>
             <TextInput
               placeholder="e.g. West Fields"

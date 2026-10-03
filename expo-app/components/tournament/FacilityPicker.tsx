@@ -72,7 +72,7 @@ export function FacilityPicker({
     return [...bySite.entries()]
       .map(([siteId, siteFacilities]) => ({
         siteId,
-        name: sites.find(s => s.id === siteId)?.name || 'Another venue',
+        name: sites.find(s => s.id === siteId)?.name || 'Another site',
         isBase: !!baseSiteId && siteId === baseSiteId,
         facilities: [...siteFacilities].sort((a, b) => a.name.localeCompare(b.name)),
       }))

@@ -91,7 +91,7 @@ export default function SiteViewScreen() {
     return (
       <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
         <ActivityIndicator size="large" color="#FF3E00" />
-        <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-3">Loading Venue View...</Text>
+        <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-3">Loading Site...</Text>
       </SafeAreaView>
     );
   }
@@ -129,11 +129,11 @@ export default function SiteViewScreen() {
         >
           <Ionicons name="chevron-back" size={20} color="#FF3E00" />
           <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Venues
+            Sites
           </Text>
         </TouchableOpacity>
         <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
-          Venue Details
+          Site Details
         </Text>
         {canEdit ? (
           <TouchableOpacity
@@ -174,7 +174,7 @@ export default function SiteViewScreen() {
             <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
               {site.timezone
                 ? `Timezone: ${site.timezone}, from its location`
-                : `Timezone: ${venueTimeZone(null, org)}, the organisation's — set a map pin to use the venue's own`}
+                : `Timezone: ${venueTimeZone(null, org)}, the organisation's — set a map pin to use the site's own`}
             </Text>
           </View>
         </GlassCard>
@@ -182,7 +182,7 @@ export default function SiteViewScreen() {
         {/* MAP VIEW */}
         <View className="mb-6">
           <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-            Venue Location
+            Site Location
           </Text>
           <View className="w-full h-48 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-900">
             {MapView && lat && lng ? (

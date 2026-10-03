@@ -294,7 +294,7 @@ export default function ScheduleGame() {
   const handleSubmit = (ignoreConflict = false) => {
     if (!event || !selectedHomeTeamId || !selectedAwayTeamId) return;
     if (!timeZone) {
-      useToastStore.getState().showError('Still loading the venue — try again in a moment.', 'Not Ready');
+      useToastStore.getState().showError('Still loading the site — try again in a moment.', 'Not Ready');
       return;
     }
 
@@ -322,7 +322,7 @@ export default function ScheduleGame() {
         const homeName = getTeamName(matchConflict.participants?.[0]?.teamId || '');
         const awayName = getTeamName(matchConflict.participants?.[1]?.teamId || '');
         setConflictWarning(
-          `There is already a game scheduled at this venue and time:\n\n"${homeName} vs ${awayName}"\n\nDo you want to schedule this anyway?`
+          `There is already a game scheduled at this site and time:\n\n"${homeName} vs ${awayName}"\n\nDo you want to schedule this anyway?`
         );
         return;
       }

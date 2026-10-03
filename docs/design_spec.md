@@ -65,7 +65,7 @@ Because ScoreKeeper serves two distinct user archetypes (casual viewers vs. heav
   - **Live** (`index` tab): Real-time games feed with live scoring triggers.
   - **Orgs** (`organizations` tab): Public directory list of registered sports organizations.
   - **Teams** (`teams` tab): Public directory list of active teams and records.
-  - **Sites** (`sites` tab): Public directory list of facilities and venues.
+  - **Sites** (`sites` tab): Public directory of sites and their facilities.
   - **Settings** (`settings` tab): PROGRAMMATIC INTERCEPTOR. Tapping the settings tab icon must not navigate directly. Instead, it must toggle a translucent backdrop-dimmed **Speed Dial Popover Menu** floating directly above the bottom tab. The popover displays:
     1. **Admin Portal** (links to `/admin` dashboard stack)
     2. **My Account** (links to `/settings` account screen)

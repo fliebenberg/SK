@@ -213,7 +213,7 @@ export default function EditGame() {
   const handleSubmit = () => {
     if (!event || !game || !formData || !formData.homeTeamId || !formData.awayTeamId) return;
     if (!formData.timeZone) {
-      useToastStore.getState().showError('Still loading the venue — try again in a moment.', 'Not Ready');
+      useToastStore.getState().showError('Still loading the site — try again in a moment.', 'Not Ready');
       return;
     }
 

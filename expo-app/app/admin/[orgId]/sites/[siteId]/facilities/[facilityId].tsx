@@ -122,7 +122,7 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, category, pri
       } else {
         switch (category) {
           case 'sport_field':
-          case 'venue_hall': markerColor = '#FF8C00'; break;
+          case 'indoor_hall': markerColor = '#FF8C00'; break;
           case 'clubhouse': markerColor = '#3B82F6'; break;
           case 'shop': markerColor = '#10B981'; break;
           case 'parking': markerColor = '#6B7280'; break;
@@ -144,7 +144,7 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, category, pri
       } else {
         switch (category) {
           case 'sport_field': iconName = 'tennisball-outline'; break;
-          case 'venue_hall': iconName = 'business-outline'; break;
+          case 'indoor_hall': iconName = 'business-outline'; break;
           case 'clubhouse': iconName = 'home-outline'; break;
           case 'shop': iconName = 'cart-outline'; break;
           case 'parking': iconName = 'car-outline'; break;
@@ -217,7 +217,7 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, category, pri
 
 const CATEGORIES = [
   { key: 'sport_field', label: 'Sport Field / Court', icon: 'tennisball-outline' },
-  { key: 'venue_hall', label: 'Venue / Indoor Hall', icon: 'business-outline' },
+  { key: 'indoor_hall', label: 'Indoor Hall', icon: 'business-outline' },
   { key: 'clubhouse', label: 'Clubhouse', icon: 'home-outline' },
   { key: 'shop', label: 'Shop / Tuck Shop', icon: 'cart-outline' },
   { key: 'parking', label: 'Parking Area', icon: 'car-outline' },
@@ -708,7 +708,7 @@ export default function FacilityDetails() {
                         } else {
                           switch (facilityForm.category) {
                             case 'sport_field':
-                            case 'venue_hall': markerColor = '#FF8C00'; break;
+                            case 'indoor_hall': markerColor = '#FF8C00'; break;
                             case 'clubhouse': markerColor = '#3B82F6'; break;
                             case 'shop': markerColor = '#10B981'; break;
                             case 'parking': markerColor = '#6B7280'; break;
@@ -730,7 +730,7 @@ export default function FacilityDetails() {
                         } else {
                           switch (facilityForm.category) {
                             case 'sport_field': iconName = 'tennisball-outline'; break;
-                            case 'venue_hall': iconName = 'business-outline'; break;
+                            case 'indoor_hall': iconName = 'business-outline'; break;
                             case 'clubhouse': iconName = 'home-outline'; break;
                             case 'shop': iconName = 'cart-outline'; break;
                             case 'parking': iconName = 'car-outline'; break;

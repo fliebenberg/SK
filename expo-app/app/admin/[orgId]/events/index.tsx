@@ -1006,7 +1006,7 @@ export default function OrgEventsList() {
             </View>
 
             <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
-              Venues, sports, divisions and entrants are all set up on the tournament itself, in
+              Facilities, sports, divisions and entrants are all set up on the tournament itself, in
               whatever order they are settled.
             </Text>
 

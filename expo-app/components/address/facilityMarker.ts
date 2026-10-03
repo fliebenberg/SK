@@ -19,7 +19,7 @@ export function facilityIcon(fac: Pick<Facility, 'primarySportId' | 'category'>,
   }
   switch (fac.category) {
     case 'sport_field': return { icon: 'tennisball-outline', color: '#FF8C00' };
-    case 'venue_hall': return { icon: 'business-outline', color: '#FF8C00' };
+    case 'indoor_hall': return { icon: 'business-outline', color: '#FF8C00' };
     case 'clubhouse': return { icon: 'home-outline', color: '#3B82F6' };
     case 'shop': return { icon: 'cart-outline', color: '#10B981' };
     case 'parking': return { icon: 'car-outline', color: '#6B7280' };

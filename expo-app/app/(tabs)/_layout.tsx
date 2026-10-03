@@ -108,7 +108,7 @@ export default function TabLayout() {
       <Tabs.Screen 
         name="sites" 
         options={{ 
-          headerTitle: 'SITES & VENUES',
+          headerTitle: 'SITES & FACILITIES',
           tabBarLabel: 'Sites',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "map" : "map-outline"} size={22} color={color} />

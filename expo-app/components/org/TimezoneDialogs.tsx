@@ -66,7 +66,7 @@ export function TimezoneDialog({ org, visible, onClose }: { org: Organization; v
       <View className="gap-1.5">
         <FieldLabel
           label="Timezone"
-          help="Kick-offs are entered in this time at venues without a map pin. A venue with a pin uses the timezone where it is."
+          help="Kick-offs are entered in this time at sites without a map pin. A site with a pin uses the timezone where it is."
         />
         <CustomSelect value={zone} onChange={(v: string) => { if (v) setZone(v); }} options={options} showSearch searchPlaceholder="Search timezones..." />
       </View>

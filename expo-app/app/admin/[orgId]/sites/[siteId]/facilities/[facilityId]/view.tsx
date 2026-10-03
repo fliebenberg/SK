@@ -128,7 +128,7 @@ export default function FacilityViewScreen() {
               </Text>
               {parentSite && (
                 <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
-                  Venue: {parentSite.name}
+                  Site: {parentSite.name}
                 </Text>
               )}
             </View>
