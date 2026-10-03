@@ -56,7 +56,7 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 
 *   **Action Triggers**: Primary actions (Save, Submit, Score Match) use solid filled brand accent buttons.
 *   **Segmented View Switchers**: Multi-state view selectors (e.g. Readonly / Edit Info / Score Match, theme preference, settings sub-tabs) must be enclosed inside a single rounded track (`bg-slate-100 dark:bg-slate-900`) with elevated card indicator tiles (`bg-white dark:bg-slate-800` + `border-brand-orange/30`), distinguishing selection state from action buttons.
-*   **Generic Component Reuse**: Consume the reusable `<SegmentedControl>` component (`expo-app/components/SegmentedControl.tsx`) across all view switchers and preference selectors to prevent duplicate UI code and ensure single-source-of-truth styling.
+*   **Generic Component Reuse**: Consume the reusable `<SegmentedControl>` component (`expo-app/components/SegmentedControl.tsx`) across all view switchers and preference selectors to prevent duplicate UI code and ensure single-source-of-truth styling. A list filter beside a search box uses its `fit` mode with per-option `count`s: segments size to their labels, and the counts are dropped (shown on hover, on web) before any label is cut short.
 
 ## One Component Per Repeated Concept
 

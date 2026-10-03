@@ -214,6 +214,7 @@ Agreed 2026-10-03 on the People list ([people.md](file:///c:/Fred/Coding/SK/docs
 - **An identifier whose meaning varies is shown bare, in a fixed place** — an org ID under the name, never "Student #" in front of a staff number.
 - **The add action is a labelled button in the header** ("Add person"; the icon alone on a phone), shown only to people who may use it. Rarer list actions (import) go in the header `⋯` menu.
 - **Filter by the one property most worth narrowing to** (role, on People), with a count per option, as a segmented control when there are four options or fewer, a dropdown beyond (age group, on Teams). Search covers the values a record is looked up by — name, email, an ID.
+- **Wide, search and filters share one line, and a filter label is never cut short.** The segmented filter (`<SegmentedControl fit>`) sizes each segment to its own label and the search box takes what is left, down to 160px. When there is not room for the counts as well, the counts are dropped — on web a segment then shows its count on hover. Labels are always one line.
 - **Group only by something that varies.** Teams are grouped by sport only when the organisation has teams in more than one.
 - **Records out of use sit in a collapsed section at the end** (inactive teams), so the main list needs no badge for them.
 - Applied to the Teams list on 2026-10-03 ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)).

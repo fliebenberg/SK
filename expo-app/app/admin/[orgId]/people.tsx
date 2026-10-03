@@ -75,12 +75,12 @@ export default function OrgPeople() {
       : byName);
   }, [all, search, roleFilter, sortKey]);
 
-  const label = (text: string, count: number) => (isWide ? `${text} ${count}` : text);
-  const filterOptions: { key: RoleFilter; label: string }[] = [
-    { key: 'all', label: label('All', all.length) },
-    { key: 'role-org-admin', label: label('Admin', counts['role-org-admin'] || 0) },
-    { key: 'role-org-staff', label: label('Staff', counts['role-org-staff'] || 0) },
-    { key: 'role-org-member', label: label('Member', counts['role-org-member'] || 0) },
+  const count = (n: number) => (isWide ? n : undefined);
+  const filterOptions: { key: RoleFilter; label: string; count?: number }[] = [
+    { key: 'all', label: 'All', count: count(all.length) },
+    { key: 'role-org-admin', label: 'Admin', count: count(counts['role-org-admin'] || 0) },
+    { key: 'role-org-staff', label: 'Staff', count: count(counts['role-org-staff'] || 0) },
+    { key: 'role-org-member', label: 'Member', count: count(counts['role-org-member'] || 0) },
   ];
 
   const open = (member: OrgMember) => router.push({
@@ -126,7 +126,7 @@ export default function OrgPeople() {
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
           <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
-            <View className="flex-1 flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3">
+            <View className="flex-1 flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
               <Ionicons name="search-outline" size={16} color="#94A3B8" />
               <TextInput
                 value={search}
@@ -137,7 +137,7 @@ export default function OrgPeople() {
                 className="flex-1 font-inter text-base text-slate-800 dark:text-white py-2.5 outline-none"
               />
             </View>
-            <SegmentedControl options={filterOptions} value={roleFilter} onChange={setRoleFilter} isCompact={false} />
+            <SegmentedControl options={filterOptions} value={roleFilter} onChange={setRoleFilter} isCompact={false} fit={isWide} />
           </View>
 
           <View className="flex-row items-center justify-between px-1">

@@ -105,9 +105,9 @@ export default function OrgTeams() {
   }
 
   const sportOptions = [
-    { key: ALL, label: isWide ? `All ${active.length}` : 'All' },
+    { key: ALL, label: 'All', count: isWide ? active.length : undefined },
     ...sportIds
-      .map(id => ({ key: id, label: isWide ? `${sportName(id)} ${active.filter(t => t.sportId === id).length}` : sportName(id) }))
+      .map(id => ({ key: id, label: sportName(id), count: isWide ? active.filter(t => t.sportId === id).length : undefined }))
       .sort((a, b) => a.label.localeCompare(b.label)),
   ];
   const ageOptions = [{ value: ALL, label: 'All ages' }, ...sortByName(ageGroups).map(a => ({ value: a, label: a }))];
@@ -118,7 +118,7 @@ export default function OrgTeams() {
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
           <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
-            <View className="flex-1 flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3">
+            <View className="flex-1 flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
               <Ionicons name="search-outline" size={16} color="#94A3B8" />
               <TextInput
                 value={search}
@@ -130,11 +130,15 @@ export default function OrgTeams() {
               />
             </View>
             {sportIds.length > 1 || ageGroups.length > 1 ? (
-              <View className="flex-row items-center gap-2">
+              <View className={`flex-row items-center gap-2 ${isWide ? 'flex-shrink min-w-0' : ''}`}>
                 {sportIds.length > 1 ? (
-                  <View className={isWide ? 'flex-shrink-0' : 'flex-1'}>
-                    <SegmentedControl options={sportOptions} value={sportFilter} onChange={setSportFilter} isCompact={false} />
-                  </View>
+                  isWide ? (
+                    <SegmentedControl options={sportOptions} value={sportFilter} onChange={setSportFilter} isCompact={false} fit />
+                  ) : (
+                    <View className="flex-1">
+                      <SegmentedControl options={sportOptions} value={sportFilter} onChange={setSportFilter} isCompact={false} />
+                    </View>
+                  )
                 ) : null}
                 {ageGroups.length > 1 ? (
                   <View style={{ minWidth: isWide ? 140 : 110 }}>
