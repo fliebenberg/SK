@@ -159,14 +159,14 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
         <View className="gap-1.5">
           <FieldLabel label="Sport" />
           {choices.length >= 2 && choices.length <= 4 ? (
-            <View className="flex-row">
-              <SegmentedControl
-                options={choices.map(s => ({ key: s.id, label: s.name }))}
-                value={sportId}
-                onChange={chooseSport}
-                isCompact={false}
-              />
-            </View>
+            // `fit`: as wide as the sport names, not the whole dialog.
+            <SegmentedControl
+              options={choices.map(s => ({ key: s.id, label: s.name }))}
+              value={sportId}
+              onChange={chooseSport}
+              isCompact={false}
+              fit
+            />
           ) : choices.length ? (
             <CustomSelect
               value={sportId}
