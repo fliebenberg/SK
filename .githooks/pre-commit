@@ -2,7 +2,7 @@
 #
 # ScoreKeeper pre-commit checks.
 #
-# Five static checks that each exist because the thing they catch is invisible until much later:
+# Six static checks that each exist because the thing they catch is invisible until much later:
 #
 #   check:actions     — a socket action sent outside `sendAction` interprets the reply on its own,
 #                       which is how the app came to have failures nobody saw (LIVE-19).
@@ -14,6 +14,9 @@
 #                       while the pool happens to hand back the same connection (TX-1).
 #   check:dates       — a date parsed, built or formatted outside expo-app/utils/dates.ts, which is
 #                       how a birthdate and a kick-off each came to drift on every save (DATE-1).
+#   check:colors      — a colour named by shade rather than purpose, or a class naming a shade that
+#                       does not exist, which applies no colour and is how fifty-one went unseen
+#                       (UI-24). Run with --strict: every colour must be a theme token.
 #
 # All are plain node scripts with no dependencies, so this works in a fresh clone with nothing
 # installed, and together they run in well under a second — a pre-commit hook that costs real time is a
@@ -29,7 +32,7 @@
 root=$(git rev-parse --show-toplevel) || exit 1
 
 run() {
-  if ! node "$root/$1"; then
+  if ! node "$root/$@"; then
     echo ""
     echo "pre-commit: $1 failed."
     echo "Fix it, or bypass this hook with:  git commit --no-verify"
@@ -42,3 +45,4 @@ run server/scripts/check-transactions.js
 run expo-app/scripts/check-actions.js
 run expo-app/scripts/check-images.js
 run expo-app/scripts/check-dates.js
+run expo-app/scripts/check-colors.js --strict

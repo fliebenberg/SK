@@ -5,7 +5,7 @@ This document outlines the visual and interaction design principles for the new 
 ## 1. Design System Architecture (Variable-Driven)
 **Critical Rule**: All styling (colors, typography, spacing, border radiuses) *must* be strictly variable-driven. Whether using a Tailwind configuration file or a dedicated theme provider, no hardcoded hex codes or arbitrary spacing values should exist in component code. This ensures the entire application theme can be updated from a single central file.
 
-In the Expo mobile app, all theme colors must be referenced using the centralized [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts) configuration and the `getThemeColor(isDark, key)` helper function (imported from `c:\Fred\Coding\SK\expo-app\constants`). Hardcoded hex strings (e.g. `'#94A3B8'`) or raw `rgba` expressions are strictly prohibited in component markup and inline styling.
+In the Expo app every colour is a purpose-named theme token in [theme.js](file:///c:/Fred/Coding/SK/expo-app/constants/theme.js), with a light and a dark value: a class names the token (`text-ink-muted`, `bg-card`), and where a class cannot reach, `themeColor(isDark, token)` from [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts) gives its value. Palette shades, hex codes and raw `rgba` strings are rejected by `npm run check:colors -- --strict` in the pre-commit hook. The tokens and the rules for using them: [okf/design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md).
 
 
 ## 2. Core Aesthetic: "Immersive & Dynamic" (Dark Mode First)
@@ -15,27 +15,27 @@ The application prioritizes a premium, dark-mode-first aesthetic inspired by mod
 ### 1.1 Color Palette
 The color system relies on a deep, dark foundation punctuated by highly saturated neon accents to guide the user's eye and convey energy. The combination of Orange and Slate provides maximum complementary contrast.
 - **Backgrounds**: Deep slate and pure blacks (`#0F172A`, `#000000`). This reduces eye strain and makes bright colors pop.
-- **Surfaces/Cards**: Glassmorphism effects. Translucent dark grays with subtle blurs (`rgba(255, 255, 255, 0.05)` with `backdrop-filter: blur(10px)`). 
+- **Surfaces/Cards**: Deep slate cards (the `card` token) a step above the page, with fine borders (`line`); dialogs float a step lighter again (`popover`).
 - **Primary Accent (Brand)**: **Electric Orange** (`#FF3E00`). Used for primary buttons, active tabs, and the main logo glow. It provides a highly energetic, arena-like feel.
 - **Secondary Accent**: **Electric Blue** (`#00E5FF`). Provides sharp, electric visual relief from the orange. Used for secondary buttons, data visualizations, and standard links in **Dark Mode**. 
-  - *Light Mode Accessibility Rule*: Since `#00E5FF` has a failing contrast ratio (1.25:1) on white/light surfaces, all non-filled (ghost) buttons, text links, and role badges must adaptively swap to **Deep Slate** (`text-slate-700` / `#334155`) or **Deep Ocean Cyan** (`text-cyan-800` / `#155e75` with `bg-cyan-50` / `border-cyan-200` containers) in Light Mode to maintain a **7.6:1+ contrast ratio** and guarantee readability (WCAG AAA compliant).
+  - *Light Mode Accessibility Rule*: `#00E5FF` scores 1.25:1 on white, so in light mode links, ghost buttons and role badges take the `accent-ink` token (Deep Ocean Cyan, `#155E75`, 7.6:1) on `accent-soft` / `accent-line` containers.
 - **Live / Alert Accent**: **Pure Neon Red** (`#FF003C`). Used exclusively for "LIVE" indicators and destructive actions (e.g., Red Cards).
 - **Success Accent**: **Emerald Green** (`#00E676`). Used for positive confirmations and "Match Won" states.
-  - *Light Mode Accessibility Rule*: `#00E676` scores **1.67:1** on white — a worse failure than the cyan above, and for the same reason. Any **text or functional icon** meaning "done", "won" or "confirmed" must swap to **Deep Emerald** (`text-emerald-800` / `#065F46`, **7.7:1**, AAA) in Light Mode; containers pair it with `bg-emerald-50` / `border-emerald-200`. The same applies to *fills* that must be distinguishable from a light surface, such as a completed progress bar. `#00E676` stays correct on dark surfaces, where it scores 10.7:1. The swap is available as the `success` theme token in [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts) — prefer `getThemeColor(isDark, 'success')` or `text-emerald-800 dark:text-brand-green` over a bare `text-brand-green`, which is a light-mode bug wherever it carries meaning.
+  - *Light Mode Accessibility Rule*: `#00E676` scores **1.67:1** on white, so any text or icon meaning "done", "won" or "confirmed" takes the `success-ink` token (Deep Emerald, `#065F46`, **7.7:1**) on `success-soft` / `success-line` containers, and a fill that must stand out from a light surface takes `success` (`#059669`). In dark mode the same tokens are the neon green and its lighter shade.
 - **Text**: High contrast pure white (`#FFFFFF`) for primary data, soft silver (`#94A3B8`) for secondary labels.
 - **Badges and tags — one colour per meaning.** A small pill after a name says one thing, and that
-  thing has one colour everywhere, so a reader learns it once. Text shades are the ones that reach
-  AAA (7:1) on their own tint — the lighter shades of the same hues do not (orange-700 is 4.9:1):
+  thing has one colour everywhere, so a reader learns it once. The `-ink` shades reach 6–9:1 on
+  their own tint in both themes (`npm run check:colors -- --contrast`):
 
-  | Meaning | Light mode (text on fill) | Dark mode text | Where |
-  |---|---|---|---|
-  | Admin | `orange-900` on `orange-50` (8.8:1) | `orange-300` | `RoleBadge` |
-  | Staff | `blue-800` on `blue-50` (8.0:1) | `blue-300` | `RoleBadge` |
-  | Minor | `amber-900` on `amber-50` (8.7:1) | `amber-300` | `GuardianshipTag` |
-  | Dependant | `violet-800` on `violet-50` (8.2:1) | `violet-300` | `GuardianshipTag` |
-  | Done / on ScoreKeeper | `emerald-800` (7.7:1) | `emerald-400` | `PersonBanner`, guardian rows |
+  | Meaning | Tokens | Where |
+  |---|---|---|
+  | Admin | `text-primary-ink` on `bg-primary-soft` | `RoleBadge` |
+  | Staff | `text-info-ink` on `bg-info-soft` | `RoleBadge` |
+  | Minor | `text-warning-ink` on `bg-warning-soft` | `GuardianshipTag` |
+  | Dependant | `text-special-ink` on `bg-special-soft` | `GuardianshipTag` |
+  | Done / on ScoreKeeper | `text-success-ink` | `PersonBanner`, guardian rows |
 
-  Neutral facts (Primary guardian) are slate on `slate-100`. A new meaning gets a new hue, not a
+  Neutral facts (Primary guardian) are `text-ink-soft` on `bg-sunken`. A new meaning gets a new hue, not a
   shade of one already in use; the default state gets no pill at all (no badge for Member).
 
 ### 1.2 Typography
@@ -85,9 +85,9 @@ To guarantee a clean, professional, and uncluttered layout on mobile viewports:
 
 ### 2.4 Navigation Tabs vs Segmented Selectors vs Action Buttons
 To maintain a clear visual hierarchy across screens, the application distinguishes three distinct control types:
-1. **Navigation Tabs (`<Tabs>`)**: Used exclusively for switching active screen panels or section views (e.g. `Edit Profile / Security / Accounts` in settings, or `Overview / Play-by-Play / Lineups / Stats` in live matches). Uses a clean horizontal bar with active text color (`text-brand-orange`) and a crisp bottom indicator bar (`h-0.5 bg-brand-orange`). A tab may carry an optional `sublabel`, rendered as a muted second line under the label and truncated to one line — reserved for tabs that stand for something the user has *chosen* rather than somewhere they can go, as in the live scoring stepper, where each step shows the reason, player or outcome picked on it.
-2. **Segmented Option Selectors (`<SegmentedControl>`)**: Used for toggling option settings or state modes within a form card (e.g. `Auto / Dark / Light` theme selection or `Readonly / Edit Info / Score Match`). Enclosed inside a single rounded track (`bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl`) with elevated card selection indicators (`bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-xs`).
-3. **Action Buttons (`<Button>`)**: Used exclusively for explicit user triggers (e.g. "Save Profile", "Verify", "Change password", "Log Out"). Features solid filled accent colors (`bg-brand-orange`, `bg-brand-red`).
+1. **Navigation Tabs (`<Tabs>`)**: Used exclusively for switching active screen panels or section views (e.g. `Edit Profile / Security / Accounts` in settings, or `Overview / Play-by-Play / Lineups / Stats` in live matches). Uses a clean horizontal bar with active text colour (`text-primary-ink`) and a crisp bottom indicator bar (`h-0.5 bg-primary`). A tab may carry an optional `sublabel`, rendered as a muted second line under the label and truncated to one line — reserved for tabs that stand for something the user has *chosen* rather than somewhere they can go, as in the live scoring stepper, where each step shows the reason, player or outcome picked on it.
+2. **Segmented Option Selectors (`<SegmentedControl>`)**: Used for toggling option settings or state modes within a form card (e.g. `Auto / Dark / Light` theme selection or `Readonly / Edit Info / Score Match`). Enclosed inside a single rounded track (`bg-sunken p-1 rounded-xl`) with elevated selection indicators (`bg-raised border border-primary-line shadow-xs`).
+3. **Action Buttons (`<Button>`)**: Used exclusively for explicit user triggers (e.g. "Save Profile", "Verify", "Change password", "Log Out"). Features solid filled accent colours (`bg-primary`, `bg-danger`).
 
 ---
 
@@ -197,7 +197,7 @@ To prevent confusion, the app uses a hybrid data submission approach:
 - **Navigation Guards**: Whenever a user is in an Explicit Save view, any attempt to navigate away with unsaved changes must trigger a warning modal to prevent data loss.
 - **Floating Save Changes Bar (Mobile App UI)**:
   - For pages with explicit save forms, the save/cancel actions should not be placed inline at the bottom of form cards.
-  - Instead, use a **Floating Save Changes Bar** anchored to the bottom of the viewport (styled as `absolute bottom-6 left-6 right-6` with white/slate-900 background, border, border-radius `rounded-2xl`, flex-row layout, and shadow-xl).
+  - Instead, use a **Floating Save Changes Bar** anchored to the bottom of the viewport (styled as `absolute bottom-6 left-6 right-6` with the `card` background, border, border-radius `rounded-2xl`, flex-row layout, and shadow-xl).
   - This bar should only become visible when there are active unsaved changes (i.e. `hasChanges` or `isFormDirty` is true).
   - When the bar is visible, the page's ScrollView container MUST dynamically increase its `paddingBottom` (e.g., from `60` to `140`) using `contentContainerStyle` to prevent the floating bar from overlapping and hiding the lowest form elements.
   - The bar should include a compact "Cancel" (or "Clear" for new creation forms) button and a primary themed "Save" (or "Create") button (with an `ActivityIndicator` spinner during saving operations).

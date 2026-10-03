@@ -60,6 +60,15 @@ parse or build dates themselves. Run `npm run check:dates` in `expo-app/` before
 changes. Full policy and the reasons:
 [.agent/skills/date-formatting/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md).
 
+## Colours: name the purpose, not the shade
+
+Every colour is a theme token from
+[expo-app/constants/theme.js](file:///c:/Fred/Coding/SK/expo-app/constants/theme.js) — `text-ink-muted`,
+`bg-card`, `border-line`, `bg-success-soft` in a class, `themeColor(isDark, token)` where a class
+cannot reach. Never a palette shade, `brand-*`, hex or `rgba`: `npm run check:colors -- --strict` in
+`expo-app/` rejects them, and the pre-commit hook runs it. Restart Metro after changing the tokens.
+Tokens and rules: [okf/design_system.md](file:///c:/Fred/Coding/SK/okf/design_system.md).
+
 ## Keep the docs in step
 
 Feature, schema, API and workflow changes must be reflected in `okf/` and `docs/` as part of the same

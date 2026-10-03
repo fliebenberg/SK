@@ -14,17 +14,6 @@ module.exports = {
       colors: {
         // The purpose-named, theme-aware colours (constants/theme.js): `text-ink-muted`, `bg-card`…
         ...theme.tailwindColors(),
-        brand: {
-          orange: "#FF3E00",
-          blue: "#00E5FF",
-          red: "#FF003C",
-          green: "#00E676",
-          yellow: "#FFC400",
-        },
-        background: "#0F172A",
-        surface: "rgba(255, 255, 255, 0.05)",
-        textPrimary: "#FFFFFF",
-        textSecondary: "#94A3B8",
       },
       fontFamily: {
         orbitron: ["Orbitron_400Regular", "sans-serif"],

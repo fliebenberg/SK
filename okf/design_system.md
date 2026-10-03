@@ -8,7 +8,7 @@ tags:
   - styling
   - theme
   - accessibility
-timestamp: 2026-10-03T00:00:00Z
+timestamp: 2026-10-04T00:00:00Z
 ---
 
 # Design System & Styling Rules
@@ -19,14 +19,31 @@ For the full detailed design principles, see [design_spec.md](file:///c:/Fred/Co
 
 ## Theme Colors & Variables
 
-**Name a colour by its purpose, and let the theme pick the shade** (2026-10-03, `UI-24`). Every colour is a token in [theme.js](file:///c:/Fred/Coding/SK/expo-app/constants/theme.js) with a light and a dark value — `ink`, `ink-muted`, `card`, `field`, `line`, and for each tone (`primary`, `accent`, `success`, `warning`, `danger`, `info`, `special`) the tone, `-ink`, `-soft` and `-line`. In a class, write the token: `text-ink-muted`, `bg-card`, `border-line`, `bg-success-soft` — never a palette shade with a hand-written `dark:` partner, which is how the app came to have screens with no dark half and fifty-one classes naming shades Tailwind does not have (`text-slate-850`), each silently applying no colour. Where a class cannot reach (an icon's `color`, `placeholderTextColor`, an inline style), use `themeColor(isDark, token)` from [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts). The tokens become CSS variables on `:root` and `.dark:root` through [tailwind.config.js](file:///c:/Fred/Coding/SK/expo-app/tailwind.config.js); a class only *reads* one, so it never trips the variable-provider remount of `UI-1`. Checked on web and on Android, both themes, switched at runtime. `npm run check:colors` rejects unknown shades and token names and checks each text token's contrast; the rest of the app moves to tokens in one sweep, after which `--strict` also rejects raw palette classes and hex. Older guidance, until the sweep is done: all theme colors must be referenced using the centralized [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts) configuration and the `getThemeColor(isDark, key)` helper. **Hardcoded hex codes (e.g. `#FF3E00`) or raw rgba strings are strictly prohibited** in markup or styles.
+**Name a colour by its purpose, and let the theme pick the shade** (2026-10-03, `UI-24`). Every colour is a token in [theme.js](file:///c:/Fred/Coding/SK/expo-app/constants/theme.js) with a light and a dark value. In a class, write the token — `text-ink-muted`, `bg-card`, `border-line`, `bg-success-soft` — never a palette shade with a hand-written `dark:` partner, which is how the app came to have screens with no dark half and fifty-one classes naming shades Tailwind does not have (`text-slate-850`), each silently applying no colour. Where a class cannot reach (an icon's `color`, `placeholderTextColor`, an inline style), use `themeColor(isDark, token)` from [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts), with an optional opacity (`themeColor(isDark, 'overlay', 0.8)`) as the twin of a class's `/80`. The tokens become CSS variables on `:root` and `.dark:root` through [tailwind.config.js](file:///c:/Fred/Coding/SK/expo-app/tailwind.config.js); a class only *reads* one, so it never trips the variable-provider remount of `UI-1`. **Restart Metro after changing `theme.js` or the Tailwind config** — NativeWind reads them only at start-up, and a running server goes on serving the old classes.
 
-*   **Backgrounds**: Slate and pure blacks (`#0F172A`, `#000000`).
-*   **Surfaces/Cards**: Translucent dark surfaces (`rgba(255, 255, 255, 0.05)` with `backdrop-filter: blur(10px)`).
-*   **Primary Accent**: **Electric Orange** (`#FF3E00`). Used for primary actions, active tabs, and logo glows.
-*   **Secondary Accent**: **Electric Blue** (`#00E5FF`). Used for secondary elements, links, and data visualizers in Dark Mode.
-*   **Alert Accent**: **Pure Neon Red** (`#FF003C`). Used for live badges and warnings.
-*   **Success Accent**: **Emerald Green** (`#00E676`). Used for won/success states.
+The whole app moved onto the tokens on 2026-10-04, and `npm run check:colors -- --strict` — run by the pre-commit hook — now rejects any colour named by shade: a palette class, `brand-*`, `white` or `black`, a hex or `rgba(…)` string. It also checks each text token's contrast on the surfaces it is read on (`--contrast` prints the table). The legacy `COLORS` table, `getThemeColor()` and the `brand-*` Tailwind colours are gone.
+
+| Token | What it is for |
+|---|---|
+| `canvas` | The page behind everything. |
+| `card` | A card, panel or list. `<GlassCard>` paints it unless its `className` names its own `bg-`. |
+| `sunken` | Set into a card: a chip, a segmented track, a stat tile. |
+| `field` | The inside of a text input or a closed select. |
+| `raised` | Lifted off a sunken track: the selected segment, a page number, a stepper button. |
+| `popover` | A dialog, sheet or menu floating over the page (a step lighter than `card` in dark mode). |
+| `tooltip` | A tooltip's dark bubble, in both themes; its text is `on-fill`. |
+| `overlay` | The scrim behind a dialog, always with an opacity (`bg-overlay/60`). |
+| `shadow` | A drop shadow's `shadowColor`. |
+| `logo-plate` | The white plate behind an org logo, in both themes. |
+| `ink`, `ink-soft`, `ink-muted` | Text: names and values; body a step down; labels, counts and meta lines. All clear 4.5:1 on every surface. |
+| `ink-faint` | Placeholders, disabled text and decoration — never text that must be read. |
+| `on-fill`, `on-bright` | Text on a filled tone: white on orange, red or a dark fill; near-black on the bright cyan and amber fills. |
+| `line`, `line-soft`, `line-strong` | Borders, row dividers, and a border that must stand out. |
+| tone, `-ink`, `-soft`, `-line` | For each of `primary`, `accent`, `success`, `warning`, `danger`, `info`, `special`: the fill (a button, a dot), the readable shade for text **and for icons on the tone's own tint**, the tint, and the tint's border. |
+
+*   **Icons in a tone** may use the fill (`themeColor(isDark, 'primary')`) on a card, where it reaches the 3:1 icons need — except `warning` and `accent`, which are under 2.2:1 on white in light mode and always take `-ink`. On a tone's own `-soft` tint, use `-ink`.
+*   **Colours that are data, not theme** — an org's brand colour, a colour picker's swatches, the black or white worked out to read on a colour — are exempt from the check: a file marks itself with `@colour-data` in a comment, saying why, or a single line with a `colour-data: <why>` comment at its end or on the line above. Content drawn over an org's brand colour takes its shades from `inkOnBrand(hex)` in [colorUtils.ts](file:///c:/Fred/Coding/SK/expo-app/utils/colorUtils.ts).
+*   **Brand identity**: **Electric Orange** (`#FF3E00`, the `primary` fill), **Electric Blue** (`#00E5FF`, the `accent` fill), Neon Red, Emerald Green and the brand yellow live on as the dark-mode values of `danger`, `success` and `warning`. In light mode the tokens swap to shades that read on white.
 
 ## Typography
 
@@ -38,13 +55,9 @@ For the full detailed design principles, see [design_spec.md](file:///c:/Fred/Co
 *   **8-Point Grid**: All spacing, margins, padding, and layout bounds must align to an 8-point grid (8, 16, 24, 32, etc.).
 *   **Card Padding**: Standard containers use `16px` or `24px` internal padding.
 
-## Light Mode AAA Accessibility Rules
+## Light Mode Accessibility
 
-Because `#00E5FF` has a low contrast ratio (1.25:1) on white/light backgrounds, all ghost buttons, text links, and role badges must adaptively swap to **Deep Slate** (`text-slate-700` / `#334155`) or **Deep Ocean Cyan** (`text-cyan-800` / `#155e75`) when Light Mode is active, ensuring a **7.6:1+ contrast ratio** (AAA compliance).
-
-The same rule binds the success green: `#00E676` scores **1.67:1** on white, so text, functional icons and meaningful fills swap to **Deep Emerald** (`text-emerald-800` / `#065F46`, **7.7:1**) in Light Mode — the `success` token in [Colors.ts](file:///c:/Fred/Coding/SK/expo-app/constants/Colors.ts). A bare `text-brand-green` is a light-mode contrast bug wherever it carries meaning; see [design_spec §1.1](file:///c:/Fred/Coding/SK/docs/design_spec.md). The `warning` (amber-700 / brand yellow) and `danger` (red-700 / brand red) tokens do the same for warning and refusal text and icons.
-
-The brand yellow (`#FFC400`) is worse still on white. Where it is the whole signal — an alert icon, a warning line — light mode uses amber (`#B45309` / `text-amber-800` on `bg-amber-50`), as the no-admin banner and badge do.
+The light-mode swaps that used to be written out per screen — deep cyan for the electric blue (1.25:1 on white), deep emerald for the success green (1.67:1), amber for the brand yellow — are now the light values of the `accent-ink`, `success-ink` and `warning-ink` tokens. Use the `-ink` token wherever a tone carries meaning as text or as an icon on its tint, and `check:colors` holds every text token at 4.5:1 or better in both themes.
 
 ## Custom Overlays & Dialogs (No Native Popups)
 
@@ -55,7 +68,7 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 ## Segmented Controls vs Action Triggers
 
 *   **Action Triggers**: Primary actions (Save, Submit, Score Match) use solid filled brand accent buttons.
-*   **Segmented View Switchers**: Multi-state view selectors (e.g. Readonly / Edit Info / Score Match, theme preference, settings sub-tabs) must be enclosed inside a single rounded track (`bg-slate-100 dark:bg-slate-900`) with elevated card indicator tiles (`bg-white dark:bg-slate-800` + `border-brand-orange/30`), distinguishing selection state from action buttons.
+*   **Segmented View Switchers**: Multi-state view selectors (e.g. Readonly / Edit Info / Score Match, theme preference, settings sub-tabs) must be enclosed inside a single rounded track (`bg-sunken`) with elevated indicator tiles (`bg-raised` + `border-primary-line`), distinguishing selection state from action buttons.
 *   **Generic Component Reuse**: Consume the reusable `<SegmentedControl>` component (`expo-app/components/SegmentedControl.tsx`) across all view switchers and preference selectors to prevent duplicate UI code and ensure single-source-of-truth styling. A list filter beside a search box uses its `fit` mode with per-option `count`s: segments size to their labels, and the counts are dropped (shown on hover, on web) before any label is cut short.
 
 ## One Component Per Repeated Concept
@@ -157,7 +170,7 @@ them as they are next redesigned.
 To avoid dynamic runtime component upgrade warnings and navigation context serialization crashes:
 *   **No Tailwind Pseudo-Classes**: Do not use `active:`, `hover:`, `focus:`, `group-hover:`, or `transition-all` on native components (`TouchableOpacity`, `Pressable`, `View`). Use native component props (`activeOpacity={0.8}`) or state-driven classes.
 *   **No `truncate` on `<Text>`**: Use the native `numberOfLines={1}` prop on `<Text>` components instead.
-*   **No CSS Ring Utilities**: Avoid `ring-2`, `ring-4`, or ring color classes; use standard `border-2 border-brand-orange` or `border-4`.
+*   **No CSS Ring Utilities**: Avoid `ring-2`, `ring-4`, or ring color classes; use standard `border-2 border-primary` or `border-4`.
 *   **No CSS Sibling Spacing Utilities**: Avoid `space-x-*` or `space-y-*` on native views as sibling selectors (`> * + *`) force runtime component upgrades in NativeWind v4. Use native Flexbox gap properties (`gap-2`, `gap-4`, `gap-6`) instead.
 *   **No Web Layout/Alignment Utility Classes**: Avoid `mx-auto`, `my-auto`, `sticky`, or unsupported shadow tiers (`shadow-2xl`, `shadow-xs`). Never inject `shadow-*` inside dynamic template strings (`${isActive ? 'shadow-sm' : ''}`), as dynamic shadow toggles force NativeWind to invoke `createAnimatedComponent` at runtime, crashing navigation context. Use static shadows or border/background state indicators instead.
 *   **Animate with [`<AnimatedBox>`](file:///c:/Fred/Coding/SK/expo-app/components/AnimatedBox.tsx), never `Animated.View` directly**: a `className` on an `Animated.*` component does nothing — NativeWind's interop swaps components by *type* and no animated component is in its map, and `react-native-web` does not forward a raw `className` either, so the classes vanish on web and native alike with no warning. `AnimatedBox` puts the animation on the animated node and the classes on a plain `<View>` inside it; given neither `className` nor `innerStyle` it renders a bare animated node, so it also suits the inline-styled case where children must position against the animated node itself. That makes the rule exceptionless and greppable — a `<Animated.` anywhere outside `AnimatedBox.tsx` is a bug. Animate with React Native's `Animated` ([architecture.md](file:///c:/Fred/Coding/SK/okf/architecture.md) rule 2), not Reanimated and not NativeWind `transition-*`; a raw CSS `transition` shorthand in an inline style is not a `react-native-web` style property and silently does nothing. `useNativeDriver` must be `false` for anything driving layout (width, height, margins), and is moot on web, which has no native driver. `UI-7` records why `Animated.View` is deliberately **not** registered with `cssInterop` app-wide.

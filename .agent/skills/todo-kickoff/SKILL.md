@@ -23,7 +23,7 @@ then reply with three short parts:
    sees because of it, and any decision already recorded in the entry. A few lines, not a re-paste
    of the entry.
 2. **Suggested plan** — the steps you would take, naming the main files touched. Include the
-   checks and doc updates the change will need (`check:actions`, `check:dates`, `okf/`, `docs/`)
+   checks and doc updates the change will need (`check:actions`, `check:dates`, `check:colors`, `okf/`, `docs/`)
    where they apply.
 3. **Questions for you** — anything that needs the user's decision before starting: open design
    choices, scope boundaries, and any parked item in the same code that could come into scope (per
