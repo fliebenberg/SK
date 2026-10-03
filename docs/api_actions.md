@@ -6,7 +6,7 @@ This document summarizes the WebSocket actions currently implemented in the serv
 
 **Global vs. Scoped Rooms:**
 *   **Global Rooms** (e.g., `teams`) have been deprecated to improve scalability.
-*   **Organization Scoped Rooms**: Lists of teams and venues are now broadcast to organization-specific rooms: `org:{orgId}:teams` and `org:{orgId}:venues`.
+*   **Organization Scoped Rooms**: Lists of teams, sites and facilities are broadcast to organization-specific rooms: `org:{orgId}:teams`, `org:{orgId}:sites` and `org:{orgId}:facilities`.
 *   **Item Scoped Rooms**: Updates to specific items (like a single team) are broadcast to that item's room (e.g., `team:{id}`) to support detailed real-time views.
 
 **Message envelope.** Every update is `{ topic, type, data }`, published through
@@ -21,7 +21,7 @@ socket, using the same envelope. A screen that subscribes does not also issue a 
 **Room access.** `join_room` authorizes before joining, against the identity proven by the
 socket handshake, and refuses any room name not declared in
 [wss/roomAccess.ts](file:///c:/Fred/Coding/SK/server/src/wss/roomAccess.ts). A refusal is
-answered with `ROOM_ACCESS_DENIED`. Three levels: `public` (fixtures, results, venues, team
+answered with `ROOM_ACCESS_DENIED`. Three levels: `public` (fixtures, results, sites and facilities, team
 names — anonymous sockets included, since the org directory is browsable logged out),
 `member` (personal data and org internals — `org:*:members`, `team:*`, `game:*`,
 `game:*:events`), and `self` (`user:*`). The identity is resolved once per user in a single
@@ -124,12 +124,12 @@ The response shape is `BatchResponse<T>`: `{ applied, errors, replayed? }`. A re
 back as `{ status: 'error' }` with the per-item report on the error.
 
 A `GameSummary` ([shared](file:///c:/Fred/Coding/SK/shared/src/models/event/GameSummary.ts)) is
-status, scores, clock, times, venue ids and participants **with team name and org short name** —
+status, scores, clock, times, site and facility ids and participants **with team name and org short name** —
 so a client renders "SBHS 1st XV vs PBHS 1st XV 12 - 7" from the broadcast alone, with no teams
 or organizations lookup. It deliberately excludes recorded events, disputes, rosters, sin bins
 and `finalScoreData`.
 
-Every change to a game's score, clock, status, kick-off, venue or participants publishes a
+Every change to a game's score, clock, status, kick-off, site, facility or participants publishes a
 summary via `publishGameSummary`
 ([wss/fixtures.ts](file:///c:/Fred/Coding/SK/server/src/wss/fixtures.ts)), to the hosting org,
 every org registered on the event, **and** every org owning a participating team.
@@ -250,37 +250,68 @@ The admin operations are REST, under `requireAdmin`, and each answers with the s
         *   **Event**: `TEAM_UPDATED`
         *   **Data**: The updated `Team` object (with new counts).
 
-### 3. Venues
+### 3. Sites and Facilities
 
-#### `ADD_VENUE`
-*   **Payload**: `Omit<Venue, "id">` (includes `name`, `address`, `organizationId`)
-*   **Logic**: Creates a new venue.
-*   **Broadcasts**:
-    *   **Topic**: `org:{orgId}:venues`
-    *   **Event**: `VENUE_ADDED`
-    *   **Data**: The new `Venue` object.
+A **Site** is a place with an address; a **Facility** is anything at a Site worth a pin — a field,
+a hall, a car park (see the glossary in
+[okf/project_overview.md](file:///c:/Fred/Coding/SK/okf/project_overview.md)). All six actions are
+authorised by `orgGate` as `manage-org` — admin or staff of the organisation that owns the site
+([wss/orgGate.ts](file:///c:/Fred/Coding/SK/server/src/wss/orgGate.ts)). Their rooms are `public`.
+Joining `org:{orgId}:sites` pushes `SITES_SYNC`, `org:{orgId}:facilities` pushes `FACILITIES_SYNC`,
+and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UPDATED`.
 
-#### `UPDATE_VENUE`
-*   **Payload**: `{ id, data }` (where `data` is `Partial<Venue>`)
-*   **Logic**: Updates the venue details.
-*   **Broadcasts**:
-    1.  **Topic**: `org:{orgId}:venues`
-        *   **Event**: `VENUE_UPDATED`
-        *   **Data**: The updated `Venue` object.
-    2.  **Topic**: `venue:{id}` (Specific Venue Room)
-        *   **Event**: `VENUE_UPDATED`
-        *   **Data**: The updated `Venue` object.
+#### `ADD_SITE`
+*   **Payload**: `AddSitePayload` — `Omit<Site, "id">`: `name`, `orgId`, `address?` (or an existing
+    `addressId?`), `isActive?`.
+*   **Logic**: Creates the site, and its address when one is given. `timezone` is **never** taken
+    from the payload: the server looks it up from the address pin (`DATE-2`).
+*   **Returns**: `Site`
+*   **Broadcasts**: `SITE_ADDED` with the new `Site` to `org:{orgId}:sites` and `site:{id}`; the
+    org summary is republished (its `siteCount` changed).
 
-#### `DELETE_VENUE`
+#### `UPDATE_SITE`
+*   **Payload**: `{ id, data }` (where `data` is `Partial<Site>`)
+*   **Logic**: Updates the site. An `address` in `data` updates the site's address, or creates one
+    if it had none; whenever the address changes the timezone is looked up again from the pin. A
+    `timezone` in `data` is always dropped.
+*   **Returns**: `Site`
+*   **Broadcasts**: `SITE_UPDATED` with the updated `Site` to `org:{orgId}:sites` and `site:{id}`;
+    the org summary is republished.
+
+#### `DELETE_SITE`
 *   **Payload**: `{ id }`
-*   **Logic**: Removes the venue.
-*   **Broadcasts**:
-    1.  **Topic**: `org:{orgId}:venues`
-        *   **Event**: `VENUE_DELETED`
-        *   **Data**: `{ id: string }`
-    2.  **Topic**: `venue:{id}`
-        *   **Event**: `VENUE_DELETED`
-        *   **Data**: `{ id: string }`
+*   **Logic**: **Refused** while any event or game names the site, or any game names one of its
+    facilities — the error says how many of each. Otherwise deletes the site and its facilities in
+    one transaction.
+*   **Broadcasts**: `SITE_DELETED` with `{ id }` to `org:{orgId}:sites` and `site:{id}`; the org
+    summary is republished.
+
+#### `ADD_FACILITY`
+*   **Payload**: `AddFacilityPayload` — `Omit<Facility, "id">`: `name`, `siteId`, `category?`
+    (defaults to `other`), `surfaceType?`, `latitude?`, `longitude?`, `isActive?`,
+    `primarySportId?`, `supportedSportIds?`.
+*   **Returns**: `Facility`
+*   **Broadcasts**: `FACILITY_ADDED` with the new `Facility` to `org:{orgId}:facilities` (the
+    site's org) and `facility:{id}`.
+
+#### `UPDATE_FACILITY`
+*   **Payload**: `{ id, data }` (where `data` is `Partial<Facility>`)
+*   **Logic**: Updates the facility. `supportedSportIds`, when present, replaces the facility's
+    sports. `siteId` is ignored — a facility cannot be moved to another site.
+*   **Returns**: `Facility`
+*   **Broadcasts**: `FACILITY_UPDATED` with the updated `Facility` to `org:{orgId}:facilities` and
+    `facility:{id}`.
+
+#### `DELETE_FACILITY`
+*   **Payload**: `{ id }`
+*   **Logic**: **Refused** while any game names the facility. Otherwise deletes it and its sport
+    links.
+*   **Broadcasts**: `FACILITY_DELETED` with `{ id }` to `org:{orgId}:facilities` and
+    `facility:{id}`.
+
+#### `get_data` — `{ type: 'sites' }` / `{ type: 'site' }` / `{ type: 'facility' }`
+*   `sites` takes `orgId` and returns that org's `Site[]`; `site` and `facility` take `id` and
+    return the one item. A screen that joins the matching room does not also query (rule 2).
 
 #### `get_data` — `{ type: 'facilities' }`
 *   **Payload**: `{ type: 'facilities', id? | siteId? | orgId? }`
@@ -290,22 +321,22 @@ The admin operations are REST, under `requireAdmin`, and each answers with the s
 ### 4. Games
 
 #### `ADD_GAME`
-*   **Payload**: `{ homeTeamId, awayTeamId, venueId, date, ... }`
-*   **Logic**: Schedules a new game.
-*   **Broadcasts**:
-    *   **Topic**: `games` (Global List - To be scoped later)
-    *   *Topic**: `event:{eventId}`
-    *   **Event**: `GAME_ADDED`
-    *   **Data**: The new `Game` object.
+*   **Payload**: `AddGamePayload` — a `Game` without `id`, `status`, `finalScoreData` or
+    `liveState`: `eventId`, `sportId`, `siteId?`, `facilityId?`, `scheduledStartTime?`,
+    `participants?` and the rest of the fixture's fields.
+*   **Logic**: Schedules a new game. A game that names a stage makes that stage incomplete again,
+    so its standings are recalculated (`FIX-12`).
+*   **Broadcasts**: `GAME_ADDED` with the new `Game` to `event:{eventId}:fixtures`, and the game's
+    summary as described under *Fixture rooms* above.
 
 #### `UPDATE_GAME` — planning only
-*   **Payload**: `{ id, data }` — teams, sport, kick-off, venue, custom settings, and a status of
+*   **Payload**: `{ id, data }` — teams, sport, kick-off, site and facility, custom settings, and a status of
     `Scheduled` or `Cancelled`.
 *   **Authorised**: `orgGate`, rule `edit-fixture` (`canEditEventOrGame`).
 *   **Logic**: Edits the fixture. Since 2026-09-21 it does **not** touch the result or the match's
     progress: `refuseResultInFixtureEdit` in `wss/fixtureRules.ts` refuses `finalScoreData`,
     `liveState`, a status of `Live` or `Finished`, and any status change on a match that has already
-    started. An *unchanged* status is allowed, so editing a finished match's venue still saves. It
+    started. An *unchanged* status is allowed, so editing a finished match's site or facility still saves. It
     used to finish matches without writing a game-log entry, and to finish a started match with an
     empty live score that the table read as 0–0.
 
