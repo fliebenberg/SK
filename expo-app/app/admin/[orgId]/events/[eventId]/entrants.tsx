@@ -42,7 +42,8 @@ import { wsService } from '../../../../../services/websocket';
 import { sendAction } from '../../../../../services/actions';
 import { useWsStore } from '../../../../../store/wsStore';
 import { useActiveTheme } from '../../../../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../../../../constants/Colors';
+import { themeColor } from '../../../../../constants/Colors';
+
 
 /**
  * Getting entrants in, on both axes, over one dataset (U21).
@@ -97,7 +98,7 @@ export default function EntrantsScreen() {
    */
   const cardClass = isLargeScreen ? 'p-5' : 'p-4';
   const cardStyle = isLargeScreen ? undefined : { borderRadius: 0, borderLeftWidth: 0, borderRightWidth: 0 };
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
   const isConnected = useWsStore((state: any) => state.isConnected);
 
   const { capabilities, isLoading: isLoadingCapabilities } = useEventCapabilities(eventId);
@@ -491,7 +492,7 @@ export default function EntrantsScreen() {
 
   if (!isLoadingCapabilities && !canEdit) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
           message="Entering teams is for the tournament's organisers, and for whoever runs a division — in their own divisions."
           actionLabel="Back to the event"
@@ -503,7 +504,7 @@ export default function EntrantsScreen() {
 
   if (accessDenied) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
           message="You do not have permission to see who has entered this tournament."
           actionLabel="Back to the event"
@@ -514,7 +515,7 @@ export default function EntrantsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader context={event?.name} title={step.label} onBack={goBackToChecklist} />
 
       {/* A convenor's roster, one room per division they run — rendered, not looped in a hook,
@@ -532,7 +533,7 @@ export default function EntrantsScreen() {
 
       {isLoadingEntrants ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={COLORS.brand.orange} />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView className={`flex-1 ${isLargeScreen ? 'px-6 py-6' : 'py-3'}`} contentContainerStyle={{ paddingBottom: 60 }}>
@@ -540,7 +541,7 @@ export default function EntrantsScreen() {
             {/* Who is taking part, before which of their teams are in. Writes on press — see the
                 note at the top of this file for why this one list has no save bar. */}
             {canEditEvent && (
-              <GlassCard className={`border border-slate-200 dark:border-white/5 ${cardClass} space-y-1.5`} style={cardStyle}>
+              <GlassCard className={`border border-line ${cardClass} space-y-1.5`} style={cardStyle}>
                 <View className="flex-row items-center justify-between gap-3">
                   {/*
                     `UI-16`. The one field on this screen with something non-obvious to say: the
@@ -564,9 +565,9 @@ export default function EntrantsScreen() {
                     <Ionicons
                       name={isAddingOrg ? 'close' : 'add-circle-outline'}
                       size={15}
-                      color={COLORS.brand.orange}
+                      color={themeColor(isDark, 'primary')}
                     />
-                    <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                    <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                       {isAddingOrg ? 'Cancel' : 'Add'}
                     </Text>
                   </TouchableOpacity>
@@ -582,7 +583,7 @@ export default function EntrantsScreen() {
                     {invitedOrgs.map(o => (
                       <View
                         key={o.id}
-                        className="flex-row items-center gap-2 bg-slate-100 dark:bg-slate-800 pl-1.5 pr-3 py-1.5 rounded-full border border-slate-200/50 dark:border-white/5"
+                        className="flex-row items-center gap-2 bg-sunken pl-1.5 pr-3 py-1.5 rounded-full border border-line-soft"
                       >
                         <OrgLogo
                           logo={o.logo}
@@ -591,7 +592,7 @@ export default function EntrantsScreen() {
                           size={22}
                           className="rounded-full"
                         />
-                        <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
+                        <Text className="font-inter text-xs text-ink-soft">
                           {isLargeScreen ? `${o.name} (${o.shortName})` : o.shortName}
                         </Text>
                         {/* An org with no administrator: the way to nominate one (docs/nomination-process.md §4). */}
@@ -602,7 +603,7 @@ export default function EntrantsScreen() {
                           onPress={() => saveInvites(invitedOrgs.filter(p => p.id !== o.id).map(p => p.id))}
                           accessibilityLabel={`Remove ${o.name}`}
                         >
-                          <Ionicons name="close-circle" size={14} color={COLORS.brand.red} />
+                          <Ionicons name="close-circle" size={14} color={themeColor(isDark, 'danger')} />
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -615,12 +616,12 @@ export default function EntrantsScreen() {
                     onChangeText={setOrgSearchText}
                     autoFocus
                     placeholder="Search for an organisation..."
-                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+                    placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                    className="bg-canvas border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink"
                   />
                 )}
                 {isAddingOrg && isSearchingOrgs && (
-                  <Text className="font-inter text-[10px] text-slate-400 mt-1">Searching...</Text>
+                  <Text className="font-inter text-[10px] text-ink-muted mt-1">Searching...</Text>
                 )}
                 {isAddingOrg &&
                   searchedOrgs.map(o => (
@@ -632,9 +633,9 @@ export default function EntrantsScreen() {
                         setOrgSearchText('');
                         setIsAddingOrg(false);
                       }}
-                      className="px-4 py-2.5 border-b border-slate-100 dark:border-white/5 active:opacity-80"
+                      className="px-4 py-2.5 border-b border-line-soft active:opacity-80"
                     >
-                      <Text className="font-inter text-sm text-slate-800 dark:text-white">{o.name}</Text>
+                      <Text className="font-inter text-sm text-ink">{o.name}</Text>
                     </TouchableOpacity>
                   ))}
                 {/*
@@ -647,8 +648,8 @@ export default function EntrantsScreen() {
                     onPress={() => setIsRegisteringOrg(true)}
                     className="flex-row items-center gap-2 px-4 py-2.5 active:opacity-80"
                   >
-                    <Ionicons name="add-circle-outline" size={15} color={COLORS.brand.orange} />
-                    <Text className="font-inter text-sm text-brand-orange">
+                    <Ionicons name="add-circle-outline" size={15} color={themeColor(isDark, 'primary')} />
+                    <Text className="font-inter text-sm text-primary-ink">
                       Register “{orgSearchText.trim()}” — not on ScoreKeeper yet
                     </Text>
                   </TouchableOpacity>
@@ -664,9 +665,9 @@ export default function EntrantsScreen() {
               of two layouts with two sets of controls. Neither is applied to begin with — a filter
               you chose is easier to understand than one that was already on when you arrived.
             */}
-            <GlassCard className={`border border-slate-200 dark:border-white/5 ${cardClass} space-y-3`} style={cardStyle}>
+            <GlassCard className={`border border-line ${cardClass} space-y-3`} style={cardStyle}>
               <View className="flex-row items-center justify-between gap-3">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   Teams · {enteredCount} entered
                 </Text>
                 {canEdit && (
@@ -675,8 +676,8 @@ export default function EntrantsScreen() {
                     accessibilityLabel="Add a team or entrant"
                     className="flex-row items-center gap-1 px-2 py-1 active:opacity-80"
                   >
-                    <Ionicons name="add-circle-outline" size={15} color={COLORS.brand.orange} />
-                    <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                    <Ionicons name="add-circle-outline" size={15} color={themeColor(isDark, 'primary')} />
+                    <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                       {addLabel}
                     </Text>
                   </TouchableOpacity>

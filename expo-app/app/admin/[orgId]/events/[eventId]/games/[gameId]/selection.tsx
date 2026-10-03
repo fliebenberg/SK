@@ -23,8 +23,10 @@ import { useUnsavedChangesStore } from '../../../../../../../store/unsavedChange
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { sendAction } from '../../../../../../../services/actions';
-import { COLORS } from '../../../../../../../constants/Colors';
+
 import { SocketAction } from '@sk/shared';
+import { useActiveTheme } from '../../../../../../../store/settingsStore';
+import { themeColor } from '../../../../../../../constants/Colors';
 
 interface RosterItem {
   orgProfileId: string;
@@ -34,6 +36,7 @@ interface RosterItem {
 }
 
 export default function GameSelectionScreen() {
+  const isDark = useActiveTheme() === 'dark';
   const { orgId, eventId, gameId, teamId } = useLocalSearchParams<{
     orgId: string;
     eventId: string;
@@ -679,9 +682,9 @@ export default function GameSelectionScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center">
-        <ActivityIndicator size="large" color={COLORS.brand.orange} />
-        <Text className="font-orbitron text-xs text-slate-400 mt-3 uppercase tracking-widest">
+      <SafeAreaView className="flex-1 bg-canvas items-center justify-center">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-3 uppercase tracking-widest">
           Loading Lineup...
         </Text>
       </SafeAreaView>
@@ -689,21 +692,21 @@ export default function GameSelectionScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* STANDARD MATCH HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)}
           activeOpacity={0.7}
           className="flex-row items-center gap-1.5"
         >
-          <Ionicons name="chevron-back" size={18} color={COLORS.brand.orange} />
-          <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={18} color={themeColor(isDark, 'primary')} />
+          <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
 
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase flex-1 text-center px-4" numberOfLines={1}>
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase flex-1 text-center px-4" numberOfLines={1}>
           Team Selection
         </Text>
 
@@ -718,8 +721,8 @@ export default function GameSelectionScreen() {
 
       {/* Participant Switcher Tabs (Team 1 vs Team 2) */}
       {participants.length > 0 && (
-        <View className="px-6 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-white/5">
-          <View className="flex-row bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-white/10 max-w-xl self-center w-full">
+        <View className="px-6 py-2 bg-card border-b border-line">
+          <View className="flex-row bg-sunken rounded-xl p-1 border border-line max-w-xl self-center w-full">
             {participants.map((p: any, idx: number) => {
               const isActive = selectedParticipantIdx === idx;
               const isEditable =
@@ -739,15 +742,15 @@ export default function GameSelectionScreen() {
                     setActiveIsReserve(false);
                   }}
                   className={`flex-1 py-2 rounded-lg items-center flex-row justify-center gap-1.5 ${
-                    isActive ? 'bg-white dark:bg-slate-700' : ''
+                    isActive ? 'bg-raised' : ''
                   }`}
                 >
                   <Text
                     numberOfLines={1}
                     className={`font-orbitron-bold text-xs ${
                       isActive
-                        ? 'text-slate-900 dark:text-white'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'text-ink'
+                        : 'text-ink-muted'
                     }`}
                   >
                     {getParticipantName(p, idx)}
@@ -756,7 +759,7 @@ export default function GameSelectionScreen() {
                     <Ionicons
                       name="eye-outline"
                       size={12}
-                      color="#94A3B8"
+                      color={themeColor(isDark, 'ink-muted')}
                     />
                   )}
                 </TouchableOpacity>
@@ -770,21 +773,21 @@ export default function GameSelectionScreen() {
       <ScrollView className="flex-1 px-3 py-3" contentContainerStyle={{ paddingBottom: 60 }}>
         {/* Read-Only Notice Banner */}
         {!canEditCurrentTeam && (
-          <View className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-3 flex-row items-center gap-2">
-            <Ionicons name="information-circle-outline" size={18} color="#F59E0B" />
-            <Text className="font-inter text-xs text-amber-600 dark:text-amber-400 flex-1">
+          <View className="bg-warning-soft border border-warning-line rounded-xl p-3 mb-3 flex-row items-center gap-2">
+            <Ionicons name="information-circle-outline" size={18} color={themeColor(isDark, 'warning-ink')} />
+            <Text className="font-inter text-xs text-warning-ink flex-1">
               You are viewing this team's lineup in read-only mode. Only assigned coaches or org admins can edit team selections.
             </Text>
           </View>
         )}
 
         {/* Header Metadata & Allocation Badge */}
-        <View className="flex-row items-center justify-between mb-4 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm">
+        <View className="flex-row items-center justify-between mb-4 bg-card p-3 rounded-2xl border border-line shadow-sm">
           <View className="flex-1">
-            <Text className="font-orbitron-bold text-base text-slate-900 dark:text-white">
+            <Text className="font-orbitron-bold text-base text-ink">
               {currentParticipant ? getParticipantName(currentParticipant, selectedParticipantIdx) : 'Team Selection'}
             </Text>
-            <Text className="font-inter text-xs text-slate-400">
+            <Text className="font-inter text-xs text-ink-muted">
               {totalPositions} Positions Available • Max Reserves:{' '}
               {maxReserves > 0 ? maxReserves : 'Unlimited'}
             </Text>
@@ -794,15 +797,15 @@ export default function GameSelectionScreen() {
             <View
               className={`px-3 py-1.5 rounded-full border ${
                 isFullyAllocated
-                  ? 'bg-emerald-500/10 border-emerald-500/30'
-                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/10'
+                  ? 'bg-success-soft border-success-line'
+                  : 'bg-sunken border-line'
               }`}
             >
               <Text
                 className={`font-orbitron-bold text-xs ${
                   isFullyAllocated
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-slate-600 dark:text-slate-300'
+                    ? 'text-success-ink'
+                    : 'text-ink-soft'
                 }`}
               >
                 {allocatedCount} / {totalPositions}
@@ -813,10 +816,10 @@ export default function GameSelectionScreen() {
 
         {/* Active Selection Guidance Bar (Desktop/Tablet) */}
         {isDesktop && canEditCurrentTeam && (activePositionId || activePlayerId || activeIsReserve) && (
-          <View className="bg-brand-orange/10 border border-brand-orange/30 rounded-xl p-3 mb-4 flex-row items-center justify-between">
+          <View className="bg-primary-soft border border-primary-line rounded-xl p-3 mb-4 flex-row items-center justify-between">
             <View className="flex-row items-center gap-2">
-              <Ionicons name="sparkles" size={16} color={COLORS.brand.orange} />
-              <Text className="font-orbitron-bold text-xs text-brand-orange">
+              <Ionicons name="sparkles" size={16} color={themeColor(isDark, 'primary')} />
+              <Text className="font-orbitron-bold text-xs text-primary-ink">
                 {activePositionId
                   ? `Position ${activePositionId} Selected: Click an available player on the right to assign!`
                   : activeIsReserve
@@ -830,9 +833,9 @@ export default function GameSelectionScreen() {
                 setActivePlayerId(null);
                 setActiveIsReserve(false);
               }}
-              className="bg-brand-orange/20 px-2 py-1 rounded"
+              className="bg-primary-soft px-2 py-1 rounded"
             >
-              <Text className="font-orbitron-bold text-[10px] text-brand-orange">Cancel Selection</Text>
+              <Text className="font-orbitron-bold text-[10px] text-primary-ink">Cancel Selection</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -845,7 +848,7 @@ export default function GameSelectionScreen() {
             
             {/* STARTING LINEUP SECTION */}
             <View>
-              <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 px-1">
+              <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-2 px-1">
                 Starting Lineup
               </Text>
 
@@ -870,13 +873,13 @@ export default function GameSelectionScreen() {
                         style={Platform.OS === 'web' ? ({ pointerEvents: 'none' } as any) : undefined}
                         className={`w-7 h-7 rounded-lg items-center justify-center border ${
                           isActivePos
-                            ? 'bg-brand-orange border-brand-orange'
-                            : 'bg-brand-orange/10 border-brand-orange/20'
+                            ? 'bg-primary border-primary'
+                            : 'bg-primary-soft border-primary-line'
                         }`}
                       >
                         <Text
                           className={`font-orbitron-bold text-xs ${
-                            isActivePos ? 'text-white' : 'text-brand-orange'
+                            isActivePos ? 'text-on-fill' : 'text-primary-ink'
                           }`}
                         >
                           {pos.id}
@@ -890,18 +893,18 @@ export default function GameSelectionScreen() {
                         style={Platform.OS === 'web' ? ({ pointerEvents: 'none' } as any) : undefined}
                         className="flex-1 min-w-0"
                       >
-                        <Text className="font-orbitron-bold text-[9px] text-slate-400 uppercase tracking-tight">
+                        <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-tight">
                           {pos.name}
                         </Text>
                         {player ? (
                           <Text
-                            className="font-inter-bold text-xs text-slate-900 dark:text-white"
+                            className="font-inter-bold text-xs text-ink"
                             numberOfLines={1}
                           >
                             {player.name || player.orgProfileName}
                           </Text>
                         ) : (
-                          <Text className="font-inter text-xs text-slate-400 italic" numberOfLines={1}>
+                          <Text className="font-inter text-xs text-ink-muted italic" numberOfLines={1}>
                             {isActivePos ? 'Select player on right...' : 'Empty Slot (Tap to assign)'}
                           </Text>
                         )}
@@ -912,13 +915,13 @@ export default function GameSelectionScreen() {
                         <View className="flex-row items-center gap-1.5">
                           {/* Jersey Badge / Edit Input */}
                           {editingJerseyForId === player.id ? (
-                            <View className="flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-300 dark:border-white/20 px-1">
+                            <View className="flex-row items-center bg-sunken rounded-md border border-line-strong px-1">
                               <TextInput
                                 autoFocus
                                 keyboardType="numeric"
                                 value={tempJerseyValue}
                                 onChangeText={setTempJerseyValue}
-                                className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-8 text-center py-0.5"
+                                className="font-orbitron-bold text-xs text-ink w-8 text-center py-0.5"
                               />
                               <TouchableOpacity
                                 onPress={() =>
@@ -929,7 +932,7 @@ export default function GameSelectionScreen() {
                                 <Ionicons
                                   name="checkmark-circle"
                                   size={16}
-                                  color="#10B981"
+                                  color={themeColor(isDark, 'success')}
                                 />
                               </TouchableOpacity>
                             </View>
@@ -942,16 +945,16 @@ export default function GameSelectionScreen() {
                                   assignedItem?.jerseyNumber || pos.id
                                 );
                               }}
-                              className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
+                              className="bg-sunken border border-line px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
                             >
-                              <Text className="font-orbitron-bold text-[11px] text-slate-700 dark:text-slate-300">
+                              <Text className="font-orbitron-bold text-[11px] text-ink-soft">
                                 #{assignedItem?.jerseyNumber || pos.id}
                               </Text>
                               {canEditCurrentTeam && (
                                 <Ionicons
                                   name="pencil"
                                   size={9}
-                                  color="#94A3B8"
+                                  color={themeColor(isDark, 'ink-muted')}
                                 />
                               )}
                             </TouchableOpacity>
@@ -961,9 +964,9 @@ export default function GameSelectionScreen() {
                           {canEditCurrentTeam && (
                             <TouchableOpacity
                               onPress={() => handleRemoveFromRoster(player.id)}
-                              className="w-6 h-6 rounded-md bg-red-500/10 border border-red-500/20 items-center justify-center"
+                              className="w-6 h-6 rounded-md bg-danger-soft border border-danger-line items-center justify-center"
                             >
-                              <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                              <Ionicons name="trash-outline" size={12} color={themeColor(isDark, 'danger')} />
                             </TouchableOpacity>
                           )}
                         </View>
@@ -971,9 +974,9 @@ export default function GameSelectionScreen() {
                         canEditCurrentTeam && (
                           <TouchableOpacity
                             onPress={() => handlePositionSlotClick(pos.id)}
-                            className="bg-brand-orange px-2.5 py-1 rounded-lg"
+                            className="bg-primary px-2.5 py-1 rounded-lg"
                           >
-                            <Text className="font-orbitron-bold text-[10px] text-white">
+                            <Text className="font-orbitron-bold text-[10px] text-on-fill">
                               {isActivePos ? 'Active' : 'Assign'}
                             </Text>
                           </TouchableOpacity>
@@ -982,14 +985,14 @@ export default function GameSelectionScreen() {
                     </>
                   );
 
-                  const slotClassName = `flex flex-row items-center gap-2.5 bg-white dark:bg-slate-900 border rounded-xl py-1.5 px-3 ${
+                  const slotClassName = `flex flex-row items-center gap-2.5 bg-card border rounded-xl py-1.5 px-3 ${
                     isDragOver
-                      ? 'border-2 border-brand-orange bg-brand-orange/20'
+                      ? 'border-2 border-primary bg-primary-soft'
                       : isActivePos
-                      ? 'border-2 border-brand-orange bg-brand-orange/10'
+                      ? 'border-2 border-primary bg-primary-soft'
                       : player
-                      ? 'border-brand-orange/30 bg-brand-orange/5 dark:bg-brand-orange/10'
-                      : 'border-slate-200 dark:border-white/10 border-dashed'
+                      ? 'border-primary-line bg-primary-soft'
+                      : 'border-line border-dashed'
                   }`;
 
                   if (Platform.OS === 'web') {
@@ -1026,7 +1029,7 @@ export default function GameSelectionScreen() {
             {/* RESERVES SECTION */}
             <View className="mb-6">
               <View className="flex-row items-center justify-between mb-2 px-1">
-                <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">
                   Reserves ({assignedReserves.length}
                   {maxReserves > 0 ? ` / ${maxReserves}` : ''})
                 </Text>
@@ -1036,20 +1039,20 @@ export default function GameSelectionScreen() {
                       onPress={handleReserveSectionClick}
                       className={`flex-row items-center gap-1 px-2.5 py-1 rounded-lg border ${
                         activeIsReserve
-                          ? 'bg-amber-500 border-amber-500 text-white'
-                          : 'bg-amber-500/10 border-amber-500/20'
+                          ? 'bg-warning border-warning'
+                          : 'bg-warning-soft border-warning-line'
                       }`}
                     >
                       <Ionicons
                         name="add-circle"
                         size={14}
-                        color={activeIsReserve ? '#FFFFFF' : '#F59E0B'}
+                        color={themeColor(isDark, activeIsReserve ? 'on-bright' : 'warning-ink')}
                       />
                       <Text
                         className={`font-orbitron-bold text-xs ${
                           activeIsReserve
-                            ? 'text-white'
-                            : 'text-amber-600 dark:text-amber-400'
+                            ? 'text-on-bright'
+                            : 'text-warning-ink'
                         }`}
                       >
                         {activeIsReserve ? 'Active Zone' : 'Add Reserve'}
@@ -1065,18 +1068,18 @@ export default function GameSelectionScreen() {
                   onDragLeave={handleDragLeaveReserves}
                   onDrop={handleDropOnReserves}
                   onClick={handleReserveSectionClick}
-                  className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 ${
+                  className={`bg-card border rounded-2xl p-3 ${
                     isDragOverReserves
-                      ? 'border-2 border-amber-500 bg-amber-500/20'
+                      ? 'border-2 border-warning bg-warning-soft'
                       : activeIsReserve
-                      ? 'border-2 border-amber-500 bg-amber-500/10'
-                      : 'border-slate-200 dark:border-white/5'
+                      ? 'border-2 border-warning bg-warning-soft'
+                      : 'border-line'
                   }`}
                   style={{ cursor: canEditCurrentTeam ? 'pointer' : 'default' }}
                 >
                   {assignedReserves.length === 0 ? (
-                    <div className="py-4 items-center justify-center border border-dashed border-slate-200 dark:border-white/10 rounded-xl text-center">
-                      <Text className="font-inter text-xs text-slate-400 italic">
+                    <div className="py-4 items-center justify-center border border-dashed border-line rounded-xl text-center">
+                      <Text className="font-inter text-xs text-ink-muted italic">
                         {activeIsReserve
                           ? 'Click player on right to add as reserve...'
                           : 'No reserves assigned. Drag player here or click to assign.'}
@@ -1097,7 +1100,7 @@ export default function GameSelectionScreen() {
                             onDragStart={(e: any) =>
                               handleDragStartPlayer(e, player.id || res.orgProfileId)
                             }
-                            className="bg-slate-50 dark:bg-slate-800/50 border border-amber-500/20 rounded-xl py-1.5 px-2.5 flex-row items-center gap-2.5"
+                            className="bg-sunken border border-warning-line rounded-xl py-1.5 px-2.5 flex-row items-center gap-2.5"
                             style={{
                               display: 'flex',
                               flexDirection: 'row',
@@ -1109,15 +1112,15 @@ export default function GameSelectionScreen() {
                           >
                             <View
                               style={{ pointerEvents: 'none' }}
-                              className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 items-center justify-center mr-2.5"
+                              className="w-7 h-7 rounded-lg bg-warning-soft border border-warning-line items-center justify-center mr-2.5"
                             >
-                              <Text className="font-orbitron-bold text-[9px] text-amber-500">
+                              <Text className="font-orbitron-bold text-[9px] text-warning-ink">
                                 RES
                               </Text>
                             </View>
 
                             <View style={{ pointerEvents: 'none' }} className="flex-1 min-w-0">
-                              <Text className="font-inter-bold text-xs text-slate-900 dark:text-white" numberOfLines={1}>
+                              <Text className="font-inter-bold text-xs text-ink" numberOfLines={1}>
                                 {player.name || player.orgProfileName}
                               </Text>
                             </View>
@@ -1125,13 +1128,13 @@ export default function GameSelectionScreen() {
                             {/* Reserve Jersey Number & Actions */}
                             <View className="flex-row items-center gap-1.5">
                               {editingJerseyForId === player.id ? (
-                                <View className="flex-row items-center bg-white dark:bg-slate-900 rounded-md border border-slate-300 dark:border-white/20 px-1">
+                                <View className="flex-row items-center bg-card rounded-md border border-line-strong px-1">
                                   <TextInput
                                     autoFocus
                                     keyboardType="numeric"
                                     value={tempJerseyValue}
                                     onChangeText={setTempJerseyValue}
-                                    className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-8 text-center py-0.5"
+                                    className="font-orbitron-bold text-xs text-ink w-8 text-center py-0.5"
                                   />
                                   <TouchableOpacity
                                     onPress={() =>
@@ -1142,7 +1145,7 @@ export default function GameSelectionScreen() {
                                     <Ionicons
                                       name="checkmark-circle"
                                       size={16}
-                                      color="#10B981"
+                                      color={themeColor(isDark, 'success')}
                                     />
                                   </TouchableOpacity>
                                 </View>
@@ -1153,16 +1156,16 @@ export default function GameSelectionScreen() {
                                     setEditingJerseyForId(player.id);
                                     setTempJerseyValue(res.jerseyNumber || '');
                                   }}
-                                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
+                                  className="bg-card border border-line px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
                                 >
-                                  <Text className="font-orbitron-bold text-[11px] text-slate-700 dark:text-slate-300">
+                                  <Text className="font-orbitron-bold text-[11px] text-ink-soft">
                                     #{res.jerseyNumber || '—'}
                                   </Text>
                                   {canEditCurrentTeam && (
                                     <Ionicons
                                       name="pencil"
                                       size={9}
-                                      color="#94A3B8"
+                                      color={themeColor(isDark, 'ink-muted')}
                                     />
                                   )}
                                 </TouchableOpacity>
@@ -1171,9 +1174,9 @@ export default function GameSelectionScreen() {
                               {canEditCurrentTeam && (
                                 <TouchableOpacity
                                   onPress={() => handleRemoveFromRoster(player.id)}
-                                  className="w-6 h-6 rounded-md bg-red-500/10 border border-red-500/20 items-center justify-center"
+                                  className="w-6 h-6 rounded-md bg-danger-soft border border-danger-line items-center justify-center"
                                 >
-                                  <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                                  <Ionicons name="trash-outline" size={12} color={themeColor(isDark, 'danger')} />
                                 </TouchableOpacity>
                               )}
                             </View>
@@ -1185,15 +1188,15 @@ export default function GameSelectionScreen() {
                 </div>
               ) : (
                 <View
-                  className={`bg-white dark:bg-slate-900 border rounded-2xl p-3 border-slate-200 dark:border-white/5`}
+                  className={`bg-card border rounded-2xl p-3 border-line`}
                 >
                   {assignedReserves.length === 0 ? (
                     <TouchableOpacity
                       disabled={!canEditCurrentTeam}
                       onPress={handleReserveSectionClick}
-                      className="py-4 items-center justify-center border border-dashed border-slate-200 dark:border-white/10 rounded-xl"
+                      className="py-4 items-center justify-center border border-dashed border-line rounded-xl"
                     >
-                      <Text className="font-inter text-xs text-slate-400 italic">
+                      <Text className="font-inter text-xs text-ink-muted italic">
                         {activeIsReserve
                           ? 'Click player on right to add as reserve...'
                           : 'No reserves assigned. Drag player here or click to assign.'}
@@ -1210,29 +1213,29 @@ export default function GameSelectionScreen() {
                         return (
                           <View
                             key={player.id || res.orgProfileId}
-                            className="bg-slate-50 dark:bg-slate-800/50 border border-amber-500/20 rounded-xl py-1.5 px-2.5 flex-row items-center gap-2.5"
+                            className="bg-sunken border border-warning-line rounded-xl py-1.5 px-2.5 flex-row items-center gap-2.5"
                           >
-                            <View className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 items-center justify-center">
-                              <Text className="font-orbitron-bold text-[9px] text-amber-500">
+                            <View className="w-7 h-7 rounded-lg bg-warning-soft border border-warning-line items-center justify-center">
+                              <Text className="font-orbitron-bold text-[9px] text-warning-ink">
                                 RES
                               </Text>
                             </View>
 
                             <View className="flex-1 min-w-0">
-                              <Text className="font-inter-bold text-xs text-slate-900 dark:text-white" numberOfLines={1}>
+                              <Text className="font-inter-bold text-xs text-ink" numberOfLines={1}>
                                 {player.name || player.orgProfileName}
                               </Text>
                             </View>
 
                             <View className="flex-row items-center gap-1.5">
                               {editingJerseyForId === player.id ? (
-                                <View className="flex-row items-center bg-white dark:bg-slate-900 rounded-md border border-slate-300 dark:border-white/20 px-1">
+                                <View className="flex-row items-center bg-card rounded-md border border-line-strong px-1">
                                   <TextInput
                                     autoFocus
                                     keyboardType="numeric"
                                     value={tempJerseyValue}
                                     onChangeText={setTempJerseyValue}
-                                    className="font-orbitron-bold text-xs text-slate-900 dark:text-white w-8 text-center py-0.5"
+                                    className="font-orbitron-bold text-xs text-ink w-8 text-center py-0.5"
                                   />
                                   <TouchableOpacity
                                     onPress={() =>
@@ -1243,7 +1246,7 @@ export default function GameSelectionScreen() {
                                     <Ionicons
                                       name="checkmark-circle"
                                       size={16}
-                                      color="#10B981"
+                                      color={themeColor(isDark, 'success')}
                                     />
                                   </TouchableOpacity>
                                 </View>
@@ -1254,16 +1257,16 @@ export default function GameSelectionScreen() {
                                     setEditingJerseyForId(player.id);
                                     setTempJerseyValue(res.jerseyNumber || '');
                                   }}
-                                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
+                                  className="bg-card border border-line px-1.5 py-0.5 rounded-md flex-row items-center gap-1"
                                 >
-                                  <Text className="font-orbitron-bold text-[11px] text-slate-700 dark:text-slate-300">
+                                  <Text className="font-orbitron-bold text-[11px] text-ink-soft">
                                     #{res.jerseyNumber || '—'}
                                   </Text>
                                   {canEditCurrentTeam && (
                                     <Ionicons
                                       name="pencil"
                                       size={9}
-                                      color="#94A3B8"
+                                      color={themeColor(isDark, 'ink-muted')}
                                     />
                                   )}
                                 </TouchableOpacity>
@@ -1272,9 +1275,9 @@ export default function GameSelectionScreen() {
                               {canEditCurrentTeam && (
                                 <TouchableOpacity
                                   onPress={() => handleRemoveFromRoster(player.id)}
-                                  className="w-6 h-6 rounded-md bg-red-500/10 border border-red-500/20 items-center justify-center"
+                                  className="w-6 h-6 rounded-md bg-danger-soft border border-danger-line items-center justify-center"
                                 >
-                                  <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                                  <Ionicons name="trash-outline" size={12} color={themeColor(isDark, 'danger')} />
                                 </TouchableOpacity>
                               )}
                             </View>
@@ -1296,33 +1299,33 @@ export default function GameSelectionScreen() {
                 onDragOver={handleDragOverAvailable}
                 onDragLeave={handleDragLeaveAvailable}
                 onDrop={handleDropOnAvailable}
-                className={`w-80 lg:w-96 shrink-0 bg-white dark:bg-slate-900 border rounded-2xl p-4 shadow-sm self-stretch ${
+                className={`w-80 lg:w-96 shrink-0 bg-card border rounded-2xl p-4 shadow-sm self-stretch ${
                   isDragOverAvailable
-                    ? 'border-2 border-red-400 bg-red-500/5'
-                    : 'border-slate-200 dark:border-white/5'
+                    ? 'border-2 border-danger bg-danger-soft'
+                    : 'border-line'
                 }`}
                 style={{ minHeight: Math.max(450, height - 240) }}
               >
                 <View className="flex-row items-center justify-between mb-3">
-                  <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">
                     Available Roster ({availablePlayers.length})
                   </Text>
                   {activePlayerId && (
-                    <View className="bg-brand-orange/10 px-2 py-0.5 rounded border border-brand-orange/20">
-                      <Text className="font-orbitron-bold text-[10px] text-brand-orange">1 Selected</Text>
+                    <View className="bg-primary-soft px-2 py-0.5 rounded border border-primary-line">
+                      <Text className="font-orbitron-bold text-[10px] text-primary-ink">1 Selected</Text>
                     </View>
                   )}
                 </View>
 
                 {/* Roster Search Input */}
-                <View className="flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-white/10 mb-3">
-                  <Ionicons name="search" size={14} color="#94A3B8" />
+                <View className="flex-row items-center bg-sunken rounded-xl px-3 py-2 border border-line mb-3">
+                  <Ionicons name="search" size={14} color={themeColor(isDark, 'ink-muted')} />
                   <TextInput
                     placeholder="Search team members..."
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={themeColor(isDark, 'ink-muted')}
                     value={rosterSearch}
                     onChangeText={setRosterSearch}
-                    className="flex-1 font-inter text-xs text-slate-900 dark:text-white ml-2"
+                    className="flex-1 font-inter text-xs text-ink ml-2"
                   />
                 </View>
 
@@ -1344,10 +1347,10 @@ export default function GameSelectionScreen() {
 
                       const cardClassName = `flex-row items-center py-1.5 px-2.5 rounded-xl border ${
                         isActiveCard
-                          ? 'bg-brand-orange/10 border-2 border-brand-orange'
+                          ? 'bg-primary-soft border-2 border-primary'
                           : isAssigned
-                          ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-white/5 opacity-60'
-                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10'
+                          ? 'bg-sunken border-line opacity-60'
+                          : 'bg-card border-line'
                       }`;
 
                       return (
@@ -1368,9 +1371,9 @@ export default function GameSelectionScreen() {
                         >
                           <View
                             style={{ pointerEvents: 'none' }}
-                            className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10 mr-2"
+                            className="w-7 h-7 rounded-full bg-sunken items-center justify-center border border-line mr-2"
                           >
-                            <Ionicons name="person" size={12} color="#94A3B8" />
+                            <Ionicons name="person" size={12} color={themeColor(isDark, 'ink-muted')} />
                           </View>
 
                           <View
@@ -1380,8 +1383,8 @@ export default function GameSelectionScreen() {
                             <Text
                               className={`font-inter-bold text-xs ${
                                 isAssigned
-                                  ? 'text-slate-400 dark:text-slate-500'
-                                  : 'text-slate-900 dark:text-white'
+                                  ? 'text-ink-muted'
+                                  : 'text-ink'
                               }`}
                               numberOfLines={1}
                             >
@@ -1394,15 +1397,15 @@ export default function GameSelectionScreen() {
                             <View
                               className={`px-1.5 py-0.5 rounded ${
                                 rosterItem?.isReserve
-                                  ? 'bg-amber-500/10 border border-amber-500/20'
-                                  : 'bg-brand-orange/10 border border-brand-orange/20'
+                                  ? 'bg-warning-soft border border-warning-line'
+                                  : 'bg-primary-soft border border-primary-line'
                               }`}
                             >
                               <Text
                                 className={`font-orbitron-bold text-[9px] ${
                                   rosterItem?.isReserve
-                                    ? 'text-amber-500'
-                                    : 'text-brand-orange'
+                                    ? 'text-warning-ink'
+                                    : 'text-primary-ink'
                                 }`}
                               >
                                 {rosterItem?.isReserve
@@ -1414,7 +1417,7 @@ export default function GameSelectionScreen() {
                             <Ionicons
                               name={isActiveCard ? 'checkmark-circle' : 'add-circle-outline'}
                               size={16}
-                              color={isActiveCard ? COLORS.brand.orange : '#94A3B8'}
+                              color={isActiveCard ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
                             />
                           )}
                         </div>
@@ -1424,29 +1427,29 @@ export default function GameSelectionScreen() {
               </div>
             ) : (
               <View
-                className="w-80 lg:w-96 shrink-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 shadow-sm self-stretch"
+                className="w-80 lg:w-96 shrink-0 bg-card border border-line rounded-2xl p-4 shadow-sm self-stretch"
                 style={{ minHeight: Math.max(450, height - 240) }}
               >
                 <View className="flex-row items-center justify-between mb-3">
-                  <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">
                     Available Roster ({availablePlayers.length})
                   </Text>
                   {activePlayerId && (
-                    <View className="bg-brand-orange/10 px-2 py-0.5 rounded border border-brand-orange/20">
-                      <Text className="font-orbitron-bold text-[10px] text-brand-orange">1 Selected</Text>
+                    <View className="bg-primary-soft px-2 py-0.5 rounded border border-primary-line">
+                      <Text className="font-orbitron-bold text-[10px] text-primary-ink">1 Selected</Text>
                     </View>
                   )}
                 </View>
 
                 {/* Roster Search Input */}
-                <View className="flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-white/10 mb-3">
-                  <Ionicons name="search" size={14} color="#94A3B8" />
+                <View className="flex-row items-center bg-sunken rounded-xl px-3 py-2 border border-line mb-3">
+                  <Ionicons name="search" size={14} color={themeColor(isDark, 'ink-muted')} />
                   <TextInput
                     placeholder="Search team members..."
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={themeColor(isDark, 'ink-muted')}
                     value={rosterSearch}
                     onChangeText={setRosterSearch}
-                    className="flex-1 font-inter text-xs text-slate-900 dark:text-white ml-2"
+                    className="flex-1 font-inter text-xs text-ink ml-2"
                   />
                 </View>
 
@@ -1473,22 +1476,22 @@ export default function GameSelectionScreen() {
                           onPress={() => handleAvailablePlayerClick(pId, isAssigned)}
                           className={`flex-row items-center py-1.5 px-2.5 rounded-xl border ${
                             isActiveCard
-                              ? 'bg-brand-orange/10 border-2 border-brand-orange'
+                              ? 'bg-primary-soft border-2 border-primary'
                               : isAssigned
-                              ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-white/5 opacity-60'
-                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10'
+                              ? 'bg-sunken border-line opacity-60'
+                              : 'bg-card border-line'
                           }`}
                         >
-                          <View className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10 mr-2">
-                            <Ionicons name="person" size={12} color="#94A3B8" />
+                          <View className="w-7 h-7 rounded-full bg-sunken items-center justify-center border border-line mr-2">
+                            <Ionicons name="person" size={12} color={themeColor(isDark, 'ink-muted')} />
                           </View>
 
                           <View className="flex-1 min-w-0">
                             <Text
                               className={`font-inter-bold text-xs ${
                                 isAssigned
-                                  ? 'text-slate-400 dark:text-slate-500'
-                                  : 'text-slate-900 dark:text-white'
+                                  ? 'text-ink-muted'
+                                  : 'text-ink'
                               }`}
                               numberOfLines={1}
                             >
@@ -1500,15 +1503,15 @@ export default function GameSelectionScreen() {
                             <View
                               className={`px-1.5 py-0.5 rounded ${
                                 rosterItem?.isReserve
-                                  ? 'bg-amber-500/10 border border-amber-500/20'
-                                  : 'bg-brand-orange/10 border border-brand-orange/20'
+                                  ? 'bg-warning-soft border border-warning-line'
+                                  : 'bg-primary-soft border border-primary-line'
                               }`}
                             >
                               <Text
                                 className={`font-orbitron-bold text-[9px] ${
                                   rosterItem?.isReserve
-                                    ? 'text-amber-500'
-                                    : 'text-brand-orange'
+                                    ? 'text-warning-ink'
+                                    : 'text-primary-ink'
                                 }`}
                               >
                                 {rosterItem?.isReserve
@@ -1520,7 +1523,7 @@ export default function GameSelectionScreen() {
                             <Ionicons
                               name={isActiveCard ? 'checkmark-circle' : 'add-circle-outline'}
                               size={16}
-                              color={isActiveCard ? COLORS.brand.orange : '#94A3B8'}
+                              color={isActiveCard ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
                             />
                           )}
                         </TouchableOpacity>
@@ -1536,13 +1539,13 @@ export default function GameSelectionScreen() {
 
       {/* Sticky Bottom Action Bar */}
       {isDirty && canEditCurrentTeam && (
-        <View className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-white/10 p-3 flex-row gap-3">
+        <View className="bg-card border-t border-line p-3 flex-row gap-3">
           <TouchableOpacity
             disabled={isSaving}
             onPress={handleCancel}
-            className="flex-1 py-3 rounded-xl border border-slate-300 dark:border-slate-700 items-center"
+            className="flex-1 py-3 rounded-xl border border-line-strong items-center"
           >
-            <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-300">
+            <Text className="font-orbitron-bold text-xs text-ink-soft">
               Cancel
             </Text>
           </TouchableOpacity>
@@ -1550,14 +1553,14 @@ export default function GameSelectionScreen() {
           <TouchableOpacity
             disabled={isSaving}
             onPress={handleSave}
-            className="flex-1 py-3 rounded-xl bg-brand-orange items-center flex-row justify-center gap-2"
+            className="flex-1 py-3 rounded-xl bg-primary items-center flex-row justify-center gap-2"
           >
             {isSaving ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={themeColor(isDark, 'on-fill')} />
             ) : (
               <>
-                <Ionicons name="save-outline" size={16} color="#FFFFFF" />
-                <Text className="font-orbitron-bold text-xs text-white">
+                <Ionicons name="save-outline" size={16} color={themeColor(isDark, 'on-fill')} />
+                <Text className="font-orbitron-bold text-xs text-on-fill">
                   Save Lineup
                 </Text>
               </>
@@ -1577,15 +1580,15 @@ export default function GameSelectionScreen() {
           setActiveIsReserve(false);
         }}
       >
-        <View className="flex-1 bg-black/60 justify-end">
-          <View className="bg-white dark:bg-slate-900 rounded-t-3xl p-4 shadow-lg" style={{ height: '75%', maxHeight: '85%' }}>
+        <View className="flex-1 bg-overlay/60 justify-end">
+          <View className="bg-card rounded-t-3xl p-4 shadow-lg" style={{ height: '75%', maxHeight: '85%' }}>
             {/* Modal Header */}
-            <View className="flex-row items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
+            <View className="flex-row items-center justify-between pb-3 border-b border-line">
               <View>
-                <Text className="font-orbitron-bold text-xs text-slate-400 uppercase tracking-widest">
+                <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">
                   Assigning Player
                 </Text>
-                <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+                <Text className="font-orbitron-bold text-lg text-ink">
                   {activeIsReserve
                     ? 'Reserve Player'
                     : `Position ${activePositionId} • ${
@@ -1601,22 +1604,22 @@ export default function GameSelectionScreen() {
                   setActivePositionId(null);
                   setActiveIsReserve(false);
                 }}
-                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center"
+                className="w-8 h-8 rounded-full bg-sunken items-center justify-center"
               >
-                <Ionicons name="close" size={18} color="#94A3B8" />
+                <Ionicons name="close" size={18} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
 
             {/* Instant Search Bar */}
-            <View className="my-3 flex-row items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-white/10">
-              <Ionicons name="search" size={16} color="#94A3B8" />
+            <View className="my-3 flex-row items-center bg-sunken rounded-xl px-3 py-2 border border-line">
+              <Ionicons name="search" size={16} color={themeColor(isDark, 'ink-muted')} />
               <TextInput
                 autoFocus
                 placeholder="Search team players..."
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 value={pickerSearch}
                 onChangeText={setPickerSearch}
-                className="flex-1 font-inter text-sm text-slate-900 dark:text-white ml-2"
+                className="flex-1 font-inter text-sm text-ink ml-2"
               />
             </View>
 
@@ -1632,8 +1635,8 @@ export default function GameSelectionScreen() {
                 if (filtered.length === 0) {
                   return (
                     <View className="py-12 items-center justify-center">
-                      <Ionicons name="people-outline" size={40} color="#94A3B8" />
-                      <Text className="font-inter-medium text-sm text-slate-500 dark:text-slate-400 mt-3 text-center">
+                      <Ionicons name="people-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
+                      <Text className="font-inter-medium text-sm text-ink-muted mt-3 text-center">
                         {pickerSearch
                           ? 'No matching players found'
                           : 'No available players found in roster'}
@@ -1662,27 +1665,27 @@ export default function GameSelectionScreen() {
                       }
                       className={`flex-row items-center p-3 rounded-xl mb-1 border ${
                         isAssigned
-                          ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/5 opacity-60'
-                          : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-white/5'
+                          ? 'bg-sunken border-line opacity-60'
+                          : 'bg-card border-line-soft'
                       }`}
                     >
-                      <View className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center border border-slate-200 dark:border-white/10 mr-3">
+                      <View className="w-10 h-10 rounded-full bg-sunken items-center justify-center border border-line mr-3">
                         <Ionicons
                           name="person"
                           size={18}
-                          color="#94A3B8"
+                          color={themeColor(isDark, 'ink-muted')}
                         />
                       </View>
 
                       <View className="flex-1">
-                        <Text className="font-inter-bold text-sm text-slate-900 dark:text-white">
+                        <Text className="font-inter-bold text-sm text-ink">
                           {player.name || player.orgProfileName}
                         </Text>
                       </View>
 
                       {isAssigned && (
-                        <View className="bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded-lg">
-                          <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-300">
+                        <View className="bg-line px-2 py-1 rounded-lg">
+                          <Text className="font-orbitron-bold text-[10px] text-ink-soft">
                             {rosterItem?.isReserve
                               ? 'RES'
                               : `POS ${rosterItem?.position}`}

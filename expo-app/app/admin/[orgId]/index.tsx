@@ -11,8 +11,10 @@ import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { OrgLogo } from '@/components/OrgLogo';
-import { getContrastColor } from '@/utils/colorUtils';
+import { inkOnBrand } from '@/utils/colorUtils';
 import { useAuthStore } from '@/store/authStore';
+import { themeColor } from '../../../constants/Colors';
+
 
 export default function OrgControlDashboard() {
   const router = useRouter();
@@ -37,8 +39,8 @@ export default function OrgControlDashboard() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center" edges={['top', 'left', 'right']}>
-        <ActivityIndicator size="large" color="#FF3E00" />
+      <SafeAreaView className="flex-1 bg-canvas items-center justify-center" edges={['top', 'left', 'right']}>
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
       </SafeAreaView>
     );
   }
@@ -58,12 +60,12 @@ export default function OrgControlDashboard() {
     membersCount: orgData.memberCount || 0,
   };
 
-  const contrastColor = getContrastColor(org.primaryColor);
-  const isLightBg = contrastColor === '#000000';
-  const textColor = contrastColor;
-  const subtextColor = isLightBg ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)';
-  const badgeBgColor = isLightBg ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.15)';
-  const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
+  const ink = inkOnBrand(org.primaryColor);
+  const isLightBg = ink.isLight;
+  const textColor = ink.text;
+  const subtextColor = ink.subtext;
+  const badgeBgColor = ink.badge;
+  const borderColor = ink.border;
 
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
   let role: string | null = null;
@@ -81,73 +83,73 @@ export default function OrgControlDashboard() {
       description: 'Name, logo, colours, about, address and sports',
       icon: 'business-outline' as const,
       route: `/admin/${orgId}/profile` as const,
-      color: '#FF3E00',
-      bgColor: 'bg-brand-orange/10',
+      color: themeColor(isDark, 'primary-ink'),
+      bgColor: 'bg-primary-soft',
     },
     {
       title: 'Settings',
       description: 'Timezone, minors and how the organisation runs',
       icon: 'settings-outline' as const,
       route: `/admin/${orgId}/settings` as const,
-      color: '#FF3E00',
-      bgColor: 'bg-brand-orange/10',
+      color: themeColor(isDark, 'primary-ink'),
+      bgColor: 'bg-primary-soft',
     },
     {
       title: 'People & Roles',
       description: 'Manage coaches, team staff, and athletes',
       icon: 'people-outline' as const,
       route: `/admin/${orgId}/people` as const,
-      color: '#10B981',
-      bgColor: 'bg-emerald-500/10',
+      color: themeColor(isDark, 'success-ink'),
+      bgColor: 'bg-success-soft',
     },
     {
       title: 'Teams & Divisions',
       description: 'Create sports squads and assign managers',
       icon: 'trophy-outline' as const,
       route: `/admin/${orgId}/teams` as const,
-      color: '#00E5FF',
-      bgColor: 'bg-cyan-500/10',
+      color: themeColor(isDark, 'accent-ink'),
+      bgColor: 'bg-accent-soft',
     },
     {
       title: 'Sites and Facilities',
       description: 'Configure facilities, playgrounds, and arenas',
       icon: 'location-outline' as const,
       route: `/admin/${orgId}/sites` as const,
-      color: '#8B5CF6',
-      bgColor: 'bg-purple-500/10',
+      color: themeColor(isDark, 'special-ink'),
+      bgColor: 'bg-special-soft',
     },
     {
       title: 'Fixtures & Events',
       description: 'Generate schedules, pools, and score games',
       icon: 'calendar-outline' as const,
       route: `/admin/${orgId}/events` as const,
-      color: '#F59E0B',
-      bgColor: 'bg-amber-500/10',
+      color: themeColor(isDark, 'warning-ink'),
+      bgColor: 'bg-warning-soft',
     },
     {
       title: 'Leagues & Seasons',
       description: 'Configure standings rules, league rosters, and view leaderboards',
       icon: 'list-outline' as const,
       route: `/admin/${orgId}/leagues` as const,
-      color: '#EC4899',
-      bgColor: 'bg-pink-500/10',
+      color: themeColor(isDark, 'info-ink'),
+      bgColor: 'bg-info-soft',
     },
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/organizations')}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-xs tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-xs tracking-widest text-ink uppercase">
           Org Control Panel
         </Text>
         <View className="w-10 h-2" />
@@ -166,7 +168,7 @@ export default function OrgControlDashboard() {
                 logo={orgData.logo} 
                 settings={orgData.settings} 
                 size={40} 
-                className="border bg-white rounded-full" 
+                className="border bg-logo-plate rounded-full" 
                 style={{ borderColor: borderColor }}
               />
               <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight flex-shrink">
@@ -174,7 +176,7 @@ export default function OrgControlDashboard() {
               </Text>
             </View>
             {role && (
-              <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-1 rounded-lg">
+              <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-1 rounded-lg">
                 <Ionicons name="shield-checkmark" size={12} color={textColor} />
                 <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
                   {role}
@@ -221,7 +223,7 @@ export default function OrgControlDashboard() {
         </OrgBrandedCard>
 
         {/* LIST OF MODULES */}
-        <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+        <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">
           Administration Modules
         </Text>
         <View className="space-y-4 mb-8">
@@ -232,17 +234,17 @@ export default function OrgControlDashboard() {
               activeOpacity={0.7}
             >
               <GlassCard 
-                className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between gap-4"
+                className="border border-line p-4 flex-row items-center justify-between gap-4"
               >
                 <View className="flex-row items-center gap-3.5 flex-1">
                   <View className={`w-10 h-10 rounded-xl ${mod.bgColor} items-center justify-center flex-shrink-0`}>
                     <Ionicons name={mod.icon} size={18} color={mod.color} />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
+                    <Text className="font-orbitron-bold text-sm text-ink leading-tight">
                       {mod.title}
                     </Text>
-                    <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-3">
+                    <Text className="font-inter text-[10px] text-ink-muted mt-0.5 leading-3">
                       {mod.description}
                     </Text>
                   </View>

@@ -13,7 +13,8 @@ import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { sendAction } from '../../../../../../services/actions';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+import { themeColor } from '../../../../../../constants/Colors';
+
 
 /** The three point fields, plus the event they belong to. */
 interface ScoringDraft {
@@ -191,7 +192,7 @@ export default function SetupScoring() {
 
   if (accessDenied || (!isLoadingCapabilities && !canEdit)) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
           message="You do not have permission to set this tournament up."
           actionLabel="Back to the tournament"
@@ -204,12 +205,12 @@ export default function SetupScoring() {
   const pointsIncomplete = !ptsWin || !ptsDraw || !ptsLoss;
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader context={event?.name} title={step.label} onBack={handleBack} />
 
       {!event ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={COLORS.brand.orange} />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView
@@ -218,16 +219,16 @@ export default function SetupScoring() {
           contentContainerStyle={{ paddingBottom: isDirty ? FLOATING_SAVE_BAR_PADDING : 60 }}
         >
           <View className="space-y-6">
-            <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl">
+            <View className="bg-card border border-line rounded-2xl">
               <View className="p-5 space-y-4">
                 {savedScoring.mode === 'byPlacing' ? (
-                  <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                  <Text className="font-inter text-xs text-ink-muted">
                     This tournament awards points by finishing position. Editing that here is not
                     available yet.
                   </Text>
                 ) : (
                   <>
-                    <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                    <Text className="font-inter text-xs text-ink-muted">
                       How many league points each result is worth. These apply to every division
                       unless a division sets its own.
                     </Text>
@@ -240,7 +241,7 @@ export default function SetupScoring() {
                         ] as Array<[string, string, (v: string) => void]>
                       ).map(([label, value, setValue]) => (
                         <View key={label} className="flex-1 space-y-1.5">
-                          <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                             {label}
                           </Text>
                           <TextInput
@@ -248,8 +249,8 @@ export default function SetupScoring() {
                             onChangeText={text => setValue(text.replace(/[^0-9]/g, ''))}
                             keyboardType="number-pad"
                             placeholder="0"
-                            placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white text-center"
+                            placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                            className="bg-canvas border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink text-center"
                           />
                         </View>
                       ))}

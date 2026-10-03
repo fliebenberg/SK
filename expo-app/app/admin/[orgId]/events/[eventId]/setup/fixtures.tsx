@@ -19,7 +19,8 @@ import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
 import { useLiveRoom } from '../../../../../../hooks/useLiveRoom';
 import { useEventEntrants } from '../../../../../../hooks/useEventEntrants';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+import { themeColor } from '../../../../../../constants/Colors';
+
 
 /**
  * Fixtures, division by division (2026-09-24, closes `UI-20`).
@@ -34,6 +35,7 @@ import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
  * final is a draw that has to be made again, with every late entry.
  */
 export default function SetupFixtures() {
+  const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const { orgId, eventId } = useLocalSearchParams<{ orgId: string; eventId: string }>();
 
@@ -113,7 +115,7 @@ export default function SetupFixtures() {
 
   if (accessDenied || (!isLoadingCapabilities && !canEdit)) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
           message="You do not have permission to set this tournament up."
           actionLabel="Back to the tournament"
@@ -124,23 +126,23 @@ export default function SetupFixtures() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader context={event?.name} title={step.label} onBack={handleBack} />
 
       {!event ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={COLORS.brand.orange} />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="space-y-6">
-            <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-5 space-y-4">
-              <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            <View className="bg-card border border-line rounded-2xl p-5 space-y-4">
+              <Text className="font-inter text-xs text-ink-muted leading-relaxed">
                 Each division gets its own draw. Open one to set its format and generate its fixtures.
               </Text>
 
               {orderedDivisions.length === 0 ? (
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 italic">
+                <Text className="font-inter text-xs text-ink-muted italic">
                   No divisions yet. Choose the sports being played under Sports & Divisions first.
                 </Text>
               ) : (
@@ -167,7 +169,7 @@ export default function SetupFixtures() {
                 className="py-2.5 rounded-lg"
               />
               {looseFixtures > 0 && (
-                <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
+                <Text className="font-inter text-[11px] text-ink-muted">
                   {looseFixtures} fixture{looseFixtures === 1 ? ' is' : 's are'} not in any division, and
                   {looseFixtures === 1 ? ' shows' : ' show'} on the Schedule tab.
                 </Text>
@@ -209,7 +211,7 @@ function DivisionFixturesRow({
   onPress: () => void;
 }) {
   const isDark = useActiveTheme() === 'dark';
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
 
   const { items: stages } = useLiveRoom<TournamentStage>(`division:${division.id}:stages`, {
     reduce: (message) =>
@@ -245,11 +247,11 @@ function DivisionFixturesRow({
   // Done is the contrast-safe success green (`UI-6`), taken from the theme as the checklist does.
   const toneClass =
     status.tone === 'warn'
-      ? 'text-amber-800 dark:text-amber-300'
+      ? 'text-warning-ink'
       : status.tone === 'done'
         ? ''
-        : 'text-slate-500 dark:text-slate-400';
-  const toneStyle = status.tone === 'done' ? { color: getThemeColor(isDark, 'success') } : undefined;
+        : 'text-ink-muted';
+  const toneStyle = status.tone === 'done' ? { color: themeColor(isDark, 'success-ink') } : undefined;
 
   return (
     <TouchableOpacity
@@ -257,18 +259,18 @@ function DivisionFixturesRow({
       activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={`${division.name}, ${status.text}`}
-      className="flex-row items-center gap-2 bg-slate-50 dark:bg-white/5 rounded-xl px-3 py-3"
+      className="flex-row items-center gap-2 bg-sunken rounded-xl px-3 py-3"
     >
       <View className="flex-1 min-w-0">
         <View className="flex-row items-center gap-2">
-          <Text className="font-inter-bold text-xs text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+          <Text className="font-inter-bold text-xs text-ink flex-1" numberOfLines={1}>
             {division.name}
           </Text>
           <Text className={`font-inter-bold text-[10px] flex-shrink ${toneClass}`} style={toneStyle} numberOfLines={1}>
             {status.text}
           </Text>
         </View>
-        <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5" numberOfLines={1}>
+        <Text className="font-inter text-[10px] text-ink-muted mt-0.5" numberOfLines={1}>
           {format} · {field}
         </Text>
       </View>

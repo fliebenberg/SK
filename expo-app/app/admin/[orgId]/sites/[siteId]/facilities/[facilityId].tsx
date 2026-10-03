@@ -13,6 +13,8 @@ import { SocketAction, Facility, Site } from '@sk/shared';
 import { useSocketQuery } from '../../../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../../../store/unsavedChangesStore';
+import { themeColor } from '../../../../../../constants/Colors';
+
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -57,7 +59,7 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, category, pri
 
   // Helper to generate dynamic SVG Marker as data URL
   const getSvgMarker = (iconName: string, color: string, isDarkTheme: boolean) => {
-    const bgColor = isDarkTheme ? '#1E293B' : '#FFFFFF';
+    const bgColor = themeColor(isDarkTheme, 'popover');
     let innerSvg = '';
     switch (iconName) {
       case 'american-football':
@@ -116,17 +118,17 @@ const InteractiveWebMap = ({ latitude, longitude, title, onChange, category, pri
       const center = { lat: latitude, lng: longitude };
       const currentMapTypeId = mapType === 'satellite' ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.ROADMAP;
       
-      let markerColor = '#475569'; // Default other/gray
+      let markerColor = themeColor(isDark, 'ink-muted'); // Default other/gray
       if (primarySportId) {
-        markerColor = '#FF3E00'; // Sport orange
+        markerColor = themeColor(isDark, 'primary'); // Sport orange
       } else {
         switch (category) {
           case 'sport_field':
-          case 'indoor_hall': markerColor = '#FF8C00'; break;
-          case 'clubhouse': markerColor = '#3B82F6'; break;
-          case 'shop': markerColor = '#10B981'; break;
-          case 'parking': markerColor = '#6B7280'; break;
-          case 'restroom': markerColor = '#8B5CF6'; break;
+          case 'indoor_hall': markerColor = themeColor(isDark, 'primary'); break;
+          case 'clubhouse': markerColor = themeColor(isDark, 'info'); break;
+          case 'shop': markerColor = themeColor(isDark, 'success'); break;
+          case 'parking': markerColor = themeColor(isDark, 'ink-muted'); break;
+          case 'restroom': markerColor = themeColor(isDark, 'special'); break;
         }
       }
 
@@ -509,19 +511,19 @@ export default function FacilityDetails() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeGoBack()}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
           {isNew ? 'Add Facility' : 'Edit Facility'}
         </Text>
         <View className="w-8" />
@@ -529,8 +531,8 @@ export default function FacilityDetails() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#FF3E00" />
-          <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-3">Loading details...</Text>
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+          <Text className="font-orbitron text-xs text-ink-muted mt-3">Loading details...</Text>
         </View>
       ) : (
         <ScrollView
@@ -542,33 +544,33 @@ export default function FacilityDetails() {
           <View className="space-y-4">
             {/* Facility Name */}
             <View>
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-1.5">
                 Facility Name
               </Text>
               <TextInput
                 value={facilityForm.name}
                 onChangeText={(val) => setFacilityForm(prev => ({ ...prev, name: val }))}
                 placeholder="e.g. Field A or Court 2"
-                placeholderTextColor="#94A3B8"
-                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                className="font-orbitron-bold text-lg text-ink bg-card border border-line rounded-xl px-4 py-2.5 outline-none"
               />
             </View>
 
             {/* Surface Type */}
-            <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-1.5 tracking-wider">Surface Type</Text>
+            <View className="border-t border-line-soft pt-4">
+              <Text className="font-inter-bold text-[10px] text-ink-muted uppercase mb-1.5 tracking-wider">Surface Type</Text>
               <TextInput
                 value={facilityForm.surfaceType}
                 onChangeText={(val) => setFacilityForm(prev => ({ ...prev, surfaceType: val }))}
                 placeholder="e.g. Grass, Clay, Hardcourt, Indoor"
-                placeholderTextColor="#94A3B8"
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white outline-none"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                className="bg-card border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink outline-none"
               />
             </View>
 
             {/* Facility Category Selection with Icons */}
-            <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-2 tracking-wider">Facility Category</Text>
+            <View className="border-t border-line-soft pt-4">
+              <Text className="font-inter-bold text-[10px] text-ink-muted uppercase mb-2 tracking-wider">Facility Category</Text>
               <View className="flex-row flex-wrap gap-2">
                 {CATEGORIES.map(cat => {
                   const isSelected = facilityForm.category === cat.key;
@@ -576,10 +578,10 @@ export default function FacilityDetails() {
                     <TouchableOpacity
                       key={cat.key}
                       onPress={() => setFacilityForm(prev => ({ ...prev, category: cat.key }))}
-                      className={`flex-row items-center gap-1.5 px-3 py-2 border rounded-xl ${isSelected ? 'bg-brand-orange/5 border-brand-orange/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'}`}
+                      className={`flex-row items-center gap-1.5 px-3 py-2 border rounded-xl ${isSelected ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}
                     >
-                      <Ionicons name={cat.icon as any} size={14} color={isSelected ? "#FF3E00" : "#94A3B8"} />
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
+                      <Ionicons name={cat.icon as any} size={14} color={isSelected ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-semibold' : 'text-ink-soft'}`}>
                         {cat.label}
                       </Text>
                     </TouchableOpacity>
@@ -589,8 +591,8 @@ export default function FacilityDetails() {
             </View>
 
             {/* Supported Sports (Multiple Select) */}
-            <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-2 tracking-wider">Supported Sports (Select all that apply)</Text>
+            <View className="border-t border-line-soft pt-4">
+              <Text className="font-inter-bold text-[10px] text-ink-muted uppercase mb-2 tracking-wider">Supported Sports (Select all that apply)</Text>
               <View className="space-y-1.5">
                 {sports.map(s => {
                   const isSelected = facilityForm.supportedSportIds.includes(s.id);
@@ -609,38 +611,38 @@ export default function FacilityDetails() {
                     <TouchableOpacity
                       key={s.id}
                       onPress={() => handleToggleSport(s.id)}
-                      className={`flex-row items-center justify-between px-4 py-2.5 border rounded-xl ${isSelected ? 'bg-brand-orange/5 border-brand-orange/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'}`}
+                      className={`flex-row items-center justify-between px-4 py-2.5 border rounded-xl ${isSelected ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}
                     >
                       <View className="flex-row items-center gap-2">
-                        <Ionicons name={sportIcon} size={14} color={isSelected ? "#FF3E00" : "#94A3B8"} />
-                        <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
+                        <Ionicons name={sportIcon} size={14} color={isSelected ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
+                        <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-semibold' : 'text-ink-soft'}`}>
                           {s.name}
                         </Text>
                       </View>
                       <Ionicons 
                         name={isSelected ? "checkmark-circle" : "ellipse-outline"} 
                         size={16} 
-                        color={isSelected ? "#FF3E00" : "#94A3B8"} 
+                        color={isSelected ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} 
                       />
                     </TouchableOpacity>
                   );
                 })}
                 {sports.length === 0 && (
-                  <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">No sports registered.</Text>
+                  <Text className="font-inter text-xs text-ink-muted italic">No sports registered.</Text>
                 )}
               </View>
             </View>
 
             {/* Primary Sport Selector */}
             {facilityForm.supportedSportIds.length > 0 && (
-              <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-                <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-1.5 tracking-wider">Primary Sport (Representing Marker Icon)</Text>
+              <View className="border-t border-line-soft pt-4">
+                <Text className="font-inter-bold text-[10px] text-ink-muted uppercase mb-1.5 tracking-wider">Primary Sport (Representing Marker Icon)</Text>
                 <View className="flex-row flex-wrap gap-2">
                   <TouchableOpacity
                     onPress={() => setFacilityForm(prev => ({ ...prev, primarySportId: '' }))}
-                    className={`px-3 py-2 border rounded-xl ${!facilityForm.primarySportId ? 'bg-brand-orange/5 border-brand-orange/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'}`}
+                    className={`px-3 py-2 border rounded-xl ${!facilityForm.primarySportId ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}
                   >
-                    <Text className={`font-inter text-xs ${!facilityForm.primarySportId ? 'text-brand-orange font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
+                    <Text className={`font-inter text-xs ${!facilityForm.primarySportId ? 'text-primary-ink font-semibold' : 'text-ink-soft'}`}>
                       None (Use Category Default)
                     </Text>
                   </TouchableOpacity>
@@ -662,10 +664,10 @@ export default function FacilityDetails() {
                       <TouchableOpacity
                         key={sportId}
                         onPress={() => setFacilityForm(prev => ({ ...prev, primarySportId: sportId }))}
-                        className={`flex-row items-center gap-1.5 px-3 py-2 border rounded-xl ${isSelected ? 'bg-brand-orange/5 border-brand-orange/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'}`}
+                        className={`flex-row items-center gap-1.5 px-3 py-2 border rounded-xl ${isSelected ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}
                       >
-                        <Ionicons name={sportIcon} size={12} color={isSelected ? "#FF3E00" : "#94A3B8"} />
-                        <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-semibold' : 'text-slate-700 dark:text-slate-300'}`}>
+                        <Ionicons name={sportIcon} size={12} color={isSelected ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
+                        <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-semibold' : 'text-ink-soft'}`}>
                           {sport.name}
                         </Text>
                       </TouchableOpacity>
@@ -677,8 +679,8 @@ export default function FacilityDetails() {
 
             {/* Facility Location Coordinate Map */}
             {facilityForm.latitude != null && facilityForm.longitude != null && (
-              <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-                <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-2">
+              <View className="border-t border-line-soft pt-4">
+                <Text className="font-inter-bold text-[10px] text-ink-soft uppercase tracking-wider mb-2">
                   Facility Location (Drag pin to position)
                 </Text>
                 
@@ -701,17 +703,17 @@ export default function FacilityDetails() {
                       }}
                     >
                       {(() => {
-                        let markerColor = '#475569'; // Default other/gray
+                        let markerColor = themeColor(isDark, 'ink-muted'); // Default other/gray
                         if (facilityForm.primarySportId) {
-                          markerColor = '#FF3E00'; // Sport orange
+                          markerColor = themeColor(isDark, 'primary'); // Sport orange
                         } else {
                           switch (facilityForm.category) {
                             case 'sport_field':
-                            case 'indoor_hall': markerColor = '#FF8C00'; break;
-                            case 'clubhouse': markerColor = '#3B82F6'; break;
-                            case 'shop': markerColor = '#10B981'; break;
-                            case 'parking': markerColor = '#6B7280'; break;
-                            case 'restroom': markerColor = '#8B5CF6'; break;
+                            case 'indoor_hall': markerColor = themeColor(isDark, 'primary'); break;
+                            case 'clubhouse': markerColor = themeColor(isDark, 'info'); break;
+                            case 'shop': markerColor = themeColor(isDark, 'success'); break;
+                            case 'parking': markerColor = themeColor(isDark, 'ink-muted'); break;
+                            case 'restroom': markerColor = themeColor(isDark, 'special'); break;
                           }
                         }
 
@@ -757,14 +759,14 @@ export default function FacilityDetails() {
                           >
                             <View 
                               style={{
-                                backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                                backgroundColor: themeColor(isDark, 'popover'),
                                 padding: 6,
                                 borderRadius: 20,
                                 borderWidth: 1.5,
                                 borderColor: markerColor,
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                shadowColor: '#000',
+                                shadowColor: themeColor(isDark, 'shadow'),
                                 shadowOffset: { width: 0, height: 2 },
                                 shadowOpacity: 0.25,
                                 shadowRadius: 3.84,
@@ -780,10 +782,10 @@ export default function FacilityDetails() {
                     <TouchableOpacity
                       onPress={() => setMapType(mapType === 'standard' ? 'satellite' : 'standard')}
                       style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}
-                      className="flex-row items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-2.5 py-1.5 rounded-lg shadow-md active:opacity-85"
+                      className="flex-row items-center gap-1.5 bg-card border border-line px-2.5 py-1.5 rounded-lg shadow-md active:opacity-85"
                     >
-                      <Ionicons name={mapType === 'satellite' ? "map" : "earth"} size={12} color="#FF3E00" />
-                      <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">{mapType === 'satellite' ? 'Map' : 'Satellite'}</Text>
+                      <Ionicons name={mapType === 'satellite' ? "map" : "earth"} size={12} color={themeColor(isDark, 'primary')} />
+                      <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-widest">{mapType === 'satellite' ? 'Map' : 'Satellite'}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : Platform.OS === 'web' ? (
@@ -808,22 +810,22 @@ export default function FacilityDetails() {
 
             {/* Danger Zone */}
             {!isNew && (
-              <View className="border-t border-red-500/20 pt-6 mt-6">
-                <Text className="font-orbitron-bold text-[9px] text-red-500/80 uppercase tracking-widest mb-3">
+              <View className="border-t border-danger-line pt-6 mt-6">
+                <Text className="font-orbitron-bold text-[9px] text-danger-ink uppercase tracking-widest mb-3">
                   Danger Zone
                 </Text>
-                <View className="bg-red-500/5 border border-red-500/10 rounded-xl p-4 flex-row items-center justify-between">
+                <View className="bg-danger-soft border border-danger-line rounded-xl p-4 flex-row items-center justify-between">
                   <View className="flex-1 mr-4">
-                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Delete Facility</Text>
-                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <Text className="font-inter-bold text-sm text-ink">Delete Facility</Text>
+                    <Text className="font-inter text-xs text-ink-muted mt-1">
                       Permanently delete this facility. This action is irreversible and cannot be performed if games are scheduled here.
                     </Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => setIsDeleteModalOpen(true)}
-                    className="bg-red-500 px-4 py-2.5 rounded-xl items-center justify-center active:opacity-85"
+                    className="bg-danger px-4 py-2.5 rounded-xl items-center justify-center active:opacity-85"
                   >
-                    <Text className="font-inter-bold text-xs text-white uppercase tracking-wider">Delete</Text>
+                    <Text className="font-inter-bold text-xs text-on-fill uppercase tracking-wider">Delete</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -834,12 +836,12 @@ export default function FacilityDetails() {
 
       {/* FLOATING SAVE CHANGES BAR */}
       {hasChanges && (
-        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+        <View className="absolute bottom-6 left-6 right-6 bg-card border border-line p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
           <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-wider">
               {isNew ? "New Facility" : "Unsaved Changes"}
             </Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+            <Text className="font-inter text-[9px] text-ink-muted mt-0.5">
               {isNew ? "You are creating a new facility." : "You have modified this facility's details."}
             </Text>
           </View>
@@ -847,21 +849,21 @@ export default function FacilityDetails() {
             <TouchableOpacity
               onPress={handleCancel}
               disabled={isProcessing}
-              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+              className="bg-sunken px-4 py-2.5 rounded-xl active:scale-95 border border-line"
             >
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+              <Text className="font-orbitron-bold text-[9px] text-ink-soft uppercase tracking-widest">Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSaveFacility}
               disabled={isProcessing}
-              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+              className="bg-primary px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-primary/30"
             >
               {isProcessing ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+                  <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">
                     {isNew ? "Create" : "Save"}
                   </Text>
                 </>
@@ -873,13 +875,13 @@ export default function FacilityDetails() {
 
       {/* DELETE CONFIRMATION MODAL */}
       {isDeleteModalOpen && (
-        <View className="absolute inset-0 bg-slate-950/80 items-center justify-center z-50 p-4">
+        <View className="absolute inset-0 bg-overlay/80 items-center justify-center z-50 p-4">
           <View 
-            className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-6 shadow-2xl"
+            className="w-full max-w-sm bg-card border border-line rounded-2xl p-6 shadow-2xl"
           >
-            <Ionicons name="warning-outline" size={32} color="#EF4444" className="mb-3" />
-            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase mb-2">Confirm Delete</Text>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-6 leading-5">
+            <Ionicons name="warning-outline" size={32} color={themeColor(isDark, 'danger')} className="mb-3" />
+            <Text className="font-orbitron-bold text-base text-ink uppercase mb-2">Confirm Delete</Text>
+            <Text className="font-inter text-xs text-ink-muted mb-6 leading-5">
               Are you sure you want to delete this facility? This action cannot be undone and will fail if the facility is currently hosting scheduled matches.
             </Text>
             <View className="flex-row gap-3 justify-end">
@@ -895,7 +897,7 @@ export default function FacilityDetails() {
                 variant="primary"
                 onPress={handleDeleteFacility}
                 disabled={isProcessing}
-                className="bg-red-500 border-red-500 px-4 py-2"
+                className="bg-danger border-danger px-4 py-2"
               />
             </View>
           </View>

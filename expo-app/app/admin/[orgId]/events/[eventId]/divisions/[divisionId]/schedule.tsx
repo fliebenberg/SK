@@ -10,7 +10,8 @@ import { DivisionStandings } from '../../../../../../../components/tournament/Di
 import { useLiveRoom } from '../../../../../../../hooks/useLiveRoom';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
-import { COLORS } from '../../../../../../../constants/Colors';
+import { useActiveTheme } from '../../../../../../../store/settingsStore';
+import { themeColor } from '../../../../../../../constants/Colors';
 
 /**
  * One division's schedule: its stages, fixtures and table (U53).
@@ -22,6 +23,7 @@ import { COLORS } from '../../../../../../../constants/Colors';
  * the Schedule tab (U15), through the same `DivisionPanel`, so the two cannot drift.
  */
 export default function DivisionScheduleScreen() {
+  const isDark = useActiveTheme() === 'dark';
   const safeBack = useSafeBack();
   const { orgId, eventId, divisionId } = useLocalSearchParams<{
     orgId: string;
@@ -74,12 +76,12 @@ export default function DivisionScheduleScreen() {
 
   if (accessDenied) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center px-8">
-        <Ionicons name="lock-closed-outline" size={44} color={COLORS.dark.textSecondary} style={{ opacity: 0.3 }} />
-        <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300 mt-4">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center px-8">
+        <Ionicons name="lock-closed-outline" size={44} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.3 }} />
+        <Text className="font-orbitron-bold text-base text-ink-soft mt-4">
           No Access
         </Text>
-        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+        <Text className="font-inter text-xs text-ink-muted text-center mt-1">
           You do not have permission to view this part of the tournament.
         </Text>
       </SafeAreaView>
@@ -87,7 +89,7 @@ export default function DivisionScheduleScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader
         context={event?.name}
         title={division?.name || 'Division'}
@@ -96,7 +98,7 @@ export default function DivisionScheduleScreen() {
 
       {!division ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={COLORS.brand.orange} />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
@@ -110,7 +112,7 @@ export default function DivisionScheduleScreen() {
               drift.
             */}
             <View className="space-y-2">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 uppercase tracking-widest pl-1">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest pl-1">
                 Standings
               </Text>
               <DivisionStandings divisionId={divisionId} canEdit={canEdit} />

@@ -25,7 +25,8 @@ import { sendAction } from '../../../../services/actions';
 import { getAvatarUrl } from '../../../../services/assets';
 import { ageInYears, formatCalendarDate } from '../../../../utils/dates';
 import { formatCellphone } from '../../../../utils/phone';
-import { COLORS } from '../../../../constants/Colors';
+import { useActiveTheme } from '../../../../store/settingsStore';
+import { themeColor } from '../../../../constants/Colors';
 
 type Dialog = 'identity' | 'contact' | 'personal' | 'photo' | 'guardian' | 'remove' | null;
 
@@ -43,6 +44,7 @@ type Dialog = 'identity' | 'contact' | 'personal' | 'photo' | 'guardian' | 'remo
  * in the ⋯ menu.
  */
 export default function PersonPage() {
+  const isDark = useActiveTheme() === 'dark';
   const { orgId, membershipId } = useLocalSearchParams<{ orgId: string; membershipId: string }>();
   const safeBack = useSafeBack();
   const { width } = useWindowDimensions();
@@ -74,11 +76,11 @@ export default function PersonPage() {
 
   if (isMembersLoading || isRolesLoading || !member) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Person" backLabel="People" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {isMembersLoading || isRolesLoading ? <ActivityIndicator size="large" color={COLORS.brand.orange} /> : (
-            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center">
+          {isMembersLoading || isRolesLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+            <Text className="font-inter text-sm text-ink-muted text-center">
               This person is not a member of the organisation any more.
             </Text>
           )}
@@ -158,7 +160,7 @@ export default function PersonPage() {
   const hasSideCards = !!guardiansCard || guardianship !== null || !isOnScoreKeeper(member);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader
         title="Person"
         backLabel="People"
@@ -234,14 +236,15 @@ export default function PersonPage() {
 
 /** One value on a card, with its icon and label; an empty one says "None". */
 function ValueRow({ icon, label, value, first }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string | null; first?: boolean }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
-    <View className={`flex-row items-center gap-3 ${first ? '' : 'pt-2.5 border-t border-slate-100 dark:border-white/5'}`}>
-      <View className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center">
-        <Ionicons name={icon} size={15} color="#64748B" />
+    <View className={`flex-row items-center gap-3 ${first ? '' : 'pt-2.5 border-t border-line-soft'}`}>
+      <View className="w-8 h-8 rounded-lg bg-sunken items-center justify-center">
+        <Ionicons name={icon} size={15} color={themeColor(isDark, 'ink-muted')} />
       </View>
       <View className="flex-1 min-w-0">
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{label}</Text>
-        <Text className={`font-inter text-sm mt-0.5 ${value ? 'text-slate-800 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`} selectable>
+        <Text className="font-inter text-xs text-ink-muted">{label}</Text>
+        <Text className={`font-inter text-sm mt-0.5 ${value ? 'text-ink' : 'text-ink-muted'}`} selectable>
           {value || 'None'}
         </Text>
       </View>

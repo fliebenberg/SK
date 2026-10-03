@@ -12,7 +12,9 @@ import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { BottomMenu } from '../../../components/BottomMenu';
 import { AuthGuard } from '../../../components/AuthGuard';
 import { UnclaimedOrgBanner } from '../../../components/UnclaimedOrgBanner';
-import { getThemeColor } from '../../../constants/Colors';
+
+import { inkOnBrand } from '../../../utils/colorUtils';
+import { themeColor } from '../../../constants/Colors';
 
 /**
  * Every screen in the org workspace — including the scoring control room — is
@@ -53,18 +55,7 @@ function OrgAdminWorkspace() {
     setWorkspaceMenuVisible(false);
   }, [isConnected, orgId]);
 
-  const getContrastColor = (hexColor: string) => {
-    if (!hexColor) return '#FFFFFF';
-    const color = hexColor.replace('#', '');
-    if (color.length !== 6) return '#FFFFFF';
-    const r = parseInt(color.substring(0, 2), 16);
-    const g = parseInt(color.substring(2, 4), 16);
-    const b = parseInt(color.substring(4, 6), 16);
-    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-    return yiq >= 128 ? '#0F172A' : '#FFFFFF';
-  };
-
-  const fabTextColor = orgData ? getContrastColor(orgData.primaryColor ?? '') : '#FFFFFF';
+  const fabTextColor = orgData ? inkOnBrand(orgData.primaryColor ?? '').text : themeColor(isDark, 'on-fill');
 
   const stackContent = (
     <Stack
@@ -94,7 +85,7 @@ function OrgAdminWorkspace() {
   );
 
   const mainView = (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950 relative">
+    <View className="flex-1 bg-canvas relative">
       {/* While the org has no administrator, on every workspace page (docs/nomination-process.md §4). */}
       <UnclaimedOrgBanner org={orgData} />
       {stackContent}
@@ -130,15 +121,15 @@ function OrgAdminWorkspace() {
           <TouchableOpacity
             activeOpacity={1}
             onPress={() => setWorkspaceMenuVisible(false)}
-            className="absolute inset-0 bg-slate-950/40 dark:bg-slate-950/60 z-40"
+            className="absolute inset-0 bg-overlay/40 z-40"
           />
 
           {/* Workspace Action Menu Sheet floating above FAB */}
-          <View className="absolute bottom-[135px] right-4 z-50 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl shadow-lg overflow-hidden p-2.5">
+          <View className="absolute bottom-[135px] right-4 z-50 w-64 bg-card border border-line rounded-2xl shadow-lg overflow-hidden p-2.5">
             {/* Header section inside the menu */}
             {orgData && (
               <View className="mb-2.5">
-                <Text className="font-inter-bold text-[8px] uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 px-1">
+                <Text className="font-inter-bold text-[8px] uppercase tracking-widest text-ink-muted mb-1.5 px-1">
                   Active Workspace
                 </Text>
                 
@@ -160,7 +151,7 @@ function OrgAdminWorkspace() {
                       logo={orgData.logo} 
                       settings={orgData.settings} 
                       size={32} 
-                      className="bg-white/10 border border-white/20"
+                      className="bg-on-fill/10 border border-on-fill/20"
                       primaryColor="white"
                     />
                   </View>
@@ -187,12 +178,12 @@ function OrgAdminWorkspace() {
                   <TouchableOpacity
                     onPress={() => confirmThenNavigate(() => router.push(`/admin/${orgId}/nominate` as any))}
                     activeOpacity={0.7}
-                    className="flex-row items-center gap-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25"
+                    className="flex-row items-center gap-3 px-3 py-2 rounded-lg bg-warning-soft border border-warning-line"
                   >
-                    <Ionicons name="person-add-outline" size={16} color={getThemeColor(isDark, 'warning')} />
-                    <Text className="font-inter-bold text-sm text-amber-800 dark:text-amber-300">Nominate admin</Text>
+                    <Ionicons name="person-add-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
+                    <Text className="font-inter-bold text-sm text-warning-ink">Nominate admin</Text>
                   </TouchableOpacity>
-                  <View className="h-[1px] bg-slate-100 dark:bg-white/5 my-1" />
+                  <View className="h-[1px] bg-sunken my-1" />
                 </>
               )}
               {[
@@ -213,14 +204,14 @@ function OrgAdminWorkspace() {
                   activeOpacity={0.7}
                   className="flex-row items-center gap-3 px-3 py-2 rounded-lg"
                 >
-                  <Ionicons name={`${item.icon}-outline` as any} size={16} color={isDark ? '#94A3B8' : '#64748B'} />
-                  <Text className="font-inter-bold text-sm text-slate-700 dark:text-slate-200">
+                  <Ionicons name={`${item.icon}-outline` as any} size={16} color={themeColor(isDark, 'ink-muted')} />
+                  <Text className="font-inter-bold text-sm text-ink-soft">
                     {item.label}
                   </Text>
                 </TouchableOpacity>
               ))}
 
-              <View className="h-[1px] bg-slate-100 dark:bg-white/5 my-1" />
+              <View className="h-[1px] bg-sunken my-1" />
 
               {/* Exit Workspace */}
               <TouchableOpacity
@@ -230,8 +221,8 @@ function OrgAdminWorkspace() {
                 activeOpacity={0.7}
                 className="flex-row items-center gap-3 px-3 py-2 rounded-lg"
               >
-                <Ionicons name="arrow-back-outline" size={16} color="#EF4444" />
-                <Text className="font-inter-bold text-sm text-red-500">
+                <Ionicons name="arrow-back-outline" size={16} color={themeColor(isDark, 'danger')} />
+                <Text className="font-inter-bold text-sm text-danger-ink">
                   Exit Workspace
                 </Text>
               </TouchableOpacity>
@@ -249,7 +240,7 @@ function OrgAdminWorkspace() {
 
   if (isLargeScreen) {
     return (
-      <View className="flex-1 flex-row bg-slate-50 dark:bg-slate-950">
+      <View className="flex-1 flex-row bg-canvas">
         <LeftNavigationRail />
         <View className="flex-1 h-full">
           {mainView}

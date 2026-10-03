@@ -16,6 +16,8 @@ import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
 import { AddressInput, isAddressComplete } from '../../../../components/address/AddressInput';
 import { facilityIcon, facilityMarkers } from '../../../../components/address/facilityMarker';
 import { AddressDraft } from '../../../../services/places';
+import { themeColor } from '../../../../constants/Colors';
+
 
 /** What the site form edits. `address` is `null` for a site with none yet. */
 interface SiteForm {
@@ -86,7 +88,7 @@ export default function SiteDetailScreen() {
     () => (editingSite ? facilities.filter(f => f.siteId === editingSite.id) : []),
     [facilities, editingSite]
   );
-  const markers = useMemo(() => facilityMarkers(siteFacilities, sports), [siteFacilities, sports]);
+  const markers = useMemo(() => facilityMarkers(siteFacilities, sports, isDark), [siteFacilities, sports, isDark]);
 
   const safeGoBack = useCallback(() => {
     safeBack(`/admin/${orgId}/sites`);
@@ -315,19 +317,19 @@ export default function SiteDetailScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeGoBack()}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
           {isNew ? 'Add New Site' : 'Edit Site Details'}
         </Text>
         <View className="w-8" />
@@ -336,8 +338,8 @@ export default function SiteDetailScreen() {
       {/* BODY CONTENT */}
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#FF3E00" />
-          <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-3">Loading site details...</Text>
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+          <Text className="font-orbitron text-xs text-ink-muted mt-3">Loading site details...</Text>
         </View>
       ) : (
         <ScrollView
@@ -349,20 +351,20 @@ export default function SiteDetailScreen() {
           <View className="space-y-4">
             {/* Site Name */}
             <View>
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-1.5">
                 Site Name
               </Text>
               <TextInput
                 value={siteForm.name}
                 onChangeText={(val) => setSiteForm(prev => ({ ...prev, name: val }))}
                 placeholder="e.g. Melkbos High Sports Grounds"
-                placeholderTextColor="#94A3B8"
-                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                className="font-orbitron-bold text-lg text-ink bg-card border border-line rounded-xl px-4 py-2.5 outline-none"
               />
             </View>
 
             {/* Address */}
-            <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
+            <View className="border-t border-line-soft pt-4">
               <AddressInput
                 key={addressKey}
                 value={siteForm.address}
@@ -375,25 +377,25 @@ export default function SiteDetailScreen() {
 
             {/* FACILITIES SECTION (ONLY WHEN EDITING EXISTING SITE) */}
             {editingSite && (
-              <View className="border-t border-slate-200/50 dark:border-white/5 pt-6">
+              <View className="border-t border-line-soft pt-6">
                 <View className="flex-row justify-between items-center mb-3">
-                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Facilities ({siteFacilities.length})
                   </Text>
                   <TouchableOpacity 
                     onPress={() => handleOpenFacilityModal(null)}
-                    className="flex-row items-center gap-1 bg-brand-orange/10 border border-brand-orange/20 px-3 py-1.5 rounded-lg"
+                    className="flex-row items-center gap-1 bg-primary-soft border border-primary-line px-3 py-1.5 rounded-lg"
                   >
-                    <Ionicons name="add" size={12} color="#FF3E00" />
-                    <Text className="text-[10px] font-bold text-brand-orange uppercase">Add Facility</Text>
+                    <Ionicons name="add" size={12} color={themeColor(isDark, 'primary')} />
+                    <Text className="text-[10px] font-bold text-primary-ink uppercase">Add Facility</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Facilities Table list */}
-                <View className="border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                <View className="border border-line rounded-xl overflow-hidden bg-card">
                   {siteFacilities.length === 0 ? (
                     <View className="p-6 items-center justify-center">
-                      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">No facilities added yet.</Text>
+                      <Text className="font-inter text-xs text-ink-muted italic">No facilities added yet.</Text>
                     </View>
                   ) : (
                     siteFacilities.map((fac) => {
@@ -404,20 +406,20 @@ export default function SiteDetailScreen() {
                           key={fac.id}
                           onPress={() => handleOpenFacilityModal(fac)}
                           activeOpacity={0.85}
-                          className="flex-row justify-between items-center px-4 py-3 border-b border-slate-200/30 dark:border-white/5"
+                          className="flex-row justify-between items-center px-4 py-3 border-b border-line-soft"
                         >
                           <View className="flex-1 mr-4">
                             <View className="flex-row items-center gap-1.5 flex-wrap">
-                              <Ionicons name={facilityIcon(fac, sports).icon as any} size={12} color="#FF3E00" />
-                              <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">{fac.name}</Text>
-                              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 italic">({term})</Text>
+                              <Ionicons name={facilityIcon(fac, sports, isDark).icon as any} size={12} color={themeColor(isDark, 'primary')} />
+                              <Text className="font-inter-bold text-xs text-ink">{fac.name}</Text>
+                              <Text className="font-inter text-[9px] text-ink-muted italic">({term})</Text>
                               {fac.isActive === false && (
-                                <View className="bg-slate-200 dark:bg-slate-800 px-1 py-0.2 rounded">
-                                  <Text className="text-[6px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Inactive</Text>
+                                <View className="bg-line px-1 py-0.2 rounded">
+                                  <Text className="text-[6px] font-semibold text-ink-muted uppercase">Inactive</Text>
                                 </View>
                               )}
                             </View>
-                            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            <Text className="font-inter text-[10px] text-ink-muted mt-0.5">
                               Sports: {activeSports}
                             </Text>
                           </View>
@@ -431,9 +433,9 @@ export default function SiteDetailScreen() {
                                   params: { orgId: orgId!, siteId: siteId!, facilityId: fac.id }
                                 });
                               }}
-                              className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 items-center justify-center active:opacity-85"
+                              className="w-7 h-7 rounded-lg bg-sunken border border-line-soft items-center justify-center active:opacity-85"
                             >
-                              <Ionicons name="eye-outline" size={13} color={isDark ? "#E2E8F0" : "#475569"} />
+                              <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-soft')} />
                             </TouchableOpacity>
                           </View>
                         </TouchableOpacity>
@@ -446,22 +448,22 @@ export default function SiteDetailScreen() {
 
             {/* Danger Zone */}
             {editingSite && (
-              <View className="border-t border-red-500/20 pt-6 mt-6">
-                <Text className="font-orbitron-bold text-[9px] text-red-500/80 uppercase tracking-widest mb-3">
+              <View className="border-t border-danger-line pt-6 mt-6">
+                <Text className="font-orbitron-bold text-[9px] text-danger-ink uppercase tracking-widest mb-3">
                   Danger Zone
                 </Text>
-                <View className="bg-red-500/5 border border-red-500/10 rounded-xl p-4 flex-row items-center justify-between">
+                <View className="bg-danger-soft border border-danger-line rounded-xl p-4 flex-row items-center justify-between">
                   <View className="flex-1 mr-4">
-                    <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Delete Site</Text>
-                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <Text className="font-inter-bold text-sm text-ink">Delete Site</Text>
+                    <Text className="font-inter text-xs text-ink-muted mt-1">
                       Permanently delete this site and all associated facilities. This action is irreversible.
                     </Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => { setIsDeleteModalOpen(true); setDeleteError(null); }}
-                    className="bg-red-500 px-4 py-2.5 rounded-xl items-center justify-center active:opacity-85"
+                    className="bg-danger px-4 py-2.5 rounded-xl items-center justify-center active:opacity-85"
                   >
-                    <Text className="font-inter-bold text-xs text-white uppercase tracking-wider">Delete</Text>
+                    <Text className="font-inter-bold text-xs text-on-fill uppercase tracking-wider">Delete</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -473,12 +475,12 @@ export default function SiteDetailScreen() {
 
       {/* FLOATING SAVE CHANGES BAR */}
       {hasChanges && (
-        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+        <View className="absolute bottom-6 left-6 right-6 bg-card border border-line p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
           <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-wider">
               {isNew ? "New Site" : "Unsaved Changes"}
             </Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+            <Text className="font-inter text-[9px] text-ink-muted mt-0.5">
               {isNew ? "You are creating a new site." : "You have modified this site's details."}
             </Text>
           </View>
@@ -486,21 +488,21 @@ export default function SiteDetailScreen() {
             <TouchableOpacity
               onPress={handleCancel}
               disabled={isProcessing}
-              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+              className="bg-sunken px-4 py-2.5 rounded-xl active:scale-95 border border-line"
             >
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+              <Text className="font-orbitron-bold text-[9px] text-ink-soft uppercase tracking-widest">Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSaveSite}
               disabled={isProcessing}
-              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+              className="bg-primary px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-primary/30"
             >
               {isProcessing ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+                  <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">
                     {isNew ? "Create" : "Save"}
                   </Text>
                 </>

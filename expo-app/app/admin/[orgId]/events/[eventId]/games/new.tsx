@@ -26,13 +26,14 @@ import {
 import { RegisterOrgModal } from '../../../../../../components/RegisterOrgModal';
 import { UnclaimedOrgBadge } from '../../../../../../components/UnclaimedOrgBadge';
 import { nominateOrgContact } from '../../../../../../services/nominations';
-import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+
 import DatePicker from '../../../../../../components/DatePicker';
 import CustomSelect from '../../../../../../components/CustomSelect';
 import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
 import { venueInputsToInstant, venueTimeHint, venueTimeZone } from '../../../../../../utils/dates';
 import { useToastStore } from '../../../../../../store/toastStore';
 import { pickableTeams } from '../../../../../../components/teams/TeamBits';
+import { themeColor } from '../../../../../../constants/Colors';
 
 export default function ScheduleGame() {
   const router = useRouter();
@@ -368,9 +369,9 @@ export default function ScheduleGame() {
 
   if (isLoading || !event) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
-        <ActivityIndicator size="large" color={COLORS.brand.orange} />
-        <Text className="font-orbitron text-xs text-slate-500 mt-4 uppercase tracking-widest">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
           Loading Details...
         </Text>
       </SafeAreaView>
@@ -378,19 +379,19 @@ export default function ScheduleGame() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Cancel
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
           Schedule Game
         </Text>
         <TouchableOpacity 
@@ -399,9 +400,9 @@ export default function ScheduleGame() {
           onPress={() => handleSubmit(false)}
         >
           {isProcessing ? (
-            <ActivityIndicator size="small" color={COLORS.brand.orange} />
+            <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
           ) : (
-            <Text className="font-inter-bold text-xs text-brand-orange uppercase tracking-wider">
+            <Text className="font-inter-bold text-xs text-primary-ink uppercase tracking-wider">
               Save
             </Text>
           )}
@@ -409,8 +410,8 @@ export default function ScheduleGame() {
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5">
-          <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
+        <GlassCard className="border border-line p-5 space-y-5">
+          <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-1">
             Game Setup for: {event.name}
           </Text>
 
@@ -420,7 +421,7 @@ export default function ScheduleGame() {
           */}
           {!isCollapsed(divisions.length) && (
             <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Division
               </Text>
               <View className="flex-row flex-wrap gap-2">
@@ -441,11 +442,11 @@ export default function ScheduleGame() {
                       }}
                       className={`px-3 py-2 rounded-lg border ${
                         isSelected
-                          ? 'bg-brand-orange/10 border-brand-orange'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                          ? 'bg-primary-soft border-primary'
+                          : 'bg-canvas border-line'
                       }`}
                     >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-bold' : 'text-ink-soft'}`}>
                         {division.name}
                       </Text>
                     </TouchableOpacity>
@@ -457,7 +458,7 @@ export default function ScheduleGame() {
 
           {!isCollapsed(stages.length) && (
             <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Stage
               </Text>
               <View className="flex-row flex-wrap gap-2">
@@ -469,11 +470,11 @@ export default function ScheduleGame() {
                       onPress={() => setSelectedStageId(stage.id)}
                       className={`px-3 py-2 rounded-lg border ${
                         isSelected
-                          ? 'bg-brand-orange/10 border-brand-orange'
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                          ? 'bg-primary-soft border-primary'
+                          : 'bg-canvas border-line'
                       }`}
                     >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-bold' : 'text-ink-soft'}`}>
                         {stage.name}
                       </Text>
                     </TouchableOpacity>
@@ -485,7 +486,7 @@ export default function ScheduleGame() {
 
           {/* Select Sport */}
           <View className="space-y-1.5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
               Sport
             </Text>
             <View className="flex-row flex-wrap gap-2">
@@ -501,11 +502,11 @@ export default function ScheduleGame() {
                     }}
                     className={`px-3 py-2 rounded-lg border ${
                       isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                        ? 'bg-primary-soft border-primary' 
+                        : 'bg-canvas border-line'
                     }`}
                   >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                    <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-bold' : 'text-ink-soft'}`}>
                       {sport.name}
                     </Text>
                   </TouchableOpacity>
@@ -516,7 +517,7 @@ export default function ScheduleGame() {
 
           {/* Home Org Selection */}
           <View className="space-y-1.5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
               Home Organization
             </Text>
             <View className="flex-row flex-wrap gap-2">
@@ -531,11 +532,11 @@ export default function ScheduleGame() {
                     }}
                     className={`px-3 py-2 rounded-lg border ${
                       isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                        ? 'bg-primary-soft border-primary' 
+                        : 'bg-canvas border-line'
                     }`}
                   >
-                    <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                    <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-bold' : 'text-ink-soft'}`}>
                       {o.name}
                     </Text>
                   </TouchableOpacity>
@@ -548,11 +549,11 @@ export default function ScheduleGame() {
           {!!selectedHomeOrgId && (
             <View className="space-y-1.5">
               <View className="flex-row justify-between items-center">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   Home Team
                 </Text>
                 <TouchableOpacity onPress={() => handleCreateTeamTrigger(selectedHomeOrgId)}>
-                  <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                  <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                     + Add Team
                   </Text>
                 </TouchableOpacity>
@@ -566,31 +567,31 @@ export default function ScheduleGame() {
                       onPress={() => setSelectedHomeTeamId(team.id)}
                       className={`px-3 py-2 rounded-lg border ${
                         isSelected 
-                          ? 'bg-brand-orange/10 border-brand-orange' 
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                          ? 'bg-primary-soft border-primary' 
+                          : 'bg-canvas border-line'
                       }`}
                     >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-bold' : 'text-ink-soft'}`}>
                         {team.name}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
                 {homeTeamsList.length === 0 && (
-                  <Text className="font-inter text-xs text-slate-400 italic">No teams matching selected sport.</Text>
+                  <Text className="font-inter text-xs text-ink-muted italic">No teams matching selected sport.</Text>
                 )}
               </View>
             </View>
           )}
 
           {/* Away Org Selection */}
-          <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
+          <View className="space-y-1.5 pt-2 border-t border-line-soft">
             <View className="flex-row justify-between items-center">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Away Organization
               </Text>
               <TouchableOpacity onPress={() => setIsCreatingOrg(true)}>
-                <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                   + Register Org
                 </Text>
               </TouchableOpacity>
@@ -607,12 +608,12 @@ export default function ScheduleGame() {
                     }}
                     className={`px-3 py-2 rounded-lg border ${
                       isSelected 
-                        ? 'bg-brand-orange/10 border-brand-orange' 
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                        ? 'bg-primary-soft border-primary' 
+                        : 'bg-canvas border-line'
                     }`}
                   >
                     <View className="flex-row items-center gap-1.5">
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-bold' : 'text-ink-soft'}`}>
                         {o.name}
                       </Text>
                       {/* An org with no administrator: the way to nominate one (docs/nomination-process.md §4). */}
@@ -628,11 +629,11 @@ export default function ScheduleGame() {
           {!!selectedAwayOrgId && (
             <View className="space-y-1.5">
               <View className="flex-row justify-between items-center">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   Away Team
                 </Text>
                 <TouchableOpacity onPress={() => handleCreateTeamTrigger(selectedAwayOrgId)}>
-                  <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                  <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                     + Add Team
                   </Text>
                 </TouchableOpacity>
@@ -646,26 +647,26 @@ export default function ScheduleGame() {
                       onPress={() => setSelectedAwayTeamId(team.id)}
                       className={`px-3 py-2 rounded-lg border ${
                         isSelected 
-                          ? 'bg-brand-orange/10 border-brand-orange' 
-                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                          ? 'bg-primary-soft border-primary' 
+                          : 'bg-canvas border-line'
                       }`}
                     >
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-bold' : 'text-ink-soft'}`}>
                         {team.name}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
                 {awayTeamsList.length === 0 && (
-                  <Text className="font-inter text-xs text-slate-400 italic">No opponent teams matching selected sport.</Text>
+                  <Text className="font-inter text-xs text-ink-muted italic">No opponent teams matching selected sport.</Text>
                 )}
               </View>
             </View>
           )}
 
           {/* Site selection */}
-          <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <View className="space-y-1.5 pt-2 border-t border-line-soft">
+            <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
               Site Field/Court
             </Text>
             <CustomSelect
@@ -678,9 +679,9 @@ export default function ScheduleGame() {
           </View>
 
           {/* Match Date & Time */}
-          <View className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">
+          <View className="space-y-3 pt-2 border-t border-line-soft">
             <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Match Date
               </Text>
               <DatePicker
@@ -692,15 +693,15 @@ export default function ScheduleGame() {
 
             <View className="space-y-3 pt-2">
               <View className="flex-row justify-between items-center">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   Start Time
                 </Text>
                 <View className="flex-row items-center gap-2">
-                  <Text className="font-inter text-xs text-slate-500">TBD</Text>
+                  <Text className="font-inter text-xs text-ink-muted">TBD</Text>
                   <Switch
                     value={isTbd}
                     onValueChange={setIsTbd}
-                    trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
+                    trackColor={{ false: themeColor(isDark, 'line-strong'), true: themeColor(isDark, 'primary') }}
                   />
                 </View>
               </View>
@@ -708,14 +709,14 @@ export default function ScheduleGame() {
               {!isTbd && (
                 <TextInput
                   placeholder="e.g. 09:00"
-                  placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                  placeholderTextColor={themeColor(isDark, 'ink-muted')}
                   value={startTime}
                   onChangeText={setStartTime}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                  className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
                 />
               )}
               {!isTbd && timeHint && (
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{timeHint}</Text>
+                <Text className="font-inter text-xs text-ink-muted">{timeHint}</Text>
               )}
             </View>
           </View>
@@ -754,33 +755,33 @@ export default function ScheduleGame() {
         animationType="fade"
         onRequestClose={() => setIsCreatingTeam(false)}
       >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl space-y-4">
-            <Text className="font-orbitron-bold text-base text-slate-850 dark:text-white uppercase tracking-wider">
+        <View className="flex-1 bg-overlay/60 justify-center px-6">
+          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl space-y-4">
+            <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
               Register Team
             </Text>
             <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Team Name</Text>
+              <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Team Name</Text>
               <TextInput
                 placeholder="e.g. 1st Team"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 value={newTeamName}
                 onChangeText={setNewTeamName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
             <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Short Code / Abbreviation</Text>
+              <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Short Code / Abbreviation</Text>
               <TextInput
                 placeholder="e.g. 1ST"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 value={newTeamShortName}
                 onChangeText={setNewTeamShortName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
             <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Age Group</Text>
+              <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Age Group</Text>
               <AgeGroupPicker
                 sportId={selectedSportId}
                 ageGroups={sports.find(s => s.id === selectedSportId)?.ageGroups}

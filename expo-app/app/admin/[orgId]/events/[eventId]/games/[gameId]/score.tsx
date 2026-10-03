@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game } from '@sk/shared';
-import { COLORS } from '../../../../../../../constants/Colors';
+
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
 import { getMatchPermissions } from '../../../../../../../utils/matchPermissions';
@@ -23,8 +23,11 @@ import RugbyGameStats from '../../../../../../../components/sports/rugby/RugbyGa
 import { useSafeBack } from '../../../../../../../hooks/useSafeBack';
 import { Tabs } from '../../../../../../../components/Tabs';
 import { AccessDenied } from '../../../../../../../components/AccessDenied';
+import { useActiveTheme } from '../../../../../../../store/settingsStore';
+import { themeColor } from '../../../../../../../constants/Colors';
 
 export default function ScoreGameScreen() {
+  const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, eventId, gameId } = useLocalSearchParams<{ orgId: string; eventId: string; gameId: string }>();
@@ -90,9 +93,9 @@ export default function ScoreGameScreen() {
 
   if (isLoading || !game) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
-        <ActivityIndicator size="large" color={COLORS.brand.orange} />
-        <Text className="font-orbitron text-xs text-slate-500 mt-4 uppercase tracking-widest">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
           Loading Control Room...
         </Text>
       </SafeAreaView>
@@ -116,7 +119,7 @@ export default function ScoreGameScreen() {
   // sent to the read-only match view.
   if (!permissions.canScore) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
           title="Scoring Restricted"
           message="You do not have permission to score this match. Org admins and staff, or a coach of one of the participating teams, can open the control room."
@@ -135,16 +138,16 @@ export default function ScoreGameScreen() {
 
   return (
     <DynamicScoringProvider game={game}>
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         {/* HEADER BAR */}
-        <View className="flex-row items-center justify-between px-4 py-2.5 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+        <View className="flex-row items-center justify-between px-4 py-2.5 border-b border-line-soft bg-card z-10">
           <TouchableOpacity onPress={() => safeBack(`/admin/${orgId}/events/${eventId}`)} className="flex-row items-center gap-1">
-            <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-            <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+            <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+            <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
               Back
             </Text>
           </TouchableOpacity>
-          <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4">
+          <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate flex-1 text-center px-4">
             Game Control Room
           </Text>
           <MatchViewSwitcher
@@ -175,7 +178,7 @@ export default function ScoreGameScreen() {
 
             {/* EVENTS & DRAWER TABS PANEL (LOG FEED / ROSTERS / STATS - SHOWN ON RIGHT ON LARGE SCREENS) */}
             <View className="w-full lg:w-96 xl:w-[440px]">
-              <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-3 shadow-sm mt-2 lg:mt-0">
+              <View className="bg-card border border-line rounded-2xl p-3 shadow-sm mt-2 lg:mt-0">
                 <Tabs<'feed' | 'team1' | 'team2' | 'stats'>
                   items={[
                     { key: 'feed', label: 'Events', icon: 'list-outline' },

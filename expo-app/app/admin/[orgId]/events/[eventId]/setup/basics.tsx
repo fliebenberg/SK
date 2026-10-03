@@ -22,7 +22,8 @@ import { useWsStore } from '../../../../../../store/wsStore';
 import { useToastStore } from '../../../../../../store/toastStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+import { themeColor } from '../../../../../../constants/Colors';
+
 
 /** The identity half of this form — the fields `UPDATE_EVENT` carries — plus the event they belong to. */
 interface EventIdentity {
@@ -408,7 +409,7 @@ export default function SetupBasics() {
   // load while the capability read is still in flight.
   if (accessDenied || (!isLoadingCapabilities && !canEdit)) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
           message="You do not have permission to set this tournament up."
           actionLabel="Back to the tournament"
@@ -419,12 +420,12 @@ export default function SetupBasics() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader context={event?.name} title={step.label} onBack={handleBack} />
 
       {!event ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={COLORS.brand.orange} />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView
@@ -433,17 +434,17 @@ export default function SetupBasics() {
           contentContainerStyle={{ paddingBottom: isDirty ? FLOATING_SAVE_BAR_PADDING : 60 }}
         >
           <View className="space-y-6">
-            <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl">
+            <View className="bg-card border border-line rounded-2xl">
               <View className="p-5 space-y-4">
                 <View className="space-y-1.5">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Name
                   </Text>
                   <TextInput
                     value={editName}
                     onChangeText={setEditName}
-                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+                    placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                    className="bg-field border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink"
                   />
                 </View>
 
@@ -463,7 +464,7 @@ export default function SetupBasics() {
                     the fields go full width, where thumb targets matter more than proportion. */}
                 <View className={isWideLayout ? 'flex-row items-end gap-4' : 'gap-4'}>
                   <View className="gap-1.5" style={isWideLayout ? { width: DATE_FIELD_WIDTH } : undefined}>
-                    <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                       Starts
                     </Text>
                     <DatePicker value={editStartDate} onChange={setEditStartDate} />
@@ -471,7 +472,7 @@ export default function SetupBasics() {
 
                   {isMultiDay && (
                     <View className="gap-1.5" style={isWideLayout ? { width: DATE_FIELD_WIDTH } : undefined}>
-                      <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                         Ends
                       </Text>
                       <DatePicker value={editEndDate} onChange={setEditEndDate} />
@@ -486,13 +487,13 @@ export default function SetupBasics() {
                     }`}
                     style={isWideLayout ? { height: DATE_FIELD_HEIGHT } : undefined}
                   >
-                    <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                    <Text className="font-inter text-xs text-ink-muted">
                       Runs over more than one day
                     </Text>
                     <Switch
                       value={isMultiDay}
                       onValueChange={handleMultiDayChange}
-                      trackColor={{ true: COLORS.brand.orange }}
+                      trackColor={{ true: themeColor(isDark, 'primary') }}
                     />
                   </View>
                 </View>
@@ -500,7 +501,7 @@ export default function SetupBasics() {
                 {/* Under the row rather than under the field, so showing it cannot disturb the
                     alignment of the inputs beside it. */}
                 {!!dateError && (
-                  <Text className="font-inter text-[11px] text-brand-red">{dateError}</Text>
+                  <Text className="font-inter text-[11px] text-danger-ink">{dateError}</Text>
                 )}
 
               </View>
@@ -515,7 +516,7 @@ export default function SetupBasics() {
                   where the tournament *is* — what the listing shows and what the picker opens on —
                   and the facilities are what it *uses*, which may include the fields next door
                   (U47). Choosing a site restricts nothing. */}
-              <View className="p-5 gap-4 border-t border-slate-200 dark:border-white/5">
+              <View className="p-5 gap-4 border-t border-line">
                 {/* No `zIndex` here: it used to lift this field over the one below for an inline
                     dropdown, and `CustomSelect` has since moved its list into a modal. All the
                     leftover value did was create a stacking context that trapped neighbouring
@@ -556,7 +557,7 @@ export default function SetupBasics() {
               {/* Appointing an organiser (D33). Who runs it is known with the name and the dates,
                   which is why it sits in Basic Info; a division's own convenor is appointed on the
                   division screen. */}
-              <View className="p-5 border-t border-slate-200 dark:border-white/5">
+              <View className="p-5 border-t border-line">
                 <OrganizerPicker
                   eventId={eventId}
                   hostOrgId={(event as Event).orgId}

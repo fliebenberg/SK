@@ -17,6 +17,7 @@ import CustomSelect from '../../../../components/CustomSelect';
 import { AgeGroupPicker } from '../../../../components/AgeGroupPicker';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { themeColor } from '../../../../constants/Colors';
 
 export default function OrgLeagues() {
   const router = useRouter();
@@ -214,16 +215,16 @@ export default function OrgLeagues() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity onPress={() => safeBack(`/admin/${orgId}`)} className="flex-row items-center gap-1 active:opacity-85">
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">Back</Text>
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">Back</Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">Leagues & Seasons</Text>
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">Leagues & Seasons</Text>
         <TouchableOpacity
-          className="w-8 h-8 rounded-lg bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
+          className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
           onPress={() => setIsCreateModalOpen(true)}
         >
           <Ionicons name="add" size={18} color="white" />
@@ -233,30 +234,30 @@ export default function OrgLeagues() {
       {/* Content */}
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#FF3E00" />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
           {/* Search bar */}
-          <View className="flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 mb-6 shadow-sm">
-            <Ionicons name="search-outline" size={18} color="#94A3B8" />
+          <View className="flex-row items-center bg-card border border-line rounded-xl px-4 py-3 mb-6 shadow-sm">
+            <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
             <TextInput
               placeholder="Search leagues..."
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              className="flex-1 font-inter text-slate-800 dark:text-white text-sm ml-2.5 outline-none"
+              className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
             />
           </View>
 
           {/* List */}
           <View className="space-y-4">
             {filteredLeagues.map((league) => (
-              <GlassCard key={league.id} className="border border-slate-200 dark:border-white/5 p-4">
+              <GlassCard key={league.id} className="border border-line p-4">
                 <View className="flex-row justify-between items-center">
                   <View className="flex-row items-center flex-1 mr-4 gap-3.5">
                     {league.logo ? (
-                      <View className="w-11 h-11 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200/50 dark:border-white/5">
+                      <View className="w-11 h-11 rounded-xl overflow-hidden bg-sunken shrink-0 border border-line-soft">
                         <Image 
                           source={{ uri: getOrgLogoUrl(league.logo, 'thumb') }} 
                           className="w-full h-full"
@@ -264,25 +265,25 @@ export default function OrgLeagues() {
                         />
                       </View>
                     ) : (
-                      <View className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 items-center justify-center shrink-0 border border-slate-200/50 dark:border-white/5">
-                        <Ionicons name="trophy" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+                      <View className="w-11 h-11 rounded-xl bg-sunken items-center justify-center shrink-0 border border-line-soft">
+                        <Ionicons name="trophy" size={20} color={themeColor(isDark, 'ink-muted')} />
                       </View>
                     )}
                     <View className="flex-1">
                       <View className="flex-row items-center gap-2 mb-1">
-                        <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+                        <Text className="font-orbitron-bold text-base text-ink">
                           {league.name}
                         </Text>
                       </View>
                       
                       <View className="flex-row flex-wrap items-center gap-2">
-                        <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full">
-                          <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        <View className="bg-sunken px-2.5 py-1 rounded-full">
+                          <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-wider">
                             {getSportName(league.sportId)}{league.ageGroup ? ` • ${league.ageGroup}` : ''}
                           </Text>
                         </View>
-                        <View className="bg-orange-500/10 px-2.5 py-1 rounded-full border border-orange-500/20">
-                          <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-wider">
+                        <View className="bg-primary-soft px-2.5 py-1 rounded-full border border-primary-line">
+                          <Text className="font-inter-bold text-[9px] text-primary-ink uppercase tracking-wider">
                             {league.joinPolicy}
                           </Text>
                         </View>
@@ -293,15 +294,15 @@ export default function OrgLeagues() {
                   <View className="flex-row items-center gap-2">
                     <TouchableOpacity 
                       onPress={() => router.push(`/admin/${orgId}/leagues/${league.id}`)}
-                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
+                      className="w-7 h-7 rounded-lg bg-sunken items-center justify-center border border-line-soft active:opacity-80"
                     >
-                      <Ionicons name="pencil" size={12} color={isDark ? "#E2E8F0" : "#475569"} />
+                      <Ionicons name="pencil" size={12} color={themeColor(isDark, 'ink-soft')} />
                     </TouchableOpacity>
                     <TouchableOpacity 
                       onPress={() => setLeagueToDelete(league)}
-                      className="w-7 h-7 rounded-lg bg-red-500/10 items-center justify-center border border-red-500/20 active:opacity-80"
+                      className="w-7 h-7 rounded-lg bg-danger-soft items-center justify-center border border-danger-line active:opacity-80"
                     >
-                      <Ionicons name="trash-outline" size={12} color="#EF4444" />
+                      <Ionicons name="trash-outline" size={12} color={themeColor(isDark, 'danger')} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -310,9 +311,9 @@ export default function OrgLeagues() {
 
             {filteredLeagues.length === 0 && (
               <View className="items-center justify-center py-12">
-                <Ionicons name="trophy-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
-                <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">No Leagues Found</Text>
-                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 mt-1">Create your first league to configure standings.</Text>
+                <Ionicons name="trophy-outline" size={48} color={themeColor(isDark, 'ink-muted')} className="opacity-40 mb-3" />
+                <Text className="font-orbitron-bold text-base text-ink-soft">No Leagues Found</Text>
+                <Text className="font-inter text-xs text-ink-muted mt-1">Create your first league to configure standings.</Text>
               </View>
             )}
           </View>
@@ -321,18 +322,18 @@ export default function OrgLeagues() {
 
       {/* Create League Modal */}
       <Modal visible={isCreateModalOpen} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-white dark:bg-slate-900 rounded-t-3xl p-6 border-t border-slate-200 dark:border-white/5 space-y-4">
-            <View className="flex-row justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
-              <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white uppercase">New League</Text>
+        <View className="flex-1 justify-end bg-overlay/60">
+          <View className="bg-card rounded-t-3xl p-6 border-t border-line space-y-4">
+            <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
+              <Text className="font-orbitron-bold text-lg text-ink uppercase">New League</Text>
               <TouchableOpacity onPress={() => setIsCreateModalOpen(false)}>
-                <Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#64748B'} />
+                <Ionicons name="close" size={24} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
 
             {createError && (
-              <View className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
-                <Text className="text-red-500 font-inter text-xs">{createError}</Text>
+              <View className="bg-danger-soft border border-danger-line p-3 rounded-xl">
+                <Text className="text-danger-ink font-inter text-xs">{createError}</Text>
               </View>
             )}
 
@@ -340,34 +341,34 @@ export default function OrgLeagues() {
             <View className="items-center py-2">
               <TouchableOpacity
                 onPress={handlePickLeagueLogo}
-                className="w-20 h-20 rounded-2xl items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 relative"
+                className="w-20 h-20 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                 activeOpacity={0.8}
               >
                 {newLeagueLogo ? (
                   <Image source={{ uri: newLeagueLogo }} className="w-full h-full" resizeMode="cover" />
                 ) : (
-                  <Ionicons name="trophy-outline" size={32} color={isDark ? "#94A3B8" : "#64748B"} />
+                  <Ionicons name="trophy-outline" size={32} color={themeColor(isDark, 'ink-muted')} />
                 )}
-                <View className="absolute bottom-1 right-1 bg-brand-orange w-5 h-5 rounded-full items-center justify-center border border-white dark:border-slate-900 shadow-sm">
+                <View className="absolute bottom-1 right-1 bg-primary w-5 h-5 rounded-full items-center justify-center border border-card shadow-sm">
                   <Ionicons name="camera" size={10} color="white" />
                 </View>
               </TouchableOpacity>
-              <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mt-1.5">League Logo</Text>
+              <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-widest mt-1.5">League Logo</Text>
             </View>
 
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">League Name</Text>
+              <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">League Name</Text>
               <TextInput
                 value={newLeagueName}
                 onChangeText={setNewLeagueName}
                 placeholder="e.g. Western Province U19 Rugby"
-                placeholderTextColor="#94A3B8"
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
 
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Sport</Text>
+              <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Sport</Text>
               <CustomSelect
                 value={selectedSportId}
                 onChange={(sportId) => {
@@ -381,7 +382,7 @@ export default function OrgLeagues() {
             </View>
 
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Age Group</Text>
+              <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Age Group</Text>
               <AgeGroupPicker
                 sportId={selectedSportId}
                 ageGroups={sports.find(s => s.id === selectedSportId)?.ageGroups}
@@ -393,7 +394,7 @@ export default function OrgLeagues() {
             </View>
 
             <View className="space-y-1">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase">Join Policy</Text>
+              <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Join Policy</Text>
               <CustomSelect
                 value={selectedJoinPolicy}
                 onChange={(val) => setSelectedJoinPolicy(val as 'CLOSED' | 'INVITE' | 'OPEN')}

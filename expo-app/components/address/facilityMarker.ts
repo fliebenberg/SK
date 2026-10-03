@@ -1,11 +1,13 @@
 import { Facility } from '@sk/shared';
 import type { MapMarker } from './AddressMap';
+import { themeColor } from '../../constants/Colors';
 
 /**
  * How a facility looks on a map and in a list: an Ionicons name and a colour. A facility with a
- * primary sport shows that sport's icon in brand orange; otherwise its category decides both.
+ * primary sport shows that sport's icon in brand orange; otherwise its category decides both. `isDark`
+ * picks the theme's shade of each colour.
  */
-export function facilityIcon(fac: Pick<Facility, 'primarySportId' | 'category'>, sports: { id: string; name?: string }[]): { icon: string; color: string } {
+export function facilityIcon(fac: Pick<Facility, 'primarySportId' | 'category'>, sports: { id: string; name?: string }[], isDark: boolean): { icon: string; color: string } {
   if (fac.primarySportId) {
     const name = (sports.find(s => s.id === fac.primarySportId)?.name || '').toLowerCase();
     let icon = 'location-outline';
@@ -15,21 +17,21 @@ export function facilityIcon(fac: Pick<Facility, 'primarySportId' | 'category'>,
     else if (name.includes('cricket')) icon = 'baseball';
     else if (name.includes('golf')) icon = 'golf';
     else if (name.includes('chess')) icon = 'trophy-outline';
-    return { icon, color: '#FF3E00' };
+    return { icon, color: themeColor(isDark, 'primary') };
   }
   switch (fac.category) {
-    case 'sport_field': return { icon: 'tennisball-outline', color: '#FF8C00' };
-    case 'indoor_hall': return { icon: 'business-outline', color: '#FF8C00' };
-    case 'clubhouse': return { icon: 'home-outline', color: '#3B82F6' };
-    case 'shop': return { icon: 'cart-outline', color: '#10B981' };
-    case 'parking': return { icon: 'car-outline', color: '#6B7280' };
-    case 'restroom': return { icon: 'water-outline', color: '#8B5CF6' };
-    default: return { icon: 'location-outline', color: '#475569' };
+    case 'sport_field': return { icon: 'tennisball-outline', color: themeColor(isDark, 'primary') };
+    case 'indoor_hall': return { icon: 'business-outline', color: themeColor(isDark, 'primary') };
+    case 'clubhouse': return { icon: 'home-outline', color: themeColor(isDark, 'info') };
+    case 'shop': return { icon: 'cart-outline', color: themeColor(isDark, 'success') };
+    case 'parking': return { icon: 'car-outline', color: themeColor(isDark, 'ink-muted') };
+    case 'restroom': return { icon: 'water-outline', color: themeColor(isDark, 'special') };
+    default: return { icon: 'location-outline', color: themeColor(isDark, 'ink-muted') };
   }
 }
 
 /** A site's facilities as map markers, skipping any without a pin. */
-export function facilityMarkers(facilities: Facility[], sports: { id: string; name?: string }[]): MapMarker[] {
+export function facilityMarkers(facilities: Facility[], sports: { id: string; name?: string }[], isDark: boolean): MapMarker[] {
   return facilities
     .filter(f => f.latitude != null && f.longitude != null)
     .map(f => ({
@@ -38,6 +40,6 @@ export function facilityMarkers(facilities: Facility[], sports: { id: string; na
       longitude: f.longitude!,
       title: f.name,
       description: f.surfaceType || undefined,
-      ...facilityIcon(f, sports),
+      ...facilityIcon(f, sports, isDark),
     }));
 }

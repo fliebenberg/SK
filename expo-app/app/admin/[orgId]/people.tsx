@@ -18,7 +18,8 @@ import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../store/authStore';
 import { formatCellphone } from '../../../utils/phone';
-import { COLORS } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 const PAGE_SIZE = 50;
 type RoleFilter = 'all' | 'role-org-admin' | 'role-org-staff' | 'role-org-member';
@@ -35,6 +36,7 @@ const ROLE_RANK: Record<string, number> = { 'role-org-admin': 0, 'role-org-staff
  * guardian column.
  */
 export default function OrgPeople() {
+  const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
@@ -103,45 +105,45 @@ export default function OrgPeople() {
         onPress={() => setIsAdding(true)}
         accessibilityRole="button"
         accessibilityLabel="Add person"
-        className={`flex-row items-center gap-1.5 rounded-xl bg-brand-orange ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
+        className={`flex-row items-center gap-1.5 rounded-xl bg-primary ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
       >
         <Ionicons name="add" size={18} color="white" />
-        {isWide ? <Text className="font-inter-bold text-sm text-white">Add person</Text> : null}
+        {isWide ? <Text className="font-inter-bold text-sm text-on-fill">Add person</Text> : null}
       </TouchableOpacity>
     </View>
   ) : undefined;
 
   if (isMembersLoading || isRolesLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="People" onBack={() => safeBack(`/admin/${orgId}`)} />
-        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={COLORS.brand.orange} /></View>
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="People" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
           <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
-            <View className="flex-1 flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
-              <Ionicons name="search-outline" size={16} color="#94A3B8" />
+            <View className="flex-1 flex-row items-center gap-2 bg-card border border-line rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
+              <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
               <TextInput
                 value={search}
                 onChangeText={setSearch}
                 placeholder="Search by name, email or org ID"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 accessibilityLabel="Search people"
-                className="flex-1 font-inter text-base text-slate-800 dark:text-white py-2.5 outline-none"
+                className="flex-1 font-inter text-base text-ink py-2.5 outline-none"
               />
             </View>
             <SegmentedControl options={filterOptions} value={roleFilter} onChange={setRoleFilter} isCompact={false} fit={isWide} />
           </View>
 
           <View className="flex-row items-center justify-between px-1">
-            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+            <Text className="font-inter text-sm text-ink-muted">
               {shown.length === 1 ? '1 person' : `${shown.length} people`}
             </Text>
             <TouchableOpacity
@@ -150,10 +152,10 @@ export default function OrgPeople() {
               accessibilityLabel={`Sorted by ${sortKey}. Change the sort.`}
               className="flex-row items-center gap-1"
             >
-              <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
-                Sort: <Text className="font-inter-semibold text-slate-700 dark:text-slate-200">{sortKey === 'name' ? 'Name' : 'Role'}</Text>
+              <Text className="font-inter text-sm text-ink-muted">
+                Sort: <Text className="font-inter-semibold text-ink-soft">{sortKey === 'name' ? 'Name' : 'Role'}</Text>
               </Text>
-              <Ionicons name="swap-vertical" size={14} color="#64748B" />
+              <Ionicons name="swap-vertical" size={14} color={themeColor(isDark, 'ink-muted')} />
             </TouchableOpacity>
           </View>
 
@@ -161,12 +163,12 @@ export default function OrgPeople() {
             data={shown}
             pageSize={PAGE_SIZE}
             keyExtractor={member => member.membershipId}
-            containerClassName="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 overflow-hidden"
+            containerClassName="rounded-2xl border border-line bg-card overflow-hidden"
             itemSpacingClassName=""
             emptyState={
               <View className="items-center justify-center py-12 gap-2">
-                <Ionicons name="people-outline" size={40} color="#94A3B8" />
-                <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+                <Ionicons name="people-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
+                <Text className="font-inter text-sm text-ink-muted">
                   {all.length ? 'Nobody matches.' : 'Nobody has been added yet.'}
                 </Text>
               </View>
@@ -203,8 +205,9 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
   guardianship: ReturnType<typeof guardianshipOf>;
   onPress: () => void;
 }) {
+  const isDark = useActiveTheme() === 'dark';
   const cell = formatCellphone(member.cellphone);
-  const border = first ? '' : 'border-t border-slate-100 dark:border-white/5';
+  const border = first ? '' : 'border-t border-line-soft';
 
   if (!isWide) {
     return (
@@ -212,23 +215,23 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
         <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={36} />
         <View className="flex-1 min-w-0">
           <View className="flex-row items-center gap-1.5">
-            <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white flex-shrink" numberOfLines={1}>{member.name}</Text>
+            <Text className="font-inter-semibold text-sm text-ink flex-shrink" numberOfLines={1}>{member.name}</Text>
             <RoleBadge roleId={member.roleId} roleName={member.roleName} />
             <GuardianshipTag kind={guardianship} />
             {member.personOrgId ? (
-              <Text className="ml-auto pl-2 font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0" style={{ fontVariant: ['tabular-nums'] }}>
+              <Text className="ml-auto pl-2 font-inter text-xs text-ink-muted flex-shrink-0" style={{ fontVariant: ['tabular-nums'] }}>
                 {member.personOrgId}
               </Text>
             ) : null}
           </View>
           {member.email || cell ? (
             <View className="flex-row items-center justify-between gap-2.5 mt-0.5">
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink" numberOfLines={1}>{member.email || ''}</Text>
-              {cell ? <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{cell}</Text> : null}
+              <Text className="font-inter text-xs text-ink-muted flex-shrink" numberOfLines={1}>{member.email || ''}</Text>
+              {cell ? <Text className="font-inter text-xs text-ink-muted flex-shrink-0">{cell}</Text> : null}
             </View>
           ) : null}
         </View>
-        <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+        <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
       </TouchableOpacity>
     );
   }
@@ -238,26 +241,26 @@ function PersonRow({ member, isWide, first, guardians, guardianCount, guardiansh
       <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={36} />
       <View className="flex-1 min-w-0">
         <View className="flex-row items-center gap-2 flex-wrap">
-          <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white" numberOfLines={1}>{member.name}</Text>
+          <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{member.name}</Text>
           <RoleBadge roleId={member.roleId} roleName={member.roleName} />
         </View>
         {member.personOrgId ? (
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5" style={{ fontVariant: ['tabular-nums'] }}>{member.personOrgId}</Text>
+          <Text className="font-inter text-xs text-ink-muted mt-0.5" style={{ fontVariant: ['tabular-nums'] }}>{member.personOrgId}</Text>
         ) : null}
       </View>
       <View style={{ width: 250 }}>
-        {member.email ? <Text className="font-inter text-sm text-slate-500 dark:text-slate-400" numberOfLines={1}>{member.email}</Text> : null}
-        {cell ? <Text className="font-inter text-sm text-slate-500 dark:text-slate-400" numberOfLines={1}>{cell}</Text> : null}
+        {member.email ? <Text className="font-inter text-sm text-ink-muted" numberOfLines={1}>{member.email}</Text> : null}
+        {cell ? <Text className="font-inter text-sm text-ink-muted" numberOfLines={1}>{cell}</Text> : null}
       </View>
       <View style={{ width: 170 }}>
         {guardians ? (
           <>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{guardianCount > 1 ? 'Guardians' : 'Guardian'}</Text>
-            <Text className="font-inter text-sm text-slate-700 dark:text-slate-200" numberOfLines={1}>{guardians}</Text>
+            <Text className="font-inter text-xs text-ink-muted">{guardianCount > 1 ? 'Guardians' : 'Guardian'}</Text>
+            <Text className="font-inter text-sm text-ink-soft" numberOfLines={1}>{guardians}</Text>
           </>
         ) : null}
       </View>
-      <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+      <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
     </TouchableOpacity>
   );
 }

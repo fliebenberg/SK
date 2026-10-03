@@ -14,6 +14,7 @@ import { useWsStore } from '../../../store/wsStore';
 import { SocketAction, Site, Facility, Address } from '@sk/shared';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useAuthStore } from '../../../store/authStore';
+import { themeColor } from '../../../constants/Colors';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -174,23 +175,23 @@ export default function OrgSitesList() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeBack(`/admin/${orgId}`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
           Sites & Facilities
         </Text>
         <TouchableOpacity 
-          className="w-8 h-8 rounded-lg bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
+          className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
           onPress={() => handleOpenSiteModal(null)}
         >
           <Ionicons name="add" size={18} color="white" />
@@ -200,34 +201,34 @@ export default function OrgSitesList() {
       {/* BODY CONTENT */}
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#FF3E00" />
-          <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-3">Loading Sites...</Text>
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+          <Text className="font-orbitron text-xs text-ink-muted mt-3">Loading Sites...</Text>
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
           {/* SEARCH BAR & FILTER */}
           <View className="flex-row items-center gap-3 mb-6">
-            <View className="flex-1 flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 shadow-sm">
-              <Ionicons name="search-outline" size={18} color="#94A3B8" />
+            <View className="flex-1 flex-row items-center bg-card border border-line rounded-xl px-4 py-2.5 shadow-sm">
+              <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
               <TextInput
                 placeholder="Search sites, addresses, or facilities..."
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                className="flex-1 font-inter text-slate-800 dark:text-white text-sm ml-2.5 outline-none"
+                className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                  <Ionicons name="close-circle" size={18} color={themeColor(isDark, 'ink-muted')} />
                 </TouchableOpacity>
               )}
             </View>
 
             <TouchableOpacity 
               onPress={() => setShowInactive(!showInactive)}
-              className={`p-3 rounded-xl border items-center justify-center ${showInactive ? 'bg-brand-orange/10 border-brand-orange/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'}`}
+              className={`p-3 rounded-xl border items-center justify-center ${showInactive ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}
             >
-              <Ionicons name={showInactive ? "eye" : "eye-off"} size={16} color={showInactive ? "#FF3E00" : "#94A3B8"} />
+              <Ionicons name={showInactive ? "eye" : "eye-off"} size={16} color={showInactive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
             </TouchableOpacity>
           </View>
 
@@ -248,24 +249,24 @@ export default function OrgSitesList() {
                   activeOpacity={0.85}
                 >
                   <GlassCard 
-                    className={`border border-slate-200 dark:border-white/5 p-5 ${site.isActive === false ? 'opacity-60' : ''}`}
+                    className={`border border-line p-5 ${site.isActive === false ? 'opacity-60' : ''}`}
                   >
                     <View className="flex-row justify-between items-start mb-2">
                       <View className="flex-1">
                         <View className="flex-row items-center gap-2">
-                          <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
+                          <Text className="font-orbitron-bold text-base text-ink">
                             {site.name}
                           </Text>
                           {site.isActive === false && (
-                            <View className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
-                              <Text className="text-[8px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Inactive</Text>
+                            <View className="bg-line px-2 py-0.5 rounded">
+                              <Text className="text-[8px] font-semibold text-ink-muted uppercase tracking-widest">Inactive</Text>
                             </View>
                           )}
                         </View>
 
                         <View className="flex-row items-center gap-1.5 mt-1">
-                          <Ionicons name="map-outline" size={12} color="#94A3B8" />
-                          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                          <Ionicons name="map-outline" size={12} color={themeColor(isDark, 'ink-muted')} />
+                          <Text className="font-inter text-xs text-ink-muted">
                             {site.address?.fullAddress || 'No address registered'}
                           </Text>
                         </View>
@@ -277,16 +278,16 @@ export default function OrgSitesList() {
                             if (e && e.stopPropagation) e.stopPropagation();
                             router.push({ pathname: '/admin/[orgId]/sites/[siteId]/view', params: { orgId: orgId!, siteId: site.id } });
                           }}
-                          className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
+                          className="w-7 h-7 rounded-lg bg-sunken items-center justify-center border border-line-soft active:opacity-80"
                         >
-                          <Ionicons name="eye-outline" size={13} color={isDark ? "#E2E8F0" : "#475569"} />
+                          <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-soft')} />
                         </TouchableOpacity>
                       </View>
                     </View>
 
                     {/* FACILITIES LIST UNDER SITE */}
-                    <View className="mt-4 pt-3 border-t border-slate-200/50 dark:border-white/5">
-                      <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                    <View className="mt-4 pt-3 border-t border-line-soft">
+                      <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
                         Facilities ({siteFacilities.length})
                       </Text>
                       <View className="flex-row flex-wrap gap-2">
@@ -333,20 +334,20 @@ export default function OrgSitesList() {
                                   });
                                 }
                               }}
-                              className={`flex-row items-center gap-1.5 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg border border-slate-200/50 dark:border-white/5 active:opacity-85 ${fac.isActive === false ? 'opacity-50' : ''}`}
+                              className={`flex-row items-center gap-1.5 bg-sunken px-2.5 py-1 rounded-lg border border-line-soft active:opacity-85 ${fac.isActive === false ? 'opacity-50' : ''}`}
                             >
-                              <Ionicons name={iconName} size={12} color="#FF3E00" />
-                              <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
+                              <Ionicons name={iconName} size={12} color={themeColor(isDark, 'primary')} />
+                              <Text className="font-inter text-xs text-ink-soft">
                                 {fac.name}
                               </Text>
-                              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 lowercase italic">
+                              <Text className="font-inter text-[9px] text-ink-muted lowercase italic">
                                 ({term})
                               </Text>
                             </TouchableOpacity>
                           );
                         })}
                         {siteFacilities.length === 0 && (
-                          <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">No facilities registered. Edit site to configure.</Text>
+                          <Text className="font-inter text-xs text-ink-muted italic">No facilities registered. Edit site to configure.</Text>
                         )}
                       </View>
                     </View>
@@ -357,11 +358,11 @@ export default function OrgSitesList() {
 
             {filteredSites.length === 0 && (
               <View className="items-center justify-center py-12">
-                <Ionicons name="location-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
-                <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
+                <Ionicons name="location-outline" size={48} color={themeColor(isDark, 'ink-muted')} className="opacity-40 mb-3" />
+                <Text className="font-orbitron-bold text-base text-ink-soft">
                   No Sites Registered
                 </Text>
-                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+                <Text className="font-inter text-xs text-ink-muted text-center mt-1">
                   Click the "+" button in the header to register training complexes and playing fields.
                 </Text>
               </View>

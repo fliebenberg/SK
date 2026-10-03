@@ -20,7 +20,8 @@ import { useSafeBack } from '../../../hooks/useSafeBack';
 import { sendAction } from '../../../services/actions';
 import { getOrgLogoUrl } from '../../../services/assets';
 import { hasPin } from '../../../services/places';
-import { COLORS } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 type Dialog = 'identity' | 'about' | 'sports' | 'address' | null;
 
@@ -37,6 +38,7 @@ type Dialog = 'identity' | 'about' | 'sports' | 'address' | null;
  * what is undecided (`ORG-13`): everyone who reaches the workspace can, as on the old screen.
  */
 export default function OrgProfile() {
+  const isDark = useActiveTheme() === 'dark';
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const router = useRouter();
   const safeBack = useSafeBack();
@@ -80,11 +82,11 @@ export default function OrgProfile() {
 
   if (isLoading || !org) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Profile" onBack={() => safeBack(`/admin/${orgId}`)} />
         <View className="flex-1 items-center justify-center">
-          {isLoading ? <ActivityIndicator size="large" color={COLORS.brand.orange} /> : (
-            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">This organisation could not be found.</Text>
+          {isLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+            <Text className="font-inter text-sm text-ink-muted">This organisation could not be found.</Text>
           )}
         </View>
       </SafeAreaView>
@@ -94,7 +96,7 @@ export default function OrgProfile() {
   const about = (
     <ReadCard label="About" onEdit={org.description ? () => setDialog('about') : undefined}>
       {org.description ? (
-        <Text className="font-inter text-sm leading-relaxed text-slate-800 dark:text-slate-100">{org.description}</Text>
+        <Text className="font-inter text-sm leading-relaxed text-ink">{org.description}</Text>
       ) : (
         <ReadCardEmpty text="No description yet. It shows on the public profile." action="Add one" onPress={() => setDialog('about')} />
       )}
@@ -110,8 +112,8 @@ export default function OrgProfile() {
       {sportNames.length ? (
         <View className="flex-row flex-wrap gap-2">
           {sportNames.map(name => (
-            <View key={name} className="px-3 py-1 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-              <Text className="font-inter-semibold text-sm text-slate-700 dark:text-slate-200">{name}</Text>
+            <View key={name} className="px-3 py-1 rounded-full bg-sunken border border-line">
+              <Text className="font-inter-semibold text-sm text-ink-soft">{name}</Text>
             </View>
           ))}
         </View>
@@ -153,7 +155,7 @@ export default function OrgProfile() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Profile" onBack={() => safeBack(`/admin/${orgId}`)} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
         <View className="w-full gap-4 self-center" style={{ maxWidth: 960 }}>
@@ -192,8 +194,8 @@ function MapOverlay({ onPress, label }: { onPress: () => void; label?: string })
   return (
     <Pressable onPress={onPress} accessibilityRole="link" accessibilityLabel="Open the address on a map" className="absolute inset-0 rounded-xl">
       {label ? (
-        <View className="absolute top-2 right-2 px-2 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10">
-          <Text className="font-inter-bold text-xs text-orange-700 dark:text-brand-orange">{label} ↗</Text>
+        <View className="absolute top-2 right-2 px-2 py-1 rounded-md bg-card border border-line">
+          <Text className="font-inter-bold text-xs text-primary-ink">{label} ↗</Text>
         </View>
       ) : null}
     </Pressable>

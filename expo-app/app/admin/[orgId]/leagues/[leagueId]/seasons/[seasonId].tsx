@@ -21,6 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { calendarRangeStatus, formatFixtureWhen, isCalendarDate } from '../../../../../../utils/dates';
 import { pickableTeams } from '../../../../../../components/teams/TeamBits';
+import { themeColor } from '../../../../../../constants/Colors';
 
 /** Where a season sits against the viewer's today. Its dates are calendar dates, both inclusive. */
 const calculateSeasonStatus = (startDate: string, endDate: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
@@ -428,24 +429,24 @@ export default function SeasonDetails() {
     });
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity onPress={safeGoBack} className="flex-row items-center gap-1 active:opacity-85">
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">Back</Text>
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">Back</Text>
         </TouchableOpacity>
         <View className="items-center">
-          <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+          <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
             {season ? season.name : 'Season Manager'}
           </Text>
-          <Text className="font-inter text-[9px] text-slate-400 uppercase mt-0.5">Administration</Text>
+          <Text className="font-inter text-[9px] text-ink-muted uppercase mt-0.5">Administration</Text>
         </View>
         <View className="w-8" />
       </View>
 
       {/* Tabs */}
-      <View className="flex-row border-b border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 px-4">
+      <View className="flex-row border-b border-line bg-card px-4">
         {[
           { id: 'standings', label: 'Standings', icon: 'trophy' },
           { id: 'teams', label: 'Teams', icon: 'people' },
@@ -458,10 +459,10 @@ export default function SeasonDetails() {
               key={tab.id}
               onPress={() => setActiveTab(tab.id as any)}
               className="flex-1 items-center py-3 border-b-2 flex-row justify-center gap-1.5 active:opacity-80"
-              style={{ borderBottomColor: isActive ? '#FF3E00' : 'transparent' }}
+              style={{ borderBottomColor: isActive ? themeColor(isDark, 'primary') : 'transparent' }}
             >
-              <Ionicons name={`${tab.icon}-outline` as any} size={14} color={isActive ? '#FF3E00' : '#94A3B8'} />
-              <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${isActive ? 'text-brand-orange' : 'text-slate-500'}`}>
+              <Ionicons name={`${tab.icon}-outline` as any} size={14} color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
+              <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${isActive ? 'text-primary-ink' : 'text-ink-muted'}`}>
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -471,49 +472,49 @@ export default function SeasonDetails() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#FF3E00" />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: (activeTab === 'settings' && hasSettingsChanges) ? 140 : 40 }}>
           {/* TAB 1: STANDINGS */}
           {activeTab === 'standings' && (
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 overflow-hidden">
-              <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Live Standings</Text>
+            <GlassCard className="border border-line p-4 overflow-hidden">
+              <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">Live Standings</Text>
               
               <View className="overflow-x-auto">
                 <View className="min-w-[400px]">
                   {/* Table Header */}
-                  <View className="flex-row border-b border-slate-200 dark:border-white/5 pb-2">
-                    <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">Pos</Text>
-                    <Text className="flex-1 font-inter-bold text-[9px] text-slate-400 uppercase">Team</Text>
-                    <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">P</Text>
-                    <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">W</Text>
-                    <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">D</Text>
-                    <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">L</Text>
-                    <Text className="w-12 font-inter-bold text-[9px] text-slate-400 uppercase text-center">Diff</Text>
-                    <Text className="w-12 font-inter-bold text-[9px] text-slate-400 uppercase text-center">Pts</Text>
+                  <View className="flex-row border-b border-line pb-2">
+                    <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">Pos</Text>
+                    <Text className="flex-1 font-inter-bold text-[9px] text-ink-muted uppercase">Team</Text>
+                    <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">P</Text>
+                    <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">W</Text>
+                    <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">D</Text>
+                    <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">L</Text>
+                    <Text className="w-12 font-inter-bold text-[9px] text-ink-muted uppercase text-center">Diff</Text>
+                    <Text className="w-12 font-inter-bold text-[9px] text-ink-muted uppercase text-center">Pts</Text>
                   </View>
 
                   {/* Rows */}
                   {standings.map((row, idx) => (
-                    <View key={row.teamId} className="flex-row py-3 border-b border-slate-100 dark:border-white/5 items-center">
-                      <Text className="w-8 font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 text-center">{idx + 1}</Text>
-                      <Text className="flex-1 font-orbitron-bold text-xs text-slate-800 dark:text-white truncate pr-2">{row.teamName}</Text>
-                      <Text className="w-8 font-inter text-xs text-slate-600 dark:text-slate-400 text-center">{row.played}</Text>
-                      <Text className="w-8 font-inter text-xs text-slate-600 dark:text-slate-400 text-center">{row.wins}</Text>
-                      <Text className="w-8 font-inter text-xs text-slate-600 dark:text-slate-400 text-center">{row.draws}</Text>
-                      <Text className="w-8 font-inter text-xs text-slate-600 dark:text-slate-400 text-center">{row.losses}</Text>
-                      <Text className={`w-12 font-inter-bold text-xs text-center ${row.pointsDifference > 0 ? 'text-emerald-500' : row.pointsDifference < 0 ? 'text-red-550' : 'text-slate-500'}`}>
+                    <View key={row.teamId} className="flex-row py-3 border-b border-line-soft items-center">
+                      <Text className="w-8 font-orbitron-bold text-xs text-ink-muted text-center">{idx + 1}</Text>
+                      <Text className="flex-1 font-orbitron-bold text-xs text-ink truncate pr-2">{row.teamName}</Text>
+                      <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.played}</Text>
+                      <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.wins}</Text>
+                      <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.draws}</Text>
+                      <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.losses}</Text>
+                      <Text className={`w-12 font-inter-bold text-xs text-center ${row.pointsDifference > 0 ? 'text-success-ink' : row.pointsDifference < 0 ? 'text-danger-ink' : 'text-ink-muted'}`}>
                         {row.pointsDifference > 0 ? `+${row.pointsDifference}` : row.pointsDifference}
                       </Text>
-                      <Text className="w-12 font-orbitron-bold text-xs text-brand-orange text-center">{row.points}</Text>
+                      <Text className="w-12 font-orbitron-bold text-xs text-primary-ink text-center">{row.points}</Text>
                     </View>
                   ))}
 
                   {standings.length === 0 && (
                     <View className="items-center justify-center py-12">
-                      <Ionicons name="trophy-outline" size={32} color="#94A3B8" className="opacity-40 mb-2" />
-                      <Text className="font-inter text-xs text-slate-400 text-center">No scores recorded yet.</Text>
+                      <Ionicons name="trophy-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="opacity-40 mb-2" />
+                      <Text className="font-inter text-xs text-ink-muted text-center">No scores recorded yet.</Text>
                     </View>
                   )}
                 </View>
@@ -525,13 +526,13 @@ export default function SeasonDetails() {
           {activeTab === 'teams' && (
             <View className="space-y-4">
               <View className="flex-row justify-between items-center mb-1">
-                <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest">Season Roster</Text>
+                <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">Season Roster</Text>
                 <TouchableOpacity
                   onPress={() => setIsAddTeamOpen(true)}
-                  className="flex-row items-center gap-1 bg-brand-orange/10 border border-brand-orange/20 px-2.5 py-1.5 rounded-lg active:opacity-85"
+                  className="flex-row items-center gap-1 bg-primary-soft border border-primary-line px-2.5 py-1.5 rounded-lg active:opacity-85"
                 >
-                  <Ionicons name="add" size={13} color="#FF3E00" />
-                  <Text className="font-inter-bold text-[10px] text-brand-orange uppercase">Register Team</Text>
+                  <Ionicons name="add" size={13} color={themeColor(isDark, 'primary')} />
+                  <Text className="font-inter-bold text-[10px] text-primary-ink uppercase">Register Team</Text>
                 </TouchableOpacity>
               </View>
 
@@ -539,14 +540,14 @@ export default function SeasonDetails() {
               {seasonTeams.map((st) => {
                 const isPending = st.status === 'pending';
                 return (
-                  <GlassCard key={st.teamId} className="border border-slate-200 dark:border-white/5 p-4 flex-row justify-between items-center">
+                  <GlassCard key={st.teamId} className="border border-line p-4 flex-row justify-between items-center">
                     <View className="flex-1">
-                      <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white leading-tight">
+                      <Text className="font-orbitron-bold text-base text-ink leading-tight">
                         {st.teamName}
                       </Text>
                       <View className="flex-row items-center gap-2 mt-1">
-                        <View className={`px-2 py-0.5 rounded ${isPending ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-emerald-550/10 border border-emerald-550/20'}`}>
-                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${isPending ? 'text-brand-orange' : 'text-emerald-500'}`}>
+                        <View className={`px-2 py-0.5 rounded ${isPending ? 'bg-primary-soft border border-primary-line' : 'bg-success-soft border border-success-line'}`}>
+                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${isPending ? 'text-primary-ink' : 'text-success-ink'}`}>
                             {st.status}
                           </Text>
                         </View>
@@ -557,16 +558,16 @@ export default function SeasonDetails() {
                       {isPending && (
                         <TouchableOpacity
                           onPress={() => handleApproveTeam(st.teamId)}
-                          className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 items-center justify-center active:opacity-85"
+                          className="w-9 h-9 rounded-lg bg-success-soft border border-success-line items-center justify-center active:opacity-85"
                         >
-                          <Ionicons name="checkmark-outline" size={16} color="#10B981" />
+                          <Ionicons name="checkmark-outline" size={16} color={themeColor(isDark, 'success')} />
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
                         onPress={() => setTeamToRemove(st)}
-                        className="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/20 items-center justify-center active:opacity-85"
+                        className="w-9 h-9 rounded-lg bg-danger-soft border border-danger-line items-center justify-center active:opacity-85"
                       >
-                        <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                        <Ionicons name="trash-outline" size={16} color={themeColor(isDark, 'danger')} />
                       </TouchableOpacity>
                     </View>
                   </GlassCard>
@@ -574,10 +575,10 @@ export default function SeasonDetails() {
               })}
 
               {seasonTeams.length === 0 && (
-                <View className="items-center justify-center py-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl">
-                  <Ionicons name="people-outline" size={36} color="#94A3B8" className="opacity-45 mb-2" />
-                  <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400">Roster Empty</Text>
-                  <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Click "Register Team" to add participating squads.</Text>
+                <View className="items-center justify-center py-10 bg-card border border-line rounded-2xl">
+                  <Ionicons name="people-outline" size={36} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
+                  <Text className="font-orbitron-bold text-xs text-ink-muted">Roster Empty</Text>
+                  <Text className="font-inter text-[10px] text-ink-muted mt-0.5">Click "Register Team" to add participating squads.</Text>
                 </View>
               )}
             </View>
@@ -587,59 +588,59 @@ export default function SeasonDetails() {
           {activeTab === 'games' && (
             <View className="space-y-4">
               <View className="flex-row justify-between items-center mb-1">
-                <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest">Season Matches</Text>
+                <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">Season Matches</Text>
                 <TouchableOpacity
                   onPress={() => setIsLinkGameOpen(true)}
-                  className="flex-row items-center gap-1 bg-brand-orange/10 border border-brand-orange/20 px-2.5 py-1.5 rounded-lg active:opacity-85"
+                  className="flex-row items-center gap-1 bg-primary-soft border border-primary-line px-2.5 py-1.5 rounded-lg active:opacity-85"
                 >
-                  <Ionicons name="link-outline" size={13} color="#FF3E00" />
-                  <Text className="font-inter-bold text-[10px] text-brand-orange uppercase">Link Match</Text>
+                  <Ionicons name="link-outline" size={13} color={themeColor(isDark, 'primary')} />
+                  <Text className="font-inter-bold text-[10px] text-primary-ink uppercase">Link Match</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Games List */}
               {seasonGames.map((game) => (
-                <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4">
+                <GlassCard key={game.id} className="border border-line p-4">
                   <View className="flex-row justify-between items-center mb-2">
-                    <Text className="font-inter-bold text-[9px] text-slate-400 uppercase tracking-wide">
+                    <Text className="font-inter-bold text-[9px] text-ink-muted uppercase tracking-wide">
                       {formatTime(game)}
                     </Text>
-                    <View className={`px-2 py-0.5 rounded ${game.status === 'Finished' ? 'bg-slate-200/50 dark:bg-white/10' : 'bg-cyan-500/10 border border-cyan-500/20'}`}>
-                      <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${game.status === 'Finished' ? 'text-slate-500' : 'text-cyan-500'}`}>
+                    <View className={`px-2 py-0.5 rounded ${game.status === 'Finished' ? 'bg-sunken' : 'bg-accent-soft border border-accent-line'}`}>
+                      <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${game.status === 'Finished' ? 'text-ink-muted' : 'text-accent-ink'}`}>
                         {game.status}
                       </Text>
                     </View>
                   </View>
 
-                  <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white text-center py-2 uppercase tracking-wide">
+                  <Text className="font-orbitron-bold text-sm text-ink text-center py-2 uppercase tracking-wide">
                     {(game.participants?.[0] as any)?.teamName || 'Home'} 
-                    <Text className="text-brand-orange text-[10px] font-inter lowercase"> vs </Text> 
+                    <Text className="text-primary-ink text-[10px] font-inter lowercase"> vs </Text> 
                     {(game.participants?.[1] as any)?.teamName || 'Away'}
                   </Text>
 
                   {finishedScoreLine(game) && (
-                    <Text className="font-orbitron-bold text-base text-brand-orange text-center pb-2">
+                    <Text className="font-orbitron-bold text-base text-primary-ink text-center pb-2">
                       {finishedScoreLine(game)}
                     </Text>
                   )}
 
-                  <View className="flex-row justify-end border-t border-slate-100 dark:border-white/5 pt-3 mt-2">
+                  <View className="flex-row justify-end border-t border-line-soft pt-3 mt-2">
                     <TouchableOpacity
                       onPress={() => setGameToUnlink(game)}
-                      className="flex-row items-center gap-1 bg-red-500/10 px-3 py-1.5 rounded-lg active:opacity-85 border border-red-500/20"
+                      className="flex-row items-center gap-1 bg-danger-soft px-3 py-1.5 rounded-lg active:opacity-85 border border-danger-line"
                     >
-                      <Ionicons name="unlink-outline" size={13} color="#EF4444" />
-                      <Text className="font-inter-bold text-[9px] text-red-500 uppercase">Unlink Match</Text>
+                      <Ionicons name="unlink-outline" size={13} color={themeColor(isDark, 'danger')} />
+                      <Text className="font-inter-bold text-[9px] text-danger-ink uppercase">Unlink Match</Text>
                     </TouchableOpacity>
                   </View>
                 </GlassCard>
               ))}
 
               {seasonGames.length === 0 && (
-                <View className="items-center justify-center py-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl">
-                  <Ionicons name="calendar-outline" size={36} color="#94A3B8" className="opacity-45 mb-2" />
-                  <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400">No Matches Linked</Text>
-                  <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Click "Link Match" to add games to this season.</Text>
+                <View className="items-center justify-center py-10 bg-card border border-line rounded-2xl">
+                  <Ionicons name="calendar-outline" size={36} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
+                  <Text className="font-orbitron-bold text-xs text-ink-muted">No Matches Linked</Text>
+                  <Text className="font-inter text-[10px] text-ink-muted mt-0.5">Click "Link Match" to add games to this season.</Text>
                 </View>
               )}
             </View>
@@ -647,12 +648,12 @@ export default function SeasonDetails() {
 
           {/* TAB 4: SETTINGS */}
           {activeTab === 'settings' && (
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-4">
-              <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest">Season Settings</Text>
+            <GlassCard className="border border-line p-5 space-y-4">
+              <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest">Season Settings</Text>
 
               {actionError && (
-                <View className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
-                  <Text className="text-red-500 font-inter text-xs">{actionError}</Text>
+                <View className="bg-danger-soft border border-danger-line p-3 rounded-xl">
+                  <Text className="text-danger-ink font-inter text-xs">{actionError}</Text>
                 </View>
               )}
 
@@ -660,35 +661,35 @@ export default function SeasonDetails() {
               <View className="items-center py-2">
                 <TouchableOpacity
                   onPress={handlePickSeasonLogo}
-                  className="w-24 h-24 rounded-2xl items-center justify-center overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 relative"
+                  className="w-24 h-24 rounded-2xl items-center justify-center overflow-hidden border border-line bg-canvas relative"
                   activeOpacity={0.85}
                 >
                   {seasonLogo ? (
                     <Image source={{ uri: getOrgLogoUrl(seasonLogo) }} className="w-full h-full" resizeMode="cover" />
                   ) : (
-                    <Ionicons name="calendar-outline" size={40} color={isDark ? "#94A3B8" : "#64748B"} />
+                    <Ionicons name="calendar-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
                   )}
-                  <View className="absolute bottom-1.5 right-1.5 bg-brand-orange w-6 h-6 rounded-full items-center justify-center border border-white dark:border-slate-900 shadow-md">
+                  <View className="absolute bottom-1.5 right-1.5 bg-primary w-6 h-6 rounded-full items-center justify-center border border-card shadow-md">
                     <Ionicons name="camera" size={12} color="white" />
                   </View>
                 </TouchableOpacity>
-                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-2">Season Branding Logo</Text>
+                <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mt-2">Season Branding Logo</Text>
               </View>
 
               <View className="space-y-1">
-                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Season Name</Text>
+                <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Season Name</Text>
                 <TextInput
                   value={seasonName}
                   onChangeText={setSeasonName}
                   placeholder="e.g. 2026 Season"
-                  placeholderTextColor="#94A3B8"
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                  placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                  className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
                 />
               </View>
 
               <View className="grid grid-cols-2 gap-4">
                 <View className="space-y-1">
-                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Start Date</Text>
+                  <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Start Date</Text>
                   <DatePicker
                     value={startDateStr}
                     onChange={setStartDateStr}
@@ -696,7 +697,7 @@ export default function SeasonDetails() {
                   />
                 </View>
                 <View className="space-y-1">
-                  <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">End Date</Text>
+                  <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">End Date</Text>
                   <DatePicker
                     value={endDateStr}
                     onChange={setEndDateStr}
@@ -706,21 +707,21 @@ export default function SeasonDetails() {
               </View>
 
               <View className="space-y-1.5">
-                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Season Status (Calculated)</Text>
+                <Text className="font-inter-bold text-[10px] text-ink-muted uppercase">Season Status (Calculated)</Text>
                 <View className="flex-row items-center">
                   <View className={`px-3 py-1.5 rounded-lg ${
                     computedStatus === 'ACTIVE' 
-                      ? 'bg-cyan-500/10 border border-cyan-500/20' 
+                      ? 'bg-accent-soft border border-accent-line' 
                       : computedStatus === 'COMPLETED' 
-                      ? 'bg-slate-200/50 dark:bg-white/10' 
-                      : 'bg-orange-500/10 border border-orange-500/20'
+                      ? 'bg-sunken' 
+                      : 'bg-primary-soft border border-primary-line'
                   }`}>
                     <Text className={`font-orbitron-bold text-[10px] uppercase tracking-wider ${
                       computedStatus === 'ACTIVE' 
-                        ? 'text-cyan-500' 
+                        ? 'text-accent-ink' 
                         : computedStatus === 'COMPLETED' 
-                        ? 'text-slate-500 dark:text-slate-400' 
-                        : 'text-brand-orange'
+                        ? 'text-ink-muted' 
+                        : 'text-primary-ink'
                     }`}>
                       {computedStatus}
                     </Text>
@@ -729,34 +730,34 @@ export default function SeasonDetails() {
               </View>
 
               {/* Point allocation settings */}
-              <View className="pt-2 border-t border-slate-100 dark:border-white/5 space-y-2">
-                <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase">Point Rules</Text>
+              <View className="pt-2 border-t border-line-soft space-y-2">
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase">Point Rules</Text>
                 <View className="grid grid-cols-3 gap-3">
                   <View className="space-y-1">
-                    <Text className="font-inter-bold text-[8px] text-slate-400 uppercase">Win</Text>
+                    <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Win</Text>
                     <TextInput
                       value={ptsWin}
                       onChangeText={setPtsWin}
                       keyboardType="numeric"
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 font-inter text-xs text-center text-slate-850 dark:text-white"
+                      className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-center text-ink"
                     />
                   </View>
                   <View className="space-y-1">
-                    <Text className="font-inter-bold text-[8px] text-slate-400 uppercase">Draw</Text>
+                    <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Draw</Text>
                     <TextInput
                       value={ptsDraw}
                       onChangeText={setPtsDraw}
                       keyboardType="numeric"
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 font-inter text-xs text-center text-slate-850 dark:text-white"
+                      className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-center text-ink"
                     />
                   </View>
                   <View className="space-y-1">
-                    <Text className="font-inter-bold text-[8px] text-slate-400 uppercase">Loss</Text>
+                    <Text className="font-inter-bold text-[8px] text-ink-muted uppercase">Loss</Text>
                     <TextInput
                       value={ptsLoss}
                       onChangeText={setPtsLoss}
                       keyboardType="numeric"
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 font-inter text-xs text-center text-slate-850 dark:text-white"
+                      className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-center text-ink"
                     />
                   </View>
                 </View>
@@ -769,12 +770,12 @@ export default function SeasonDetails() {
 
       {/* Add Team Modal */}
       <Modal visible={isAddTeamOpen} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-white dark:bg-slate-900 rounded-t-3xl p-6 border-t border-slate-200 dark:border-white/5 space-y-4 max-h-[80%]">
-            <View className="flex-row justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
-              <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white uppercase">Register Team</Text>
+        <View className="flex-1 justify-end bg-overlay/60">
+          <View className="bg-card rounded-t-3xl p-6 border-t border-line space-y-4 max-h-[80%]">
+            <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
+              <Text className="font-orbitron-bold text-lg text-ink uppercase">Register Team</Text>
               <TouchableOpacity onPress={() => setIsAddTeamOpen(false)}>
-                <Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#64748B'} />
+                <Ionicons name="close" size={24} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
 
@@ -783,15 +784,15 @@ export default function SeasonDetails() {
                 <TouchableOpacity
                   key={team.id}
                   onPress={() => handleAddTeam(team.id)}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 p-4 rounded-xl active:opacity-85 flex-row justify-between items-center"
+                  className="bg-canvas border border-line p-4 rounded-xl active:opacity-85 flex-row justify-between items-center"
                 >
-                  <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">{team.name}</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#FF3E00" />
+                  <Text className="font-orbitron-bold text-sm text-ink">{team.name}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'primary')} />
                 </TouchableOpacity>
               ))}
 
               {availableTeams.length === 0 && (
-                <Text className="font-inter text-xs text-slate-400 text-center py-6">All organization teams are already registered in this season.</Text>
+                <Text className="font-inter text-xs text-ink-muted text-center py-6">All organization teams are already registered in this season.</Text>
               )}
             </ScrollView>
 
@@ -807,12 +808,12 @@ export default function SeasonDetails() {
 
       {/* Link Game Modal */}
       <Modal visible={isLinkGameOpen} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-white dark:bg-slate-900 rounded-t-3xl p-6 border-t border-slate-200 dark:border-white/5 space-y-4 max-h-[80%]">
-            <View className="flex-row justify-between items-center pb-2 border-b border-slate-100 dark:border-white/5">
-              <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white uppercase">Link Match</Text>
+        <View className="flex-1 justify-end bg-overlay/60">
+          <View className="bg-card rounded-t-3xl p-6 border-t border-line space-y-4 max-h-[80%]">
+            <View className="flex-row justify-between items-center pb-2 border-b border-line-soft">
+              <Text className="font-orbitron-bold text-lg text-ink uppercase">Link Match</Text>
               <TouchableOpacity onPress={() => setIsLinkGameOpen(false)}>
-                <Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#64748B'} />
+                <Ionicons name="close" size={24} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
 
@@ -821,17 +822,17 @@ export default function SeasonDetails() {
                 <TouchableOpacity
                   key={game.id}
                   onPress={() => handleLinkGame(game.id)}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 p-4 rounded-xl active:opacity-85"
+                  className="bg-canvas border border-line p-4 rounded-xl active:opacity-85"
                 >
-                  <Text className="font-inter-bold text-[9px] text-slate-400 uppercase mb-1">{formatTime(game)}</Text>
-                  <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
+                  <Text className="font-inter-bold text-[9px] text-ink-muted uppercase mb-1">{formatTime(game)}</Text>
+                  <Text className="font-orbitron-bold text-xs text-ink">
                     {(game.participants?.[0] as any)?.teamName || 'Home'} vs {(game.participants?.[1] as any)?.teamName || 'Away'}
                   </Text>
                 </TouchableOpacity>
               ))}
 
               {availableGames.length === 0 && (
-                <Text className="font-inter text-xs text-slate-400 text-center py-6">No unlinked games found in the organization.</Text>
+                <Text className="font-inter text-xs text-ink-muted text-center py-6">No unlinked games found in the organization.</Text>
               )}
             </ScrollView>
 
@@ -865,12 +866,12 @@ export default function SeasonDetails() {
 
       {/* FLOATING SAVE CHANGES BAR */}
       {activeTab === 'settings' && hasSettingsChanges && (
-        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+        <View className="absolute bottom-6 left-6 right-6 bg-card border border-line p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
           <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-wider">
               Unsaved Changes
             </Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+            <Text className="font-inter text-[9px] text-ink-muted mt-0.5">
               You have modified this season's settings.
             </Text>
           </View>
@@ -878,21 +879,21 @@ export default function SeasonDetails() {
             <TouchableOpacity
               onPress={handleCancelSettings}
               disabled={isProcessing}
-              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+              className="bg-sunken px-4 py-2.5 rounded-xl active:scale-95 border border-line"
             >
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+              <Text className="font-orbitron-bold text-[9px] text-ink-soft uppercase tracking-widest">Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSaveSettings}
               disabled={isProcessing}
-              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+              className="bg-primary px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-primary/30"
             >
               {isProcessing ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+                  <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">
                     Save
                   </Text>
                 </>

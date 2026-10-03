@@ -10,7 +10,8 @@ import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSafeBack } from '../../../hooks/useSafeBack';
 import { hasPin } from '../../../services/places';
 import { useToastStore } from '../../../store/toastStore';
-import { COLORS } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 /**
  * The org's address on a map, opened from the map on its Profile (docs/org-profile.md §3).
@@ -21,6 +22,7 @@ import { COLORS } from '../../../constants/Colors';
  * app has no clipboard library, and the share sheet needs none.
  */
 export default function OrgAddressMap() {
+  const isDark = useActiveTheme() === 'dark';
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const safeBack = useSafeBack();
   const { org, isLoading } = useOrgSummary(orgId);
@@ -50,13 +52,13 @@ export default function OrgAddressMap() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Map" backLabel="Profile" onBack={() => safeBack(`/admin/${orgId}/profile`)} />
       {isLoading ? (
-        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={COLORS.brand.orange} /></View>
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
       ) : !address ? (
         <View className="flex-1 items-center justify-center p-6">
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center">This organisation has no address yet.</Text>
+          <Text className="font-inter text-sm text-ink-muted text-center">This organisation has no address yet.</Text>
         </View>
       ) : (
         <View className="flex-1">
@@ -66,12 +68,12 @@ export default function OrgAddressMap() {
             </View>
           ) : (
             <View className="flex-1 items-center justify-center p-6">
-              <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center">This address has no pin on the map.</Text>
+              <Text className="font-inter text-sm text-ink-muted text-center">This address has no pin on the map.</Text>
             </View>
           )}
-          <View className="absolute left-3 right-3 bottom-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-4 gap-3 self-center w-full" style={{ maxWidth: 560 }}>
+          <View className="absolute left-3 right-3 bottom-4 rounded-2xl bg-card border border-line p-4 gap-3 self-center w-full" style={{ maxWidth: 560 }}>
             <View className="gap-1">
-              <Text className="font-inter-bold text-base text-slate-900 dark:text-white">{org?.name}</Text>
+              <Text className="font-inter-bold text-base text-ink">{org?.name}</Text>
               <AddressLines address={address} muted />
             </View>
             <View className="flex-row gap-2">
@@ -86,16 +88,17 @@ export default function OrgAddressMap() {
 }
 
 function ActionButton({ icon, label, onPress, primary }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; primary?: boolean }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <TouchableOpacity
       onPress={onPress}
       accessibilityRole="button"
       className={`flex-1 flex-row items-center justify-center gap-2 min-h-[44px] rounded-xl border ${
-        primary ? 'bg-brand-orange border-brand-orange' : 'border-slate-200 dark:border-white/10'
+        primary ? 'bg-primary border-primary' : 'border-line'
       }`}
     >
-      <Ionicons name={icon} size={16} color={primary ? 'white' : COLORS.brand.orange} />
-      <Text className={`font-inter-bold text-sm ${primary ? 'text-white' : 'text-slate-700 dark:text-slate-200'}`}>{label}</Text>
+      <Ionicons name={icon} size={16} color={primary ? 'white' : themeColor(isDark, 'primary')} />
+      <Text className={`font-inter-bold text-sm ${primary ? 'text-on-fill' : 'text-ink-soft'}`}>{label}</Text>
     </TouchableOpacity>
   );
 }

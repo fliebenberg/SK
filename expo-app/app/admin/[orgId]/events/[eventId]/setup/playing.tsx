@@ -25,7 +25,8 @@ import { useWsStore } from '../../../../../../store/wsStore';
 import { useToastStore } from '../../../../../../store/toastStore';
 import { useAuthStore } from '../../../../../../store/authStore';
 import { useActiveTheme } from '../../../../../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../../../../../constants/Colors';
+import { themeColor } from '../../../../../../constants/Colors';
+
 
 /**
  * Sports & Divisions (U46, renamed by U50), on its own screen (U48).
@@ -59,7 +60,7 @@ export default function SetupPlaying() {
   const router = useRouter();
   const { orgId, eventId } = useLocalSearchParams<{ orgId: string; eventId: string }>();
   const isDark = useActiveTheme() === 'dark';
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
   const isConnected = useWsStore((state: any) => state.isConnected);
   const user = useAuthStore((state: any) => state.user);
 
@@ -262,7 +263,7 @@ export default function SetupPlaying() {
   const canOpen = canEdit || mySportIds.length > 0;
   if (accessDenied || (!isLoadingCapabilities && !canOpen)) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <AccessDenied
           message="You do not have permission to set this tournament up."
           actionLabel="Back to the tournament"
@@ -277,27 +278,27 @@ export default function SetupPlaying() {
       key={division.id}
       onPress={() => router.push(`/admin/${orgId}/events/${eventId}/divisions/${division.id}`)}
       activeOpacity={0.85}
-      className="flex-row items-center justify-between bg-slate-50 dark:bg-white/5 rounded-xl px-3 py-3"
+      className="flex-row items-center justify-between bg-sunken rounded-xl px-3 py-3"
     >
       <View className="flex-1 min-w-0">
         {/* Who runs it, right-aligned on the name's line: the first organiser, and "+2" for the
             rest. Nothing at all when there is none — most divisions are run by the tournament's
             own organisers, and "None" on every row would read as a gap to fill. */}
         <View className="flex-row items-center gap-2">
-          <Text className="font-inter-bold text-xs text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+          <Text className="font-inter-bold text-xs text-ink flex-1" numberOfLines={1}>
             {division.name}
           </Text>
           {(divisionOrganizers[division.id]?.length || 0) > 0 && (
             <View className="flex-row items-center gap-1 flex-shrink" style={{ maxWidth: '50%' }}>
               <Text
-                className="font-inter text-[10px] text-slate-500 dark:text-slate-400 flex-shrink"
+                className="font-inter text-[10px] text-ink-muted flex-shrink"
                 numberOfLines={1}
               >
                 {divisionOrganizers[division.id][0].name || 'Organiser'}
               </Text>
               {/* Its own text, so a long name truncates and the count never does. */}
               {divisionOrganizers[division.id].length > 1 && (
-                <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400">
+                <Text className="font-inter-bold text-[10px] text-ink-muted">
                   +{divisionOrganizers[division.id].length - 1}
                 </Text>
               )}
@@ -306,7 +307,7 @@ export default function SetupPlaying() {
         </View>
         {/* Age group and where it is played (U47), on one line so the list stays two lines a row.
             An empty allocation is *inherit*, not nothing, so it says so rather than showing a blank. */}
-        <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5" numberOfLines={1}>
+        <Text className="font-inter text-[10px] text-ink-muted mt-0.5" numberOfLines={1}>
           {division.ageGroup || 'Any age'} · {facilityCount(
             division.facilityIds,
             eventFacilityIds.length > 0,
@@ -319,17 +320,17 @@ export default function SetupPlaying() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader context={event?.name} title={step.label} onBack={handleBack} />
 
       {!event ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={COLORS.brand.orange} />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="space-y-6">
-            <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl">
+            <View className="bg-card border border-line rounded-2xl">
               {/* Which sports the tournament plays is the tournament's decision, so a sport's own
                   organiser does not get the chips — only the group for their sport, below. */}
               {canEdit && (
@@ -350,13 +351,13 @@ export default function SetupPlaying() {
                         activeOpacity={0.85}
                         className={`px-3 py-1.5 rounded-full border ${
                           isOn
-                            ? 'bg-brand-orange/10 border-brand-orange/40'
-                            : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
+                            ? 'bg-primary-soft border-primary-line'
+                            : 'bg-sunken border-line'
                         }`}
                       >
                         <Text
                           className={`font-inter text-xs ${
-                            isOn ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
+                            isOn ? 'text-primary-ink' : 'text-ink-muted'
                           }`}
                         >
                           {sport.name}
@@ -369,7 +370,7 @@ export default function SetupPlaying() {
               )}
 
               {/* Divisions, grouped under the sport each one plays (U52). */}
-              <View className={`p-5 space-y-4 ${canEdit ? 'border-t border-slate-200 dark:border-white/5' : ''}`}>
+              <View className={`p-5 space-y-4 ${canEdit ? 'border-t border-line' : ''}`}>
                 <FieldLabel
                   label={
                     listedDivisions.length > 1 ? `Divisions · ${listedDivisions.length}` : 'Divisions'
@@ -378,7 +379,7 @@ export default function SetupPlaying() {
                 />
 
                 {chosenSports.length === 0 && (
-                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                  <Text className="font-inter text-xs text-ink-muted">
                     {canEdit
                       ? 'Choose a sport above and its first division is created for you.'
                       : 'The sports you run are no longer part of this tournament.'}
@@ -387,7 +388,7 @@ export default function SetupPlaying() {
 
                 {chosenSports.map(sport => (
                   <View key={sport.id} className="space-y-2">
-                    <Text className="font-inter-bold text-[11px] text-slate-600 dark:text-slate-300">
+                    <Text className="font-inter-bold text-[11px] text-ink-soft">
                       {sport.name}
                     </Text>
                     <SportOrganizers
@@ -403,10 +404,10 @@ export default function SetupPlaying() {
                       onPress={() => handleAddDivision(sport.id)}
                       disabled={isProcessing}
                       activeOpacity={0.85}
-                      className="flex-row items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-slate-300 dark:border-white/10"
+                      className="flex-row items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-line-strong"
                     >
-                      <Ionicons name="add-circle-outline" size={16} color={COLORS.brand.orange} />
-                      <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                      <Ionicons name="add-circle-outline" size={16} color={themeColor(isDark, 'primary')} />
+                      <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                         Add a {sport.name} division
                       </Text>
                     </TouchableOpacity>
@@ -415,10 +416,10 @@ export default function SetupPlaying() {
 
                 {canEdit && unplacedDivisions.length > 0 && (
                   <View className="space-y-2">
-                    <Text className="font-inter-bold text-[11px] text-slate-600 dark:text-slate-300">
+                    <Text className="font-inter-bold text-[11px] text-ink-soft">
                       Not playing one of the tournament's sports
                     </Text>
-                    <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+                    <Text className="font-inter text-[10px] text-ink-muted">
                       Open each one and choose its sport, or delete it.
                     </Text>
                     {unplacedDivisions.map(renderDivisionRow)}
@@ -506,7 +507,7 @@ function SportOrganizers({
   }, [isConnected, eventId, sport.id]);
 
   return (
-    <View className="rounded-xl border border-slate-200 dark:border-white/5">
+    <View className="rounded-xl border border-line">
       <TouchableOpacity
         onPress={() => setIsOpen(open => !open)}
         activeOpacity={0.85}
@@ -514,18 +515,18 @@ function SportOrganizers({
         accessibilityState={{ expanded: isOpen }}
         className="flex-row items-center gap-2 px-3 py-2.5"
       >
-        <Ionicons name="person-circle-outline" size={16} color={getThemeColor(isDark, 'textSecondary')} />
-        <Text className="font-inter text-[11px] text-slate-600 dark:text-slate-300 flex-1" numberOfLines={1}>
+        <Ionicons name="person-circle-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
+        <Text className="font-inter text-[11px] text-ink-soft flex-1" numberOfLines={1}>
           {sport.name} organisers
           {organizers.length > 0 ? ` · ${organizers.length}` : ''}
         </Text>
         {organizers.length === 0 && (
-          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500">None yet</Text>
+          <Text className="font-inter text-[10px] text-ink-muted">None yet</Text>
         )}
         <Ionicons
           name={isOpen ? 'chevron-up' : 'chevron-down'}
           size={14}
-          color={getThemeColor(isDark, 'textSecondary')}
+          color={themeColor(isDark, 'ink-muted')}
         />
       </TouchableOpacity>
 
@@ -611,21 +612,21 @@ function RemoveSportModal({
 
   return (
     <Modal transparent visible={isOpen} animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 bg-slate-950/75 items-center justify-center p-6">
+      <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
         <GlassCard
-          className="w-full max-w-sm border border-slate-200 dark:border-white/10 p-6 space-y-4 shadow-lg"
-          style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
+          className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+          style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
-          <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider">
+          <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
             Remove {sportName}?
           </Text>
-          <Text className="font-inter text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-xs leading-relaxed text-ink-muted">
             {sportName} still has {count === 1 ? 'a division' : `${count} divisions`}. A sport can only
             be removed once it has none. Delete {count === 1 ? 'it' : 'them'} one at a time from{' '}
             {count === 1 ? 'its' : 'their'} own {count === 1 ? 'screen' : 'screens'}, or delete{' '}
             {count === 1 ? 'it' : 'them all'} here.
           </Text>
-          <Text className="font-inter text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-xs leading-relaxed text-ink-muted">
             Deleting a division deletes its entrants, stages and table. Fixtures already played are
             kept, but no longer belong to a division. Tick each one to confirm.
           </Text>
@@ -645,14 +646,14 @@ function RemoveSportModal({
                   activeOpacity={0.85}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: isOn }}
-                  className="flex-row items-center gap-3 rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-white/5"
+                  className="flex-row items-center gap-3 rounded-xl px-3 py-2.5 bg-sunken"
                 >
                   <Ionicons
                     name={isOn ? 'checkbox' : 'square-outline'}
                     size={18}
-                    color={isOn ? '#EF4444' : getThemeColor(isDark, 'textSecondary')}
+                    color={isOn ? themeColor(isDark, 'danger') : themeColor(isDark, 'ink-muted')}
                   />
-                  <Text className="font-inter text-xs text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+                  <Text className="font-inter text-xs text-ink flex-1" numberOfLines={1}>
                     {division.name}
                   </Text>
                 </TouchableOpacity>
@@ -665,14 +666,14 @@ function RemoveSportModal({
               onPress={deleteAll}
               disabled={!allTicked || isDeleting}
               activeOpacity={0.85}
-              className={`min-h-[44px] items-center justify-center rounded-xl px-4 py-3 bg-red-600 ${
+              className={`min-h-[44px] items-center justify-center rounded-xl px-4 py-3 bg-danger ${
                 !allTicked || isDeleting ? 'opacity-40' : ''
               }`}
             >
               {isDeleting ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={themeColor(isDark, 'on-fill')} />
               ) : (
-                <Text className="font-inter-bold text-xs text-white text-center">
+                <Text className="font-inter-bold text-xs text-on-fill text-center">
                   Delete {count === 1 ? 'the division' : `${count} divisions`} and remove {sportName}
                 </Text>
               )}
@@ -681,9 +682,9 @@ function RemoveSportModal({
               onPress={onClose}
               disabled={isDeleting}
               activeOpacity={0.85}
-              className="min-h-[44px] items-center justify-center rounded-xl px-4 py-3 border border-slate-200 dark:border-white/10"
+              className="min-h-[44px] items-center justify-center rounded-xl px-4 py-3 border border-line"
             >
-              <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-300">Keep {sportName}</Text>
+              <Text className="font-inter-bold text-xs text-ink-soft">Keep {sportName}</Text>
             </TouchableOpacity>
           </View>
         </GlassCard>

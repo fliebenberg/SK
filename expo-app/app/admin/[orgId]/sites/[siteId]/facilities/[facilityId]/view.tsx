@@ -11,6 +11,7 @@ import { useWsStore } from '../../../../../../../store/wsStore';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { Facility, Site, Sport } from '@sk/shared';
 import { useSocketQuery } from '../../../../../../../hooks/useSocketQuery';
+import { themeColor } from '../../../../../../../constants/Colors';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -70,9 +71,9 @@ export default function FacilityViewScreen() {
 
   if (isLoading || !facility) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
-        <ActivityIndicator size="large" color="#FF3E00" />
-        <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-3">Loading Facility View...</Text>
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-3">Loading Facility View...</Text>
       </SafeAreaView>
     );
   }
@@ -88,19 +89,19 @@ export default function FacilityViewScreen() {
   const lng = facility.longitude ?? parentSite?.address?.longitude;
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeBack(`/admin/${orgId}/sites/${siteId}/view`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Site View
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
           Facility Details
         </Text>
         {canEdit ? (
@@ -109,9 +110,9 @@ export default function FacilityViewScreen() {
               pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]',
               params: { orgId: orgId!, siteId: siteId!, facilityId: facility.id }
             })}
-            className="w-8 h-8 rounded-lg bg-brand-orange/10 border border-brand-orange/20 items-center justify-center active:opacity-85"
+            className="w-8 h-8 rounded-lg bg-primary-soft border border-primary-line items-center justify-center active:opacity-85"
           >
-            <Ionicons name="pencil" size={15} color="#FF3E00" />
+            <Ionicons name="pencil" size={15} color={themeColor(isDark, 'primary')} />
           </TouchableOpacity>
         ) : (
           <View className="w-8" />
@@ -120,20 +121,20 @@ export default function FacilityViewScreen() {
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* FACILITY TITLE CARD */}
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6">
+        <GlassCard className="border border-line p-6 mb-6">
           <View className="flex-row items-center justify-between mb-3">
             <View className="flex-1 mr-3">
-              <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white">
+              <Text className="font-orbitron-bold text-lg text-ink">
                 {facility.name}
               </Text>
               {parentSite && (
-                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
+                <Text className="font-inter text-xs text-ink-muted uppercase tracking-wider mt-0.5">
                   Site: {parentSite.name}
                 </Text>
               )}
             </View>
-            <View className={`px-2.5 py-0.5 rounded-full ${facility.isActive !== false ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800'}`}>
-              <Text className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${facility.isActive !== false ? 'text-emerald-500' : 'text-slate-500'}`}>
+            <View className={`px-2.5 py-0.5 rounded-full ${facility.isActive !== false ? 'bg-success-soft border border-success-line' : 'bg-line'}`}>
+              <Text className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${facility.isActive !== false ? 'text-success-ink' : 'text-ink-muted'}`}>
                 {facility.isActive !== false ? 'Active' : 'Inactive'}
               </Text>
             </View>
@@ -141,26 +142,26 @@ export default function FacilityViewScreen() {
         </GlassCard>
 
         {/* SPECIFICATIONS CARD */}
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6 space-y-4">
-          <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+        <GlassCard className="border border-line p-6 mb-6 space-y-4">
+          <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider mb-2">
             Specifications & Capabilities
           </Text>
 
-          <View className="flex-row justify-between py-2 border-b border-slate-100 dark:border-white/5">
-            <Text className="font-inter text-xs text-slate-500">Category Type</Text>
-            <Text className="font-inter-bold text-xs text-slate-800 dark:text-white capitalize">
+          <View className="flex-row justify-between py-2 border-b border-line-soft">
+            <Text className="font-inter text-xs text-ink-muted">Category Type</Text>
+            <Text className="font-inter-bold text-xs text-ink capitalize">
               {facility.category ? facility.category.replace('_', ' ') : 'General'}
             </Text>
           </View>
 
-          <View className="flex-row justify-between py-2 border-b border-slate-100 dark:border-white/5">
-            <Text className="font-inter text-xs text-slate-500">Primary Sport</Text>
-            <Text className="font-inter-bold text-xs text-brand-orange">{primarySportName}</Text>
+          <View className="flex-row justify-between py-2 border-b border-line-soft">
+            <Text className="font-inter text-xs text-ink-muted">Primary Sport</Text>
+            <Text className="font-inter-bold text-xs text-primary-ink">{primarySportName}</Text>
           </View>
 
           <View className="flex-row justify-between py-2">
-            <Text className="font-inter text-xs text-slate-500">Supported Sports</Text>
-            <Text className="font-inter-bold text-xs text-slate-800 dark:text-white text-right max-w-[60%]">
+            <Text className="font-inter text-xs text-ink-muted">Supported Sports</Text>
+            <Text className="font-inter-bold text-xs text-ink text-right max-w-[60%]">
               {supportedSportNames}
             </Text>
           </View>
@@ -169,10 +170,10 @@ export default function FacilityViewScreen() {
         {/* LOCATION MAP */}
         {parentSite && (
           <View>
-            <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+            <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider mb-2">
               Facility Map Location
             </Text>
-            <View className="w-full h-48 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-900">
+            <View className="w-full h-48 rounded-2xl overflow-hidden border border-line bg-sunken">
               {MapView && lat && lng ? (
                 <MapView
                   style={{ width: '100%', height: '100%' }}
@@ -187,8 +188,8 @@ export default function FacilityViewScreen() {
                 </MapView>
               ) : (
                 <View className="flex-1 items-center justify-center p-4">
-                  <Ionicons name="map-outline" size={32} color="#94A3B8" />
-                  <Text className="font-inter text-xs text-slate-400 mt-2 text-center">
+                  <Ionicons name="map-outline" size={32} color={themeColor(isDark, 'ink-muted')} />
+                  <Text className="font-inter text-xs text-ink-muted mt-2 text-center">
                     Map view not supported on this platform preview
                   </Text>
                 </View>

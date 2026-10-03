@@ -22,7 +22,7 @@ import {
   hasLiveScore,
   isScoreNotProvided,
 } from '@sk/shared';
-import { COLORS, getThemeColor } from '../../../../constants/Colors';
+
 import {
   calendarRangeStatus,
   formatDateRange,
@@ -39,6 +39,7 @@ import { deriveEventRoles, EventRole } from '@sk/shared';
 import { EventRoleChips, EventRoleFilter } from '../../../../components/EventRoleChips';
 import { resolveEventType, unknownEventTypeMessage } from '@sk/shared';
 import { Tabs } from '../../../../components/Tabs';
+import { themeColor } from '../../../../constants/Colors';
 
 class EventsErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -60,14 +61,14 @@ class EventsErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <View className="p-6 bg-red-500/10 border border-red-500/20 rounded-xl my-4">
-          <Text className="font-orbitron-bold text-red-500 text-sm mb-2">Render Error in Events List</Text>
-          <Text className="font-inter text-xs text-slate-300 mb-4">{this.state.error?.toString()}</Text>
+        <View className="p-6 bg-danger-soft border border-danger-line rounded-xl my-4">
+          <Text className="font-orbitron-bold text-danger-ink text-sm mb-2">Render Error in Events List</Text>
+          <Text className="font-inter text-xs text-ink-faint mb-4">{this.state.error?.toString()}</Text>
           <TouchableOpacity
             onPress={() => this.setState({ hasError: false, error: null })}
-            className="bg-brand-orange px-4 py-2 rounded-lg self-start"
+            className="bg-primary px-4 py-2 rounded-lg self-start"
           >
-            <Text className="font-inter-bold text-xs text-white uppercase">Retry</Text>
+            <Text className="font-inter-bold text-xs text-on-fill uppercase">Retry</Text>
           </TouchableOpacity>
         </View>
       );
@@ -412,23 +413,23 @@ export default function OrgEventsList() {
   console.log('[OrgEventsList] viewMode:', viewMode, 'Total events:', events.length, 'Filtered count:', filteredEvents.length);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeBack(`/admin/${orgId}`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
           Fixtures & Events
         </Text>
         <TouchableOpacity 
-          className="w-8 h-8 rounded-lg bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
+          className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
           onPress={() => setIsAddMenuVisible(true)}
         >
           <Ionicons name="add" size={20} color="white" />
@@ -437,41 +438,41 @@ export default function OrgEventsList() {
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>
         {/* SEARCH BAR */}
-        <View className="flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 mb-4 shadow-sm">
-          <Ionicons name="search-outline" size={18} color={COLORS.dark.placeholder} />
+        <View className="flex-row items-center bg-card border border-line rounded-xl px-4 py-3 mb-4 shadow-sm">
+          <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
           <TextInput
             placeholder="Search events by name..."
-            placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            className="flex-1 font-inter text-slate-800 dark:text-white text-sm ml-2.5 outline-none"
+            className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={18} color={COLORS.dark.placeholder} />
+              <Ionicons name="close-circle" size={18} color={themeColor(isDark, 'ink-muted')} />
             </TouchableOpacity>
           )}
         </View>
 
         {/* UPCOMING / PAST VIEW SELECTOR */}
-        <View className="flex-row bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 mb-6">
+        <View className="flex-row bg-sunken p-1 rounded-xl border border-line-soft mb-6">
           <TouchableOpacity
             onPress={() => setViewMode('upcoming')}
             className="flex-1 flex-row items-center justify-center py-2.5 rounded-lg"
             style={{
-              backgroundColor: viewMode === 'upcoming' ? getThemeColor(isDark, 'surface') : 'transparent',
+              backgroundColor: viewMode === 'upcoming' ? themeColor(isDark, 'raised') : 'transparent',
             }}
           >
             <Ionicons
               name="calendar"
               size={14}
-              color={viewMode === 'upcoming' ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+              color={themeColor(isDark, viewMode === 'upcoming' ? 'primary-ink' : 'ink-muted')}
               style={{ marginRight: 6 }}
             />
             <Text
               className="font-orbitron-bold text-xs uppercase tracking-widest"
               style={{
-                color: viewMode === 'upcoming' ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+                color: themeColor(isDark, viewMode === 'upcoming' ? 'primary-ink' : 'ink-muted'),
               }}
             >
               Upcoming
@@ -481,19 +482,19 @@ export default function OrgEventsList() {
             onPress={() => setViewMode('past')}
             className="flex-1 flex-row items-center justify-center py-2.5 rounded-lg"
             style={{
-              backgroundColor: viewMode === 'past' ? getThemeColor(isDark, 'surface') : 'transparent',
+              backgroundColor: viewMode === 'past' ? themeColor(isDark, 'raised') : 'transparent',
             }}
           >
             <Ionicons
               name="time"
               size={14}
-              color={viewMode === 'past' ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+              color={themeColor(isDark, viewMode === 'past' ? 'primary-ink' : 'ink-muted')}
               style={{ marginRight: 6 }}
             />
             <Text
               className="font-orbitron-bold text-xs uppercase tracking-widest"
               style={{
-                color: viewMode === 'past' ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+                color: themeColor(isDark, viewMode === 'past' ? 'primary-ink' : 'ink-muted'),
               }}
             >
               Past
@@ -519,8 +520,8 @@ export default function OrgEventsList() {
 
         {isLoading ? (
           <View className="items-center justify-center py-20">
-            <ActivityIndicator size="large" color={COLORS.brand.orange} />
-            <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-4 uppercase tracking-widest">
+            <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+            <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
               Loading events...
             </Text>
           </View>
@@ -545,18 +546,18 @@ export default function OrgEventsList() {
                   return (
                     <GlassCard
                       key={event.id}
-                      className="border border-red-500/25 bg-red-500/5 p-4"
+                      className="border border-danger-line bg-danger-soft p-4"
                     >
                       <View className="flex-row items-center gap-2 mb-1">
-                        <Ionicons name="alert-circle-outline" size={16} color={COLORS.brand.red} />
-                        <Text className="font-inter-bold text-[9px] text-brand-red uppercase tracking-widest">
+                        <Ionicons name="alert-circle-outline" size={16} color={themeColor(isDark, 'danger')} />
+                        <Text className="font-inter-bold text-[9px] text-danger-ink uppercase tracking-widest">
                           Cannot display
                         </Text>
                       </View>
-                      <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
+                      <Text className="font-orbitron-bold text-sm text-ink leading-tight">
                         {event.name || 'Unnamed Event'}
                       </Text>
-                      <Text className="font-inter text-[11px] text-slate-600 dark:text-slate-400 mt-1">
+                      <Text className="font-inter text-[11px] text-ink-muted mt-1">
                         {unknownEventTypeMessage(resolved)}
                       </Text>
                     </GlassCard>
@@ -589,30 +590,30 @@ export default function OrgEventsList() {
                   }}
                   activeOpacity={0.85}
                 >
-                  <GlassCard className="border border-slate-200 dark:border-white/5 p-4">
+                  <GlassCard className="border border-line p-4">
                     {/* TOP LINE: when -> type -> status -> actions */}
                     <View className="flex-row items-center gap-2 mb-2">
                       <Text
                         numberOfLines={1}
-                        className="font-inter-bold text-[11px] text-slate-600 dark:text-slate-400 flex-shrink"
+                        className="font-inter-bold text-[11px] text-ink-muted flex-shrink"
                       >
                         {whenLabel}
                       </Text>
-                      <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-md flex-shrink-0">
-                        <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">
+                      <View className="bg-sunken px-2 py-0.5 rounded-md flex-shrink-0">
+                        <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-widest">
                           {resolved.label}
                         </Text>
                       </View>
                       {isLive && (
-                        <View className="bg-brand-orange/15 px-2 py-0.5 rounded-md flex-shrink-0">
-                          <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-widest">
+                        <View className="bg-primary-soft px-2 py-0.5 rounded-md flex-shrink-0">
+                          <Text className="font-inter-bold text-[9px] text-primary-ink uppercase tracking-widest">
                             Live
                           </Text>
                         </View>
                       )}
                       {event.status === 'Cancelled' && (
-                        <View className="bg-red-500/10 px-2 py-0.5 rounded-md flex-shrink-0">
-                          <Text className="font-inter-bold text-[9px] text-brand-red uppercase tracking-widest">
+                        <View className="bg-danger-soft px-2 py-0.5 rounded-md flex-shrink-0">
+                          <Text className="font-inter-bold text-[9px] text-danger-ink uppercase tracking-widest">
                             Cancelled
                           </Text>
                         </View>
@@ -636,9 +637,9 @@ export default function OrgEventsList() {
                                 if (e && e.stopPropagation) e.stopPropagation();
                                 router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/view`);
                               }}
-                              className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                              className="w-7 h-7 bg-sunken border border-line-soft rounded-lg items-center justify-center active:opacity-80"
                             >
-                              <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
+                              <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
                             </TouchableOpacity>
                             {perms.canEdit && (
                               <TouchableOpacity
@@ -646,9 +647,9 @@ export default function OrgEventsList() {
                                   if (e && e.stopPropagation) e.stopPropagation();
                                   router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/edit`);
                                 }}
-                                className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                                className="w-7 h-7 bg-sunken border border-line-soft rounded-lg items-center justify-center active:opacity-80"
                               >
-                                <Ionicons name="pencil-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
+                                <Ionicons name="pencil-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
                               </TouchableOpacity>
                             )}
                             {perms.canSelectLineup && (
@@ -657,9 +658,9 @@ export default function OrgEventsList() {
                                   if (e && e.stopPropagation) e.stopPropagation();
                                   router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/selection`);
                                 }}
-                                className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-80"
+                                className="w-7 h-7 bg-primary-soft border border-primary-line rounded-lg items-center justify-center active:opacity-80"
                               >
-                                <Ionicons name="people-outline" size={13} color={COLORS.brand.orange} />
+                                <Ionicons name="people-outline" size={13} color={themeColor(isDark, 'primary')} />
                               </TouchableOpacity>
                             )}
                             {perms.canScore && (
@@ -668,9 +669,9 @@ export default function OrgEventsList() {
                                   if (e && e.stopPropagation) e.stopPropagation();
                                   router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/score`);
                                 }}
-                                className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-80"
+                                className="w-7 h-7 bg-primary-soft border border-primary-line rounded-lg items-center justify-center active:opacity-80"
                               >
-                                <Ionicons name="trophy-outline" size={13} color={COLORS.brand.orange} />
+                                <Ionicons name="trophy-outline" size={13} color={themeColor(isDark, 'primary')} />
                               </TouchableOpacity>
                             )}
                           </>
@@ -681,9 +682,9 @@ export default function OrgEventsList() {
                             if (e && e.stopPropagation) e.stopPropagation();
                             router.push(`/admin/${orgId}/events/${event.id}`);
                           }}
-                          className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                          className="w-7 h-7 bg-sunken border border-line-soft rounded-lg items-center justify-center active:opacity-80"
                         >
-                          <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
+                          <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
                         </TouchableOpacity>
                       )}
                       </View>
@@ -693,23 +694,23 @@ export default function OrgEventsList() {
                     <View className="flex-row items-center justify-between gap-3">
                       <Text
                         numberOfLines={1}
-                        className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight flex-1"
+                        className="font-orbitron-bold text-sm text-ink leading-tight flex-1"
                       >
                         {getEventName(event)}
                       </Text>
                       {scoreLabel ? (
                         <Text
-                          className={`font-orbitron-bold text-sm flex-shrink-0 ${isLive ? 'text-brand-orange' : 'text-slate-800 dark:text-white'}`}
+                          className={`font-orbitron-bold text-sm flex-shrink-0 ${isLive ? 'text-primary-ink' : 'text-ink'}`}
                         >
                           {scoreLabel}
                         </Text>
                       ) : null}
                       {venueLabel ? (
                         <View className="flex-row items-center gap-1 flex-shrink-0 max-w-[45%]">
-                          <Ionicons name="location-outline" size={12} color={COLORS.dark.textSecondary} />
+                          <Ionicons name="location-outline" size={12} color={themeColor(isDark, 'ink-muted')} />
                           <Text
                             numberOfLines={1}
-                            className="font-inter text-[11px] text-slate-600 dark:text-slate-400 flex-shrink"
+                            className="font-inter text-[11px] text-ink-muted flex-shrink"
                           >
                             {venueLabel}
                           </Text>
@@ -726,22 +727,22 @@ export default function OrgEventsList() {
 
                     {/* Nested game summaries - only where the header line does not already say it all */}
                     {!primaryGame && eventGames.length > 0 && (
-                      <View className="mt-3 pt-3 border-t border-slate-100 dark:border-white/5 space-y-2">
-                        <Text className="font-orbitron text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
+                      <View className="mt-3 pt-3 border-t border-line-soft space-y-2">
+                        <Text className="font-orbitron text-[9px] uppercase tracking-widest text-ink-muted mb-1">
                           {eventGames.length} Scheduled Games
                         </Text>
                         {eventGames.slice(0, 3).map(game => (
-                          <View key={game.id} className="flex-row justify-between items-center bg-slate-50 dark:bg-white/5 p-2 rounded-lg">
-                            <Text className="font-inter text-[11px] text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+                          <View key={game.id} className="flex-row justify-between items-center bg-sunken p-2 rounded-lg">
+                            <Text className="font-inter text-[11px] text-ink flex-1" numberOfLines={1}>
                               {getMatchupLabel(game) || 'TBD vs TBD'}
                             </Text>
-                            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 pl-2">
+                            <Text className="font-inter text-[10px] text-ink-muted pl-2">
                               {getScoreLabel(game) || game.status}
                             </Text>
                           </View>
                         ))}
                         {eventGames.length > 3 && (
-                          <Text className="font-inter text-[10px] text-brand-orange text-center mt-1">
+                          <Text className="font-inter text-[10px] text-primary-ink text-center mt-1">
                             + {eventGames.length - 3} more games
                           </Text>
                         )}
@@ -776,17 +777,17 @@ export default function OrgEventsList() {
                     }
                     activeOpacity={0.85}
                   >
-                    <GlassCard className="border border-slate-200 dark:border-white/5 p-4">
+                    <GlassCard className="border border-line p-4">
                       <View className="flex-row items-center gap-2 mb-2">
                         <Text
                           numberOfLines={1}
-                          className="font-inter-bold text-[11px] text-slate-600 dark:text-slate-400 flex-shrink"
+                          className="font-inter-bold text-[11px] text-ink-muted flex-shrink"
                         >
                           {parentEvent ? getWhenLabel(parentEvent, game) : 'Date TBD'}
                         </Text>
                         {isLive && (
-                          <View className="bg-brand-orange/15 px-2 py-0.5 rounded-md flex-shrink-0">
-                            <Text className="font-inter-bold text-[9px] text-brand-orange uppercase tracking-widest">
+                          <View className="bg-primary-soft px-2 py-0.5 rounded-md flex-shrink-0">
+                            <Text className="font-inter-bold text-[9px] text-primary-ink uppercase tracking-widest">
                               Live
                             </Text>
                           </View>
@@ -798,9 +799,9 @@ export default function OrgEventsList() {
                               if (e && e.stopPropagation) e.stopPropagation();
                               router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/view`);
                             }}
-                            className="w-7 h-7 bg-slate-100 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 rounded-lg items-center justify-center active:opacity-80"
+                            className="w-7 h-7 bg-sunken border border-line-soft rounded-lg items-center justify-center active:opacity-80"
                           >
-                            <Ionicons name="eye-outline" size={13} color={getThemeColor(isDark, 'textSecondary')} />
+                            <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
                           </TouchableOpacity>
                           {perms.canSelectLineup && (
                             <TouchableOpacity
@@ -808,9 +809,9 @@ export default function OrgEventsList() {
                                 if (e && e.stopPropagation) e.stopPropagation();
                                 router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/selection`);
                               }}
-                              className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-80"
+                              className="w-7 h-7 bg-primary-soft border border-primary-line rounded-lg items-center justify-center active:opacity-80"
                             >
-                              <Ionicons name="people-outline" size={13} color={COLORS.brand.orange} />
+                              <Ionicons name="people-outline" size={13} color={themeColor(isDark, 'primary')} />
                             </TouchableOpacity>
                           )}
                           {perms.canScore && (
@@ -819,9 +820,9 @@ export default function OrgEventsList() {
                                 if (e && e.stopPropagation) e.stopPropagation();
                                 router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/score`);
                               }}
-                              className="w-7 h-7 bg-brand-orange/10 border border-brand-orange/30 rounded-lg items-center justify-center active:opacity-80"
+                              className="w-7 h-7 bg-primary-soft border border-primary-line rounded-lg items-center justify-center active:opacity-80"
                             >
-                              <Ionicons name="trophy-outline" size={13} color={COLORS.brand.orange} />
+                              <Ionicons name="trophy-outline" size={13} color={themeColor(isDark, 'primary')} />
                             </TouchableOpacity>
                           )}
                         </View>
@@ -830,20 +831,20 @@ export default function OrgEventsList() {
                       <View className="flex-row items-center justify-between gap-3">
                         <Text
                           numberOfLines={1}
-                          className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight flex-1"
+                          className="font-orbitron-bold text-sm text-ink leading-tight flex-1"
                         >
                           {getMatchupLabel(game) || 'TBD vs TBD'}
                         </Text>
                         {scoreLabel ? (
                           <Text
                             className={`font-orbitron-bold text-sm flex-shrink-0 ${
-                              isLive ? 'text-brand-orange' : 'text-slate-800 dark:text-white'
+                              isLive ? 'text-primary-ink' : 'text-ink'
                             }`}
                           >
                             {scoreLabel}
                           </Text>
                         ) : (
-                          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 flex-shrink-0 uppercase tracking-wider">
+                          <Text className="font-inter text-[10px] text-ink-muted flex-shrink-0 uppercase tracking-wider">
                             {game.status}
                           </Text>
                         )}
@@ -854,16 +855,16 @@ export default function OrgEventsList() {
                       <View className="flex-row items-center gap-2 mt-1">
                         <Text
                           numberOfLines={1}
-                          className="font-inter text-[10px] text-slate-500 dark:text-slate-400 flex-1"
+                          className="font-inter text-[10px] text-ink-muted flex-1"
                         >
                           {parentEvent ? getEventName(parentEvent) : 'Unknown event'}
                         </Text>
                         {venueLabel ? (
                           <View className="flex-row items-center gap-1 flex-shrink-0 max-w-[45%]">
-                            <Ionicons name="location-outline" size={11} color={COLORS.dark.textSecondary} />
+                            <Ionicons name="location-outline" size={11} color={themeColor(isDark, 'ink-muted')} />
                             <Text
                               numberOfLines={1}
-                              className="font-inter text-[10px] text-slate-600 dark:text-slate-400 flex-shrink"
+                              className="font-inter text-[10px] text-ink-muted flex-shrink"
                             >
                               {venueLabel}
                             </Text>
@@ -878,21 +879,21 @@ export default function OrgEventsList() {
               {/* An empty list and no permission to see one are different answers. */}
               {accessDenied ? (
                 <View className="items-center justify-center py-16">
-                  <Ionicons name="lock-closed-outline" size={48} color={COLORS.dark.textSecondary} style={{ opacity: 0.3, marginBottom: 12 }} />
-                  <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
+                  <Ionicons name="lock-closed-outline" size={48} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.3, marginBottom: 12 }} />
+                  <Text className="font-orbitron-bold text-base text-ink-soft">
                     No Access
                   </Text>
-                  <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+                  <Text className="font-inter text-xs text-ink-muted text-center mt-1">
                     You do not have permission to view this organization's fixtures.
                   </Text>
                 </View>
               ) : (listTab === 'events' ? filteredEvents.length === 0 : filteredGames.length === 0) && (
                 <View className="items-center justify-center py-16">
-                  <Ionicons name="calendar-outline" size={48} color={COLORS.dark.textSecondary} style={{ opacity: 0.3, marginBottom: 12 }} />
-                  <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
+                  <Ionicons name="calendar-outline" size={48} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.3, marginBottom: 12 }} />
+                  <Text className="font-orbitron-bold text-base text-ink-soft">
                     No {viewMode} {listTab === 'events' ? 'Events' : 'Games'}
                   </Text>
-                  <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+                  <Text className="font-inter text-xs text-ink-muted text-center mt-1">
                     {roleFilter.length > 0
                       ? 'Nothing matches the roles you have selected. Clear them to see everything.'
                       : 'Click the plus icon in the header to schedule a single match or create a tournament.'}
@@ -912,56 +913,56 @@ export default function OrgEventsList() {
         onRequestClose={() => setIsAddMenuVisible(false)}
       >
         <TouchableOpacity
-          className="flex-1 bg-black/60 justify-end"
+          className="flex-1 bg-overlay/60 justify-end"
           activeOpacity={1}
           onPress={() => setIsAddMenuVisible(false)}
         >
-          <View className="bg-white dark:bg-slate-900 rounded-t-3xl p-6 border-t border-slate-200 dark:border-white/5">
+          <View className="bg-card rounded-t-3xl p-6 border-t border-line">
             <View className="flex-row justify-between items-center mb-6">
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider">
+              <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
                 Create Event
               </Text>
               <TouchableOpacity onPress={() => setIsAddMenuVisible(false)}>
-                <Ionicons name="close" size={24} color={getThemeColor(isDark, 'textPrimary')} />
+                <Ionicons name="close" size={24} color={themeColor(isDark, 'ink')} />
               </TouchableOpacity>
             </View>
 
             <View className="space-y-3">
               <TouchableOpacity
-                className="flex-row items-center p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-white/10"
+                className="flex-row items-center p-4 bg-sunken rounded-xl border border-line-soft active:bg-sunken"
                 onPress={() => {
                   setIsAddMenuVisible(false);
                   router.push(`/admin/${orgId}/events/create`);
                 }}
               >
-                <View className="w-10 h-10 rounded-full bg-brand-orange/15 items-center justify-center mr-4">
-                  <Ionicons name="trophy" size={20} color={COLORS.brand.orange} />
+                <View className="w-10 h-10 rounded-full bg-primary-soft items-center justify-center mr-4">
+                  <Ionicons name="trophy" size={20} color={themeColor(isDark, 'primary')} />
                 </View>
                 <View className="flex-1">
-                  <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">
+                  <Text className="font-orbitron-bold text-sm text-ink">
                     Schedule Single Match
                   </Text>
-                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <Text className="font-inter text-xs text-ink-muted mt-0.5">
                     Standard head-to-head game between two teams
                   </Text>
                 </View>
               </TouchableOpacity>
 
               <TouchableOpacity
-                className="flex-row items-center p-4 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-white/10"
+                className="flex-row items-center p-4 bg-sunken rounded-xl border border-line-soft active:bg-sunken"
                 onPress={() => {
                   setIsAddMenuVisible(false);
                   openTournamentPrompt();
                 }}
               >
-                <View className="w-10 h-10 rounded-full bg-brand-green/15 items-center justify-center mr-4">
-                  <Ionicons name="ribbon" size={20} color={COLORS.brand.green} />
+                <View className="w-10 h-10 rounded-full bg-success-soft items-center justify-center mr-4">
+                  <Ionicons name="ribbon" size={20} color={themeColor(isDark, 'success-ink')} />
                 </View>
                 <View className="flex-1">
-                  <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">
+                  <Text className="font-orbitron-bold text-sm text-ink">
                     Create Tournament
                   </Text>
-                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <Text className="font-inter text-xs text-ink-muted mt-0.5">
                     Name it and pick a date — everything else is set up on the tournament itself
                   </Text>
                 </View>
@@ -978,14 +979,14 @@ export default function OrgEventsList() {
         animationType="fade"
         onRequestClose={() => setIsNamingTournament(false)}
       >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl space-y-4">
-            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider">
+        <View className="flex-1 bg-overlay/60 justify-center px-6">
+          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl space-y-4">
+            <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
               New Tournament
             </Text>
 
             <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Name
               </Text>
               <TextInput
@@ -993,19 +994,19 @@ export default function OrgEventsList() {
                 onChangeText={setNewTournamentName}
                 autoFocus
                 placeholder="e.g. Winter Sevens 2026"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                className="bg-canvas border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink"
               />
             </View>
 
             <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                 Starts
               </Text>
               <DatePicker value={newTournamentDate} onChange={setNewTournamentDate} />
             </View>
 
-            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+            <Text className="font-inter text-[10px] text-ink-muted">
               Facilities, sports, divisions and entrants are all set up on the tournament itself, in
               whatever order they are settled.
             </Text>
@@ -1013,23 +1014,23 @@ export default function OrgEventsList() {
             <View className="flex-row gap-2">
               <TouchableOpacity
                 onPress={() => setIsNamingTournament(false)}
-                className="flex-1 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 items-center active:opacity-80"
+                className="flex-1 py-2.5 rounded-lg border border-line items-center active:opacity-80"
               >
-                <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase">
+                <Text className="font-inter-bold text-xs text-ink-muted uppercase">
                   Cancel
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleCreateTournament}
                 disabled={!newTournamentName.trim() || !isCalendarDate(newTournamentDate) || isProcessing}
-                className={`flex-1 py-2.5 rounded-lg bg-brand-orange items-center active:opacity-85 ${
+                className={`flex-1 py-2.5 rounded-lg bg-primary items-center active:opacity-85 ${
                   !newTournamentName.trim() || !isCalendarDate(newTournamentDate) || isProcessing ? 'opacity-40' : ''
                 }`}
               >
                 {isProcessing ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={themeColor(isDark, 'on-fill')} />
                 ) : (
-                  <Text className="font-inter-bold text-xs text-white uppercase">Create</Text>
+                  <Text className="font-inter-bold text-xs text-on-fill uppercase">Create</Text>
                 )}
               </TouchableOpacity>
             </View>

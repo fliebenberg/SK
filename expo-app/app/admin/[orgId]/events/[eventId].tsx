@@ -27,7 +27,7 @@ import {
   isScoreNotProvided,
   drawChanges,
 } from '@sk/shared';
-import { COLORS, getThemeColor } from '../../../../constants/Colors';
+
 import { Tabs } from '../../../../components/Tabs';
 import {
   SetupChecklistIntro,
@@ -50,6 +50,7 @@ import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import { deriveEventRoles } from '@sk/shared';
 import { resolveEventType, tournamentFormatLabel, unknownEventTypeMessage } from '@sk/shared';
 import { isCollapsed } from '@sk/shared';
+import { themeColor } from '../../../../constants/Colors';
 
 /**
  * One event, at whichever of its two altitudes applies.
@@ -102,7 +103,7 @@ export default function EventDetails() {
   }>();
   const isDark = useActiveTheme() === 'dark';
   const isConnected = useWsStore((state: any) => state.isConnected);
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
 
   const user = useAuthStore((state: any) => state.user);
   const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
@@ -630,10 +631,10 @@ export default function EventDetails() {
 
   if (accessDenied) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center px-8">
-        <Ionicons name="lock-closed-outline" size={44} color={COLORS.dark.textSecondary} style={{ opacity: 0.3 }} />
-        <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300 mt-4">No Access</Text>
-        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center px-8">
+        <Ionicons name="lock-closed-outline" size={44} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.3 }} />
+        <Text className="font-orbitron-bold text-base text-ink-soft mt-4">No Access</Text>
+        <Text className="font-inter text-xs text-ink-muted text-center mt-1">
           You do not have permission to view this event.
         </Text>
       </SafeAreaView>
@@ -642,9 +643,9 @@ export default function EventDetails() {
 
   if (eventLoading || !event) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
-        <ActivityIndicator size="large" color={COLORS.brand.orange} />
-        <Text className="font-orbitron text-xs text-slate-500 mt-4 uppercase tracking-widest">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
           Loading Details...
         </Text>
       </SafeAreaView>
@@ -705,20 +706,20 @@ export default function EventDetails() {
         }
       />
 
-      <View className="bg-white dark:bg-slate-900 px-6 py-2.5 flex-row justify-between items-center gap-3 border-b border-slate-100 dark:border-white/5">
+      <View className="bg-card px-6 py-2.5 flex-row justify-between items-center gap-3 border-b border-line-soft">
         <View className="flex-row items-center gap-2.5 flex-1 min-w-0">
-          <Ionicons name="calendar-outline" size={16} color={COLORS.brand.orange} />
+          <Ionicons name="calendar-outline" size={16} color={themeColor(isDark, 'primary')} />
           <View className="flex-1 min-w-0">
-            <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-ink-muted">
               {dateLabel ? (isMultiDay ? 'Runs' : 'Takes place') : 'When'}
             </Text>
             <Text
-              className="font-inter-bold text-xs text-slate-700 dark:text-slate-200"
+              className="font-inter-bold text-xs text-ink-soft"
               numberOfLines={1}
             >
               {dateLabel || 'No date set yet'}
               {!!countdown && (
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                <Text className="font-inter text-xs text-ink-muted">
                   {`  ·  ${countdown}`}
                 </Text>
               )}
@@ -727,8 +728,8 @@ export default function EventDetails() {
         </View>
         <View className="flex-row items-center gap-2">
           <EventRoleChips roles={roles} />
-          <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded">
-            <Text className="font-orbitron-bold text-[9px] text-slate-700 dark:text-slate-400 uppercase tracking-widest">
+          <View className="bg-sunken px-2 py-0.5 rounded">
+            <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
               {/* A tournament is described by its format, which is also its label (U34). */}
               {resolved.kind === 'Tournament' ? tournamentFormatLabel(event) : resolved.label}
             </Text>
@@ -741,14 +742,14 @@ export default function EventDetails() {
   // U39 — an event whose type we cannot name is an error state, never a Tournament by default.
   if (resolved.kind === 'Unknown') {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         {header}
         <View className="flex-1 items-center justify-center px-8">
-          <Ionicons name="alert-circle-outline" size={44} color={COLORS.brand.red} style={{ opacity: 0.7 }} />
-          <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300 mt-4 text-center">
+          <Ionicons name="alert-circle-outline" size={44} color={themeColor(isDark, 'danger')} style={{ opacity: 0.7 }} />
+          <Text className="font-orbitron-bold text-base text-ink-soft mt-4 text-center">
             We cannot show this event
           </Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mt-2 leading-relaxed">
+          <Text className="font-inter text-xs text-ink-muted text-center mt-2 leading-relaxed">
             {unknownEventTypeMessage(resolved)}
           </Text>
         </View>
@@ -772,12 +773,12 @@ export default function EventDetails() {
     const away = game?.participants?.[1];
 
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         {header}
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="space-y-6">
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+            <GlassCard className="border border-line p-5">
+              <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-4">
                 Single Match Details
               </Text>
 
@@ -785,45 +786,45 @@ export default function EventDetails() {
                 <View className="space-y-6 items-center">
                   <View className="flex-row justify-between items-center w-full">
                     <View className="flex-1 items-center">
-                      <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white text-center">
+                      <Text className="font-orbitron-bold text-base text-ink text-center">
                         {participantLabel(home) || 'TBD'}
                       </Text>
                       {hasLiveScore(game) && (
-                        <Text className="font-orbitron-bold text-4xl text-brand-orange mt-2">
+                        <Text className="font-orbitron-bold text-4xl text-primary-ink mt-2">
                           {game.scores?.[home?.id || ''] ?? 0}
                         </Text>
                       )}
                     </View>
                     <View className="px-4 items-center">
-                      <Text className="font-inter-bold text-xs text-slate-400 uppercase tracking-wider">VS</Text>
+                      <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">VS</Text>
                       {isScoreNotProvided(game) && (
-                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-2 text-center">
+                        <Text className="font-inter text-[10px] text-ink-muted mt-2 text-center">
                           Score not provided
                         </Text>
                       )}
                     </View>
                     <View className="flex-1 items-center">
-                      <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white text-center">
+                      <Text className="font-orbitron-bold text-base text-ink text-center">
                         {participantLabel(away) || 'TBD'}
                       </Text>
                       {hasLiveScore(game) && (
-                        <Text className="font-orbitron-bold text-4xl text-brand-orange mt-2">
+                        <Text className="font-orbitron-bold text-4xl text-primary-ink mt-2">
                           {game.scores?.[away?.id || ''] ?? 0}
                         </Text>
                       )}
                     </View>
                   </View>
 
-                  <View className="bg-slate-100 dark:bg-white/5 px-4 py-2 rounded-xl border border-slate-200/50 dark:border-white/5 w-full flex-row justify-around">
+                  <View className="bg-sunken px-4 py-2 rounded-xl border border-line-soft w-full flex-row justify-around">
                     <View className="items-center">
-                      <Text className="font-inter text-[10px] text-slate-500 uppercase">Status</Text>
-                      <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white mt-0.5">
+                      <Text className="font-inter text-[10px] text-ink-muted uppercase">Status</Text>
+                      <Text className="font-orbitron-bold text-xs text-ink mt-0.5">
                         {game.status}
                       </Text>
                     </View>
                     <View className="items-center">
-                      <Text className="font-inter text-[10px] text-slate-500 uppercase">Where</Text>
-                      <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white mt-0.5">
+                      <Text className="font-inter text-[10px] text-ink-muted uppercase">Where</Text>
+                      <Text className="font-orbitron-bold text-xs text-ink mt-0.5">
                         {getVenueLabel(game.siteId, game.facilityId) || 'Default Site'}
                       </Text>
                     </View>
@@ -863,7 +864,7 @@ export default function EventDetails() {
                 </View>
               ) : (
                 <View className="items-center py-6">
-                  <Text className="font-inter text-xs text-slate-400 italic">
+                  <Text className="font-inter text-xs text-ink-muted italic">
                     No game configured for this match.
                   </Text>
                 </View>
@@ -871,9 +872,9 @@ export default function EventDetails() {
             </GlassCard>
 
             {!canEdit && (
-              <GlassCard className="border border-brand-orange/20 bg-brand-orange/5 p-4 flex-row items-center gap-3">
-                <Ionicons name="information-circle-outline" size={20} color={COLORS.brand.orange} />
-                <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 flex-1 leading-relaxed">
+              <GlassCard className="border border-primary-line bg-primary-soft p-4 flex-row items-center gap-3">
+                <Ionicons name="information-circle-outline" size={20} color={themeColor(isDark, 'primary')} />
+                <Text className="font-inter text-xs text-ink-muted flex-1 leading-relaxed">
                   You are viewing this event in read-only mode.
                 </Text>
               </GlassCard>
@@ -910,10 +911,10 @@ export default function EventDetails() {
 
   // ------------------------------------------------------------------------------ tournament ---
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {header}
 
-      <View className="bg-white dark:bg-slate-900">
+      <View className="bg-card">
         <Tabs
           items={
             canEdit
@@ -991,7 +992,7 @@ export default function EventDetails() {
               />
             ) : orderedDivisions.length > 1 ? (
               <View className="space-y-3">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 uppercase tracking-widest pl-1">
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest pl-1">
                   Divisions
                 </Text>
                 {orderedDivisions.map(division => (
@@ -1002,15 +1003,15 @@ export default function EventDetails() {
                       }
                       activeOpacity={0.85}
                     >
-                      <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between">
+                      <GlassCard className="border border-line p-4 flex-row items-center justify-between">
                         <View className="flex-1 min-w-0">
                           <Text
-                            className="font-orbitron-bold text-sm text-slate-800 dark:text-white"
+                            className="font-orbitron-bold text-sm text-ink"
                             numberOfLines={1}
                           >
                             {division.name}
                           </Text>
-                          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          <Text className="font-inter text-[10px] text-ink-muted mt-0.5">
                             {[
                               sports.find(s => s.id === division.sportId)?.name,
                               division.ageGroup,
@@ -1028,12 +1029,12 @@ export default function EventDetails() {
                 ))}
               </View>
             ) : (
-              <GlassCard className="border border-dashed border-slate-200 dark:border-white/10 p-6 items-center">
+              <GlassCard className="border border-dashed border-line p-6 items-center">
                 <Ionicons name="git-branch-outline" size={36} color={secondary} style={{ opacity: 0.3 }} />
-                <Text className="font-orbitron text-[10px] text-slate-500 uppercase tracking-widest mt-2">
+                <Text className="font-orbitron text-[10px] text-ink-muted uppercase tracking-widest mt-2">
                   Nothing set up yet
                 </Text>
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mt-2">
+                <Text className="font-inter text-xs text-ink-muted text-center mt-2">
                   No divisions yet. Choose the tournament's sports under Setup, Sports & Divisions —
                   each sport gets its first division as soon as it is chosen.
                 </Text>
@@ -1043,8 +1044,8 @@ export default function EventDetails() {
             {/* Fixtures that belong to no division at all. They exist on events built before this
                 release, and they would otherwise be invisible on a multi-division tournament. */}
             {orderedDivisions.length > 1 && games.some(g => !g.stageId) && (
-              <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
-                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+              <GlassCard className="border border-line p-5">
+                <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-3">
                   Not in a division
                 </Text>
                 <View className="space-y-2">
@@ -1056,16 +1057,16 @@ export default function EventDetails() {
                         onPress={() =>
                           router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/view`)
                         }
-                        className="flex-row items-center justify-between bg-slate-50 dark:bg-white/5 rounded-xl px-3 py-3 active:opacity-85"
+                        className="flex-row items-center justify-between bg-sunken rounded-xl px-3 py-3 active:opacity-85"
                       >
                         <Text
-                          className="font-inter-bold text-xs text-slate-800 dark:text-white flex-1"
+                          className="font-inter-bold text-xs text-ink flex-1"
                           numberOfLines={1}
                         >
                           {participantLabel(game.participants?.[0]) || 'TBD'} vs{' '}
                           {participantLabel(game.participants?.[1]) || 'TBD'}
                         </Text>
-                        <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 pl-2">
+                        <Text className="font-inter text-[10px] text-ink-muted pl-2">
                           {game.status}
                         </Text>
                       </TouchableOpacity>
@@ -1111,7 +1112,7 @@ export default function EventDetails() {
 
             {standingsScope === 'all' ? (
               <View className="space-y-2">
-                <Text className="font-orbitron-bold text-[10px] text-slate-500 uppercase tracking-widest pl-1">
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest pl-1">
                   Event Leaderboard
                 </Text>
                 <StandingsTable

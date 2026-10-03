@@ -12,7 +12,8 @@ import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../store/authStore';
 import { timeZoneLabel } from '../../../utils/dates';
-import { COLORS } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 /**
  * How the org runs (docs/org-profile.md §5): one card per setting or group of related settings,
@@ -23,6 +24,7 @@ import { COLORS } from '../../../constants/Colors';
  * settings join this page as further cards. Who may see and edit it is undecided (`ORG-13`).
  */
 export default function OrgSettings() {
+  const isDark = useActiveTheme() === 'dark';
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const safeBack = useSafeBack();
   const { width } = useWindowDimensions();
@@ -38,12 +40,12 @@ export default function OrgSettings() {
   const note = addressTimeZoneNote(org?.addressTimeZone, timezone);
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Settings" onBack={() => safeBack(`/admin/${orgId}`)} />
       {isLoading || !org ? (
         <View className="flex-1 items-center justify-center">
-          {isLoading ? <ActivityIndicator size="large" color={COLORS.brand.orange} /> : (
-            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">This organisation could not be found.</Text>
+          {isLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+            <Text className="font-inter text-sm text-ink-muted">This organisation could not be found.</Text>
           )}
         </View>
       ) : (

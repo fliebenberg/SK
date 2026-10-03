@@ -12,7 +12,7 @@ import { wsService } from '../../../../../../../services/websocket';
 import { sendAction } from '../../../../../../../services/actions';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { SocketAction, Event, Game, Sport, Site, Team, Organization, DeleteGamePayload, DeleteEventPayload } from '@sk/shared';
-import { COLORS } from '../../../../../../../constants/Colors';
+
 import MatchForm, { MatchFormData } from '../../../../../../../components/MatchForm';
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useUnsavedChanges } from '../../../../../../../hooks/useUnsavedChanges';
@@ -25,6 +25,7 @@ import { ChangeWhoPlayedCard } from '../../../../../../../components/tournament/
 import { finishedScoreLine } from '../../../../../../../utils/matchScore';
 import { instantToVenueInputs, venueInputsToInstant, venueTimeZone } from '../../../../../../../utils/dates';
 import { useToastStore } from '../../../../../../../store/toastStore';
+import { themeColor } from '../../../../../../../constants/Colors';
 
 export default function EditGame() {
   const router = useRouter();
@@ -365,9 +366,9 @@ export default function EditGame() {
 
   if (isLoading || !event || !game || !initialData) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
-        <ActivityIndicator size="large" color={COLORS.brand.orange} />
-        <Text className="font-orbitron text-xs text-slate-500 mt-4 uppercase tracking-widest">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
           Loading Details...
         </Text>
       </SafeAreaView>
@@ -395,20 +396,20 @@ export default function EditGame() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={handleBackPress}
           activeOpacity={0.85}
           className="flex-row items-center gap-1"
         >
-          <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
           Edit Match Info
         </Text>
         <MatchViewSwitcher
@@ -422,7 +423,7 @@ export default function EditGame() {
       </View>
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>
-        <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+        <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-4">
           Edit details for game {gameId}
         </Text>
 
@@ -436,19 +437,19 @@ export default function EditGame() {
 
         {/* RESULT — recorded after the fact, by an editor or a scorer */}
         {(permissions.canScore || permissions.canEdit) && game.status !== 'Cancelled' && (
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-5 mt-6">
+          <GlassCard className="border border-line p-5 mt-6">
             <View className="flex-row justify-between items-center">
               <View className="flex-1 mr-3">
-                <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Result</Text>
-                <Text className="font-inter text-xs text-slate-500 mt-0.5">
+                <Text className="font-inter-bold text-sm text-ink">Result</Text>
+                <Text className="font-inter text-xs text-ink-muted mt-0.5">
                   {finishedScoreLine(game) || 'Record the score to finish the match — or that nobody has it.'}
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setIsRecording(true)}
-                className="px-4 py-2 bg-brand-orange rounded-lg"
+                className="px-4 py-2 bg-primary rounded-lg"
               >
-                <Text className="font-inter-bold text-xs text-white uppercase">
+                <Text className="font-inter-bold text-xs text-on-fill uppercase">
                   {game.status === 'Finished' ? 'Correct Result' : 'Record Result'}
                 </Text>
               </TouchableOpacity>
@@ -478,27 +479,27 @@ export default function EditGame() {
         )}
 
         {/* DANGER ZONE */}
-        <GlassCard className="border border-red-500/25 bg-red-500/5 p-5 gap-4 mt-6">
-          <Text className="font-orbitron-bold text-xs text-brand-red uppercase tracking-wider">Danger Zone</Text>
+        <GlassCard className="border border-danger-line bg-danger-soft p-5 gap-4 mt-6">
+          <Text className="font-orbitron-bold text-xs text-danger-ink uppercase tracking-wider">Danger Zone</Text>
           {game.status === 'Cancelled' ? (
             <View className="flex-row justify-between items-center">
               <View className="flex-1 mr-3">
-                <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Reinstate Match</Text>
-                <Text className="font-inter text-xs text-slate-500 mt-0.5">Put this cancelled match back on the schedule.</Text>
+                <Text className="font-inter-bold text-sm text-ink">Reinstate Match</Text>
+                <Text className="font-inter text-xs text-ink-muted mt-0.5">Put this cancelled match back on the schedule.</Text>
               </View>
               <TouchableOpacity
                 onPress={() => setPlanningStatus('Scheduled')}
                 disabled={isProcessing}
-                className="px-4 py-2 border border-brand-orange rounded-lg"
+                className="px-4 py-2 border border-primary rounded-lg"
               >
-                <Text className="font-inter-bold text-xs text-brand-orange uppercase">Reinstate</Text>
+                <Text className="font-inter-bold text-xs text-primary-ink uppercase">Reinstate</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View className="flex-row justify-between items-center">
               <View className="flex-1 mr-3">
-                <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Cancel Match</Text>
-                <Text className="font-inter text-xs text-slate-500 mt-0.5">
+                <Text className="font-inter-bold text-sm text-ink">Cancel Match</Text>
+                <Text className="font-inter text-xs text-ink-muted mt-0.5">
                   {game.status === 'Scheduled' || !game.status
                     ? 'Temporarily mark match as Cancelled.'
                     : 'This match has already started, so it is cancelled from its scoring screen.'}
@@ -507,25 +508,25 @@ export default function EditGame() {
               <TouchableOpacity
                 onPress={() => setIsCancelling(true)}
                 disabled={!(game.status === 'Scheduled' || !game.status)}
-                className={`px-4 py-2 border border-brand-orange rounded-lg ${
+                className={`px-4 py-2 border border-primary rounded-lg ${
                   game.status === 'Scheduled' || !game.status ? '' : 'opacity-40'
                 }`}
               >
-                <Text className="font-inter-bold text-xs text-brand-orange uppercase">Cancel Match</Text>
+                <Text className="font-inter-bold text-xs text-primary-ink uppercase">Cancel Match</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          <View className="flex-row justify-between items-center pt-4 border-t border-slate-100 dark:border-white/5">
+          <View className="flex-row justify-between items-center pt-4 border-t border-line-soft">
             <View>
-              <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Delete Match</Text>
-              <Text className="font-inter text-xs text-slate-500 mt-0.5">Permanently deletes match records.</Text>
+              <Text className="font-inter-bold text-sm text-ink">Delete Match</Text>
+              <Text className="font-inter text-xs text-ink-muted mt-0.5">Permanently deletes match records.</Text>
             </View>
             <TouchableOpacity
               onPress={() => setIsDeleting(true)}
-              className="px-4 py-2 border border-brand-red rounded-lg"
+              className="px-4 py-2 border border-danger rounded-lg"
             >
-              <Text className="font-inter-bold text-xs text-brand-red uppercase">Delete Match</Text>
+              <Text className="font-inter-bold text-xs text-danger-ink uppercase">Delete Match</Text>
             </TouchableOpacity>
           </View>
         </GlassCard>
@@ -533,19 +534,19 @@ export default function EditGame() {
 
       {/* FLOATING SAVE CHANGES BAR */}
       {hasChanges && (
-        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+        <View className="absolute bottom-6 left-6 right-6 bg-card border border-line p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
           <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">Unsaved Changes</Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">You have modified this match's details.</Text>
+            <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-wider">Unsaved Changes</Text>
+            <Text className="font-inter text-[9px] text-ink-muted mt-0.5">You have modified this match's details.</Text>
           </View>
           <View className="flex-row items-center gap-2.5">
             <TouchableOpacity
               onPress={handleCancel}
               disabled={isProcessing}
               activeOpacity={0.8}
-              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/5"
+              className="bg-sunken px-4 py-2.5 rounded-xl border border-line"
             >
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+              <Text className="font-orbitron-bold text-[9px] text-ink-soft uppercase tracking-widest">Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSubmit}
@@ -553,8 +554,8 @@ export default function EditGame() {
               activeOpacity={0.8}
               className={`px-5 py-2.5 rounded-xl flex-row items-center gap-2 shadow-md ${
                 !hasFormSelection
-                  ? 'bg-brand-orange/40 shadow-none'
-                  : 'bg-brand-orange shadow-brand-orange/30'
+                  ? 'bg-primary/40 shadow-none'
+                  : 'bg-primary shadow-primary/30'
               }`}
             >
               {isProcessing ? (
@@ -562,7 +563,7 @@ export default function EditGame() {
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">Save</Text>
+                  <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">Save</Text>
                 </>
               )}
             </TouchableOpacity>

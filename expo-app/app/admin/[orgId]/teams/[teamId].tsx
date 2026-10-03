@@ -26,7 +26,8 @@ import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../../store/authStore';
 import { sendAction } from '../../../../services/actions';
-import { COLORS } from '../../../../constants/Colors';
+import { useActiveTheme } from '../../../../store/settingsStore';
+import { themeColor } from '../../../../constants/Colors';
 
 type Dialog = 'edit' | 'players' | 'staff' | 'deactivate' | 'delete' | null;
 type Section = 'players' | 'staff' | 'games';
@@ -49,6 +50,7 @@ const PLAYERS_SHOWN = 15;
  * Edit, no Add, no menus and no Pick team.
  */
 export default function TeamPage() {
+  const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId, teamId } = useLocalSearchParams<{ orgId: string; teamId: string }>();
@@ -119,11 +121,11 @@ export default function TeamPage() {
 
   if (isTeamsLoading || !team) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Team" backLabel="Teams" onBack={back} />
         <View className="flex-1 items-center justify-center px-6">
-          {isTeamsLoading ? <ActivityIndicator size="large" color={COLORS.brand.orange} /> : (
-            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center">This team does not exist any more.</Text>
+          {isTeamsLoading ? <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /> : (
+            <Text className="font-inter text-sm text-ink-muted text-center">This team does not exist any more.</Text>
           )}
         </View>
       </SafeAreaView>
@@ -207,31 +209,31 @@ export default function TeamPage() {
   /* ---------------- cards ---------------- */
 
   const banner = (
-    <View className="flex-row items-center gap-4 rounded-2xl border p-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5">
+    <View className="flex-row items-center gap-4 rounded-2xl border p-4 bg-card border-line">
       <TeamCrest team={team} org={org} size={isNarrow ? 54 : 68} />
       <View className="flex-1 min-w-0">
         <View className="flex-row items-center flex-wrap gap-2">
-          <Text className={`font-inter-bold ${isNarrow ? 'text-lg' : 'text-2xl'} leading-tight text-slate-900 dark:text-white`}>{team.name}</Text>
+          <Text className={`font-inter-bold ${isNarrow ? 'text-lg' : 'text-2xl'} leading-tight text-ink`}>{team.name}</Text>
           {inactive ? (
-            <View className="rounded-full border px-2.5 py-0.5 bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10">
-              <Text className="font-inter-semibold text-xs text-slate-600 dark:text-slate-300">Inactive</Text>
+            <View className="rounded-full border px-2.5 py-0.5 bg-sunken border-line">
+              <Text className="font-inter-semibold text-xs text-ink-soft">Inactive</Text>
             </View>
           ) : null}
         </View>
-        <Text className="font-inter text-sm text-slate-600 dark:text-slate-300 mt-1">{[sportName, team.ageGroup].filter(Boolean).join(' · ')}</Text>
+        <Text className="font-inter text-sm text-ink-soft mt-1">{[sportName, team.ageGroup].filter(Boolean).join(' · ')}</Text>
       </View>
       {canEdit ? <View className="self-start"><EditLink onPress={() => setDialog('edit')} /></View> : null}
     </View>
   );
 
   const inactiveNote = inactive ? (
-    <View className="flex-row items-center gap-3 rounded-xl px-4 py-2.5 bg-amber-50 dark:bg-amber-400/10">
-      <Text className="flex-1 font-inter text-sm text-amber-900 dark:text-amber-200">
+    <View className="flex-row items-center gap-3 rounded-xl px-4 py-2.5 bg-warning-soft">
+      <Text className="flex-1 font-inter text-sm text-warning-ink">
         This team is inactive. It cannot be picked for new games, leagues or tournaments.
       </Text>
       {canEdit ? (
         <TouchableOpacity onPress={() => setActive(true)} disabled={isBusy} accessibilityRole="button">
-          <Text className="font-inter-bold text-sm text-orange-900 dark:text-brand-orange">Reactivate</Text>
+          <Text className="font-inter-bold text-sm text-primary-ink">Reactivate</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -322,19 +324,19 @@ export default function TeamPage() {
   );
 
   const searchBox = (
-    <View className="flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3">
-      <Ionicons name="search-outline" size={16} color="#94A3B8" />
+    <View className="flex-row items-center gap-2 bg-card border border-line rounded-xl px-3">
+      <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
       <TextInput
         value={query}
         onChangeText={setQuery}
         placeholder="Search players, staff and games"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={themeColor(isDark, 'ink-muted')}
         accessibilityLabel="Search players, staff and games"
-        className={`flex-1 font-inter text-base text-slate-800 dark:text-white outline-none ${isWide ? 'py-2.5' : 'py-2'}`}
+        className={`flex-1 font-inter text-base text-ink outline-none ${isWide ? 'py-2.5' : 'py-2'}`}
       />
       {query ? (
         <TouchableOpacity onPress={() => setQuery('')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear the search">
-          <Ionicons name="close-circle" size={18} color="#94A3B8" />
+          <Ionicons name="close-circle" size={18} color={themeColor(isDark, 'ink-muted')} />
         </TouchableOpacity>
       ) : null}
     </View>
@@ -365,7 +367,7 @@ export default function TeamPage() {
     games: q ? matchingGames.length : games.length,
   };
   const pinned = (
-    <View className="gap-2 px-3 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-white/5">
+    <View className="gap-2 px-3 py-2 bg-card border-b border-line">
       {searchBox}
       <View className="flex-row gap-1.5">
         {(['players', 'staff', 'games'] as Section[]).map(s => (
@@ -374,12 +376,12 @@ export default function TeamPage() {
             onPress={() => jumpTo(s)}
             accessibilityRole="button"
             accessibilityState={{ selected: inView === s }}
-            className={`flex-1 flex-row items-center justify-center gap-1 rounded-lg py-1.5 ${inView === s ? 'bg-orange-50 dark:bg-brand-orange/15' : 'bg-slate-100 dark:bg-white/5'}`}
+            className={`flex-1 flex-row items-center justify-center gap-1 rounded-lg py-1.5 ${inView === s ? 'bg-primary-soft' : 'bg-sunken'}`}
           >
-            <Text className={`font-inter-semibold text-[13px] ${inView === s ? 'text-orange-900 dark:text-orange-300' : 'text-slate-600 dark:text-slate-300'}`}>
+            <Text className={`font-inter-semibold text-[13px] ${inView === s ? 'text-primary-ink' : 'text-ink-soft'}`}>
               {s === 'players' ? 'Players' : s === 'staff' ? 'Staff' : 'Games'}
             </Text>
-            <Text className={`font-inter text-xs ${inView === s ? 'text-orange-900 dark:text-orange-300' : 'text-slate-500 dark:text-slate-400'}`}>{jumpCounts[s]}</Text>
+            <Text className={`font-inter text-xs ${inView === s ? 'text-primary-ink' : 'text-ink-muted'}`}>{jumpCounts[s]}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -387,7 +389,7 @@ export default function TeamPage() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader
         title="Team"
         backLabel="Teams"

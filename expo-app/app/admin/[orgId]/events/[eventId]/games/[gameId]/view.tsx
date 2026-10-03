@@ -9,7 +9,7 @@ import { useActiveTheme } from '../../../../../../../store/settingsStore';
 import { wsService } from '../../../../../../../services/websocket';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { Event, Game, Sport, Site, Team, Organization } from '@sk/shared';
-import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
+
 
 import { useAuthStore } from '../../../../../../../store/authStore';
 import { useEventCapabilities } from '../../../../../../../hooks/useEventCapabilities';
@@ -20,6 +20,7 @@ import { RecordResultModal } from '../../../../../../../components/RecordResultM
 import { EventLogFeed } from '../../../../../../../components/sports/shared/EventLogFeed';
 import { DynamicScoringProvider } from '../../../../../../../components/sports/shared/DynamicScoringContext';
 import { formatInstantDate, formatKickoffTime } from '../../../../../../../utils/dates';
+import { themeColor } from '../../../../../../../constants/Colors';
 
 export default function ViewGame() {
   const router = useRouter();
@@ -143,9 +144,9 @@ export default function ViewGame() {
 
   if (isLoading || !event || !game) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
-        <ActivityIndicator size="large" color={COLORS.brand.orange} />
-        <Text className="font-orbitron text-xs text-slate-500 mt-4 uppercase tracking-widest">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
           Loading Details...
         </Text>
       </SafeAreaView>
@@ -171,20 +172,20 @@ export default function ViewGame() {
   });
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={safeGoBack}
           activeOpacity={0.85}
           className="flex-row items-center gap-1"
         >
-          <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate flex-1 text-center px-4" numberOfLines={1}>
           Match Details
         </Text>
         <MatchViewSwitcher
@@ -199,35 +200,35 @@ export default function ViewGame() {
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>
         {/* READ ONLY BANNER */}
         {!permissions.canEdit && !permissions.canScore && (
-          <GlassCard className="border border-brand-orange/20 bg-brand-orange/5 p-4 mb-6 flex-row items-center gap-3">
-            <Ionicons name="information-circle-outline" size={20} color={COLORS.brand.orange} />
-            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 flex-1 leading-relaxed">
+          <GlassCard className="border border-primary-line bg-primary-soft p-4 mb-6 flex-row items-center gap-3">
+            <Ionicons name="information-circle-outline" size={20} color={themeColor(isDark, 'primary')} />
+            <Text className="font-inter text-xs text-ink-muted flex-1 leading-relaxed">
               You are viewing this match in read-only mode because it belongs to another organization.
             </Text>
           </GlassCard>
         )}
 
         {/* MATCHUP CARD */}
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6">
+        <GlassCard className="border border-line p-6 mb-6">
           <View className="flex-row justify-between items-center py-4">
             {/* HOME TEAM */}
             <View className="flex-1 items-center">
-              <View className="w-14 h-14 bg-brand-orange/10 rounded-full items-center justify-center mb-2.5">
-                <Ionicons name="shield-outline" size={28} color={COLORS.brand.orange} />
+              <View className="w-14 h-14 bg-primary-soft rounded-full items-center justify-center mb-2.5">
+                <Ionicons name="shield-outline" size={28} color={themeColor(isDark, 'primary')} />
               </View>
-              <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white text-center" numberOfLines={2}>
+              <Text className="font-orbitron-bold text-sm text-ink text-center" numberOfLines={2}>
                 {homeTeam?.name || 'Home Team'}
               </Text>
-              <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-1 text-center" numberOfLines={1}>
+              <Text className="font-inter text-[10px] text-ink-muted mt-1 text-center" numberOfLines={1}>
                 {homeOrg?.shortName || homeOrg?.name || ''}
               </Text>
             </View>
 
             {/* VS SPLIT */}
             <View className="px-4 items-center">
-              <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 italic">VS</Text>
+              <Text className="font-orbitron-bold text-xs text-ink-muted italic">VS</Text>
               {finishedScoreLine(game) && (
-                <Text className="font-orbitron-bold text-base text-brand-orange mt-2">
+                <Text className="font-orbitron-bold text-base text-primary-ink mt-2">
                   {finishedScoreLine(game)}
                 </Text>
               )}
@@ -235,13 +236,13 @@ export default function ViewGame() {
 
             {/* AWAY TEAM */}
             <View className="flex-1 items-center">
-              <View className="w-14 h-14 bg-slate-100 dark:bg-white/5 rounded-full items-center justify-center mb-2.5">
-                <Ionicons name="shield-outline" size={28} color={getThemeColor(isDark, 'textSecondary')} />
+              <View className="w-14 h-14 bg-sunken rounded-full items-center justify-center mb-2.5">
+                <Ionicons name="shield-outline" size={28} color={themeColor(isDark, 'ink-muted')} />
               </View>
-              <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white text-center" numberOfLines={2}>
+              <Text className="font-orbitron-bold text-sm text-ink text-center" numberOfLines={2}>
                 {awayTeam?.name || 'Away Team'}
               </Text>
-              <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-1 text-center" numberOfLines={1}>
+              <Text className="font-inter text-[10px] text-ink-muted mt-1 text-center" numberOfLines={1}>
                 {awayOrg?.shortName || awayOrg?.name || ''}
               </Text>
             </View>
@@ -253,44 +254,44 @@ export default function ViewGame() {
           <TouchableOpacity
             onPress={() => setIsRecording(true)}
             activeOpacity={0.85}
-            className="flex-row items-center justify-center gap-2 bg-brand-orange rounded-xl py-3 mb-6"
+            className="flex-row items-center justify-center gap-2 bg-primary rounded-xl py-3 mb-6"
           >
             <Ionicons name="trophy-outline" size={14} color="white" />
-            <Text className="font-orbitron-bold text-[10px] text-white uppercase tracking-widest">
+            <Text className="font-orbitron-bold text-[10px] text-on-fill uppercase tracking-widest">
               {game.status === 'Finished' ? 'Correct Result' : 'Record Result'}
             </Text>
           </TouchableOpacity>
         )}
 
         {/* METADATA LIST */}
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-5 gap-4">
-          <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider mb-2">Match Information</Text>
+        <GlassCard className="border border-line p-5 gap-4">
+          <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider mb-2">Match Information</Text>
           
-          <View className="flex-row justify-between py-2.5 border-b border-slate-100 dark:border-white/5">
-            <Text className="font-inter text-xs text-slate-500">Sport</Text>
-            <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">{sport?.name || 'Unknown'}</Text>
+          <View className="flex-row justify-between py-2.5 border-b border-line-soft">
+            <Text className="font-inter text-xs text-ink-muted">Sport</Text>
+            <Text className="font-inter-bold text-xs text-ink">{sport?.name || 'Unknown'}</Text>
           </View>
 
-          <View className="flex-row justify-between py-2.5 border-b border-slate-100 dark:border-white/5">
-            <Text className="font-inter text-xs text-slate-500">Status</Text>
-            <Text className="font-orbitron-bold text-xs text-brand-orange uppercase">{game.status || 'Scheduled'}</Text>
+          <View className="flex-row justify-between py-2.5 border-b border-line-soft">
+            <Text className="font-inter text-xs text-ink-muted">Status</Text>
+            <Text className="font-orbitron-bold text-xs text-primary-ink uppercase">{game.status || 'Scheduled'}</Text>
           </View>
 
-          <View className="flex-row justify-between py-2.5 border-b border-slate-100 dark:border-white/5">
-            <Text className="font-inter text-xs text-slate-500">Where</Text>
-            <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
+          <View className="flex-row justify-between py-2.5 border-b border-line-soft">
+            <Text className="font-inter text-xs text-ink-muted">Where</Text>
+            <Text className="font-inter-bold text-xs text-ink">
               {site?.name || 'Main Site'} {facility?.name ? `• ${facility.name}` : ''}
             </Text>
           </View>
 
-          <View className="flex-row justify-between py-2.5 border-b border-slate-100 dark:border-white/5">
-            <Text className="font-inter text-xs text-slate-500">Date</Text>
-            <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">{dateBase || 'TBD'}</Text>
+          <View className="flex-row justify-between py-2.5 border-b border-line-soft">
+            <Text className="font-inter text-xs text-ink-muted">Date</Text>
+            <Text className="font-inter-bold text-xs text-ink">{dateBase || 'TBD'}</Text>
           </View>
 
           <View className="flex-row justify-between py-2.5">
-            <Text className="font-inter text-xs text-slate-500">Time</Text>
-            <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
+            <Text className="font-inter text-xs text-ink-muted">Time</Text>
+            <Text className="font-inter-bold text-xs text-ink">
               {game.customSettings?.timeTbd ? 'TBD' : (timeBase || 'TBD')}
             </Text>
           </View>

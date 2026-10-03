@@ -12,6 +12,7 @@ import { useAuthStore } from '../../../../../store/authStore';
 import { Site, Facility, Sport, Organization } from '@sk/shared';
 import { useSocketQuery } from '../../../../../hooks/useSocketQuery';
 import { venueTimeZone } from '../../../../../utils/dates';
+import { themeColor } from '../../../../../constants/Colors';
 
 // Conditionally require react-native-maps to avoid breaking react-native-web
 let MapView: any;
@@ -89,9 +90,9 @@ export default function SiteViewScreen() {
 
   if (isLoading || !site) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center">
-        <ActivityIndicator size="large" color="#FF3E00" />
-        <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-3">Loading Site...</Text>
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-3">Loading Site...</Text>
       </SafeAreaView>
     );
   }
@@ -120,27 +121,27 @@ export default function SiteViewScreen() {
   const lng = site.address?.longitude;
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeBack(`/admin/${orgId}/sites`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Sites
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
           Site Details
         </Text>
         {canEdit ? (
           <TouchableOpacity
             onPress={() => router.push({ pathname: '/admin/[orgId]/sites/[siteId]', params: { orgId: orgId!, siteId: site.id } })}
-            className="w-8 h-8 rounded-lg bg-brand-orange/10 border border-brand-orange/20 items-center justify-center active:opacity-85"
+            className="w-8 h-8 rounded-lg bg-primary-soft border border-primary-line items-center justify-center active:opacity-85"
           >
-            <Ionicons name="pencil" size={15} color="#FF3E00" />
+            <Ionicons name="pencil" size={15} color={themeColor(isDark, 'primary')} />
           </TouchableOpacity>
         ) : (
           <View className="w-8" />
@@ -149,29 +150,29 @@ export default function SiteViewScreen() {
 
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* SITE DETAILS SUMMARY */}
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-6 mb-6">
+        <GlassCard className="border border-line p-6 mb-6">
           <View className="flex-row items-center justify-between mb-2">
-            <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white">
+            <Text className="font-orbitron-bold text-lg text-ink">
               {site.name}
             </Text>
-            <View className={`px-2.5 py-0.5 rounded-full ${site.isActive !== false ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-slate-200 dark:bg-slate-800'}`}>
-              <Text className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${site.isActive !== false ? 'text-emerald-500' : 'text-slate-500'}`}>
+            <View className={`px-2.5 py-0.5 rounded-full ${site.isActive !== false ? 'bg-success-soft border border-success-line' : 'bg-line'}`}>
+              <Text className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${site.isActive !== false ? 'text-success-ink' : 'text-ink-muted'}`}>
                 {site.isActive !== false ? 'Active' : 'Inactive'}
               </Text>
             </View>
           </View>
 
           <View className="flex-row items-center gap-2 mt-1">
-            <Ionicons name="map-outline" size={14} color="#94A3B8" />
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+            <Ionicons name="map-outline" size={14} color={themeColor(isDark, 'ink-muted')} />
+            <Text className="font-inter text-xs text-ink-muted">
               {site.address?.fullAddress || 'No Address registered'}
             </Text>
           </View>
 
           {/* Read-only: a venue's timezone comes from its pin, and moving the pin is how to change it (DATE-2). */}
           <View className="flex-row items-center gap-2 mt-1">
-            <Ionicons name="time-outline" size={14} color="#94A3B8" />
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+            <Ionicons name="time-outline" size={14} color={themeColor(isDark, 'ink-muted')} />
+            <Text className="font-inter text-xs text-ink-muted">
               {site.timezone
                 ? `Timezone: ${site.timezone}, from its location`
                 : `Timezone: ${venueTimeZone(null, org)}, the organisation's — set a map pin to use the site's own`}
@@ -181,10 +182,10 @@ export default function SiteViewScreen() {
 
         {/* MAP VIEW */}
         <View className="mb-6">
-          <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+          <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider mb-2">
             Site Location
           </Text>
-          <View className="w-full h-48 rounded-2xl overflow-hidden border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-900">
+          <View className="w-full h-48 rounded-2xl overflow-hidden border border-line bg-sunken">
             {MapView && lat && lng ? (
               <MapView
                 style={{ width: '100%', height: '100%' }}
@@ -199,8 +200,8 @@ export default function SiteViewScreen() {
               </MapView>
             ) : (
               <View className="flex-1 items-center justify-center p-4">
-                <Ionicons name="map-outline" size={32} color="#94A3B8" />
-                <Text className="font-inter text-xs text-slate-400 mt-2 text-center">
+                <Ionicons name="map-outline" size={32} color={themeColor(isDark, 'ink-muted')} />
+                <Text className="font-inter text-xs text-ink-muted mt-2 text-center">
                   Map view not supported on this platform preview
                 </Text>
               </View>
@@ -210,7 +211,7 @@ export default function SiteViewScreen() {
 
         {/* FACILITIES DIRECTORY */}
         <View>
-          <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+          <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider mb-3">
             Facilities Directory ({facilities.length})
           </Text>
           <View className="space-y-2">
@@ -222,14 +223,14 @@ export default function SiteViewScreen() {
                   onPress={() => handleFacilityPress(fac)}
                   className="active:opacity-85"
                 >
-                  <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center justify-between">
+                  <GlassCard className="border border-line p-4 flex-row items-center justify-between">
                     <View className="flex-row items-center gap-3 flex-1 mr-4">
-                      <View className="w-9 h-9 rounded-xl bg-brand-orange/10 items-center justify-center border border-brand-orange/20">
-                        <Ionicons name="location" size={16} color="#FF3E00" />
+                      <View className="w-9 h-9 rounded-xl bg-primary-soft items-center justify-center border border-primary-line">
+                        <Ionicons name="location" size={16} color={themeColor(isDark, 'primary')} />
                       </View>
                       <View className="flex-1">
-                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white leading-tight">{fac.name}</Text>
-                        <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        <Text className="font-inter-bold text-sm text-ink leading-tight">{fac.name}</Text>
+                        <Text className="font-inter text-[11px] text-ink-muted mt-0.5">
                           {term} {fac.category ? `• ${fac.category.replace('_', ' ')}` : ''}
                         </Text>
                       </View>
@@ -241,9 +242,9 @@ export default function SiteViewScreen() {
                           pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]/view',
                           params: { orgId: orgId!, siteId: siteId!, facilityId: fac.id }
                         })}
-                        className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200 dark:border-white/5 active:opacity-85"
+                        className="w-7 h-7 rounded-lg bg-sunken items-center justify-center border border-line active:opacity-85"
                       >
-                        <Ionicons name="eye-outline" size={13} color={isDark ? '#94A3B8' : '#475569'} />
+                        <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
                       </TouchableOpacity>
                     </View>
                   </GlassCard>
@@ -251,7 +252,7 @@ export default function SiteViewScreen() {
               );
             })}
             {facilities.length === 0 && (
-              <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic text-center py-6">No facilities added</Text>
+              <Text className="font-inter text-xs text-ink-muted italic text-center py-6">No facilities added</Text>
             )}
           </View>
         </View>

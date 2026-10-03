@@ -14,13 +14,14 @@ import { useSafeBack } from '../../../hooks/useSafeBack';
 import { nominateOrgContact } from '../../../services/nominations';
 import { useToastStore } from '../../../store/toastStore';
 import { formatInstantDate } from '../../../utils/dates';
-import { COLORS } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 const STATUS_STYLE: Record<string, { box: string; text: string }> = {
-  pending: { box: 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30', text: 'text-amber-800 dark:text-amber-300' },
-  claimed: { box: 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30', text: 'text-emerald-800 dark:text-brand-green' },
-  declined: { box: 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/30', text: 'text-red-700 dark:text-red-400' },
-  voided: { box: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700', text: 'text-slate-600 dark:text-slate-400' },
+  pending: { box: 'bg-warning-soft border-warning-line', text: 'text-warning-ink' },
+  claimed: { box: 'bg-success-soft border-success-line', text: 'text-success-ink' },
+  declined: { box: 'bg-danger-soft border-danger-line', text: 'text-danger-ink' },
+  voided: { box: 'bg-sunken border-line', text: 'text-ink-muted' },
 };
 
 /**
@@ -33,6 +34,7 @@ const STATUS_STYLE: Record<string, { box: string; text: string }> = {
  * Neither query here is sent for a claimed org.
  */
 export default function NominateAdmin() {
+  const isDark = useActiveTheme() === 'dark';
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const safeBack = useSafeBack();
   const { width } = useWindowDimensions();
@@ -65,35 +67,35 @@ export default function NominateAdmin() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Nominate admin" onBack={() => safeBack(`/admin/${orgId}`)} />
       {isLoading || !org ? (
-        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={COLORS.brand.orange} /></View>
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: width >= 768 ? 24 : 12, paddingBottom: 60 }}>
           <View className="w-full gap-4 self-center" style={{ maxWidth: 720 }}>
             {!needsAdmin ? (
               <ReadCard label="Administrator">
-                <Text className="font-inter text-sm text-slate-700 dark:text-slate-200">
+                <Text className="font-inter text-sm text-ink-soft">
                   {org.name} has an administrator, so there is no one left to nominate. To make someone else an
                   administrator, add them under People with the admin role.
                 </Text>
               </ReadCard>
             ) : (
               <>
-                <View className="rounded-2xl border p-4 gap-3 bg-amber-50 dark:bg-amber-400/5 border-amber-200 dark:border-amber-300/25">
+                <View className="rounded-2xl border p-4 gap-3 bg-warning-soft border-warning-line">
                   <View className="flex-row items-center justify-between gap-3">
-                    <Text className="font-inter-bold text-base text-amber-900 dark:text-amber-200 flex-1">No administrator yet</Text>
+                    <Text className="font-inter-bold text-base text-warning-ink flex-1">No administrator yet</Text>
                     <TouchableOpacity
                       onPress={() => setIsNominating(true)}
                       accessibilityRole="button"
-                      className="flex-row items-center gap-1.5 rounded-xl bg-brand-orange px-3.5 min-h-[40px]"
+                      className="flex-row items-center gap-1.5 rounded-xl bg-primary px-3.5 min-h-[40px]"
                     >
                       <Ionicons name="add" size={16} color="white" />
-                      <Text className="font-inter-bold text-sm text-white">Nominate</Text>
+                      <Text className="font-inter-bold text-sm text-on-fill">Nominate</Text>
                     </TouchableOpacity>
                   </View>
-                  <Text className="font-inter text-sm text-amber-900 dark:text-amber-200">
+                  <Text className="font-inter text-sm text-warning-ink">
                     Invite someone to run {org.name}. The first person to accept becomes its administrator, and the other
                     invitations are cancelled.
                   </Text>
@@ -105,10 +107,10 @@ export default function NominateAdmin() {
                       {nominations.map((ref: any, i: number) => {
                         const style = STATUS_STYLE[ref.status] || STATUS_STYLE.voided;
                         return (
-                          <View key={ref.id} className={`flex-row items-center gap-3 py-2.5 ${i > 0 ? 'border-t border-slate-200 dark:border-white/5' : ''}`}>
+                          <View key={ref.id} className={`flex-row items-center gap-3 py-2.5 ${i > 0 ? 'border-t border-line' : ''}`}>
                             <View className="flex-1 min-w-0">
-                              <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white" numberOfLines={1}>{ref.referredEmail}</Text>
-                              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>{ref.referredEmail}</Text>
+                              <Text className="font-inter text-xs text-ink-muted mt-0.5">
                                 Nominated {formatInstantDate(ref.createdAt)}
                                 {ref.status === 'pending' && ref.lastSentAt && ref.lastSentAt !== ref.createdAt
                                   ? ` · last sent ${formatInstantDate(ref.lastSentAt)}`
@@ -123,7 +125,7 @@ export default function NominateAdmin() {
                                 accessibilityRole="button"
                                 accessibilityLabel={`Resend the invitation to ${ref.referredEmail}`}
                               >
-                                <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">Resend</Text>
+                                <Text className="font-inter-bold text-sm text-primary-ink">Resend</Text>
                               </TouchableOpacity>
                             ) : null}
                             <View className={`px-2.5 py-0.5 rounded-full border ${style.box}`}>
@@ -134,7 +136,7 @@ export default function NominateAdmin() {
                       })}
                     </View>
                   ) : (
-                    <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">No one has been nominated yet.</Text>
+                    <Text className="font-inter text-sm text-ink-muted">No one has been nominated yet.</Text>
                   )}
                 </ReadCard>
               </>

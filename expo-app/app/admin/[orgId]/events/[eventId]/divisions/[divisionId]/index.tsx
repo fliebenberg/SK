@@ -40,7 +40,8 @@ import { wsService } from '../../../../../../../services/websocket';
 import { sendAction } from '../../../../../../../services/actions';
 import { useWsStore } from '../../../../../../../store/wsStore';
 import { useActiveTheme } from '../../../../../../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../../../../../../constants/Colors';
+import { themeColor } from '../../../../../../../constants/Colors';
+
 
 /** The fields the details form edits, plus the division they belong to. */
 interface DivisionDraft {
@@ -623,12 +624,12 @@ export default function DivisionScreen() {
 
   if (accessDenied) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 justify-center items-center px-8">
-        <Ionicons name="lock-closed-outline" size={44} color={COLORS.dark.textSecondary} style={{ opacity: 0.3 }} />
-        <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300 mt-4">
+      <SafeAreaView className="flex-1 bg-canvas justify-center items-center px-8">
+        <Ionicons name="lock-closed-outline" size={44} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.3 }} />
+        <Text className="font-orbitron-bold text-base text-ink-soft mt-4">
           No Access
         </Text>
-        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+        <Text className="font-inter text-xs text-ink-muted text-center mt-1">
           You do not have permission to view this part of the tournament.
         </Text>
       </SafeAreaView>
@@ -636,7 +637,7 @@ export default function DivisionScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader
         context={event?.name}
         title={division?.name || 'Division'}
@@ -645,12 +646,12 @@ export default function DivisionScreen() {
 
       {!division ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={COLORS.brand.orange} />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
           <View className="space-y-6">
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-4">
+            <GlassCard className="border border-line p-5 space-y-4">
               {canEditRecord && (
                 <View className="space-y-2">
                   <FieldLabel
@@ -665,21 +666,21 @@ export default function DivisionScreen() {
                         ? `${derivedName} (automatic)`
                         : 'Filled in from the sport and age group, or type your own'
                     }
-                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    className={`bg-slate-50 dark:bg-slate-950 border rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white ${
-                      nameClash ? 'border-red-500' : 'border-slate-200 dark:border-white/5'
+                    placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                    className={`bg-field border rounded-xl px-4 py-2.5 font-inter text-sm text-ink ${
+                      nameClash ? 'border-danger' : 'border-line'
                     }`}
                   />
                   {nameClash ? (
                     <Text
                       accessibilityLiveRegion="polite"
-                      className="font-inter text-[11px] text-red-600 dark:text-red-400"
+                      className="font-inter text-[11px] text-danger-ink"
                     >
                       Another division is already called "{nameClash}". Division names must be
                       different — capitals do not count as a difference.
                     </Text>
                   ) : nameIsAutomatic && !!derivedName && (
-                    <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+                    <Text className="font-inter text-[10px] text-ink-muted">
                       Automatic — follows the sport and age group.
                     </Text>
                   )}
@@ -713,11 +714,11 @@ export default function DivisionScreen() {
                   {canEditRecord && sportLocked ? (
                     /* Plain text, like the read-only case below, because that is what it is now.
                        The server refuses the same change. */
-                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                    <Text className="font-inter text-sm text-ink">
                       {savedSportName || 'No sport set'}
                     </Text>
                   ) : canEditRecord && sportChoices.length === 0 ? (
-                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                    <Text className="font-inter text-xs text-ink-muted">
                       The tournament has no sports yet. Choose them under Sports & Divisions, then
                       come back to pick this division's.
                     </Text>
@@ -737,7 +738,7 @@ export default function DivisionScreen() {
                       }))}
                     />
                   ) : (
-                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                    <Text className="font-inter text-sm text-ink">
                       {sports.find(sport => sport.id === division.sportId)?.name || 'No sport set'}
                     </Text>
                   )}
@@ -763,7 +764,7 @@ export default function DivisionScreen() {
                       variant="dropdown"
                     />
                   ) : (
-                    <Text className="font-inter text-sm text-slate-800 dark:text-white">
+                    <Text className="font-inter text-sm text-ink">
                       {division.ageGroup || 'Any age'}
                     </Text>
                   )}
@@ -794,27 +795,27 @@ export default function DivisionScreen() {
                 <View className="flex-row gap-2">
                   <TouchableOpacity
                     onPress={resetDetails}
-                    className="flex-1 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 items-center active:opacity-80"
+                    className="flex-1 py-2.5 rounded-lg border border-line items-center active:opacity-80"
                   >
-                    <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase">
+                    <Text className="font-inter-bold text-xs text-ink-muted uppercase">
                       Cancel
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleSaveDetails}
                     disabled={isSavingDetails || !effectiveName || !!nameClash}
-                    className={`flex-1 py-2.5 rounded-lg bg-brand-orange items-center active:opacity-85 ${
+                    className={`flex-1 py-2.5 rounded-lg bg-primary items-center active:opacity-85 ${
                       isSavingDetails || !effectiveName || nameClash ? 'opacity-50' : ''
                     }`}
                   >
-                    <Text className="font-inter-bold text-xs text-white uppercase">Save</Text>
+                    <Text className="font-inter-bold text-xs text-on-fill uppercase">Save</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </GlassCard>
 
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-3">
-              <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+            <GlassCard className="border border-line p-5 space-y-3">
+              <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
                 Fields in play
               </Text>
               <FacilityPicker
@@ -834,20 +835,20 @@ export default function DivisionScreen() {
                 <View className="flex-row gap-2">
                   <TouchableOpacity
                     onPress={() => setDraftFacilityIds(division.facilityIds || [])}
-                    className="flex-1 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 items-center active:opacity-80"
+                    className="flex-1 py-2.5 rounded-lg border border-line items-center active:opacity-80"
                   >
-                    <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase">
+                    <Text className="font-inter-bold text-xs text-ink-muted uppercase">
                       Cancel
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleSaveFacilities}
                     disabled={isSavingFacilities}
-                    className={`flex-1 py-2.5 rounded-lg bg-brand-orange items-center active:opacity-85 ${
+                    className={`flex-1 py-2.5 rounded-lg bg-primary items-center active:opacity-85 ${
                       isSavingFacilities ? 'opacity-50' : ''
                     }`}
                   >
-                    <Text className="font-inter-bold text-xs text-white uppercase">Save fields</Text>
+                    <Text className="font-inter-bold text-xs text-on-fill uppercase">Save fields</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -857,17 +858,17 @@ export default function DivisionScreen() {
               <TouchableOpacity
                 onPress={() => setIsConfirmingDelete(true)}
                 activeOpacity={0.85}
-                className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-red-500/30"
+                className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-danger-line"
               >
-                <Ionicons name="trash-outline" size={16} color="#EF4444" />
-                <Text className="font-inter-bold text-[10px] text-red-500 uppercase tracking-wider">
+                <Ionicons name="trash-outline" size={16} color={themeColor(isDark, 'danger')} />
+                <Text className="font-inter-bold text-[10px] text-danger-ink uppercase tracking-wider">
                   Delete division
                 </Text>
               </TouchableOpacity>
             )}
 
             {canAppoint && !capabilities?.canEditEvent && isLastOfSport && (
-              <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 text-center">
+              <Text className="font-inter text-[11px] text-ink-muted text-center">
                 This is the last {savedSportName || 'sport'} division, so deleting it would take{' '}
                 {savedSportName || 'the sport'} out of the tournament — which the tournament's
                 organisers decide. Ask them to remove it.

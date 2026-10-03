@@ -16,7 +16,6 @@ import { Button } from '../../../../components/Button';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { SegmentedControl } from '../../../../components/SegmentedControl';
 import { PaginatedList } from '../../../../components/PaginatedList';
-import { getThemeColor } from '../../../../constants/Colors';
 import { useActiveTheme } from '../../../../store/settingsStore';
 import { useAuthStore } from '../../../../store/authStore';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
@@ -29,6 +28,7 @@ import {
   pickPeopleSheet,
   saveWorkbook,
 } from '../../../../utils/peopleSpreadsheet';
+import { themeColor } from '../../../../constants/Colors';
 
 /**
  * Importing people and their guardians from a spreadsheet (docs/identity_structure.md §8).
@@ -182,11 +182,11 @@ export default function ImportPeople() {
 
   if (!canImport) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         {header}
         <View className="p-6">
           <GlassCard className="p-6">
-            <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+            <Text className="font-inter text-sm text-ink-soft">
               Only this organisation's admins and staff can import people.
             </Text>
           </GlassCard>
@@ -199,7 +199,7 @@ export default function ImportPeople() {
   const importLabel = `Import ${toImport.length} ${toImport.length === 1 ? 'person' : 'people'}`;
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {header}
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 48, gap: 16 }}>
         {problem && <Notice tone="danger" isDark={isDark} lines={[problem]} />}
@@ -210,7 +210,7 @@ export default function ImportPeople() {
           <>
             <GlassCard className="p-6 gap-4">
               <StepTitle n={1} title="Get the template" />
-              <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+              <Text className="font-inter text-sm text-ink-soft">
                 One row per person, with up to two parents or guardians each. The Instructions sheet
                 in the file explains every column. You can also use your own spreadsheet, as long as
                 its first row has the same column names.
@@ -226,7 +226,7 @@ export default function ImportPeople() {
 
             <GlassCard className="p-6 gap-4">
               <StepTitle n={2} title="Choose your file" />
-              <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+              <Text className="font-inter text-sm text-ink-soft">
                 An .xlsx or .csv file. Nothing is saved yet: you will see what each row would do first.
               </Text>
               <Button
@@ -250,7 +250,7 @@ export default function ImportPeople() {
         {report && loaded && counts && (
           <>
             <GlassCard className="p-6 gap-3">
-              <Text className="font-inter-bold text-base text-slate-900 dark:text-white" numberOfLines={1}>
+              <Text className="font-inter-bold text-base text-ink" numberOfLines={1}>
                 {loaded.fileName}
               </Text>
               <View className="flex-row flex-wrap gap-2">
@@ -260,13 +260,13 @@ export default function ImportPeople() {
                 <CountChip label="with problems" value={counts.error} outcome="error" />
               </View>
               {(counts.newGuardians > 0 || counts.newGuardianLinks > 0) && (
-                <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+                <Text className="font-inter text-sm text-ink-soft">
                   {counts.newGuardianLinks} guardian {counts.newGuardianLinks === 1 ? 'link' : 'links'} to add
                   {counts.newGuardians > 0 ? `, ${counts.newGuardians} of them new to your organisation` : ''}.
                 </Text>
               )}
               {counts.error > 0 && (
-                <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+                <Text className="font-inter text-sm text-ink-soft">
                   Rows with problems are left out. To include them, fix them in the file and choose it again.
                 </Text>
               )}
@@ -284,7 +284,7 @@ export default function ImportPeople() {
                 )}
               </View>
               {toImport.length === 0 && (
-                <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+                <Text className="font-inter text-sm text-ink-soft">
                   Nothing in this file would change anything, so there is nothing to import.
                 </Text>
               )}
@@ -309,7 +309,7 @@ export default function ImportPeople() {
               renderItem={row => <RowCard row={row} isDark={isDark} />}
               itemSpacingClassName="mb-3"
               emptyState={
-                <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center py-6">
+                <Text className="font-inter text-sm text-ink-muted text-center py-6">
                   No rows here.
                 </Text>
               }
@@ -348,10 +348,10 @@ function confirmDescription(counts: PeopleImportReport['counts'] | undefined): s
 function StepTitle({ n, title }: { n: number; title: string }) {
   return (
     <View className="flex-row items-center gap-3">
-      <View className="w-8 h-8 rounded-full bg-brand-orange items-center justify-center">
-        <Text className="font-orbitron-bold text-sm text-white">{n}</Text>
+      <View className="w-8 h-8 rounded-full bg-primary items-center justify-center">
+        <Text className="font-orbitron-bold text-sm text-on-fill">{n}</Text>
       </View>
-      <Text className="font-inter-bold text-base text-slate-900 dark:text-white">{title}</Text>
+      <Text className="font-inter-bold text-base text-ink">{title}</Text>
     </View>
   );
 }
@@ -365,10 +365,10 @@ const OUTCOME_LABEL: Record<PeopleImportOutcome, string> = {
 
 /** Badge classes per outcome. Light mode uses the deep variants (design_system.md, AAA rules). */
 const OUTCOME_CLASSES: Record<PeopleImportOutcome, { box: string; text: string }> = {
-  new: { box: 'bg-cyan-50 dark:bg-brand-blue/10 border-cyan-800/20 dark:border-brand-blue/30', text: 'text-cyan-800 dark:text-brand-blue' },
-  update: { box: 'bg-orange-50 dark:bg-brand-orange/10 border-brand-orange/30', text: 'text-orange-800 dark:text-brand-orange' },
-  unchanged: { box: 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10', text: 'text-slate-600 dark:text-slate-400' },
-  error: { box: 'bg-red-50 dark:bg-brand-red/10 border-red-700/20 dark:border-brand-red/30', text: 'text-red-700 dark:text-brand-red' },
+  new: { box: 'bg-accent-soft border-accent-line', text: 'text-accent-ink' },
+  update: { box: 'bg-primary-soft border-primary-line', text: 'text-primary-ink' },
+  unchanged: { box: 'bg-sunken border-line', text: 'text-ink-muted' },
+  error: { box: 'bg-danger-soft border-danger-line', text: 'text-danger-ink' },
 };
 
 function OutcomeBadge({ outcome }: { outcome: PeopleImportOutcome }) {
@@ -391,10 +391,10 @@ function CountChip({ label, value, outcome }: { label: string; value: number; ou
 }
 
 function Notice({ tone, lines, title, isDark }: { tone: 'danger' | 'warning'; lines: string[]; title?: string; isDark: boolean }) {
-  const color = getThemeColor(isDark, tone);
+  const color = themeColor(isDark, tone === 'danger' ? 'danger-ink' : 'warning-ink');
   const box = tone === 'danger'
-    ? 'bg-red-50 dark:bg-brand-red/10 border-red-700/20 dark:border-brand-red/30'
-    : 'bg-amber-50 dark:bg-brand-yellow/10 border-amber-700/20 dark:border-brand-yellow/30';
+    ? 'bg-danger-soft border-danger-line'
+    : 'bg-warning-soft border-warning-line';
   return (
     <View className={`p-4 rounded-xl border gap-2 ${box}`}>
       {title && <Text className="font-inter-bold text-sm" style={{ color }}>{title}</Text>}
@@ -409,14 +409,14 @@ function Notice({ tone, lines, title, isDark }: { tone: 'danger' | 'warning'; li
 }
 
 function RowCard({ row, isDark }: { row: PeopleImportRowResult; isDark: boolean }) {
-  const muted = getThemeColor(isDark, 'textSecondary');
-  const warning = getThemeColor(isDark, 'warning');
-  const danger = getThemeColor(isDark, 'danger');
+  const muted = themeColor(isDark, 'ink-muted');
+  const warning = themeColor(isDark, 'warning-ink');
+  const danger = themeColor(isDark, 'danger-ink');
   return (
     <GlassCard className="p-4 gap-2">
       <View className="flex-row items-center gap-3">
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 w-14">Row {row.rowNumber}</Text>
-        <Text className="flex-1 font-inter-bold text-sm text-slate-900 dark:text-white" numberOfLines={1}>
+        <Text className="font-inter text-xs text-ink-muted w-14">Row {row.rowNumber}</Text>
+        <Text className="flex-1 font-inter-bold text-sm text-ink" numberOfLines={1}>
           {row.name || 'No name'}
         </Text>
         <OutcomeBadge outcome={row.outcome} />
@@ -472,10 +472,10 @@ function DoneCard({ report, isDark, onAnother, onBack }: { report: PeopleImportR
   return (
     <GlassCard className="p-6 gap-4">
       <View className="flex-row items-center gap-3">
-        <Ionicons name="checkmark-circle" size={24} color={getThemeColor(isDark, 'success')} />
-        <Text className="font-inter-bold text-base text-slate-900 dark:text-white">Import finished</Text>
+        <Ionicons name="checkmark-circle" size={24} color={themeColor(isDark, 'success-ink')} />
+        <Text className="font-inter-bold text-base text-ink">Import finished</Text>
       </View>
-      <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+      <Text className="font-inter text-sm text-ink-soft">
         {parts.length ? `${parts.join(', ')}.` : 'Nothing needed changing.'} New people are not sent an
         invite by the import; invite them from the People list when you are ready.
       </Text>

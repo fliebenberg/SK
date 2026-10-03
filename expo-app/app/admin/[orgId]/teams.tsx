@@ -14,7 +14,8 @@ import { useOrgSummary } from '../../../hooks/useOrgSummary';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
 import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../store/authStore';
-import { COLORS } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 const ALL = 'all';
 
@@ -27,6 +28,7 @@ const ALL = 'all';
  * Admin and Staff only.
  */
 export default function OrgTeams() {
+  const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
@@ -88,18 +90,18 @@ export default function OrgTeams() {
       onPress={() => setIsAdding(true)}
       accessibilityRole="button"
       accessibilityLabel="Add team"
-      className={`flex-row items-center gap-1.5 rounded-xl bg-brand-orange ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
+      className={`flex-row items-center gap-1.5 rounded-xl bg-primary ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
     >
       <Ionicons name="add" size={18} color="white" />
-      {isWide ? <Text className="font-inter-bold text-sm text-white">Add team</Text> : null}
+      {isWide ? <Text className="font-inter-bold text-sm text-on-fill">Add team</Text> : null}
     </TouchableOpacity>
   ) : undefined;
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
         <ScreenHeader title="Teams" onBack={() => safeBack(`/admin/${orgId}`)} />
-        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={COLORS.brand.orange} /></View>
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
       </SafeAreaView>
     );
   }
@@ -113,20 +115,20 @@ export default function OrgTeams() {
   const ageOptions = [{ value: ALL, label: 'All ages' }, ...sortByName(ageGroups).map(a => ({ value: a, label: a }))];
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       <ScreenHeader title="Teams" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
       <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
           <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
-            <View className="flex-1 flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
-              <Ionicons name="search-outline" size={16} color="#94A3B8" />
+            <View className="flex-1 flex-row items-center gap-2 bg-card border border-line rounded-xl px-3" style={isWide ? { minWidth: 160 } : undefined}>
+              <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
               <TextInput
                 value={search}
                 onChangeText={setSearch}
                 placeholder="Search by name, short name or coach"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 accessibilityLabel="Search teams"
-                className="flex-1 font-inter text-base text-slate-800 dark:text-white py-2.5 outline-none"
+                className="flex-1 font-inter text-base text-ink py-2.5 outline-none"
               />
             </View>
             {sportIds.length > 1 || ageGroups.length > 1 ? (
@@ -149,7 +151,7 @@ export default function OrgTeams() {
             ) : null}
           </View>
 
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 px-1">
+          <Text className="font-inter text-sm text-ink-muted px-1">
             {shownActive.length === 1 ? '1 team' : `${shownActive.length} teams`}
           </Text>
 
@@ -161,8 +163,8 @@ export default function OrgTeams() {
           ))}
           {shownActive.length === 0 ? (
             <View className="items-center justify-center py-12 gap-2">
-              <Ionicons name="shield-outline" size={40} color="#94A3B8" />
-              <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center">
+              <Ionicons name="shield-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
+              <Text className="font-inter text-sm text-ink-muted text-center">
                 {active.length ? 'No team matches.' : canEdit ? 'No teams yet. Add the first one with Add team.' : 'No teams yet.'}
               </Text>
             </View>
@@ -174,12 +176,12 @@ export default function OrgTeams() {
                 onPress={() => setShowInactive(v => !v)}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: showInactive }}
-                className="flex-row items-center justify-between rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 px-4 py-3"
+                className="flex-row items-center justify-between rounded-2xl border border-line bg-card px-4 py-3"
               >
-                <Text className="font-inter-semibold text-sm text-slate-700 dark:text-slate-200">Inactive teams · {shownInactive.length}</Text>
+                <Text className="font-inter-semibold text-sm text-ink-soft">Inactive teams · {shownInactive.length}</Text>
                 <View className="flex-row items-center gap-1">
-                  <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">{showInactive ? 'Hide' : 'Show'}</Text>
-                  <Ionicons name={showInactive ? 'chevron-up' : 'chevron-down'} size={14} color="#64748B" />
+                  <Text className="font-inter text-sm text-ink-muted">{showInactive ? 'Hide' : 'Show'}</Text>
+                  <Ionicons name={showInactive ? 'chevron-up' : 'chevron-down'} size={14} color={themeColor(isDark, 'ink-muted')} />
                 </View>
               </TouchableOpacity>
               {showInactive ? <TeamList teams={shownInactive} org={org} isWide={isWide} onOpen={open} /> : null}
@@ -207,26 +209,27 @@ const sortByName = (names: string[]) => [...names].sort((a, b) => a.localeCompar
 function GroupHeading({ label, count }: { label: string; count: number }) {
   return (
     <View className="flex-row items-center gap-2.5 px-1 mt-1">
-      <Text className="font-orbitron-bold text-[11px] uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</Text>
-      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{count}</Text>
-      <View className="flex-1 h-px bg-slate-200 dark:bg-white/10" />
+      <Text className="font-orbitron-bold text-[11px] uppercase tracking-widest text-ink-muted">{label}</Text>
+      <Text className="font-inter text-xs text-ink-muted">{count}</Text>
+      <View className="flex-1 h-px bg-line" />
     </View>
   );
 }
 
 function TeamList({ teams, org, isWide, onOpen }: { teams: Team[]; org: Organization | null; isWide: boolean; onOpen: (team: Team) => void }) {
   return (
-    <View className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 overflow-hidden">
+    <View className="rounded-2xl border border-line bg-card overflow-hidden">
       {teams.map((team, i) => <TeamRow key={team.id} team={team} org={org} isWide={isWide} first={i === 0} onPress={() => onOpen(team)} />)}
     </View>
   );
 }
 
 function TeamRow({ team, org, isWide, first, onPress }: { team: Team; org: Organization | null; isWide: boolean; first: boolean; onPress: () => void }) {
+  const isDark = useActiveTheme() === 'dark';
   const inactive = team.isActive === false;
   const players = team.playerCount || 0;
   const staff = team.staffCount || 0;
-  const border = first ? '' : 'border-t border-slate-100 dark:border-white/5';
+  const border = first ? '' : 'border-t border-line-soft';
   const crest = <TeamCrest team={team} org={org} size={40} inactive={inactive} />;
   const playersLabel = `${players} ${players === 1 ? 'player' : 'players'}`;
 
@@ -236,15 +239,15 @@ function TeamRow({ team, org, isWide, first, onPress }: { team: Team; org: Organ
         {crest}
         <View className="flex-1 min-w-0">
           <View className="flex-row items-center gap-2">
-            <Text className="font-inter-semibold text-[15px] text-slate-800 dark:text-white flex-shrink" numberOfLines={1}>{team.name}</Text>
-            <Text className="ml-auto pl-2 font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{playersLabel}</Text>
+            <Text className="font-inter-semibold text-[15px] text-ink flex-shrink" numberOfLines={1}>{team.name}</Text>
+            <Text className="ml-auto pl-2 font-inter text-xs text-ink-muted flex-shrink-0">{playersLabel}</Text>
           </View>
           <View className="flex-row items-center justify-between gap-2.5 mt-0.5">
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{team.ageGroup}</Text>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink" numberOfLines={1}>{team.coachName || 'No coach'}</Text>
+            <Text className="font-inter text-xs text-ink-muted flex-shrink-0">{team.ageGroup}</Text>
+            <Text className="font-inter text-xs text-ink-muted flex-shrink" numberOfLines={1}>{team.coachName || 'No coach'}</Text>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+        <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
       </TouchableOpacity>
     );
   }
@@ -253,18 +256,18 @@ function TeamRow({ team, org, isWide, first, onPress }: { team: Team; org: Organ
     <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" className={`flex-row items-center gap-3 px-4 py-3 ${border}`}>
       {crest}
       <View className="flex-1 min-w-0">
-        <Text className="font-inter-semibold text-[15px] text-slate-800 dark:text-white" numberOfLines={1}>{team.name}</Text>
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{team.ageGroup}</Text>
+        <Text className="font-inter-semibold text-[15px] text-ink" numberOfLines={1}>{team.name}</Text>
+        <Text className="font-inter text-xs text-ink-muted mt-0.5">{team.ageGroup}</Text>
       </View>
       <View style={{ width: 200 }}>
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{team.coachName ? 'Coach' : 'No coach yet'}</Text>
-        {team.coachName ? <Text className="font-inter text-sm text-slate-700 dark:text-slate-200" numberOfLines={1}>{team.coachName}</Text> : null}
+        <Text className="font-inter text-xs text-ink-muted">{team.coachName ? 'Coach' : 'No coach yet'}</Text>
+        {team.coachName ? <Text className="font-inter text-sm text-ink-soft" numberOfLines={1}>{team.coachName}</Text> : null}
       </View>
       <View style={{ width: 110 }} className="items-end">
-        <Text className="font-inter text-sm text-slate-700 dark:text-slate-200">{playersLabel}</Text>
-        <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">{staff} staff</Text>
+        <Text className="font-inter text-sm text-ink-soft">{playersLabel}</Text>
+        <Text className="font-inter text-sm text-ink-muted">{staff} staff</Text>
       </View>
-      <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+      <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
     </TouchableOpacity>
   );
 }

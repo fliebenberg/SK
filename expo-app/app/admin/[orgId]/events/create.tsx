@@ -9,9 +9,11 @@ import { requestKeyFor, sendAction } from '../../../../services/actions';
 import { useRequestScope } from '../../../../hooks/useRequestScope';
 import { useToastStore } from '../../../../store/toastStore';
 import { SocketAction } from '@sk/shared';
-import { COLORS } from '../../../../constants/Colors';
+
 import MatchForm, { MatchFormData } from '../../../../components/MatchForm';
 import { venueInputsToInstant } from '../../../../utils/dates';
+import { useActiveTheme } from '../../../../store/settingsStore';
+import { themeColor } from '../../../../constants/Colors';
 
 /**
  * Scheduling **one match** — which is now the only thing this screen does (U45).
@@ -29,6 +31,7 @@ import { venueInputsToInstant } from '../../../../utils/dates';
  * it, and any referrals the form collected on the way.
  */
 export default function CreateEvent() {
+  const isDark = useActiveTheme() === 'dark';
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
 
@@ -125,18 +128,18 @@ export default function CreateEvent() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => safeBack(`/admin/${orgId}/events`)}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Cancel
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
           Schedule Match
         </Text>
         <TouchableOpacity
@@ -145,9 +148,9 @@ export default function CreateEvent() {
           onPress={handleSubmit}
         >
           {isProcessing ? (
-            <ActivityIndicator size="small" color={COLORS.brand.orange} />
+            <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
           ) : (
-            <Text className="font-inter-bold text-xs text-brand-orange uppercase tracking-wider">
+            <Text className="font-inter-bold text-xs text-primary-ink uppercase tracking-wider">
               Save
             </Text>
           )}
