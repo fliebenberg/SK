@@ -1,3 +1,6 @@
+const plugin = require('tailwindcss/plugin');
+const theme = require('./constants/theme');
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -9,6 +12,8 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // The purpose-named, theme-aware colours (constants/theme.js): `text-ink-muted`, `bg-card`…
+        ...theme.tailwindColors(),
         brand: {
           orange: "#FF3E00",
           blue: "#00E5FF",
@@ -30,5 +35,11 @@ module.exports = {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    // Each token's light and dark value. NativeWind reads `:root` and `.dark:root` as the root
+    // variables of the two colour schemes; on web they are ordinary CSS on `html` and `html.dark`.
+    plugin(({ addBase }) => {
+      addBase({ ':root': theme.cssVariables('light'), '.dark:root': theme.cssVariables('dark') });
+    }),
+  ],
 }

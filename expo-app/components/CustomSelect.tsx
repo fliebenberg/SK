@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, Pressable, TextInput } from 'react-native';
 import { useActiveTheme } from '../store/settingsStore';
 import { Ionicons } from '@expo/vector-icons';
-import { getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
 
 interface Option {
   value: string;
@@ -60,10 +60,10 @@ export default function CustomSelect({
       <TouchableOpacity
         onPress={() => setIsOpen(true)}
         activeOpacity={0.8}
-        className={`flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 ${className}`}
+        className={`flex-row items-center justify-between bg-field border border-line rounded-xl px-4 py-3 ${className}`}
         style={style}
       >
-        <Text className={`font-inter text-sm flex-1 ${selectedOption ? 'text-slate-850 dark:text-white' : 'text-slate-455'}`}>
+        <Text className={`font-inter text-sm flex-1 ${selectedOption ? 'text-ink' : 'text-ink-muted'}`}>
           {selectedOption ? selectedOption.label : placeholder}
         </Text>
         <View className="flex-row items-center gap-1.5">
@@ -75,10 +75,10 @@ export default function CustomSelect({
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close-circle" size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+              <Ionicons name="close-circle" size={18} color={themeColor(isDark, 'ink-muted')} />
             </TouchableOpacity>
           )}
-          <Ionicons name="chevron-down" size={16} color={isDark ? '#94A3B8' : '#64748B'} />
+          <Ionicons name="chevron-down" size={16} color={themeColor(isDark, 'ink-muted')} />
         </View>
       </TouchableOpacity>
 
@@ -89,29 +89,29 @@ export default function CustomSelect({
         onRequestClose={() => setIsOpen(false)}
       >
         <Pressable 
-          className="flex-1 bg-slate-950/40 items-center justify-center p-6"
+          className="flex-1 bg-overlay/40 items-center justify-center p-6"
           onPress={() => setIsOpen(false)}
         >
           <Pressable 
-            className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 w-full max-w-sm shadow-lg space-y-3"
+            className="bg-card rounded-2xl p-5 border border-line w-full max-w-sm shadow-lg space-y-3"
             onPress={(e) => e.stopPropagation()}
           >
-            <View className="flex-row justify-between items-center pb-3 border-b border-slate-100 dark:border-white/5 mb-1">
-              <Text className="font-orbitron-bold text-sm text-slate-850 dark:text-white uppercase tracking-wider">
+            <View className="flex-row justify-between items-center pb-3 border-b border-line-soft mb-1">
+              <Text className="font-orbitron-bold text-sm text-ink uppercase tracking-wider">
                 {placeholder}
               </Text>
               <TouchableOpacity onPress={() => setIsOpen(false)}>
-                <Ionicons name="close" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
+                <Ionicons name="close" size={20} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
 
             {showSearch && (
               <TextInput
                 placeholder={searchPlaceholder}
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 value={searchText}
                 onChangeText={setSearchText}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 font-inter text-xs text-slate-850 dark:text-white mb-2"
+                className="bg-field border border-line rounded-xl px-3 py-2 font-inter text-xs text-ink mb-2"
               />
             )}
 
@@ -130,22 +130,22 @@ export default function CustomSelect({
                     activeOpacity={0.7}
                     className={`flex-row items-center justify-between p-3 rounded-xl border ${
                       isSelected
-                        ? 'bg-brand-orange/10 border-brand-orange'
-                        : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-white/5'
+                        ? 'bg-primary-soft border-primary'
+                        : 'bg-field border-line-soft'
                     }`}
                   >
                     <View className="flex-1 pr-2">
-                      <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-inter-bold' : 'text-slate-855 dark:text-white'}`}>
+                      <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-inter-bold' : 'text-ink'}`}>
                         {opt.label}
                       </Text>
                       {!!opt.description && (
-                        <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        <Text className="font-inter text-[11px] text-ink-muted mt-0.5">
                           {opt.description}
                         </Text>
                       )}
                     </View>
                     {isSelected && (
-                      <Ionicons name="checkmark-circle" size={16} color="#FF3E00" />
+                      <Ionicons name="checkmark-circle" size={16} color={themeColor(isDark, 'primary')} />
                     )}
                   </TouchableOpacity>
                 );
@@ -153,7 +153,7 @@ export default function CustomSelect({
 
               {filteredOptions.length === 0 && (
                 <View className="items-center justify-center py-4">
-                  <Text className="font-inter text-xs text-slate-450">No options found</Text>
+                  <Text className="font-inter text-xs text-ink-muted">No options found</Text>
                 </View>
               )}
             </ScrollView>

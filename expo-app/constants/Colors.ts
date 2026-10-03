@@ -1,3 +1,7 @@
+import { tokens, type ThemeToken } from './theme';
+
+export type { ThemeToken };
+
 export const COLORS = {
   brand: {
     orange: '#FF3E00',
@@ -47,4 +51,13 @@ export const COLORS = {
 
 export function getThemeColor(isDark: boolean, key: keyof typeof COLORS.light): string {
   return isDark ? COLORS.dark[key] : COLORS.light[key];
+}
+
+/**
+ * A theme token's colour as a value, for what a class cannot reach — an icon's `color`,
+ * `placeholderTextColor`, an inline style. The same tokens the `text-ink-muted`-style classes
+ * use ([theme.js](./theme.js)), so a value and a class for one purpose always agree.
+ */
+export function themeColor(isDark: boolean, token: ThemeToken): string {
+  return tokens[token][isDark ? 'dark' : 'light'];
 }
