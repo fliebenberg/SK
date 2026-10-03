@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme, useSettingsStore } from '../store/settingsStore';
 import { COLORS, getThemeColor } from '../constants/Colors';
@@ -68,13 +68,25 @@ import { COLORS, getThemeColor } from '../constants/Colors';
  * here. What is always true is that a label sits at the left of its own field, so a bubble aligned
  * to the label and running right stays over the form wherever the field is; it is only pulled back
  * when it would pass the window's right edge.
+ *
+ * **On web it is pinned to the window** (2026-09-30). Being absolutely positioned left the bubble
+ * inside whatever clipped its field: a `GlassCard` (`overflow-hidden`) cut it off above the org
+ * Timezone label, and a scroll view — which cannot be told not to clip — cut it off above any
+ * label near the top of the visible area, such as *Sports* on the Playing step and the first field
+ * of the entrant modals. `position: 'fixed'` takes it out of all of them, and makes the window the
+ * edge that matters after all, so flipping and clamping are measured against it. Its height is
+ * measured on the first frame, drawn invisibly, so it flips when *this* bubble does not fit above
+ * rather than on a fixed guess. Native keeps the absolute bubble — `fixed` is web-only, and hover
+ * there is rare. The one known way to break it: an ancestor with a CSS `transform` becomes the
+ * box `fixed` is measured against, so a slide-animated container would put it in the wrong place.
  */
 
 const BUBBLE_WIDTH = 260;
 const BUBBLE_GAP = 8;
 const BUBBLE_MARGIN = 8;
-/** Below this much room overhead, the bubble flips under the icon instead. */
+/** Below this much room overhead, the bubble flips under the icon instead (native only). */
 const MIN_SPACE_ABOVE = 120;
+const IS_WEB = Platform.OS === 'web';
 
 /** One stored flag: whether the "hide these everywhere?" offer has already been made. */
 const HINT_SEEN_KEY = 'fieldHelpHintSeen';
@@ -122,11 +134,13 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
   const [offering, setOffering] = useState(false);
   const [hovered, setHovered] = useState(false);
   /** Where the icon is in the window — only ever used to decide flip and clamp. */
-  const [anchor, setAnchor] = useState<{ x: number; y: number; width: number } | null>(null);
+  const [anchor, setAnchor] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  /** The bubble's own height, measured on its first (invisible) frame — web only. */
+  const [bubbleHeight, setBubbleHeight] = useState<number | null>(null);
   /** How far the icon sits from the start of the label, so the bubble can begin where the label does. */
   const [iconOffset, setIconOffset] = useState(0);
   const iconRef = useRef<View>(null);
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const hasHelp = !!help;
   const isShowing = hasHelp && (override ?? showByDefault);
@@ -165,6 +179,31 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
       }
     : { left: labelAlignedLeft, bottom: BUBBLE_GAP + 16 };
 
+  /**
+   * The web version of the same rules, in window coordinates. Above when this bubble fits between
+   * the icon and the top of the window, otherwise below; left edge on the label's, kept inside the
+   * window on both sides.
+   */
+  const fixedBubbleStyle = (() => {
+    if (!anchor) return null;
+    const left = Math.max(
+      BUBBLE_MARGIN,
+      Math.min(anchor.x - iconOffset, screenWidth - BUBBLE_MARGIN - bubbleWidth)
+    );
+    const height = bubbleHeight ?? 0;
+    const fitsAbove = anchor.y - BUBBLE_GAP - height >= BUBBLE_MARGIN;
+    return {
+      position: 'fixed',
+      zIndex: 1000,
+      left,
+      ...(fitsAbove
+        ? { bottom: screenHeight - anchor.y + BUBBLE_GAP }
+        : { top: anchor.y + anchor.height + BUBBLE_GAP }),
+      /* Drawn once unseen to learn its height, then placed. */
+      opacity: bubbleHeight === null ? 0 : 1,
+    } as any; // `fixed` is valid on web but not in React Native's types.
+  })();
+
   return (
     <View
       className="gap-1.5"
@@ -186,7 +225,8 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
             onPress={toggle}
             onHoverIn={() => {
               setHovered(true);
-              iconRef.current?.measureInWindow((x, y, width) => setAnchor({ x, y, width }));
+              setBubbleHeight(null);
+              iconRef.current?.measureInWindow((x, y, width, height) => setAnchor({ x, y, width, height }));
             }}
             onHoverOut={() => setHovered(false)}
             onLayout={event => setIconOffset(event.nativeEvent.layout.x)}
@@ -209,10 +249,12 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
               </Text>
             )}
 
-            {hovered && !isShowing && (
+            {/* On web it waits for the icon's measurement, so it never appears in the wrong place. */}
+            {hovered && !isShowing && (!IS_WEB || fixedBubbleStyle) && (
               <View
-                className="absolute bg-slate-900 dark:bg-slate-700 rounded-lg px-3 py-2 shadow-lg"
-                style={{ width: bubbleWidth, ...bubblePosition }}
+                className={`${IS_WEB ? '' : 'absolute '}bg-slate-900 dark:bg-slate-700 rounded-lg px-3 py-2 shadow-lg`}
+                style={IS_WEB ? { width: bubbleWidth, ...fixedBubbleStyle } : { width: bubbleWidth, ...bubblePosition }}
+                onLayout={IS_WEB ? event => setBubbleHeight(event.nativeEvent.layout.height) : undefined}
                 pointerEvents="none"
               >
                 <Text className="font-inter text-[11px] leading-relaxed text-white">{help}</Text>
