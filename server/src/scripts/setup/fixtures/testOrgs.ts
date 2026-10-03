@@ -68,6 +68,32 @@ export interface FixtureTeam {
     players: (string | FixturePlayer)[];
 }
 
+/** A member in no team — an adult on the roster, say. */
+export interface FixtureMember extends FixturePerson {
+    role: (typeof FIXTURE_ORG_ROLES)[number];
+    birthdate?: string;
+}
+
+/**
+ * Someone who answers for one or more people in the organisation (`MEMBER-3`). A guardian who is
+ * not already listed in the organisation gets a profile with **no membership and no org ID**, as
+ * the app makes them; one who is (a staff member who is also a parent) is linked through the
+ * profile they already have.
+ */
+export interface FixtureGuardian extends FixturePerson {
+    /** International form, as the app stores it. */
+    cellphone?: string;
+    children: {
+        /** A person listed in this organisation. */
+        name: string;
+        relationship: 'parent' | 'guardian' | 'grandparent' | 'other';
+        /** One active primary per child. */
+        primary?: boolean;
+        /** When the link ended. Absent means current. */
+        ended?: string;
+    }[];
+}
+
 export interface FixtureFacility {
     key: string;
     name: string;
@@ -94,6 +120,12 @@ export interface FixtureOrg {
     admin: FixturePerson;
     staff: FixturePerson[];
     teams: FixtureTeam[];
+    /**
+     * Loaded after the teams, so adding one never moves anybody's org ID (`DKL0043`…), which the
+     * people-import sample and its tests name.
+     */
+    members?: FixtureMember[];
+    guardians?: FixtureGuardian[];
 }
 
 const STANDARD_FACILITIES: FixtureFacility[] = [
@@ -157,6 +189,47 @@ export const TEST_ORGS: FixtureOrg[] = [
                     'Danielle Nortje', 'Amoré Blignaut', 'Thandeka Zwane', 'Jana Steenkamp', 'Bianca Cronjé',
                 ],
             },
+        ],
+        members: [
+            // An adult with a guardian: a *dependant* (docs/people.md §4). The app treats him as a
+            // minor; the screens call him a dependant.
+            { name: 'Daniel Pretorius', email: 'daniel.pretorius@doringkloof.test', role: 'role-org-member', birthdate: '1999-11-09' },
+        ],
+        // Guardians, one deliberate case each. None is on a player a test relies on (Anika Kotzé
+        // and Mia Strydom start with no guardian in test-guardians.ts).
+        guardians: [
+            // The dependant's guardian.
+            { name: 'Marieta Pretorius', email: 'marieta.pretorius@example.test', cellphone: '+27825550201',
+              children: [{ name: 'Daniel Pretorius', relationship: 'parent', primary: true }] },
+            // A minor with two guardians: a parent with an account (log in to see My Family) and a
+            // grandparent with a cellphone and no email.
+            { name: 'Busisiwe Mkhize', email: 'busisiwe.mkhize@example.test', cellphone: '+27825550202', account: true,
+              children: [{ name: 'Zanele Mkhize', relationship: 'parent', primary: true }] },
+            { name: 'Nomathemba Mkhize', cellphone: '+27825550203',
+              children: [{ name: 'Zanele Mkhize', relationship: 'grandparent' }] },
+            // One guardian for three children: the hostel father of three boarders. Primary for two;
+            // for Palesa her mother is primary and he is the second guardian.
+            { name: 'Dirk Hanekom', email: 'dirk.hanekom@doringkloof.test', cellphone: '+27825550204',
+              children: [
+                  { name: 'Neo Mahlangu', relationship: 'guardian', primary: true },
+                  { name: 'Nandi Shabalala', relationship: 'guardian', primary: true },
+                  { name: 'Palesa Moloi', relationship: 'guardian' },
+              ] },
+            { name: 'Refiloe Moloi', email: 'refiloe.moloi@example.test',
+              children: [{ name: 'Palesa Moloi', relationship: 'parent', primary: true }] },
+            // A guardian who is also a member here (staff, with an account): linked through her own
+            // profile, not given a second one.
+            { name: 'Lerato Mokoena', email: 'lerato.mokoena@doringkloof.test', account: true,
+              children: [{ name: 'Tumi Letsoalo', relationship: 'parent', primary: true }] },
+            // An ended link: the father was the guardian until 30 June; the mother is now.
+            { name: 'Willie Rossouw', email: 'willie.rossouw@example.test',
+              children: [{ name: 'Carla Rossouw', relationship: 'parent', primary: true, ended: '2026-06-30T00:00:00Z' }] },
+            { name: 'Elsa Rossouw', email: 'elsa.rossouw@example.test', cellphone: '+27825550205',
+              children: [{ name: 'Carla Rossouw', relationship: 'parent', primary: true }] },
+            // One parent, two organisations: one account, a guardian profile here and at
+            // Kwaggafontein, a child in each.
+            { name: 'Elmarie Kruger', email: 'elmarie.kruger@example.test', cellphone: '+27825550206', account: true,
+              children: [{ name: 'Wian Kruger', relationship: 'parent', primary: true }] },
         ],
     },
     {
@@ -330,6 +403,11 @@ export const TEST_ORGS: FixtureOrg[] = [
                 ],
             },
         ],
+        guardians: [
+            // The same account as her guardian profile at Doringkloof.
+            { name: 'Elmarie Kruger', email: 'elmarie.kruger@example.test', cellphone: '+27825550206', account: true,
+              children: [{ name: 'Ockert Brits', relationship: 'parent', primary: true }] },
+        ],
     },
 ];
 
@@ -354,6 +432,8 @@ export const fixtureIds = {
     orgMembership: (orgKey: string, name: string) => `fx-om-${orgKey}-${fixtureSlug(name)}`,
     teamMembership: (orgKey: string, teamKey: string, name: string) =>
         `fx-tm-${orgKey}-${teamKey}-${fixtureSlug(name)}`,
+    guardianLink: (orgKey: string, guardianName: string, childName: string) =>
+        `fx-pg-${orgKey}-${fixtureSlug(guardianName)}-${fixtureSlug(childName)}`,
     user: (name: string) => `fx-user-${fixtureSlug(name)}`,
     userEmail: (name: string) => `fx-email-${fixtureSlug(name)}`,
 };

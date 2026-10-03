@@ -20,6 +20,12 @@ described in the [setup README](file:///c:/Fred/Coding/SK/server/src/scripts/set
 - **Add edge cases in the test, not in `testOrgs.ts`.** The file is the shared base; editing it for
   one test changes the expected results of every other test. Give the rows a test adds a `test-`
   id, and delete them at the end, as below.
+- **Data for trying the app by hand belongs in `testOrgs.ts` too, never only in a database.** A
+  person, guardian or team added to the dev data for a demo or a mockup is lost at the next
+  `db:test-orgs` or `db:setup` unless the fixture has it. Add it at the end of the organisation
+  (`members`, `guardians`) so no org ID moves, list it under *Deliberate cases* in the
+  [setup README](file:///c:/Fred/Coding/SK/server/src/scripts/setup/README.md), and check no test
+  relied on its absence.
 - **Never use the `fx-` prefix for anything else.** `db:test-orgs` deletes every row whose id or
   `…_id` column starts with it.
 

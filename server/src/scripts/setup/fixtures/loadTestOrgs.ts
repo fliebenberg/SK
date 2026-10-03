@@ -148,6 +148,8 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             org.admin,
             ...org.staff,
             ...org.teams.flatMap(t => [t.coach, ...t.players.filter((p): p is FixturePlayer => typeof p !== 'string')]),
+            ...(org.members || []),
+            ...(org.guardians || []),
         ];
         for (const person of people.filter(p => p.account)) {
             if (!person.email) throw new Error(`${person.name} has an account but no email.`);
@@ -244,6 +246,33 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                 const player: FixturePlayer = typeof entry === 'string' ? { name: entry } : entry;
                 const profileId = await addPerson(player, 'role-org-member', { birthdate: birthdate(team.birthYear, i), left: player.left });
                 await addToTeam(player, profileId, 'role-player', player.left);
+            }
+        }
+
+        // After the teams, so nobody listed above gets a different org ID.
+        for (const member of org.members || []) {
+            await addPerson(member, member.role, { birthdate: member.birthdate });
+        }
+
+        // A guardian already listed here is linked through that profile. Anyone else gets a
+        // profile with no membership and no org ID — being a guardian is the link, not a role.
+        for (const guardian of org.guardians || []) {
+            let guardianId = profiles.get(guardian.name);
+            if (!guardianId) {
+                guardianId = fixtureIds.profile(org.key, guardian.name);
+                profiles.set(guardian.name, guardianId);
+                await insert('org_profiles',
+                    ['id', 'org_id', 'user_id', 'name', 'email', 'cellphone', 'birthdate', 'identifier', 'primary_role_id'],
+                    [guardianId, orgId, guardian.account ? fixtureIds.user(guardian.name) : null, guardian.name,
+                     guardian.email?.toLowerCase() ?? null, guardian.cellphone ?? null, null, null, null]);
+            }
+            for (const child of guardian.children) {
+                const childId = profiles.get(child.name);
+                if (!childId) throw new Error(`${guardian.name} is the guardian of ${child.name}, who is not listed in ${org.name}.`);
+                await insert('profile_guardians',
+                    ['id', 'org_id', 'guardian_profile_id', 'player_profile_id', 'relationship', 'is_primary', 'start_date', 'end_date'],
+                    [fixtureIds.guardianLink(org.key, guardian.name, child.name), orgId, guardianId, childId,
+                     child.relationship, child.primary ?? false, FIXTURE_MEMBERSHIP_START, child.ended ?? null]);
             }
         }
     }

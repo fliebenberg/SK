@@ -49,6 +49,25 @@ lists every person with `account: true`.
   netball coach at Kwaggafontein.
 - Ethan Murray left Riverbend's 1st XV on 2026-03-31, so his organisation and team memberships
   have ended.
+- **Guardians** (`MEMBER-3`), at Doringkloof unless said otherwise. A guardian not otherwise listed
+  has a profile with no membership and no org ID, as the app makes them. None is on a player a
+  test relies on.
+  - **A dependant:** Daniel Pretorius, an adult Member in no team, with his mother Marieta
+    Pretorius as guardian. The app treats him as a minor; the screens call him a dependant.
+  - **Two guardians:** Zanele Mkhize — her mother Busisiwe (primary, has an account, so she can
+    log in and see My Family) and her grandmother Nomathemba (cellphone only, no email).
+  - **One guardian, three children:** Dirk Hanekom, hostel father (relationship *Guardian*), of
+    Neo Mahlangu, Nandi Shabalala and Palesa Moloi. Primary for the first two; Palesa's mother,
+    Refiloe Moloi, is hers.
+  - **A guardian who is also a member:** Lerato Mokoena (staff, with an account) is Tumi Letsoalo's
+    mother, linked through her staff profile.
+  - **An ended link:** Willie Rossouw was Carla Rossouw's guardian until 2026-06-30; her mother,
+    Elsa Rossouw, is now.
+  - **One parent, two organisations:** Elmarie Kruger has one account and a guardian profile at
+    Doringkloof (Wian Kruger) and at Kwaggafontein (Ockert Brits).
+
+  Add new guardian cases in `guardians` (and adults outside teams in `members`) at the end of an
+  organisation: those load after the teams, so nobody's org ID moves.
 
 Anything a test needs beyond this, it adds itself. Keep this file as the shared base.
 
