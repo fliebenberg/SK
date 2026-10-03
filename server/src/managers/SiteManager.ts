@@ -9,7 +9,7 @@ export class SiteManager extends BaseManager {
   async getSites(orgId?: string): Promise<Site[]> {
     let queryText = `
         SELECT s.id, s.name, s.org_id as "orgId", s.address_id as "addressId", s.is_active as "isActive",
-               s.timezone, a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
+               s.timezone, a.full_address as "fullAddress", a.building, a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
                a.city, a.province, a.postal_code as "postalCode", a.country,
                a.latitude, a.longitude
         FROM sites s
@@ -26,6 +26,7 @@ export class SiteManager extends BaseManager {
         address: row.addressId ? {
             id: row.addressId,
             fullAddress: row.fullAddress,
+            building: row.building,
             addressLine1: row.addressLine1,
             addressLine2: row.addressLine2,
             city: row.city,
@@ -41,7 +42,7 @@ export class SiteManager extends BaseManager {
   async getSite(id: string): Promise<Site | undefined> {
     const res = await this.query(`
         SELECT s.id, s.name, s.org_id as "orgId", s.address_id as "addressId", s.is_active as "isActive",
-               s.timezone, a.full_address as "fullAddress", a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
+               s.timezone, a.full_address as "fullAddress", a.building, a.address_line_1 as "addressLine1", a.address_line_2 as "addressLine2",
                a.city, a.province, a.postal_code as "postalCode", a.country,
                a.latitude, a.longitude
         FROM sites s
@@ -57,6 +58,7 @@ export class SiteManager extends BaseManager {
         address: row.addressId ? {
             id: row.addressId,
             fullAddress: row.fullAddress,
+            building: row.building,
             addressLine1: row.addressLine1,
             addressLine2: row.addressLine2,
             city: row.city,

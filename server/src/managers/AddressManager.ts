@@ -7,6 +7,7 @@ export class AddressManager extends BaseManager {
       SELECT 
         id, 
         full_address as "fullAddress", 
+        building, 
         address_line_1 as "addressLine1", 
         address_line_2 as "addressLine2", 
         city, 
@@ -24,12 +25,13 @@ export class AddressManager extends BaseManager {
   async addAddress(address: Omit<Address, "id"> & { id?: string }): Promise<Address> {
     const id = address.id || `addr-${Date.now()}`;
     const res = await this.query(`
-      INSERT INTO addresses (id, full_address, address_line_1, address_line_2, city, province, postal_code, country, latitude, longitude)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING id, full_address as "fullAddress", address_line_1 as "addressLine1", address_line_2 as "addressLine2", city, province, postal_code as "postalCode", country, latitude, longitude
+      INSERT INTO addresses (id, full_address, building, address_line_1, address_line_2, city, province, postal_code, country, latitude, longitude)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id, full_address as "fullAddress", building, address_line_1 as "addressLine1", address_line_2 as "addressLine2", city, province, postal_code as "postalCode", country, latitude, longitude
     `, [
       id, 
       address.fullAddress, 
+      address.building || null, 
       address.addressLine1, 
       address.addressLine2, 
       address.city, 
@@ -48,6 +50,7 @@ export class AddressManager extends BaseManager {
 
     const map: Record<string, string> = {
       fullAddress: 'full_address',
+      building: 'building',
       addressLine1: 'address_line_1',
       addressLine2: 'address_line_2',
       city: 'city',
@@ -74,7 +77,7 @@ export class AddressManager extends BaseManager {
     values.push(id);
 
     const res = await this.query(
-      `UPDATE addresses SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, full_address as "fullAddress", address_line_1 as "addressLine1", address_line_2 as "addressLine2", city, province, postal_code as "postalCode", country, latitude, longitude`,
+      `UPDATE addresses SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING id, full_address as "fullAddress", building, address_line_1 as "addressLine1", address_line_2 as "addressLine2", city, province, postal_code as "postalCode", country, latitude, longitude`,
       values
     );
     return res.rows[0] || null;

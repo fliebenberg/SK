@@ -116,8 +116,8 @@ export default function SiteViewScreen() {
     }
   };
 
-  const lat = (site.address as any)?.lat;
-  const lng = (site.address as any)?.lng;
+  const lat = site.address?.latitude;
+  const lng = site.address?.longitude;
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>

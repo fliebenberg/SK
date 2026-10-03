@@ -49,23 +49,25 @@ it* appears beside the type only while Other is chosen. The register-an-org dial
 ## 3. Address
 
 The org's address uses the app's shared address input
-([AddressInput](file:///c:/Fred/Coding/SK/expo-app/components/address/AddressInput.tsx)), built
-from the site editor's flow so that the same kind of data is entered the same way everywhere:
+([AddressInput](file:///c:/Fred/Coding/SK/expo-app/components/address/AddressInput.tsx)), which the
+site editor uses too, so that the same kind of data is entered the same way everywhere:
 
 1. **Search** — suggestions from Google Places as you type.
 2. **Picked** — the address as text, with *Change* and *Edit details*, and a map whose pin can be
    dragged onto the main entrance.
-3. **Enter it yourself** — street, suburb (optional), town, postal code (optional), province
-   (optional) and country, for an address Google does not know.
+3. **Enter it yourself** — unit or building (optional), street, suburb (optional), town, postal code
+   (optional), province (optional) and country, for an address Google does not know, or to add a
+   unit or building to a picked one.
+
+The unit or building is filled from Google only when its result has a unit or premise part, which is
+rare. It is never filled with the place's name: a search for a school by name finds the school, but
+the name belongs on the organisation or site, not in its address.
 
 The full address is public: it is optional and can be typed by hand, so the org decides how much to
 give. On the Profile, the map preview (desktop) or thumbnail (phone) opens **`/admin/[orgId]/address`**
 ([address.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/address.tsx)): the pin on a
 full map, the address, **Directions** (handed to the phone's maps app) and **Copy address** (the
 clipboard on web, the share sheet on a phone).
-
-The site editor still has its own copy of the search and map until it moves onto the shared input
-(`VENUE-2`).
 
 ## 4. Timezone and the address pin
 
@@ -103,7 +105,8 @@ but are not shown. The process itself: [nomination-process.md](file:///c:/Fred/C
 
 All three pages read the org through `useOrgSummary(orgId)`, which only joins the
 `org:{id}:summary` room: its join push is the initial load, and every save republishes the whole
-org, so nothing refetches after a save (`LIVE-12`, which tracks the older screens still querying).
+org, so nothing refetches after a save. The workspace layout, left rail and Control Panel read the
+org the same way (`LIVE-12`), so an edit here shows everywhere at once.
 Every edit is an `UPDATE_ORG` patch carrying only the fields its dialog owns; the minors settings
 keep their own action, `SET_ORG_MINORS_SETTINGS`. `UPDATE_ORG` with `address: null` removes the
 address.

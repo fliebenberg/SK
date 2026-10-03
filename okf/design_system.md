@@ -8,7 +8,7 @@ tags:
   - styling
   - theme
   - accessibility
-timestamp: 2026-09-27T00:00:00Z
+timestamp: 2026-10-03T00:00:00Z
 ---
 
 # Design System & Styling Rules
@@ -116,7 +116,7 @@ admin pages only; other pages adopt them as they are next redesigned.
     [`<BrandColorsField>`](file:///c:/Fred/Coding/SK/expo-app/components/org/BrandColorsField.tsx) for an org's pair, used by Edit
     identity and both org create forms), one
     date input. A screen that needs something different improves the shared input instead of
-    growing its own. The site editor still has its own address search (`VENUE-2`).
+    growing its own.
 10. **Profile and settings are separate pages.** Profile is what the record is and how others see
     it. Settings is how it behaves: one card per setting or group, each saving itself — a switch
     saves when flipped (after a confirmation if it is far-reaching), anything else through its

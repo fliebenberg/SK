@@ -85,7 +85,13 @@ export function AddressDialog({ org, visible, onClose, onSaved }: {
           </TouchableOpacity>
         </View>
       ) : (
-        <AddressInput key={openCount} value={draft} onChange={setDraft} pinTitle={org.name} />
+        <AddressInput
+          key={openCount}
+          value={draft}
+          onChange={setDraft}
+          pinTitle={org.name}
+          pinHelp="Drag the pin to the main entrance. The pin is also where the organisation's address timezone comes from."
+        />
       )}
     </EditDialog>
   );

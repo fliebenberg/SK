@@ -22,8 +22,9 @@ Below is a simplified view of how the core tables relate to each other:
 Stores physical locations used by various entities.
 - `id` (TEXT, PK)
 - `full_address` (TEXT)
-- `address_line_1` (TEXT)
-- `address_line_2` (TEXT)
+- `building` (TEXT): Optional unit, building or complex, e.g. "Unit 16, The Waves". Shown above the street.
+- `address_line_1` (TEXT): The street, e.g. "15 Foam Rd".
+- `address_line_2` (TEXT): The suburb or area.
 - `city` (TEXT)
 - `province` (TEXT)
 - `postal_code` (TEXT)

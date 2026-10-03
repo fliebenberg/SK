@@ -5,10 +5,8 @@ import { Address } from '@sk/shared';
  * Google Places address search, for the shared address input
  * ([AddressInput](file:///c:/Fred/Coding/SK/expo-app/components/address/AddressInput.tsx)).
  *
- * The logic is the site editor's ([sites/[siteId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/sites/%5BsiteId%5D.tsx)),
- * lifted out unchanged in what it asks Google for: web goes through the Maps JavaScript SDK (the
- * REST endpoints refuse a browser origin), native through the REST endpoints. The site editor still
- * carries its own copy until it moves onto the shared input (`VENUE-2`).
+ * Web goes through the Maps JavaScript SDK (the REST endpoints refuse a browser origin), native
+ * through the REST endpoints. Used for every address the app takes: an organisation's and a site's.
  *
  * A **session token** groups one search's keystrokes with the details lookup that ends it, which is
  * how Google bills a search as one session rather than per keystroke. A search starts one; picking
@@ -131,10 +129,16 @@ function toSuggestion(p: any): PlaceSuggestion {
 }
 
 /**
- * A Places result as our address fields. The suburb goes to the second line — the site editor
+ * A Places result as our address fields. The suburb goes to the second line — the site editor once
  * folded it into the city, which turned "Doringkloof, Centurion" into a town called Doringkloof.
+ *
+ * The unit or building comes only from Google's own `subpremise` and `premise` parts, and is
+ * usually blank. It is never the place's name: a search for "Melkbos High School" finds the school,
+ * but the name belongs on the site or organisation, not in its address (VENUE-2).
  */
 export function parsePlace(place: any): AddressDraft {
+  let unit = '';
+  let premise = '';
   let houseNumber = '';
   let road = '';
   let suburb = '';
@@ -146,7 +150,9 @@ export function parsePlace(place: any): AddressDraft {
 
   for (const comp of place.address_components || []) {
     const types: string[] = comp.types || [];
-    if (types.includes('street_number')) houseNumber = comp.long_name;
+    if (types.includes('subpremise')) unit = comp.long_name;
+    else if (types.includes('premise')) premise = comp.long_name;
+    else if (types.includes('street_number')) houseNumber = comp.long_name;
     else if (types.includes('route')) road = comp.long_name;
     else if (types.includes('sublocality') || types.includes('sublocality_level_1') || types.includes('neighborhood')) suburb = suburb || comp.long_name;
     else if (types.includes('locality') || types.includes('postal_town')) city = comp.long_name;
@@ -163,6 +169,7 @@ export function parsePlace(place: any): AddressDraft {
 
   return {
     fullAddress: formatted,
+    building: [unit, premise].filter(Boolean).join(', '),
     addressLine1: road ? `${houseNumber} ${road}`.trim() : formatted.split(',')[0],
     addressLine2: suburb && suburb !== city ? suburb : '',
     city: city || district,
@@ -177,7 +184,7 @@ export function parsePlace(place: any): AddressDraft {
 /** One line from the address fields, for an address typed in by hand (which has no `formatted_address`). */
 export function composeFullAddress(a: Partial<AddressDraft>): string {
   const cityLine = [a.city, a.postalCode].filter(Boolean).join(', ');
-  return [a.addressLine1, a.addressLine2, cityLine, a.province, a.country]
+  return [a.building, a.addressLine1, a.addressLine2, cityLine, a.province, a.country]
     .map(part => (part || '').trim())
     .filter(Boolean)
     .join(', ');

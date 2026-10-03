@@ -5,7 +5,7 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { getThemeColor } from '../../constants/Colors';
 import { FieldLabel } from '../FieldLabel';
 import { TEXT_INPUT } from '../formStyles';
-import { AddressMap } from './AddressMap';
+import { AddressMap, MapMarker } from './AddressMap';
 import { AddressDraft, PlaceSuggestion, PlacesSession, composeFullAddress, hasPin } from '../../services/places';
 
 /**
@@ -14,20 +14,23 @@ import { AddressDraft, PlaceSuggestion, PlacesSession, composeFullAddress, hasPi
  * Three states. **Search**: type, and Google's suggestions appear as you go — no separate search
  * button. **Picked**: the address shows as text with Change and Edit details, and a map whose pin
  * can be dragged onto the right spot. **Enter it yourself**: the fields, for an address Google does
- * not know — a farm school, a new development. A hand-typed address keeps whatever pin it already
- * had and otherwise has none.
+ * not know — a farm school, a new development — and for adding a unit or building to a picked one.
+ * A hand-typed address keeps whatever pin it already had and otherwise has none.
  *
  * Controlled: `value` is the address being edited (or `null` for none yet) and every change comes
  * back through `onChange`. Whether it is complete enough to save is `isAddressComplete`.
  *
- * Built for the org profile (2026-10-01). The site editor has its own older version of the same
- * flow until it moves onto this one (`VENUE-2`).
+ * Used by the org profile's address dialog and the site editor.
  */
 export interface AddressInputProps {
   value: AddressDraft | null;
   onChange: (value: AddressDraft | null) => void;
   /** Shown on the map pin. */
   pinTitle?: string;
+  /** The pin's help text: what the pin is for on this record. */
+  pinHelp?: string;
+  /** Other places to show on the map around the pin — a site's facilities. */
+  markers?: MapMarker[];
 }
 
 type Mode = 'search' | 'picked' | 'manual';
@@ -39,7 +42,9 @@ export function isAddressComplete(a: AddressDraft | null): boolean {
   return !!a && !!a.addressLine1?.trim() && !!a.city?.trim() && !!a.country?.trim();
 }
 
-export function AddressInput({ value, onChange, pinTitle }: AddressInputProps) {
+const DEFAULT_PIN_HELP = 'Drag the pin to the main entrance.';
+
+export function AddressInput({ value, onChange, pinTitle, pinHelp = DEFAULT_PIN_HELP, markers }: AddressInputProps) {
   const isDark = useActiveTheme() === 'dark';
   const [mode, setMode] = useState<Mode>(value ? 'picked' : 'search');
   const [query, setQuery] = useState('');
@@ -84,7 +89,7 @@ export function AddressInput({ value, onChange, pinTitle }: AddressInputProps) {
 
   const startManual = () => {
     // Carries over whatever there is — a picked address being corrected keeps its pin.
-    if (!value) onChange({ fullAddress: '', addressLine1: query.trim(), addressLine2: '', city: '', province: '', postalCode: '', country: 'South Africa' });
+    if (!value) onChange({ fullAddress: '', building: '', addressLine1: query.trim(), addressLine2: '', city: '', province: '', postalCode: '', country: 'South Africa' });
     setMode('manual');
   };
 
@@ -147,6 +152,7 @@ export function AddressInput({ value, onChange, pinTitle }: AddressInputProps) {
     const v = value || ({} as AddressDraft);
     return (
       <View className="gap-3.5">
+        <Field label="Unit or building" optional value={v.building} onChange={t => setField('building', t)} placeholder="e.g. Unit 16, The Waves" />
         <Field label="Street address" value={v.addressLine1} onChange={t => setField('addressLine1', t)} autoFocus />
         <Field label="Suburb or area" optional value={v.addressLine2} onChange={t => setField('addressLine2', t)} />
         <View className="flex-row gap-3">
@@ -159,8 +165,8 @@ export function AddressInput({ value, onChange, pinTitle }: AddressInputProps) {
         </View>
         {hasPin(value) ? (
           <View className="gap-1.5">
-            <FieldLabel label="Pin" help="Drag the pin to the main entrance. The pin is also where the organisation's address timezone comes from." />
-            <AddressMap latitude={value.latitude} longitude={value.longitude} title={pinTitle} draggable onPinMoved={movePin} height={160} />
+            <FieldLabel label="Pin" help={pinHelp} />
+            <AddressMap latitude={value.latitude} longitude={value.longitude} title={pinTitle} draggable onPinMoved={movePin} height={160} markers={markers} />
           </View>
         ) : null}
         <LinkText label="Search for the address instead" onPress={() => setMode('search')} />
@@ -186,19 +192,19 @@ export function AddressInput({ value, onChange, pinTitle }: AddressInputProps) {
       </View>
       {hasPin(value) ? (
         <View className="gap-1.5">
-          <FieldLabel label="Pin" help="Drag the pin to the main entrance. The pin is also where the organisation's address timezone comes from." />
-          <AddressMap latitude={value.latitude} longitude={value.longitude} title={pinTitle} draggable onPinMoved={movePin} height={170} />
+          <FieldLabel label="Pin" help={pinHelp} />
+          <AddressMap latitude={value.latitude} longitude={value.longitude} title={pinTitle} draggable onPinMoved={movePin} height={170} markers={markers} />
         </View>
       ) : null}
     </View>
   );
 }
 
-/** An address as lines: street, suburb, then town and postal code with the province. */
+/** An address as lines: unit or building, street, suburb, then town and postal code with the province. */
 export function AddressLines({ address, muted = false }: { address: Partial<AddressDraft> | null | undefined; muted?: boolean }) {
   if (!address) return null;
   const townLine = [[address.city, address.postalCode].filter(Boolean).join(', '), address.province].filter(Boolean).join(' · ');
-  const lines = [address.addressLine1, address.addressLine2].filter(Boolean) as string[];
+  const lines = [address.building, address.addressLine1, address.addressLine2].filter(Boolean) as string[];
   // An old address with only the one-line form (the server had no separate lines before 2026-10-01).
   if (lines.length === 0 && !townLine) lines.push(address.fullAddress || '');
   return (
@@ -211,11 +217,12 @@ export function AddressLines({ address, muted = false }: { address: Partial<Addr
   );
 }
 
-function Field({ label, value, onChange, optional, autoFocus }: { label: string; value?: string; onChange: (t: string) => void; optional?: boolean; autoFocus?: boolean }) {
+function Field({ label, value, onChange, optional, autoFocus, placeholder }: { label: string; value?: string; onChange: (t: string) => void; optional?: boolean; autoFocus?: boolean; placeholder?: string }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <View className="gap-1.5">
       <FieldLabel label={label} optional={optional} />
-      <TextInput value={value || ''} onChangeText={onChange} autoFocus={autoFocus} className={INPUT} accessibilityLabel={label} />
+      <TextInput value={value || ''} onChangeText={onChange} autoFocus={autoFocus} placeholder={placeholder} placeholderTextColor={getThemeColor(isDark, 'textSecondary')} className={INPUT} accessibilityLabel={label} />
     </View>
   );
 }

@@ -1,262 +1,51 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../components/GlassCard';
-import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useSettingsStore, useActiveTheme } from '../../../../store/settingsStore';
+import { useActiveTheme } from '../../../../store/settingsStore';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { wsService } from '../../../../services/websocket';
 import { sendAction } from '../../../../services/actions';
 import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, Site, Facility, Address, reseedDecision } from '@sk/shared';
+import { SocketAction, Site, Facility, reseedDecision } from '@sk/shared';
 import { useSocketQuery } from '../../../../hooks/useSocketQuery';
 import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
 import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
+import { AddressInput, isAddressComplete } from '../../../../components/address/AddressInput';
+import { facilityIcon, facilityMarkers } from '../../../../components/address/facilityMarker';
+import { AddressDraft } from '../../../../services/places';
 
-// Conditionally require react-native-maps to avoid breaking react-native-web
-let MapView: any;
-let Marker: any;
-try {
-  const MapsModule = require('react-native-maps');
-  MapView = MapsModule.default;
-  Marker = MapsModule.Marker;
-} catch (e) {
-  // Fallback on web/unsupported platforms
-}
-
-// Google Maps Javascript API Loader for Web Platform
-const loadGoogleMapsScript = (callback: () => void) => {
-  if (typeof window === 'undefined') return;
-  if ((window as any).google && (window as any).google.maps) {
-    callback();
-    return;
-  }
-  const scriptId = 'google-maps-js-sdk';
-  let script = document.getElementById(scriptId) as HTMLScriptElement;
-  if (script) {
-    // If script is already in document but not yet loaded, listen to load
-    script.addEventListener('load', callback);
-    return;
-  }
-  script = document.createElement('script');
-  script.id = scriptId;
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.EXPO_PUBLIC_WEB_GOOGLE_MAPS_API_KEY || ''}&libraries=places`;
-  script.async = true;
-  script.defer = true;
-  script.addEventListener('load', callback);
-  document.head.appendChild(script);
-};
-
-// Interactive Web Map component rendering standard div via createElement
-const InteractiveWebMap = ({ latitude, longitude, title, onChange, facilities = [], sports = [] }: { latitude: number; longitude: number; title?: string; onChange: (lat: number, lng: number) => void; facilities?: Facility[]; sports?: any[] }) => {
-  const containerRef = React.useRef<any>(null);
-  const mapRef = React.useRef<any>(null);
-  const mainMarkerRef = React.useRef<any>(null);
-  const facilityMarkersRef = React.useRef<any[]>([]);
-  const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
-  const isDark = useActiveTheme() === 'dark';
-
-  // Helper to generate dynamic SVG Marker as data URL
-  const getSvgMarker = (iconName: string, color: string, isDarkTheme: boolean) => {
-    const bgColor = isDarkTheme ? '#1E293B' : '#FFFFFF';
-    let innerSvg = '';
-    switch (iconName) {
-      case 'american-football':
-        innerSvg = `<ellipse cx="16" cy="16" rx="8" ry="4.5" fill="none" stroke="${color}" stroke-width="1.8" transform="rotate(-45 16 16)"/><line x1="11" y1="21" x2="21" y2="11" stroke="${color}" stroke-width="1.5"/><line x1="13" y1="15" x2="17" y2="19" stroke="${color}" stroke-width="1"/><line x1="15" y1="13" x2="19" y2="17" stroke="${color}" stroke-width="1"/>`;
-        break;
-      case 'football':
-        innerSvg = `<circle cx="16" cy="16" r="7" fill="none" stroke="${color}" stroke-width="1.8"/><path d="M16 9v14M9 16h14M11.5 11.5l9 9m0-9l-9 9" stroke="${color}" stroke-width="1" opacity="0.6"/>`;
-        break;
-      case 'tennisball':
-      case 'tennisball-outline':
-        innerSvg = `<circle cx="16" cy="16" r="7" fill="none" stroke="${color}" stroke-width="1.8"/><path d="M11.5 11.5a7 7 0 0 1 9 9M20.5 11.5a7 7 0 0 0-9 9" fill="none" stroke="${color}" stroke-width="1" opacity="0.8"/>`;
-        break;
-      case 'golf':
-        innerSvg = `<path d="M13 8v16m0-16l8 4-8 4" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
-        break;
-      case 'baseball':
-        innerSvg = `<line x1="10" y1="22" x2="20" y2="12" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/><circle cx="21" cy="11" r="2.5" fill="none" stroke="${color}" stroke-width="1.5"/>`;
-        break;
-      case 'trophy-outline':
-      case 'ribbon-outline':
-        innerSvg = `<path d="M11 9h10v5c0 2.5-2 4.5-4.5 4.5h-1C13 18.5 11 16.5 11 14V9zm2.5 9.5V22h-2v1h9v-1h-2v-3.5" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
-        break;
-      case 'home-outline':
-        innerSvg = `<path d="M10 21v-7h12v7M8 12.5L16 6l8 6.5" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`;
-        break;
-      case 'cart-outline':
-        innerSvg = `<path d="M9 10h14l-1.5 8h-10L9 10zm0 0L7.5 7H5" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11" cy="21" r="1.5" fill="${color}"/><circle cx="20" cy="21" r="1.5" fill="${color}"/>`;
-        break;
-      case 'business-outline':
-        innerSvg = `<path d="M9 22V8h14v14" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="11" x2="14" y2="11" stroke="${color}" stroke-width="1.5"/><line x1="12" y1="15" x2="14" y2="15" stroke="${color}" stroke-width="1.5"/><line x1="18" y1="11" x2="20" y2="11" stroke="${color}" stroke-width="1.5"/><line x1="18" y1="15" x2="20" y2="15" stroke="${color}" stroke-width="1.5"/>`;
-        break;
-      case 'car-outline':
-        innerSvg = `<text x="16" y="16.5" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" font-size="12" fill="${color}" dominant-baseline="middle" text-anchor="middle">P</text>`;
-        break;
-      case 'water-outline':
-        innerSvg = `<text x="16" y="16.5" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" font-size="9" fill="${color}" dominant-baseline="middle" text-anchor="middle">WC</text>`;
-        break;
-      default:
-        innerSvg = `<circle cx="16" cy="16" r="3.5" fill="${color}"/>`;
-        break;
-    }
-    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-        <circle cx="16" cy="16" r="13" fill="${bgColor}" stroke="${color}" stroke-width="2" />
-        ${innerSvg}
-      </svg>
-    `).trim()}`;
-  };
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-
-    loadGoogleMapsScript(() => {
-      if (!containerRef.current) return;
-      const google = (window as any).google;
-      const center = { lat: latitude, lng: longitude };
-      const currentMapTypeId = mapType === 'satellite' ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.ROADMAP;
-
-      if (!mapRef.current) {
-        mapRef.current = new google.maps.Map(containerRef.current, {
-          center,
-          zoom: 16,
-          mapTypeControl: true,
-          mapTypeControlOptions: {
-            style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
-            position: google.maps.ControlPosition.TOP_RIGHT,
-          },
-          streetViewControl: false,
-          mapTypeId: currentMapTypeId,
-        });
-
-        mainMarkerRef.current = new google.maps.Marker({
-          position: center,
-          map: mapRef.current,
-          draggable: true,
-          title: title,
-        });
-
-        // Track drag movement
-        mainMarkerRef.current.addListener('dragend', () => {
-          const pos = mainMarkerRef.current.getPosition();
-          onChange(pos.lat(), pos.lng());
-        });
-
-        // Track map type changes to persist user preference
-        mapRef.current.addListener('maptypeid_changed', () => {
-          const currentMapTypeId = mapRef.current.getMapTypeId();
-          const newType = (currentMapTypeId === 'satellite' || currentMapTypeId === 'hybrid' || currentMapTypeId === google.maps.MapTypeId.SATELLITE || currentMapTypeId === google.maps.MapTypeId.HYBRID) ? 'satellite' : 'standard';
-          if (useSettingsStore.getState().getEffectivePreference('mapType') !== newType) {
-            useSettingsStore.getState().setLocalOverride('mapType', newType);
-          }
-        });
-      } else {
-        mapRef.current.setMapTypeId(currentMapTypeId);
-        if (title) {
-          mainMarkerRef.current.setTitle(title);
-        }
-        const currentPos = mainMarkerRef.current.getPosition();
-        if (currentPos && (Math.abs(currentPos.lat() - latitude) > 0.0001 || Math.abs(currentPos.lng() - longitude) > 0.0001)) {
-          const newPos = { lat: latitude, lng: longitude };
-          mainMarkerRef.current.setPosition(newPos);
-          mapRef.current.setCenter(newPos);
-        }
-      }
-
-      // Clear existing facility markers
-      facilityMarkersRef.current.forEach(m => m.setMap(null));
-      facilityMarkersRef.current = [];
-
-      // Add markers for all facilities
-      facilities.forEach(fac => {
-        if (fac.latitude == null || fac.longitude == null) return;
-        
-        let markerColor = '#475569'; // Default other/gray
-        if (fac.primarySportId) {
-          markerColor = '#FF3E00'; // Sport orange
-        } else {
-          switch (fac.category) {
-            case 'sport_field':
-            case 'venue_hall': markerColor = '#FF8C00'; break;
-            case 'clubhouse': markerColor = '#3B82F6'; break;
-            case 'shop': markerColor = '#10B981'; break;
-            case 'parking': markerColor = '#6B7280'; break;
-            case 'restroom': markerColor = '#8B5CF6'; break;
-          }
-        }
-
-        // Get matching clean vector icon name
-        let iconName = 'location-outline';
-        if (fac.primarySportId) {
-          const sport = sports.find(s => s.id === fac.primarySportId);
-          const sportNameLower = (sport?.name || '').toLowerCase();
-          if (sportNameLower.includes('rugby')) iconName = 'american-football';
-          else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
-          else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
-          else if (sportNameLower.includes('cricket')) iconName = 'baseball';
-          else if (sportNameLower.includes('golf')) iconName = 'golf';
-          else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
-        } else {
-          switch (fac.category) {
-            case 'sport_field': iconName = 'tennisball-outline'; break;
-            case 'venue_hall': iconName = 'business-outline'; break;
-            case 'clubhouse': iconName = 'home-outline'; break;
-            case 'shop': iconName = 'cart-outline'; break;
-            case 'parking': iconName = 'car-outline'; break;
-            case 'restroom': iconName = 'water-outline'; break;
-          }
-        }
-
-        const facMarker = new google.maps.Marker({
-          position: { lat: fac.latitude, lng: fac.longitude },
-          map: mapRef.current,
-          title: fac.name,
-          icon: {
-            url: getSvgMarker(iconName, markerColor, isDark),
-            anchor: new google.maps.Point(16, 16),
-            scaledSize: new google.maps.Size(32, 32)
-          }
-        });
-
-        facilityMarkersRef.current.push(facMarker);
-      });
-    });
-  }, [latitude, longitude, title, onChange, mapType, facilities, sports, isDark]);
-
-  return React.createElement('div', {
-    ref: containerRef,
-    style: { width: '100%', height: 200, borderRadius: 12, overflow: 'hidden', marginBottom: 12 }
-  });
-};
-
-/** What the site form edits. */
+/** What the site form edits. `address` is `null` for a site with none yet. */
 interface SiteForm {
   name: string;
   isActive: boolean;
-  address: Address;
+  address: AddressDraft | null;
 }
+
+const EMPTY_FORM: SiteForm = { name: '', isActive: true, address: null };
+
+const ADDRESS_FIELDS = ['fullAddress', 'building', 'addressLine1', 'addressLine2', 'city', 'province', 'postalCode', 'country'] as const;
 
 /**
  * Equality over the form, and it has to name the address fields rather than compare the object:
- * the address arrives as a fresh object on every read, and it carries an `id` that the form does
- * not edit. Kept in step with `hasChanges`, which asks the same question of the same fields.
+ * the address arrives as a fresh object on every read, and a blank field may come back as `null`
+ * or `''`. Drives both the save bar and the reseed (`UI-19`).
  */
 const sameSiteForm = (a: SiteForm, b: SiteForm) =>
   a.name.trim() === b.name.trim() &&
   a.isActive === b.isActive &&
-  (a.address?.fullAddress || '') === (b.address?.fullAddress || '') &&
-  (a.address?.addressLine1 || '') === (b.address?.addressLine1 || '') &&
-  (a.address?.addressLine2 || '') === (b.address?.addressLine2 || '') &&
-  (a.address?.city || '') === (b.address?.city || '') &&
-  (a.address?.province || '') === (b.address?.province || '') &&
-  (a.address?.postalCode || '') === (b.address?.postalCode || '') &&
-  (a.address?.country || '') === (b.address?.country || '') &&
-  a.address?.latitude === b.address?.latitude &&
-  a.address?.longitude === b.address?.longitude;
+  !a.address === !b.address &&
+  ADDRESS_FIELDS.every(f => (a.address?.[f] || '') === (b.address?.[f] || '')) &&
+  (a.address?.latitude ?? null) === (b.address?.latitude ?? null) &&
+  (a.address?.longitude ?? null) === (b.address?.longitude ?? null);
+
+const draftOf = (site: Site): AddressDraft | null => {
+  if (!site.address) return null;
+  const { id: _id, ...rest } = site.address;
+  return rest;
+};
 
 export default function SiteDetailScreen() {
   const router = useRouter();
@@ -273,75 +62,31 @@ export default function SiteDetailScreen() {
   const [facilityToDelete, setFacilityToDelete] = useState<Facility | null>(null);
   const [facilityDeleteError, setFacilityDeleteError] = useState<string | null>(null);
 
-  const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
-  const setMapType = (val: 'standard' | 'satellite') => {
-    useSettingsStore.getState().setLocalOverride('mapType', val);
-  };
-
   // Data State
-  const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites, setData: setSitesData } = useSocketQuery<Site[]>('sites', { orgId });
+  const { data: sitesData, isLoading: isSitesLoading, setData: setSitesData } = useSocketQuery<Site[]>('sites', { orgId });
   const { data: sportsData } = useSocketQuery<any[]>('sports');
 
   const sports = sportsData || [];
-  const sites = sitesData || [];
 
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [facilities, setFacilities] = useState<Facility[]>([]);
 
-  // Site Form State
-  const [siteForm, setSiteForm] = useState({
-    name: '',
-    isActive: true,
-    address: {
-      id: '',
-      fullAddress: '',
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      province: '',
-      postalCode: '',
-      country: '',
-      latitude: undefined,
-      longitude: undefined,
-    } as Address
-  });
+  const [siteForm, setSiteForm] = useState<SiteForm>(EMPTY_FORM);
+  const [originalData, setOriginalData] = useState<SiteForm | null>(isNew ? EMPTY_FORM : null);
+  // Remounts the address input whenever the form is reset under it, so it reopens showing the
+  // address rather than staying in whatever search or edit it was left in.
+  const [addressKey, setAddressKey] = useState(0);
 
-  const [originalData, setOriginalData] = useState<{
-    name: string;
-    isActive: boolean;
-    address: Address;
-  } | null>(isNew ? {
-    name: '',
-    isActive: true,
-    address: {
-      id: '',
-      fullAddress: '',
-      addressLine1: '',
-      addressLine2: '',
-      city: '',
-      province: '',
-      postalCode: '',
-      country: '',
-      latitude: undefined,
-      longitude: undefined,
-    } as Address
-  } : null);
+  const hasChanges = useMemo(
+    () => (originalData ? !sameSiteForm(siteForm, originalData) : false),
+    [siteForm, originalData]
+  );
 
-  const hasChanges = useMemo(() => {
-    return originalData ? (
-      siteForm.name.trim() !== originalData.name ||
-      siteForm.isActive !== originalData.isActive ||
-      (siteForm.address?.fullAddress || '') !== (originalData.address?.fullAddress || '') ||
-      (siteForm.address?.addressLine1 || '') !== (originalData.address?.addressLine1 || '') ||
-      (siteForm.address?.addressLine2 || '') !== (originalData.address?.addressLine2 || '') ||
-      (siteForm.address?.city || '') !== (originalData.address?.city || '') ||
-      (siteForm.address?.province || '') !== (originalData.address?.province || '') ||
-      (siteForm.address?.postalCode || '') !== (originalData.address?.postalCode || '') ||
-      (siteForm.address?.country || '') !== (originalData.address?.country || '') ||
-      siteForm.address?.latitude !== originalData.address?.latitude ||
-      siteForm.address?.longitude !== originalData.address?.longitude
-    ) : false;
-  }, [siteForm, originalData]);
+  const siteFacilities = useMemo(
+    () => (editingSite ? facilities.filter(f => f.siteId === editingSite.id) : []),
+    [facilities, editingSite]
+  );
+  const markers = useMemo(() => facilityMarkers(siteFacilities, sports), [siteFacilities, sports]);
 
   const safeGoBack = useCallback(() => {
     safeBack(`/admin/${orgId}/sites`);
@@ -351,135 +96,12 @@ export default function SiteDetailScreen() {
     if (isNew) {
       safeGoBack();
     } else if (originalData) {
-      setSiteForm({
-        name: originalData.name,
-        isActive: originalData.isActive,
-        address: { ...originalData.address }
-      });
-      setAddressSearchQuery(originalData.address?.fullAddress || '');
+      setSiteForm(originalData);
+      setAddressKey(k => k + 1);
     }
   }, [isNew, originalData, safeGoBack]);
 
   useUnsavedChanges(hasChanges && !isProcessing, handleCancel);
-
-  // Google Places Autocomplete state
-  const [addressSearchQuery, setAddressSearchQuery] = useState('');
-  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
-  const [isSearchingAddress, setIsSearchingAddress] = useState(false);
-  const [sessionToken, setSessionToken] = useState('');
-  const webSessionTokenRef = React.useRef<any>(null);
-
-  // Helper to generate a random 32-character ASCII alphanumeric session token for Google Places
-  const generateSessionToken = useCallback(() => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let token = '';
-    for (let i = 0; i < 32; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return token;
-  }, []);
-
-  const fetchAutocompleteSuggestions = async (queryText: string) => {
-    setIsSearchingAddress(true);
-    try {
-      if (Platform.OS === 'web') {
-        loadGoogleMapsScript(() => {
-          const google = (window as any).google;
-          if (!google || !google.maps || !google.maps.places) {
-            setIsSearchingAddress(false);
-            return;
-          }
-          if (!webSessionTokenRef.current) {
-            webSessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
-          }
-
-          const autocompleteService = new google.maps.places.AutocompleteService();
-          autocompleteService.getPlacePredictions({
-            input: queryText,
-            sessionToken: webSessionTokenRef.current
-          }, (predictions: any, status: any) => {
-            setIsSearchingAddress(false);
-            if (status === google.maps.places.PlacesServiceStatus.OK && Array.isArray(predictions)) {
-              setAddressSuggestions(predictions);
-            } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-              setAddressSuggestions([]);
-            } else {
-              console.warn('Google Places Autocomplete SDK error status:', status);
-              setAddressSuggestions([]);
-            }
-          });
-        });
-      } else {
-        const apiKey = process.env.EXPO_PUBLIC_ANDROID_GOOGLE_MAPS_API_KEY || '';
-        let currentToken = sessionToken;
-        if (!currentToken) {
-          currentToken = generateSessionToken();
-          setSessionToken(currentToken);
-        }
-
-        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(queryText)}&key=${apiKey}&sessiontoken=${currentToken}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setIsSearchingAddress(false);
-        if (data.status === 'OK' && Array.isArray(data.predictions)) {
-          setAddressSuggestions(data.predictions);
-        } else if (data.status === 'ZERO_RESULTS') {
-          setAddressSuggestions([]);
-        } else {
-          console.warn('Google Places Autocomplete error:', data.status, data.error_message);
-          setAddressSuggestions([]);
-        }
-      }
-    } catch (e) {
-      console.warn('Autocomplete fetch failed:', e);
-      setIsSearchingAddress(false);
-    }
-  };
-
-  // Debounced address search
-  useEffect(() => {
-    if (addressSearchQuery.trim().length < 3) {
-      setAddressSuggestions([]);
-      setSessionToken('');
-      webSessionTokenRef.current = null;
-      return;
-    }
-
-    // If query matches the selected address exactly, don't show suggestions
-    if (addressSearchQuery === siteForm.address?.fullAddress) {
-      setAddressSuggestions([]);
-      return;
-    }
-
-    const handler = setTimeout(() => {
-      fetchAutocompleteSuggestions(addressSearchQuery);
-    }, 500);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [addressSearchQuery, siteForm.address?.fullAddress, sessionToken]);
-
-  // Check map availability
-  const isMapAvailable = MapView && Marker && Platform.OS !== 'web';
-
-  // Map Ref for animation and control
-  const mapRef = React.useRef<any>(null);
-
-  // Animate map to new coordinates when address coordinates change
-  useEffect(() => {
-    if (siteForm.address.latitude != null && siteForm.address.longitude != null && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: siteForm.address.latitude,
-        longitude: siteForm.address.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005
-      }, 1000);
-    }
-  }, [siteForm.address.latitude, siteForm.address.longitude]);
 
   // Reactively populate editing site and form when sitesData loads
   useEffect(() => {
@@ -487,18 +109,6 @@ export default function SiteDetailScreen() {
       const site = sitesData.find(s => s.id === siteId);
       if (site) {
         setEditingSite(site);
-        const initialAddress = site.address || {
-          id: '',
-          fullAddress: '',
-          addressLine1: '',
-          addressLine2: '',
-          city: '',
-          province: '',
-          postalCode: '',
-          country: '',
-          latitude: undefined,
-          longitude: undefined,
-        } as Address;
         /*
           `UI-19`. The form and its baseline move together or not at all.
 
@@ -509,10 +119,10 @@ export default function SiteDetailScreen() {
           happened to match what was being typed dropped the save bar over work that was never
           saved, and Cancel restored to a version the organiser had never seen.
         */
-        const incoming = {
+        const incoming: SiteForm = {
           name: site.name,
           isActive: site.isActive !== false,
-          address: { ...initialAddress },
+          address: draftOf(site),
         };
         const decision = reseedDecision({
           baseline: originalData,
@@ -523,7 +133,7 @@ export default function SiteDetailScreen() {
         if (decision === 'adopt') {
           setSiteForm(incoming);
           setOriginalData(incoming);
-          setAddressSearchQuery(site.address?.fullAddress || '');
+          setAddressKey(k => k + 1);
         }
         setIsProcessing(false);
       } else {
@@ -599,153 +209,37 @@ export default function SiteDetailScreen() {
     return 'Field/Court';
   };
 
-  // Trigger immediate search
-  const searchAddress = async (queryText: string) => {
-    if (!queryText.trim() || queryText.trim().length < 3) {
-      return;
-    }
-    await fetchAutocompleteSuggestions(queryText);
-  };
-
-  const parseAndSetPlaceDetails = (place: any) => {
-    let houseNumber = '';
-    let road = '';
-    let cityVal = '';
-    let provinceVal = '';
-    let countryVal = '';
-    let postalVal = '';
-
-    if (Array.isArray(place.address_components)) {
-      for (const comp of place.address_components) {
-        const types = comp.types || [];
-        if (types.includes('street_number')) {
-          houseNumber = comp.long_name;
-        } else if (types.includes('route')) {
-          road = comp.long_name;
-        } else if (types.includes('locality') || types.includes('sublocality') || types.includes('postal_town')) {
-          cityVal = comp.long_name;
-        } else if (types.includes('administrative_area_level_1')) {
-          provinceVal = comp.long_name;
-        } else if (types.includes('country')) {
-          countryVal = comp.long_name;
-        } else if (types.includes('postal_code')) {
-          postalVal = comp.long_name;
-        }
-      }
-    }
-
-    // Fallback for city
-    if (!cityVal && Array.isArray(place.address_components)) {
-      const admin2 = place.address_components.find((c: any) => c.types.includes('administrative_area_level_2'));
-      if (admin2) cityVal = admin2.long_name;
-    }
-
-    const line1 = road ? `${houseNumber} ${road}`.trim() : place.formatted_address.split(',')[0];
-    
-    let latVal: number | undefined;
-    let lngVal: number | undefined;
-    if (place.geometry?.location) {
-      const loc = place.geometry.location;
-      latVal = typeof loc.lat === 'function' ? loc.lat() : parseFloat(loc.lat);
-      lngVal = typeof loc.lng === 'function' ? loc.lng() : parseFloat(loc.lng);
-    }
-
-    setSiteForm(prev => ({
-      ...prev,
-      address: {
-        id: prev.address?.id || '',
-        fullAddress: place.formatted_address,
-        addressLine1: line1,
-        addressLine2: '',
-        city: cityVal,
-        province: provinceVal,
-        postalCode: postalVal,
-        country: countryVal,
-        latitude: latVal,
-        longitude: lngVal,
-      }
-    }));
-    setAddressSearchQuery(place.formatted_address);
-  };
-
-  const handleSelectAddress = async (item: any) => {
-    setIsSearchingAddress(true);
-    try {
-      if (Platform.OS === 'web') {
-        const google = (window as any).google;
-        if (!google || !google.maps || !google.maps.places) {
-          setIsSearchingAddress(false);
-          return;
-        }
-
-        const dummyDiv = document.createElement('div');
-        const placesService = new google.maps.places.PlacesService(dummyDiv);
-        
-        placesService.getDetails({
-          placeId: item.place_id,
-          sessionToken: webSessionTokenRef.current,
-          fields: ['address_components', 'formatted_address', 'geometry']
-        }, (place: any, status: any) => {
-          setIsSearchingAddress(false);
-          if (status === google.maps.places.PlacesServiceStatus.OK && place) {
-            parseAndSetPlaceDetails(place);
-          } else {
-            console.warn('Place Details failed with status:', status);
-            Alert.alert('Error', 'Could not retrieve address details.');
-          }
-          webSessionTokenRef.current = null; // Clear session token
-          setAddressSuggestions([]);
-        });
-      } else {
-        const apiKey = process.env.EXPO_PUBLIC_ANDROID_GOOGLE_MAPS_API_KEY || '';
-        const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${item.place_id}&key=${apiKey}&sessiontoken=${sessionToken}&fields=address_components,formatted_address,geometry`;
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setIsSearchingAddress(false);
-        if (data.status === 'OK' && data.result) {
-          parseAndSetPlaceDetails(data.result);
-        } else {
-          throw new Error(data.error_message || `Place Details failed with status: ${data.status}`);
-        }
-        setSessionToken(''); // Clear the token
-        setAddressSuggestions([]);
-      }
-    } catch (e: any) {
-      console.warn('Google Place Details lookup failed:', e);
-      Alert.alert(
-        'Error',
-        'Could not retrieve address details. Please check your connection and try again.'
-      );
-      setIsSearchingAddress(false);
-    }
-  };
-
   // Save Site Details
   const handleSaveSite = () => {
     if (!siteForm.name.trim()) {
       Alert.alert('Validation Error', 'Site Name is required');
       return;
     }
+    if (siteForm.address && !isAddressComplete(siteForm.address)) {
+      Alert.alert('Address incomplete', 'Add at least the street, the town and the country, or search for the address.');
+      return;
+    }
     setIsProcessing(true);
 
+    const address = siteForm.address
+      ? {
+          ...siteForm.address,
+          // A hand-typed address with no pin sends nulls, so an old pin does not survive the edit.
+          latitude: siteForm.address.latitude ?? null,
+          longitude: siteForm.address.longitude ?? null,
+        }
+      : undefined;
     const payload = {
       name: siteForm.name,
       isActive: siteForm.isActive,
-      address: siteForm.address.fullAddress ? siteForm.address : undefined,
+      address: address as any,
     };
 
     if (editingSite) {
       sendAction(SocketAction.UPDATE_SITE, { id: editingSite.id, data: payload }).then(result => {
         setIsProcessing(false);
         if (result.ok) {
-          setOriginalData({
-            name: siteForm.name.trim(),
-            isActive: siteForm.isActive,
-            address: { ...siteForm.address }
-          });
+          setOriginalData({ ...siteForm, name: siteForm.name.trim() });
           useUnsavedChangesStore.getState().clear();
         } else {
           Alert.alert('Save Failed', result.message || 'Could not update site');
@@ -867,191 +361,16 @@ export default function SiteDetailScreen() {
               />
             </View>
 
-            {/* Address Autocomplete & Search */}
+            {/* Address */}
             <View className="border-t border-slate-200/50 dark:border-white/5 pt-4">
-              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase mb-1.5 tracking-wider">Physical Address</Text>
-              
-              <View className="flex-row gap-2 mb-2">
-                <View className="flex-1 flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5">
-                  <TextInput
-                    value={addressSearchQuery}
-                    onChangeText={setAddressSearchQuery}
-                    placeholder="Search address using Google Maps..."
-                    placeholderTextColor="#94A3B8"
-                    className="flex-1 font-inter text-sm text-slate-800 dark:text-white outline-none"
-                  />
-                </View>
-                <TouchableOpacity 
-                  onPress={() => searchAddress(addressSearchQuery)}
-                  disabled={isSearchingAddress}
-                  className="bg-brand-orange px-4 rounded-xl items-center justify-center active:opacity-85"
-                >
-                  {isSearchingAddress ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Ionicons name="search" size={16} color="white" />
-                  )}
-                </TouchableOpacity>
-              </View>
- 
-              {/* Suggestions List */}
-              {addressSuggestions.length > 0 && (
-                <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden mb-4 shadow-lg">
-                  {addressSuggestions.map((item, idx) => (
-                    <TouchableOpacity 
-                      key={idx}
-                      onPress={() => handleSelectAddress(item)}
-                      className="px-4 py-3 border-b border-slate-200/50 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 active:bg-slate-100 dark:active:bg-white/5"
-                    >
-                      <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">{item.description}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* Map Visualizer */}
-              {siteForm.address.latitude != null && siteForm.address.longitude != null && (
-                <View className="mb-2">
-                  <View className="flex-row justify-between items-center mb-2">
-                    <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                      Map Preview (Drag pin to position)
-                    </Text>
-                  </View>
-                  {isMapAvailable ? (
-                    <View style={{ position: 'relative', width: '100%', height: 200, borderRadius: 12, overflow: 'hidden' }}>
-                      <MapView
-                        ref={mapRef}
-                        mapType={mapType}
-                        style={{ width: '100%', height: '100%' }}
-                        initialRegion={{
-                          latitude: siteForm.address.latitude,
-                          longitude: siteForm.address.longitude,
-                          latitudeDelta: 0.005,
-                          longitudeDelta: 0.005
-                        }}
-                      >
-                        <Marker
-                          coordinate={{
-                            latitude: siteForm.address.latitude,
-                            longitude: siteForm.address.longitude
-                          }}
-                          draggable
-                          title={siteForm.name || "Site Location"}
-                          onDragEnd={(e: any) => {
-                            const coords = e.nativeEvent.coordinate;
-                            setSiteForm(prev => ({
-                              ...prev,
-                              address: {
-                                ...prev.address,
-                                latitude: coords.latitude,
-                                longitude: coords.longitude
-                              }
-                            }));
-                          }}
-                        />
-
-                        {facilities.filter(fac => fac.siteId === editingSite?.id).map((fac) => {
-                          if (fac.latitude == null || fac.longitude == null) return null;
-
-                          let markerColor = '#475569'; // Default other/gray
-                          if (fac.primarySportId) {
-                            markerColor = '#FF3E00'; // Sport orange
-                          } else {
-                            switch (fac.category) {
-                              case 'sport_field':
-                              case 'venue_hall': markerColor = '#FF8C00'; break;
-                              case 'clubhouse': markerColor = '#3B82F6'; break;
-                              case 'shop': markerColor = '#10B981'; break;
-                              case 'parking': markerColor = '#6B7280'; break;
-                              case 'restroom': markerColor = '#8B5CF6'; break;
-                            }
-                          }
-
-                          // Get Ionicons icon name and color for the custom view marker
-                          let iconName: any = "location-outline";
-                          if (fac.primarySportId) {
-                            const sport = sports.find(s => s.id === fac.primarySportId);
-                            const sportNameLower = (sport?.name || '').toLowerCase();
-                            if (sportNameLower.includes('rugby')) iconName = 'american-football';
-                            else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
-                            else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
-                            else if (sportNameLower.includes('cricket')) iconName = 'baseball';
-                            else if (sportNameLower.includes('golf')) iconName = 'golf';
-                            else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
-                          } else {
-                            switch (fac.category) {
-                              case 'sport_field': iconName = 'tennisball-outline'; break;
-                              case 'venue_hall': iconName = 'business-outline'; break;
-                              case 'clubhouse': iconName = 'home-outline'; break;
-                              case 'shop': iconName = 'cart-outline'; break;
-                              case 'parking': iconName = 'car-outline'; break;
-                              case 'restroom': iconName = 'water-outline'; break;
-                            }
-                          }
-
-                          return (
-                            <Marker
-                              key={fac.id}
-                              coordinate={{
-                                latitude: fac.latitude,
-                                longitude: fac.longitude
-                              }}
-                              title={fac.name}
-                              description={fac.surfaceType || undefined}
-                              tracksViewChanges={false}
-                            >
-                              <View 
-                                style={{
-                                  backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-                                  padding: 6,
-                                  borderRadius: 20,
-                                  borderWidth: 1.5,
-                                  borderColor: markerColor,
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  shadowColor: '#000',
-                                  shadowOffset: { width: 0, height: 2 },
-                                  shadowOpacity: 0.25,
-                                  shadowRadius: 3.84,
-                                  elevation: 5,
-                                }}
-                              >
-                                <Ionicons name={iconName} size={14} color={markerColor} />
-                              </View>
-                            </Marker>
-                          );
-                        })}
-                      </MapView>
-                      <TouchableOpacity
-                        onPress={() => setMapType(mapType === 'standard' ? 'satellite' : 'standard')}
-                        style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}
-                        className="flex-row items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-2.5 py-1.5 rounded-lg shadow-md active:opacity-85"
-                      >
-                        <Ionicons name={mapType === 'satellite' ? "map" : "earth"} size={12} color="#FF3E00" />
-                        <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest">{mapType === 'satellite' ? 'Map' : 'Satellite'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : Platform.OS === 'web' ? (
-                    <InteractiveWebMap
-                      latitude={siteForm.address.latitude}
-                      longitude={siteForm.address.longitude}
-                      title={siteForm.name || "Site Location"}
-                      facilities={facilities}
-                      sports={sports}
-                      onChange={(lat, lng) => {
-                        setSiteForm(prev => ({
-                          ...prev,
-                          address: {
-                            ...prev.address,
-                            latitude: lat,
-                            longitude: lng
-                          }
-                        }));
-                      }}
-                    />
-                  ) : null}
-                </View>
-              )}
+              <AddressInput
+                key={addressKey}
+                value={siteForm.address}
+                onChange={address => setSiteForm(prev => ({ ...prev, address }))}
+                pinTitle={siteForm.name || 'Site location'}
+                pinHelp="Drag the pin to the main entrance. The pin also sets the site's timezone, which kick-offs here are shown in."
+                markers={markers}
+              />
             </View>
 
             {/* FACILITIES SECTION (ONLY WHEN EDITING EXISTING SITE) */}
@@ -1059,7 +378,7 @@ export default function SiteDetailScreen() {
               <View className="border-t border-slate-200/50 dark:border-white/5 pt-6">
                 <View className="flex-row justify-between items-center mb-3">
                   <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                    Facilities ({facilities.filter(f => f.siteId === editingSite.id).length})
+                    Facilities ({siteFacilities.length})
                   </Text>
                   <TouchableOpacity 
                     onPress={() => handleOpenFacilityModal(null)}
@@ -1072,12 +391,12 @@ export default function SiteDetailScreen() {
 
                 {/* Facilities Table list */}
                 <View className="border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                  {facilities.filter(f => f.siteId === editingSite.id).length === 0 ? (
+                  {siteFacilities.length === 0 ? (
                     <View className="p-6 items-center justify-center">
                       <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic">No facilities added yet.</Text>
                     </View>
                   ) : (
-                    facilities.filter(f => f.siteId === editingSite.id).map((fac) => {
+                    siteFacilities.map((fac) => {
                       const term = getFacilityTerm(fac.supportedSportIds);
                       const activeSports = fac.supportedSportIds?.map(id => sports.find(s => s.id === id)?.name).filter(Boolean).join(', ') || 'None';
                       return (
@@ -1089,30 +408,7 @@ export default function SiteDetailScreen() {
                         >
                           <View className="flex-1 mr-4">
                             <View className="flex-row items-center gap-1.5 flex-wrap">
-                              {(() => {
-                                let iconName: any = "location-outline";
-                                if (fac.primarySportId) {
-                                  const sport = sports.find(s => s.id === fac.primarySportId);
-                                  const sportNameLower = (sport?.name || '').toLowerCase();
-                                  if (sportNameLower.includes('rugby')) iconName = 'american-football';
-                                  else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
-                                  else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
-                                  else if (sportNameLower.includes('cricket')) iconName = 'baseball';
-                                  else if (sportNameLower.includes('golf')) iconName = 'golf';
-                                  else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
-                                } else {
-                                  switch(fac.category) {
-                                    case 'sport_field': iconName = 'tennisball-outline'; break;
-                                    case 'venue_hall': iconName = 'business-outline'; break;
-                                    case 'clubhouse': iconName = 'home-outline'; break;
-                                    case 'shop': iconName = 'cart-outline'; break;
-                                    case 'parking': iconName = 'car-outline'; break;
-                                    case 'restroom': iconName = 'water-outline'; break;
-                                    default: iconName = 'location-outline';
-                                  }
-                                }
-                                return <Ionicons name={iconName} size={12} color="#FF3E00" />;
-                              })()}
+                              <Ionicons name={facilityIcon(fac, sports).icon as any} size={12} color="#FF3E00" />
                               <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">{fac.name}</Text>
                               <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 italic">({term})</Text>
                               {fac.isActive === false && (

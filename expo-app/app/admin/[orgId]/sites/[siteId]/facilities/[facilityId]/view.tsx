@@ -83,8 +83,9 @@ export default function FacilityViewScreen() {
     .filter(Boolean)
     .join(', ') || 'None';
 
-  const lat = (parentSite?.address as any)?.lat;
-  const lng = (parentSite?.address as any)?.lng;
+  // The facility's own pin, or its site's where it has none.
+  const lat = facility.latitude ?? parentSite?.address?.latitude;
+  const lng = facility.longitude ?? parentSite?.address?.longitude;
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>

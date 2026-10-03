@@ -60,6 +60,7 @@ export class OrganizationManager extends BaseManager {
         o.timezone,
         o.address_id as "addressId",
         a.full_address as "fullAddress",
+        a.building,
         a.address_line_1 as "addressLine1",
         a.address_line_2 as "addressLine2",
         a.city,
@@ -126,7 +127,7 @@ export class OrganizationManager extends BaseManager {
 
   private mapOrg(row: any): Organization {
     const { 
-      fullAddress, addressLine1, addressLine2, city, province, postalCode, country, latitude, longitude, addressId,
+      fullAddress, building, addressLine1, addressLine2, city, province, postalCode, country, latitude, longitude, addressId,
       ...orgData 
     } = row;
     
@@ -136,6 +137,7 @@ export class OrganizationManager extends BaseManager {
       org.address = {
         id: addressId,
         fullAddress,
+        building,
         addressLine1,
         addressLine2,
         city,
@@ -181,6 +183,7 @@ export class OrganizationManager extends BaseManager {
         o.timezone,
         o.address_id as "addressId",
         a.full_address as "fullAddress",
+        a.building,
         a.address_line_1 as "addressLine1",
         a.address_line_2 as "addressLine2",
         a.city,

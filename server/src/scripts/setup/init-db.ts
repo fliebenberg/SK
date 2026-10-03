@@ -19,6 +19,7 @@ const createTables = async () => {
             CREATE TABLE IF NOT EXISTS addresses (
                 id TEXT PRIMARY KEY,
                 full_address TEXT,
+                building TEXT,
                 address_line_1 TEXT,
                 address_line_2 TEXT,
                 city TEXT,
