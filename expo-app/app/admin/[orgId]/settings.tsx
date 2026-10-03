@@ -49,6 +49,8 @@ export default function OrgSettings() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: width >= 768 ? 24 : 12, paddingBottom: 60 }}>
           <View className="w-full gap-4 self-center" style={{ maxWidth: 720 }}>
+            <OrgMinorsSettingsCard orgId={org.id} isOrgAdmin={isOrgAdminViewer} />
+
             <ReadCard
               label="Timezone"
               help="Kick-offs are entered in this time at venues without a map pin. A venue with a pin uses the timezone where it is."
@@ -57,8 +59,6 @@ export default function OrgSettings() {
               <ReadRow label={timeZoneLabel(timezone)} sub={timezone} />
               {note ? <TimezoneNote text={note} /> : null}
             </ReadCard>
-
-            <OrgMinorsSettingsCard orgId={org.id} isOrgAdmin={isOrgAdminViewer} />
           </View>
           <TimezoneDialog org={org} visible={editingTimezone} onClose={() => setEditingTimezone(false)} />
         </ScrollView>
