@@ -60,11 +60,13 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 
 ## One Component Per Repeated Concept
 
-*   **An organisation with no administrator**: Ask about it only through [`<NominateAdminModal>`](file:///c:/Fred/Coding/SK/expo-app/components/NominateAdminModal.tsx), opened from the workspace's one-line [`<UnclaimedOrgBanner>`](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBanner.tsx), the [`<UnclaimedOrgBadge>`](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBadge.tsx) icon on an org chip, or the settings nominations list — never an inline card or an email field held until a form saves (`ORG-6`). Amber means *you* have not nominated anyone for it, green that you have. The process: [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §4.
+*   **An organisation with no administrator**: Ask about it only through [`<NominateAdminModal>`](file:///c:/Fred/Coding/SK/expo-app/components/NominateAdminModal.tsx), opened from the workspace's one-line [`<UnclaimedOrgBanner>`](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBanner.tsx), the [`<UnclaimedOrgBadge>`](file:///c:/Fred/Coding/SK/expo-app/components/UnclaimedOrgBadge.tsx) icon on an org chip, or the workspace's Nominate admin page (`/admin/[orgId]/nominate`) — never an inline card or an email field held until a form saves (`ORG-6`). Amber means *you* have not nominated anyone for it, green that you have. The process: [nomination-process.md](file:///c:/Fred/Coding/SK/docs/nomination-process.md) §4.
+
+*   **An organisation's colours**: Take them from `orgColors(org)` in `@sk/shared`, never `org.primaryColor || '#…'`. **A new organisation starts in the app's two colours**, orange and electric blue, until an admin sets its own, so banners show two colours from the start. **After that, each colour falls back to the one before it**: an admin may clear the secondary, and the org is then painted in its primary alone; the primary is required on every organisation (`20261003_org_primary_color_required.ts`), falling back to the app's orange only for data that predates that. Decided 2026-10-01 and 2026-10-03; it replaced over thirty hand-written fallbacks.
 
 *   **A side of a fixture**: Render it with [`<FixtureSide>`](file:///c:/Fred/Coding/SK/expo-app/components/FixtureSide.tsx), never with ad-hoc text. A side is in one of three states — a known competitor, an entrant awaiting confirmation ("TBC — awaiting confirmation"), or a slot awaiting a result ("Winner QF1") — and the fixtures list, the schedule, the bracket, the game screen, the standings and anything printed all show them. Five independent renderings of "TBC" is a guaranteed inconsistency. The wording itself is derived in [`shared/src/utils/fixtureSide.ts`](file:///c:/Fred/Coding/SK/shared/src/utils/fixtureSide.ts), so the server and print paths say the same thing the screen does; a placeholder is drawn in secondary text (AAA in Light Mode) rather than at a lower opacity, so it stays legible.
 
-*   **Saving an edited record**: Every admin screen that edits a record in place saves through [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx) — a card pinned to the bottom of the screen once the form is dirty, naming what changed and carrying Cancel and Save. Never a save button under a section: a screen with two of them is a screen with two writes to one row. Three things go together and the component's doc comment says so — the bar, `useUnsavedChanges(isDirty, onCancel)` so that leaving warns and *discarding* runs the same reset Cancel does, and `paddingBottom: isDirty ? FLOATING_SAVE_BAR_PADDING : 60` on the scroll container so the bar never covers the last field. Extracted 2026-09-08 from nine screens that had each copy-pasted it; `UI-3` tracks moving those nine onto it.
+*   **Saving an edited record**: Every admin screen that edits a record in place — **except a read-first page, below** — saves through [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx) — a card pinned to the bottom of the screen once the form is dirty, naming what changed and carrying Cancel and Save. Never a save button under a section: a screen with two of them is a screen with two writes to one row. Three things go together and the component's doc comment says so — the bar, `useUnsavedChanges(isDirty, onCancel)` so that leaving warns and *discarding* runs the same reset Cancel does, and `paddingBottom: isDirty ? FLOATING_SAVE_BAR_PADDING : 60` on the scroll container so the bar never covers the last field. Extracted 2026-09-08 from nine screens that had each copy-pasted it; `UI-3` tracks moving those nine onto it.
 
 *   **The top of a pushed screen**: Use [`<ScreenHeader>`](file:///c:/Fred/Coding/SK/expo-app/components/ScreenHeader.tsx) — back control on the left, screen name centred, an optional action on the right. It takes `onBack` rather than an href, because a screen with unsaved edits routes back through `confirmThenNavigate` and one without routes through [`useSafeBack`](file:///c:/Fred/Coding/SK/expo-app/hooks/useSafeBack.ts), and the component should not know which. The right slot defaults to a fixed-width spacer and needs to stay one: the title is centred in the row, so without a counterweight it drifts as the label changes. Extracted 2026-09-13 (U48) rather than writing the same eighteen lines four more times; `UI-10` tracks the screens still holding their own copy. The event screen joined them the same day (U49), and is the worked example of the `right` slot carrying something real — an `<OverflowMenu>` rather than a spacer.
 
@@ -79,6 +81,56 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 *   **Saying when something is**: One home — [utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/utils/dates.ts) — and three kinds of "when", which are not the same job; the [date-formatting skill](file:///c:/Fred/Coding/SK/.agent/skills/date-formatting/SKILL.md) is the policy. An **instant** (a kick-off, "invited on") shows in the viewer's timezone: `formatFixtureWhen`, `formatInstant`, `formatInstantDate`. A **calendar date or range** (a birthday, an event, a league season) is the same day for everyone: `formatCalendarDate`, and `formatDateRange`, which collapses what the ends share (`19–21 Sep 2026`, not `19 Sep 2026 – 21 Sep 2026`), with `dateCountdown` adding how far off it is (`· in 6 days`). A **kick-off whose time is not set** is noon venue time with `timeTbd`, shown as the date and `TBD`. Forms convert between an instant and its date and time fields only through `instantToVenueInputs` / `venueInputsToInstant`, on the venue's clock (`venueTimeZone`), with `venueTimeHint` under the time field when that is not the device's; date fields are always `<DatePicker>`. Screens never format, parse or build dates themselves, and `npm run check:dates` enforces it — anything the file does not do yet is **added to it**. `date-fns` is not used (`UI-12`). It stays in `expo-app/utils/` because it reads the viewer's locale, timezone and "now"; the deterministic parts the server also needs are in `@sk/shared`'s `calendarDate.ts`.
 
 *   **A section that opens and closes**: There is no shared component. `<AccordionHeader>` was added 2026-09-08 for the tournament Setup tab and deleted 2026-09-13 when U48 gave each setup step its own screen, taking its only consumer with it — and with it the `stickyHeaderIndices` flat-children constraint and the `position: sticky` web tree with descending z-indices that pinning a heading needed on two platforms. The sports editor's [`Collapsible`](file:///c:/Fred/Coding/SK/expo-app/components/admin/sports/editorPrimitives.tsx) is now the only one and is self-contained, which is what closed `UI-5`. **Before reaching for an accordion again, check the work is not really a screen**: the Setup tab reached six sections on a phone before that was obvious.
+
+## Read-first record pages
+
+Agreed 2026-10-01 while redesigning the org basic info screen ([docs/org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md)),
+as rules to carry to other pages. So far they are applied to the org Profile, Settings and Nominate
+admin pages only; other pages adopt them as they are next redesigned.
+
+1.  **Read-first when a record is read more than it is edited.** Show values as text, one
+    [`<ReadCard>`](file:///c:/Fred/Coding/SK/expo-app/components/ReadCard.tsx) per group. Each card's
+    Edit opens an [`<EditDialog>`](file:///c:/Fred/Coding/SK/expo-app/components/EditDialog.tsx) —
+    centred on a wide screen, a bottom sheet below 768px — that saves **only that card's fields**.
+    No form on the page and no floating save bar. Closing a dialog with unsaved edits asks first,
+    inside the dialog; a failed save keeps it open.
+2.  **Show the value, not the options.** A single choice displays the chosen value. Its options
+    appear only while editing: a segmented control for two to four options that change often, a
+    dropdown for anything else.
+3.  **Conditional fields appear only when their condition holds, next to what triggered them** —
+    *Describe it* beside Type = Other, and nowhere else.
+4.  **Lead with the record as others see it.** The most-read facts first, in their most
+    recognisable form: logo, name and colours together.
+5.  **An empty value says what is missing and offers the one action that fills it**
+    (`ReadCardEmpty`). An empty card has no Edit link.
+6.  **Orbitron is for display only** — screen titles, section labels, scores and clocks. Typed input,
+    names and running text are Inter ([`TEXT_INPUT`](file:///c:/Fred/Coding/SK/expo-app/components/formStyles.ts)).
+    A short code shown next to its name takes the name's font.
+7.  **Cap the reading width**: about 960px for a profile, two columns when there is room; about
+    720px for a settings page, which is one column of rows. Size inputs to their content.
+8.  **One save behaviour per page, and it is visible.** A tap on a displayed value never starts a
+    destructive action.
+9.  **The same kind of data is entered the same way everywhere.** One address input
+    ([`<AddressInput>`](file:///c:/Fred/Coding/SK/expo-app/components/address/AddressInput.tsx)), one
+    colour input ([`<ColorPicker>`](file:///c:/Fred/Coding/SK/expo-app/components/ColorPicker.tsx), and
+    [`<BrandColorsField>`](file:///c:/Fred/Coding/SK/expo-app/components/org/BrandColorsField.tsx) for an org's pair, used by Edit
+    identity and both org create forms), one
+    date input. A screen that needs something different improves the shared input instead of
+    growing its own. The site editor still has its own address search (`VENUE-2`).
+10. **Profile and settings are separate pages.** Profile is what the record is and how others see
+    it. Settings is how it behaves: one card per setting or group, each saving itself — a switch
+    saves when flipped (after a confirmation if it is far-reaching), anything else through its
+    card's dialog.
+11. **When a change makes two related values disagree, say so at that moment, and let the user
+    decide.** Warn rather than block, and offer to bring the other value along when that is the
+    likely wish — the org timezone after a new address pin.
+12. **A temporary task gets a temporary place, and leaves completely when it is done.** Nominating an
+    admin is a banner, an amber menu item and its own page, all gone once the org has an admin.
+13. **Mark the exception, quietly.** On a form where most fields are required, the optional ones
+    carry a small "Optional" after the label — sentence case, secondary colour, smaller and lighter
+    than the label; where most are optional, the required ones carry an orange `*`. Never both on
+    one form. This is `<FieldLabel>`'s `optional` and `required`, so a screen gets it by using
+    FieldLabel.
 
 ## NativeWind v4 & React Native Styling Constraints
 

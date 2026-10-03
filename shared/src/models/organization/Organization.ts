@@ -51,8 +51,13 @@ export interface Organization {
   id: string;
   name: string;
   logo?: string;
+  /**
+   * Required on every org read from the database since 2026-10-01 (`NOT NULL`); optional here
+   * because this is also the create input, where the server defaults it. Paint with `orgColors`.
+   */
   primaryColor?: string;
-  secondaryColor?: string;
+  /** Optional: `null` (or blank on an update, which clears it) means "the primary colour". */
+  secondaryColor?: string | null;
   supportedSportIds?: string[];
   /**
    * The org's short code. **Always present on a record read from the database** — the column is
@@ -65,7 +70,14 @@ export interface Organization {
   shortName?: string;
   supportedRoleIds?: string[];
   addressId?: string;
-  address?: Address;
+  /** `null` on an update removes the org's address. */
+  address?: Address | null;
+  /**
+   * The timezone at the address's pin, derived by the server on every read; `null` with no pinned
+   * address. Read-only — the org's own `timezone` is the setting, and may differ from this on
+   * purpose. The Settings page only points out when they differ.
+   */
+  addressTimeZone?: string | null;
   teamCount?: number;
   siteCount?: number;
   /** Events not over yet: undated, or whose last day is today or later (the database's today). */
@@ -78,6 +90,8 @@ export interface Organization {
   type?: OrganizationType;
   /** `null` on an update clears it. */
   customType?: string | null;
+  /** The About text on the org's profile. Empty or `null` means none. */
+  description?: string | null;
   /**
    * Where the organisation plays, as an IANA name: the timezone kick-offs are typed in at a venue
    * with no timezone of its own (`DATE-2`). Always present on a record read from the database.

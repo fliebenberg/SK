@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { orgColors } from '@sk/shared';
 import { View, Text, TouchableOpacity, ScrollView, Platform, Image, Animated, Easing } from 'react-native';
 import { useRouter, useSegments, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +11,7 @@ import { wsService } from '../services/websocket';
 import { useWsStore } from '../store/wsStore';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { AnimatedBox } from './AnimatedBox';
+import { getThemeColor } from '../constants/Colors';
 
 // Rail geometry. These are the `w-16` / `w-64` classes as numbers, because the
 // hover animation interpolates between them and a class cannot be interpolated.
@@ -152,8 +154,14 @@ export function LeftNavigationRail() {
       return {
         isOrg: true,
         items: [
+          // While the org has no administrator: a temporary task, set apart above the rest and gone
+          // once it is done (docs/org-profile.md §6).
+          ...(orgData?.isClaimed === false
+            ? [{ name: 'nominate', label: 'Nominate admin', icon: 'person-add' as const, route: `/admin/${orgId}/nominate` as const, attention: true }]
+            : []),
           { name: 'dashboard', label: 'Control Panel', icon: 'grid' as const, route: `/admin/${orgId}` as const },
-          { name: 'settings', label: 'Org Settings', icon: 'settings' as const, route: `/admin/${orgId}/settings` as const },
+          { name: 'profile', label: 'Profile', icon: 'business' as const, route: `/admin/${orgId}/profile` as const },
+          { name: 'settings', label: 'Settings', icon: 'settings' as const, route: `/admin/${orgId}/settings` as const },
           { name: 'people', label: 'People & Roles', icon: 'people' as const, route: `/admin/${orgId}/people` as const },
           { name: 'teams', label: 'Teams & Divisions', icon: 'trophy' as const, route: `/admin/${orgId}/teams` as const },
           { name: 'sites', label: 'Sites and Facilities', icon: 'location' as const, route: `/admin/${orgId}/sites` as const },
@@ -233,7 +241,7 @@ export function LeftNavigationRail() {
                 return yiq >= 128 ? '#0F172A' : '#FFFFFF';
               };
 
-              const primaryColor = orgData?.primaryColor || '#FF3E00';
+              const primaryColor = orgColors(orgData).primary;
               const textColor = getContrastColor(primaryColor);
               const isDarkBg = textColor === '#FFFFFF';
 
@@ -246,13 +254,13 @@ export function LeftNavigationRail() {
                     className="p-1.5 px-2.5 rounded-xl border flex-row items-center gap-3 relative overflow-hidden"
                     style={{ 
                       backgroundColor: primaryColor,
-                      borderColor: orgData?.secondaryColor || '#00E5FF',
+                      borderColor: orgColors(orgData).secondary,
                       borderWidth: 2,
                     }}
                   >
                     <View 
                       className="absolute -right-12 -top-12 w-24 h-24 rounded-full blur-xl opacity-20"
-                      style={{ backgroundColor: orgData?.secondaryColor || '#00E5FF' }}
+                      style={{ backgroundColor: orgColors(orgData).secondary }}
                     />
                     <View className="z-10 flex-shrink-0">
                       <OrgLogo 
@@ -278,9 +286,24 @@ export function LeftNavigationRail() {
             })()}
 
             <ScrollView className="flex-grow space-y-1.5" showsVerticalScrollIndicator={false}>
-              {navConfig.items.map((item) => {
+              {navConfig.items.map((item: any) => {
                 const isActive = orgSubTab === item.name;
-                const activeColor = orgData?.primaryColor || '#FF3E00';
+                const activeColor = orgColors(orgData).primary;
+                if (item.attention) {
+                  return (
+                    <React.Fragment key={item.name}>
+                      <TouchableOpacity
+                        onPress={() => confirmThenNavigate(() => router.push(item.route as any))}
+                        className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl border bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-300/25 ${isActive ? 'border-l-4' : ''}`}
+                        style={isActive ? { borderLeftColor: getThemeColor(isDark, 'warning') } : undefined}
+                      >
+                        <Ionicons name={isActive ? item.icon : (`${item.icon}-outline` as any)} size={20} color={getThemeColor(isDark, 'warning')} />
+                        <Text className="font-inter-bold text-sm tracking-wide text-amber-800 dark:text-amber-300">{item.label}</Text>
+                      </TouchableOpacity>
+                      <View className="h-px bg-slate-200 dark:bg-white/5 mx-1 my-1" />
+                    </React.Fragment>
+                  );
+                }
                 return (
                   <TouchableOpacity
                     key={item.name}
@@ -424,8 +447,8 @@ export function LeftNavigationRail() {
             <View 
               className="rounded-xl border flex items-center justify-center p-0.5"
               style={{
-                backgroundColor: orgData?.primaryColor || 'transparent',
-                borderColor: orgData?.secondaryColor || (isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0'),
+                backgroundColor: orgData ? orgColors(orgData).primary : 'transparent',
+                borderColor: orgData ? orgColors(orgData).secondary : (isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0'),
                 borderWidth: orgData?.primaryColor ? 2 : 1,
               }}
             >
@@ -441,15 +464,19 @@ export function LeftNavigationRail() {
 
         {/* Menu Logos (Icons) */}
         <ScrollView className="flex-1 w-full" contentContainerStyle={{ alignItems: 'center', gap: 12 }} showsVerticalScrollIndicator={false}>
-          {navConfig.items.map((item) => {
+          {navConfig.items.map((item: any) => {
             const isActive = navConfig.isOrg ? orgSubTab === item.name : activeTab === item.name;
-            const activeColor = navConfig.isOrg ? (orgData?.primaryColor || '#FF3E00') : '#FF3E00';
+            const activeColor = item.attention
+              ? getThemeColor(isDark, 'warning')
+              : navConfig.isOrg ? orgColors(orgData).primary : '#FF3E00';
             return (
               <TouchableOpacity
                 key={item.name}
                 onPress={() => confirmThenNavigate(() => router.push(item.route as any))}
                 className={`w-10 h-10 rounded-xl items-center justify-center relative ${
-                  isActive 
+                  item.attention
+                    ? 'bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25'
+                    : isActive
                     ? 'bg-brand-orange/15 dark:bg-brand-orange/20 border border-brand-orange/30'
                     : 'hover:bg-slate-100 dark:hover:bg-white/5 border border-transparent'
                 }`}
@@ -458,7 +485,7 @@ export function LeftNavigationRail() {
                 <Ionicons 
                   name={isActive ? item.icon : (`${item.icon}-outline` as any)} 
                   size={20} 
-                  color={isActive ? activeColor : (isDark ? '#94A3B8' : '#64748B')} 
+                  color={isActive || item.attention ? activeColor : (isDark ? '#94A3B8' : '#64748B')} 
                 />
               </TouchableOpacity>
             );

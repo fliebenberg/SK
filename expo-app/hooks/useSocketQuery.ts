@@ -6,10 +6,12 @@ import { useToastStore } from '../store/toastStore';
 export function useSocketQuery<T = any>(
   type: string,
   payload: Record<string, any> = {},
-  options: { timeoutMs?: number; suppressToast?: boolean } = {}
+  options: { timeoutMs?: number; suppressToast?: boolean; enabled?: boolean } = {}
 ) {
+  // `enabled: false` sends nothing — for data the screen will not show. `refetch` is a no-op too.
+  const enabled = options.enabled !== false;
   const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<any>(null);
   const isConnected = useWsStore(state => state.isConnected);
 
@@ -17,7 +19,7 @@ export function useSocketQuery<T = any>(
   const payloadString = JSON.stringify(payload);
 
   const fetchData = useCallback(() => {
-    if (!isConnected) return;
+    if (!isConnected || !enabled) return;
     
     setIsLoading(true);
     setError(null);
@@ -40,10 +42,15 @@ export function useSocketQuery<T = any>(
       options.timeoutMs,
       { suppressToast: options.suppressToast }
     );
-  }, [isConnected, type, payloadString, options.timeoutMs, options.suppressToast]);
+  }, [isConnected, enabled, type, payloadString, options.timeoutMs, options.suppressToast]);
 
   useEffect(() => {
     let active = true;
+
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
 
     if (!isConnected) {
       setIsLoading(true);
@@ -74,7 +81,7 @@ export function useSocketQuery<T = any>(
     return () => {
       active = false;
     };
-  }, [isConnected, type, payloadString, options.timeoutMs, options.suppressToast]);
+  }, [isConnected, enabled, type, payloadString, options.timeoutMs, options.suppressToast]);
 
   return { data, isLoading, error, refetch: fetchData, setData };
 }

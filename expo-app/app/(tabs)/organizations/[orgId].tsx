@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { orgColors } from '@sk/shared';
 import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -171,8 +172,7 @@ export default function PublicOrgDetail() {
     );
   }
 
-  const primaryColor = orgData.primaryColor || '#FF3E00';
-  const secondaryColor = orgData.secondaryColor || '#00E5FF';
+  const { primary: primaryColor, secondary: secondaryColor } = orgColors(orgData);
   const mappedSports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
 
   const contrastColor = getContrastColor(primaryColor);

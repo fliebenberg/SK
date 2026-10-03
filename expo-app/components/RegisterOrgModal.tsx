@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Text, TextInput, View } from 'react-native';
-import { ORG_SHORT_CODE_MAX_LENGTH, Organization, SocketAction } from '@sk/shared';
+import { Modal, ScrollView, Text, TextInput, View } from 'react-native';
+import { DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR, ORG_SHORT_CODE_MAX_LENGTH, Organization, SocketAction } from '@sk/shared';
 import { Button } from './Button';
 import { FieldLabel } from './FieldLabel';
 import { sendAction } from '../services/actions';
@@ -8,6 +8,7 @@ import { useOrgShortCode } from '../hooks/useOrgShortCode';
 import { useActiveTheme } from '../store/settingsStore';
 import { getThemeColor } from '../constants/Colors';
 import { deviceTimeZone } from '../utils/dates';
+import { BrandColorsField, brandColorsProblem } from './org/BrandColorsField';
 
 /**
  * Registering an organisation that is not on the system yet — somebody else's, unclaimed.
@@ -24,6 +25,10 @@ import { deviceTimeZone } from '../utils/dates';
  * records a school you do not run, so nobody is made an admin and it waits to be claimed. That is
  * why the directory keeps its own dialog rather than using this: merging them would blur "I run
  * this" with "somebody else runs this", which is exactly the line the claim process exists to hold.
+ *
+ * **Its colours can be given here** (2026-10-03): whoever registers a school usually knows its
+ * colours, even as an outsider. They start as the app's two colours, so leaving them alone still
+ * gives the new org two.
  *
  * **The contact email is handed back, not sent.** One caller invites the contact straight away;
  * another holds the invitation until the form around it is saved. Which is right depends on the
@@ -44,6 +49,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
   const isDark = useActiveTheme() === 'dark';
   const [name, setName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  const [colors, setColors] = useState({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
   const [isSaving, setIsSaving] = useState(false);
   const shortCode = useOrgShortCode();
 
@@ -53,12 +59,13 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
     const seeded = (initialName || '').trim();
     setName(seeded);
     setContactEmail('');
+    setColors({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
     shortCode.reset();
     if (seeded) shortCode.onNameChange(seeded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const canSave = !!name.trim() && !!shortCode.shortCode && !isSaving;
+  const canSave = !!name.trim() && !!shortCode.shortCode && !brandColorsProblem(colors.primary, colors.secondary) && !isSaving;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -66,6 +73,9 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
     sendAction(SocketAction.ADD_ORG, {
       name: name.trim(),
       shortName: shortCode.shortCode,
+      primaryColor: colors.primary,
+      // Cleared means "not set": painted as the primary.
+      secondaryColor: colors.secondary || null,
       joinPolicy: 'request',
       supportedSportIds: sportId ? [sportId] : [],
       isClaimed: false,
@@ -87,7 +97,8 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 bg-black/60 justify-center px-6">
-        <View className="w-full max-w-md self-center bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl space-y-4">
+        <View className="w-full max-w-md self-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/5 shadow-xl" style={{ maxHeight: '90%' }}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, gap: 16 }}>
           <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider">
             Register an organisation
           </Text>
@@ -126,6 +137,12 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
             />
           </View>
 
+          <BrandColorsField
+            primary={colors.primary}
+            secondary={colors.secondary}
+            onChange={({ primary, secondary }) => setColors({ primary, secondary })}
+          />
+
           <View className="space-y-1.5">
             <FieldLabel
               label="Contact email"
@@ -152,6 +169,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
               className="flex-1"
             />
           </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>

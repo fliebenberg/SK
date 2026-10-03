@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
+import { orgColors } from '@sk/shared';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useGlobalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -66,8 +67,7 @@ export default function OrgControlDashboard() {
     );
   }
 
-  const primaryColor = orgData.primaryColor || '#FF3E00';
-  const secondaryColor = orgData.secondaryColor || '#00E5FF';
+  const { primary: primaryColor, secondary: secondaryColor } = orgColors(orgData);
   const sports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
   const primarySport = sports[0];
 
@@ -101,8 +101,16 @@ export default function OrgControlDashboard() {
 
   const modules = [
     {
-      title: 'Org Settings',
-      description: 'Configure colors, branding logo, details & rules',
+      title: 'Profile',
+      description: 'Name, logo, colours, about, address and sports',
+      icon: 'business-outline' as const,
+      route: `/admin/${orgId}/profile` as const,
+      color: '#FF3E00',
+      bgColor: 'bg-brand-orange/10',
+    },
+    {
+      title: 'Settings',
+      description: 'Timezone, minors and how the organisation runs',
       icon: 'settings-outline' as const,
       route: `/admin/${orgId}/settings` as const,
       color: '#FF3E00',

@@ -65,7 +65,12 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 *   `/admin/[orgId]/people/import`: Import people and their guardians from a spreadsheet — admin or staff, opened from the People screen's `⋯` menu. Rules: [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.
 *   `/admin/[orgId]/sites`, `/sites/[siteId]`, `/sites/[siteId]/facilities/[facilityId]`: Venues and courts.
 *   `/admin/[orgId]/leagues`, `/leagues/[leagueId]`, `/leagues/[leagueId]/seasons/[seasonId]`: Leagues and seasons.
-*   `/admin/[orgId]/settings`: Organization settings.
+*   `/admin/[orgId]/profile`: The org's profile — identity, about, address and sports, read-first
+    with one edit dialog per card. `/admin/[orgId]/address` shows the address on a map.
+*   `/admin/[orgId]/settings`: How the org runs — timezone and minors, one card per setting, each
+    saving itself.
+*   `/admin/[orgId]/nominate`: Only while the org has no administrator; the menu shows it in amber
+    above the rest. All three: [org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md).
 
 #### Fixtures, events and tournaments
 

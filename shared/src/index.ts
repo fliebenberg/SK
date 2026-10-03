@@ -51,6 +51,7 @@ export * from './utils/divisionName';
 export * from './utils/divisionEntry';
 export * from './utils/organizerScope';
 export * from './utils/orgShortCode';
+export * from './utils/orgColors';
 export * from './utils/liveForm';
 export * from './utils/entrantRows';
 export * from './utils/drawChanges';

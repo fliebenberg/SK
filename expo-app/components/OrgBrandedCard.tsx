@@ -1,23 +1,25 @@
 import React from 'react';
+import { orgColors } from '@sk/shared';
 import { View, ViewStyle } from 'react-native';
 
 interface OrgBrandedCardProps {
-  primaryColor?: string;
-  secondaryColor?: string;
+  /** `null` is accepted: an org read from the database may have no colour stored. */
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
   children: React.ReactNode;
   className?: string;
   style?: ViewStyle | ViewStyle[];
 }
 
 export function OrgBrandedCard({
-  primaryColor = '#FF3E00',
-  secondaryColor = '#00E5FF',
+  primaryColor,
+  secondaryColor,
   children,
   className = '',
   style,
 }: OrgBrandedCardProps) {
-  const finalPrimary = primaryColor.trim() || '#FF3E00';
-  const finalSecondary = secondaryColor.trim() || '#00E5FF';
+  // Each colour falls back to the one before it (`orgColors`).
+  const { primary: finalPrimary, secondary: finalSecondary } = orgColors({ primaryColor, secondaryColor });
 
   return (
     <View 

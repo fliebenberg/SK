@@ -9,7 +9,8 @@ import { useActiveTheme } from '../../../store/settingsStore';
 import { wsService } from '../../../services/websocket';
 import { sendAction } from '../../../services/actions';
 import { useWsStore } from '../../../store/wsStore';
-import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType } from '@sk/shared';
+import { ORG_SHORT_CODE_MAX_LENGTH, SocketAction, OrganizationType, orgColors, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR } from '@sk/shared';
+import { BrandColorsField, brandColorsProblem } from '../../../components/org/BrandColorsField';
 import { useOrgShortCode } from '../../../hooks/useOrgShortCode';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
@@ -34,6 +35,8 @@ export default function OrganizationsPage() {
   const [newOrgSport, setNewOrgSport] = useState('Football');
   const [newOrgType, setNewOrgType] = useState<OrganizationType | null>(null);
   const [newOrgCustomType, setNewOrgCustomType] = useState('');
+  // The app's two colours until changed, so a new org has two either way (2026-10-03).
+  const [newOrgColors, setNewOrgColors] = useState({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
   const shortCode = useOrgShortCode();
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
 
@@ -134,6 +137,7 @@ export default function OrganizationsPage() {
   const handleCreateOrg = () => {
     if (!newOrgName.trim() || !newOrgType || !shortCode.shortCode) return;
     if (newOrgType === 'OTHER' && !newOrgCustomType.trim()) return;
+    if (brandColorsProblem(newOrgColors.primary, newOrgColors.secondary)) return;
 
     const matchedSportId = Object.keys(sportsMap).find(
       (id) => sportsMap[id].toLowerCase() === newOrgSport.trim().toLowerCase()
@@ -147,6 +151,9 @@ export default function OrganizationsPage() {
       isActive: true,
       type: newOrgType,
       customType: newOrgType === 'OTHER' ? newOrgCustomType.trim() : undefined,
+      primaryColor: newOrgColors.primary,
+      // Cleared means "not set": painted as the primary.
+      secondaryColor: newOrgColors.secondary || null,
       // Whoever sets an organisation up is most likely where it plays (DATE-2); changeable in its settings.
       timezone: deviceTimeZone(),
     };
@@ -169,6 +176,7 @@ export default function OrganizationsPage() {
       setNewOrgSport('Football');
       setNewOrgType(null);
       setNewOrgCustomType('');
+      setNewOrgColors({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
       shortCode.reset();
       setModalVisible(false);
     });
@@ -266,8 +274,7 @@ export default function OrganizationsPage() {
                 </GlassCard>
               ) : (
                 managedOrgs.map((org) => {
-                  const primaryColor = org.primaryColor || '#FF3E00';
-                  const secondaryColor = org.secondaryColor || '#00E5FF';
+                  const { primary: primaryColor, secondary: secondaryColor } = orgColors(org);
                   const contrastColor = getContrastColor(primaryColor);
                   const isLightBg = contrastColor === '#000000';
                   const textColor = contrastColor;
@@ -379,8 +386,7 @@ export default function OrganizationsPage() {
               </GlassCard>
             ) : (
               orgs.map((org) => {
-              const primaryColor = org.primaryColor || '#FF3E00';
-              const secondaryColor = org.secondaryColor || '#00E5FF';
+              const { primary: primaryColor, secondary: secondaryColor } = orgColors(org);
               const contrastColor = getContrastColor(primaryColor);
               const isLightBg = contrastColor === '#000000';
               const textColor = contrastColor;
@@ -512,7 +518,7 @@ export default function OrganizationsPage() {
         onRequestClose={() => setModalVisible(false)}
       >
         <View className="flex-1 justify-center items-center bg-slate-950/80 px-6">
-          <View className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-6 rounded-2xl shadow-2xl">
+          <View className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-6 rounded-2xl shadow-2xl" style={{ maxHeight: '90%' }}>
             <View className="flex-row justify-between items-center mb-6">
               <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white uppercase tracking-wide">
                 Add Organization
@@ -522,6 +528,7 @@ export default function OrganizationsPage() {
               </TouchableOpacity>
             </View>
 
+            <ScrollView style={{ flexGrow: 0 }} keyboardShouldPersistTaps="handled">
             <View className="mb-4">
               <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
                 Organization Name
@@ -645,6 +652,15 @@ export default function OrganizationsPage() {
               </View>
             )}
 
+            <View className="mb-4">
+              <BrandColorsField
+                primary={newOrgColors.primary}
+                secondary={newOrgColors.secondary}
+                onChange={setNewOrgColors}
+              />
+            </View>
+            </ScrollView>
+
             <View className="flex-row gap-3 mt-2">
               <Button
                 title="Cancel"
@@ -655,6 +671,7 @@ export default function OrganizationsPage() {
                   setNewOrgSport('Football');
                   setNewOrgType(null);
                   setNewOrgCustomType('');
+                  setNewOrgColors({ primary: DEFAULT_ORG_PRIMARY_COLOR, secondary: DEFAULT_ORG_SECONDARY_COLOR });
                   shortCode.reset();
                 }}
                 className="flex-1"
@@ -667,7 +684,8 @@ export default function OrganizationsPage() {
                   !newOrgName.trim() ||
                   !shortCode.shortCode ||
                   !newOrgType ||
-                  (newOrgType === 'OTHER' && !newOrgCustomType.trim())
+                  (newOrgType === 'OTHER' && !newOrgCustomType.trim()) ||
+                  !!brandColorsProblem(newOrgColors.primary, newOrgColors.secondary)
                 }
                 className="flex-1"
               />

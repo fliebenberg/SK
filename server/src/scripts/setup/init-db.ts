@@ -71,8 +71,11 @@ const createTables = async () => {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 logo TEXT,
-                primary_color TEXT,
-                secondary_color TEXT,
+                -- New orgs start in the app's two colours; the primary is required, and an unset
+                -- secondary is painted as the primary (20261003_org_primary_color_required.ts,
+                -- 20261003_org_secondary_color_default.ts).
+                primary_color TEXT NOT NULL DEFAULT '#FF3E00' CONSTRAINT organizations_primary_color_not_blank CHECK (btrim(primary_color) <> ''),
+                secondary_color TEXT DEFAULT '#00E5FF',
                 short_name TEXT NOT NULL CHECK (btrim(short_name) <> ''),
                 is_claimed BOOLEAN DEFAULT false,
                 creator_id TEXT,
@@ -81,6 +84,8 @@ const createTables = async () => {
                 address_id TEXT REFERENCES addresses(id),
                 type TEXT DEFAULT 'OTHER',
                 custom_type TEXT DEFAULT NULL,
+                -- The About text on the org's profile (20261001_org_description.ts).
+                description TEXT,
                 -- IANA name; set from the creator's device, changeable in settings (20260926_venue_timezones.ts).
                 timezone TEXT NOT NULL DEFAULT 'Africa/Johannesburg'
                 -- Team/member/site counts are computed live by the org queries, not stored here.

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { orgColors } from '@sk/shared';
 import { Stack, useGlobalSearchParams, useRouter, useSegments } from 'expo-router';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { useWindowDimensions, View, TouchableOpacity, Text, Alert } from 'react-native';
@@ -11,6 +12,7 @@ import { useUnsavedChangesStore } from '../../../store/unsavedChangesStore';
 import { BottomMenu } from '../../../components/BottomMenu';
 import { AuthGuard } from '../../../components/AuthGuard';
 import { UnclaimedOrgBanner } from '../../../components/UnclaimedOrgBanner';
+import { getThemeColor } from '../../../constants/Colors';
 
 /**
  * Every screen in the org workspace — including the scoring control room — is
@@ -108,7 +110,10 @@ function OrgAdminWorkspace() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="address" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="nominate" />
       <Stack.Screen name="people" />
       <Stack.Screen name="people/import" />
       <Stack.Screen name="people/[membershipId]" />
@@ -141,8 +146,8 @@ function OrgAdminWorkspace() {
           activeOpacity={0.8}
           className="absolute bottom-[75px] right-4 w-12 h-12 rounded-full items-center justify-center shadow-lg z-50 border overflow-hidden"
           style={{ 
-            backgroundColor: orgData?.primaryColor || '#FF3E00',
-            borderColor: orgData?.secondaryColor || '#00E5FF',
+            backgroundColor: orgColors(orgData).primary,
+            borderColor: orgColors(orgData).secondary,
             borderWidth: 2,
           }}
         >
@@ -180,14 +185,14 @@ function OrgAdminWorkspace() {
                 <View 
                   className="p-1.5 px-2.5 rounded-xl border flex-row items-center gap-2.5 relative overflow-hidden"
                   style={{ 
-                    backgroundColor: orgData.primaryColor || '#FF3E00',
-                    borderColor: orgData.secondaryColor || '#00E5FF',
+                    backgroundColor: orgColors(orgData).primary,
+                    borderColor: orgColors(orgData).secondary,
                     borderWidth: 1.5,
                   }}
                 >
                   <View 
                     className="absolute -right-8 -top-8 w-16 h-16 rounded-full blur-lg opacity-20"
-                    style={{ backgroundColor: orgData.secondaryColor || '#00E5FF' }}
+                    style={{ backgroundColor: orgColors(orgData).secondary }}
                   />
 
                   <View className="z-10 flex-shrink-0">
@@ -215,9 +220,25 @@ function OrgAdminWorkspace() {
 
             {/* List of administration modules */}
             <View className="space-y-0.5">
+              {/* While the org has no administrator: a temporary task, so set apart above the rest
+                  and gone once it is done (docs/org-profile.md §6). */}
+              {orgData?.isClaimed === false && (
+                <>
+                  <TouchableOpacity
+                    onPress={() => confirmThenNavigate(() => router.push(`/admin/${orgId}/nominate` as any))}
+                    activeOpacity={0.7}
+                    className="flex-row items-center gap-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25"
+                  >
+                    <Ionicons name="person-add-outline" size={16} color={getThemeColor(isDark, 'warning')} />
+                    <Text className="font-inter-bold text-sm text-amber-800 dark:text-amber-300">Nominate admin</Text>
+                  </TouchableOpacity>
+                  <View className="h-[1px] bg-slate-100 dark:bg-white/5 my-1" />
+                </>
+              )}
               {[
                 { label: 'Control Panel', icon: 'grid', route: `/admin/${orgId}` },
-                { label: 'Org Settings', icon: 'settings', route: `/admin/${orgId}/settings` },
+                { label: 'Profile', icon: 'business', route: `/admin/${orgId}/profile` },
+                { label: 'Settings', icon: 'settings', route: `/admin/${orgId}/settings` },
                 { label: 'People & Roles', icon: 'people', route: `/admin/${orgId}/people` },
                 { label: 'Teams & Divisions', icon: 'trophy', route: `/admin/${orgId}/teams` },
                 { label: 'Sites and Facilities', icon: 'location', route: `/admin/${orgId}/sites` },

@@ -174,8 +174,9 @@ separate implementations (`ORG-6`), two of which held the email until a form was
   an invitation sent; the dialog says so and offers "Nominate a different contact". An address that
   has claimed needs no invitation. One invited inside the cooldown gets no second email, and the
   caller is recorded as a nominator of it.
-* **Only for an org with no administrator.** Settings hides Nominate once the org has one, and keeps
-  the list as history; the server refuses a nomination anyway (`ORG-10`). Further admins are added
+* **Only for an org with no administrator.** The Nominate admin page and its menu item go once the
+  org has one, and the history is no longer shown (2026-10-01); the server refuses a nomination
+  anyway (`ORG-10`). Further admins are added
   as members and invited (until 2026-09-27 settings used this dialog to invite them).
 
 #### Where it opens from
@@ -192,8 +193,13 @@ separate implementations (`ORG-6`), two of which held the email until a form was
    per unclaimed org dominated the tournament form (decided 2026-09-05). With `autoPrompt`, a chip
    the user has **just added** opens the dialog by itself once its status comes back amber — once
    per org, and never for chips already there when the screen opened or for the workspace's own org.
-3. **Settings › Administrator Nominations**: the org's nomination history, a Nominate button, and
-   **Resend** on each pending row (below).
+3. **Nominate admin** (`/admin/[orgId]/nominate`, since 2026-10-01): its own workspace page, reached
+   from an amber item above the rest of the workspace menu. It shows the nomination history, a
+   Nominate button, and **Resend** on each pending row (below). Only while the org is unclaimed
+   (`isClaimed` from the org summary): once it has an administrator the menu item goes, the page
+   says there is nothing left to do, and neither `org_referrals` nor `org_claim_status` is asked
+   for. The history stays in the database but is no longer shown. See
+   [org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md) §6.
 
 The register-an-org dialog ([RegisterOrgModal](file:///c:/Fred/Coding/SK/expo-app/components/RegisterOrgModal.tsx))
 keeps its own contact field, since the org has no chip yet; its callers send it through the same
@@ -227,7 +233,7 @@ Other members are not told; notifying them, or letting them vote, is in
 cooldown, with a new claim token (the earlier link stops working) and a restarted cooldown. It is
 not a nomination, so the credit and nominators stay as they were. It is refused unless the caller
 can see the org's nominations (`org:{id}:referrals`: its members, and platform admins), and the only
-place that offers it is the settings list — behind a warning, as for member invites: check the spam
+place that offers it is the Nominate admin page's list — behind a warning, as for member invites: check the spam
 folder first, and the old link will stop working.
 
 #### Asked once per person
@@ -276,5 +282,5 @@ To integrate this workflow into the Expo App, the following elements need to be 
    * Map `/claim?token=...` to a deep link or web fallback page that routes the user directly to the claim screen within the application.
 3. **Claim Navigation & Authentication Interceptor**:
    * Build the `ClaimScreen` that checks `authStore`. If unauthorized, cache the token, navigate to `LoginScreen`, and ensure the login redirect routes back to `ClaimScreen` with the token.
-4. **Nomination Settings Panel**:
-   * Add the nomination management component to the admin settings screen inside `app/admin/[orgId]/settings` conforming to standard card and action layouts.
+4. **Nomination Panel**:
+   * The nomination list lives on its own workspace page, `app/admin/[orgId]/nominate` (moved from the settings screen on 2026-10-01; see [org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md) §6).

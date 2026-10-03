@@ -1,7 +1,8 @@
-import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE } from "@sk/shared";
+import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
+import { timeZoneAt } from "../utils/timeZoneLookup";
 
 /**
  * Live-computed organization counts, exposed as `c.team_count` / `c.site_count` / `c.member_count`.
@@ -55,9 +56,12 @@ export class OrganizationManager extends BaseManager {
         o.settings,
         o.type,
         o.custom_type as "customType",
+        o.description,
         o.timezone,
         o.address_id as "addressId",
         a.full_address as "fullAddress",
+        a.address_line_1 as "addressLine1",
+        a.address_line_2 as "addressLine2",
         a.city,
         a.province,
         a.postal_code as "postalCode",
@@ -122,16 +126,18 @@ export class OrganizationManager extends BaseManager {
 
   private mapOrg(row: any): Organization {
     const { 
-      fullAddress, city, province, postalCode, country, latitude, longitude, addressId,
+      fullAddress, addressLine1, addressLine2, city, province, postalCode, country, latitude, longitude, addressId,
       ...orgData 
     } = row;
     
-    const org: Organization = { ...orgData, addressId };
+    const org: Organization = { ...orgData, addressId, addressTimeZone: null };
     
     if (addressId) {
       org.address = {
         id: addressId,
         fullAddress,
+        addressLine1,
+        addressLine2,
         city,
         province,
         postalCode,
@@ -139,6 +145,9 @@ export class OrganizationManager extends BaseManager {
         latitude,
         longitude
       };
+      // Derived on every read rather than stored: the org's own `timezone` is a setting that may
+      // differ from it on purpose, and the Settings page only compares the two (docs/org-profile.md).
+      org.addressTimeZone = timeZoneAt(latitude, longitude);
     }
     
     return org;
@@ -168,9 +177,12 @@ export class OrganizationManager extends BaseManager {
         o.settings,
         o.type,
         o.custom_type as "customType",
+        o.description,
         o.timezone,
         o.address_id as "addressId",
         a.full_address as "fullAddress",
+        a.address_line_1 as "addressLine1",
+        a.address_line_2 as "addressLine2",
         a.city,
         a.province,
         a.postal_code as "postalCode",
@@ -238,6 +250,13 @@ export class OrganizationManager extends BaseManager {
     // The creator's device timezone, sent by the create screens (`DATE-2`). An older client or a
     // script sends none, and gets the one every organisation had before timezones existed.
     const timezone = org.timezone === undefined ? DEFAULT_TIME_ZONE : this.requireTimeZone(org.timezone);
+    // A new org starts in the app's two colours until an admin sets its own (`orgColors`). The
+    // primary is required; a secondary deliberately sent as null or blank stays unset, and the org
+    // is then painted in its primary alone.
+    const primaryColor = normalizeHexColor(org.primaryColor, 'The primary colour') ?? DEFAULT_ORG_PRIMARY_COLOR;
+    const secondaryColor = org.secondaryColor === undefined
+      ? DEFAULT_ORG_SECONDARY_COLOR
+      : normalizeHexColor(org.secondaryColor, 'The secondary colour');
     
     let addressId = org.addressId;
     if (org.address && !addressId) {
@@ -253,7 +272,7 @@ export class OrganizationManager extends BaseManager {
             await tx(
               `INSERT INTO organizations (id, name, logo, primary_color, secondary_color, short_name, is_claimed, creator_id, is_active, settings, address_id, type, custom_type, timezone) 
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-              [id, org.name, logo, org.primaryColor, org.secondaryColor, shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null, timezone]
+              [id, org.name, logo, primaryColor, secondaryColor, shortName, org.isClaimed || false, org.creatorId, org.isActive !== undefined ? org.isActive : true, org.settings || { allowUserImageUpdates: false }, addressId, org.type || 'OTHER', org.customType || null, timezone]
             );
 
             for (const sportId of supportedSportIds) {
@@ -310,6 +329,15 @@ export class OrganizationManager extends BaseManager {
 
     if ('timezone' in data) data.timezone = this.requireTimeZone(data.timezone);
 
+    // The primary colour is required, so an update naming it may not blank it; a blank secondary
+    // clears it, and the org is then painted in its primary alone.
+    if ('primaryColor' in data) {
+      const primary = normalizeHexColor(data.primaryColor, 'The primary colour');
+      if (!primary) throw new Error('An organisation needs a primary colour.');
+      data.primaryColor = primary;
+    }
+    if ('secondaryColor' in data) data.secondaryColor = normalizeHexColor(data.secondaryColor, 'The secondary colour') as any;
+
     // `settings` arrives whole — the settings screen carries the object across — so a screen opened
     // before a minors change would silently undo it on save. The minors settings are written by
     // `setMinorsSettings` alone, behind their own action and gate (`MEMBER-3`); here they are kept.
@@ -320,8 +348,12 @@ export class OrganizationManager extends BaseManager {
       data.settings = storedMinors !== undefined ? { ...rest, minors: storedMinors } : rest;
     }
 
-    // Handle Address update
-    if (data.address) {
+    // Handle Address update. `null` removes it: the org forgets the row (left in `addresses`, as a
+    // site's old address is) and loses its pin timezone with it.
+    if (data.address === null) {
+      data.addressId = null as any;
+      delete data.address;
+    } else if (data.address) {
       const currentOrg = await this.getOrganization(id);
       if (currentOrg?.addressId) {
         await addressManager.updateAddress(currentOrg.addressId, data.address);
@@ -357,7 +389,7 @@ export class OrganizationManager extends BaseManager {
                     name: 'name', logo: 'logo', primaryColor: 'primary_color', secondaryColor: 'secondary_color',
                     shortName: 'short_name', isClaimed: 'is_claimed', creatorId: 'creator_id', 
                     isActive: 'is_active', settings: 'settings', addressId: 'address_id',
-                    type: 'type', customType: 'custom_type', timezone: 'timezone'
+                    type: 'type', customType: 'custom_type', timezone: 'timezone', description: 'description'
                 };
 
                 keys.forEach(key => {
