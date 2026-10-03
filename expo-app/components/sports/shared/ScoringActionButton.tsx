@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ViewStyle } from 'react-native';
 import { useSettingsStore } from '../../../store/settingsStore';
-import { COLORS } from '../../../constants/Colors';
+
 
 interface ScoringActionButtonProps {
   label: string;
@@ -52,16 +52,16 @@ export function ScoringActionButton({
         disabled ? 'opacity-30' : ''
       } ${
         variant === 'danger'
-          ? 'bg-red-500/10 border-red-500/30'
+          ? 'bg-danger-soft border-danger-line'
           : variant === 'warning'
-          ? 'bg-amber-500/10 border-amber-500/30'
+          ? 'bg-warning-soft border-warning-line'
           : variant === 'success'
-          ? 'bg-emerald-500/10 border-emerald-500/30'
+          ? 'bg-success-soft border-success-line'
           : variant === 'blue'
-          ? 'bg-blue-500/15 border-blue-500/40 dark:bg-blue-500/20 dark:border-blue-500/40'
+          ? 'bg-info-soft border-info-line'
           : variant === 'red'
-          ? 'bg-rose-500/15 border-rose-500/40 dark:bg-rose-500/20 dark:border-rose-500/40'
-          : 'bg-brand-orange/10 border-brand-orange/30'
+          ? 'bg-danger-soft border-danger-line'
+          : 'bg-primary-soft border-primary-line'
       } ${className}`}
     >
       <Text
@@ -70,16 +70,16 @@ export function ScoringActionButton({
         numberOfLines={2}
         className={`font-orbitron-bold text-[9px] sm:text-[10px] leading-tight uppercase tracking-tight text-center ${
           variant === 'danger'
-            ? 'text-red-500'
+            ? 'text-danger-ink'
             : variant === 'warning'
-            ? 'text-amber-500'
+            ? 'text-warning-ink'
             : variant === 'success'
-            ? 'text-emerald-500'
+            ? 'text-success-ink'
             : variant === 'blue'
-            ? 'text-blue-600 dark:text-blue-400'
+            ? 'text-info-ink'
             : variant === 'red'
-            ? 'text-rose-600 dark:text-rose-400'
-            : 'text-brand-orange'
+            ? 'text-danger-ink'
+            : 'text-primary-ink'
         }`}
       >
         {textLabel}
@@ -101,8 +101,8 @@ export function RosterGrid({
 }) {
   if (!roster || roster.length === 0) {
     return (
-      <View className="py-6 items-center justify-center border border-dashed border-slate-200 dark:border-white/10 rounded-xl">
-        <Text className="font-inter-bold text-xs text-slate-400 uppercase tracking-wider">
+      <View className="py-6 items-center justify-center border border-dashed border-line rounded-xl">
+        <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
           No players registered for this team
         </Text>
       </View>
@@ -150,20 +150,20 @@ export function RosterGrid({
             style={{ flexGrow: 1, minWidth: 120, maxWidth: '48%' }}
             className={`p-2.5 rounded-xl border flex-row items-center gap-2.5 ${
               isSelected
-                ? 'bg-brand-orange border-brand-orange'
-                : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                ? 'bg-primary border-primary'
+                : 'bg-sunken border-line'
             }`}
           >
             <View
               className={`w-8 h-8 rounded-lg items-center justify-center ${
                 isSelected
-                  ? 'bg-white/20'
-                  : 'bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/30'
+                  ? 'bg-on-fill/20'
+                  : 'bg-primary-soft border border-primary-line'
               }`}
             >
               <Text
                 className={`font-orbitron-bold text-sm ${
-                  isSelected ? 'text-white' : 'text-brand-orange'
+                  isSelected ? 'text-on-fill' : 'text-primary-ink'
                 }`}
               >
                 {positionDisplay}
@@ -173,7 +173,7 @@ export function RosterGrid({
               <Text
                 numberOfLines={1}
                 className={`font-inter-bold text-xs ${
-                  isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+                  isSelected ? 'text-on-fill' : 'text-ink'
                 }`}
               >
                 {playerName}
@@ -181,7 +181,7 @@ export function RosterGrid({
               {item.isReserve && (
                 <Text
                   className={`font-orbitron-bold text-[9px] uppercase tracking-wider ${
-                    isSelected ? 'text-white/80' : 'text-slate-400'
+                    isSelected ? 'text-on-fill/80' : 'text-ink-muted'
                   }`}
                 >
                   Reserve

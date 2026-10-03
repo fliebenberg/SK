@@ -7,6 +7,8 @@ import { EventTemplateEditor, SavedTemplateIds } from './EventTemplateEditor';
 import { SportSectionsCard } from './SportSectionsCard';
 import { AddButton, EmptyHint, SectionLabel, slugify } from './editorPrimitives';
 
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 /**
  * The Events tab: every event template on the sport, grouped by the scoring panel it lands on.
  *
@@ -43,6 +45,7 @@ export function SportEventsTab({
   savedTemplates,
   savedSectionIds,
 }: SportEventsTabProps) {
+  const isDark = useActiveTheme() === 'dark';
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const savedById = useMemo(() => {
@@ -161,13 +164,13 @@ export function SportEventsTab({
 
       <SectionLabel className="mb-3">Event Templates</SectionLabel>
 
-      <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+      <Text className="font-inter text-[11px] text-ink-muted mb-4 leading-relaxed">
         What a scorer can record for this sport, and what the app asks them for each time. A sport
         with no events can be rostered and scheduled, but not scored.
       </Text>
 
       {sections.length === 0 ? (
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl">
+        <GlassCard className="border border-line p-4 rounded-xl">
           <EmptyHint icon="flash-outline" text="Add a section above before adding events." />
         </GlassCard>
       ) : (
@@ -175,13 +178,13 @@ export function SportEventsTab({
           {grouped.map(({ section, items }) => (
             <View key={section.id || 'unfiled'}>
               <View className="flex-row items-center justify-between mb-2">
-                <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider">
                   {section.name}
                 </Text>
                 <AddButton label="Add Event" onPress={() => addTemplate(section.id)} />
               </View>
               {items.length === 0 && (
-                <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 italic mb-2">
+                <Text className="font-inter text-[10px] text-ink-muted italic mb-2">
                   No events in this section yet.
                 </Text>
               )}
@@ -189,28 +192,28 @@ export function SportEventsTab({
                 {items.map(({ template, index }) => (
                   <GlassCard
                     key={`${template.id || 'new'}-${index}`}
-                    className="border border-slate-200 dark:border-white/5 p-3 rounded-xl flex-row items-center gap-3"
+                    className="border border-line p-3 rounded-xl flex-row items-center gap-3"
                   >
                     <TouchableOpacity
                       onPress={() => setEditingIndex(index)}
                       className="flex-1 active:opacity-80"
                     >
                       <View className="flex-row items-center gap-2">
-                        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white" numberOfLines={1}>
+                        <Text className="font-inter-bold text-sm text-ink" numberOfLines={1}>
                           {template.name || 'Untitled event'}
                         </Text>
                         {template.points !== undefined && (
-                          <View className="bg-brand-orange/10 border border-brand-orange/30 px-1.5 py-0.5 rounded">
-                            <Text className="font-orbitron-bold text-[8px] text-brand-orange">{template.points} PTS</Text>
+                          <View className="bg-primary-soft border border-primary-line px-1.5 py-0.5 rounded">
+                            <Text className="font-orbitron-bold text-[8px] text-primary-ink">{template.points} PTS</Text>
                           </View>
                         )}
                         {!template.id && (
-                          <View className="bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
-                            <Text className="font-orbitron-bold text-[8px] text-amber-500">INCOMPLETE</Text>
+                          <View className="bg-warning-soft border border-warning-line px-1.5 py-0.5 rounded">
+                            <Text className="font-orbitron-bold text-[8px] text-warning-ink">INCOMPLETE</Text>
                           </View>
                         )}
                       </View>
-                      <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-1" numberOfLines={1}>
+                      <Text className="font-inter text-[10px] text-ink-muted mt-1" numberOfLines={1}>
                         {template.id ? `${template.id} · ` : ''}
                         {describe(template)}
                       </Text>
@@ -218,21 +221,21 @@ export function SportEventsTab({
 
                     <TouchableOpacity
                       onPress={() => duplicateTemplate(index)}
-                      className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg active:opacity-80"
+                      className="p-2 bg-sunken border border-line rounded-lg active:opacity-80"
                     >
-                      <Ionicons name="copy-outline" size={13} color="#94A3B8" />
+                      <Ionicons name="copy-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => setEditingIndex(index)}
-                      className="p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg active:opacity-80"
+                      className="p-2 bg-sunken border border-line rounded-lg active:opacity-80"
                     >
-                      <Ionicons name="create-outline" size={13} color="#FF3E00" />
+                      <Ionicons name="create-outline" size={13} color={themeColor(isDark, 'primary')} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => removeTemplate(index)}
-                      className="p-2 bg-red-500/10 dark:bg-red-500/5 border border-red-500/20 rounded-lg active:opacity-80"
+                      className="p-2 bg-danger-soft border border-danger-line rounded-lg active:opacity-80"
                     >
-                      <Ionicons name="trash" size={13} color="#EF4444" />
+                      <Ionicons name="trash" size={13} color={themeColor(isDark, 'danger')} />
                     </TouchableOpacity>
                   </GlassCard>
                 ))}

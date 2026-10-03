@@ -59,7 +59,7 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
 
   if (isLoading) {
     return (
-      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic py-6 text-center">
+      <Text className="font-inter text-xs text-ink-muted italic py-6 text-center">
         Loading the table...
       </Text>
     );
@@ -74,7 +74,7 @@ export function DivisionStandings({ divisionId, canEdit = false, showPoints = tr
       {stages.map(stage => (
         <View key={stage.stageId} className="space-y-2">
           {named && (
-            <Text className="font-orbitron-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1">
+            <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest pl-1">
               {stage.name}
             </Text>
           )}

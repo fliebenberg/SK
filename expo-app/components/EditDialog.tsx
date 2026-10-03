@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 /**
  * Where one card of a read-first page is edited (design_system.md, *Read-first record pages*).
@@ -55,20 +56,20 @@ export function EditDialog({
   return (
     <Modal transparent visible={visible} animationType={isSheet ? 'slide' : 'fade'} onRequestClose={requestClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View className={`flex-1 bg-slate-950/60 ${isSheet ? 'justify-end' : 'items-center justify-center p-6'}`}>
+        <View className={`flex-1 bg-overlay/60 ${isSheet ? 'justify-end' : 'items-center justify-center p-6'}`}>
           <Pressable className="absolute inset-0" onPress={requestClose} accessibilityLabel="Close" />
           <View
-            className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 ${
+            className={`bg-popover border border-line ${
               isSheet ? 'w-full rounded-t-3xl' : 'w-full max-w-lg rounded-2xl'
             }`}
             style={{ maxHeight: isSheet ? '92%' : '90%' }}
           >
-            <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-white/5">
-              <Text className="font-inter-bold text-base text-slate-900 dark:text-white flex-1 mr-3" numberOfLines={1}>
+            <View className="flex-row items-center justify-between px-5 py-4 border-b border-line">
+              <Text className="font-inter-bold text-base text-ink flex-1 mr-3" numberOfLines={1}>
                 {title}
               </Text>
               <TouchableOpacity onPress={requestClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-                <Ionicons name="close" size={22} color={getThemeColor(isDark, 'textSecondary')} />
+                <Ionicons name="close" size={22} color={themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
 
@@ -76,10 +77,10 @@ export function EditDialog({
               {children}
             </ScrollView>
 
-            <View className={`flex-row items-center gap-2 px-5 py-3 border-t border-slate-200 dark:border-white/5 ${isSheet ? 'pb-6' : ''}`}>
+            <View className={`flex-row items-center gap-2 px-5 py-3 border-t border-line ${isSheet ? 'pb-6' : ''}`}>
               {confirmingDiscard ? (
                 <>
-                  <Text className="font-inter-semibold text-sm text-slate-700 dark:text-slate-200 flex-1">Discard your changes?</Text>
+                  <Text className="font-inter-semibold text-sm text-ink-soft flex-1">Discard your changes?</Text>
                   <DialogButton label="Keep editing" variant="ghost" onPress={() => setConfirmingDiscard(false)} />
                   <DialogButton label="Discard" variant="danger" onPress={() => { setConfirmingDiscard(false); onClose(); }} />
                 </>
@@ -108,11 +109,11 @@ function DialogButton({ label, onPress, variant = 'primary', disabled, loading }
   label: string; onPress: () => void; variant?: 'primary' | 'ghost' | 'danger'; disabled?: boolean; loading?: boolean;
 }) {
   const classes = {
-    primary: 'bg-brand-orange border-brand-orange',
-    ghost: 'bg-transparent border-slate-200 dark:border-white/10',
-    danger: 'bg-red-600 border-red-600',
+    primary: 'bg-primary border-primary',
+    ghost: 'bg-transparent border-line',
+    danger: 'bg-danger border-danger',
   }[variant];
-  const text = variant === 'ghost' ? 'text-slate-700 dark:text-slate-200' : 'text-white';
+  const text = variant === 'ghost' ? 'text-ink-soft' : 'text-on-fill';
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -131,10 +132,10 @@ export function ReadRow({ label, value, sub, right }: { label: string; value?: R
   return (
     <View className="flex-row items-center justify-between gap-4 py-2.5">
       <View className="flex-1 min-w-0">
-        <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white">{label}</Text>
-        {sub ? <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sub}</Text> : null}
+        <Text className="font-inter-semibold text-sm text-ink">{label}</Text>
+        {sub ? <Text className="font-inter text-xs text-ink-muted mt-0.5">{sub}</Text> : null}
       </View>
-      {value !== undefined ? <View className="flex-row items-center gap-3">{typeof value === 'string' ? <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">{value}</Text> : value}</View> : null}
+      {value !== undefined ? <View className="flex-row items-center gap-3">{typeof value === 'string' ? <Text className="font-inter text-sm text-ink-soft">{value}</Text> : value}</View> : null}
       {right}
     </View>
   );

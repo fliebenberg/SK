@@ -181,8 +181,8 @@ export function getTeamColor(event: GameEvent, participants: GameParticipant[] |
     const participant = participants.find((p) => p.id === event.gameParticipantId);
     if (participant?.teamId) {
       const index = participants.indexOf(participant);
-      return index === 0 ? 'bg-blue-500' : 'bg-red-500';
+      return index === 0 ? 'bg-info' : 'bg-danger';
     }
   }
-  return 'bg-slate-400';
+  return 'bg-ink-faint';
 }

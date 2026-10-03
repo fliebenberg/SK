@@ -2,7 +2,8 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 /**
  * Setting a tournament up is a checklist, not a wizard (U17) — and the checklist is now a page of
@@ -95,10 +96,10 @@ export function SetupChecklistIntro({ steps }: SetupChecklistIntroProps) {
   return (
     <View className="gap-3">
       <View className="gap-1">
-        <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-widest">
+        <Text className="font-orbitron-bold text-sm text-ink uppercase tracking-widest">
           Set up your tournament
         </Text>
-        <Text className="font-inter text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+        <Text className="font-inter text-xs leading-relaxed text-ink-muted">
           {isComplete
             ? 'Everything is in place. Open any step to change it — nothing here is locked once the tournament starts.'
             : 'Work through these in any order. Nothing has to be finished today — you can come back to it any time before the first match.'}
@@ -108,10 +109,10 @@ export function SetupChecklistIntro({ steps }: SetupChecklistIntroProps) {
       {/* `brand.green` is a 1.67:1 fill on a light surface, so the completed bar and its label
           take the light-safe `success` green there and the brand green in dark mode. */}
       <View className="flex-row items-center gap-3">
-        <View className="flex-1 h-1 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+        <View className="flex-1 h-1 rounded-full bg-line overflow-hidden">
           <View
             className={`h-1 rounded-full ${
-              isComplete ? 'bg-emerald-800 dark:bg-brand-green' : 'bg-brand-orange'
+              isComplete ? 'bg-success-soft' : 'bg-primary'
             }`}
             style={{ width: total > 0 ? `${(done / total) * 100}%` : 0 }}
           />
@@ -119,8 +120,8 @@ export function SetupChecklistIntro({ steps }: SetupChecklistIntroProps) {
         <Text
           className={`font-inter-bold text-[10px] uppercase tracking-widest ${
             isComplete
-              ? 'text-emerald-800 dark:text-brand-green'
-              : 'text-slate-500 dark:text-slate-400'
+              ? 'text-success-ink'
+              : 'text-ink-muted'
           }`}
         >
           {isComplete ? 'Setup complete' : `${done} of ${total} steps done`}
@@ -164,7 +165,7 @@ export interface SetupChecklistRowProps {
  */
 export function SetupChecklistRow({ step, onPress }: SetupChecklistRowProps) {
   const isDark = useActiveTheme() === 'dark';
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
   const isDone = isStepDone(step);
 
   return (
@@ -177,33 +178,33 @@ export function SetupChecklistRow({ step, onPress }: SetupChecklistRowProps) {
       activeOpacity={0.8}
       className={`flex-row items-center gap-3.5 px-4 py-3.5 rounded-2xl border ${
         isDone
-          ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'
-          : 'bg-brand-orange/5 dark:bg-brand-orange/10 border-brand-orange/40'
+          ? 'bg-card border-line'
+          : 'bg-primary-soft border-primary-line'
       }`}
     >
       <View
         className={`w-9 h-9 rounded-full items-center justify-center ${
-          isDone ? 'bg-emerald-800/10 dark:bg-brand-green/15' : 'bg-brand-orange'
+          isDone ? 'bg-success-soft' : 'bg-primary'
         }`}
       >
         <Ionicons
           name={isDone ? 'checkmark' : step.icon || 'ellipse-outline'}
           size={isDone ? 18 : 17}
-          color={isDone ? getThemeColor(isDark, 'success') : '#FFFFFF'}
+          color={isDone ? themeColor(isDark, 'success-ink') : themeColor(isDark, 'on-fill')}
         />
       </View>
 
       <View className="flex-1 min-w-0">
         <Text
           className={`font-orbitron-bold text-[11px] uppercase tracking-widest ${
-            isDone ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'
+            isDone ? 'text-ink-muted' : 'text-ink'
           }`}
         >
           {step.label}
         </Text>
         <Text
           className={`font-inter text-[11px] mt-0.5 ${
-            isDone ? 'text-slate-500 dark:text-slate-400' : 'text-slate-600 dark:text-slate-300'
+            isDone ? 'text-ink-muted' : 'text-ink-soft'
           }`}
           numberOfLines={2}
         >
@@ -212,8 +213,8 @@ export function SetupChecklistRow({ step, onPress }: SetupChecklistRowProps) {
       </View>
 
       {step.status === 'default' && (
-        <View className="px-2 py-0.5 rounded bg-white/70 dark:bg-white/10 border border-brand-orange/20">
-          <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-slate-600 dark:text-slate-300">
+        <View className="px-2 py-0.5 rounded bg-card/70 border border-primary-line">
+          <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-ink-soft">
             Defaults
           </Text>
         </View>
@@ -233,15 +234,15 @@ export interface SetupDismissedStepsProps {
 export function SetupDismissedSteps({ steps, onRestore }: SetupDismissedStepsProps) {
   if (steps.length === 0) return null;
   return (
-    <View className="border border-dashed border-slate-200 dark:border-white/10 rounded-xl px-4 py-3 gap-2">
-      <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+    <View className="border border-dashed border-line rounded-xl px-4 py-3 gap-2">
+      <Text className="font-inter text-[10px] text-ink-muted">
         {steps.length === 1 ? '1 step' : `${steps.length} steps`} marked as not applying to this
         tournament. They are not counted above.
       </Text>
       {steps.map(step => (
         <View key={step.key} className="flex-row items-center justify-between">
           <Text
-            className="font-inter text-[11px] text-slate-500 dark:text-slate-400 flex-1"
+            className="font-inter text-[11px] text-ink-muted flex-1"
             numberOfLines={1}
           >
             {step.label}
@@ -252,7 +253,7 @@ export function SetupDismissedSteps({ steps, onRestore }: SetupDismissedStepsPro
               className="px-2 py-1"
               activeOpacity={0.8}
             >
-              <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+              <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                 Restore
               </Text>
             </TouchableOpacity>

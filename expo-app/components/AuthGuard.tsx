@@ -2,8 +2,10 @@ import React, { useEffect } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
-import { COLORS } from '../constants/Colors';
+
 import { AccessDenied } from './AccessDenied';
+import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -15,14 +17,17 @@ interface AuthGuardProps {
   deniedMessage?: string;
 }
 
-const SessionResolving = () => (
-  <View className="flex-1 items-center justify-center bg-slate-50 dark:bg-slate-950">
-    <ActivityIndicator size="large" color={COLORS.brand.orange} />
-    <Text className="font-orbitron text-xs text-slate-500 mt-4 uppercase tracking-widest">
-      Checking Access...
-    </Text>
-  </View>
-);
+const SessionResolving = () => {
+  const isDark = useActiveTheme() === 'dark';
+  return (
+    <View className="flex-1 items-center justify-center bg-canvas">
+      <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+      <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
+        Checking Access...
+      </Text>
+    </View>
+  );
+};
 
 /**
  * Blocks its subtree until the viewer is known to be signed in (and, when

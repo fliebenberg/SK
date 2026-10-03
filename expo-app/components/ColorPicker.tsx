@@ -2,12 +2,15 @@ import React, { useRef, useState } from 'react';
 import { Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { getThemeColor } from '../constants/Colors';
+
 import { isHexColor } from '@sk/shared';
+import { themeColor } from '../constants/Colors';
 
 /**
  * Pick a colour: a base hue, then a shade, or a hex code typed in. On web the swatch also opens the
  * browser's own spectrum picker, and the eyedropper where the browser has one.
+ *
+ * @colour-data — the swatches and the fallbacks are colours being picked, not theme colours.
  *
  * Moved out of the org settings screen (2026-10-01), where it was written out twice — once for the
  * primary colour and once for the secondary — as full-screen overlays. It is now an inline panel so
@@ -93,7 +96,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
   };
 
   return (
-    <View className="gap-3 rounded-xl border border-slate-200 dark:border-white/10 p-3">
+    <View className="gap-3 rounded-xl border border-line p-3">
       {Platform.OS === 'web'
         ? React.createElement('input', {
             ref: webInputRef,
@@ -109,7 +112,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
           onPress={() => webInputRef.current?.click()}
           disabled={Platform.OS !== 'web'}
           accessibilityLabel={Platform.OS === 'web' ? 'Open the colour spectrum' : undefined}
-          className="w-10 h-10 rounded-lg border border-slate-300 dark:border-white/20"
+          className="w-10 h-10 rounded-lg border border-line-strong"
           style={{ backgroundColor: isHexColor(value) ? value : '#FFFFFF' }}
         />
         <TextInput
@@ -124,17 +127,17 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
           autoCorrect={false}
           spellCheck={false}
           accessibilityLabel="Hex colour code"
-          className="flex-1 font-mono text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-2.5 outline-none"
+          className="flex-1 font-mono text-sm text-ink bg-canvas border border-line rounded-xl px-3 py-2.5 outline-none"
         />
         {hasEyedropper ? (
-          <TouchableOpacity onPress={openEyedropper} accessibilityLabel="Pick a colour from the screen" className="w-10 h-10 rounded-xl items-center justify-center border border-slate-200 dark:border-white/10">
-            <Ionicons name="color-palette-outline" size={18} color={getThemeColor(isDark, 'textPrimary')} />
+          <TouchableOpacity onPress={openEyedropper} accessibilityLabel="Pick a colour from the screen" className="w-10 h-10 rounded-xl items-center justify-center border border-line">
+            <Ionicons name="color-palette-outline" size={18} color={themeColor(isDark, 'ink')} />
           </TouchableOpacity>
         ) : null}
       </View>
 
       <View className="gap-1.5">
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Base colour</Text>
+        <Text className="font-inter text-xs text-ink-muted">Base colour</Text>
         <View className="flex-row flex-wrap gap-2">
           {BASE_HUES.map(b => {
             const selected = hue === b.h && isGrey === !!b.isGrey;
@@ -143,7 +146,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
                 key={b.name}
                 accessibilityLabel={b.name}
                 onPress={() => { setHue(b.h); setIsGrey(!!b.isGrey); set(hslToHex(b.h, b.s, b.l)); }}
-                className={`w-7 h-7 rounded-full ${selected ? 'border-2 border-brand-orange' : 'border border-slate-200 dark:border-white/10'}`}
+                className={`w-7 h-7 rounded-full ${selected ? 'border-2 border-primary' : 'border border-line'}`}
                 style={{ backgroundColor: hslToHex(b.h, b.s, b.l) }}
               />
             );
@@ -152,14 +155,14 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
       </View>
 
       <View className="gap-1.5">
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Shade</Text>
+        <Text className="font-inter text-xs text-ink-muted">Shade</Text>
         <View className="flex-row flex-wrap gap-2">
           {shadesOf(hue, isGrey).map(shade => (
             <TouchableOpacity
               key={shade}
               accessibilityLabel={shade}
               onPress={() => set(shade)}
-              className={`w-7 h-7 rounded-lg ${value.toUpperCase() === shade.toUpperCase() ? 'border-2 border-brand-orange' : 'border border-slate-200 dark:border-white/10'}`}
+              className={`w-7 h-7 rounded-lg ${value.toUpperCase() === shade.toUpperCase() ? 'border-2 border-primary' : 'border border-line'}`}
               style={{ backgroundColor: shade }}
             />
           ))}

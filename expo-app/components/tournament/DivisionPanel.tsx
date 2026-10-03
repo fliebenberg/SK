@@ -24,9 +24,10 @@ import { wsService } from '../../services/websocket';
 import { sendAction } from '../../services/actions';
 import { useWsStore } from '../../store/wsStore';
 import { useActiveTheme } from '../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../constants/Colors';
+
 import { isCollapsed, stageSublabel, structureAnnouncement } from '@sk/shared';
 import { formatKickoffTime } from '../../utils/dates';
+import { themeColor } from '../../constants/Colors';
 
 /**
  * One division: its stages, and the fixtures under them.
@@ -68,7 +69,7 @@ export interface DivisionPanelProps {
 export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed = false }: DivisionPanelProps) {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
 
   const isConnected = useWsStore((state: any) => state.isConnected);
 
@@ -281,7 +282,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
 
     if (isLoading) {
       return (
-        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic py-6 text-center">
+        <Text className="font-inter text-xs text-ink-muted italic py-6 text-center">
           Loading fixtures...
         </Text>
       );
@@ -291,7 +292,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
       return (
         <View className="items-center justify-center py-10">
           <Ionicons name="calendar-outline" size={36} color={secondary} style={{ opacity: 0.3, marginBottom: 8 }} />
-          <Text className="font-orbitron text-[10px] text-slate-500 uppercase tracking-widest">
+          <Text className="font-orbitron text-[10px] text-ink-muted uppercase tracking-widest">
             No fixtures yet
           </Text>
           {canEdit && (
@@ -307,25 +308,25 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
                     setGenerationError(null);
                     setGenerateFor(stage);
                   }}
-                  className="px-4 py-2 rounded-lg bg-brand-orange active:opacity-85"
+                  className="px-4 py-2 rounded-lg bg-primary active:opacity-85"
                 >
-                  <Text className="font-inter-bold text-[10px] text-white uppercase tracking-wider">
+                  <Text className="font-inter-bold text-[10px] text-on-fill uppercase tracking-wider">
                     Generate fixtures
                   </Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
                 onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/new`)}
-                className="px-4 py-2 rounded-lg bg-brand-orange/10 border border-brand-orange/30 active:opacity-80"
+                className="px-4 py-2 rounded-lg bg-primary-soft border border-primary-line active:opacity-80"
               >
-                <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                   Add a fixture
                 </Text>
               </TouchableOpacity>
             </View>
           )}
           {canEdit && activeEntrants.length < 2 && (
-            <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 italic mt-3 text-center px-6">
+            <Text className="font-inter text-[11px] text-ink-muted italic mt-3 text-center px-6">
               Enter at least two competitors and a draw can be generated for you.
             </Text>
           )}
@@ -350,7 +351,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
         {orderedGroups.map(([groupLabel, groupGames]) => (
           <View key={groupLabel} className="space-y-2">
             {orderedGroups.length > 1 && (
-              <Text className="font-orbitron-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+              <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
                 {groupLabel}
               </Text>
             )}
@@ -367,14 +368,14 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
                 <TouchableOpacity
                   key={game.id}
                   onPress={() => router.push(`/admin/${orgId}/events/${eventId}/games/${game.id}/view`)}
-                  className="flex-row items-center justify-between bg-slate-50 dark:bg-white/5 rounded-xl px-3 py-3 active:opacity-85"
+                  className="flex-row items-center justify-between bg-sunken rounded-xl px-3 py-3 active:opacity-85"
                 >
-                  <Text className="font-inter-bold text-xs text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+                  <Text className="font-inter-bold text-xs text-ink flex-1" numberOfLines={1}>
                     {home || 'TBD'} vs {away || 'TBD'}
                   </Text>
                   <Text
                     className={`font-orbitron-bold text-xs pl-2 ${
-                      game.status === 'Live' ? 'text-brand-orange' : 'text-slate-500 dark:text-slate-400'
+                      game.status === 'Live' ? 'text-primary-ink' : 'text-ink-muted'
                     }`}
                   >
                     {score || game.status}
@@ -389,14 +390,14 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
   };
 
   return (
-    <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
+    <GlassCard className="border border-line p-5">
       {!collapsed && (
         <View className="flex-row items-center justify-between mb-4">
-          <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white" numberOfLines={1}>
+          <Text className="font-orbitron-bold text-sm text-ink" numberOfLines={1}>
             {division?.name || 'Division'}
           </Text>
           {!!division?.ageGroup && (
-            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <Text className="font-inter text-[10px] text-ink-muted uppercase tracking-wider">
               {division.ageGroup}
             </Text>
           )}
@@ -409,31 +410,31 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
           roster moves after it, this is where they are told — and offered the two ways out: hand a
           withdrawn team's fixtures to somebody, or regenerate below.
         */
-        <View className="mb-4 rounded-xl border border-amber-300 dark:border-amber-400/40 bg-amber-50 dark:bg-amber-400/10 p-3 space-y-2">
-          <Text className="font-orbitron-bold text-[10px] text-amber-800 dark:text-amber-300 uppercase tracking-widest">
+        <View className="mb-4 rounded-xl border border-warning-line bg-warning-soft p-3 space-y-2">
+          <Text className="font-orbitron-bold text-[10px] text-warning-ink uppercase tracking-widest">
             Changes since the draw
           </Text>
           {changes.leftDraw.map(({ entrant, unplayed }) => (
             <View key={entrant.id} className="flex-row items-center gap-3">
-              <Text className="flex-1 font-inter text-xs text-slate-700 dark:text-slate-200">
+              <Text className="flex-1 font-inter text-xs text-ink-soft">
                 <Text className="font-inter-bold">{entrant.name || entrant.label || 'A team'}</Text> withdrew with{' '}
                 {unplayed === 1 ? 'a fixture' : `${unplayed} fixtures`} still to play.
               </Text>
               <TouchableOpacity
                 onPress={() => setHandingOn({ entrant, unplayed })}
-                className="px-3 py-1.5 rounded-lg bg-brand-orange active:opacity-85"
+                className="px-3 py-1.5 rounded-lg bg-primary active:opacity-85"
               >
-                <Text className="font-inter-bold text-[10px] text-white uppercase tracking-wider">Replace</Text>
+                <Text className="font-inter-bold text-[10px] text-on-fill uppercase tracking-wider">Replace</Text>
               </TouchableOpacity>
             </View>
           ))}
           {changes.notInDraw.map(entrant => (
-            <Text key={entrant.id} className="font-inter text-xs text-slate-700 dark:text-slate-200">
+            <Text key={entrant.id} className="font-inter text-xs text-ink-soft">
               <Text className="font-inter-bold">{entrant.name || entrant.label || 'An entrant'}</Text> was entered
               after the draw and has no fixtures.
             </Text>
           ))}
-          <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-[11px] text-ink-muted">
             {changes.leftDraw.length && changes.notInDraw.length
               ? 'Replace a withdrawn team with a late entry to keep the draw, or regenerate it.'
               : changes.leftDraw.length
@@ -459,10 +460,10 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
         // No tabs, but the fixtures still need a heading, and naming the one stage is how the
         // organiser learns the word before a second one appears.
         <View className="flex-row items-center justify-between mb-3">
-          <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+          <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
             {orderedStages[0].name}
           </Text>
-          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-[10px] text-ink-muted">
             {stageSublabel({
               status: orderedStages[0].status,
               played: (gamesByStage[orderedStages[0].id] || []).filter(g => g.status === 'Finished').length,
@@ -487,7 +488,7 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
           className="mt-4 flex-row items-center gap-2 active:opacity-80"
         >
           <Ionicons name="refresh-outline" size={15} color={secondary} />
-          <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider">
             Regenerate the draw
           </Text>
         </TouchableOpacity>
@@ -501,16 +502,16 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
       {canEdit && (
         <TouchableOpacity
           onPress={() => router.push(`/admin/${orgId}/events/${eventId}/entrants?divisionId=${divisionId}` as any)}
-          className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex-row items-center justify-between active:opacity-80"
+          className="mt-4 pt-4 border-t border-line-soft flex-row items-center justify-between active:opacity-80"
         >
           <View className="flex-row items-center gap-2">
-            <Ionicons name="people-outline" size={16} color={COLORS.brand.orange} />
-            <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+            <Ionicons name="people-outline" size={16} color={themeColor(isDark, 'primary')} />
+            <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
               Entrants
             </Text>
           </View>
           <View className="flex-row items-center gap-2">
-            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+            <Text className="font-inter text-[10px] text-ink-muted">
               {activeEntrants.length} entered
             </Text>
             <Ionicons name="chevron-forward" size={14} color={secondary} />
@@ -521,10 +522,10 @@ export function DivisionPanel({ orgId, eventId, divisionId, canEdit, collapsed =
       {canEdit && (
         <TouchableOpacity
           onPress={() => setIsAddingStage(true)}
-          className="mt-4 pt-4 border-t border-slate-100 dark:border-white/5 flex-row items-center gap-2 active:opacity-80"
+          className="mt-4 pt-4 border-t border-line-soft flex-row items-center gap-2 active:opacity-80"
         >
-          <Ionicons name="add-circle-outline" size={16} color={COLORS.brand.orange} />
-          <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+          <Ionicons name="add-circle-outline" size={16} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
             Add a stage
           </Text>
         </TouchableOpacity>

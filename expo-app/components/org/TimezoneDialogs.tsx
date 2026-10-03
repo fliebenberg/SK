@@ -8,7 +8,8 @@ import CustomSelect from '../CustomSelect';
 import { sendAction } from '../../services/actions';
 import { TIME_ZONE_CHOICES, timeZoneLabel } from '../../utils/dates';
 import { useActiveTheme } from '../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../constants/Colors';
+import { themeColor } from '../../constants/Colors';
+
 
 /**
  * The org's timezone and its address pin (docs/org-profile.md §4). The two may differ on purpose;
@@ -25,9 +26,9 @@ export function addressTimeZoneNote(addressTimeZone: string | null | undefined, 
 export function TimezoneNote({ text }: { text: string }) {
   const isDark = useActiveTheme() === 'dark';
   return (
-    <View className="flex-row items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-300/25 bg-amber-50 dark:bg-amber-400/5 px-3 py-2">
-      <Ionicons name="information-circle-outline" size={16} color={getThemeColor(isDark, 'warning')} style={{ marginTop: 1 }} />
-      <Text className="flex-1 font-inter text-xs text-amber-800 dark:text-amber-300">{text}</Text>
+    <View className="flex-row items-start gap-2 rounded-xl border border-warning-line bg-warning-soft px-3 py-2">
+      <Ionicons name="information-circle-outline" size={16} color={themeColor(isDark, 'warning-ink')} style={{ marginTop: 1 }} />
+      <Text className="flex-1 font-inter text-xs text-warning-ink">{text}</Text>
     </View>
   );
 }
@@ -106,19 +107,19 @@ export function FollowAddressTimezoneDialog({ org, visible, onClose }: { org: Or
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ checked: on }}
-      className={`flex-row items-start gap-3 rounded-xl border px-3 py-2.5 ${on ? 'border-brand-orange' : 'border-slate-200 dark:border-white/10'}`}
+      className={`flex-row items-start gap-3 rounded-xl border px-3 py-2.5 ${on ? 'border-primary' : 'border-line'}`}
     >
-      <Ionicons name={on ? 'radio-button-on' : 'radio-button-off'} size={18} color={on ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')} style={{ marginTop: 1 }} />
+      <Ionicons name={on ? 'radio-button-on' : 'radio-button-off'} size={18} color={on ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} style={{ marginTop: 1 }} />
       <View className="flex-1">
-        <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white">{title}</Text>
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{timeZoneLabel(zone)} · {zone}</Text>
+        <Text className="font-inter-semibold text-sm text-ink">{title}</Text>
+        <Text className="font-inter text-xs text-ink-muted">{timeZoneLabel(zone)} · {zone}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
     <EditDialog visible={visible} title="Change the organisation timezone?" onClose={onClose} onSave={confirm} saveLabel="Confirm" isSaving={isSaving}>
-      <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+      <Text className="font-inter text-sm text-ink-soft">
         The address is saved. Its pin is in a different timezone from the one in the organisation settings.
       </Text>
       <View className="gap-2">

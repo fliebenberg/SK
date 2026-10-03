@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Animated, Platform } from 'react-native';
 import { AnimatedBox } from '../../AnimatedBox';
+import { themeColor } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
 
 interface GameStatusIndicatorProps {
   isRunning?: boolean;
@@ -13,6 +15,7 @@ export function GameStatusIndicator({
   periodText,
   compact = false,
 }: GameStatusIndicatorProps) {
+  const isDark = useActiveTheme() === 'dark';
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const useNativeDriver = Platform.OS !== 'web';
 
@@ -44,7 +47,7 @@ export function GameStatusIndicator({
       {isRunning ? (
         <View className="flex-row items-center gap-1.5">
           {periodText ? (
-            <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">
+            <Text className="font-inter text-[10px] text-ink-muted uppercase tracking-wider font-medium">
               {periodText}
             </Text>
           ) : null}
@@ -55,21 +58,21 @@ export function GameStatusIndicator({
                   width: 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: '#10B981',
+                  backgroundColor: themeColor(isDark, 'success'),
                   opacity: pulseAnim,
                 }}
               />
             </View>
             {!compact && (
-              <Text className="font-orbitron-bold text-[9px] text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+              <Text className="font-orbitron-bold text-[9px] text-success-ink uppercase tracking-wider">
                 LIVE
               </Text>
             )}
           </View>
         </View>
       ) : (
-        <View className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 flex-row items-center justify-center">
-          <Text className="font-orbitron-bold text-[9px] text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+        <View className="px-2 py-0.5 rounded-full bg-warning-soft border border-warning-line flex-row items-center justify-center">
+          <Text className="font-orbitron-bold text-[9px] text-warning-ink uppercase tracking-wider">
             PAUSED
           </Text>
         </View>

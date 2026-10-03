@@ -66,8 +66,8 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
       <View
         className={`flex-1 p-1 rounded-xl border transition-all ${
           isHome
-            ? 'bg-blue-500/5 dark:bg-blue-500/10 border-blue-500/20'
-            : 'bg-rose-500/5 dark:bg-rose-500/10 border-rose-500/20'
+            ? 'bg-info-soft border-info-line'
+            : 'bg-danger-soft border-danger-line'
         } ${isInactiveSide ? 'opacity-40' : ''}`}
       >
         {/* 2-COLUMN COMPACT GRID */}
@@ -95,10 +95,10 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
   const affectsScore = !!sectionDefinition?.affectsScore;
 
   return (
-    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-1.5 pt-2.5 shadow-sm mb-1.5 relative">
+    <View className="bg-card border border-line rounded-2xl p-1.5 pt-2.5 shadow-sm mb-1.5 relative">
       {/* COMPACT SECTION OVERLAY BADGE */}
-      <View className="absolute -top-2.5 left-4 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-300 dark:border-white/10 z-10">
-        <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest">
+      <View className="absolute -top-2.5 left-4 bg-sunken px-2 py-0.5 rounded-md border border-line-strong z-10">
+        <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
           {sectionTitle}
         </Text>
       </View>
@@ -109,9 +109,9 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
           <TouchableOpacity
             onPress={handleOpenFinalScore}
             activeOpacity={0.8}
-            className="w-full py-2 px-3 bg-brand-orange/10 border border-brand-orange/30 rounded-xl items-center justify-center"
+            className="w-full py-2 px-3 bg-primary-soft border border-primary-line rounded-xl items-center justify-center"
           >
-            <Text className="font-orbitron-bold text-[11px] text-brand-orange uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-[11px] text-primary-ink uppercase tracking-wider">
               ENTER FINAL SCORE OVERRIDE
             </Text>
           </TouchableOpacity>
@@ -132,13 +132,13 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
           animationType="fade"
           onRequestClose={() => setIsFinalScoreOpen(false)}
         >
-          <View className="flex-1 bg-black/60 justify-center items-center px-6">
-            <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/10 w-full max-w-md shadow-lg space-y-4">
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider text-center">
+          <View className="flex-1 bg-overlay/60 justify-center items-center px-6">
+            <View className="bg-card rounded-2xl p-6 border border-line w-full max-w-md shadow-lg space-y-4">
+              <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider text-center">
                 Final Score Override
               </Text>
 
-              <Text className="font-inter text-xs text-amber-600 dark:text-amber-400 text-center uppercase tracking-tight font-bold">
+              <Text className="font-inter text-xs text-warning-ink text-center uppercase tracking-tight font-bold">
                 Warning: Manually setting the final score will override the live scoreboard.
               </Text>
 
@@ -146,15 +146,15 @@ export function DynamicScoringPanel({ section, role }: DynamicScoringPanelProps)
                 {game.participants?.slice(0, 2).map((p, idx) => {
                   const name = idx === 0 ? homeTeam?.name || 'Home' : awayTeam?.name || 'Away';
                   return (
-                    <View key={p.id} className="flex-1 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-white/10 items-center">
-                      <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-300 uppercase mb-2">
+                    <View key={p.id} className="flex-1 p-3 bg-sunken rounded-xl border border-line items-center">
+                      <Text className="font-orbitron-bold text-xs text-ink-soft uppercase mb-2">
                         {name}
                       </Text>
                       <TextInput
                         keyboardType="numeric"
                         value={finalScores[p.id] || '0'}
                         onChangeText={(txt) => setFinalScores({ ...finalScores, [p.id]: txt })}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg h-11 text-center font-orbitron-bold text-lg text-slate-900 dark:text-white"
+                        className="w-full bg-card border border-line-strong rounded-lg h-11 text-center font-orbitron-bold text-lg text-ink"
                       />
                     </View>
                   );

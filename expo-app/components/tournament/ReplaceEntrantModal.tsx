@@ -13,7 +13,8 @@ import CustomSelect from '../CustomSelect';
 import { FieldLabel } from '../FieldLabel';
 import { sendAction } from '../../services/actions';
 import { useActiveTheme } from '../../store/settingsStore';
-import { getThemeColor } from '../../constants/Colors';
+import { themeColor } from '../../constants/Colors';
+
 
 /**
  * Put somebody else in an entrant's place without redrawing (2026-09-24).
@@ -155,13 +156,13 @@ export function ReplaceEntrantModal({
       onPress={onPress}
       className={`px-3 py-1.5 rounded-xl border ${
         active
-          ? 'bg-brand-orange/15 border-brand-orange'
-          : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
+          ? 'bg-primary-soft border-primary'
+          : 'bg-sunken border-line'
       }`}
     >
       <Text
         className={`font-inter text-xs ${
-          active ? 'text-brand-orange font-inter-bold' : 'text-slate-600 dark:text-slate-400'
+          active ? 'text-primary-ink font-inter-bold' : 'text-ink-muted'
         }`}
       >
         {text}
@@ -171,15 +172,15 @@ export function ReplaceEntrantModal({
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 bg-slate-950/75 justify-center px-6">
+      <View className="flex-1 bg-overlay/75 justify-center px-6">
         <GlassCard
-          className="w-full max-w-lg self-center border border-slate-200 dark:border-white/10 p-5 shadow-lg"
-          style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
+          className="w-full max-w-lg self-center border border-line p-5 shadow-lg"
+          style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
-          <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider mb-1">
+          <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider mb-1">
             Replace
           </Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-4" numberOfLines={1}>
+          <Text className="font-inter text-xs text-ink-muted mb-4" numberOfLines={1}>
             {name} · {division.name}
           </Text>
 
@@ -225,7 +226,7 @@ export function ReplaceEntrantModal({
                       showSearch={teamChoices.length > 8}
                     />
                   ) : (
-                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+                    <Text className="font-inter text-xs text-ink-muted">
                       No team that qualifies is free. Add one on the Entrants screen, or use a placeholder.
                     </Text>
                   )}
@@ -242,17 +243,17 @@ export function ReplaceEntrantModal({
                     value={label}
                     onChangeText={setLabel}
                     placeholder="Replacement to be confirmed"
-                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+                    placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                    className="bg-canvas border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink"
                   />
                 </View>
               )}
 
-              <Text className="font-inter text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <Text className="font-inter text-xs text-ink-soft leading-relaxed">
                 {consequence}
               </Text>
 
-              {!!error && <Text className="font-inter text-xs text-brand-red">{error}</Text>}
+              {!!error && <Text className="font-inter text-xs text-danger-ink">{error}</Text>}
             </View>
           </ScrollView>
 

@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { NominateAdminModal } from './NominateAdminModal';
 import { useOrgClaimStatus } from '../hooks/useOrgClaimStatus';
 import { useActiveTheme } from '../store/settingsStore';
-import { getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 /**
  * One line across the top of an organisation's admin workspace while it has no administrator —
@@ -31,7 +32,7 @@ export function UnclaimedOrgBanner({ org }: { org: { id: string; name: string; i
 
   const mine = status?.myPendingEmails || [];
   const pending = mine.length > 0;
-  const accent = pending ? getThemeColor(isDark, 'success') : isDark ? '#FCD34D' : '#92400E';
+  const accent = pending ? themeColor(isDark, 'success-ink') : themeColor(isDark, 'warning-ink');
 
   return (
     <>
@@ -39,14 +40,14 @@ export function UnclaimedOrgBanner({ org }: { org: { id: string; name: string; i
         <SafeAreaView
           edges={['top']}
           className={pending
-            ? 'bg-emerald-50 dark:bg-emerald-500/10 border-b border-emerald-200 dark:border-emerald-500/20'
-            : 'bg-amber-50 dark:bg-amber-500/10 border-b border-amber-200 dark:border-amber-500/20'}
+            ? 'bg-success-soft border-b border-success-line'
+            : 'bg-warning-soft border-b border-warning-line'}
         >
           <View className="flex-row items-center gap-2 px-4 py-1.5">
             <Ionicons name={pending ? 'mail-outline' : 'alert-circle-outline'} size={15} color={accent} />
             <Text
               numberOfLines={1}
-              className={`flex-1 font-inter text-xs ${pending ? 'text-emerald-800 dark:text-brand-green' : 'text-amber-800 dark:text-amber-300'}`}
+              className={`flex-1 font-inter text-xs ${pending ? 'text-success-ink' : 'text-warning-ink'}`}
             >
               {pending
                 ? `${org.name} has no administrator yet. You invited ${mine.join(', ')}.`
@@ -59,7 +60,7 @@ export function UnclaimedOrgBanner({ org }: { org: { id: string; name: string; i
               className="active:opacity-60"
             >
               <Text
-                className={`font-inter-bold text-xs ${pending ? 'text-emerald-800 dark:text-brand-green' : 'text-amber-800 dark:text-amber-300'}`}
+                className={`font-inter-bold text-xs ${pending ? 'text-success-ink' : 'text-warning-ink'}`}
               >
                 {pending ? 'Invite another' : 'Nominate'}
               </Text>

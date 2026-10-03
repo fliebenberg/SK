@@ -4,11 +4,13 @@ import { Game, GameEvent, Sport, GameDispute, ActionStepType, SocketAction, find
 import { sendAction } from '../../../services/actions';
 import { useSharedDynamicScoring } from './DynamicScoringContext';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../../constants/Colors';
+
 import { ConfirmationModal } from '../../ConfirmationModal';
 import { resolveEventTemplate, getEventLabel, getMissingDetails, getTeamColor } from '../../../utils/gameUtils';
 import { useAuthStore } from '../../../store/authStore';
 import { evaluateUndoWindow, getScoreImpact, getUndoNowMs } from '../../../utils/undoWindow';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 interface EventLogFeedProps {
   gameId: string;
@@ -39,6 +41,7 @@ function getEventCategory(evt: GameEvent): EventFilterCategory {
 }
 
 export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedProps) {
+  const isDark = useActiveTheme() === 'dark';
   const {
     startDynamicFlow,
     events,
@@ -254,31 +257,31 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
   if (loading && events.length === 0) {
     return (
       <View className="flex-1 items-center justify-center py-8">
-        <ActivityIndicator size="small" color={COLORS.brand.orange} />
-        <Text className="font-inter text-xs text-slate-400 mt-2">Loading event feed...</Text>
+        <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
+        <Text className="font-inter text-xs text-ink-muted mt-2">Loading event feed...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-white/5 overflow-hidden">
+    <View className="flex-1 bg-sunken rounded-2xl border border-line overflow-hidden">
       {/* HEADER & FILTER BAR */}
-      <View className="flex-row items-center justify-between px-3 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-white/5">
-        <Text className="font-orbitron-bold text-xs uppercase text-slate-700 dark:text-slate-300">Live Feed</Text>
+      <View className="flex-row items-center justify-between px-3 py-2 bg-card border-b border-line">
+        <Text className="font-orbitron-bold text-xs uppercase text-ink-soft">Live Feed</Text>
 
         <View className="flex-row items-center gap-1.5 flex-wrap">
           <TouchableOpacity
             onPress={() => toggleFilter('TIME')}
             className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
               activeFilters.has('TIME')
-                ? 'bg-slate-500/20 border-slate-500/40'
-                : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
+                ? 'bg-raised border-line-strong'
+                : 'bg-sunken border-transparent opacity-40'
             }`}
           >
-            <Ionicons name="time-outline" size={12} color={activeFilters.has('TIME') ? '#94A3B8' : '#64748B'} />
+            <Ionicons name="time-outline" size={12} color={themeColor(isDark, 'ink-muted')} />
             <Text
               className={`font-inter-bold text-[10px] uppercase ${
-                activeFilters.has('TIME') ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'
+                activeFilters.has('TIME') ? 'text-ink-soft' : 'text-ink-muted'
               }`}
             >
               Time
@@ -289,12 +292,12 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
             onPress={() => toggleFilter('SCORE')}
             className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
               activeFilters.has('SCORE')
-                ? 'bg-amber-500/20 border-amber-500/40'
-                : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
+                ? 'bg-warning-soft border-warning-line'
+                : 'bg-sunken border-transparent opacity-40'
             }`}
           >
-            <Ionicons name="trophy-outline" size={12} color={activeFilters.has('SCORE') ? COLORS.brand.orange : '#94A3B8'} />
-            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('SCORE') ? 'text-brand-orange' : 'text-slate-400'}`}>
+            <Ionicons name="trophy-outline" size={12} color={activeFilters.has('SCORE') ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
+            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('SCORE') ? 'text-primary-ink' : 'text-ink-muted'}`}>
               Score
             </Text>
           </TouchableOpacity>
@@ -303,12 +306,12 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
             onPress={() => toggleFilter('DETAIL')}
             className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
               activeFilters.has('DETAIL')
-                ? 'bg-blue-500/20 border-blue-500/40'
-                : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
+                ? 'bg-info-soft border-info-line'
+                : 'bg-sunken border-transparent opacity-40'
             }`}
           >
-            <Ionicons name="pulse-outline" size={12} color={activeFilters.has('DETAIL') ? '#3B82F6' : '#94A3B8'} />
-            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('DETAIL') ? 'text-blue-500' : 'text-slate-400'}`}>
+            <Ionicons name="pulse-outline" size={12} color={activeFilters.has('DETAIL') ? themeColor(isDark, 'info') : themeColor(isDark, 'ink-muted')} />
+            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('DETAIL') ? 'text-info-ink' : 'text-ink-muted'}`}>
               Detail
             </Text>
           </TouchableOpacity>
@@ -317,12 +320,12 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
             onPress={() => toggleFilter('GENERAL')}
             className={`px-2.5 py-1 rounded-full flex-row items-center gap-1 border ${
               activeFilters.has('GENERAL')
-                ? 'bg-emerald-500/20 border-emerald-500/40'
-                : 'bg-slate-100 dark:bg-slate-800/40 border-transparent opacity-40'
+                ? 'bg-success-soft border-success-line'
+                : 'bg-sunken border-transparent opacity-40'
             }`}
           >
-            <Ionicons name="football-outline" size={12} color={activeFilters.has('GENERAL') ? '#10B981' : '#94A3B8'} />
-            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('GENERAL') ? 'text-emerald-500' : 'text-slate-400'}`}>
+            <Ionicons name="football-outline" size={12} color={activeFilters.has('GENERAL') ? themeColor(isDark, 'success') : themeColor(isDark, 'ink-muted')} />
+            <Text className={`font-inter-bold text-[10px] uppercase ${activeFilters.has('GENERAL') ? 'text-success-ink' : 'text-ink-muted'}`}>
               General
             </Text>
           </TouchableOpacity>
@@ -332,7 +335,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
       {/* EVENT LIST */}
       {filteredEvents.length === 0 ? (
         <View className="flex-1 items-center justify-center py-10">
-          <Text className="font-inter text-xs text-slate-400 italic">
+          <Text className="font-inter text-xs text-ink-muted italic">
             {events.length === 0 ? 'Waiting for kickoff...' : 'No events match filters.'}
           </Text>
         </View>
@@ -413,34 +416,34 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                   disabled={!canManage || isTimingEvent || isDisputed}
                   onPress={() => handleEventPress(evt)}
                   activeOpacity={0.8}
-                  className={`bg-white dark:bg-slate-900 border ${
+                  className={`bg-card border ${
                     isDisputed
-                      ? 'border-red-500 bg-red-500/10 dark:bg-red-500/20'
+                      ? 'border-danger bg-danger-soft'
                       : isPending
-                      ? 'border-amber-500 bg-amber-500/5 dark:bg-amber-500/10'
-                      : 'border-slate-200 dark:border-white/5'
+                      ? 'border-warning bg-warning-soft'
+                      : 'border-line'
                   } rounded-xl p-2.5 flex-row items-center justify-between shadow-sm gap-2.5 relative`}
                 >
                   <View className={`w-1 self-stretch rounded-full ${barClass}`} />
 
                   <View className="flex-row items-center gap-2.5 flex-1 pr-1">
                     {/* TIME & PERIOD */}
-                    <View className="bg-brand-orange/10 px-2 py-1 rounded-md border border-brand-orange/20 items-center min-w-[52px]">
-                      <Text className="font-orbitron-bold text-[10px] text-brand-orange">{timeLabel}</Text>
+                    <View className="bg-primary-soft px-2 py-1 rounded-md border border-primary-line items-center min-w-[52px]">
+                      <Text className="font-orbitron-bold text-[10px] text-primary-ink">{timeLabel}</Text>
                       {period && (
-                        <Text className="font-inter text-[8px] text-slate-400 uppercase tracking-tighter mt-0.5">{period}</Text>
+                        <Text className="font-inter text-[8px] text-ink-muted uppercase tracking-tighter mt-0.5">{period}</Text>
                       )}
                     </View>
 
                     {/* TITLE, ACTOR, & REASON DETAILS */}
                     <View className="flex-1 min-w-0">
                       <View className="flex-row items-center gap-2 flex-wrap">
-                        <Text className="font-inter-bold text-xs text-slate-800 dark:text-white truncate uppercase">
+                        <Text className="font-inter-bold text-xs text-ink truncate uppercase">
                           {title}
                         </Text>
                         {isDisputed && (
-                          <View className="bg-red-500 px-1.5 py-0.5 rounded">
-                            <Text className="font-orbitron-bold text-[8px] text-white uppercase tracking-wider">Disputed</Text>
+                          <View className="bg-danger px-1.5 py-0.5 rounded">
+                            <Text className="font-orbitron-bold text-[8px] text-on-fill uppercase tracking-wider">Disputed</Text>
                           </View>
                         )}
                       </View>
@@ -448,18 +451,18 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                       {/* SUB-DETAILS / ACTOR / SUBSTITUTION */}
                       <View className="flex-row items-center gap-1.5 mt-0.5 flex-wrap">
                         {isSubstitution ? (
-                          <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400">
-                            {playerOffName || 'Unknown'} <Text className="text-amber-500">↔</Text> {playerOnName || 'Unknown'}
+                          <Text className="font-inter-bold text-[10px] text-ink-muted">
+                            {playerOffName || 'Unknown'} <Text className="text-warning-ink">↔</Text> {playerOnName || 'Unknown'}
                           </Text>
                         ) : (
                           <>
                             {reasonLabel && evt.type !== 'SCORE' && (
-                              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+                              <Text className="font-inter text-[10px] text-ink-muted">
                                 {reasonLabel}
                               </Text>
                             )}
                             {actorName && (
-                              <Text className="font-inter-bold text-[10px] text-slate-600 dark:text-slate-300">
+                              <Text className="font-inter-bold text-[10px] text-ink-soft">
                                 {reasonLabel && evt.type !== 'SCORE' ? '• ' : ''}
                                 {actorName}
                               </Text>
@@ -483,10 +486,10 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                                   initialStepType: ActionStepType.PLAYER_SELECTION,
                                 });
                               }}
-                              className="flex-row items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded-full"
+                              className="flex-row items-center gap-1 px-2 py-0.5 bg-info-soft border border-info-line rounded-full"
                             >
-                              <Ionicons name="person-outline" size={10} color="#3B82F6" />
-                              <Text className="font-inter-bold text-[9px] uppercase text-blue-500">+ Player</Text>
+                              <Ionicons name="person-outline" size={10} color={themeColor(isDark, 'info')} />
+                              <Text className="font-inter-bold text-[9px] uppercase text-info-ink">+ Player</Text>
                             </TouchableOpacity>
                           )}
 
@@ -502,10 +505,10 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                                   initialStepType: ActionStepType.REASON_SELECTION,
                                 });
                               }}
-                              className="flex-row items-center gap-1 px-2 py-0.5 bg-purple-500/10 border border-purple-500/30 rounded-full"
+                              className="flex-row items-center gap-1 px-2 py-0.5 bg-special-soft border border-special-line rounded-full"
                             >
-                              <Ionicons name="help-circle-outline" size={10} color="#A855F7" />
-                              <Text className="font-inter-bold text-[9px] uppercase text-purple-500">+ Reason</Text>
+                              <Ionicons name="help-circle-outline" size={10} color={themeColor(isDark, 'special')} />
+                              <Text className="font-inter-bold text-[9px] uppercase text-special-ink">+ Reason</Text>
                             </TouchableOpacity>
                           )}
 
@@ -521,10 +524,10 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                                   initialStepType: ActionStepType.OUTCOME_SELECTION,
                                 });
                               }}
-                              className="flex-row items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 rounded-full"
+                              className="flex-row items-center gap-1 px-2 py-0.5 bg-success-soft border border-success-line rounded-full"
                             >
-                              <Ionicons name="disc-outline" size={10} color="#10B981" />
-                              <Text className="font-inter-bold text-[9px] uppercase text-emerald-500">
+                              <Ionicons name="disc-outline" size={10} color={themeColor(isDark, 'success')} />
+                              <Text className="font-inter-bold text-[9px] uppercase text-success-ink">
                                 {evt.subType === 'penalty_awarded' || evt.subType === 'free_kick' ? '+ Next Action' : '+ Outcome'}
                               </Text>
                             </TouchableOpacity>
@@ -542,10 +545,10 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                                   linkedEventId: evt.id,
                                 });
                               }}
-                              className="flex-row items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/40 rounded-full"
+                              className="flex-row items-center gap-1 px-2 py-0.5 bg-warning-soft border border-warning-line rounded-full"
                             >
-                              <Ionicons name="add-circle-outline" size={10} color="#F59E0B" />
-                              <Text className="font-inter-bold text-[9px] uppercase text-amber-500">
+                              <Ionicons name="add-circle-outline" size={10} color={themeColor(isDark, 'warning-ink')} />
+                              <Text className="font-inter-bold text-[9px] uppercase text-warning-ink">
                                 {triggerEventId === 'conversion' ? '+ Add Conversion' : `+ ${triggerEventId.replace(/_/g, ' ')}`}
                               </Text>
                             </TouchableOpacity>
@@ -563,10 +566,10 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                       isLockedByOtherScorer ? (
                         <View
                           {...(Platform.OS === 'web' ? { title: `Locked — scorer's undo window (${remainingSecs}s)` } : {})}
-                          className="items-center justify-center px-1.5 py-1 rounded-lg border bg-slate-500/10 border-slate-500/20 min-w-[32px]"
+                          className="items-center justify-center px-1.5 py-1 rounded-lg border bg-sunken border-line min-w-[32px]"
                         >
-                          <Ionicons name="lock-closed" size={14} color={COLORS.dark.textSecondary} />
-                          <Text className="font-mono font-bold text-[9px] text-slate-400 mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
+                          <Ionicons name="lock-closed" size={14} color={themeColor(isDark, 'ink-muted')} />
+                          <Text className="font-mono font-bold text-[9px] text-ink-muted mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
                         </View>
                       ) : (
                         <TouchableOpacity
@@ -582,12 +585,12 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                             }
                           }}
                           className={`items-center justify-center px-1.5 py-1 rounded-lg border ${
-                            canUndo ? 'bg-amber-500/10 border-amber-500/40 min-w-[32px]' : 'bg-red-500/10 border-red-500/20 min-w-[32px]'
+                            canUndo ? 'bg-warning-soft border-warning-line min-w-[32px]' : 'bg-danger-soft border-danger-line min-w-[32px]'
                           }`}
                         >
-                          <Ionicons name={canUndo ? "arrow-undo-outline" : "trash-outline"} size={14} color={canUndo ? '#F59E0B' : '#EF4444'} />
+                          <Ionicons name={canUndo ? "arrow-undo-outline" : "trash-outline"} size={14} color={canUndo ? themeColor(isDark, 'warning-ink') : themeColor(isDark, 'danger')} />
                           {canUndo && (
-                            <Text className="font-mono font-bold text-[9px] text-amber-500 animate-pulse mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
+                            <Text className="font-mono font-bold text-[9px] text-warning-ink animate-pulse mt-0.5" style={{ lineHeight: 10 }}>{remainingSecs}s</Text>
                           )}
                         </TouchableOpacity>
                       )
@@ -595,7 +598,7 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
 
                     {/* RUNNING SCORE SNAPSHOT BADGE */}
                     {snapshot && (
-                      <View className="flex-col items-center justify-center px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-md border border-slate-200 dark:border-white/10 shrink-0 min-w-[24px]">
+                      <View className="flex-col items-center justify-center px-1.5 py-0.5 bg-sunken rounded-md border border-line shrink-0 min-w-[24px]">
                         {(() => {
                           const p1 = game?.participants?.[0];
                           const p2 = game?.participants?.[1];
@@ -603,8 +606,8 @@ export function EventLogFeed({ gameId, game, canManage = false }: EventLogFeedPr
                           const s2 = snapshot[p2?.id || ''] ?? 0;
                           return (
                             <>
-                              <Text className="font-orbitron-bold text-xs text-blue-500 leading-none py-0.5">{s1}</Text>
-                              <Text className="font-orbitron-bold text-xs text-red-500 leading-none py-0.5">{s2}</Text>
+                              <Text className="font-orbitron-bold text-xs text-info-ink leading-none py-0.5">{s1}</Text>
+                              <Text className="font-orbitron-bold text-xs text-danger-ink leading-none py-0.5">{s2}</Text>
                             </>
                           );
                         })()}

@@ -91,7 +91,7 @@ export function FacilityPicker({
 
   if (groups.length === 0) {
     return (
-      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+      <Text className="font-inter text-xs text-ink-muted">
         {allowedFacilityIds
           ? 'The tournament has no facilities in play yet, so there is nothing to narrow to.'
           : 'This organisation has no facilities recorded yet. Add them to a site first.'}
@@ -102,17 +102,17 @@ export function FacilityPicker({
   return (
     <View className="gap-3">
       {value.length === 0 && (
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{emptyLabel}</Text>
+        <Text className="font-inter text-xs text-ink-muted">{emptyLabel}</Text>
       )}
 
       {groups.map(group => (
         <View key={group.siteId} className="gap-1.5">
           <View className="flex-row items-center gap-2">
-            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+            <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
               {group.name}
             </Text>
             {group.isBase && (
-              <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">
+              <Text className="font-inter text-[9px] text-ink-muted">
                 base site
               </Text>
             )}
@@ -130,13 +130,13 @@ export function FacilityPicker({
                   accessibilityLabel={`${facility.name} at ${group.name}`}
                   className={`px-3 py-1.5 rounded-full border ${
                     isOn
-                      ? 'bg-brand-orange/10 border-brand-orange/40'
-                      : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
+                      ? 'bg-primary-soft border-primary-line'
+                      : 'bg-sunken border-line'
                   } ${disabled ? 'opacity-50' : ''}`}
                 >
                   <Text
                     className={`font-inter text-xs ${
-                      isOn ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
+                      isOn ? 'text-primary-ink' : 'text-ink-muted'
                     }`}
                   >
                     {facility.name}

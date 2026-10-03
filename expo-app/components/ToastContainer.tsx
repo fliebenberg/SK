@@ -4,8 +4,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { useToastStore, ToastMessage } from '../store/toastStore';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS } from '../constants/Colors';
+
 import { AnimatedBox } from './AnimatedBox';
+import { themeColor } from '../constants/Colors';
 
 interface SingleToastProps {
   toast: ToastMessage;
@@ -64,31 +65,31 @@ const SingleToast: React.FC<SingleToastProps> = ({ toast, onDismiss, isDark }) =
       case 'error':
         return {
           icon: 'alert-circle-outline' as const,
-          iconColor: COLORS.brand.red,
-          borderColor: COLORS.brand.red,
-          bgStyle: isDark ? '#1E1B2E' : '#FEF2F2',
+          iconColor: themeColor(isDark, 'danger-ink'),
+          borderColor: themeColor(isDark, 'danger'),
+          bgStyle: themeColor(isDark, 'danger-soft'),
         };
       case 'success':
         return {
           icon: 'checkmark-circle-outline' as const,
-          iconColor: COLORS.brand.green,
-          borderColor: COLORS.brand.green,
-          bgStyle: isDark ? '#142721' : '#F0FDF4',
+          iconColor: themeColor(isDark, 'success-ink'),
+          borderColor: themeColor(isDark, 'success'),
+          bgStyle: themeColor(isDark, 'success-soft'),
         };
       case 'warning':
         return {
           icon: 'warning-outline' as const,
-          iconColor: '#F59E0B',
-          borderColor: '#F59E0B',
-          bgStyle: isDark ? '#2D2316' : '#FFFBEB',
+          iconColor: themeColor(isDark, 'warning-ink'),
+          borderColor: themeColor(isDark, 'warning'),
+          bgStyle: themeColor(isDark, 'warning-soft'),
         };
       case 'info':
       default:
         return {
           icon: 'information-circle-outline' as const,
-          iconColor: COLORS.brand.blue,
-          borderColor: COLORS.brand.blue,
-          bgStyle: isDark ? '#152536' : '#F0F9FF',
+          iconColor: themeColor(isDark, 'info-ink'),
+          borderColor: themeColor(isDark, 'info'),
+          bgStyle: themeColor(isDark, 'info-soft'),
         };
     }
   };
@@ -111,12 +112,12 @@ const SingleToast: React.FC<SingleToastProps> = ({ toast, onDismiss, isDark }) =
 
       <View className="flex-1">
         {toast.title ? (
-          <Text className="font-orbitron-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white mb-0.5">
+          <Text className="font-orbitron-bold text-xs uppercase tracking-wider text-ink mb-0.5">
             {toast.title}
           </Text>
         ) : null}
         <Text
-          className="font-inter text-xs text-slate-700 dark:text-slate-200 leading-snug"
+          className="font-inter text-xs text-ink-soft leading-snug"
           numberOfLines={3}
         >
           {toast.message}
@@ -126,13 +127,13 @@ const SingleToast: React.FC<SingleToastProps> = ({ toast, onDismiss, isDark }) =
       <TouchableOpacity
         onPress={handleDismiss}
         activeOpacity={0.7}
-        className="w-7 h-7 rounded-full items-center justify-center bg-slate-200/50 dark:bg-white/10"
+        className="w-7 h-7 rounded-full items-center justify-center bg-sunken"
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
         <Ionicons
           name="close-outline"
           size={16}
-          color={isDark ? COLORS.dark.textSecondary : COLORS.light.textSecondary}
+          color={themeColor(isDark, 'ink-muted')}
         />
       </TouchableOpacity>
     </AnimatedBox>

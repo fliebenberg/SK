@@ -3,7 +3,7 @@ import { View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ResponsiveHeader } from './ResponsiveHeader';
 import { LeftNavigationRail } from './LeftNavigationRail';
-import { getThemeColor } from '../constants';
+import { themeColor } from '../constants/Colors';
 import { useActiveTheme } from '../store/settingsStore';
 
 interface ResponsivePageLayoutProps {
@@ -24,9 +24,9 @@ export function ResponsivePageLayout({ children }: ResponsivePageLayoutProps) {
 
   if (isLargeScreen) {
     return (
-      <View className="flex-1 flex-row bg-slate-50 dark:bg-slate-950">
+      <View className="flex-1 flex-row bg-canvas">
         <LeftNavigationRail />
-        <View className="flex-1 h-full bg-slate-50 dark:bg-slate-950">
+        <View className="flex-1 h-full bg-canvas">
           {children}
         </View>
       </View>
@@ -34,7 +34,7 @@ export function ResponsivePageLayout({ children }: ResponsivePageLayoutProps) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: getThemeColor(isDark, 'background') }} className="bg-slate-50 dark:bg-slate-950">
+    <SafeAreaView style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: themeColor(isDark, 'canvas') }} className="bg-canvas">
       <ResponsiveHeader showNav={true} />
       {children}
     </SafeAreaView>

@@ -35,12 +35,12 @@ export function SportPositionsTab({ positions, onChange }: SportPositionsTabProp
         <AddButton label="Add Position" onPress={() => onChange([...positions, { id: '', name: '' }])} />
       </View>
 
-      <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+      <Text className="font-inter text-[11px] text-ink-muted mb-4 leading-relaxed">
         The slots a team sheet offers for this sport, in the order they are shown. A game can
         override them with its own list.
       </Text>
 
-      <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl mb-6">
+      <GlassCard className="border border-line p-4 rounded-xl mb-6">
         {positions.length === 0 ? (
           <EmptyHint icon="people-outline" text='No positions added. Use "Add Position" above to configure some.' />
         ) : (
@@ -53,7 +53,7 @@ export function SportPositionsTab({ positions, onChange }: SportPositionsTabProp
                     onChangeText={(text) => update(index, { id: text.toUpperCase().replace(/\s+/g, '') })}
                     placeholder="ID"
                     autoCapitalize="characters"
-                    className="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 px-2 py-2.5 rounded-xl font-orbitron-bold text-xs text-center text-slate-800 dark:text-white"
+                    className="bg-sunken border border-line px-2 py-2.5 rounded-xl font-orbitron-bold text-xs text-center text-ink"
                   />
                 </View>
                 <View className="flex-1">
@@ -61,7 +61,7 @@ export function SportPositionsTab({ positions, onChange }: SportPositionsTabProp
                     value={position.name}
                     onChangeText={(text) => update(index, { name: text })}
                     placeholder="Name (e.g. Goalkeeper)"
-                    className="bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 px-3 py-2.5 rounded-xl font-inter text-sm text-slate-800 dark:text-white"
+                    className="bg-sunken border border-line px-3 py-2.5 rounded-xl font-inter text-sm text-ink"
                   />
                 </View>
                 <RowActions

@@ -3,7 +3,8 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TournamentAdjustment, TournamentStandingRow } from '@sk/shared';
 import { useActiveTheme } from '../../store/settingsStore';
-import { getThemeColor } from '../../constants/Colors';
+import { themeColor } from '../../constants/Colors';
+
 
 /**
  * One standings table, wherever it appears.
@@ -43,7 +44,7 @@ export function StandingsTable({
   emptyMessage = 'Nothing to rank yet. Add fixtures and record results.',
 }: StandingsTableProps) {
   const isDark = useActiveTheme() === 'dark';
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
   const [openReasonFor, setOpenReasonFor] = useState<string | null>(null);
 
   const reasonFor = (entrantId?: string) => {
@@ -56,21 +57,21 @@ export function StandingsTable({
   };
 
   return (
-    <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl overflow-hidden shadow-sm">
-      <View className="flex-row bg-slate-100 dark:bg-slate-800 px-4 py-3">
-        <Text className="flex-1 font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+    <View className="bg-card border border-line rounded-2xl overflow-hidden shadow-sm">
+      <View className="flex-row bg-sunken px-4 py-3">
+        <Text className="flex-1 font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-wider">
           {subjectLabel}
         </Text>
         {['P', 'W', 'D', 'L'].map(heading => (
           <Text
             key={heading}
-            className="w-8 text-center font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-wider"
+            className="w-8 text-center font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-wider"
           >
             {heading}
           </Text>
         ))}
         {showPoints && (
-          <Text className="w-12 text-center font-orbitron-bold text-[9px] text-brand-orange uppercase tracking-wider">
+          <Text className="w-12 text-center font-orbitron-bold text-[9px] text-primary-ink uppercase tracking-wider">
             Pts
           </Text>
         )}
@@ -86,12 +87,12 @@ export function StandingsTable({
             <TouchableOpacity
               activeOpacity={isAdjusted ? 0.7 : 1}
               onPress={() => isAdjusted && setOpenReasonFor(isOpen ? null : row.teamId)}
-              className="flex-row items-center px-4 py-3.5 border-b border-slate-100 dark:border-white/5"
+              className="flex-row items-center px-4 py-3.5 border-b border-line-soft"
             >
               <View className="flex-1 flex-row items-center pr-2">
                 <Text
                   className={`font-inter-bold text-sm flex-shrink ${
-                    row.withdrawn ? 'text-slate-500 dark:text-slate-400' : 'text-slate-800 dark:text-white'
+                    row.withdrawn ? 'text-ink-muted' : 'text-ink'
                   }`}
                   numberOfLines={1}
                 >
@@ -102,7 +103,7 @@ export function StandingsTable({
                   {row.withdrawn ? '–' : row.rank ?? index + 1}. {row.teamName}
                 </Text>
                 {row.withdrawn && (
-                  <Text className="font-inter-bold text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 ml-2">
+                  <Text className="font-inter-bold text-[9px] uppercase tracking-wider text-ink-muted ml-2">
                     Withdrawn
                   </Text>
                 )}
@@ -115,31 +116,31 @@ export function StandingsTable({
                   />
                 )}
               </View>
-              <Text className="w-8 text-center font-inter text-sm text-slate-600 dark:text-slate-400">
+              <Text className="w-8 text-center font-inter text-sm text-ink-muted">
                 {row.played ?? 0}
               </Text>
-              <Text className="w-8 text-center font-inter text-sm text-slate-600 dark:text-slate-400">
+              <Text className="w-8 text-center font-inter text-sm text-ink-muted">
                 {row.wins ?? 0}
               </Text>
-              <Text className="w-8 text-center font-inter text-sm text-slate-600 dark:text-slate-400">
+              <Text className="w-8 text-center font-inter text-sm text-ink-muted">
                 {row.draws ?? 0}
               </Text>
-              <Text className="w-8 text-center font-inter text-sm text-slate-600 dark:text-slate-400">
+              <Text className="w-8 text-center font-inter text-sm text-ink-muted">
                 {row.losses ?? 0}
               </Text>
               {showPoints && (
-                <Text className="w-12 text-center font-orbitron-bold text-sm text-brand-orange">
+                <Text className="w-12 text-center font-orbitron-bold text-sm text-primary-ink">
                   {row.points ?? 0}
                 </Text>
               )}
             </TouchableOpacity>
 
             {isOpen && (
-              <View className="px-4 py-3 bg-slate-50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
-                <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
+              <View className="px-4 py-3 bg-sunken border-b border-line-soft">
+                <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-1">
                   Adjusted by the organiser
                 </Text>
-                <Text className="font-inter text-[11px] text-slate-600 dark:text-slate-300">
+                <Text className="font-inter text-[11px] text-ink-soft">
                   {reason ||
                     `${row.adjustment! > 0 ? '+' : ''}${row.adjustment} point${
                       Math.abs(row.adjustment!) === 1 ? '' : 's'
@@ -153,7 +154,7 @@ export function StandingsTable({
 
       {rows.length === 0 && (
         <View className="p-8 items-center justify-center">
-          <Text className="font-inter text-xs text-slate-400 italic text-center">{emptyMessage}</Text>
+          <Text className="font-inter text-xs text-ink-muted italic text-center">{emptyMessage}</Text>
         </View>
       )}
     </View>

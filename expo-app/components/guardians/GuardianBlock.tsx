@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { OrgMinorsSettings, isUnderAge } from '@sk/shared';
 import { GuardianDraftFields } from './GuardianDraftFields';
 import { GuardianDraft, emptyGuardianDraft, isGuardianDraftStarted } from './guardianDraft';
-import { COLORS } from '../../constants/Colors';
+import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 
 interface GuardianBlockProps {
   orgId: string;
@@ -29,6 +30,7 @@ interface GuardianBlockProps {
  * closed block never saves a guardian.
  */
 export function GuardianBlock({ orgId, draft, onChange, open, onOpenChange, birthdate, settings, playerProfileId }: GuardianBlockProps) {
+  const isDark = useActiveTheme() === 'dark';
   const isMinor = isUnderAge(birthdate, settings.minorAge);
   const isOpen = open ?? isMinor;
 
@@ -40,18 +42,18 @@ export function GuardianBlock({ orgId, draft, onChange, open, onOpenChange, birt
   if (!isOpen) {
     return (
       <TouchableOpacity onPress={toggle} accessibilityRole="button" className="flex-row items-center gap-1.5 self-start">
-        <Ionicons name="add" size={16} color={COLORS.brand.orange} />
-        <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">Add a guardian</Text>
+        <Ionicons name="add" size={16} color={themeColor(isDark, 'primary')} />
+        <Text className="font-inter-bold text-sm text-primary-ink">Add a guardian</Text>
       </TouchableOpacity>
     );
   }
 
   return (
-    <View className="border border-slate-200 dark:border-white/10 rounded-xl p-4 gap-3" style={{ zIndex: 20 }}>
+    <View className="border border-line rounded-xl p-4 gap-3" style={{ zIndex: 20 }}>
       <View className="flex-row items-start justify-between gap-3">
         <View className="flex-1">
-          <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Guardian</Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <Text className="font-inter-bold text-sm text-ink">Guardian</Text>
+          <Text className="font-inter text-xs text-ink-muted mt-0.5">
             {isMinor
               ? `Under ${settings.minorAge}: record the adult who answers for them.`
               : 'A parent or other adult who answers for this person.'}
@@ -59,7 +61,7 @@ export function GuardianBlock({ orgId, draft, onChange, open, onOpenChange, birt
           </Text>
         </View>
         <TouchableOpacity onPress={toggle} accessibilityRole="button" hitSlop={8}>
-          <Text className="font-inter-bold text-sm text-slate-500 dark:text-slate-400">Remove</Text>
+          <Text className="font-inter-bold text-sm text-ink-muted">Remove</Text>
         </TouchableOpacity>
       </View>
       <GuardianDraftFields orgId={orgId} draft={draft} onChange={onChange} excludeProfileId={playerProfileId} />

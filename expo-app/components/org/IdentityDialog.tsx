@@ -139,7 +139,7 @@ export function IdentityDialog({ org, visible, onClose }: { org: Organization; v
         onChange={({ primary, secondary }) => setDraft(prev => ({ ...prev, primaryColor: primary, secondaryColor: secondary }))}
       />
 
-      {blocked && isDirty ? <Text className="font-inter text-xs text-amber-800 dark:text-amber-300">{blocked}</Text> : null}
+      {blocked && isDirty ? <Text className="font-inter text-xs text-warning-ink">{blocked}</Text> : null}
     </EditDialog>
   );
 }

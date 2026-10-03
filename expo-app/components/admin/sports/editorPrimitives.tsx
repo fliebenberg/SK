@@ -4,6 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomSelect from '../../CustomSelect';
 import { SegmentedControl } from '../../SegmentedControl';
 
+
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 /**
  * The controls the sport editor is built from.
  *
@@ -14,10 +17,10 @@ import { SegmentedControl } from '../../SegmentedControl';
  */
 
 const INPUT_CLASS =
-  'bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 p-3 rounded-xl font-inter text-sm text-slate-800 dark:text-white';
+  'bg-sunken border border-line p-3 rounded-xl font-inter text-sm text-ink';
 
 const SMALL_INPUT_CLASS =
-  'bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5 px-3 py-2.5 rounded-xl font-inter text-sm text-slate-800 dark:text-white';
+  'bg-sunken border border-line px-3 py-2.5 rounded-xl font-inter text-sm text-ink';
 
 export const slugify = (text: string): string =>
   text
@@ -37,10 +40,10 @@ interface FieldProps {
 export function Field({ label, hint, children, className = '' }: FieldProps) {
   return (
     <View className={className}>
-      <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 mb-1.5">{label}</Text>
+      <Text className="font-inter-bold text-xs text-ink-soft mb-1.5">{label}</Text>
       {children}
       {!!hint && (
-        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">{hint}</Text>
+        <Text className="font-inter text-[10px] text-ink-muted mt-1.5">{hint}</Text>
       )}
     </View>
   );
@@ -128,15 +131,16 @@ export function NumberField({
  * leaves the event feed printing a raw id. Renaming the *name* beside it is always safe.
  */
 export function LockedIdField({ label, value, hint, className = '' }: { label: string; value: string; hint?: string; className?: string }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <Field
       label={label}
       hint={hint ?? 'Fixed once saved — existing events reference it. Edit the name instead.'}
       className={className}
     >
-      <View className="flex-row items-center gap-2 bg-slate-200/60 dark:bg-slate-900/80 border border-slate-200 dark:border-white/5 p-3 rounded-xl">
-        <Ionicons name="lock-closed" size={12} color="#94A3B8" />
-        <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 flex-1" numberOfLines={1}>
+      <View className="flex-row items-center gap-2 bg-sunken border border-line p-3 rounded-xl">
+        <Ionicons name="lock-closed" size={12} color={themeColor(isDark, 'ink-muted')} />
+        <Text className="font-orbitron-bold text-xs text-ink-muted flex-1" numberOfLines={1}>
           {value || '—'}
         </Text>
       </View>
@@ -200,7 +204,7 @@ export function ToggleField({
 export function SectionLabel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <Text
-      className={`font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest ${className}`}
+      className={`font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest ${className}`}
     >
       {children}
     </Text>
@@ -209,13 +213,14 @@ export function SectionLabel({ children, className = '' }: { children: React.Rea
 
 /** A small pill button, used for "Add" actions above a list. */
 export function AddButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="flex-row items-center gap-1 bg-slate-200 dark:bg-slate-850 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-white/5 active:opacity-80"
+      className="flex-row items-center gap-1 bg-line px-2.5 py-1 rounded-lg border border-line-strong active:opacity-80"
     >
-      <Ionicons name="add" size={12} color="#FF3E00" />
-      <Text className="font-orbitron-bold text-[8px] text-slate-700 dark:text-slate-300 uppercase tracking-wider mt-0.5">
+      <Ionicons name="add" size={12} color={themeColor(isDark, 'primary')} />
+      <Text className="font-orbitron-bold text-[8px] text-ink-soft uppercase tracking-wider mt-0.5">
         {label}
       </Text>
     </TouchableOpacity>
@@ -236,35 +241,36 @@ export function RowActions({
   canMoveUp?: boolean;
   canMoveDown?: boolean;
 }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <View className="flex-row items-center gap-1.5">
       {!!onMoveUp && (
         <TouchableOpacity
           onPress={onMoveUp}
           disabled={!canMoveUp}
-          className={`p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg ${
+          className={`p-2 bg-sunken border border-line rounded-lg ${
             canMoveUp ? 'active:opacity-80' : 'opacity-30'
           }`}
         >
-          <Ionicons name="arrow-up" size={12} color="#94A3B8" />
+          <Ionicons name="arrow-up" size={12} color={themeColor(isDark, 'ink-muted')} />
         </TouchableOpacity>
       )}
       {!!onMoveDown && (
         <TouchableOpacity
           onPress={onMoveDown}
           disabled={!canMoveDown}
-          className={`p-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-lg ${
+          className={`p-2 bg-sunken border border-line rounded-lg ${
             canMoveDown ? 'active:opacity-80' : 'opacity-30'
           }`}
         >
-          <Ionicons name="arrow-down" size={12} color="#94A3B8" />
+          <Ionicons name="arrow-down" size={12} color={themeColor(isDark, 'ink-muted')} />
         </TouchableOpacity>
       )}
       <TouchableOpacity
         onPress={onDelete}
-        className="p-2 bg-red-500/10 dark:bg-red-500/5 border border-red-500/20 rounded-lg active:opacity-80"
+        className="p-2 bg-danger-soft border border-danger-line rounded-lg active:opacity-80"
       >
-        <Ionicons name="trash" size={12} color="#EF4444" />
+        <Ionicons name="trash" size={12} color={themeColor(isDark, 'danger')} />
       </TouchableOpacity>
     </View>
   );
@@ -286,26 +292,27 @@ export function Collapsible({
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const isDark = useActiveTheme() === 'dark';
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <View className="border border-slate-200 dark:border-white/5 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 overflow-hidden">
+    <View className="border border-line rounded-xl bg-sunken overflow-hidden">
       <View className="flex-row items-center gap-2 px-3 py-2.5">
         <TouchableOpacity onPress={() => setIsOpen((open) => !open)} className="flex-row items-center gap-2 flex-1 active:opacity-80">
-          <Ionicons name={isOpen ? 'chevron-down' : 'chevron-forward'} size={14} color="#94A3B8" />
+          <Ionicons name={isOpen ? 'chevron-down' : 'chevron-forward'} size={14} color={themeColor(isDark, 'ink-muted')} />
           <View className="flex-1">
-            <Text className="font-inter-bold text-xs text-slate-800 dark:text-white" numberOfLines={1}>
+            <Text className="font-inter-bold text-xs text-ink" numberOfLines={1}>
               {title}
             </Text>
             {!!subtitle && (
-              <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5" numberOfLines={1}>
+              <Text className="font-inter text-[10px] text-ink-muted mt-0.5" numberOfLines={1}>
                 {subtitle}
               </Text>
             )}
           </View>
           {!!badge && (
-            <View className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-              <Text className="font-inter-bold text-[9px] text-slate-600 dark:text-slate-300">{badge}</Text>
+            <View className="bg-line px-1.5 py-0.5 rounded">
+              <Text className="font-inter-bold text-[9px] text-ink-soft">{badge}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -318,10 +325,11 @@ export function Collapsible({
 
 /** An empty-state block for a list with nothing in it yet. */
 export function EmptyHint({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <View className="items-center py-6">
-      <Ionicons name={icon} size={22} color="#94A3B8" />
-      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 italic mt-2 text-center px-4">{text}</Text>
+      <Ionicons name={icon} size={22} color={themeColor(isDark, 'ink-muted')} />
+      <Text className="font-inter text-xs text-ink-muted italic mt-2 text-center px-4">{text}</Text>
     </View>
   );
 }
@@ -369,11 +377,11 @@ export function KeyValueEditor({
   return (
     <View>
       <View className="flex-row items-center justify-between mb-1.5">
-        <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300">{label}</Text>
+        <Text className="font-inter-bold text-xs text-ink-soft">{label}</Text>
         <AddButton label="Add Field" onPress={() => writeEntries([...entries, ['', '']])} />
       </View>
       {entries.length === 0 ? (
-        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 italic">None</Text>
+        <Text className="font-inter text-[10px] text-ink-muted italic">None</Text>
       ) : (
         <View className="space-y-2">
           {entries.map(([key, entryValue], index) => (
@@ -397,7 +405,7 @@ export function KeyValueEditor({
           ))}
         </View>
       )}
-      {!!hint && <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">{hint}</Text>}
+      {!!hint && <Text className="font-inter text-[10px] text-ink-muted mt-1.5">{hint}</Text>}
     </View>
   );
 }
@@ -453,7 +461,7 @@ export function JsonField({
         style={{ textAlignVertical: 'top', fontFamily: 'monospace' }}
       />
       {!!error && (
-        <Text className="font-inter text-[10px] text-red-500 dark:text-red-400 mt-1.5">{error}</Text>
+        <Text className="font-inter text-[10px] text-danger-ink mt-1.5">{error}</Text>
       )}
     </Field>
   );

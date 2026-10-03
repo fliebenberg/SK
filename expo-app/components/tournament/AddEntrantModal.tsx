@@ -10,7 +10,8 @@ import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
 import { sendAction } from '../../services/actions';
 import { useAuthStore } from '../../store/authStore';
 import { useActiveTheme } from '../../store/settingsStore';
-import { getThemeColor } from '../../constants/Colors';
+import { themeColor } from '../../constants/Colors';
+
 
 /**
  * Adding a competitor the tournament does not already offer.
@@ -229,13 +230,13 @@ export function AddEntrantModal({
       onPress={onPress}
       className={`px-3 py-1.5 rounded-xl border ${
         active
-          ? 'bg-brand-orange/15 border-brand-orange'
-          : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'
+          ? 'bg-primary-soft border-primary'
+          : 'bg-sunken border-line'
       }`}
     >
       <Text
         className={`font-inter text-xs ${
-          active ? 'text-brand-orange font-inter-bold' : 'text-slate-600 dark:text-slate-400'
+          active ? 'text-primary-ink font-inter-bold' : 'text-ink-muted'
         }`}
       >
         {label}
@@ -245,12 +246,12 @@ export function AddEntrantModal({
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 bg-slate-950/75 justify-center px-6">
+      <View className="flex-1 bg-overlay/75 justify-center px-6">
         <GlassCard
-          className="w-full max-w-lg self-center border border-slate-200 dark:border-white/10 p-5 shadow-lg"
-          style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
+          className="w-full max-w-lg self-center border border-line p-5 shadow-lg"
+          style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
-          <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider mb-4">
+          <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider mb-4">
             {title}
           </Text>
 
@@ -315,13 +316,13 @@ export function AddEntrantModal({
                 offered in the same breath, because "you can't" without "but you can" is a dead end.
               */}
               {kind !== 'placeholder' && claimedByOthers && (
-                <View className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-3 space-y-2">
-                  <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
+                <View className="rounded-xl border border-line bg-sunken p-3 space-y-2">
+                  <Text className="font-inter text-xs text-ink-soft">
                     {chosenOrg?.name} is run by its own admins, so their {isIndividual ? 'people' : 'teams'} are
                     theirs to add. You can reserve a place for them instead, and they fill it in.
                   </Text>
                   <TouchableOpacity onPress={offerPlaceholder} className="active:opacity-80">
-                    <Text className="font-inter-bold text-[11px] text-brand-orange uppercase tracking-wider">
+                    <Text className="font-inter-bold text-[11px] text-primary-ink uppercase tracking-wider">
                       Add a placeholder for {chosenOrg?.shortName}
                     </Text>
                   </TouchableOpacity>
@@ -329,7 +330,7 @@ export function AddEntrantModal({
               )}
 
               {kind !== 'placeholder' && !claimedByOthers && chosenOrg && chosenOrg.id !== orgId && chosenOrg.isClaimed === false && (
-                <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
+                <Text className="font-inter text-[11px] text-ink-muted">
                   {chosenOrg.name} has not been claimed yet, so you can add the basics for them. Whoever
                   claims it can fill in the rest.
                 </Text>
@@ -379,8 +380,8 @@ export function AddEntrantModal({
                           ? `${chosenOrg?.shortName || 'School'} second team`
                           : 'Winner of the regional qualifier'
                     }
-                    placeholderTextColor={getThemeColor(isDark, 'placeholder')}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white"
+                    placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                    className="bg-canvas border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink"
                   />
                 </View>
               )}
@@ -428,7 +429,7 @@ export function AddEntrantModal({
                 </View>
               )}
 
-              {!!error && <Text className="font-inter text-xs text-brand-red">{error}</Text>}
+              {!!error && <Text className="font-inter text-xs text-danger-ink">{error}</Text>}
             </View>
           </ScrollView>
 

@@ -8,10 +8,11 @@ import {
   organizerScopeOf,
 } from '@sk/shared';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
+
 import { FieldLabel } from './FieldLabel';
 import { PersonPickerModal } from './PersonPickerModal';
 import { sendAction } from '../services/actions';
+import { themeColor } from '../constants/Colors';
 
 /**
  * Appointing an organiser, at any of the three scopes (D33).
@@ -91,7 +92,7 @@ export function OrganizerPicker({
   hasParticipatingOrgs = false,
 }: OrganizerPickerProps) {
   const isDark = useActiveTheme() === 'dark';
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
 
   const [isPicking, setIsPicking] = useState(false);
   const [busyProfileId, setBusyProfileId] = useState<string | null>(null);
@@ -159,33 +160,33 @@ export function OrganizerPicker({
       {/* Who holds this scope now. */}
       <View className="gap-2">
         {organizers.length === 0 ? (
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-xs text-ink-muted">
             Nobody has been appointed yet.
           </Text>
         ) : (
           organizers.map(organizer => (
             <View
               key={organizer.orgProfileId}
-              className="flex-row items-center gap-3 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/5 px-4 py-3"
+              className="flex-row items-center gap-3 rounded-xl border border-line bg-sunken px-4 py-3"
             >
-              <View className="w-8 h-8 rounded-full bg-brand-orange/10 items-center justify-center">
-                <Text className="font-orbitron-bold text-[11px] text-brand-orange">
+              <View className="w-8 h-8 rounded-full bg-primary-soft items-center justify-center">
+                <Text className="font-orbitron-bold text-[11px] text-primary-ink">
                   {(organizer.name || '?').charAt(0).toUpperCase()}
                 </Text>
               </View>
               <View className="flex-1">
-                <Text numberOfLines={1} className="font-inter-bold text-xs text-slate-800 dark:text-white">
+                <Text numberOfLines={1} className="font-inter-bold text-xs text-ink">
                   {organizer.name}
                 </Text>
                 {!!organizer.orgShortName && (
-                  <Text numberOfLines={1} className="font-inter text-[10px] text-slate-500 dark:text-slate-400">
+                  <Text numberOfLines={1} className="font-inter text-[10px] text-ink-muted">
                     {organizer.orgShortName}
                   </Text>
                 )}
                 {/* Who added them — wherever people at that scope add each other, so the
                     organisers can see how somebody came to have access. */}
                 {isNarrowScope && !!organizer.grantedByName && (
-                  <Text numberOfLines={1} className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
+                  <Text numberOfLines={1} className="font-inter text-[10px] text-ink-muted">
                     Added by {organizer.grantedByName}
                   </Text>
                 )}
@@ -202,7 +203,7 @@ export function OrganizerPicker({
                   accessibilityLabel={`Withdraw ${organizer.name}`}
                 >
                   {busyProfileId === organizer.orgProfileId ? (
-                    <ActivityIndicator size="small" color={COLORS.brand.orange} />
+                    <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
                   ) : (
                     <Ionicons name="close-circle-outline" size={20} color={secondary} />
                   )}
@@ -220,10 +221,10 @@ export function OrganizerPicker({
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel={`Add ${organizers.length ? 'another organiser' : 'an organiser'}`}
-            className="flex-row items-center justify-center gap-2 rounded-xl border border-dashed border-brand-orange/50 px-4 py-3"
+            className="flex-row items-center justify-center gap-2 rounded-xl border border-dashed border-primary-line px-4 py-3"
           >
-            <Ionicons name="add" size={16} color={COLORS.brand.orange} />
-            <Text className="font-inter-bold text-[11px] uppercase tracking-wider text-brand-orange">
+            <Ionicons name="add" size={16} color={themeColor(isDark, 'primary')} />
+            <Text className="font-inter-bold text-[11px] uppercase tracking-wider text-primary-ink">
               {organizers.length ? 'Add another' : 'Add an organiser'}
             </Text>
           </TouchableOpacity>
@@ -245,7 +246,7 @@ export function OrganizerPicker({
         </>
       )}
 
-      {!!error && <Text className="font-inter text-[11px] text-brand-red">{error}</Text>}
+      {!!error && <Text className="font-inter text-[11px] text-danger-ink">{error}</Text>}
     </View>
   );
 }

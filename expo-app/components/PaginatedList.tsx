@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
+
 
 export interface PaginatedListProps<T> {
   data: T[];
@@ -107,15 +109,15 @@ export function PaginatedList<T>({
       )}
 
       {showPagination && (
-        <View className="mt-3 py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl flex-row items-center justify-between flex-wrap gap-2 shadow-sm">
+        <View className="mt-3 py-2 px-3 bg-card border border-line rounded-xl flex-row items-center justify-between flex-wrap gap-2 shadow-sm">
           {/* Item Count Info */}
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-xs text-ink-muted">
             Showing{' '}
-            <Text className="font-inter-bold text-slate-700 dark:text-slate-200">
+            <Text className="font-inter-bold text-ink-soft">
               {startIndex + 1}–{endIndex}
             </Text>{' '}
             of{' '}
-            <Text className="font-inter-bold text-slate-700 dark:text-slate-200">
+            <Text className="font-inter-bold text-ink-soft">
               {totalItems}
             </Text>
           </Text>
@@ -126,31 +128,31 @@ export function PaginatedList<T>({
             <TouchableOpacity
               onPress={() => handlePageChange(1)}
               disabled={currentPage === 1}
-              className={`w-7 h-7 rounded-lg items-center justify-center border border-slate-200 dark:border-white/10 ${
+              className={`w-7 h-7 rounded-lg items-center justify-center border border-line ${
                 currentPage === 1
-                  ? 'opacity-30 bg-slate-100 dark:bg-slate-800'
-                  : 'bg-white dark:bg-slate-800 active:opacity-75'
+                  ? 'opacity-30 bg-sunken'
+                  : 'bg-raised active:opacity-75'
               }`}
             >
-              <Ionicons name="play-skip-back" size={12} color={isDark ? '#E2E8F0' : '#475569'} />
+              <Ionicons name="play-skip-back" size={12} color={themeColor(isDark, 'ink-soft')} />
             </TouchableOpacity>
 
             {/* Prev Page */}
             <TouchableOpacity
               onPress={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className={`w-7 h-7 rounded-lg items-center justify-center border border-slate-200 dark:border-white/10 ${
+              className={`w-7 h-7 rounded-lg items-center justify-center border border-line ${
                 currentPage === 1
-                  ? 'opacity-30 bg-slate-100 dark:bg-slate-800'
-                  : 'bg-white dark:bg-slate-800 active:opacity-75'
+                  ? 'opacity-30 bg-sunken'
+                  : 'bg-raised active:opacity-75'
               }`}
             >
-              <Ionicons name="chevron-back" size={14} color={isDark ? '#E2E8F0' : '#475569'} />
+              <Ionicons name="chevron-back" size={14} color={themeColor(isDark, 'ink-soft')} />
             </TouchableOpacity>
 
             {/* Page Jump Input */}
             <View className="flex-row items-center gap-1 px-1">
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+              <Text className="font-inter text-xs text-ink-muted">
                 Page
               </Text>
               <TextInput
@@ -160,9 +162,9 @@ export function PaginatedList<T>({
                 onSubmitEditing={handleJumpSubmit}
                 keyboardType="number-pad"
                 selectTextOnFocus
-                className="w-10 h-7 text-center font-inter-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-white/10 rounded-md py-0 px-1 outline-none"
+                className="w-10 h-7 text-center font-inter-bold text-xs bg-sunken text-ink border border-line rounded-md py-0 px-1 outline-none"
               />
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+              <Text className="font-inter text-xs text-ink-muted">
                 of {totalPages}
               </Text>
             </View>
@@ -171,26 +173,26 @@ export function PaginatedList<T>({
             <TouchableOpacity
               onPress={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className={`w-7 h-7 rounded-lg items-center justify-center border border-slate-200 dark:border-white/10 ${
+              className={`w-7 h-7 rounded-lg items-center justify-center border border-line ${
                 currentPage === totalPages
-                  ? 'opacity-30 bg-slate-100 dark:bg-slate-800'
-                  : 'bg-white dark:bg-slate-800 active:opacity-75'
+                  ? 'opacity-30 bg-sunken'
+                  : 'bg-raised active:opacity-75'
               }`}
             >
-              <Ionicons name="chevron-forward" size={14} color={isDark ? '#E2E8F0' : '#475569'} />
+              <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink-soft')} />
             </TouchableOpacity>
 
             {/* Last Page */}
             <TouchableOpacity
               onPress={() => handlePageChange(totalPages)}
               disabled={currentPage === totalPages}
-              className={`w-7 h-7 rounded-lg items-center justify-center border border-slate-200 dark:border-white/10 ${
+              className={`w-7 h-7 rounded-lg items-center justify-center border border-line ${
                 currentPage === totalPages
-                  ? 'opacity-30 bg-slate-100 dark:bg-slate-800'
-                  : 'bg-white dark:bg-slate-800 active:opacity-75'
+                  ? 'opacity-30 bg-sunken'
+                  : 'bg-raised active:opacity-75'
               }`}
             >
-              <Ionicons name="play-skip-forward" size={12} color={isDark ? '#E2E8F0' : '#475569'} />
+              <Ionicons name="play-skip-forward" size={12} color={themeColor(isDark, 'ink-soft')} />
             </TouchableOpacity>
           </View>
         </View>

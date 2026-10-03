@@ -8,6 +8,7 @@ import { sendAction } from '../../services/actions';
 import { wsService } from '../../services/websocket';
 import { useAuthStore } from '../../store/authStore';
 import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 
 /**
  * Who actually played a tournament fixture (2026-09-24, `FIX-20`).
@@ -100,35 +101,35 @@ export function ChangeWhoPlayedCard({
   };
 
   return (
-    <GlassCard className="border border-slate-200 dark:border-white/5 p-5 mt-6">
-      <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Who played</Text>
-      <Text className="font-inter text-xs text-slate-500 mt-0.5 mb-3">
+    <GlassCard className="border border-line p-5 mt-6">
+      <Text className="font-inter-bold text-sm text-ink">Who played</Text>
+      <Text className="font-inter text-xs text-ink-muted mt-0.5 mb-3">
         If another team turned out for one side, change it here. The result still counts for that
         place in the draw.
       </Text>
       <View className="space-y-2">
         {sides.map(side => (
           <View key={side.id} className="flex-row items-center justify-between">
-            <Text className="font-inter text-xs text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+            <Text className="font-inter text-xs text-ink flex-1" numberOfLines={1}>
               {nameOf(side)}
             </Text>
-            <TouchableOpacity onPress={() => setChanging(side)} className="px-3 py-1.5 border border-brand-orange rounded-lg">
-              <Text className="font-inter-bold text-[10px] text-brand-orange uppercase">Change</Text>
+            <TouchableOpacity onPress={() => setChanging(side)} className="px-3 py-1.5 border border-primary rounded-lg">
+              <Text className="font-inter-bold text-[10px] text-primary-ink uppercase">Change</Text>
             </TouchableOpacity>
           </View>
         ))}
       </View>
 
       <Modal visible={!!changing} transparent animationType="fade" onRequestClose={close}>
-        <View className="flex-1 bg-slate-950/75 justify-center px-6">
+        <View className="flex-1 bg-overlay/75 justify-center px-6">
           <GlassCard
-            className="w-full max-w-lg self-center border border-slate-200 dark:border-white/10 p-5 shadow-lg"
-            style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
+            className="w-full max-w-lg self-center border border-line p-5 shadow-lg"
+            style={{ backgroundColor: themeColor(isDark, 'popover') }}
           >
-            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider mb-1">
+            <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider mb-1">
               Who played
             </Text>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-4">
+            <Text className="font-inter text-xs text-ink-muted mb-4">
               Instead of {changing ? nameOf(changing) : ''}, in this match only
             </Text>
             <CustomSelect
@@ -138,13 +139,13 @@ export function ChangeWhoPlayedCard({
               placeholder="Choose the team that played"
               showSearch={choices.length > 8}
             />
-            <Text className="font-inter text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-4">
+            <Text className="font-inter text-xs text-ink-soft leading-relaxed mt-4">
               The fixture will show the team that played, and the change is noted in its log. The result
               still counts for {changing ? nameOf(changing) : 'this side'}'s place in the draw. To put
               another team in that place for the rest of the tournament, use Replace on the Entrants
               screen instead.
             </Text>
-            {!!error && <Text className="font-inter text-xs text-brand-red mt-3">{error}</Text>}
+            {!!error && <Text className="font-inter text-xs text-danger-ink mt-3">{error}</Text>}
             <View className="flex-row gap-3 pt-5">
               <Button title="Cancel" variant="secondary" onPress={close} className="flex-1" />
               <Button

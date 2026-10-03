@@ -8,7 +8,8 @@ import {
   resolveFixtureSide,
 } from '@sk/shared';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 /**
  * One side of a fixture, in whichever of its three states it is in (data model §2.0, U22).
@@ -68,8 +69,8 @@ export function FixtureSide({
   // A placeholder is quieter than a competitor but never illegible: secondary text carries the
   // AAA contrast the design system requires in Light Mode, which a lower opacity would not.
   const color = side.isPlaceholder
-    ? getThemeColor(isDark, 'textSecondary')
-    : getThemeColor(isDark, 'textPrimary');
+    ? themeColor(isDark, 'ink-muted')
+    : themeColor(isDark, 'ink');
 
   // Awaiting a result is a different kind of unknown from awaiting a person: one resolves itself
   // when a game finishes, the other needs somebody to make a decision.
@@ -83,7 +84,7 @@ export function FixtureSide({
         <Ionicons
           name={iconName}
           size={12}
-          color={side.state === 'awaitingResult' ? COLORS.brand.orange : color}
+          color={side.state === 'awaitingResult' ? themeColor(isDark, 'primary') : color}
         />
       )}
       <Text

@@ -6,9 +6,10 @@ import { FieldLabel } from './FieldLabel';
 import { sendAction } from '../services/actions';
 import { useOrgShortCode } from '../hooks/useOrgShortCode';
 import { useActiveTheme } from '../store/settingsStore';
-import { getThemeColor } from '../constants/Colors';
+
 import { deviceTimeZone } from '../utils/dates';
 import { BrandColorsField, brandColorsProblem } from './org/BrandColorsField';
+import { themeColor } from '../constants/Colors';
 
 /**
  * Registering an organisation that is not on the system yet — somebody else's, unclaimed.
@@ -91,17 +92,17 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
   };
 
   const inputClass =
-    'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-800 dark:text-white';
+    'bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink';
 
   return (
     <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 bg-black/60 justify-center px-6">
-        <View className="w-full max-w-md self-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/5 shadow-xl" style={{ maxHeight: '90%' }}>
+      <View className="flex-1 bg-overlay/60 justify-center px-6">
+        <View className="w-full max-w-md self-center bg-card rounded-2xl border border-line shadow-xl" style={{ maxHeight: '90%' }}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, gap: 16 }}>
-          <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider">
+          <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
             Register an organisation
           </Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-4">
+          <Text className="font-inter text-xs text-ink-muted leading-4">
             For a school or club that is not on ScoreKeeper yet. It is added unclaimed — nobody runs it
             until somebody from there claims it.
           </Text>
@@ -115,7 +116,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
                 shortCode.onNameChange(text);
               }}
               placeholder="e.g. St John's College"
-              placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               className={inputClass}
             />
           </View>
@@ -131,7 +132,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
               autoCorrect={false}
               spellCheck={false}
               placeholder="SJC"
-              placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               className={`${inputClass} font-orbitron-bold w-32 text-center`}
             />
           </View>
@@ -152,7 +153,7 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
               value={contactEmail}
               onChangeText={setContactEmail}
               placeholder="contact@school.edu"
-              placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               keyboardType="email-address"
               autoCapitalize="none"
               className={inputClass}

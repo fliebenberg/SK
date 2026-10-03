@@ -21,8 +21,8 @@ export function DynamicScoringPanels({ role }: { role?: string }) {
 
   if (sections.length === 0) {
     return (
-      <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-4 mb-1.5">
-        <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center leading-relaxed">
+      <View className="bg-card border border-line rounded-2xl p-4 mb-1.5">
+        <Text className="font-inter text-xs text-ink-muted text-center leading-relaxed">
           {sport
             ? `${sport.name} has no event sections configured, so there is nothing to record. Add them in system admin under Sports.`
             : 'Loading sport configuration…'}

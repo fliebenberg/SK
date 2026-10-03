@@ -105,7 +105,7 @@ export function OrgMinorsSettingsCard({ orgId, isOrgAdmin }: OrgMinorsSettingsCa
           value={`Under ${settings.minorAge}`}
           right={isOrgAdmin ? <EditLink onPress={() => { setError(null); setEditingAge(true); }} /> : undefined}
         />
-        <View className="h-px bg-slate-200 dark:bg-white/5" />
+        <View className="h-px bg-line" />
         <ReadRow
           label="Minors may have member access"
           sub={settings.accountsAllowed
@@ -123,9 +123,9 @@ export function OrgMinorsSettingsCard({ orgId, isOrgAdmin }: OrgMinorsSettingsCa
       </View>
 
       {!isOrgAdmin ? (
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Only an organisation admin can change these.</Text>
+        <Text className="font-inter text-xs text-ink-muted">Only an organisation admin can change these.</Text>
       ) : null}
-      {error && !editingAge ? <Text className="font-inter text-xs text-red-700 dark:text-red-400">{error}</Text> : null}
+      {error && !editingAge ? <Text className="font-inter text-xs text-danger-ink">{error}</Text> : null}
 
       <EditDialog
         visible={editingAge}
@@ -149,15 +149,15 @@ export function OrgMinorsSettingsCard({ orgId, isOrgAdmin }: OrgMinorsSettingsCa
           />
         </View>
         {ageText.trim() && !ageValid ? (
-          <Text className="font-inter text-xs text-amber-800 dark:text-amber-300">
+          <Text className="font-inter text-xs text-warning-ink">
             The minor age must be a whole number from {MIN_MINOR_AGE} to {MAX_MINOR_AGE}.
           </Text>
         ) : ageChanged ? (
-          <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+          <Text className="font-inter text-sm text-ink-soft">
             {ageChangeEffect(settings.minorAge, age, settings.accountsAllowed)}
           </Text>
         ) : null}
-        {error ? <Text className="font-inter text-xs text-red-700 dark:text-red-400">{error}</Text> : null}
+        {error ? <Text className="font-inter text-xs text-danger-ink">{error}</Text> : null}
       </EditDialog>
 
       <ConfirmationModal

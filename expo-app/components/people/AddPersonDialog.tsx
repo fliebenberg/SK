@@ -23,6 +23,8 @@ import { isCalendarDate } from '../../utils/dates';
 import { cellphoneProblem, formatCellphone } from '../../utils/phone';
 import { ORG_ID_HELP, OrgRole, ROLE_HELP, roleOptions } from './PersonDialogs';
 
+import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 const MEMBER_ROLE = 'role-org-member';
 
 const emptyPerson = () => ({ name: '', email: '', cellphone: '', birthdate: '', personOrgId: '', roleId: MEMBER_ROLE });
@@ -48,6 +50,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
   onClose: () => void;
   team?: { id: string; name: string; roleId: string; roleName: string };
 }) {
+  const isDark = useActiveTheme() === 'dark';
   const [person, setPerson] = useState(emptyPerson);
   const [selected, setSelected] = useState<OrgProfile | null>(null);
   const [guardianDraft, setGuardianDraft] = useState<GuardianDraft>(emptyGuardianDraft);
@@ -195,7 +198,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
             autoCapitalize="none"
             keyboardType="email-address"
             placeholder="name@example.com"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
             accessibilityLabel="Email"
             className={TEXT_INPUT}
           />
@@ -207,7 +210,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
             onChangeText={cellphone => set({ cellphone })}
             keyboardType="phone-pad"
             placeholder="e.g. 082 123 4567"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
             accessibilityLabel="Cell number"
             className={TEXT_INPUT}
           />
@@ -224,7 +227,7 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
             value={person.personOrgId}
             onChangeText={personOrgId => set({ personOrgId })}
             placeholder="e.g. student number"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
             accessibilityLabel="Org ID"
             className={TEXT_INPUT}
           />
@@ -240,10 +243,10 @@ export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
         settings={minorsSettings}
         playerProfileId={selected?.id}
       />
-      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+      <Text className="font-inter text-xs text-ink-muted">
         A photo and national ID can be added from their page once they are added.
       </Text>
-      {error ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">{error}</Text> : null}
+      {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
 }

@@ -5,7 +5,8 @@ import { EntrantRow, OrgBadge, TournamentDivision, divisionsForTeam } from '@sk/
 import CustomSelect from '../CustomSelect';
 import { OrgLogo } from '../OrgLogo';
 import { useActiveTheme } from '../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../constants/Colors';
+import { themeColor } from '../../constants/Colors';
+
 
 /**
  * Who is entered, as one table: a row per competitor, highlighted when it is playing, and the
@@ -90,7 +91,7 @@ export function EntrantTable({
 
   if (!rows.length) {
     return (
-      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 px-1 py-3">
+      <Text className="font-inter text-xs text-ink-muted px-1 py-3">
         {emptyText}
       </Text>
     );
@@ -148,7 +149,7 @@ export function EntrantTable({
     */
     const divisionCell = busy ? (
       <View className="items-end">
-        <ActivityIndicator size="small" color={COLORS.brand.orange} />
+        <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
       </View>
     ) : entered ? (
       options.length > 1 && canEdit ? (
@@ -160,19 +161,19 @@ export function EntrantTable({
           style={isWide ? undefined : { paddingHorizontal: 12, paddingVertical: 8 }}
         />
       ) : (
-        <Text className="font-inter text-xs text-slate-800 dark:text-white text-right" numberOfLines={1}>
+        <Text className="font-inter text-xs text-ink text-right" numberOfLines={1}>
           {enteredDivision ? divisionLabel(enteredDivision) : '—'}
         </Text>
       )
     ) : nothingToEnterInto ? (
-      <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 text-right">
+      <Text className="font-inter text-[11px] text-ink-muted text-right">
         No division
       </Text>
     ) : (
       <View className="items-end">
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Not playing</Text>
+        <Text className="font-inter text-xs text-ink-muted">Not playing</Text>
         {canEdit && (
-          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+          <Text className="font-inter text-[10px] text-ink-muted mt-0.5">
             {Platform.OS === 'web' ? 'Click' : 'Tap'} to add to tournament
           </Text>
         )}
@@ -195,7 +196,7 @@ export function EntrantTable({
         accessibilityState={{ checked: entered, disabled: !canEdit || busy || nothingToEnterInto }}
         accessibilityLabel={`${row.name}${org ? `, ${org.name}` : ''}, playing`}
         className={`flex-row items-center gap-3 px-3 py-2.5 mb-1 rounded-lg border-l-2 ${
-          entered ? 'bg-orange-50 dark:bg-brand-orange/10 border-brand-orange' : 'border-transparent'
+          entered ? 'bg-primary-soft border-primary' : 'border-transparent'
         }`}
       >
         <OrgSquare org={org} isDark={isDark} />
@@ -204,7 +205,7 @@ export function EntrantTable({
           <Text
             numberOfLines={1}
             className={`font-inter-bold text-xs ${
-              entered ? 'text-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-400'
+              entered ? 'text-ink' : 'text-ink-muted'
             }`}
           >
             {row.name}
@@ -216,7 +217,7 @@ export function EntrantTable({
             {withdrawnPlayed > 0 && <WithdrawnFlag />}
             <Text
               numberOfLines={1}
-              className="font-inter text-[10px] text-slate-500 dark:text-slate-400 flex-shrink"
+              className="font-inter text-[10px] text-ink-muted flex-shrink"
             >
               {withdrawnPlayed > 0
                 ? `${withdrawnFrom ? `${divisionLabel(withdrawnFrom)} · ` : ''}${withdrawnPlayed} result${
@@ -234,9 +235,9 @@ export function EntrantTable({
             accessibilityRole="button"
             accessibilityLabel={`Replace ${row.name}`}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            className="w-8 h-8 items-center justify-center rounded-lg active:bg-slate-200/60 dark:active:bg-white/10"
+            className="w-8 h-8 items-center justify-center rounded-lg active:bg-sunken"
           >
-            <Ionicons name="swap-horizontal-outline" size={16} color={getThemeColor(isDark, 'textSecondary')} />
+            <Ionicons name="swap-horizontal-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
           </TouchableOpacity>
         )}
 
@@ -262,12 +263,12 @@ export function EntrantTable({
       </Text>
       {/* A header only where there is room for it; on a phone the controls label themselves. */}
       {isWide && (
-        <View className="flex-row items-center gap-3 px-3 pb-2 mb-1 border-b border-slate-200 dark:border-white/10">
-          <Text className="flex-1 pl-11 font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+        <View className="flex-row items-center gap-3 px-3 pb-2 mb-1 border-b border-line">
+          <Text className="flex-1 pl-11 font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
             Team
           </Text>
           <Text
-            className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest"
+            className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest"
             style={{ width: divisionWidth }}
           >
             Division
@@ -297,10 +298,10 @@ function OrgSquare({ org, isDark }: { org?: OrgBadge; isDark: boolean }) {
   if (!org) {
     return (
       <View
-        className="items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800"
+        className="items-center justify-center rounded-lg bg-sunken"
         style={{ width: ORG_SQUARE, height: ORG_SQUARE }}
       >
-        <Ionicons name="people-outline" size={15} color={getThemeColor(isDark, 'textSecondary')} />
+        <Ionicons name="people-outline" size={15} color={themeColor(isDark, 'ink-muted')} />
       </View>
     );
   }
@@ -317,11 +318,11 @@ function OrgSquare({ org, isDark }: { org?: OrgBadge; isDark: boolean }) {
       />
       {hovered && (
         <View
-          className="absolute bg-slate-900 dark:bg-slate-700 rounded-lg px-2.5 py-1.5 shadow-lg"
+          className="absolute bg-tooltip rounded-lg px-2.5 py-1.5 shadow-lg"
           style={{ left: ORG_SQUARE + 8, top: 2 }}
           pointerEvents="none"
         >
-          <Text className="font-inter text-[11px] text-white" numberOfLines={1} style={{ whiteSpace: 'nowrap' } as any}>
+          <Text className="font-inter text-[11px] text-on-fill" numberOfLines={1} style={{ whiteSpace: 'nowrap' } as any}>
             {org.name}
           </Text>
         </View>
@@ -336,8 +337,8 @@ function OrgSquare({ org, isDark }: { org?: OrgBadge; isDark: boolean }) {
  */
 function WithdrawnFlag() {
   return (
-    <View className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-300 dark:border-white/15">
-      <Text className="font-inter-bold text-[9px] uppercase tracking-wider text-slate-600 dark:text-slate-300">
+    <View className="px-1.5 py-0.5 rounded bg-sunken border border-line-strong">
+      <Text className="font-inter-bold text-[9px] uppercase tracking-wider text-ink-soft">
         Withdrawn
       </Text>
     </View>
@@ -355,8 +356,8 @@ function WithdrawnFlag() {
  */
 function PlaceholderFlag() {
   return (
-    <View className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-400/15 border border-amber-300 dark:border-amber-400/40">
-      <Text className="font-inter-bold text-[9px] uppercase tracking-wider text-amber-800 dark:text-amber-300">
+    <View className="px-1.5 py-0.5 rounded bg-warning-soft border border-warning-line">
+      <Text className="font-inter-bold text-[9px] uppercase tracking-wider text-warning-ink">
         Placeholder
       </Text>
     </View>

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Modal, Pressable, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 /**
  * The rarely-wanted actions on a screen, behind one control in its header.
@@ -50,7 +51,7 @@ export function OverflowMenu({
 }: OverflowMenuProps) {
   const isDark = useActiveTheme() === 'dark';
   const [isOpen, setIsOpen] = useState(false);
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
 
   if (items.length === 0) return null;
 
@@ -82,23 +83,23 @@ export function OverflowMenu({
         {/* The scrim closes the menu, which is what a tap outside a menu means everywhere. */}
         <Pressable
           onPress={() => setIsOpen(false)}
-          className="flex-1 bg-black/60 items-center justify-center px-6"
+          className="flex-1 bg-overlay/60 items-center justify-center px-6"
         >
           {/* Swallows the tap so pressing the card itself does not close it. */}
           <Pressable
             onPress={() => {}}
-            className="w-full max-w-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10"
+            className="w-full max-w-sm rounded-2xl overflow-hidden bg-card border border-line"
           >
             {!!title && (
-              <View className="px-5 pt-4 pb-3 border-b border-slate-100 dark:border-white/5">
-                <Text className="font-orbitron-bold text-[11px] uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              <View className="px-5 pt-4 pb-3 border-b border-line-soft">
+                <Text className="font-orbitron-bold text-[11px] uppercase tracking-widest text-ink-muted">
                   {title}
                 </Text>
               </View>
             )}
 
             {items.map((item, index) => {
-              const tint = item.destructive ? COLORS.brand.red : secondary;
+              const tint = item.destructive ? themeColor(isDark, 'danger') : secondary;
               const firstDestructive =
                 item.destructive && !items[index - 1]?.destructive && index > 0;
 
@@ -110,21 +111,21 @@ export function OverflowMenu({
                   accessibilityRole="button"
                   activeOpacity={0.75}
                   className={`flex-row items-center gap-3.5 px-5 py-4 min-h-[56px] ${
-                    firstDestructive ? 'border-t border-slate-100 dark:border-white/5' : ''
+                    firstDestructive ? 'border-t border-line-soft' : ''
                   } ${item.disabled ? 'opacity-40' : ''}`}
                 >
                   <Ionicons name={item.icon} size={18} color={tint} />
                   <View className="flex-1 min-w-0">
                     <Text
                       className={`font-inter-bold text-sm ${
-                        item.destructive ? 'text-brand-red' : 'text-slate-800 dark:text-white'
+                        item.destructive ? 'text-danger-ink' : 'text-ink'
                       }`}
                     >
                       {item.label}
                     </Text>
                     {!!item.description && (
                       <Text
-                        className="font-inter text-xs mt-0.5 text-slate-500 dark:text-slate-400"
+                        className="font-inter text-xs mt-0.5 text-ink-muted"
                       >
                         {item.description}
                       </Text>
@@ -138,9 +139,9 @@ export function OverflowMenu({
               onPress={() => setIsOpen(false)}
               accessibilityRole="button"
               activeOpacity={0.75}
-              className="px-5 py-3.5 items-center border-t border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5"
+              className="px-5 py-3.5 items-center border-t border-line-soft bg-sunken"
             >
-              <Text className="font-inter-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              <Text className="font-inter-bold text-xs uppercase tracking-widest text-ink-muted">
                 Close
               </Text>
             </TouchableOpacity>

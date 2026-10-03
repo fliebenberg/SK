@@ -5,6 +5,8 @@ import { OrgMember } from '@sk/shared';
 import { EditLink } from '../ReadCard';
 import { isOnScoreKeeper } from '../InviteToScoreKeeper';
 import { Guardianship, GuardianshipTag, PersonAvatar, RoleBadge } from './PersonBits';
+import { themeColor } from '../../constants/Colors';
+import { useActiveTheme } from '../../store/settingsStore';
 
 /**
  * The top of the person page: the person as the People list shows them, larger (docs/people.md).
@@ -20,10 +22,11 @@ export function PersonBanner({ member, guardianship, isNarrow, onEdit, onEditPho
   onEdit?: () => void;
   onEditPhoto?: () => void;
 }) {
+  const isDark = useActiveTheme() === 'dark';
   const size = isNarrow ? 60 : 76;
   const onApp = isOnScoreKeeper(member);
   return (
-    <View className="flex-row items-center gap-4 rounded-2xl border p-4 bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5">
+    <View className="flex-row items-center gap-4 rounded-2xl border p-4 bg-card border-line">
       <TouchableOpacity
         onPress={onEditPhoto}
         disabled={!onEditPhoto}
@@ -32,7 +35,7 @@ export function PersonBanner({ member, guardianship, isNarrow, onEdit, onEditPho
       >
         <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={size} />
         {onEditPhoto ? (
-          <View className="absolute -right-0.5 -bottom-0.5 w-6 h-6 rounded-full bg-brand-orange border-2 border-white dark:border-slate-900 items-center justify-center">
+          <View className="absolute -right-0.5 -bottom-0.5 w-6 h-6 rounded-full bg-primary border-2 border-card items-center justify-center">
             <Ionicons name="camera" size={11} color="white" />
           </View>
         ) : null}
@@ -40,7 +43,7 @@ export function PersonBanner({ member, guardianship, isNarrow, onEdit, onEditPho
 
       <View className="flex-1 min-w-0">
         <View className="flex-row items-center flex-wrap gap-2">
-          <Text className={`font-inter-bold ${isNarrow ? 'text-lg' : 'text-2xl'} leading-tight text-slate-900 dark:text-white`}>
+          <Text className={`font-inter-bold ${isNarrow ? 'text-lg' : 'text-2xl'} leading-tight text-ink`}>
             {member.name}
           </Text>
           <RoleBadge roleId={member.roleId} roleName={member.roleName} size="md" />
@@ -49,14 +52,14 @@ export function PersonBanner({ member, guardianship, isNarrow, onEdit, onEditPho
         {member.personOrgId || onApp ? (
           <View className="flex-row items-center flex-wrap gap-x-4 gap-y-1 mt-1">
             {member.personOrgId ? (
-              <Text className="font-inter text-sm text-slate-500 dark:text-slate-400" style={{ fontVariant: ['tabular-nums'] }}>
+              <Text className="font-inter text-sm text-ink-muted" style={{ fontVariant: ['tabular-nums'] }}>
                 {member.personOrgId}
               </Text>
             ) : null}
             {onApp ? (
               <View className="flex-row items-center gap-1">
-                <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                <Text className="font-inter-semibold text-sm text-emerald-800 dark:text-emerald-400">On ScoreKeeper</Text>
+                <Ionicons name="checkmark-circle" size={14} color={themeColor(isDark, 'success')} />
+                <Text className="font-inter-semibold text-sm text-success-ink">On ScoreKeeper</Text>
               </View>
             ) : null}
           </View>

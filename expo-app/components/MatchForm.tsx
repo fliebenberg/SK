@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomSelect from './CustomSelect';
 import { Button } from './Button';
 import DatePicker from './DatePicker';
-import { COLORS, getThemeColor } from '../constants/Colors';
 import { useActiveTheme } from '../store/settingsStore';
 import { wsService } from '../services/websocket';
 import { sendAction } from '../services/actions';
@@ -15,9 +14,9 @@ import { UnclaimedOrgBadge } from './UnclaimedOrgBadge';
 import { nominateOrgContact } from '../services/nominations';
 import { GlassCard } from './GlassCard';
 import { AgeGroupPicker } from './AgeGroupPicker';
-import { getContrastColor } from '../utils/colorUtils';
 import { pickableTeams } from './teams/TeamBits';
 import { venueTimeHint, venueTimeZone, type TimeZone } from '../utils/dates';
+import { themeColor } from '../constants/Colors';
 
 export interface MatchFormData {
   sportId: string;
@@ -45,6 +44,14 @@ interface MatchFormProps {
   initialData?: Partial<MatchFormData>;
   onChange: (data: MatchFormData) => void;
 }
+
+/** The match-status badge: a tint and its readable shade for each status (`UI-6`, `UI-24`). */
+const STATUS_CHIP: Record<'Scheduled' | 'Live' | 'Finished' | 'Cancelled', { box: string; text: string }> = {
+  Scheduled: { box: 'bg-success-soft border-success-line', text: 'text-success-ink' },
+  Live: { box: 'bg-primary-soft border-primary-line', text: 'text-primary-ink' },
+  Finished: { box: 'bg-sunken border-line', text: 'text-ink-muted' },
+  Cancelled: { box: 'bg-danger-soft border-danger-line', text: 'text-danger-ink' },
+};
 
 export default function MatchForm({
   orgId,
@@ -450,7 +457,7 @@ export default function MatchForm({
   if (isInitializing) {
     return (
       <View className="py-8 justify-center items-center">
-        <ActivityIndicator size="small" color={COLORS.brand.orange} />
+        <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
       </View>
     );
   }
@@ -458,8 +465,8 @@ export default function MatchForm({
   return (
     <View className="space-y-6">
       {/* CARD 1: SPORT SELECTION */}
-      <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-4">
-        <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+      <GlassCard className="border border-line p-5 space-y-4">
+        <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
           Sport
         </Text>
         <View className="flex-row flex-wrap gap-2">
@@ -475,11 +482,11 @@ export default function MatchForm({
                 }}
                 className={`px-3 py-2 rounded-lg border ${
                   isSelected 
-                    ? 'bg-brand-orange/10 border-brand-orange' 
-                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+                    ? 'bg-primary-soft border-primary' 
+                    : 'bg-canvas border-line'
                 }`}
               >
-                <Text className={`font-inter text-xs ${isSelected ? 'text-brand-orange font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                <Text className={`font-inter text-xs ${isSelected ? 'text-primary-ink font-bold' : 'text-ink-soft'}`}>
                   {sport.name}
                 </Text>
               </TouchableOpacity>
@@ -489,12 +496,12 @@ export default function MatchForm({
       </GlassCard>
 
       {!selectedSportId ? (
-        <GlassCard className="border border-slate-200 dark:border-white/5 p-8 items-center justify-center">
-          <Ionicons name="football-outline" size={32} color={COLORS.brand.orange} className="opacity-60 mb-2" />
-          <Text className="font-orbitron-bold text-xs text-slate-500 uppercase tracking-wider text-center">
+        <GlassCard className="border border-line p-8 items-center justify-center">
+          <Ionicons name="football-outline" size={32} color={themeColor(isDark, 'primary')} className="opacity-60 mb-2" />
+          <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider text-center">
             Please Select a Sport First
           </Text>
-          <Text className="font-inter text-xs text-slate-400 text-center mt-1">
+          <Text className="font-inter text-xs text-ink-muted text-center mt-1">
             Choosing a sport allows us to load the correct teams and compatible playing fields/courts.
           </Text>
         </GlassCard>
@@ -502,30 +509,30 @@ export default function MatchForm({
         <View className="flex-col lg:flex-row gap-6">
           {/* CARD 2: THE MATCHUP */}
           <View className="flex-1">
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5 h-full">
-              <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider">
+            <GlassCard className="border border-line p-5 space-y-5 h-full">
+              <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider">
                 The Matchup
               </Text>
 
               {/* Team 1 Section */}
               <View className="space-y-4">
-                <View className="pt-2 border-t border-slate-100 dark:border-white/5">
-                  <Text className="font-orbitron-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-widest font-bold">
+                <View className="pt-2 border-t border-line-soft">
+                  <Text className="font-orbitron-bold text-[11px] text-ink uppercase tracking-widest font-bold">
                     Team 1
                   </Text>
                 </View>
 
                 {/* Home Org Selection */}
                 <View className="space-y-1.5" style={{ zIndex: 30 }}>
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Organization
                   </Text>
 
                   {selectedHomeOrg ? (
                     <View className="space-y-2">
-                      <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
+                      <View className="flex-row items-center justify-between bg-canvas border border-line rounded-xl px-4 py-3">
                         <View className="flex-1 flex-row items-center mr-2">
-                          <Text className="font-inter text-sm text-slate-800 dark:text-white flex-shrink">
+                          <Text className="font-inter text-sm text-ink flex-shrink">
                             {selectedHomeOrg.name} ({selectedHomeOrg.shortName || 'N/A'})
                           </Text>
                           {/* An org with no administrator: the way to nominate one (docs/nomination-process.md §4).
@@ -541,7 +548,7 @@ export default function MatchForm({
                           setSelectedHomeOrg(null);
                           setSelectedHomeTeamId('');
                         }}>
-                          <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
+                          <Ionicons name="close-circle" size={20} color={themeColor(isDark, 'danger')} />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -549,26 +556,26 @@ export default function MatchForm({
                     <View className="relative z-35">
                       <TextInput
                         placeholder="Search For Team 1 Organisation"
-                        placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                        placeholderTextColor={themeColor(isDark, 'ink-muted')}
                         value={homeOrgSearchText}
                         onChangeText={(text) => {
                           setIsCreatingHomeOrg(true);
                           setHomeOrgSearchText(text);
                         }}
-                        className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                        className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
                       />
                       {isSearchingOrgs && isCreatingHomeOrg && (
-                        <ActivityIndicator size="small" color={COLORS.brand.orange} className="absolute right-4 top-3.5" />
+                        <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} className="absolute right-4 top-3.5" />
                       )}
 
                       {(searchedOrgs.length > 0 || (isCreatingHomeOrg && homeOrgSearchText.trim().length >= 3)) && (
                         <View 
-                          className="absolute left-0 right-0 border border-slate-200 dark:border-white/5 rounded-xl shadow-lg"
+                          className="absolute left-0 right-0 border border-line rounded-xl shadow-lg"
                           style={{
                             top: 50,
                             maxHeight: 220,
                             zIndex: 50,
-                            backgroundColor: getThemeColor(isDark, 'background'),
+                            backgroundColor: themeColor(isDark, 'card'),
                           }}
                         >
                           {searchedOrgs.length > 0 ? (
@@ -577,8 +584,8 @@ export default function MatchForm({
                               nestedScrollEnabled={true}
                               keyboardShouldPersistTaps="handled"
                             >
-                              <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                                <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                              <View className="bg-sunken px-3 py-1 border-b border-line-soft">
+                                <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
                                   Existing Organizations
                                 </Text>
                               </View>
@@ -590,9 +597,9 @@ export default function MatchForm({
                                     setHomeOrgSearchText('');
                                     setSearchedOrgs([]);
                                   }}
-                                  className="p-3 border-b border-slate-100 dark:border-white/5 hover:bg-slate-50"
+                                  className="p-3 border-b border-line-soft hover:bg-sunken"
                                 >
-                                  <Text className="font-inter text-xs text-slate-800 dark:text-white">
+                                  <Text className="font-inter text-xs text-ink">
                                     {orgItem.name}
                                   </Text>
                                 </TouchableOpacity>
@@ -601,9 +608,9 @@ export default function MatchForm({
                           ) : null}
 
                           {homeOrgSearchText.trim().length >= 3 && (
-                            <View className="border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900" style={{ backgroundColor: getThemeColor(isDark, 'background') }}>
-                              <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                                <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                            <View className="border-t border-line bg-card" style={{ backgroundColor: themeColor(isDark, 'card') }}>
+                              <View className="bg-sunken px-3 py-1 border-b border-line-soft">
+                                <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
                                   Register New Organization
                                 </Text>
                               </View>
@@ -615,10 +622,10 @@ export default function MatchForm({
                                   setHomeOrgSearchText('');
                                   setSearchedOrgs([]);
                                 }}
-                                className="flex-row items-center px-4 py-2.5 active:bg-slate-100 dark:active:bg-slate-800"
+                                className="flex-row items-center px-4 py-2.5 active:bg-sunken"
                               >
-                                <Ionicons name="add-circle" size={16} color={COLORS.brand.orange} className="mr-2" />
-                                <Text className="font-inter text-xs text-brand-orange font-bold">
+                                <Ionicons name="add-circle" size={16} color={themeColor(isDark, 'primary')} className="mr-2" />
+                                <Text className="font-inter text-xs text-primary-ink font-bold">
                                   Register "{homeOrgSearchText}"
                                 </Text>
                               </TouchableOpacity>
@@ -634,11 +641,11 @@ export default function MatchForm({
                 {selectedHomeOrg && (
                   <View className="space-y-1.5">
                     <View className="flex-row justify-between items-center mb-1">
-                      <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                         Team
                       </Text>
                       <TouchableOpacity onPress={() => handleCreateTeamTrigger(selectedHomeOrg.id)}>
-                        <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                        <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                           + Add Team
                         </Text>
                       </TouchableOpacity>
@@ -656,32 +663,32 @@ export default function MatchForm({
               </View>
 
               <View className="flex-row items-center justify-center py-2">
-                <View className="h-[1px] flex-1 bg-slate-100 dark:bg-white/5" />
-                <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest px-4">
+                <View className="h-[1px] flex-1 bg-sunken" />
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest px-4">
                   VS
                 </Text>
-                <View className="h-[1px] flex-1 bg-slate-100 dark:bg-white/5" />
+                <View className="h-[1px] flex-1 bg-sunken" />
               </View>
 
               {/* Team 2 Section */}
               <View className="space-y-4">
-                <View className="pt-2 border-t border-slate-100 dark:border-white/5">
-                  <Text className="font-orbitron-bold text-[11px] text-slate-800 dark:text-slate-200 uppercase tracking-widest font-bold">
+                <View className="pt-2 border-t border-line-soft">
+                  <Text className="font-orbitron-bold text-[11px] text-ink uppercase tracking-widest font-bold">
                     Team 2
                   </Text>
                 </View>
 
                 {/* Away Org Selection */}
                 <View className="space-y-1.5" style={{ zIndex: 20 }}>
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Organization
                   </Text>
 
                   {selectedAwayOrg ? (
                     <View className="space-y-2">
-                      <View className="flex-row items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3">
+                      <View className="flex-row items-center justify-between bg-canvas border border-line rounded-xl px-4 py-3">
                         <View className="flex-1 flex-row items-center mr-2">
-                          <Text className="font-inter text-sm text-slate-800 dark:text-white flex-shrink">
+                          <Text className="font-inter text-sm text-ink flex-shrink">
                             {selectedAwayOrg.name} ({selectedAwayOrg.shortName || 'N/A'})
                           </Text>
                           {/* An org with no administrator: the way to nominate one (docs/nomination-process.md §4).
@@ -697,7 +704,7 @@ export default function MatchForm({
                           setSelectedAwayOrg(null);
                           setSelectedAwayTeamId('');
                         }}>
-                          <Ionicons name="close-circle" size={20} color={COLORS.brand.red} />
+                          <Ionicons name="close-circle" size={20} color={themeColor(isDark, 'danger')} />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -705,26 +712,26 @@ export default function MatchForm({
                     <View className="relative z-25">
                       <TextInput
                         placeholder="Search For Team 2 Organisation"
-                        placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                        placeholderTextColor={themeColor(isDark, 'ink-muted')}
                         value={awayOrgSearchText}
                         onChangeText={(text) => {
                           setIsCreatingHomeOrg(false);
                           setAwayOrgSearchText(text);
                         }}
-                        className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                        className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
                       />
                       {isSearchingOrgs && !isCreatingHomeOrg && (
-                        <ActivityIndicator size="small" color={COLORS.brand.orange} className="absolute right-4 top-3.5" />
+                        <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} className="absolute right-4 top-3.5" />
                       )}
 
                       {(searchedOrgs.length > 0 || (!isCreatingHomeOrg && awayOrgSearchText.trim().length >= 3)) && (
                         <View 
-                          className="absolute left-0 right-0 border border-slate-200 dark:border-white/5 rounded-xl shadow-lg"
+                          className="absolute left-0 right-0 border border-line rounded-xl shadow-lg"
                           style={{
                             top: 50,
                             maxHeight: 220,
                             zIndex: 40,
-                            backgroundColor: getThemeColor(isDark, 'background'),
+                            backgroundColor: themeColor(isDark, 'card'),
                           }}
                         >
                           {searchedOrgs.length > 0 ? (
@@ -733,8 +740,8 @@ export default function MatchForm({
                               nestedScrollEnabled={true}
                               keyboardShouldPersistTaps="handled"
                             >
-                              <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                                <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                              <View className="bg-sunken px-3 py-1 border-b border-line-soft">
+                                <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
                                   Existing Organizations
                                 </Text>
                               </View>
@@ -746,9 +753,9 @@ export default function MatchForm({
                                     setAwayOrgSearchText('');
                                     setSearchedOrgs([]);
                                   }}
-                                  className="p-3 border-b border-slate-100 dark:border-white/5 hover:bg-slate-50"
+                                  className="p-3 border-b border-line-soft hover:bg-sunken"
                                 >
-                                  <Text className="font-inter text-xs text-slate-800 dark:text-white">
+                                  <Text className="font-inter text-xs text-ink">
                                     {orgItem.name}
                                   </Text>
                                 </TouchableOpacity>
@@ -757,9 +764,9 @@ export default function MatchForm({
                           ) : null}
 
                           {awayOrgSearchText.trim().length >= 3 && (
-                            <View className="border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900" style={{ backgroundColor: getThemeColor(isDark, 'background') }}>
-                              <View className="bg-slate-50 dark:bg-slate-900/50 px-3 py-1 border-b border-slate-100 dark:border-white/5">
-                                <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                            <View className="border-t border-line bg-card" style={{ backgroundColor: themeColor(isDark, 'card') }}>
+                              <View className="bg-sunken px-3 py-1 border-b border-line-soft">
+                                <Text className="font-orbitron-bold text-[8px] text-ink-muted uppercase tracking-wider">
                                   Register New Organization
                                 </Text>
                               </View>
@@ -771,10 +778,10 @@ export default function MatchForm({
                                   setAwayOrgSearchText('');
                                   setSearchedOrgs([]);
                                 }}
-                                className="flex-row items-center px-4 py-2.5 active:bg-slate-100 dark:active:bg-slate-800"
+                                className="flex-row items-center px-4 py-2.5 active:bg-sunken"
                               >
-                                <Ionicons name="add-circle" size={16} color={COLORS.brand.orange} className="mr-2" />
-                                <Text className="font-inter text-xs text-brand-orange font-bold">
+                                <Ionicons name="add-circle" size={16} color={themeColor(isDark, 'primary')} className="mr-2" />
+                                <Text className="font-inter text-xs text-primary-ink font-bold">
                                   Register "{awayOrgSearchText}"
                                 </Text>
                               </TouchableOpacity>
@@ -790,11 +797,11 @@ export default function MatchForm({
                 {selectedAwayOrg && (
                   <View className="space-y-1.5">
                     <View className="flex-row justify-between items-center mb-1">
-                      <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                         Team
                       </Text>
                       <TouchableOpacity onPress={() => handleCreateTeamTrigger(selectedAwayOrg.id)}>
-                        <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                        <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                           + Add Team
                         </Text>
                       </TouchableOpacity>
@@ -815,32 +822,19 @@ export default function MatchForm({
 
           {/* CARD 3: LOGISTICS */}
           <View className="flex-1">
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5 h-full">
-              <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider">
+            <GlassCard className="border border-line p-5 space-y-5 h-full">
+              <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider">
                 Logistics & Details
               </Text>
 
               {/* Select Status (Edit Mode only) */}
               {isEdit && (
                 <View className="flex-row justify-between items-center pt-2">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Match Status
                   </Text>
-                  <View
-                    style={{
-                      backgroundColor: gameStatus === 'Cancelled' ? COLORS.brand.red : (gameStatus === 'Live' ? COLORS.brand.orange : (gameStatus === 'Finished' ? getThemeColor(isDark, 'textSecondary') : COLORS.brand.green)),
-                      borderColor: gameStatus === 'Cancelled' ? COLORS.brand.red : (gameStatus === 'Live' ? COLORS.brand.orange : (gameStatus === 'Finished' ? getThemeColor(isDark, 'textSecondary') : COLORS.brand.green))
-                    }}
-                    className="px-3 py-1 rounded-full border"
-                  >
-                    <Text
-                      style={{
-                        color: getContrastColor(
-                          gameStatus === 'Cancelled' ? COLORS.brand.red : (gameStatus === 'Live' ? COLORS.brand.orange : (gameStatus === 'Finished' ? getThemeColor(isDark, 'textSecondary') : COLORS.brand.green))
-                        )
-                      }}
-                      className="font-inter-bold text-xs"
-                    >
+                  <View className={`px-3 py-1 rounded-full border ${STATUS_CHIP[gameStatus].box}`}>
+                    <Text className={`font-inter-bold text-xs ${STATUS_CHIP[gameStatus].text}`}>
                       {gameStatus}
                     </Text>
                   </View>
@@ -848,13 +842,13 @@ export default function MatchForm({
               )}
 
               {/* Site selection */}
-              <View className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
+              <View className="space-y-1.5 pt-2 border-t border-line-soft">
                 <View className="flex-row justify-between items-center mb-1">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Site Field/Court
                   </Text>
                   <TouchableOpacity onPress={() => setIsCreatingSite(true)}>
-                    <Text className="font-inter-bold text-[10px] text-brand-orange uppercase tracking-wider">
+                    <Text className="font-inter-bold text-[10px] text-primary-ink uppercase tracking-wider">
                       + Create Site
                     </Text>
                   </TouchableOpacity>
@@ -870,8 +864,8 @@ export default function MatchForm({
 
               {/* Facility Selection */}
               {selectedSiteId ? (
-                <View className="space-y-2 pt-2 border-t border-slate-100 dark:border-white/5">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                <View className="space-y-2 pt-2 border-t border-line-soft">
+                  <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Select {getFacilityLabel()}
                   </Text>
                   <CustomSelect
@@ -885,9 +879,9 @@ export default function MatchForm({
               ) : null}
 
               {/* Match Date & Time */}
-              <View className="space-y-3 pt-2 border-t border-slate-100 dark:border-white/5">
+              <View className="space-y-3 pt-2 border-t border-line-soft">
                 <View className="space-y-1.5">
-                  <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                     Match Date
                   </Text>
                   <DatePicker
@@ -898,29 +892,29 @@ export default function MatchForm({
 
                 <View className="space-y-3 pt-2">
                   <View className="flex-row justify-between items-center">
-                    <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
                       Match Start Time
                     </Text>
                     <View className="flex-row items-center gap-2">
-                      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">TBD</Text>
+                      <Text className="font-inter text-xs text-ink-muted">TBD</Text>
                       <Switch
                         value={isTbd}
                         onValueChange={setIsTbd}
-                        trackColor={{ false: '#CBD5E1', true: COLORS.brand.orange }}
+                        trackColor={{ false: themeColor(isDark, 'line-strong'), true: themeColor(isDark, 'primary') }}
                       />
                     </View>
                   </View>
                   {!isTbd && (
                     <TextInput
                       placeholder="e.g. 09:00"
-                      placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                      placeholderTextColor={themeColor(isDark, 'ink-muted')}
                       value={startTime}
                       onChangeText={setStartTime}
-                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                      className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
                     />
                   )}
                   {!isTbd && timeHint && (
-                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{timeHint}</Text>
+                    <Text className="font-inter text-xs text-ink-muted">{timeHint}</Text>
                   )}
                 </View>
               </View>
@@ -936,17 +930,17 @@ export default function MatchForm({
         animationType="fade"
         onRequestClose={() => setIsCreatingSite(false)}
       >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl">
-            <Text className="font-orbitron-bold text-base text-slate-850 dark:text-white mb-4 uppercase tracking-wider">
+        <View className="flex-1 bg-overlay/60 justify-center px-6">
+          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl">
+            <Text className="font-orbitron-bold text-base text-ink mb-4 uppercase tracking-wider">
               Create Site
             </Text>
             <TextInput
               placeholder="e.g. West Fields"
-              placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               value={newSiteName}
               onChangeText={setNewSiteName}
-              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white mb-6"
+              className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink mb-6"
             />
             <View className="flex-row gap-3">
               <Button
@@ -994,33 +988,33 @@ export default function MatchForm({
         animationType="fade"
         onRequestClose={() => setIsCreatingTeam(false)}
       >
-        <View className="flex-1 bg-black/60 justify-center px-6">
-          <View className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-xl space-y-4">
-            <Text className="font-orbitron-bold text-base text-slate-850 dark:text-white uppercase tracking-wider">
+        <View className="flex-1 bg-overlay/60 justify-center px-6">
+          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl space-y-4">
+            <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
               Register Team
             </Text>
             <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Team Name</Text>
+              <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Team Name</Text>
               <TextInput
                 placeholder="e.g. 1st Team"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 value={newTeamName}
                 onChangeText={setNewTeamName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
             <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Short Code / Abbreviation</Text>
+              <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Short Code / Abbreviation</Text>
               <TextInput
                 placeholder="e.g. 1ST"
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 value={newTeamShortName}
                 onChangeText={setNewTeamShortName}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-850 dark:text-white"
+                className="bg-canvas border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink"
               />
             </View>
             <View className="space-y-1.5">
-              <Text className="font-orbitron text-[9px] text-slate-500 uppercase tracking-wider">Age Group</Text>
+              <Text className="font-orbitron text-[9px] text-ink-muted uppercase tracking-wider">Age Group</Text>
               <AgeGroupPicker
                 sportId={selectedSportId}
                 ageGroups={sports.find(s => s.id === selectedSportId)?.ageGroups}

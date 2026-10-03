@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 export interface SegmentedControlOption<T extends string = string> {
   key: T;
@@ -55,7 +56,7 @@ export function SegmentedControl<T extends string = string>({
   const showCounts = !fit || withCounts === null || room === null || room + 1 >= withCounts;
 
   const track = (counts: boolean, segmentClass: string, interactive: boolean) => (
-    <View className={`flex-row items-center bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200/80 dark:border-white/10 ${className}`}>
+    <View className={`flex-row items-center bg-sunken p-1 rounded-xl border border-line-soft ${className}`}>
       {options.map((item) => {
         const isActive = item.key === value;
         const iconName = (isActive && item.iconActive) ? item.iconActive : item.icon;
@@ -69,14 +70,14 @@ export function SegmentedControl<T extends string = string>({
               activeOpacity={0.8}
               className={`w-8 h-8 rounded-lg items-center justify-center ${
                 isActive
-                  ? 'bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-sm'
+                  ? 'bg-raised border border-primary-line shadow-sm'
                   : 'bg-transparent border border-transparent shadow-none'
               } ${item.disabled ? 'opacity-40' : ''}`}
             >
               <Ionicons
                 name={iconName}
                 size={14}
-                color={isActive ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+                color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
               />
             </TouchableOpacity>
           );
@@ -98,7 +99,7 @@ export function SegmentedControl<T extends string = string>({
             accessibilityLabel={item.count !== undefined ? `${item.label}, ${item.count}` : undefined}
             className={`${segmentClass} px-3 py-2 rounded-lg ${
               isActive
-                ? 'bg-white dark:bg-slate-800 border border-brand-orange/30 shadow-sm'
+                ? 'bg-raised border border-primary-line shadow-sm'
                 : 'bg-transparent border border-transparent shadow-none'
             } ${item.disabled ? 'opacity-40' : ''}`}
           >
@@ -107,13 +108,13 @@ export function SegmentedControl<T extends string = string>({
                 <Ionicons
                   name={iconName}
                   size={14}
-                  color={isActive ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+                  color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
                 />
               )}
               <Text
                 numberOfLines={1}
                 className={`font-inter-bold text-xs ${
-                  isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
+                  isActive ? 'text-primary-ink' : 'text-ink-muted'
                 }`}
               >
                 {label}

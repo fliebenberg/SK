@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useSegments } from 'expo-router';
 import { useActiveTheme } from '../store/settingsStore';
 import { useAuthStore } from '../store/authStore';
+import { themeColor } from '../constants/Colors';
+
 
 interface BottomMenuProps {
   onSettingsPress?: () => void;
@@ -58,21 +60,21 @@ export function BottomMenu({ onSettingsPress, confirmThenNavigate }: BottomMenuP
   };
 
   const getIconColor = (tabName: string) => {
-    if (activeTab === tabName) return '#FF3E00';
-    return isDark ? '#94A3B8' : '#64748B';
+    if (activeTab === tabName) return themeColor(isDark, 'primary');
+    return themeColor(isDark, 'ink-muted');
   };
 
   const getTextColor = (tabName: string) => {
-    if (activeTab === tabName) return '#FF3E00';
-    return isDark ? '#94A3B8' : '#64748B';
+    if (activeTab === tabName) return themeColor(isDark, 'primary-ink');
+    return themeColor(isDark, 'ink-muted');
   };
 
   return (
     <View 
       className="flex-row border-t h-[60px] pb-2 pt-2 items-center justify-around"
       style={{
-        backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-        borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+        backgroundColor: themeColor(isDark, 'card'),
+        borderTopColor: themeColor(isDark, 'line'),
       }}
     >
       <TouchableOpacity 

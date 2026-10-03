@@ -5,10 +5,12 @@ import { useGameTimer } from '../../../hooks/useGameTimer';
 import { sendAction } from '../../../services/actions';
 import { useAuthStore } from '../../../store/authStore';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../../constants/Colors';
+
 import { GameStatusIndicator } from './GameStatusIndicator';
 
 import { LiveClockText } from './LiveClockText';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 interface TimerPanelSlotProps {
   game: Game;
@@ -33,7 +35,7 @@ const ClockDisplay = memo(function ClockDisplay({
         clock={clock}
         startTime={startTime}
         finishTime={finishTime}
-        className="font-orbitron-bold text-base text-slate-800 dark:text-white"
+        className="font-orbitron-bold text-base text-ink"
       />
       <View className="mt-0.5">
         <GameStatusIndicator
@@ -47,6 +49,7 @@ const ClockDisplay = memo(function ClockDisplay({
 });
 
 export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
+  const isDark = useActiveTheme() === 'dark';
   const clock = game.liveState?.clock;
   const { isRunning, currentMS } = useGameTimer(clock, game.startTime, game.finishTime);
   const [isDebouncing, setIsDebouncing] = useState(false);
@@ -189,7 +192,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
 
   return (
     <>
-      <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-2 shadow-sm mb-1.5">
+      <View className="bg-card border border-line rounded-2xl p-2 shadow-sm mb-1.5">
         <View className="flex-row items-center justify-between gap-2">
           <View className="flex-row items-center gap-2 shrink-0">
             <ClockDisplay
@@ -209,10 +212,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   onPress={handlePrimaryStartTap}
                   accessibilityLabel="Start Game"
                   {...({ title: 'Start Game & Match Clock' } as any)}
-                  className="bg-emerald-600 active:scale-95 px-3 py-1.5 rounded-lg flex-row items-center justify-center gap-1 opacity-100 disabled:opacity-50"
+                  className="bg-success active:scale-95 px-3 py-1.5 rounded-lg flex-row items-center justify-center gap-1 opacity-100 disabled:opacity-50"
                 >
                   <Ionicons name="play" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-xs text-white uppercase">Start Game</Text>
+                  <Text className="font-orbitron-bold text-xs text-on-fill uppercase">Start Game</Text>
                 </TouchableOpacity>
               )}
 
@@ -224,10 +227,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       onPress={handlePrimaryStartTap}
                       accessibilityLabel="Pause Clock"
                       {...({ title: 'Pause Match Clock' } as any)}
-                      className={`bg-amber-500 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${!hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`}
+                      className={`bg-warning active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${!hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`}
                     >
                       <Ionicons name="pause" size={14} color="white" />
-                      <Text className={`font-orbitron-bold text-xs text-white uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Pause</Text>
+                      <Text className={`font-orbitron-bold text-xs text-on-fill uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Pause</Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
@@ -235,10 +238,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       onPress={handlePrimaryStartTap}
                       accessibilityLabel="Resume Clock"
                       {...({ title: 'Resume Match Clock' } as any)}
-                      className={`bg-emerald-600 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${!hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`}
+                      className={`bg-success active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 ${!hasPeriodElapsed ? 'px-3 py-1.5' : 'w-8 h-8'}`}
                     >
                       <Ionicons name="play" size={14} color="white" />
-                      <Text className={`font-orbitron-bold text-xs text-white uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Resume</Text>
+                      <Text className={`font-orbitron-bold text-xs text-on-fill uppercase ${!hasPeriodElapsed ? 'flex' : 'hidden'}`}>Resume</Text>
                     </TouchableOpacity>
                   )
                 ) : (
@@ -247,10 +250,10 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                     onPress={handlePrimaryStartTap}
                     accessibilityLabel="Start Next Period"
                     {...({ title: 'Start Next Period' } as any)}
-                    className="bg-emerald-600 active:scale-95 px-3 py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
+                    className="bg-success active:scale-95 px-3 py-1.5 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50"
                   >
                     <Ionicons name="play" size={14} color="white" />
-                    <Text className="font-orbitron-bold text-xs text-white uppercase">Start Period</Text>
+                    <Text className="font-orbitron-bold text-xs text-on-fill uppercase">Start Period</Text>
                   </TouchableOpacity>
                 )
               )}
@@ -264,16 +267,16 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   {...({ title: isLastPeriod && !isDraw ? 'Finalize Match & End Game' : 'End Current Period' } as any)}
                   className={
                     hasPeriodElapsed
-                      ? 'bg-rose-500/20 dark:bg-rose-500/30 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 border border-rose-500/50 disabled:opacity-50 px-3 py-1.5'
+                      ? 'bg-danger-soft active:scale-95 rounded-lg flex-row items-center justify-center gap-1 border border-danger-line disabled:opacity-50 px-3 py-1.5'
                       : isLastPeriod && !isDraw
-                      ? 'bg-rose-600 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 w-8 h-8'
-                      : 'bg-amber-600/20 dark:bg-amber-500/20 active:scale-95 rounded-lg flex-row items-center justify-center gap-1 border border-amber-500/40 disabled:opacity-50 w-8 h-8'
+                      ? 'bg-danger active:scale-95 rounded-lg flex-row items-center justify-center gap-1 disabled:opacity-50 w-8 h-8'
+                      : 'bg-warning-soft active:scale-95 rounded-lg flex-row items-center justify-center gap-1 border border-warning-line disabled:opacity-50 w-8 h-8'
                   }
                 >
                   <Ionicons
                     name={isLastPeriod && !isDraw ? 'square' : 'square-outline'}
                     size={14}
-                    color={hasPeriodElapsed ? COLORS.brand.red : isLastPeriod && !isDraw ? 'white' : COLORS.brand.orange}
+                    color={hasPeriodElapsed ? themeColor(isDark, 'danger') : isLastPeriod && !isDraw ? 'white' : themeColor(isDark, 'primary')}
                     style={hasPeriodElapsed ? { opacity: isBlinking ? 1 : 0.25 } : undefined}
                   />
                   <Text
@@ -281,12 +284,12 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                       hasPeriodElapsed
                         ? 'font-orbitron-bold text-xs uppercase flex'
                         : isLastPeriod && !isDraw
-                        ? 'font-orbitron-bold text-xs text-white uppercase hidden'
-                        : 'font-orbitron-bold text-xs text-brand-orange uppercase hidden'
+                        ? 'font-orbitron-bold text-xs text-on-fill uppercase hidden'
+                        : 'font-orbitron-bold text-xs text-primary-ink uppercase hidden'
                     }
                     style={
                       hasPeriodElapsed
-                        ? { color: COLORS.brand.red, opacity: isBlinking ? 1 : 0.25 }
+                        ? { color: themeColor(isDark, 'danger-ink'), opacity: isBlinking ? 1 : 0.25 }
                         : undefined
                     }
                   >
@@ -301,9 +304,9 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   onPress={() => setShowResetModal(true)}
                   accessibilityLabel="Reset Game Data"
                   {...({ title: 'Reset Game Data' } as any)}
-                  className="bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 active:scale-95 w-8 h-8 rounded-lg items-center justify-center"
+                  className="bg-warning-soft border border-warning-line active:scale-95 w-8 h-8 rounded-lg items-center justify-center"
                 >
-                  <Ionicons name="refresh-outline" size={14} color={COLORS.brand.orange} />
+                  <Ionicons name="refresh-outline" size={14} color={themeColor(isDark, 'primary')} />
                 </TouchableOpacity>
               )}
 
@@ -315,9 +318,9 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                   onPress={() => setShowCancelModal(true)}
                   accessibilityLabel="Cancel Game"
                   {...({ title: 'Cancel Game' } as any)}
-                  className="bg-rose-500/10 dark:bg-rose-500/20 border border-rose-500/30 active:scale-95 w-8 h-8 rounded-lg items-center justify-center"
+                  className="bg-danger-soft border border-danger-line active:scale-95 w-8 h-8 rounded-lg items-center justify-center"
                 >
-                  <Ionicons name="close-circle-outline" size={14} color={COLORS.brand.red} />
+                  <Ionicons name="close-circle-outline" size={14} color={themeColor(isDark, 'danger')} />
                 </TouchableOpacity>
               )}
             </View>
@@ -332,16 +335,16 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
         animationType="fade"
         onRequestClose={() => setShowCancelModal(false)}
       >
-        <View className="flex-1 bg-black/60 items-center justify-center p-4">
-          <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-5 w-full max-w-md shadow-xl">
+        <View className="flex-1 bg-overlay/60 items-center justify-center p-4">
+          <View className="bg-card border border-line rounded-2xl p-5 w-full max-w-md shadow-xl">
             <View className="flex-row items-center gap-2 mb-3">
-              <Ionicons name="alert-circle" size={24} color={COLORS.brand.red} />
-              <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+              <Ionicons name="alert-circle" size={24} color={themeColor(isDark, 'danger')} />
+              <Text className="font-orbitron-bold text-lg text-ink">
                 Cancel Game
               </Text>
             </View>
 
-            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+            <Text className="font-inter text-xs text-ink-muted mb-4 leading-relaxed">
               Are you sure you want to cancel this game? This will update the match status to Cancelled. Please enter a cancellation reason.
             </Text>
 
@@ -349,18 +352,18 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
               multiline
               numberOfLines={3}
               placeholder="Reason for cancellation (e.g. Inclement Weather, Forfeit...)"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               value={cancelReason}
               onChangeText={setCancelReason}
-              className="bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-900 dark:text-white mb-5 min-h-[80px] align-top font-inter"
+              className="bg-sunken border border-line-strong rounded-xl p-3 text-sm text-ink mb-5 min-h-[80px] align-top font-inter"
             />
 
             <View className="flex-row justify-end gap-3">
               <TouchableOpacity
                 onPress={() => setShowCancelModal(false)}
-                className="bg-slate-100 dark:bg-white/10 px-4 py-2.5 rounded-xl"
+                className="bg-sunken px-4 py-2.5 rounded-xl"
               >
-                <Text className="font-inter-semibold text-xs text-slate-700 dark:text-slate-300">
+                <Text className="font-inter-semibold text-xs text-ink-soft">
                   Keep Game
                 </Text>
               </TouchableOpacity>
@@ -370,11 +373,11 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
                 onPress={() => handleUpdateStatus('Cancelled', cancelReason)}
                 className={
                   cancelReason.trim()
-                    ? 'bg-rose-600 px-4 py-2.5 rounded-xl'
-                    : 'bg-slate-300 dark:bg-slate-700 px-4 py-2.5 rounded-xl opacity-50'
+                    ? 'bg-danger px-4 py-2.5 rounded-xl'
+                    : 'bg-line-strong px-4 py-2.5 rounded-xl opacity-50'
                 }
               >
-                <Text className="font-inter-bold text-xs text-white">
+                <Text className="font-inter-bold text-xs text-on-fill">
                   Confirm Cancellation
                 </Text>
               </TouchableOpacity>
@@ -390,34 +393,34 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
         animationType="fade"
         onRequestClose={() => setShowResetModal(false)}
       >
-        <View className="flex-1 bg-black/60 items-center justify-center p-4">
-          <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-5 w-full max-w-md shadow-xl">
+        <View className="flex-1 bg-overlay/60 items-center justify-center p-4">
+          <View className="bg-card border border-line rounded-2xl p-5 w-full max-w-md shadow-xl">
             <View className="flex-row items-center gap-2 mb-3">
-              <Ionicons name="refresh-circle" size={24} color={COLORS.brand.orange} />
-              <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+              <Ionicons name="refresh-circle" size={24} color={themeColor(isDark, 'primary')} />
+              <Text className="font-orbitron-bold text-lg text-ink">
                 Reset Game Data?
               </Text>
             </View>
 
-            <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 mb-5 leading-relaxed">
+            <Text className="font-inter text-xs text-ink-muted mb-5 leading-relaxed">
               ARE YOU ABSOLUTELY SURE? This will PERMANENTLY DELETE all scores, events, and timings for this game and reset it to scheduled status.
             </Text>
 
             <View className="flex-row justify-end gap-3">
               <TouchableOpacity
                 onPress={() => setShowResetModal(false)}
-                className="bg-slate-100 dark:bg-white/10 px-4 py-2.5 rounded-xl"
+                className="bg-sunken px-4 py-2.5 rounded-xl"
               >
-                <Text className="font-inter-semibold text-xs text-slate-700 dark:text-slate-300">
+                <Text className="font-inter-semibold text-xs text-ink-soft">
                   Keep Data
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={handleResetGame}
-                className="bg-rose-600 px-4 py-2.5 rounded-xl"
+                className="bg-danger px-4 py-2.5 rounded-xl"
               >
-                <Text className="font-inter-bold text-xs text-white font-inter-bold">
+                <Text className="font-inter-bold text-xs text-on-fill font-inter-bold">
                   Reset Everything
                 </Text>
               </TouchableOpacity>

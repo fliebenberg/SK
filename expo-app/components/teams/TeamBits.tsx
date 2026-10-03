@@ -33,7 +33,7 @@ export function TeamCrest({ team, org, size, inactive }: {
   const art = size - band;
   return (
     <View
-      className="rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900"
+      className="rounded-xl overflow-hidden border border-line bg-card"
       style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), opacity: inactive ? 0.5 : 1 }}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"

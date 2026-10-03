@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSharedDynamicScoring } from './DynamicScoringContext';
-import { COLORS } from '../../../constants/Colors';
+
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 interface TeamRosterPanelProps {
   gameId: string;
@@ -30,6 +32,7 @@ const PITCH_POSITIONS: Record<string, { top: string; left: string }> = {
 };
 
 export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPanelProps) {
+  const isDark = useActiveTheme() === 'dark';
   const { game, homeRoster, awayRoster, isLoadingRosters } = useSharedDynamicScoring();
   const [viewMode, setViewMode] = useState<'list' | 'pitch'>('list');
 
@@ -40,8 +43,8 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center py-10">
-        <ActivityIndicator size="small" color={COLORS.brand.orange} />
-        <Text className="font-orbitron text-xs text-slate-400 mt-2 uppercase tracking-widest">
+        <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
+        <Text className="font-orbitron text-xs text-ink-muted mt-2 uppercase tracking-widest">
           Loading Roster...
         </Text>
       </View>
@@ -51,7 +54,7 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
   if (roster.length === 0) {
     return (
       <View className="flex-1 items-center justify-center py-10">
-        <Text className="font-inter text-xs text-slate-400 italic">
+        <Text className="font-inter text-xs text-ink-muted italic">
           No players registered for this team.
         </Text>
       </View>
@@ -64,27 +67,27 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
   return (
     <View className="flex-1">
       {/* View Mode Toggle Header */}
-      <View className="flex-row items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-white/5">
-        <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+      <View className="flex-row items-center justify-between px-3 py-2 border-b border-line">
+        <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider">
           Match Roster ({roster.length})
         </Text>
-        <View className="flex-row bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-white/10">
+        <View className="flex-row bg-sunken rounded-lg p-0.5 border border-line">
           <TouchableOpacity
             onPress={() => setViewMode('list')}
             className={`flex-row items-center px-2.5 py-1 rounded-md gap-1 ${
-              viewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm' : 'shadow-none'
+              viewMode === 'list' ? 'bg-raised shadow-sm' : 'shadow-none'
             }`}
           >
             <Ionicons
               name="list"
               size={12}
-              color={viewMode === 'list' ? COLORS.brand.orange : '#94A3B8'}
+              color={themeColor(isDark, viewMode === 'list' ? 'primary' : 'ink-muted')}
             />
             <Text
               className={`font-orbitron-bold text-[10px] ${
                 viewMode === 'list'
-                  ? 'text-brand-orange'
-                  : 'text-slate-500 dark:text-slate-400'
+                  ? 'text-primary-ink'
+                  : 'text-ink-muted'
               }`}
             >
               List
@@ -93,19 +96,19 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
           <TouchableOpacity
             onPress={() => setViewMode('pitch')}
             className={`flex-row items-center px-2.5 py-1 rounded-md gap-1 ${
-              viewMode === 'pitch' ? 'bg-white dark:bg-slate-700 shadow-sm' : 'shadow-none'
+              viewMode === 'pitch' ? 'bg-raised shadow-sm' : 'shadow-none'
             }`}
           >
             <Ionicons
               name="football-outline"
               size={12}
-              color={viewMode === 'pitch' ? COLORS.brand.orange : '#94A3B8'}
+              color={themeColor(isDark, viewMode === 'pitch' ? 'primary' : 'ink-muted')}
             />
             <Text
               className={`font-orbitron-bold text-[10px] ${
                 viewMode === 'pitch'
-                  ? 'text-brand-orange'
-                  : 'text-slate-500 dark:text-slate-400'
+                  ? 'text-primary-ink'
+                  : 'text-ink-muted'
               }`}
             >
               Pitch
@@ -127,24 +130,24 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
                 <View
                   key={item.orgProfileId || item.id}
                   style={{ width: '48%' }}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl p-3 flex-row items-center gap-3 shadow-sm"
+                  className="bg-card border border-line rounded-xl p-3 flex-row items-center gap-3 shadow-sm"
                 >
-                  <View className="w-10 h-10 rounded-full bg-brand-orange/10 border border-brand-orange/20 items-center justify-center">
-                    <Text className="font-orbitron-bold text-xs text-brand-orange">
+                  <View className="w-10 h-10 rounded-full bg-primary-soft border border-primary-line items-center justify-center">
+                    <Text className="font-orbitron-bold text-xs text-primary-ink">
                       {item.jerseyNumber || item.position || '?'}
                     </Text>
                   </View>
                   <View className="flex-1 min-w-0">
-                    <Text className="font-inter-bold text-xs text-slate-800 dark:text-white" numberOfLines={1}>
+                    <Text className="font-inter-bold text-xs text-ink" numberOfLines={1}>
                       {firstName}
                     </Text>
-                    <Text className="font-inter text-[10px] text-slate-400" numberOfLines={1}>
+                    <Text className="font-inter text-[10px] text-ink-muted" numberOfLines={1}>
                       {lastName || 'Player'}
                     </Text>
                   </View>
                   {item.isReserve && (
-                    <View className="bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                      <Text className="font-orbitron-bold text-[8px] text-amber-500">RES</Text>
+                    <View className="bg-warning-soft px-1.5 py-0.5 rounded border border-warning-line">
+                      <Text className="font-orbitron-bold text-[8px] text-warning-ink">RES</Text>
                     </View>
                   )}
                 </View>
@@ -155,12 +158,12 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
           /* PITCH DIAGRAM VIEW */
           <View className="gap-4 pb-6">
             {/* Visual Field Layout */}
-            <View className="relative w-full h-[460px] bg-emerald-800/90 dark:bg-emerald-950 rounded-2xl border-2 border-emerald-600/40 overflow-hidden shadow-inner p-2">
+            <View className="relative w-full h-[460px] bg-success-soft rounded-2xl border-2 border-success-line overflow-hidden shadow-inner p-2">
               {/* Field Markings */}
-              <View className="absolute inset-x-0 top-1/2 border-b-2 border-emerald-400/30" />
-              <View className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border-2 border-emerald-400/20" />
-              <View className="absolute inset-x-8 top-0 h-14 border-b-2 border-x-2 border-emerald-400/20" />
-              <View className="absolute inset-x-8 bottom-0 h-14 border-t-2 border-x-2 border-emerald-400/20" />
+              <View className="absolute inset-x-0 top-1/2 border-b-2 border-success-line" />
+              <View className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border-2 border-success-line" />
+              <View className="absolute inset-x-8 top-0 h-14 border-b-2 border-x-2 border-success-line" />
+              <View className="absolute inset-x-8 bottom-0 h-14 border-t-2 border-x-2 border-success-line" />
 
               {/* Pitch Player Markers */}
               {startingLineup.map((player) => {
@@ -174,13 +177,13 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
                     style={{ top: coords.top as any, left: coords.left as any, transform: [{ translateX: -24 }, { translateY: -24 }] }}
                     className="absolute items-center z-10"
                   >
-                    <View className="w-10 h-10 rounded-full bg-brand-orange border-2 border-white items-center justify-center shadow-lg">
-                      <Text className="font-orbitron-bold text-xs text-white">
+                    <View className="w-10 h-10 rounded-full bg-primary border-2 border-card items-center justify-center shadow-lg">
+                      <Text className="font-orbitron-bold text-xs text-on-fill">
                         {player.jerseyNumber || player.position}
                       </Text>
                     </View>
-                    <View style={{ maxWidth: 70 }} className="bg-black/70 px-1.5 py-0.5 rounded mt-0.5">
-                      <Text className="font-inter-bold text-[9px] text-white text-center" numberOfLines={1}>
+                    <View style={{ maxWidth: 70 }} className="bg-overlay/70 px-1.5 py-0.5 rounded mt-0.5">
+                      <Text className="font-inter-bold text-[9px] text-on-fill text-center" numberOfLines={1}>
                         {nameParts[nameParts.length - 1]}
                       </Text>
                     </View>
@@ -192,7 +195,7 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
             {/* Reserves Section Below Pitch */}
             {reserves.length > 0 && (
               <View className="gap-2 mt-4">
-                <Text className="font-orbitron-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider px-1">
+                <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-wider px-1">
                   Reserves ({reserves.length})
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
@@ -201,14 +204,14 @@ export function TeamRosterPanel({ gameId, participantId, teamId }: TeamRosterPan
                     return (
                       <View
                         key={res.orgProfileId || res.id}
-                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 flex-row items-center gap-2"
+                        className="bg-card border border-line rounded-xl px-3 py-2 flex-row items-center gap-2"
                       >
-                        <View className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/20 items-center justify-center">
-                          <Text className="font-orbitron-bold text-[10px] text-amber-500">
+                        <View className="w-7 h-7 rounded-full bg-warning-soft border border-warning-line items-center justify-center">
+                          <Text className="font-orbitron-bold text-[10px] text-warning-ink">
                             {res.jerseyNumber || 'RES'}
                           </Text>
                         </View>
-                        <Text className="font-inter-bold text-xs text-slate-800 dark:text-white">
+                        <Text className="font-inter-bold text-xs text-ink">
                           {nameParts.join(' ')}
                         </Text>
                       </View>

@@ -57,13 +57,13 @@ export function FloatingSaveBar({
   if (!visible) return null;
 
   return (
-    <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+    <View className="absolute bottom-6 left-6 right-6 bg-card border border-line p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
       <View className="flex-1 mr-4">
-        <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+        <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-wider">
           {title}
         </Text>
         {!!description && (
-          <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+          <Text className="font-inter text-[9px] text-ink-muted mt-0.5">
             {description}
           </Text>
         )}
@@ -72,9 +72,9 @@ export function FloatingSaveBar({
         <TouchableOpacity
           onPress={onCancel}
           disabled={isProcessing}
-          className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+          className="bg-sunken px-4 py-2.5 rounded-xl active:scale-95 border border-line"
         >
-          <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">
+          <Text className="font-orbitron-bold text-[9px] text-ink-soft uppercase tracking-widest">
             {cancelLabel}
           </Text>
         </TouchableOpacity>
@@ -82,7 +82,7 @@ export function FloatingSaveBar({
           onPress={onSave}
           disabled={isProcessing || saveDisabled}
           className={`px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md ${
-            saveDisabled ? 'bg-brand-orange/40 shadow-none' : 'bg-brand-orange shadow-brand-orange/30'
+            saveDisabled ? 'bg-primary/40 shadow-none' : 'bg-primary shadow-primary/30'
           }`}
         >
           {isProcessing ? (
@@ -90,7 +90,7 @@ export function FloatingSaveBar({
           ) : (
             <>
               <Ionicons name="checkmark-circle" size={14} color="white" />
-              <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+              <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">
                 {saveLabel}
               </Text>
             </>

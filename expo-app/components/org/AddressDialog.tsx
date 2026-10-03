@@ -71,17 +71,17 @@ export function AddressDialog({ org, visible, onClose, onSaved }: {
       isDirty={isDirty}
       footerLeft={org.address && !removing ? (
         <TouchableOpacity onPress={() => setRemoving(true)} hitSlop={8} accessibilityRole="button" className="justify-center">
-          <Text className="font-inter-bold text-sm text-red-700 dark:text-red-400">Remove address</Text>
+          <Text className="font-inter-bold text-sm text-danger-ink">Remove address</Text>
         </TouchableOpacity>
       ) : null}
     >
       {removing ? (
         <View className="gap-2">
-          <Text className="font-inter text-sm text-slate-700 dark:text-slate-200">
+          <Text className="font-inter text-sm text-ink-soft">
             The address will be removed from the profile when you save.
           </Text>
           <TouchableOpacity onPress={() => setRemoving(false)} hitSlop={8} accessibilityRole="button">
-            <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">Keep the address</Text>
+            <Text className="font-inter-bold text-sm text-primary-ink">Keep the address</Text>
           </TouchableOpacity>
         </View>
       ) : (

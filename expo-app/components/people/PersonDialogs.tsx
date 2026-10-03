@@ -10,6 +10,8 @@ import { sendAction } from '../../services/actions';
 import { isCalendarDate } from '../../utils/dates';
 import { cellphoneProblem, formatCellphone, sameCellphone } from '../../utils/phone';
 
+import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 /**
  * The person page's Edit dialogs (docs/people.md). Each saves only its own card's fields, and only
  * the ones that changed; an emptied field is sent as `null`, which clears it. A failed save leaves
@@ -29,10 +31,11 @@ export function roleOptions(roles: OrgRole[]) {
 }
 
 const Problem = ({ text }: { text: string | null }) =>
-  text ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">{text}</Text> : null;
+  text ? <Text className="font-inter text-sm text-danger-ink">{text}</Text> : null;
 
 /** Name, role and org ID — the banner. */
 export function IdentityDialog({ member, roles, visible, onClose }: { member: OrgMember; roles: OrgRole[]; visible: boolean; onClose: () => void }) {
+  const isDark = useActiveTheme() === 'dark';
   const [name, setName] = useState('');
   const [roleId, setRoleId] = useState('');
   const [orgIdNumber, setOrgIdNumber] = useState('');
@@ -91,7 +94,7 @@ export function IdentityDialog({ member, roles, visible, onClose }: { member: Or
           value={orgIdNumber}
           onChangeText={setOrgIdNumber}
           placeholder="e.g. student number"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={themeColor(isDark, 'ink-muted')}
           accessibilityLabel="Org ID"
           className={TEXT_INPUT}
           style={{ maxWidth: 240 }}
@@ -103,6 +106,7 @@ export function IdentityDialog({ member, roles, visible, onClose }: { member: Or
 
 /** Email and cell number. */
 export function ContactDialog({ member, visible, onClose }: { member: OrgMember; visible: boolean; onClose: () => void }) {
+  const isDark = useActiveTheme() === 'dark';
   const [email, setEmail] = useState('');
   const [cellphone, setCellphone] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
@@ -145,7 +149,7 @@ export function ContactDialog({ member, visible, onClose }: { member: OrgMember;
           autoCapitalize="none"
           keyboardType="email-address"
           placeholder="name@example.com"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={themeColor(isDark, 'ink-muted')}
           accessibilityLabel="Email"
           className={TEXT_INPUT}
         />
@@ -157,7 +161,7 @@ export function ContactDialog({ member, visible, onClose }: { member: OrgMember;
           onChangeText={setCellphone}
           keyboardType="phone-pad"
           placeholder="e.g. 082 123 4567"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={themeColor(isDark, 'ink-muted')}
           accessibilityLabel="Cell number"
           className={TEXT_INPUT}
           style={{ maxWidth: 240 }}
@@ -170,6 +174,7 @@ export function ContactDialog({ member, visible, onClose }: { member: OrgMember;
 
 /** Birthdate and national ID. */
 export function PersonalDialog({ member, visible, onClose }: { member: OrgMember; visible: boolean; onClose: () => void }) {
+  const isDark = useActiveTheme() === 'dark';
   const [birthdate, setBirthdate] = useState('');
   const [nationalId, setNationalId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -210,7 +215,7 @@ export function PersonalDialog({ member, visible, onClose }: { member: OrgMember
       <View className="gap-1.5" style={{ maxWidth: 240 }}>
         <FieldLabel label="Birthdate" help="Decides whether they are a minor in this organisation, by its minor age in Settings." />
         <DatePicker value={birthdate} onChange={setBirthdate} placeholder="Birthdate" />
-        {birthdateIncomplete ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">Enter the full date, YYYY-MM-DD.</Text> : null}
+        {birthdateIncomplete ? <Text className="font-inter text-sm text-danger-ink">Enter the full date, YYYY-MM-DD.</Text> : null}
       </View>
       <View className="gap-1.5">
         <FieldLabel label="National ID" />
@@ -218,7 +223,7 @@ export function PersonalDialog({ member, visible, onClose }: { member: OrgMember
           value={nationalId}
           onChangeText={setNationalId}
           placeholder="ID or passport number"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={themeColor(isDark, 'ink-muted')}
           accessibilityLabel="National ID"
           className={TEXT_INPUT}
           style={{ maxWidth: 280 }}

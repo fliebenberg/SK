@@ -3,9 +3,11 @@ import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassCard } from '../../GlassCard';
 import { SegmentedControl } from '../../SegmentedControl';
-import { COLORS } from '../../../constants/Colors';
+
 import { Field, NumberField, SectionLabel, TextField, ToggleField } from './editorPrimitives';
 import { SportForm } from './sportForm';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 /**
  * The Settings tab: what the sport is called, what it calls its facility and periods, and the
@@ -20,10 +22,11 @@ interface SportSettingsTabProps {
 }
 
 export function SportSettingsTab({ form, setField, showCardSettings }: SportSettingsTabProps) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <View>
       <SectionLabel className="mb-3">Sport General Details</SectionLabel>
-      <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-4 mb-6">
+      <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
         <TextField
           label="Sport Name"
           value={form.name}
@@ -49,7 +52,7 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
       </GlassCard>
 
       <SectionLabel className="mb-3">System Rules & Configuration</SectionLabel>
-      <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-4 mb-6">
+      <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
         {/*
           These two describe the sport truthfully, but the app has not caught up with them yet:
           the multi-competitor screens have not been designed. Saying so on the control is the
@@ -57,9 +60,9 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
           like it took effect (`SPORT-10`). Each hint below names what reads it *today*, so the
           notice stops being a blanket disclaimer as consumers land.
         */}
-        <View className="flex-row items-start gap-2 rounded-lg border border-brand-orange/25 bg-brand-orange/5 p-3">
-          <Ionicons name="information-circle-outline" size={14} color={COLORS.brand.orange} />
-          <Text className="flex-1 font-inter text-[10px] leading-4 text-slate-700 dark:text-slate-300">
+        <View className="flex-row items-start gap-2 rounded-lg border border-primary-line bg-primary-soft p-3">
+          <Ionicons name="information-circle-outline" size={14} color={themeColor(isDark, 'primary')} />
+          <Text className="flex-1 font-inter text-[10px] leading-4 text-ink-soft">
             Set these to describe the sport correctly. Individual and multi-competitor formats are
             only partly built - fixture creation and the scoring screens still assume two sides -
             so each setting says below what already reads it.
@@ -113,7 +116,7 @@ export function SportSettingsTab({ form, setField, showCardSettings }: SportSett
             placeholder="e.g. 40"
           />
         </View>
-        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 -mt-2">
+        <Text className="font-inter text-[10px] text-ink-muted -mt-2">
           Defaults for a new fixture. A game or event may override either, and a game already under
           way keeps the clock it started with.
         </Text>

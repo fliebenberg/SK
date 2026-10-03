@@ -35,17 +35,18 @@ export function BrandColorsField({ primary, secondary, onChange, label = 'Brand 
         onPress={() => setOpen(open === key ? null : key)}
         accessibilityRole="button"
         accessibilityLabel={`Change the ${key} colour`}
-        className={`flex-1 flex-row items-center gap-2.5 rounded-xl border px-3 py-2.5 bg-slate-50 dark:bg-slate-950 ${
-          open === key ? 'border-brand-orange' : 'border-slate-200 dark:border-white/10'
+        className={`flex-1 flex-row items-center gap-2.5 rounded-xl border px-3 py-2.5 bg-field ${
+          open === key ? 'border-primary' : 'border-line'
         }`}
       >
-        <View className="w-6 h-6 rounded-md border border-slate-300 dark:border-white/20" style={{ backgroundColor: isHexColor(shown) ? shown : '#FFFFFF' }} />
+        {/* colour-data: an org colour's swatch, white until one is set */}
+        <View className="w-6 h-6 rounded-md border border-line-strong" style={{ backgroundColor: isHexColor(shown) ? shown : '#FFFFFF' }} />
         <View className="flex-1 min-w-0">
-          <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white">
+          <Text className="font-inter-semibold text-sm text-ink">
             {isSecondary ? 'Secondary' : 'Primary'}
-            {isSecondary ? <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">  Optional</Text> : null}
+            {isSecondary ? <Text className="font-inter text-[10px] text-ink-muted">  Optional</Text> : null}
           </Text>
-          <Text className="font-mono text-xs text-slate-500 dark:text-slate-400">{unset ? 'Same as primary' : value.toUpperCase()}</Text>
+          <Text className="font-mono text-xs text-ink-muted">{unset ? 'Same as primary' : value.toUpperCase()}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -67,7 +68,7 @@ export function BrandColorsField({ primary, secondary, onChange, label = 'Brand 
           />
           {open === 'secondary' && secondary ? (
             <TouchableOpacity onPress={() => onChange({ primary, secondary: '' })} hitSlop={8} accessibilityRole="button">
-              <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">Use the primary colour instead</Text>
+              <Text className="font-inter-bold text-sm text-primary-ink">Use the primary colour instead</Text>
             </TouchableOpacity>
           ) : null}
         </View>

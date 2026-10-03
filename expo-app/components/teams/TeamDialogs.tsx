@@ -11,8 +11,10 @@ import { AgeGroupPicker } from '../AgeGroupPicker';
 import { guardianshipOf } from '../people/PersonBits';
 import { useRequestScope } from '../../hooks/useRequestScope';
 import { requestKeyFor, sendAction } from '../../services/actions';
-import { COLORS } from '../../constants/Colors';
+
 import { PLAYER_ROLE } from './TeamBits';
+import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 
 export interface TeamRole {
   id: string;
@@ -45,6 +47,7 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
   /** After a new team is saved — the list opens it. */
   onAdded?: (team: Team) => void;
 }) {
+  const isDark = useActiveTheme() === 'dark';
   const [name, setName] = useState('');
   const [shortName, setShortName] = useState('');
   const [sportId, setSportId] = useState('');
@@ -135,7 +138,7 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
             value={name}
             onChangeText={setName}
             placeholder="e.g. Under 13 A, First XV"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
             accessibilityLabel="Name"
             className={TEXT_INPUT}
           />
@@ -146,7 +149,7 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
             value={shortName}
             onChangeText={setShortName}
             placeholder="e.g. U13A"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
             accessibilityLabel="Short name"
             autoCapitalize="characters"
             className={TEXT_INPUT}
@@ -175,12 +178,12 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
               placeholder="Choose a sport"
             />
           ) : (
-            <Text className="font-inter text-sm text-amber-900 dark:text-amber-300">
+            <Text className="font-inter text-sm text-warning-ink">
               This organisation plays no sports yet. Choose them in Settings first.
             </Text>
           )}
           {clearedAgeGroup ? (
-            <Text className="font-inter text-sm text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-400/10 rounded-lg px-3 py-2">
+            <Text className="font-inter text-sm text-warning-ink bg-warning-soft rounded-lg px-3 py-2">
               Age groups belong to a sport, so {clearedAgeGroup} was cleared. Choose {sport ? `a ${sport.name}` : 'an'} age group.
             </Text>
           ) : null}
@@ -199,16 +202,16 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
             orgId={orgId}
           />
         ) : (
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">Choose the sport first.</Text>
+          <Text className="font-inter text-sm text-ink-muted">Choose the sport first.</Text>
         )}
       </View>
 
       {!team ? (
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+        <Text className="font-inter text-xs text-ink-muted">
           Add players and staff from the team's page once it is created.
         </Text>
       ) : null}
-      {error ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">{error}</Text> : null}
+      {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
 }
@@ -240,6 +243,7 @@ export function AddPlayersDialog({ visible, onClose, teamId, members, playerProf
   guardiansByPlayer: Map<string, ProfileGuardian[]>;
   onAddNew: () => void;
 }) {
+  const isDark = useActiveTheme() === 'dark';
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<OrgMember[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -298,13 +302,13 @@ export function AddPlayersDialog({ visible, onClose, teamId, members, playerProf
       saveDisabled={count === 0}
       isSaving={isSaving}
       isDirty={count > 0}
-      footerLeft={count ? <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 self-center">{count} selected</Text> : undefined}
+      footerLeft={count ? <Text className="font-inter text-sm text-ink-muted self-center">{count} selected</Text> : undefined}
     >
       <TextInput
         value={query}
         onChangeText={setQuery}
         placeholder="Search by name or org ID"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={themeColor(isDark, 'ink-muted')}
         accessibilityLabel="Search the organisation's people"
         className={TEXT_INPUT}
       />
@@ -316,15 +320,15 @@ export function AddPlayersDialog({ visible, onClose, teamId, members, playerProf
               onPress={() => toggle(m)}
               accessibilityRole="button"
               accessibilityLabel={`Remove ${m.name} from the selection`}
-              className="flex-row items-center gap-1 rounded-full px-2.5 py-1 bg-orange-50 dark:bg-brand-orange/10"
+              className="flex-row items-center gap-1 rounded-full px-2.5 py-1 bg-primary-soft"
             >
-              <Text className="font-inter-semibold text-xs text-orange-900 dark:text-orange-300">{m.name}</Text>
-              <Ionicons name="close" size={12} color={COLORS.brand.orange} />
+              <Text className="font-inter-semibold text-xs text-primary-ink">{m.name}</Text>
+              <Ionicons name="close" size={12} color={themeColor(isDark, 'primary')} />
             </TouchableOpacity>
           ))}
         </View>
       ) : null}
-      <View className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
+      <View className="rounded-xl border border-line overflow-hidden">
         <ScrollView style={{ maxHeight: 320 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
           {matches.slice(0, PICK_LIMIT).map((m, i) => {
             const onTeam = playerProfileIds.has(m.id);
@@ -338,38 +342,38 @@ export function AddPlayersDialog({ visible, onClose, teamId, members, playerProf
                 disabled={onTeam}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on, disabled: onTeam }}
-                className={`flex-row items-center gap-3 px-3 py-2 ${i ? 'border-t border-slate-100 dark:border-white/5' : ''}`}
+                className={`flex-row items-center gap-3 px-3 py-2 ${i ? 'border-t border-line-soft' : ''}`}
               >
                 <View
                   className={`w-[18px] h-[18px] rounded-[5px] border items-center justify-center ${
-                    on ? 'bg-brand-orange border-brand-orange' : onTeam ? 'border-slate-200 dark:border-white/10' : 'border-slate-400 dark:border-slate-500'
+                    on ? 'bg-primary border-primary' : onTeam ? 'border-line' : 'border-ink-faint'
                   }`}
                 >
                   {on ? <Ionicons name="checkmark" size={13} color="white" /> : null}
                 </View>
                 <View className="flex-1 min-w-0">
-                  <Text className={`font-inter text-sm ${onTeam ? 'text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-white'}`} numberOfLines={1}>
+                  <Text className={`font-inter text-sm ${onTeam ? 'text-ink-muted' : 'text-ink'}`} numberOfLines={1}>
                     {m.name}
                   </Text>
-                  {sub ? <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{sub}</Text> : null}
+                  {sub ? <Text className="font-inter text-xs text-ink-muted">{sub}</Text> : null}
                 </View>
-                {onTeam ? <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">On this team</Text> : null}
+                {onTeam ? <Text className="font-inter text-xs text-ink-muted">On this team</Text> : null}
               </TouchableOpacity>
             );
           })}
           {matches.length === 0 ? (
-            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 px-3 py-4">Nobody in the organisation matches.</Text>
+            <Text className="font-inter text-sm text-ink-muted px-3 py-4">Nobody in the organisation matches.</Text>
           ) : matches.length > PICK_LIMIT ? (
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 px-3 py-2.5 border-t border-slate-100 dark:border-white/5">
+            <Text className="font-inter text-xs text-ink-muted px-3 py-2.5 border-t border-line-soft">
               {matches.length - PICK_LIMIT} more. Type a name to narrow the list.
             </Text>
           ) : null}
         </ScrollView>
       </View>
       <TouchableOpacity onPress={onAddNew} accessibilityRole="button" className="self-start">
-        <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">＋ Someone new to the organisation</Text>
+        <Text className="font-inter-bold text-sm text-primary-ink">＋ Someone new to the organisation</Text>
       </TouchableOpacity>
-      {error ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">{error}</Text> : null}
+      {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
 }
@@ -451,9 +455,9 @@ export function AddStaffDialog({ visible, onClose, teamId, members, staffProfile
         <CustomSelect value={roleId} onChange={setRoleId} options={staffRoleOptions(roles)} />
       </View>
       <TouchableOpacity onPress={() => onAddNew(roleId)} accessibilityRole="button" className="self-start">
-        <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">＋ Someone new to the organisation</Text>
+        <Text className="font-inter-bold text-sm text-primary-ink">＋ Someone new to the organisation</Text>
       </TouchableOpacity>
-      {error ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">{error}</Text> : null}
+      {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
 }
@@ -492,7 +496,7 @@ export function ChangeRoleDialog({ member, roles, onClose }: { member: TeamMembe
         <FieldLabel label="Role on this team" />
         <CustomSelect value={roleId} onChange={setRoleId} options={staffRoleOptions(roles)} />
       </View>
-      {error ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">{error}</Text> : null}
+      {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
 }

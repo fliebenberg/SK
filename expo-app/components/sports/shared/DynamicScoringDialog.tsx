@@ -19,7 +19,8 @@ import {
   getScreens,
 } from '@sk/shared';
 import { ConfirmationModal } from '../../ConfirmationModal';
-import { COLORS } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 interface OutcomeOption {
   id: string;
@@ -49,6 +50,7 @@ const isSeeded = (step: ActionStep, init: any): boolean => {
 };
 
 export function DynamicScoringDialog() {
+  const isDark = useActiveTheme() === 'dark';
   const { height: screenHeight } = useWindowDimensions();
   const maxScrollHeight = Math.max(screenHeight - 220, 160);
 
@@ -355,13 +357,13 @@ export function DynamicScoringDialog() {
         return (
           <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
             <View className="flex-row items-center justify-between flex-shrink-0">
-              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <Text className="font-inter-bold text-xs text-ink-soft uppercase tracking-wider">
                 Select Player {suffix(step)}:
               </Text>
 
               {/* SINGLE READ-ONLY TEAM BADGE */}
-              <View className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
-                <Text className="font-inter-bold text-[10px] text-brand-orange uppercase">
+              <View className="bg-sunken px-2 py-0.5 rounded-md border border-line">
+                <Text className="font-inter-bold text-[10px] text-primary-ink uppercase">
                   {teamName}
                 </Text>
               </View>
@@ -369,8 +371,8 @@ export function DynamicScoringDialog() {
 
             {isLoadingRoster ? (
               <View className="py-8 items-center justify-center">
-                <ActivityIndicator size="small" color={COLORS.brand.orange} />
-                <Text className="font-orbitron-bold text-xs text-slate-400 mt-2 uppercase tracking-wider">
+                <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
+                <Text className="font-orbitron-bold text-xs text-ink-muted mt-2 uppercase tracking-wider">
                   Loading Roster...
                 </Text>
               </View>
@@ -388,7 +390,7 @@ export function DynamicScoringDialog() {
           // is not decoration — it says whether the next screen holds ten options or one.
           return (
             <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
-              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
+              <Text className="font-inter-bold text-xs text-ink-soft uppercase tracking-wider flex-shrink-0">
                 Where did it happen? {suffix(step)}
               </Text>
 
@@ -405,13 +407,13 @@ export function DynamicScoringDialog() {
                         style={{ width: '31.5%' }}
                         className={`items-center justify-center py-4 rounded-xl border ${
                           holdsSelection
-                            ? 'bg-brand-orange border-brand-orange'
-                            : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                            ? 'bg-primary border-primary'
+                            : 'bg-sunken border-line'
                         }`}
                       >
                         <Text
                           className={`font-orbitron-bold text-[11px] uppercase text-center ${
-                            holdsSelection ? 'text-white' : 'text-slate-800 dark:text-white'
+                            holdsSelection ? 'text-on-fill' : 'text-ink'
                           }`}
                           numberOfLines={2}
                         >
@@ -419,7 +421,7 @@ export function DynamicScoringDialog() {
                         </Text>
                         <Text
                           className={`font-inter-bold text-[10px] mt-1 ${
-                            holdsSelection ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
+                            holdsSelection ? 'text-on-fill/80' : 'text-ink-muted'
                           }`}
                         >
                           {group.options.length}
@@ -443,12 +445,12 @@ export function DynamicScoringDialog() {
                   onPress={() => setOpenReasonGroup(undefined)}
                   className="flex-row items-center gap-1 py-1 pr-2"
                 >
-                  <Ionicons name="chevron-back" size={14} color={COLORS.brand.orange} />
-                  <Text className="font-inter-bold text-xs text-brand-orange uppercase tracking-wider">
+                  <Ionicons name="chevron-back" size={14} color={themeColor(isDark, 'primary')} />
+                  <Text className="font-inter-bold text-xs text-primary-ink uppercase tracking-wider">
                     All Phases
                   </Text>
                 </TouchableOpacity>
-                <Text className="font-orbitron-bold text-[11px] uppercase text-slate-700 dark:text-slate-300 tracking-widest">
+                <Text className="font-orbitron-bold text-[11px] uppercase text-ink-soft tracking-widest">
                   {openGroup.name}
                 </Text>
               </View>
@@ -463,13 +465,13 @@ export function DynamicScoringDialog() {
                         onPress={() => setSelectedReason(rOpt.id)}
                         className={`px-3 py-3 rounded-xl border ${
                           isSelected
-                            ? 'bg-brand-orange border-brand-orange'
-                            : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                            ? 'bg-primary border-primary'
+                            : 'bg-sunken border-line'
                         }`}
                       >
                         <Text
                           className={`font-inter-bold text-xs ${
-                            isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+                            isSelected ? 'text-on-fill' : 'text-ink'
                           }`}
                         >
                           {rOpt.name}
@@ -485,7 +487,7 @@ export function DynamicScoringDialog() {
 
         return (
           <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
-            <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
+            <Text className="font-inter-bold text-xs text-ink-soft uppercase tracking-wider flex-shrink-0">
               Select Reason {suffix(step)}:
             </Text>
 
@@ -493,8 +495,8 @@ export function DynamicScoringDialog() {
               <View className="gap-3">
                 {reasonGroups.map((group) => (
                   <View key={group.name} className="gap-1.5">
-                    <View className="pb-1 border-b border-slate-200 dark:border-white/10">
-                      <Text className="font-orbitron-bold text-[10px] uppercase text-brand-orange tracking-widest">
+                    <View className="pb-1 border-b border-line">
+                      <Text className="font-orbitron-bold text-[10px] uppercase text-primary-ink tracking-widest">
                         {group.name}
                       </Text>
                     </View>
@@ -507,13 +509,13 @@ export function DynamicScoringDialog() {
                             onPress={() => setSelectedReason(rOpt.id)}
                             className={`px-3 py-2 rounded-xl border ${
                               isSelected
-                                ? 'bg-brand-orange border-brand-orange'
-                                : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                                ? 'bg-primary border-primary'
+                                : 'bg-sunken border-line'
                             }`}
                           >
                             <Text
                               className={`font-inter-bold text-xs ${
-                                isSelected ? 'text-white' : 'text-slate-800 dark:text-white'
+                                isSelected ? 'text-on-fill' : 'text-ink'
                               }`}
                             >
                               {rOpt.name}
@@ -547,7 +549,7 @@ export function DynamicScoringDialog() {
       case ActionStepType.OUTCOME_SELECTION:
         return (
           <View className="gap-2 my-2" style={{ maxHeight: maxScrollHeight }}>
-            <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider flex-shrink-0">
+            <Text className="font-inter-bold text-xs text-ink-soft uppercase tracking-wider flex-shrink-0">
               {isNextActionStep ? 'Select Next Action' : 'Select Outcome'} {suffix(step)}:
             </Text>
 
@@ -565,27 +567,27 @@ export function DynamicScoringDialog() {
                       onPress={() => setSelectedOutcome(opt.id)}
                       className={`px-4 py-3 rounded-xl border flex-row items-center gap-2 ${
                         isSelected
-                          ? 'bg-brand-orange border-brand-orange'
+                          ? 'bg-primary border-primary'
                           : isSuccess
-                          ? 'bg-emerald-500/10 border-emerald-500/30'
+                          ? 'bg-success-soft border-success-line'
                           : isWarning
-                          ? 'bg-amber-500/10 border-amber-500/30'
+                          ? 'bg-warning-soft border-warning-line'
                           : isDanger
-                          ? 'bg-red-500/10 border-red-500/30'
-                          : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                          ? 'bg-danger-soft border-danger-line'
+                          : 'bg-sunken border-line'
                       }`}
                     >
                       <Text
                         className={`font-inter-bold text-xs ${
                           isSelected
-                            ? 'text-white'
+                            ? 'text-on-fill'
                             : isSuccess
-                            ? 'text-emerald-500'
+                            ? 'text-success-ink'
                             : isWarning
-                            ? 'text-amber-500'
+                            ? 'text-warning-ink'
                             : isDanger
-                            ? 'text-red-500'
-                            : 'text-slate-800 dark:text-white'
+                            ? 'text-danger-ink'
+                            : 'text-ink'
                         }`}
                       >
                         {opt.name}
@@ -606,25 +608,25 @@ export function DynamicScoringDialog() {
   return (
     <>
       <Modal visible={isVisible} transparent={true} animationType="fade" onRequestClose={cancelDynamicFlow}>
-        <View className="flex-1 bg-black/60 justify-center items-center px-3 py-4">
+        <View className="flex-1 bg-overlay/60 justify-center items-center px-3 py-4">
           <View
-            className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-white/10 shadow-lg flex-col justify-between"
+            className="w-full max-w-lg bg-card rounded-2xl p-4 sm:p-5 border border-line shadow-lg flex-col justify-between"
             style={{ maxHeight: Math.max(screenHeight - 32, 320) }}
           >
             {/* DIALOG HEADER & STEP NAVIGATION */}
             <View className="gap-2 flex-shrink-0">
-              <View className={`flex-row items-center justify-between ${totalSteps > 1 ? '' : 'pb-3 border-b border-slate-200 dark:border-white/10'}`}>
+              <View className={`flex-row items-center justify-between ${totalSteps > 1 ? '' : 'pb-3 border-b border-line'}`}>
                 <View>
-                  <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase">
+                  <Text className="font-orbitron-bold text-base text-ink uppercase">
                     {isEditing ? `Edit: ${template.name}` : template.name}
                   </Text>
 
-                  <Text className="font-inter text-xs text-brand-orange uppercase font-bold tracking-wider mt-0.5">
+                  <Text className="font-inter text-xs text-primary-ink uppercase font-bold tracking-wider mt-0.5">
                     {teamName}
                   </Text>
                 </View>
                 <TouchableOpacity onPress={cancelDynamicFlow} className="p-1">
-                  <Ionicons name="close" size={24} color="#94A3B8" />
+                  <Ionicons name="close" size={24} color={themeColor(isDark, 'ink-muted')} />
                 </TouchableOpacity>
               </View>
 
@@ -643,12 +645,12 @@ export function DynamicScoringDialog() {
 
             {/* NO STEPS REQUIRED (e.g. Penalty Try) */}
             {screens.length === 0 && (
-              <View className="py-6 px-4 items-center justify-center bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-white/10 my-3 gap-1">
-                <Ionicons name="flash-outline" size={32} color={COLORS.brand.orange} />
-                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider mt-1">
+              <View className="py-6 px-4 items-center justify-center bg-sunken rounded-xl border border-line my-3 gap-1">
+                <Ionicons name="flash-outline" size={32} color={themeColor(isDark, 'primary')} />
+                <Text className="font-orbitron-bold text-sm text-ink uppercase tracking-wider mt-1">
                   {template.name}
                 </Text>
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center">
+                <Text className="font-inter text-xs text-ink-muted text-center">
                   Awarded to {teamName}
                   {template.points ? ` (${template.points} Points)` : ''}. No further details are required.
                 </Text>
@@ -663,15 +665,15 @@ export function DynamicScoringDialog() {
             {/* WHY THE SAVE IS BLOCKED — named, so the scorer is not left hunting the screens */}
             {!canSave && (
               <View className="flex-row items-center gap-1.5 pt-2 flex-shrink-0">
-                <Ionicons name="alert-circle-outline" size={14} color={COLORS.brand.orange} />
-                <Text className="font-inter text-xs text-brand-orange flex-1">
+                <Ionicons name="alert-circle-outline" size={14} color={themeColor(isDark, 'primary')} />
+                <Text className="font-inter text-xs text-primary-ink flex-1">
                   Required: {unansweredRequired.map(stepLabel).join(', ')}
                 </Text>
               </View>
             )}
 
             {/* DIALOG ACTION FOOTER */}
-            <View className="flex-row gap-2 pt-3 border-t border-slate-200 dark:border-white/10 flex-shrink-0 mt-auto">
+            <View className="flex-row gap-2 pt-3 border-t border-line flex-shrink-0 mt-auto">
               <Button title="Cancel" variant="ghost" onPress={cancelDynamicFlow} className="flex-1 py-2.5 rounded-xl" />
 
               {isEditing ? (

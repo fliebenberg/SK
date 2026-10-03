@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/Colors';
+
 import { Button } from './Button';
+import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 
 interface AccessDeniedProps {
   title?: string;
@@ -21,24 +23,27 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
   message,
   actionLabel,
   onAction,
-}) => (
-  <View className="flex-1 items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
-    <View className="w-full max-w-sm items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl p-6">
-      <View className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-950/30 items-center justify-center mb-4">
-        <Ionicons name="lock-closed" size={22} color={COLORS.brand.red} />
+}) => {
+  const isDark = useActiveTheme() === 'dark';
+  return (
+    <View className="flex-1 items-center justify-center bg-canvas p-6">
+      <View className="w-full max-w-sm items-center bg-card border border-line rounded-2xl p-6">
+        <View className="w-12 h-12 rounded-full bg-danger-soft items-center justify-center mb-4">
+          <Ionicons name="lock-closed" size={22} color={themeColor(isDark, 'danger')} />
+        </View>
+
+        <Text className="font-orbitron-bold text-sm text-ink uppercase tracking-widest text-center mb-2">
+          {title}
+        </Text>
+
+        <Text className="font-inter text-xs text-ink-muted leading-relaxed text-center">
+          {message}
+        </Text>
+
+        {actionLabel && onAction ? (
+          <Button title={actionLabel} variant="ghost" onPress={onAction} className="mt-5 w-full" />
+        ) : null}
       </View>
-
-      <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-widest text-center mb-2">
-        {title}
-      </Text>
-
-      <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-relaxed text-center">
-        {message}
-      </Text>
-
-      {actionLabel && onAction ? (
-        <Button title={actionLabel} variant="ghost" onPress={onAction} className="mt-5 w-full" />
-      ) : null}
     </View>
-  </View>
-);
+  );
+};

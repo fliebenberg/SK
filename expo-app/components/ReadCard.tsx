@@ -2,7 +2,8 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FieldLabel } from './FieldLabel';
-import { COLORS } from '../constants/Colors';
+import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 
 /**
  * One card of a read-first page: a label, the values as text, and an Edit link that opens the
@@ -31,8 +32,8 @@ export function ReadCard({ label, help, onEdit, editLabel = 'Edit', editIcon = '
     <View
       className={`rounded-2xl border p-4 gap-2.5 ${
         attention
-          ? 'bg-amber-50 dark:bg-amber-400/5 border-amber-200 dark:border-amber-300/25'
-          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'
+          ? 'bg-warning-soft border-warning-line'
+          : 'bg-card border-line'
       }`}
     >
       <View className="flex-row items-start justify-between gap-3">
@@ -47,6 +48,7 @@ export function ReadCard({ label, help, onEdit, editLabel = 'Edit', editIcon = '
 }
 
 export function EditLink({ label = 'Edit', onPress, icon = 'pencil' }: { label?: string; onPress: () => void; icon?: keyof typeof Ionicons.glyphMap | null }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -54,8 +56,8 @@ export function EditLink({ label = 'Edit', onPress, icon = 'pencil' }: { label?:
       accessibilityRole="button"
       className="flex-row items-center gap-1"
     >
-      {icon ? <Ionicons name={icon} size={13} color={COLORS.brand.orange} /> : null}
-      <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">{label}</Text>
+      {icon ? <Ionicons name={icon} size={13} color={themeColor(isDark, 'primary')} /> : null}
+      <Text className="font-inter-bold text-sm text-primary-ink">{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -63,12 +65,12 @@ export function EditLink({ label = 'Edit', onPress, icon = 'pencil' }: { label?:
 /** What an empty card says: what is missing, and the one action that fills it. */
 export function ReadCardEmpty({ text, action, onPress }: { text: string; action?: string; onPress?: () => void }) {
   return (
-    <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+    <Text className="font-inter text-sm text-ink-muted">
       {text}
       {action && onPress ? (
         <>
           {' '}
-          <Text onPress={onPress} accessibilityRole="button" className="font-inter-bold text-orange-700 dark:text-brand-orange">
+          <Text onPress={onPress} accessibilityRole="button" className="font-inter-bold text-primary-ink">
             {action}
           </Text>
         </>

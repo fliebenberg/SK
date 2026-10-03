@@ -6,6 +6,8 @@ import { sendAction } from '../../services/actions';
 import { formatInstant } from '../../utils/dates';
 import { ReadCard } from '../ReadCard';
 import { SegmentedControl } from '../SegmentedControl';
+import { themeColor } from '../../constants/Colors';
+import { useActiveTheme } from '../../store/settingsStore';
 
 interface MinorAccessCardProps {
   player: {
@@ -41,6 +43,7 @@ const fromChoice = (choice: Choice): boolean | null => (choice === 'allowed' ? t
  * choice saves the moment it is picked, like a switch.
  */
 export function MinorAccessCard({ player, settings, guardians, isOrgAdmin, nameOfProfile }: MinorAccessCardProps) {
+  const isDark = useActiveTheme() === 'dark';
   const [isSaving, setIsSaving] = useState(false);
   const hasGuardian = guardians.length > 0;
   if (!isMinorIn(player.birthdate, settings, hasGuardian)) return null;
@@ -94,12 +97,12 @@ export function MinorAccessCard({ player, settings, guardians, isOrgAdmin, nameO
       help="Whether they get a member’s view of this organisation when they sign in. Without it they can still sign in and coach or score what they are appointed to."
     >
       <View className="flex-row items-start gap-3">
-        <View className={`w-8 h-8 rounded-lg items-center justify-center ${allowed ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
-          <Ionicons name={allowed ? 'lock-open-outline' : 'lock-closed-outline'} size={16} color={allowed ? '#059669' : '#D97706'} />
+        <View className={`w-8 h-8 rounded-lg items-center justify-center ${allowed ? 'bg-success-soft' : 'bg-warning-soft'}`}>
+          <Ionicons name={allowed ? 'lock-open-outline' : 'lock-closed-outline'} size={16} color={themeColor(isDark, allowed ? 'success-ink' : 'warning-ink')} />
         </View>
         <View className="flex-1 min-w-0">
-          <Text className="font-inter text-sm text-slate-800 dark:text-white">{status}</Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{explanation}</Text>
+          <Text className="font-inter text-sm text-ink">{status}</Text>
+          <Text className="font-inter text-xs text-ink-muted mt-0.5">{explanation}</Text>
         </View>
       </View>
       {canSet ? (

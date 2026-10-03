@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
+
 import { wsService } from '../services/websocket';
+import { themeColor } from '../constants/Colors';
 
 /**
  * Choosing a person, by looking rather than only by remembering.
@@ -92,7 +93,7 @@ export function PersonPickerModal({
   divisionId,
 }: PersonPickerModalProps) {
   const isDark = useActiveTheme() === 'dark';
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
 
   const [scope, setScope] = useState<ScopeKey>('org');
   const [term, setTerm] = useState('');
@@ -193,13 +194,13 @@ export function PersonPickerModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} className="flex-1 bg-black/60 items-center justify-center px-6">
+      <Pressable onPress={onClose} className="flex-1 bg-overlay/60 items-center justify-center px-6">
         <Pressable
           onPress={() => {}}
-          className="w-full max-w-md rounded-2xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10"
+          className="w-full max-w-md rounded-2xl overflow-hidden bg-card border border-line"
         >
-          <View className="px-5 pt-4 pb-3 flex-row items-center justify-between border-b border-slate-100 dark:border-white/5">
-            <Text className="font-orbitron-bold text-[11px] uppercase tracking-widest text-slate-700 dark:text-slate-200">
+          <View className="px-5 pt-4 pb-3 flex-row items-center justify-between border-b border-line-soft">
+            <Text className="font-orbitron-bold text-[11px] uppercase tracking-widest text-ink-soft">
               {title}
             </Text>
             <TouchableOpacity onPress={onClose} accessibilityLabel="Close" hitSlop={8}>
@@ -208,21 +209,21 @@ export function PersonPickerModal({
           </View>
 
           <View className="px-5 pt-4 gap-3">
-            <View className="flex-row items-center gap-3 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-100/40 dark:bg-white/5 px-4 py-2.5">
+            <View className="flex-row items-center gap-3 rounded-xl border border-line bg-sunken px-4 py-2.5">
               <Ionicons name="search-outline" size={16} color={secondary} />
               <TextInput
                 value={term}
                 onChangeText={setTerm}
                 autoFocus
                 placeholder={scope === 'org' ? 'Filter by name...' : 'Search by name...'}
-                placeholderTextColor={getThemeColor(isDark, 'placeholder')}
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
                 /* Keeps Chrome's saved-addresses popup off our results. */
                 autoComplete="off"
                 autoCorrect={false}
                 spellCheck={false}
-                className="flex-1 font-inter text-sm text-slate-800 dark:text-white"
+                className="flex-1 font-inter text-sm text-ink"
               />
-              {isLoading && <ActivityIndicator size="small" color={COLORS.brand.orange} />}
+              {isLoading && <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />}
             </View>
 
             {/* Where to look. The host organisation is a list; the wider two are searches, which is
@@ -238,14 +239,14 @@ export function PersonPickerModal({
                     accessibilityRole="button"
                     className={`px-3 py-1.5 rounded-lg border ${
                       isActive
-                        ? 'bg-brand-orange/10 dark:bg-brand-orange/20 border-brand-orange/40'
-                        : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10'
+                        ? 'bg-primary-soft border-primary-line'
+                        : 'bg-sunken border-line'
                     }`}
                   >
                     <Text
                       numberOfLines={1}
                       className={`font-inter-bold text-[10px] uppercase tracking-wider ${
-                        isActive ? 'text-brand-orange' : 'text-slate-500 dark:text-slate-400'
+                        isActive ? 'text-primary-ink' : 'text-ink-muted'
                       }`}
                     >
                       {option.label}
@@ -258,17 +259,17 @@ export function PersonPickerModal({
 
           <ScrollView className="px-5 py-3" style={{ maxHeight: 320 }}>
             {needsQuery ? (
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 py-6 text-center">
+              <Text className="font-inter text-xs text-ink-muted py-6 text-center">
                 Type at least two letters to search
                 {scope === 'global' ? ' every organisation' : ' the organisations taking part'}.
               </Text>
             ) : people.length === 0 ? (
               <View className="py-6 gap-2">
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center">
+                <Text className="font-inter text-xs text-ink-muted text-center">
                   {isLoading ? 'Looking…' : 'Nobody found.'}
                 </Text>
                 {!isLoading && scope === 'org' && (
-                  <Text className="font-inter text-[11px] text-slate-400 dark:text-slate-500 text-center leading-relaxed">
+                  <Text className="font-inter text-[11px] text-ink-muted text-center leading-relaxed">
                     An organiser has to exist as a person first. Add them under People &amp; Roles,
                     then come back here.
                   </Text>
@@ -290,40 +291,40 @@ export function PersonPickerModal({
                       className={`flex-row items-center gap-3 rounded-xl px-3 py-2.5 border ${
                         taken
                           ? 'border-transparent opacity-60'
-                          : 'border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-white/5'
+                          : 'border-line bg-sunken'
                       }`}
                     >
-                      <View className="w-8 h-8 rounded-full bg-brand-orange/10 items-center justify-center">
-                        <Text className="font-orbitron-bold text-[11px] text-brand-orange">
+                      <View className="w-8 h-8 rounded-full bg-primary-soft items-center justify-center">
+                        <Text className="font-orbitron-bold text-[11px] text-primary-ink">
                           {(person.name || '?').charAt(0).toUpperCase()}
                         </Text>
                       </View>
                       <View className="flex-1 min-w-0">
                         <Text
                           numberOfLines={1}
-                          className="font-inter-bold text-xs text-slate-800 dark:text-white"
+                          className="font-inter-bold text-xs text-ink"
                         >
                           {person.name}
                         </Text>
                         {!!(person.roleName || person.orgName) && (
                           <Text
                             numberOfLines={1}
-                            className="font-inter text-[10px] text-slate-500 dark:text-slate-400"
+                            className="font-inter text-[10px] text-ink-muted"
                           >
                             {person.roleName || person.orgName}
                           </Text>
                         )}
                       </View>
                       {isBusy ? (
-                        <ActivityIndicator size="small" color={COLORS.brand.orange} />
+                        <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
                       ) : taken ? (
                         <Ionicons
                           name="checkmark"
                           size={16}
-                          color={getThemeColor(isDark, 'success')}
+                          color={themeColor(isDark, 'success-ink')}
                         />
                       ) : (
-                        <Ionicons name="add" size={18} color={COLORS.brand.orange} />
+                        <Ionicons name="add" size={18} color={themeColor(isDark, 'primary')} />
                       )}
                     </TouchableOpacity>
                   );

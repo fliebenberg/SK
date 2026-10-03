@@ -2,8 +2,9 @@ import React from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
-import { getThemeColor } from '../../constants/Colors';
+
 import { SetupStepRoute } from './setupSteps';
+import { themeColor } from '../../constants/Colors';
 
 /**
  * The bottom of a setup step screen: where you go when you are done with this one (U48).
@@ -49,7 +50,7 @@ export function SetupStepFooter({
   onDismiss,
 }: SetupStepFooterProps) {
   const isDark = useActiveTheme() === 'dark';
-  const secondary = getThemeColor(isDark, 'textSecondary');
+  const secondary = themeColor(isDark, 'ink-muted');
 
   return (
     <View className="pt-2 gap-4">
@@ -57,22 +58,22 @@ export function SetupStepFooter({
         onPress={onNext}
         disabled={nextDisabled || isProcessing}
         activeOpacity={0.85}
-        className={`min-h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-4 py-3 bg-brand-orange ${
+        className={`min-h-[44px] flex-row items-center justify-center gap-2 rounded-xl px-4 py-3 bg-primary ${
           nextDisabled || isProcessing ? 'opacity-50' : ''
         }`}
       >
         {isProcessing ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color={themeColor(isDark, 'on-fill')} />
         ) : (
           <>
-            <Text className="font-inter-bold text-sm text-white text-center">
+            <Text className="font-inter-bold text-sm text-on-fill text-center">
               {nextStep
                 ? `${isDirty ? 'Save & continue to' : 'Next:'} ${nextStep.label}`
                 : isDirty
                 ? 'Save & back to checklist'
                 : 'Back to checklist'}
             </Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={16} color={themeColor(isDark, 'on-fill')} />
           </>
         )}
       </TouchableOpacity>
@@ -84,7 +85,7 @@ export function SetupStepFooter({
           className="flex-row items-center justify-center gap-1 py-1"
         >
           <Ionicons name="list-outline" size={14} color={secondary} />
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-xs text-ink-muted">
             Back to the checklist
           </Text>
         </TouchableOpacity>
@@ -102,7 +103,7 @@ export function SetupStepFooter({
           className="flex-row items-center justify-center gap-1 py-1"
         >
           <Ionicons name="close" size={12} color={secondary} />
-          <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500">
+          <Text className="font-inter text-[10px] text-ink-muted">
             This doesn't apply to this tournament
           </Text>
         </TouchableOpacity>

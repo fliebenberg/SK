@@ -2,9 +2,10 @@ import React, { useEffect, useRef } from 'react';
 import { Platform, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme, useSettingsStore } from '../../store/settingsStore';
-import { getThemeColor } from '../../constants/Colors';
+
 import { loadGoogleMaps } from '../../services/places';
 import { markerSvgUrl } from './markerSvg';
+import { themeColor } from '../../constants/Colors';
 
 // react-native-maps has no web build; requiring it there breaks the bundle.
 let MapView: any = null;
@@ -77,9 +78,9 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
 
   if (!MapView || !Marker) {
     return (
-      <View style={{ height }} className="rounded-xl items-center justify-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/5">
-        <Ionicons name="map-outline" size={24} color={getThemeColor(isDark, 'textSecondary')} />
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-1">The map is not available here.</Text>
+      <View style={{ height }} className="rounded-xl items-center justify-center bg-sunken border border-line">
+        <Ionicons name="map-outline" size={24} color={themeColor(isDark, 'ink-muted')} />
+        <Text className="font-inter text-xs text-ink-muted mt-1">The map is not available here.</Text>
       </View>
     );
   }
@@ -114,7 +115,7 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
           >
             <View
               style={{
-                backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                backgroundColor: themeColor(isDark, 'popover'),
                 padding: 6,
                 borderRadius: 20,
                 borderWidth: 1.5,
@@ -134,10 +135,10 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
           onPress={() => setMapType(mapType === 'satellite' ? 'standard' : 'satellite')}
           accessibilityRole="button"
           style={{ position: 'absolute', top: 8, right: 8 }}
-          className="flex-row items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 px-2.5 py-1.5 rounded-lg"
+          className="flex-row items-center gap-1.5 bg-card border border-line px-2.5 py-1.5 rounded-lg"
         >
-          <Ionicons name={mapType === 'satellite' ? 'map' : 'earth'} size={12} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300">{mapType === 'satellite' ? 'Map' : 'Satellite'}</Text>
+          <Ionicons name={mapType === 'satellite' ? 'map' : 'earth'} size={12} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-soft">{mapType === 'satellite' ? 'Map' : 'Satellite'}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -235,7 +236,7 @@ function WebMap({
   }, [markers, isDark]);
 
   return (
-    <View style={{ height, borderRadius: 12, overflow: 'hidden' }} className="bg-slate-100 dark:bg-slate-900">
+    <View style={{ height, borderRadius: 12, overflow: 'hidden' }} className="bg-sunken">
       {React.createElement('div', { ref: containerRef, style: { width: '100%', height: '100%' } })}
     </View>
   );

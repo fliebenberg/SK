@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
-import { getThemeColor } from '../../constants/Colors';
+
 import { FieldLabel } from '../FieldLabel';
 import { TEXT_INPUT } from '../formStyles';
 import { AddressMap, MapMarker } from './AddressMap';
 import { AddressDraft, PlaceSuggestion, PlacesSession, composeFullAddress, hasPin } from '../../services/places';
+import { themeColor } from '../../constants/Colors';
 
 /**
  * The app's one way to enter an address (design_system.md, *Same data, same input*).
@@ -108,37 +109,37 @@ export function AddressInput({ value, onChange, pinTitle, pinHelp = DEFAULT_PIN_
       <View className="gap-2">
         <FieldLabel label="Address" />
         <View className={`flex-row items-center gap-2 ${INPUT}`}>
-          <Ionicons name="search" size={16} color={getThemeColor(isDark, 'textSecondary')} />
+          <Ionicons name="search" size={16} color={themeColor(isDark, 'ink-muted')} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder="Start typing the address"
-            placeholderTextColor={getThemeColor(isDark, 'textSecondary')}
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
             autoFocus
             autoCorrect={false}
-            className="flex-1 font-inter text-base text-slate-800 dark:text-white outline-none"
+            className="flex-1 font-inter text-base text-ink outline-none"
             accessibilityLabel="Search for the address"
           />
-          {isSearching ? <ActivityIndicator size="small" color={getThemeColor(isDark, 'textSecondary')} /> : null}
+          {isSearching ? <ActivityIndicator size="small" color={themeColor(isDark, 'ink-muted')} /> : null}
         </View>
 
         {suggestions.length > 0 ? (
-          <View className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
+          <View className="rounded-xl border border-line overflow-hidden">
             {suggestions.map((s, i) => (
               <TouchableOpacity
                 key={s.placeId}
                 onPress={() => pick(s)}
                 accessibilityRole="button"
-                className={`px-3 py-2.5 bg-white dark:bg-slate-900 ${i > 0 ? 'border-t border-slate-200 dark:border-white/5' : ''}`}
+                className={`px-3 py-2.5 bg-card ${i > 0 ? 'border-t border-line' : ''}`}
               >
-                <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white">{s.main}</Text>
-                {s.secondary ? <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{s.secondary}</Text> : null}
+                <Text className="font-inter-semibold text-sm text-ink">{s.main}</Text>
+                {s.secondary ? <Text className="font-inter text-xs text-ink-muted">{s.secondary}</Text> : null}
               </TouchableOpacity>
             ))}
           </View>
         ) : null}
 
-        {searchError ? <Text className="font-inter text-xs text-amber-800 dark:text-amber-300">{searchError}</Text> : null}
+        {searchError ? <Text className="font-inter text-xs text-warning-ink">{searchError}</Text> : null}
 
         <View className="flex-row flex-wrap gap-x-4 gap-y-1">
           <LinkText label="Can't find it? Enter it yourself" onPress={startManual} />
@@ -179,8 +180,8 @@ export function AddressInput({ value, onChange, pinTitle, pinHelp = DEFAULT_PIN_
     <View className="gap-3">
       <View className="gap-1.5">
         <FieldLabel label="Address" />
-        <View className="flex-row items-start gap-2.5 rounded-xl bg-slate-100 dark:bg-white/5 px-3 py-2.5">
-          <Ionicons name="location-outline" size={16} color={getThemeColor(isDark, 'textSecondary')} style={{ marginTop: 2 }} />
+        <View className="flex-row items-start gap-2.5 rounded-xl bg-sunken px-3 py-2.5">
+          <Ionicons name="location-outline" size={16} color={themeColor(isDark, 'ink-muted')} style={{ marginTop: 2 }} />
           <View className="flex-1 min-w-0">
             <AddressLines address={value} />
           </View>
@@ -210,9 +211,9 @@ export function AddressLines({ address, muted = false }: { address: Partial<Addr
   return (
     <View>
       {lines.map((line, i) => (
-        <Text key={i} className={`font-inter text-sm ${muted ? 'text-slate-600 dark:text-slate-300' : 'text-slate-800 dark:text-white'}`}>{line}</Text>
+        <Text key={i} className={`font-inter text-sm ${muted ? 'text-ink-soft' : 'text-ink'}`}>{line}</Text>
       ))}
-      {townLine ? <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">{townLine}</Text> : null}
+      {townLine ? <Text className="font-inter text-sm text-ink-muted">{townLine}</Text> : null}
     </View>
   );
 }
@@ -222,7 +223,7 @@ function Field({ label, value, onChange, optional, autoFocus, placeholder }: { l
   return (
     <View className="gap-1.5">
       <FieldLabel label={label} optional={optional} />
-      <TextInput value={value || ''} onChangeText={onChange} autoFocus={autoFocus} placeholder={placeholder} placeholderTextColor={getThemeColor(isDark, 'textSecondary')} className={INPUT} accessibilityLabel={label} />
+      <TextInput value={value || ''} onChangeText={onChange} autoFocus={autoFocus} placeholder={placeholder} placeholderTextColor={themeColor(isDark, 'ink-muted')} className={INPUT} accessibilityLabel={label} />
     </View>
   );
 }
@@ -230,7 +231,7 @@ function Field({ label, value, onChange, optional, autoFocus, placeholder }: { l
 function LinkText({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <TouchableOpacity onPress={onPress} hitSlop={8} accessibilityRole="button">
-      <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">{label}</Text>
+      <Text className="font-inter-bold text-sm text-primary-ink">{label}</Text>
     </TouchableOpacity>
   );
 }

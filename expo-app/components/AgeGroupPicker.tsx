@@ -5,6 +5,8 @@ import { AgeGroup, SocketAction, ageGroupNameKey, sortAgeGroups } from '@sk/shar
 import { sendAction } from '../services/actions';
 import CustomSelect from './CustomSelect';
 
+import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 /**
  * Chooses an age group from a sport's list — the one control every screen that gives a team,
  * division or league an age group uses.
@@ -46,12 +48,12 @@ const ADD_NEW = '__add_new__';
 const chipClass = (isSelected: boolean) =>
   `px-3.5 py-2 rounded-xl border ${
     isSelected
-      ? 'bg-brand-orange border-brand-orange'
-      : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-white/5'
+      ? 'bg-primary border-primary'
+      : 'bg-canvas border-line'
   }`;
 
 const chipTextClass = (isSelected: boolean) =>
-  `font-inter-bold text-xs ${isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`;
+  `font-inter-bold text-xs ${isSelected ? 'text-on-fill' : 'text-ink-soft'}`;
 
 export function AgeGroupPicker({
   sportId,
@@ -63,6 +65,7 @@ export function AgeGroupPicker({
   disabled,
   variant = 'chips',
 }: AgeGroupPickerProps) {
+  const isDark = useActiveTheme() === 'dark';
   const [added, setAdded] = useState<AgeGroup[]>([]);
   const [showOther, setShowOther] = useState(false);
   const [draft, setDraft] = useState('');
@@ -87,7 +90,7 @@ export function AgeGroupPicker({
 
   if (!sportId) {
     return (
-      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
+      <Text className="font-inter text-xs text-ink-muted">
         Choose a sport first — each sport has its own age groups.
       </Text>
     );
@@ -165,17 +168,17 @@ export function AgeGroupPicker({
             <Ionicons
               name={otherOpen ? 'chevron-up' : 'chevron-down'}
               size={12}
-              color={selected && !selected.isOfficial ? 'white' : '#94A3B8'}
+              color={selected && !selected.isOfficial ? 'white' : themeColor(isDark, 'ink-muted')}
             />
           </TouchableOpacity>
         </View>
       )}
 
       {otherOpen && (
-        <View className="mt-3 p-3 rounded-xl border border-dashed border-slate-300 dark:border-white/10">
+        <View className="mt-3 p-3 rounded-xl border border-dashed border-line-strong">
           {!isDropdown && custom.length > 0 && (
             <>
-              <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+              <Text className="font-inter text-[11px] text-ink-muted mb-2">
                 Added by other users of this sport:
               </Text>
               <View className="flex-row flex-wrap gap-2 mb-3">
@@ -193,21 +196,21 @@ export function AgeGroupPicker({
               onChangeText={setDraft}
               onSubmitEditing={addDraft}
               placeholder="Add an age group, e.g. U13 Girls"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               maxLength={40}
-              className="flex-1 font-inter text-sm text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2 outline-none"
+              className="flex-1 font-inter text-sm text-ink bg-canvas border border-line rounded-xl px-3 py-2 outline-none"
             />
             <TouchableOpacity
               onPress={addDraft}
               disabled={!draft.trim() || isAdding}
-              className={`px-3.5 py-2 rounded-xl bg-brand-orange flex-row items-center gap-1 ${!draft.trim() ? 'opacity-50' : ''}`}
+              className={`px-3.5 py-2 rounded-xl bg-primary flex-row items-center gap-1 ${!draft.trim() ? 'opacity-50' : ''}`}
             >
               {isAdding ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <>
                   <Ionicons name="add" size={14} color="white" />
-                  <Text className="font-inter-bold text-xs text-white">Add</Text>
+                  <Text className="font-inter-bold text-xs text-on-fill">Add</Text>
                 </>
               )}
             </TouchableOpacity>

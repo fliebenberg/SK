@@ -10,7 +10,9 @@ import { OrgLogo } from './OrgLogo';
 import { useOrgSummary } from '../hooks/useOrgSummary';
 import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { AnimatedBox } from './AnimatedBox';
-import { getThemeColor } from '../constants/Colors';
+
+import { readableTextOn } from '../utils/colorUtils';
+import { themeColor } from '../constants/Colors';
 
 // Rail geometry. These are the `w-16` / `w-64` classes as numbers, because the
 // hover animation interpolates between them and a class cannot be interpolated.
@@ -165,10 +167,10 @@ export function LeftNavigationRail() {
             onPress={() => confirmThenNavigate(() => router.push('/'))}
             className="flex-row items-center gap-3 active:opacity-85"
           >
-            <View className="w-9 h-9 rounded-xl bg-white dark:bg-slate-950 border border-brand-orange shadow-md dark:shadow-brand-orange/20 flex items-center justify-center">
-              <Text className="font-orbitron-bold text-lg text-brand-orange mt-0.5">SK</Text>
+            <View className="w-9 h-9 rounded-xl bg-card border border-primary shadow-md dark:shadow-primary/20 flex items-center justify-center">
+              <Text className="font-orbitron-bold text-lg text-primary-ink mt-0.5">SK</Text>
             </View>
-            <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white mt-1">
+            <Text className="font-orbitron-bold text-sm tracking-widest text-ink mt-1">
               SCOREKEEPER
             </Text>
           </TouchableOpacity>
@@ -176,13 +178,13 @@ export function LeftNavigationRail() {
           {/* Pin / Collapse Toggle Button */}
           <TouchableOpacity
             onPress={toggleMinimized}
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 active:opacity-85"
+            className="p-1.5 rounded-lg hover:bg-sunken active:opacity-85"
             {...(Platform.OS === 'web' ? { title: isSidebarMinimized ? 'Pin Sidebar Open' : 'Collapse Sidebar' } : {})}
           >
             <Ionicons 
               name={isSidebarMinimized ? "chevron-forward-outline" : "chevron-back-outline"} 
               size={20} 
-              color={isDark ? '#94A3B8' : '#64748B'} 
+              color={themeColor(isDark, 'ink-muted')} 
             />
           </TouchableOpacity>
         </View>
@@ -192,24 +194,13 @@ export function LeftNavigationRail() {
           <>
             {/* Org context card */}
             {(() => {
-              const getContrastColor = (hexColor: string) => {
-                if (!hexColor) return '#FFFFFF';
-                const color = hexColor.replace('#', '');
-                if (color.length !== 6) return '#FFFFFF';
-                const r = parseInt(color.substring(0, 2), 16);
-                const g = parseInt(color.substring(2, 4), 16);
-                const b = parseInt(color.substring(4, 6), 16);
-                const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-                return yiq >= 128 ? '#0F172A' : '#FFFFFF';
-              };
-
               const primaryColor = orgColors(orgData).primary;
-              const textColor = getContrastColor(primaryColor);
-              const isDarkBg = textColor === '#FFFFFF';
+              const textColor = readableTextOn(primaryColor);
+              const isDarkBg = textColor === '#FFFFFF'; // colour-data: the text worked out for the org's colour
 
               return (
                 <View className="mb-6">
-                  <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-1">
+                  <Text className="font-inter-bold text-[9px] uppercase tracking-widest text-ink-muted mb-2 px-1">
                     Active Workspace
                   </Text>
                   <View 
@@ -229,7 +220,7 @@ export function LeftNavigationRail() {
                         logo={orgData?.logo} 
                         settings={orgData?.settings} 
                         size={44} 
-                        className={isDarkBg ? 'border border-white/20' : 'border border-black/10'}
+                        className={isDarkBg ? 'border border-on-fill/20' : 'border border-on-bright/10'}
                         primaryColor={textColor}
                       />
                     </View>
@@ -256,13 +247,13 @@ export function LeftNavigationRail() {
                     <React.Fragment key={item.name}>
                       <TouchableOpacity
                         onPress={() => confirmThenNavigate(() => router.push(item.route as any))}
-                        className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl border bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-300/25 ${isActive ? 'border-l-4' : ''}`}
-                        style={isActive ? { borderLeftColor: getThemeColor(isDark, 'warning') } : undefined}
+                        className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl border bg-warning-soft border-warning-line ${isActive ? 'border-l-4' : ''}`}
+                        style={isActive ? { borderLeftColor: themeColor(isDark, 'warning-ink') } : undefined}
                       >
-                        <Ionicons name={isActive ? item.icon : (`${item.icon}-outline` as any)} size={20} color={getThemeColor(isDark, 'warning')} />
-                        <Text className="font-inter-bold text-sm tracking-wide text-amber-800 dark:text-amber-300">{item.label}</Text>
+                        <Ionicons name={isActive ? item.icon : (`${item.icon}-outline` as any)} size={20} color={themeColor(isDark, 'warning-ink')} />
+                        <Text className="font-inter-bold text-sm tracking-wide text-warning-ink">{item.label}</Text>
                       </TouchableOpacity>
-                      <View className="h-px bg-slate-200 dark:bg-white/5 mx-1 my-1" />
+                      <View className="h-px bg-line mx-1 my-1" />
                     </React.Fragment>
                   );
                 }
@@ -272,21 +263,21 @@ export function LeftNavigationRail() {
                     onPress={() => confirmThenNavigate(() => router.push(item.route as any))}
                     className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl ${
                       isActive 
-                        ? 'bg-slate-100 dark:bg-white/5 border-l-4'
-                        : 'hover:bg-slate-50 dark:hover:bg-white/5 border-l-4 border-transparent'
+                        ? 'bg-sunken border-l-4'
+                        : 'hover:bg-sunken border-l-4 border-transparent'
                     }`}
                     style={isActive ? { borderLeftColor: activeColor } : undefined}
                   >
                     <Ionicons 
                       name={isActive ? item.icon : (`${item.icon}-outline` as any)} 
                       size={20} 
-                      color={isActive ? activeColor : (isDark ? '#94A3B8' : '#64748B')} 
+                      color={isActive ? activeColor : (themeColor(isDark, 'ink-muted'))} 
                     />
                     <Text 
                       className={`font-inter-bold text-sm tracking-wide ${
                         isActive 
-                          ? 'text-slate-900 dark:text-white' 
-                          : 'text-slate-600 dark:text-slate-400'
+                          ? 'text-ink' 
+                          : 'text-ink-muted'
                       }`}
                     >
                       {item.label}
@@ -299,10 +290,10 @@ export function LeftNavigationRail() {
                  onPress={() => confirmThenNavigate(() => {
                     router.replace('/(tabs)/organizations' as any);
                  })}
-                className="flex-row items-center gap-3.5 px-3 py-3 mt-4 rounded-xl border border-dashed border-slate-300 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 active:opacity-85"
+                className="flex-row items-center gap-3.5 px-3 py-3 mt-4 rounded-xl border border-dashed border-line-strong hover:bg-sunken active:opacity-85"
               >
-                <Ionicons name="arrow-back-outline" size={20} color="#FF3E00" />
-                <Text className="font-inter-bold text-sm tracking-wide text-brand-orange">
+                <Ionicons name="arrow-back-outline" size={20} color={themeColor(isDark, 'primary')} />
+                <Text className="font-inter-bold text-sm tracking-wide text-primary-ink">
                   Exit Workspace
                 </Text>
               </TouchableOpacity>
@@ -318,20 +309,20 @@ export function LeftNavigationRail() {
                   onPress={() => confirmThenNavigate(() => router.push(item.route as any))}
                   className={`flex-row items-center gap-3.5 px-3 py-3 rounded-xl ${
                     isActive 
-                      ? 'bg-brand-orange/10 dark:bg-brand-orange/15 border-l-4 border-brand-orange'
-                      : 'hover:bg-slate-100 dark:hover:bg-white/5 border-l-4 border-transparent'
+                      ? 'bg-primary-soft border-l-4 border-primary'
+                      : 'hover:bg-sunken border-l-4 border-transparent'
                   }`}
                 >
                   <Ionicons 
                     name={isActive ? item.icon : (`${item.icon}-outline` as any)} 
                     size={20} 
-                    color={isActive ? '#FF3E00' : (isDark ? '#94A3B8' : '#64748B')} 
+                    color={isActive ? themeColor(isDark, 'primary') : (themeColor(isDark, 'ink-muted'))} 
                   />
                   <Text 
                     className={`font-inter-bold text-sm tracking-wide ${
                       isActive 
-                        ? 'text-brand-orange' 
-                        : 'text-slate-600 dark:text-slate-400'
+                        ? 'text-primary-ink' 
+                        : 'text-ink-muted'
                     }`}
                   >
                     {item.label}
@@ -344,29 +335,29 @@ export function LeftNavigationRail() {
       </View>
 
       {/* USER PROFILE / LOGIN SECTION */}
-      <View className="pt-4 border-t border-slate-200 dark:border-white/5">
+      <View className="pt-4 border-t border-line">
         {isAuthenticated && user ? (
           <TouchableOpacity
             onPress={() => confirmThenNavigate(() => router.push('/settings' as any))}
-            className="flex-row items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 active:opacity-85"
+            className="flex-row items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-sunken active:opacity-85"
           >
-            <View className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 items-center justify-center overflow-hidden flex-shrink-0">
+            <View className="w-10 h-10 rounded-full border border-line bg-sunken items-center justify-center overflow-hidden flex-shrink-0">
               {getAvatarUri() ? (
                 <Image
                   source={{ uri: getAvatarUri()! }}
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <Text className="font-orbitron-bold text-sm text-slate-700 dark:text-slate-200">
+                <Text className="font-orbitron-bold text-sm text-ink-soft">
                   {getInitials(user.name)}
                 </Text>
               )}
             </View>
             <View className="flex-1 min-w-0">
-              <Text className="font-inter-bold text-sm text-slate-800 dark:text-white" numberOfLines={1}>
+              <Text className="font-inter-bold text-sm text-ink" numberOfLines={1}>
                 {user.name}
               </Text>
-              <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
+              <Text className="font-inter text-[10px] text-ink-muted uppercase tracking-wider mt-0.5">
                 {user.globalRole === 'admin' ? 'System Admin' : (user.isAdminOrCoach ? 'Coach/Admin' : 'Member')}
               </Text>
             </View>
@@ -374,10 +365,10 @@ export function LeftNavigationRail() {
         ) : (
           <TouchableOpacity
             onPress={() => confirmThenNavigate(() => router.push('/(auth)/login' as any))}
-            className="flex-row items-center justify-center gap-2 py-3 bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/20 rounded-xl hover:bg-brand-orange/15 active:opacity-85"
+            className="flex-row items-center justify-center gap-2 py-3 bg-primary-soft border border-primary-line rounded-xl hover:bg-primary-soft active:opacity-85"
           >
-            <Ionicons name="log-in-outline" size={16} color="#FF3E00" />
-            <Text className="font-inter-bold text-xs text-brand-orange uppercase tracking-wider">
+            <Ionicons name="log-in-outline" size={16} color={themeColor(isDark, 'primary')} />
+            <Text className="font-inter-bold text-xs text-primary-ink uppercase tracking-wider">
               Log In / Sign Up
             </Text>
           </TouchableOpacity>
@@ -393,10 +384,10 @@ export function LeftNavigationRail() {
         {/* SK Logo Top */}
         <TouchableOpacity 
           onPress={() => confirmThenNavigate(() => router.push('/'))}
-          className="w-10 h-10 rounded-xl bg-white dark:bg-slate-950 border border-brand-orange shadow-md dark:shadow-brand-orange/20 flex items-center justify-center mb-6 active:opacity-85"
+          className="w-10 h-10 rounded-xl bg-card border border-primary shadow-md dark:shadow-primary/20 flex items-center justify-center mb-6 active:opacity-85"
           {...(Platform.OS === 'web' ? { title: 'ScoreKeeper Home' } : {})}
         >
-          <Text className="font-orbitron-bold text-base text-brand-orange">SK</Text>
+          <Text className="font-orbitron-bold text-base text-primary-ink">SK</Text>
         </TouchableOpacity>
 
         {/* Org Logo (If in Org Workspace) */}
@@ -410,7 +401,7 @@ export function LeftNavigationRail() {
               className="rounded-xl border flex items-center justify-center p-0.5"
               style={{
                 backgroundColor: orgData ? orgColors(orgData).primary : 'transparent',
-                borderColor: orgData ? orgColors(orgData).secondary : (isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0'),
+                borderColor: orgData ? orgColors(orgData).secondary : themeColor(isDark, 'line'),
                 borderWidth: orgData?.primaryColor ? 2 : 1,
               }}
             >
@@ -429,25 +420,25 @@ export function LeftNavigationRail() {
           {navConfig.items.map((item: any) => {
             const isActive = navConfig.isOrg ? orgSubTab === item.name : activeTab === item.name;
             const activeColor = item.attention
-              ? getThemeColor(isDark, 'warning')
-              : navConfig.isOrg ? orgColors(orgData).primary : '#FF3E00';
+              ? themeColor(isDark, 'warning-ink')
+              : navConfig.isOrg ? orgColors(orgData).primary : themeColor(isDark, 'primary');
             return (
               <TouchableOpacity
                 key={item.name}
                 onPress={() => confirmThenNavigate(() => router.push(item.route as any))}
                 className={`w-10 h-10 rounded-xl items-center justify-center relative ${
                   item.attention
-                    ? 'bg-amber-50 dark:bg-amber-400/10 border border-amber-200 dark:border-amber-300/25'
+                    ? 'bg-warning-soft border border-warning-line'
                     : isActive
-                    ? 'bg-brand-orange/15 dark:bg-brand-orange/20 border border-brand-orange/30'
-                    : 'hover:bg-slate-100 dark:hover:bg-white/5 border border-transparent'
+                    ? 'bg-primary-soft border border-primary-line'
+                    : 'hover:bg-sunken border border-transparent'
                 }`}
                 {...(Platform.OS === 'web' ? { title: item.label } : {})}
               >
                 <Ionicons 
                   name={isActive ? item.icon : (`${item.icon}-outline` as any)} 
                   size={20} 
-                  color={isActive || item.attention ? activeColor : (isDark ? '#94A3B8' : '#64748B')} 
+                  color={isActive || item.attention ? activeColor : (themeColor(isDark, 'ink-muted'))} 
                 />
               </TouchableOpacity>
             );
@@ -457,21 +448,21 @@ export function LeftNavigationRail() {
           {navConfig.isOrg && (
             <TouchableOpacity
               onPress={() => confirmThenNavigate(() => router.replace('/(tabs)/organizations' as any))}
-              className="w-10 h-10 rounded-xl items-center justify-center border border-dashed border-red-400/40 hover:bg-red-50 dark:hover:bg-red-950/20"
+              className="w-10 h-10 rounded-xl items-center justify-center border border-dashed border-danger-line hover:bg-danger-soft"
               {...(Platform.OS === 'web' ? { title: 'Exit Workspace' } : {})}
             >
-              <Ionicons name="arrow-back-outline" size={20} color="#FF3E00" />
+              <Ionicons name="arrow-back-outline" size={20} color={themeColor(isDark, 'primary')} />
             </TouchableOpacity>
           )}
         </ScrollView>
       </View>
 
       {/* User Logo / Avatar Bottom */}
-      <View className="pt-3 border-t border-slate-200 dark:border-white/5 w-full items-center">
+      <View className="pt-3 border-t border-line w-full items-center">
         {isAuthenticated && user ? (
           <TouchableOpacity
             onPress={() => confirmThenNavigate(() => router.push('/settings' as any))}
-            className="w-10 h-10 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800 items-center justify-center overflow-hidden active:opacity-85"
+            className="w-10 h-10 rounded-full border border-line bg-sunken items-center justify-center overflow-hidden active:opacity-85"
             {...(Platform.OS === 'web' ? { title: user.name } : {})}
           >
             {getAvatarUri() ? (
@@ -480,7 +471,7 @@ export function LeftNavigationRail() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <Text className="font-orbitron-bold text-xs text-slate-700 dark:text-slate-200">
+              <Text className="font-orbitron-bold text-xs text-ink-soft">
                 {getInitials(user.name)}
               </Text>
             )}
@@ -488,10 +479,10 @@ export function LeftNavigationRail() {
         ) : (
           <TouchableOpacity
             onPress={() => confirmThenNavigate(() => router.push('/(auth)/login' as any))}
-            className="w-10 h-10 rounded-xl bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/20 items-center justify-center active:opacity-85"
+            className="w-10 h-10 rounded-xl bg-primary-soft border border-primary-line items-center justify-center active:opacity-85"
             {...(Platform.OS === 'web' ? { title: 'Log In / Sign Up' } : {})}
           >
-            <Ionicons name="log-in-outline" size={18} color="#FF3E00" />
+            <Ionicons name="log-in-outline" size={18} color={themeColor(isDark, 'primary')} />
           </TouchableOpacity>
         )}
       </View>
@@ -504,10 +495,10 @@ export function LeftNavigationRail() {
   } : {};
 
   if (isSidebarMinimized) {
-    // `bg-white dark:bg-slate-900` and `border-slate-200 dark:border-white/5` as
-    // literals, since this container cannot use classes (see the note above).
-    const surfaceColor = isDark ? '#0F172A' : '#FFFFFF';
-    const edgeColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#E2E8F0';
+    // The `card` and `line` tokens as values, since this container cannot use classes (see the
+    // note above).
+    const surfaceColor = themeColor(isDark, 'card');
+    const edgeColor = themeColor(isDark, 'line');
 
     return (
       <AnimatedBox
@@ -561,7 +552,7 @@ export function LeftNavigationRail() {
 
   // Expanded Pinned Sidebar View
   return (
-    <View className="w-64 h-full border-r bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5 py-6 px-4 flex flex-col justify-between z-40">
+    <View className="w-64 h-full border-r bg-card border-line py-6 px-4 flex flex-col justify-between z-40">
       {renderExpandedContent()}
     </View>
   );

@@ -7,6 +7,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useOptionalSharedDynamicScoring } from './DynamicScoringContext';
 import { useAuthStore } from '../../../store/authStore';
 
+
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 interface ActiveDisputesPanelProps {
   gameId: string;
 }
@@ -35,16 +38,16 @@ function DisputeActionButton({
       className={`relative flex-col items-center justify-center rounded-xl border-2 px-3 py-2 min-w-[110px] flex-1 ${
         active
           ? isApprove
-            ? 'bg-emerald-600 border-emerald-500 shadow-md'
-            : 'bg-rose-600 border-rose-500 shadow-md'
+            ? 'bg-success border-success shadow-md'
+            : 'bg-danger border-danger shadow-md'
           : isApprove
-          ? 'bg-emerald-500/10 border-emerald-500/30'
-          : 'bg-rose-500/10 border-rose-500/30'
+          ? 'bg-success-soft border-success-line'
+          : 'bg-danger-soft border-danger-line'
       }`}
     >
       {active && (
-        <View className="absolute -top-2.5 right-1.5 bg-white px-1.5 py-0.5 rounded-full border border-slate-200 shadow-sm">
-          <Text className="text-[8px] font-inter-black text-slate-900 uppercase tracking-tighter">
+        <View className="absolute -top-2.5 right-1.5 bg-card px-1.5 py-0.5 rounded-full border border-line shadow-sm">
+          <Text className="text-[8px] font-inter-black text-ink uppercase tracking-tighter">
             Your Vote
           </Text>
         </View>
@@ -54,7 +57,7 @@ function DisputeActionButton({
         <Text
           numberOfLines={1}
           className={`text-[9px] font-inter-bold uppercase tracking-wide mb-0.5 ${
-            active ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
+            active ? 'text-on-fill/80' : 'text-ink-muted'
           }`}
         >
           {sublabel}
@@ -65,10 +68,10 @@ function DisputeActionButton({
         numberOfLines={1}
         className={`font-orbitron-bold text-xs uppercase tracking-tight ${
           active
-            ? 'text-white'
+            ? 'text-on-fill'
             : isApprove
-            ? 'text-emerald-600 dark:text-emerald-400'
-            : 'text-rose-600 dark:text-rose-400'
+            ? 'text-success-ink'
+            : 'text-danger-ink'
         }`}
       >
         {label}
@@ -78,7 +81,7 @@ function DisputeActionButton({
         <Text
           numberOfLines={1}
           className={`text-[9px] font-inter-semibold uppercase tracking-wide mt-0.5 ${
-            active ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'
+            active ? 'text-on-fill/80' : 'text-ink-muted'
           }`}
         >
           {voteCount}
@@ -89,6 +92,7 @@ function DisputeActionButton({
 }
 
 export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
+  const isDark = useActiveTheme() === 'dark';
   const scoringCtx = useOptionalSharedDynamicScoring();
   const disputes = scoringCtx?.disputes || [];
   const events = scoringCtx?.events || [];
@@ -152,12 +156,12 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
   return (
     <View className="mb-3 px-1 flex-col gap-2">
       {errorMessage && (
-        <View className="bg-rose-500/15 border border-rose-500/40 rounded-xl p-2.5 flex-row items-center justify-between">
-          <Text className="text-xs font-inter-semibold text-rose-600 dark:text-rose-400 flex-1">
+        <View className="bg-danger-soft border border-danger-line rounded-xl p-2.5 flex-row items-center justify-between">
+          <Text className="text-xs font-inter-semibold text-danger-ink flex-1">
             {errorMessage}
           </Text>
           <TouchableOpacity onPress={() => setErrorMessage(null)} activeOpacity={0.8} className="ml-2">
-            <Ionicons name="close-circle" size={18} color="#F43F5E" />
+            <Ionicons name="close-circle" size={18} color={themeColor(isDark, 'danger')} />
           </TouchableOpacity>
         </View>
       )}
@@ -219,19 +223,19 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
         return (
           <View
             key={dispute.id}
-            className="bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl p-3 dark:bg-slate-900/90 shadow-sm"
+            className="bg-warning-soft border-2 border-warning-line rounded-2xl p-3 shadow-sm"
           >
             {/* Header */}
-            <View className="flex-row items-center justify-between pb-2 mb-2 border-b border-amber-500/20">
+            <View className="flex-row items-center justify-between pb-2 mb-2 border-b border-warning-line">
               <View className="flex-row items-center gap-2">
-                <Ionicons name="warning-outline" size={16} color="#F59E0B" />
-                <Text className="font-orbitron-bold text-xs text-amber-500 uppercase tracking-widest">
+                <Ionicons name="warning-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
+                <Text className="font-orbitron-bold text-xs text-warning-ink uppercase tracking-widest">
                   {config.heading}
                 </Text>
               </View>
               <Text
                 className={`font-mono font-bold text-xs ${
-                  timeLeft <= 30 && timeLeft > 0 ? 'text-red-500' : 'text-amber-500'
+                  timeLeft <= 30 && timeLeft > 0 ? 'text-danger-ink' : 'text-warning-ink'
                 }`}
               >
                 {timeLeft > 0 ? timeStr : 'Resolving...'}
@@ -243,20 +247,20 @@ export function ActiveDisputesPanel({ gameId }: ActiveDisputesPanelProps) {
               <View className="flex-1 flex-col">
                 <Text
                   numberOfLines={1}
-                  className="font-inter-black text-sm text-slate-800 dark:text-white uppercase tracking-tight"
+                  className="font-inter-black text-sm text-ink uppercase tracking-tight"
                 >
                   {eventLabel}
                 </Text>
 
                 {pointsDelta > 0 && (
-                  <Text className="text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                  <Text className="text-[11px] font-mono font-semibold text-ink-muted mt-0.5">
                     VALUE: {pointsDelta} PTS
                   </Text>
                 )}
 
-                <View className="flex-row items-center gap-1.5 mt-2 py-1 px-2.5 rounded-md bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 self-start">
-                  {hasVotes && <View className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-                  <Text className="text-[10px] font-inter-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">
+                <View className="flex-row items-center gap-1.5 mt-2 py-1 px-2.5 rounded-md bg-sunken border border-line self-start">
+                  {hasVotes && <View className="w-1.5 h-1.5 rounded-full bg-success" />}
+                  <Text className="text-[10px] font-inter-bold text-ink-soft uppercase tracking-tight">
                     {winningText}
                   </Text>
                 </View>

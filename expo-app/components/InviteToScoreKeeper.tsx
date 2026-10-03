@@ -22,6 +22,8 @@ import { useSocketQuery } from '../hooks/useSocketQuery';
 import { useActiveTheme } from '../store/settingsStore';
 import { useToastStore } from '../store/toastStore';
 import { formatInstant, type CalendarDate } from '../utils/dates';
+import { themeColor } from '../constants/Colors';
+
 
 /**
  * Inviting a person the organisation has on record to create a ScoreKeeper account.
@@ -108,11 +110,11 @@ export function InviteButton({ person, cooldownHours, onPress }: InviteButtonPro
         onPress();
       }}
       className={`px-2 py-1 rounded-lg active:scale-95 ${
-        waitHours > 0 ? 'bg-slate-200 dark:bg-slate-800' : 'bg-brand-orange'
+        waitHours > 0 ? 'bg-line' : 'bg-primary'
       }`}
     >
       <Text className={`font-orbitron-bold text-[8px] uppercase tracking-widest ${
-        waitHours > 0 ? 'text-slate-500 dark:text-slate-400' : 'text-white'
+        waitHours > 0 ? 'text-ink-muted' : 'text-on-fill'
       }`}>
         {label}
       </Text>
@@ -259,19 +261,19 @@ export function InviteModal({
 
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 bg-slate-950/75 items-center justify-center p-6">
+      <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
         <GlassCard
-          className="w-full max-w-sm border border-slate-200 dark:border-white/10 p-6 space-y-4 shadow-lg"
-          style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
+          className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+          style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
           <View className="items-center">
-            <View className="w-12 h-12 rounded-full items-center justify-center mb-3 bg-brand-orange/10">
-              <Ionicons name="mail-outline" size={24} color="#FF3E00" />
+            <View className="w-12 h-12 rounded-full items-center justify-center mb-3 bg-primary-soft">
+              <Ionicons name="mail-outline" size={24} color={themeColor(isDark, 'primary')} />
             </View>
-            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider text-center">
+            <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider text-center">
               Invite to ScoreKeeper
             </Text>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mt-2 leading-relaxed">
+            <Text className="font-inter text-xs text-ink-muted text-center mt-2 leading-relaxed">
               {selectedLink
                 ? `We'll email ${invitee.name} an invitation saying they are recorded as ${person.name}'s ${RELATIONSHIP_LABEL[selectedLink.relationship].toLowerCase()}. When they sign up with this address, they can see ${person.name}'s teams and fixtures.`
                 : `${person.name} is not on ScoreKeeper yet. We'll email them an invitation to create an account. When they sign up with this address, the account is linked to their profile here.`}
@@ -280,7 +282,7 @@ export function InviteModal({
 
           {activeGuardians.length ? (
             <View>
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
+              <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-1.5">
                 Who to invite
               </Text>
               <View className="space-y-1.5">
@@ -308,16 +310,16 @@ export function InviteModal({
           ) : null}
 
           {blocked ? (
-            <View className="flex-row gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
-              <Ionicons name="lock-closed-outline" size={16} color="#F59E0B" />
-              <Text className="flex-1 font-inter text-xs text-amber-700 dark:text-amber-300 leading-relaxed">{blocked}</Text>
+            <View className="flex-row gap-2 p-3 rounded-xl bg-warning-soft border border-warning-line">
+              <Ionicons name="lock-closed-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
+              <Text className="flex-1 font-inter text-xs text-warning-ink leading-relaxed">{blocked}</Text>
             </View>
           ) : onScoreKeeper ? (
-            <Text className="font-inter text-xs text-emerald-600 dark:text-emerald-400">{invitee.name} is already on ScoreKeeper.</Text>
+            <Text className="font-inter text-xs text-success-ink">{invitee.name} is already on ScoreKeeper.</Text>
           ) : (
             <>
               <View>
-                <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
+                <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-1.5">
                   Email Address
                 </Text>
                 <TextInput
@@ -327,15 +329,15 @@ export function InviteModal({
                     setError('');
                   }}
                   placeholder="email@example.com"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={themeColor(isDark, 'ink-muted')}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isSending}
-                  className="font-inter text-sm text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 outline-none"
+                  className="font-inter text-sm text-ink bg-card border border-line rounded-xl px-4 py-3 outline-none"
                 />
                 {typed && typed !== onFile ? (
-                  <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
+                  <Text className="font-inter text-[11px] text-ink-muted mt-1.5">
                     {onFile
                       ? `This replaces ${invitee.email} on their profile.`
                       : 'This address will be saved to their profile.'}
@@ -344,16 +346,16 @@ export function InviteModal({
               </View>
 
               {isResend ? (
-                <View className="flex-row gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                  <Ionicons name="refresh-outline" size={16} color="#F59E0B" />
-                  <Text className="flex-1 font-inter text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+                <View className="flex-row gap-2 p-3 rounded-xl bg-warning-soft border border-warning-line">
+                  <Ionicons name="refresh-outline" size={16} color={themeColor(isDark, 'warning-ink')} />
+                  <Text className="flex-1 font-inter text-xs text-warning-ink leading-relaxed">
                     An invite already went to this address on {formatInstant(invitee.lastInviteSentAt)}.
                     Only send it again if {invitee.name} says it did not arrive, and ask them to check
                     their spam folder.
                   </Text>
                 </View>
               ) : invitee.lastInviteSentAt && invitee.lastInviteEmail ? (
-                <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
+                <Text className="font-inter text-[11px] text-ink-muted">
                   Last invited {formatInstant(invitee.lastInviteSentAt)} to {invitee.lastInviteEmail}.
                   {waitHours > 0
                     ? ` You can send to this address again in ${formatInviteWait(waitHours)}, or to a different one now. To resend it sooner, use their profile.`
@@ -364,7 +366,7 @@ export function InviteModal({
           )}
 
           {error ? (
-            <Text className="font-inter text-xs text-red-500">{error}</Text>
+            <Text className="font-inter text-xs text-danger-ink">{error}</Text>
           ) : null}
 
           <View className="flex-row gap-3 pt-2">
@@ -404,15 +406,15 @@ function TargetOption({ label, detail, selected, disabled, onPress, isDark }: {
       disabled={disabled}
       style={{
         borderWidth: 1,
-        borderColor: selected ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.1)' : '#CBD5E1'),
+        borderColor: themeColor(isDark, selected ? 'primary' : 'line-strong'),
         opacity: disabled && !selected ? 0.5 : 1,
       }}
       className="flex-row items-center gap-3 rounded-xl px-3 py-2.5"
     >
-      <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={16} color={selected ? '#FF3E00' : '#94A3B8'} />
+      <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={16} color={selected ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
       <View className="flex-1">
-        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">{label}</Text>
-        <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">{detail}</Text>
+        <Text className="font-inter-bold text-sm text-ink">{label}</Text>
+        <Text className="font-inter text-[11px] text-ink-muted">{detail}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -435,6 +437,7 @@ interface InviteStatusCardProps {
  * invited from; the People list has no Invite button.
  */
 export function InviteStatusCard({ person, cooldownHours, canInvite, onInvite }: InviteStatusCardProps) {
+  const isDark = useActiveTheme() === 'dark';
   if (isOnScoreKeeper(person)) return null;
   const pending = isInvitePending(person);
 
@@ -454,22 +457,22 @@ export function InviteStatusCard({ person, cooldownHours, canInvite, onInvite }:
   return (
     <ReadCard label="ScoreKeeper account">
       <View className="flex-row items-center gap-3">
-        <View className="w-8 h-8 rounded-lg items-center justify-center bg-slate-100 dark:bg-white/5">
-          <Ionicons name={pending ? 'mail-outline' : 'person-add-outline'} size={16} color="#64748B" />
+        <View className="w-8 h-8 rounded-lg items-center justify-center bg-sunken">
+          <Ionicons name={pending ? 'mail-outline' : 'person-add-outline'} size={16} color={themeColor(isDark, 'ink-muted')} />
         </View>
         <View className="flex-1 min-w-0">
-          <Text className="font-inter text-sm text-slate-800 dark:text-white">{status}</Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{detail}</Text>
+          <Text className="font-inter text-sm text-ink">{status}</Text>
+          <Text className="font-inter text-xs text-ink-muted mt-0.5">{detail}</Text>
         </View>
         {canInvite ? (
           <TouchableOpacity
             onPress={onInvite}
             accessibilityRole="button"
             className={`min-h-[36px] px-3.5 rounded-xl border items-center justify-center ${
-              pending ? 'border-slate-200 dark:border-white/10' : 'bg-brand-orange border-brand-orange'
+              pending ? 'border-line' : 'bg-primary border-primary'
             }`}
           >
-            <Text className={`font-inter-bold text-sm ${pending ? 'text-slate-700 dark:text-slate-200' : 'text-white'}`}>
+            <Text className={`font-inter-bold text-sm ${pending ? 'text-ink-soft' : 'text-on-fill'}`}>
               {pending ? 'Resend' : 'Invite'}
             </Text>
           </TouchableOpacity>

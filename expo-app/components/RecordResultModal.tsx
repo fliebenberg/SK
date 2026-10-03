@@ -7,7 +7,8 @@ import { useAuthStore } from '../store/authStore';
 import { sendAction } from '../services/actions';
 import { GlassCard } from './GlassCard';
 import { Button } from './Button';
-import { COLORS } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 interface RecordResultModalProps {
   isOpen: boolean;
@@ -78,32 +79,32 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, on
 
   return (
     <Modal transparent visible={isOpen} animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 bg-slate-950/75 items-center justify-center p-6">
+      <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
         <GlassCard
-          className="w-full max-w-sm border border-slate-200 dark:border-white/10 p-6 space-y-4 shadow-lg"
-          style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
+          className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+          style={{ backgroundColor: themeColor(isDark, 'popover') }}
         >
           <View className="items-center">
-            <View className="w-12 h-12 rounded-full items-center justify-center mb-3 bg-brand-orange/10">
-              <Ionicons name="trophy-outline" size={24} color={COLORS.brand.orange} />
+            <View className="w-12 h-12 rounded-full items-center justify-center mb-3 bg-primary-soft">
+              <Ionicons name="trophy-outline" size={24} color={themeColor(isDark, 'primary')} />
             </View>
-            <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wider text-center">
+            <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider text-center">
               Record Result
             </Text>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mt-2 leading-relaxed">
+            <Text className="font-inter text-xs text-ink-muted text-center mt-2 leading-relaxed">
               Saving finishes the match and updates the standings.
             </Text>
           </View>
 
           {!sidesKnown ? (
-            <Text className="font-inter text-xs text-brand-red text-center">
+            <Text className="font-inter text-xs text-danger-ink text-center">
               Both sides must be known before a result can be recorded.
             </Text>
           ) : (
             <View className="space-y-3">
               {sides.map((p, i) => (
                 <View key={p.id} className="flex-row items-center justify-between gap-3">
-                  <Text className="font-inter-bold text-sm text-slate-800 dark:text-white flex-1" numberOfLines={1}>
+                  <Text className="font-inter-bold text-sm text-ink flex-1" numberOfLines={1}>
                     {sideLabels[i] || `Side ${i + 1}`}
                   </Text>
                   <TextInput
@@ -112,9 +113,9 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, on
                     editable={!notProvided}
                     keyboardType="numeric"
                     placeholder={notProvided ? '–' : '0'}
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={themeColor(isDark, 'ink-muted')}
                     accessibilityLabel={`Score for ${sideLabels[i] || `side ${i + 1}`}`}
-                    className={`w-20 text-center font-orbitron-bold text-lg px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white ${
+                    className={`w-20 text-center font-orbitron-bold text-lg px-3 py-2 rounded-xl border border-line bg-field text-ink ${
                       notProvided ? 'opacity-40' : ''
                     }`}
                   />
@@ -126,16 +127,16 @@ export const RecordResultModal: React.FC<RecordResultModalProps> = ({ isOpen, on
                 activeOpacity={0.8}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: notProvided }}
-                className="flex-row items-start gap-2.5 pt-3 border-t border-slate-100 dark:border-white/5"
+                className="flex-row items-start gap-2.5 pt-3 border-t border-line-soft"
               >
                 <Ionicons
                   name={notProvided ? 'checkbox' : 'square-outline'}
                   size={18}
-                  color={notProvided ? COLORS.brand.orange : '#94A3B8'}
+                  color={notProvided ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
                 />
                 <View className="flex-1">
-                  <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Score not provided</Text>
-                  <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                  <Text className="font-inter-bold text-sm text-ink">Score not provided</Text>
+                  <Text className="font-inter text-[11px] text-ink-muted mt-0.5 leading-relaxed">
                     The match was played but nobody has the score. It is marked finished and left out of the standings.
                   </Text>
                 </View>

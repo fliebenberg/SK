@@ -2,6 +2,8 @@ import { forwardRef, useState } from 'react';
 import { TextInput, TextInputProps, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 type Props = Omit<TextInputProps, 'secureTextEntry'> & {
   /** 'current' for sign-in, 'new' when the user is choosing a password — drives password-manager autofill. */
   purpose?: 'current' | 'new';
@@ -13,6 +15,7 @@ type Props = Omit<TextInputProps, 'secureTextEntry'> & {
  */
 export const PasswordInput = forwardRef<TextInput, Props>(
   ({ purpose = 'current', className, ...props }, ref) => {
+    const isDark = useActiveTheme() === 'dark';
     const [visible, setVisible] = useState(false);
 
     return (
@@ -34,7 +37,7 @@ export const PasswordInput = forwardRef<TextInput, Props>(
           accessibilityLabel={visible ? 'Hide password' : 'Show password'}
           hitSlop={8}
         >
-          <Ionicons name={visible ? 'eye-off' : 'eye'} size={20} color="#64748B" />
+          <Ionicons name={visible ? 'eye-off' : 'eye'} size={20} color={themeColor(isDark, 'ink-muted')} />
         </TouchableOpacity>
       </View>
     );

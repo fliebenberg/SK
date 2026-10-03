@@ -1,7 +1,8 @@
 import React from 'react';
 import { Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/Colors';
+import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 
 /**
  * The bar at the top of a pushed screen: back on the left, the screen's name in the middle.
@@ -41,6 +42,7 @@ export interface ScreenHeaderProps {
 }
 
 export function ScreenHeader({ title, context, onBack, right, backLabel = 'Back' }: ScreenHeaderProps) {
+  const isDark = useActiveTheme() === 'dark';
   /**
    * 768px, the breakpoint [selection.tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D/games/%5BgameId%5D/selection.tsx)
    * already uses and the one `UI-11` names as this repo's precedent.
@@ -53,15 +55,15 @@ export function ScreenHeader({ title, context, onBack, right, backLabel = 'Back'
   const showContext = !!context && width >= 768;
 
   return (
-    <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+    <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
       <TouchableOpacity onPress={onBack} className="flex-row items-center gap-1 active:opacity-85">
-        <Ionicons name="chevron-back" size={20} color={COLORS.brand.orange} />
-        <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+        <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+        <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
           {backLabel}
         </Text>
       </TouchableOpacity>
       <Text
-        className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase flex-1 text-center px-4"
+        className="font-orbitron-bold text-sm tracking-widest text-ink uppercase flex-1 text-center px-4"
         numberOfLines={1}
       >
         {showContext ? `${context} - ${title}` : title}

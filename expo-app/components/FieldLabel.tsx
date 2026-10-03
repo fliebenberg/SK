@@ -2,7 +2,8 @@ import React, { useRef, useState } from 'react';
 import { Platform, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme, useSettingsStore } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 /**
  * A field's label, and the explanation the field needs the first few times and never again.
@@ -211,12 +212,12 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
       style={hovered ? { zIndex: 50 } : undefined}
     >
       <View className="flex-row items-center gap-1.5">
-        <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+        <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
           {label}
         </Text>
-        {required && <Text className="font-inter text-[10px] text-brand-orange">*</Text>}
+        {required && <Text className="font-inter text-[10px] text-primary-ink">*</Text>}
         {optional && (
-          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400">Optional</Text>
+          <Text className="font-inter text-[10px] text-ink-muted">Optional</Text>
         )}
 
         {hasHelp && (
@@ -239,12 +240,12 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
             <Ionicons
               name={isShowing ? 'information-circle' : 'information-circle-outline'}
               size={14}
-              color={isShowing ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+              color={isShowing ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
             />
             {/* The word that teaches the button, and the only thing pressing removes — the icon
                 stays put, so nobody has to work out where it went. */}
             {isShowing && (
-              <Text className="font-inter text-[10px] uppercase tracking-wider text-brand-orange">
+              <Text className="font-inter text-[10px] uppercase tracking-wider text-primary-ink">
                 Hide
               </Text>
             )}
@@ -252,12 +253,12 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
             {/* On web it waits for the icon's measurement, so it never appears in the wrong place. */}
             {hovered && !isShowing && (!IS_WEB || fixedBubbleStyle) && (
               <View
-                className={`${IS_WEB ? '' : 'absolute '}bg-slate-900 dark:bg-slate-700 rounded-lg px-3 py-2 shadow-lg`}
+                className={`${IS_WEB ? '' : 'absolute '}bg-tooltip rounded-lg px-3 py-2 shadow-lg`}
                 style={IS_WEB ? { width: bubbleWidth, ...fixedBubbleStyle } : { width: bubbleWidth, ...bubblePosition }}
                 onLayout={IS_WEB ? event => setBubbleHeight(event.nativeEvent.layout.height) : undefined}
                 pointerEvents="none"
               >
-                <Text className="font-inter text-[11px] leading-relaxed text-white">{help}</Text>
+                <Text className="font-inter text-[11px] leading-relaxed text-on-fill">{help}</Text>
               </View>
             )}
           </Pressable>
@@ -265,15 +266,15 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
       </View>
 
       {isShowing && (
-        <Text className="font-inter text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+        <Text className="font-inter text-[11px] leading-relaxed text-ink-muted">
           {help}
         </Text>
       )}
 
       {/* Offered in the space the help just left, so it is read where the reader already is. */}
       {offering && !isShowing && (
-        <View className="rounded-xl border border-brand-orange/30 bg-brand-orange/5 dark:bg-brand-orange/10 px-3 py-2.5 gap-2">
-          <Text className="font-inter text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+        <View className="rounded-xl border border-primary-line bg-primary-soft px-3 py-2.5 gap-2">
+          <Text className="font-inter text-[11px] leading-relaxed text-ink-soft">
             Hidden while you are on this screen. Would you like to hide field help on every admin
             form? You can always press the info icon to read it, and change this in Settings.
           </Text>
@@ -283,7 +284,7 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
               accessibilityRole="button"
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
             >
-              <Text className="font-inter-bold text-[10px] uppercase tracking-wider text-brand-orange">
+              <Text className="font-inter-bold text-[10px] uppercase tracking-wider text-primary-ink">
                 Hide everywhere
               </Text>
             </Pressable>
@@ -292,7 +293,7 @@ export function FieldLabel({ label, help, required, optional }: FieldLabelProps)
               accessibilityRole="button"
               hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
             >
-              <Text className="font-inter-bold text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <Text className="font-inter-bold text-[10px] uppercase tracking-wider text-ink-muted">
                 Keep showing it
               </Text>
             </Pressable>

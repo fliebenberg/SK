@@ -32,6 +32,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
+
 
 export interface ImageConfig {
   scale: number;
@@ -279,19 +281,19 @@ export function ImageEditor({
     }
   };
 
-  const cardBg = isDark ? '#1E293B' : '#FFFFFF';
-  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0';
-  const mutedText = isDark ? '#94A3B8' : '#64748B';
-  const subtleBg = isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9';
-  const subtleBorder = isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0';
+  const cardBg = themeColor(isDark, 'popover');
+  const borderColor = themeColor(isDark, 'line');
+  const mutedText = themeColor(isDark, 'ink-muted');
+  const subtleBg = themeColor(isDark, 'sunken');
+  const subtleBorder = themeColor(isDark, 'line');
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(2,6,23,0.82)', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <View style={{ flex: 1, backgroundColor: themeColor(isDark, 'overlay', 0.82), alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         <View style={{ width: '100%', maxWidth: 400, borderRadius: 20, backgroundColor: cardBg, borderWidth: 1, borderColor, maxHeight: '95%', overflow: 'hidden' }}>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: borderColor }}>
-            <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 11, color: isDark ? '#fff' : '#0F172A', textTransform: 'uppercase', letterSpacing: 1.5 }}>
+            <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 11, color: themeColor(isDark, 'ink'), textTransform: 'uppercase', letterSpacing: 1.5 }}>
               {title}
             </Text>
             <TouchableOpacity onPress={onCancel}>
@@ -308,7 +310,7 @@ export function ImageEditor({
               <View
                 ref={previewRef}
                 {...panResponder.panHandlers}
-                style={{ width: PREVIEW_SIZE, height: PREVIEW_SIZE, borderRadius: PREVIEW_SIZE / 2, overflow: 'hidden', borderWidth: 1, borderColor: subtleBorder, backgroundColor: previewBackgroundColor || (isDark ? '#0F172A' : '#F1F5F9') }}
+                style={{ width: PREVIEW_SIZE, height: PREVIEW_SIZE, borderRadius: PREVIEW_SIZE / 2, overflow: 'hidden', borderWidth: 1, borderColor: subtleBorder, backgroundColor: previewBackgroundColor || themeColor(isDark, 'field') }}
               >
                 {tempUri ? (
                   <Image
@@ -331,8 +333,8 @@ export function ImageEditor({
                   </View>
                 )}
                 {!!tempUri && (
-                  <View style={{ position: 'absolute', bottom: 6, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
-                    <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 8, color: '#fff' }}>Drag · Pinch to zoom</Text>
+                  <View style={{ position: 'absolute', bottom: 6, alignSelf: 'center', backgroundColor: themeColor(isDark, 'overlay', 0.45), borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 8, color: themeColor(isDark, 'on-fill') }}>Drag · Pinch to zoom</Text>
                   </View>
                 )}
               </View>
@@ -343,8 +345,8 @@ export function ImageEditor({
                 onPress={handlePickImage}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: subtleBorder, backgroundColor: subtleBg }}
               >
-                <Ionicons name="image-outline" size={14} color={isDark ? '#fff' : '#0F172A'} />
-                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 11, color: isDark ? '#fff' : '#0F172A' }}>
+                <Ionicons name="image-outline" size={14} color={themeColor(isDark, 'ink')} />
+                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 11, color: themeColor(isDark, 'ink') }}>
                   {tempUri ? 'Change Image' : 'Choose Image'}
                 </Text>
               </TouchableOpacity>
@@ -352,10 +354,10 @@ export function ImageEditor({
               {allowRemove && tempUri ? (
                 <TouchableOpacity
                   onPress={() => { setTempUri(''); setTempScale(1); setTempX(0); setTempY(0); }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', backgroundColor: 'rgba(239,68,68,0.08)' }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: themeColor(isDark, 'danger-line'), backgroundColor: themeColor(isDark, 'danger-soft') }}
                 >
-                  <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                  <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 11, color: '#EF4444' }}>Remove</Text>
+                  <Ionicons name="trash-outline" size={14} color={themeColor(isDark, 'danger')} />
+                  <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 11, color: themeColor(isDark, 'danger-ink') }}>Remove</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -368,7 +370,7 @@ export function ImageEditor({
                       Zoom ({tempScale.toFixed(2)}x)
                     </Text>
                     <TouchableOpacity onPress={() => setTempScale(1)}>
-                      <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, color: '#FF3E00', textTransform: 'uppercase' }}>Reset</Text>
+                      <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, color: themeColor(isDark, 'primary-ink'), textTransform: 'uppercase' }}>Reset</Text>
                     </TouchableOpacity>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -376,17 +378,17 @@ export function ImageEditor({
                       onPress={() => setTempScale(prev => Math.max(MIN_ZOOM, prev - 0.1))}
                       style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: subtleBg, borderWidth: 1, borderColor: subtleBorder, alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <Ionicons name="remove" size={16} color={isDark ? '#fff' : '#0F172A'} />
+                      <Ionicons name="remove" size={16} color={themeColor(isDark, 'ink')} />
                     </TouchableOpacity>
 
-                    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderRadius: 10, padding: 4, gap: 4 }}>
+                    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: themeColor(isDark, 'field'), borderRadius: 10, padding: 4, gap: 4 }}>
                       {ZOOM_PRESETS.map(val => (
                         <TouchableOpacity
                           key={val}
                           onPress={() => setTempScale(val)}
-                          style={{ flex: 1, paddingVertical: 6, borderRadius: 6, alignItems: 'center', backgroundColor: Math.abs(tempScale - val) < 0.01 ? '#FF3E00' : 'transparent' }}
+                          style={{ flex: 1, paddingVertical: 6, borderRadius: 6, alignItems: 'center', backgroundColor: Math.abs(tempScale - val) < 0.01 ? themeColor(isDark, 'primary') : 'transparent' }}
                         >
-                          <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, color: Math.abs(tempScale - val) < 0.01 ? '#fff' : mutedText }}>
+                          <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, color: Math.abs(tempScale - val) < 0.01 ? themeColor(isDark, 'on-fill') : mutedText }}>
                             {val}x
                           </Text>
                         </TouchableOpacity>
@@ -397,7 +399,7 @@ export function ImageEditor({
                       onPress={() => setTempScale(prev => Math.min(3.0, prev + 0.1))}
                       style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: subtleBg, borderWidth: 1, borderColor: subtleBorder, alignItems: 'center', justifyContent: 'center' }}
                     >
-                      <Ionicons name="add" size={16} color={isDark ? '#fff' : '#0F172A'} />
+                      <Ionicons name="add" size={16} color={themeColor(isDark, 'ink')} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -408,41 +410,41 @@ export function ImageEditor({
                       Position (X: {Math.round(tempX * 100)}%, Y: {Math.round(tempY * 100)}%)
                     </Text>
                     <TouchableOpacity onPress={() => { setTempX(0); setTempY(0); }}>
-                      <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, color: '#FF3E00', textTransform: 'uppercase' }}>Center</Text>
+                      <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, color: themeColor(isDark, 'primary-ink'), textTransform: 'uppercase' }}>Center</Text>
                     </TouchableOpacity>
                   </View>
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                    <View style={{ width: 108, height: 108, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderRadius: 54, borderWidth: 1, borderColor: subtleBorder }}>
+                    <View style={{ width: 108, height: 108, alignItems: 'center', justifyContent: 'center', backgroundColor: themeColor(isDark, 'field'), borderRadius: 54, borderWidth: 1, borderColor: subtleBorder }}>
                       <TouchableOpacity
                         onPress={() => setTempY(prev => Math.max(-1, prev - nudgeSpeed))}
-                        style={{ position: 'absolute', top: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#fff', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ position: 'absolute', top: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: themeColor(isDark, 'raised'), alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Ionicons name="chevron-up" size={14} color={isDark ? '#fff' : '#0F172A'} />
+                        <Ionicons name="chevron-up" size={14} color={themeColor(isDark, 'ink')} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => setTempX(prev => Math.max(-1, prev - nudgeSpeed))}
-                        style={{ position: 'absolute', left: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#fff', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ position: 'absolute', left: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: themeColor(isDark, 'raised'), alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Ionicons name="chevron-back" size={14} color={isDark ? '#fff' : '#0F172A'} />
+                        <Ionicons name="chevron-back" size={14} color={themeColor(isDark, 'ink')} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => { setTempX(0); setTempY(0); }}
-                        style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#FF3E00', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: themeColor(isDark, 'primary'), alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Ionicons name="contract" size={12} color="#fff" />
+                        <Ionicons name="contract" size={12} color={themeColor(isDark, 'on-fill')} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => setTempX(prev => Math.min(1, prev + nudgeSpeed))}
-                        style={{ position: 'absolute', right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#fff', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ position: 'absolute', right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: themeColor(isDark, 'raised'), alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Ionicons name="chevron-forward" size={14} color={isDark ? '#fff' : '#0F172A'} />
+                        <Ionicons name="chevron-forward" size={14} color={themeColor(isDark, 'ink')} />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => setTempY(prev => Math.min(1, prev + nudgeSpeed))}
-                        style={{ position: 'absolute', bottom: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#fff', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ position: 'absolute', bottom: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: themeColor(isDark, 'raised'), alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Ionicons name="chevron-down" size={14} color={isDark ? '#fff' : '#0F172A'} />
+                        <Ionicons name="chevron-down" size={14} color={themeColor(isDark, 'ink')} />
                       </TouchableOpacity>
                     </View>
 
@@ -454,9 +456,9 @@ export function ImageEditor({
                         <TouchableOpacity
                           key={opt.value}
                           onPress={() => setNudgeSpeed(opt.value)}
-                          style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: nudgeSpeed === opt.value ? 'rgba(255,62,0,0.3)' : subtleBorder, backgroundColor: nudgeSpeed === opt.value ? 'rgba(255,62,0,0.1)' : subtleBg }}
+                          style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: nudgeSpeed === opt.value ? themeColor(isDark, 'primary-line') : subtleBorder, backgroundColor: nudgeSpeed === opt.value ? themeColor(isDark, 'primary-soft') : subtleBg }}
                         >
-                          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 9, color: nudgeSpeed === opt.value ? '#FF3E00' : mutedText, textAlign: 'center' }}>
+                          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 9, color: nudgeSpeed === opt.value ? themeColor(isDark, 'primary-ink') : mutedText, textAlign: 'center' }}>
                             {opt.label}
                           </Text>
                         </TouchableOpacity>
@@ -473,17 +475,17 @@ export function ImageEditor({
               onPress={onCancel}
               style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: subtleBg, borderWidth: 1, borderColor: subtleBorder, alignItems: 'center' }}
             >
-              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 12, color: isDark ? '#CBD5E1' : '#64748B', textTransform: 'uppercase' }}>Cancel</Text>
+              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 12, color: themeColor(isDark, 'ink-muted'), textTransform: 'uppercase' }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleApply}
               disabled={isProcessing}
-              style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#FF3E00', alignItems: 'center', justifyContent: 'center', opacity: isProcessing ? 0.7 : 1 }}
+              style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: themeColor(isDark, 'primary'), alignItems: 'center', justifyContent: 'center', opacity: isProcessing ? 0.7 : 1 }}
             >
               {isProcessing ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={themeColor(isDark, 'on-fill')} />
               ) : (
-                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 12, color: '#fff', textTransform: 'uppercase' }}>Apply</Text>
+                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 12, color: themeColor(isDark, 'on-fill'), textTransform: 'uppercase' }}>Apply</Text>
               )}
             </TouchableOpacity>
           </View>

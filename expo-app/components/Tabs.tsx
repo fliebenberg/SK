@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 export interface TabItem<T extends string = string> {
   key: T;
@@ -83,7 +84,7 @@ export function Tabs<T extends string = string>({
 
   const renderContent = () => (
     <View
-      className={`flex-row items-center border-b border-slate-200 dark:border-white/10 ${
+      className={`flex-row items-center border-b border-line ${
         variant === 'pill' ? 'border-b-0 gap-2' : ''
       } ${className}`}
     >
@@ -104,21 +105,21 @@ export function Tabs<T extends string = string>({
               }}
               className={`px-4 py-2 rounded-xl flex-row items-center gap-2 min-h-[44px] active:opacity-80 ${
                 isActive
-                  ? 'bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/40'
-                  : 'bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-white/5'
+                  ? 'bg-primary-soft border border-primary-line'
+                  : 'bg-sunken border border-line-soft'
               } ${tab.disabled ? 'opacity-40' : ''}`}
             >
               {tab.leading ? tab.leading : tab.icon && (
                 <Ionicons
                   name={tab.icon}
                   size={16}
-                  color={isActive ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+                  color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
                 />
               )}
               <View className="min-w-0">
                 <Text
                   className={`font-inter-bold text-xs ${
-                    isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
+                    isActive ? 'text-primary-ink' : 'text-ink-muted'
                   }`}
                 >
                   {tab.label}
@@ -127,7 +128,7 @@ export function Tabs<T extends string = string>({
                   <Text
                     numberOfLines={1}
                     className={`font-inter-bold text-[9px] mt-0.5 ${
-                      isActive ? 'text-brand-orange/80' : 'text-slate-500 dark:text-slate-400'
+                      isActive ? 'text-primary-ink' : 'text-ink-muted'
                     }`}
                   >
                     {tab.sublabel}
@@ -135,13 +136,13 @@ export function Tabs<T extends string = string>({
                 )}
               </View>
               {tab.badge !== undefined ? (
-                <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-brand-orange' : 'bg-slate-300 dark:bg-slate-700'}`}>
-                  <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>
+                <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-primary' : 'bg-line-strong'}`}>
+                  <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-on-fill' : 'text-ink-soft'}`}>
                     {tab.badge}
                   </Text>
                 </View>
               ) : tab.dot ? (
-                <View className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+                <View className="w-1.5 h-1.5 rounded-full bg-primary" />
               ) : null}
             </TouchableOpacity>
           );
@@ -167,13 +168,13 @@ export function Tabs<T extends string = string>({
               <Ionicons
                 name={tab.icon}
                 size={16}
-                color={isActive ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+                color={isActive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
               />
             )}
             <View className="min-w-0 flex-shrink">
               <Text
                 className={`font-inter-bold text-xs text-center ${
-                  isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
+                  isActive ? 'text-primary-ink' : 'text-ink-muted'
                 }`}
               >
                 {tab.label}
@@ -182,7 +183,7 @@ export function Tabs<T extends string = string>({
                 <Text
                   numberOfLines={1}
                   className={`font-inter-bold text-[9px] text-center mt-0.5 ${
-                    isActive ? 'text-brand-orange/80' : 'text-slate-500 dark:text-slate-400'
+                    isActive ? 'text-primary-ink' : 'text-ink-muted'
                   }`}
                 >
                   {tab.sublabel}
@@ -190,17 +191,17 @@ export function Tabs<T extends string = string>({
               )}
             </View>
             {tab.badge !== undefined ? (
-              <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-brand-orange/20' : 'bg-slate-200 dark:bg-slate-800'}`}>
-                <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'}`}>
+              <View className={`px-1.5 py-0.5 rounded-full ${isActive ? 'bg-primary-soft' : 'bg-line'}`}>
+                <Text className={`text-[10px] font-inter-bold ${isActive ? 'text-primary-ink' : 'text-ink-muted'}`}>
                   {tab.badge}
                 </Text>
               </View>
             ) : tab.dot ? (
-              <View className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+              <View className="w-1.5 h-1.5 rounded-full bg-primary" />
             ) : null}
             {/* Active bottom underline indicator */}
             {isActive && (
-              <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-brand-orange rounded-full" />
+              <View className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary rounded-full" />
             )}
           </TouchableOpacity>
         );

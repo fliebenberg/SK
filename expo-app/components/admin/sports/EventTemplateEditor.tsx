@@ -28,6 +28,8 @@ import {
   slugify,
 } from './editorPrimitives';
 
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 /**
  * The editor for one event template — what the scoring dialog will ask, what the event can end
  * in, and what it is worth.
@@ -88,6 +90,7 @@ export function EventTemplateEditor({
   onDone,
   onCancel,
 }: EventTemplateEditorProps) {
+  const isDark = useActiveTheme() === 'dark';
   const [draft, setDraft] = useState<EventTemplate>(() => JSON.parse(JSON.stringify(template)));
   /** JSON boxes that currently hold unparseable text, by field key. */
   const [invalidJson, setInvalidJson] = useState<Record<string, boolean>>({});
@@ -236,13 +239,13 @@ export function EventTemplateEditor({
         {step.type === ActionStepType.GROUP && !isChild && (
           <View>
             <View className="flex-row items-center justify-between mb-2">
-              <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300">
+              <Text className="font-inter-bold text-xs text-ink-soft">
                 Steps In This Group
               </Text>
               <AddButton label="Add Step" onPress={() => addChildStep(index)} />
             </View>
             {(step.steps || []).length === 0 ? (
-              <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 italic">
+              <Text className="font-inter text-[10px] text-ink-muted italic">
                 An empty group is dropped from the flow.
               </Text>
             ) : (
@@ -375,35 +378,35 @@ export function EventTemplateEditor({
 
   return (
     <Modal visible animationType="slide" transparent={false} onRequestClose={onCancel}>
-      <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+      <View className="flex-1 bg-canvas">
         {/* HEADER */}
-        <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900">
+        <View className="flex-row items-center justify-between px-5 py-4 border-b border-line bg-card">
           <TouchableOpacity onPress={onCancel} className="flex-row items-center gap-1.5 active:opacity-80">
-            <Ionicons name="close" size={18} color="#94A3B8" />
-            <Text className="font-orbitron-bold text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+            <Ionicons name="close" size={18} color={themeColor(isDark, 'ink-muted')} />
+            <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest mt-0.5">
               Cancel
             </Text>
           </TouchableOpacity>
-          <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider" numberOfLines={1}>
+          <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider" numberOfLines={1}>
             {savedIds.isSaved ? 'Edit Event' : 'New Event'}
           </Text>
           <TouchableOpacity
             onPress={handleDone}
-            className="bg-brand-orange px-4 py-2 rounded-xl flex-row items-center gap-1.5 active:scale-95"
+            className="bg-primary px-4 py-2 rounded-xl flex-row items-center gap-1.5 active:scale-95"
           >
             <Ionicons name="checkmark" size={14} color="white" />
-            <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">Done</Text>
+            <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">Done</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView className="flex-1 px-5 py-5" contentContainerStyle={{ paddingBottom: 60 }}>
-          <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+          <Text className="font-inter text-[11px] text-ink-muted mb-4 leading-relaxed">
             Changes here are held until you save the sport.
           </Text>
 
           {/* BASICS */}
           <SectionLabel className="mb-3">Event Basics</SectionLabel>
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-4 mb-6">
+          <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
             <TextField label="Name" value={draft.name || ''} onChangeText={setName} placeholder="e.g. Penalty Try" />
 
             {savedIds.isSaved ? (
@@ -478,8 +481,8 @@ export function EventTemplateEditor({
             <SectionLabel>Capture Flow</SectionLabel>
             <AddButton label="Add Step" onPress={addStep} />
           </View>
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl mb-6">
-            <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mb-3 leading-relaxed">
+          <GlassCard className="border border-line p-4 rounded-xl mb-6">
+            <Text className="font-inter text-[10px] text-ink-muted mb-3 leading-relaxed">
               One screen per step, in this order. A group renders its steps together on a single screen.
             </Text>
             {steps.length === 0 ? (
@@ -514,8 +517,8 @@ export function EventTemplateEditor({
             <SectionLabel>Outcomes</SectionLabel>
             <AddButton label="Add Outcome" onPress={() => writeOutcomes([...outcomes, { id: '', name: '' }])} />
           </View>
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl mb-6">
-            <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mb-3 leading-relaxed">
+          <GlassCard className="border border-line p-4 rounded-xl mb-6">
+            <Text className="font-inter text-[10px] text-ink-muted mb-3 leading-relaxed">
               What the event can end in, and what each ending is worth. The server reads points and
               follow-ups from here.
             </Text>
@@ -629,8 +632,8 @@ export function EventTemplateEditor({
               onPress={() => writeReasons([...reasonGroups, { name: 'General', options: [] }])}
             />
           </View>
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl mb-6">
-            <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mb-3 leading-relaxed">
+          <GlassCard className="border border-line p-4 rounded-xl mb-6">
+            <Text className="font-inter text-[10px] text-ink-muted mb-3 leading-relaxed">
               Why the event was awarded, grouped under headings. Turn off "Individual Offender" for a
               reason nobody is personally at fault for — the player prompt is then skipped.
             </Text>
@@ -661,14 +664,14 @@ export function EventTemplateEditor({
                       placeholder="e.g. Set Piece"
                     />
                     <View className="flex-row items-center justify-between mt-1">
-                      <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-300">Reasons</Text>
+                      <Text className="font-inter-bold text-xs text-ink-soft">Reasons</Text>
                       <AddButton
                         label="Add Reason"
                         onPress={() => updateGroup(groupIndex, { options: [...(group.options || []), { id: '', name: '' }] })}
                       />
                     </View>
                     {(group.options || []).length === 0 ? (
-                      <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 italic">
+                      <Text className="font-inter text-[10px] text-ink-muted italic">
                         A group with no reasons is rejected on save.
                       </Text>
                     ) : (
@@ -736,7 +739,7 @@ export function EventTemplateEditor({
 
           {/* TEMPLATE-LEVEL TRIGGER */}
           <SectionLabel className="mb-3">Always Triggers</SectionLabel>
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-4 mb-6">
+          <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
             <SelectField
               label="Follow-up Event"
               value={draft.triggerEventId || ''}
@@ -766,7 +769,7 @@ export function EventTemplateEditor({
 
           {/* DISPUTES */}
           <SectionLabel className="mb-3">Disputes</SectionLabel>
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl space-y-4 mb-6">
+          <GlassCard className="border border-line p-4 rounded-xl space-y-4 mb-6">
             <ToggleField
               label="Disputable"
               value={!!dispute}
@@ -833,7 +836,7 @@ export function EventTemplateEditor({
 
           {/* ADVANCED */}
           <SectionLabel className="mb-3">Advanced</SectionLabel>
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl mb-6">
+          <GlassCard className="border border-line p-4 rounded-xl mb-6">
             <Collapsible title="Rarely used fields" subtitle="Event data and feed overrides">
               <KeyValueEditor
                 label="Default Event Data"

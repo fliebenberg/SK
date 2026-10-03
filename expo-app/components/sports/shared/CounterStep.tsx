@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 interface CounterStepProps {
   label?: string;
   value: number;
@@ -17,6 +19,7 @@ export function CounterStep({
   min = 0,
   max = 99,
 }: CounterStepProps) {
+  const isDark = useActiveTheme() === 'dark';
   const handleDecrement = () => {
     if (value > min) {
       onChange(value - 1);
@@ -31,25 +34,25 @@ export function CounterStep({
 
   return (
     <View className="items-center justify-center space-y-3 py-4">
-      <Text className="font-inter-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+      <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
         {label}
       </Text>
 
-      <View className="flex-row items-center gap-6 bg-slate-100 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm">
+      <View className="flex-row items-center gap-6 bg-sunken p-3 rounded-2xl border border-line shadow-sm">
         <TouchableOpacity
           onPress={handleDecrement}
           disabled={value <= min}
           className={`w-12 h-12 rounded-xl items-center justify-center border ${
             value <= min
-              ? 'bg-slate-200/50 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-40'
-              : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-white/10 active:bg-slate-200'
+              ? 'bg-sunken border-line opacity-40'
+              : 'bg-raised border-line active:bg-line'
           }`}
         >
-          <Ionicons name="remove" size={24} color={value <= min ? '#94A3B8' : '#F97316'} />
+          <Ionicons name="remove" size={24} color={value <= min ? themeColor(isDark, 'ink-muted') : themeColor(isDark, 'primary')} />
         </TouchableOpacity>
 
         <View className="w-16 items-center">
-          <Text className="font-orbitron-bold text-3xl text-slate-900 dark:text-white">
+          <Text className="font-orbitron-bold text-3xl text-ink">
             {value}
           </Text>
         </View>
@@ -59,11 +62,11 @@ export function CounterStep({
           disabled={value >= max}
           className={`w-12 h-12 rounded-xl items-center justify-center border ${
             value >= max
-              ? 'bg-slate-200/50 dark:bg-white/5 border-slate-200 dark:border-white/5 opacity-40'
-              : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-white/10 active:bg-slate-200'
+              ? 'bg-sunken border-line opacity-40'
+              : 'bg-raised border-line active:bg-line'
           }`}
         >
-          <Ionicons name="add" size={24} color={value >= max ? '#94A3B8' : '#F97316'} />
+          <Ionicons name="add" size={24} color={value >= max ? themeColor(isDark, 'ink-muted') : themeColor(isDark, 'primary')} />
         </TouchableOpacity>
       </View>
     </View>

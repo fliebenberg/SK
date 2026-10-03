@@ -5,8 +5,9 @@ import { GameSummary, isScoreNotProvided } from '@sk/shared';
 import { OverflowMenu, OverflowMenuItem } from '../OverflowMenu';
 import { Guardianship, GuardianshipTag, PersonAvatar } from '../people/PersonBits';
 import { fixtureDateParts, whenMs } from '../../utils/dates';
-import { COLORS } from '../../constants/Colors';
 import { Outcome, isUpcoming, opponentOf, outcomeOf, recordOf, scoresFor } from './TeamBits';
+import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 
 /**
  * The cards of the team page (docs/teams.md): a card shell with a count, a roster row, and the
@@ -22,17 +23,18 @@ export function SectionCard({ label, count, action, onAction, children }: {
   onAction?: () => void;
   children: React.ReactNode;
 }) {
+  const isDark = useActiveTheme() === 'dark';
   return (
-    <View className="rounded-2xl border p-4 gap-2.5 bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5">
+    <View className="rounded-2xl border p-4 gap-2.5 bg-card border-line">
       <View className="flex-row items-center justify-between gap-3">
-        <Text className="font-inter-bold text-sm text-slate-700 dark:text-slate-200">
+        <Text className="font-inter-bold text-sm text-ink-soft">
           {label}
-          {count ? <Text className="font-inter text-slate-500 dark:text-slate-400">{`  ${count}`}</Text> : null}
+          {count ? <Text className="font-inter text-ink-muted">{`  ${count}`}</Text> : null}
         </Text>
         {action && onAction ? (
           <TouchableOpacity onPress={onAction} hitSlop={12} accessibilityRole="button" className="flex-row items-center gap-1">
-            <Ionicons name="add" size={15} color={COLORS.brand.orange} />
-            <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">{action}</Text>
+            <Ionicons name="add" size={15} color={themeColor(isDark, 'primary')} />
+            <Text className="font-inter-bold text-sm text-primary-ink">{action}</Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -44,12 +46,12 @@ export function SectionCard({ label, count, action, onAction, children }: {
 /** A quiet line in a card: what is missing, or what a search did not find. */
 export function CardNote({ text, action, onAction }: { text: string; action?: string; onAction?: () => void }) {
   return (
-    <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+    <Text className="font-inter text-sm text-ink-muted">
       {text}
       {action && onAction ? (
         <>
           {' '}
-          <Text onPress={onAction} accessibilityRole="button" className="font-inter-bold text-orange-700 dark:text-brand-orange">{action}</Text>
+          <Text onPress={onAction} accessibilityRole="button" className="font-inter-bold text-primary-ink">{action}</Text>
         </>
       ) : null}
     </Text>
@@ -60,7 +62,7 @@ export function CardNote({ text, action, onAction }: { text: string; action?: st
 export function ShowMore({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <TouchableOpacity onPress={onPress} accessibilityRole="button" className="self-start pt-1">
-      <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">{label}</Text>
+      <Text className="font-inter-bold text-sm text-primary-ink">{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -83,7 +85,7 @@ export function RosterRow({ name, image, imageConfig, guardianship, orgPersonId,
   menu?: OverflowMenuItem[];
 }) {
   return (
-    <View className={`flex-row items-center gap-1 -mx-4 pl-4 pr-2 ${first ? '' : 'border-t border-slate-100 dark:border-white/5'}`}>
+    <View className={`flex-row items-center gap-1 -mx-4 pl-4 pr-2 ${first ? '' : 'border-t border-line-soft'}`}>
       <TouchableOpacity
         onPress={onPress}
         disabled={!onPress}
@@ -94,15 +96,15 @@ export function RosterRow({ name, image, imageConfig, guardianship, orgPersonId,
         <PersonAvatar name={name} image={image} imageConfig={imageConfig} size={32} />
         <View className="flex-1 min-w-0">
           <View className="flex-row items-center gap-1.5">
-            <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white flex-shrink" numberOfLines={1}>{name}</Text>
+            <Text className="font-inter-semibold text-sm text-ink flex-shrink" numberOfLines={1}>{name}</Text>
             <GuardianshipTag kind={guardianship ?? null} />
             {orgPersonId ? (
-              <Text className="ml-auto pl-2 font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0" style={{ fontVariant: ['tabular-nums'] }}>
+              <Text className="ml-auto pl-2 font-inter text-xs text-ink-muted flex-shrink-0" style={{ fontVariant: ['tabular-nums'] }}>
                 {orgPersonId}
               </Text>
             ) : null}
           </View>
-          {role ? <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{role}</Text> : null}
+          {role ? <Text className="font-inter text-xs text-ink-muted mt-0.5">{role}</Text> : null}
         </View>
       </TouchableOpacity>
       {menu?.length ? <OverflowMenu items={menu} title={name} accessibilityLabel={`Actions for ${name}`} /> : <View className="w-2" />}
@@ -166,7 +168,7 @@ export function GamesCard({ games, total, teamId, eventNames, query, canEdit, on
       {record.played ? (
         <View className="gap-1.5">
           {searching ? (
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">
+            <Text className="font-inter text-xs text-ink-muted">
               {record.played === 1 ? 'Record in this game' : `Record in these ${record.played} games`}
             </Text>
           ) : null}
@@ -202,40 +204,41 @@ const whenOf = (g: GameSummary) => {
 };
 
 function SectionLabel({ text }: { text: string }) {
-  return <Text className="font-inter-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1 mb-0.5">{text}</Text>;
+  return <Text className="font-inter-bold text-xs uppercase tracking-wider text-ink-muted mt-1 mb-0.5">{text}</Text>;
 }
 
 function RecordStrip({ record }: { record: ReturnType<typeof recordOf> }) {
   const [width, setWidth] = useState(0);
   const cells: { label: string; value: string; tone?: string }[] = [
     { label: 'Played', value: String(record.played) },
-    { label: 'Won', value: String(record.won), tone: 'text-emerald-900 dark:text-emerald-300' },
-    { label: 'Drawn', value: String(record.drawn), tone: 'text-amber-900 dark:text-amber-300' },
-    { label: 'Lost', value: String(record.lost), tone: 'text-red-800 dark:text-red-300' },
+    { label: 'Won', value: String(record.won), tone: 'text-success-ink' },
+    { label: 'Drawn', value: String(record.drawn), tone: 'text-warning-ink' },
+    { label: 'Lost', value: String(record.lost), tone: 'text-danger-ink' },
   ];
   // Points needs the most room; it is left out rather than wrapped when the strip is narrow.
   if (width >= POINTS_MIN_WIDTH) cells.push({ label: 'Points', value: `${record.pointsFor}–${record.pointsAgainst}` });
   return (
     <View className="flex-row gap-1.5" onLayout={e => setWidth(e.nativeEvent.layout.width)}>
       {cells.map(cell => (
-        <View key={cell.label} className="flex-1 rounded-lg bg-slate-100 dark:bg-white/5 py-2 px-1 items-center">
+        <View key={cell.label} className="flex-1 rounded-lg bg-sunken py-2 px-1 items-center">
           <Text
             numberOfLines={1}
-            className={`font-orbitron-bold ${cell.label === 'Points' ? 'text-sm' : 'text-base'} ${cell.tone || 'text-slate-800 dark:text-white'}`}
+            className={`font-orbitron-bold ${cell.label === 'Points' ? 'text-sm' : 'text-base'} ${cell.tone || 'text-ink'}`}
           >
             {cell.value}
           </Text>
-          <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{cell.label}</Text>
+          <Text className="font-inter text-[11px] text-ink-muted mt-0.5">{cell.label}</Text>
         </View>
       ))}
     </View>
   );
 }
 
+// colour-data: dark fills under a white letter, the same in both themes, so not theme tokens.
 const OUTCOME: Record<Outcome, { letter: string; bg: string; label: string }> = {
-  w: { letter: 'W', bg: '#065F46', label: 'Won' },
-  d: { letter: 'D', bg: '#92400E', label: 'Drawn' },
-  l: { letter: 'L', bg: '#991B1B', label: 'Lost' },
+  w: { letter: 'W', bg: '#065F46', label: 'Won' }, // colour-data: see above
+  d: { letter: 'D', bg: '#92400E', label: 'Drawn' }, // colour-data: see above
+  l: { letter: 'L', bg: '#991B1B', label: 'Lost' }, // colour-data: see above
 };
 
 function GameRow({ game, teamId, eventName, first, canEdit, onOpen, onPickTeam }: {
@@ -255,24 +258,24 @@ function GameRow({ game, teamId, eventName, first, canEdit, onOpen, onPickTeam }
 
   let right: React.ReactNode = null;
   if (game.status === 'Live') {
-    right = <Text className="font-inter-bold text-[11px] text-white bg-red-800 rounded-full px-2 py-0.5 overflow-hidden">LIVE</Text>;
+    right = <Text className="font-inter-bold text-[11px] text-on-fill bg-danger rounded-full px-2 py-0.5 overflow-hidden">LIVE</Text>;
   } else if (game.status === 'Scheduled') {
     right = canEdit ? (
       <TouchableOpacity onPress={() => onPickTeam(game)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Pick the team for ${opponentOf(game, teamId)}`}>
-        <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">Pick team</Text>
+        <Text className="font-inter-bold text-sm text-primary-ink">Pick team</Text>
       </TouchableOpacity>
     ) : null;
   } else if (game.status === 'Cancelled') {
-    right = <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Cancelled</Text>;
+    right = <Text className="font-inter text-xs text-ink-muted">Cancelled</Text>;
   } else if (isScoreNotProvided(game)) {
-    right = <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">No score</Text>;
+    right = <Text className="font-inter text-xs text-ink-muted">No score</Text>;
   } else if (outcome) {
     const o = OUTCOME[outcome];
     right = (
       <View className="flex-row items-center gap-1.5" accessibilityLabel={`${o.label} ${mine} to ${theirs}`}>
-        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white" style={{ fontVariant: ['tabular-nums'] }}>{mine}–{theirs}</Text>
+        <Text className="font-inter-bold text-sm text-ink" style={{ fontVariant: ['tabular-nums'] }}>{mine}–{theirs}</Text>
         <View className="w-5 h-5 rounded-full items-center justify-center" style={{ backgroundColor: o.bg }}>
-          <Text className="font-inter-bold text-[11px] text-white">{o.letter}</Text>
+          <Text className="font-inter-bold text-[11px] text-on-fill">{o.letter}</Text>
         </View>
       </View>
     );
@@ -283,21 +286,21 @@ function GameRow({ game, teamId, eventName, first, canEdit, onOpen, onPickTeam }
       onPress={() => onOpen(game)}
       activeOpacity={0.7}
       accessibilityRole="link"
-      className={`flex-row items-center gap-2.5 py-2 ${first ? '' : 'border-t border-slate-100 dark:border-white/5'}`}
+      className={`flex-row items-center gap-2.5 py-2 ${first ? '' : 'border-t border-line-soft'}`}
     >
       <View className="w-11 items-center">
         {parts ? (
           <>
-            <Text className="font-inter-bold text-base leading-tight text-slate-800 dark:text-white">{parts.day}</Text>
-            <Text className="font-inter text-[11px] uppercase text-slate-500 dark:text-slate-400">{parts.month}</Text>
+            <Text className="font-inter-bold text-base leading-tight text-ink">{parts.day}</Text>
+            <Text className="font-inter text-[11px] uppercase text-ink-muted">{parts.month}</Text>
           </>
         ) : (
-          <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">TBD</Text>
+          <Text className="font-inter text-[11px] text-ink-muted">TBD</Text>
         )}
       </View>
       <View className="flex-1 min-w-0">
-        <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white" numberOfLines={1}>vs {opponentOf(game, teamId)}</Text>
-        {sub ? <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5" numberOfLines={1}>{sub}</Text> : null}
+        <Text className="font-inter-semibold text-sm text-ink" numberOfLines={1}>vs {opponentOf(game, teamId)}</Text>
+        {sub ? <Text className="font-inter text-xs text-ink-muted mt-0.5" numberOfLines={1}>{sub}</Text> : null}
       </View>
       {right}
     </TouchableOpacity>

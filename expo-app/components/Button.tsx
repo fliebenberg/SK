@@ -1,12 +1,21 @@
 import React, { forwardRef } from 'react';
 import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps, View } from 'react-native';
 import { useActiveTheme } from '../store/settingsStore';
+import { themeColor, type ThemeToken } from '../constants/Colors';
 
 interface ButtonProps extends TouchableOpacityProps {
   title: string;
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   isLoading?: boolean;
 }
+
+/** The spinner shown while loading, in the colour the label would be. */
+const SPINNER: Record<NonNullable<ButtonProps['variant']>, ThemeToken> = {
+  primary: 'on-fill',
+  secondary: 'on-bright',
+  danger: 'on-fill',
+  ghost: 'ink-soft',
+};
 
 export const Button = forwardRef<View, ButtonProps>(({ 
   title, 
@@ -22,36 +31,30 @@ export const Button = forwardRef<View, ButtonProps>(({
   const baseClasses = "min-h-[40px] flex-row items-center justify-center rounded-xl px-4 py-2 active:opacity-80";
   
   const variantClasses = {
-    primary: "bg-brand-orange",
-    secondary: "bg-brand-blue",
-    danger: "bg-brand-red",
-    ghost: "bg-white border border-slate-200",
+    primary: "bg-primary",
+    secondary: "bg-accent",
+    danger: "bg-danger",
+    ghost: "bg-card border border-line",
   };
 
   const textClasses = {
-    primary: "text-white",
-    secondary: "text-slate-950",
-    danger: "text-white",
-    ghost: "text-slate-700 dark:text-slate-300",
+    primary: "text-on-fill",
+    secondary: "text-on-bright",
+    danger: "text-on-fill",
+    ghost: "text-ink-soft",
   };
 
   const disabledClasses = disabled || isLoading ? "opacity-50" : "";
-
-  const ghostStyle = variant === 'ghost' ? {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#FFFFFF',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#E2E8F0',
-  } : {};
 
   return (
     <TouchableOpacity 
       ref={ref}
       className={`${baseClasses} ${variantClasses[variant]} ${disabledClasses} ${className}`}
       disabled={disabled || isLoading}
-      style={[ghostStyle, props.style]}
       {...props}
     >
       {isLoading ? (
-        <ActivityIndicator color={variant === 'secondary' ? '#0F172A' : '#FFFFFF'} />
+        <ActivityIndicator color={themeColor(isDark, SPINNER[variant])} />
       ) : (
         <Text className={`font-inter-bold text-sm text-center leading-tight ${textClasses[variant]}`}>
           {title}

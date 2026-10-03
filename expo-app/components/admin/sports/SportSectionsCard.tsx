@@ -78,11 +78,11 @@ export function SportSectionsCard({ sections, onChange, templates, savedSectionI
         <AddButton label="Add Section" onPress={addSection} />
       </View>
 
-      <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">
+      <Text className="font-inter text-[11px] text-ink-muted mb-3 leading-relaxed">
         The panels the scoring control room stacks, in this order. Every event belongs to one.
       </Text>
 
-      <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl">
+      <GlassCard className="border border-line p-4 rounded-xl">
         {sections.length === 0 ? (
           <EmptyHint icon="albums-outline" text="No sections yet. Add one before adding events." />
         ) : (
@@ -141,8 +141,8 @@ export function SportSectionsCard({ sections, onChange, templates, savedSectionI
         )}
 
         {sections.length > 0 && scoringCount === 0 && (
-          <View className="mt-3 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
-            <Text className="font-inter text-[10px] text-amber-600 dark:text-amber-400 leading-relaxed">
+          <View className="mt-3 p-3 rounded-xl border border-warning-line bg-warning-soft">
+            <Text className="font-inter text-[10px] text-warning-ink leading-relaxed">
               No section affects the score. Events worth points will still count, but a scoring
               event worth zero points will not move the scoreboard.
             </Text>

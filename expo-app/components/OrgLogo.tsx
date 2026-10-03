@@ -3,6 +3,8 @@ import { View, Image, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getOrgLogoUrl } from '../services/assets';
 
+import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 interface OrgLogoProps {
   logo?: string;
   settings?: Record<string, any>;
@@ -22,6 +24,7 @@ export function OrgLogo({
   fallbackIconSize,
   style
 }: OrgLogoProps) {
+  const isDark = useActiveTheme() === 'dark';
   // Determine dimensions based on size prop
   let dim = 48;
   let borderRadius = 12; // Squircle style
@@ -108,10 +111,10 @@ export function OrgLogo({
         </View>
       ) : (
         <View 
-          className="w-full h-full items-center justify-center bg-slate-100 dark:bg-slate-800"
+          className="w-full h-full items-center justify-center bg-sunken"
           style={{ width: '100%', height: '100%' }}
         >
-          <Ionicons name="business" size={iconSize} color={primaryColor || "#64748B"} />
+          <Ionicons name="business" size={iconSize} color={primaryColor || themeColor(isDark, 'ink-muted')} />
         </View>
       )}
     </View>

@@ -2,8 +2,8 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
 import { EVENT_ROLES, EVENT_ROLE_DESCRIPTIONS, EventRole } from '@sk/shared';
+import { themeColor } from '../constants/Colors';
 
 /**
  * A viewer's roles in one event, shown as a set (U4).
@@ -19,6 +19,7 @@ const ROLE_ICONS: Record<EventRole, keyof typeof Ionicons.glyphMap> = {
 };
 
 export function EventRoleChips({ roles }: { roles: EventRole[] }) {
+  const isDark = useActiveTheme() === 'dark';
   if (!roles.length) return null;
 
   return (
@@ -26,10 +27,10 @@ export function EventRoleChips({ roles }: { roles: EventRole[] }) {
       {roles.map(role => (
         <View
           key={role}
-          className="flex-row items-center gap-1 bg-brand-blue/10 dark:bg-brand-blue/20 border border-brand-blue/30 px-2 py-0.5 rounded-md"
+          className="flex-row items-center gap-1 bg-accent-soft border border-accent-line px-2 py-0.5 rounded-md"
         >
-          <Ionicons name={ROLE_ICONS[role]} size={10} color={COLORS.brand.blue} />
-          <Text className="font-inter-bold text-[9px] text-brand-blue uppercase tracking-widest">
+          <Ionicons name={ROLE_ICONS[role]} size={10} color={themeColor(isDark, 'accent-ink')} />
+          <Text className="font-inter-bold text-[9px] text-accent-ink uppercase tracking-widest">
             {role}
           </Text>
         </View>
@@ -75,18 +76,18 @@ export function EventRoleFilter({
             accessibilityLabel={`${role} — ${EVENT_ROLE_DESCRIPTIONS[role]}`}
             className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl border active:opacity-80 ${
               isOn
-                ? 'bg-brand-orange/10 dark:bg-brand-orange/20 border-brand-orange/40'
-                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'
+                ? 'bg-primary-soft border-primary-line'
+                : 'bg-card border-line'
             }`}
           >
             <Ionicons
               name={isOn ? 'checkmark-circle' : ROLE_ICONS[role]}
               size={13}
-              color={isOn ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+              color={isOn ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
             />
             <Text
               className={`font-inter-bold text-[10px] uppercase tracking-widest ${
-                isOn ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-400'
+                isOn ? 'text-primary-ink' : 'text-ink-muted'
               }`}
             >
               {role}
@@ -96,7 +97,7 @@ export function EventRoleFilter({
       })}
       {selected.length > 0 && (
         <TouchableOpacity onPress={() => onChange([])} className="px-2 py-2 active:opacity-80">
-          <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 underline">
+          <Text className="font-inter text-[10px] text-ink-muted underline">
             Clear
           </Text>
         </TouchableOpacity>

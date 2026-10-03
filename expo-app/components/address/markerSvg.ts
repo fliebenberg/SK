@@ -1,3 +1,4 @@
+import { themeColor } from '../../constants/Colors';
 /**
  * A round map marker as an SVG data URL, for the web map, which cannot draw an Ionicons glyph
  * inside a Google marker. Hand-drawn stand-ins for the icons a facility can have
@@ -5,7 +6,7 @@
  * anything else is a dot.
  */
 export function markerSvgUrl(iconName: string, color: string, isDark: boolean): string {
-  const bgColor = isDark ? '#1E293B' : '#FFFFFF';
+  const bgColor = themeColor(isDark, 'popover');
   let innerSvg: string;
   switch (iconName) {
     case 'american-football':

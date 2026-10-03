@@ -3,8 +3,9 @@ import { View, Text, TextInput, TouchableOpacity, Modal, Pressable, Platform } f
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS } from '../constants/Colors';
+
 import { calendarDateForPicker, calendarDateOf } from '../utils/dates';
+import { themeColor } from '../constants/Colors';
 
 const FIELD_HEIGHT = 44;
 
@@ -49,22 +50,22 @@ export default function DatePicker({ value, onChange, placeholder }: DatePickerP
     // inside an auto-height row resolves against the available screen space on Android,
     // which inflated this field to several hundred pixels.
     <View
-      className="flex-row items-stretch bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden w-full"
+      className="flex-row items-stretch bg-canvas border border-line rounded-xl overflow-hidden w-full"
       style={{ height: FIELD_HEIGHT }}
     >
       <TextInput
         value={value}
         onChangeText={onChange}
         placeholder={placeholder || 'YYYY-MM-DD'}
-        placeholderTextColor="#94A3B8"
-        className="flex-1 px-4 font-inter text-sm text-slate-850 dark:text-white"
+        placeholderTextColor={themeColor(isDark, 'ink-muted')}
+        className="flex-1 px-4 font-inter text-sm text-ink"
         style={{ height: FIELD_HEIGHT, paddingVertical: 0 }}
       />
       <TouchableOpacity
         onPress={openPicker}
-        className="px-4 items-center justify-center border-l border-slate-200 dark:border-white/5"
+        className="px-4 items-center justify-center border-l border-line"
       >
-        <Ionicons name="calendar-outline" size={18} color={COLORS.brand.orange} />
+        <Ionicons name="calendar-outline" size={18} color={themeColor(isDark, 'primary')} />
       </TouchableOpacity>
 
       {/* Android: the picker is a native dialog and adds nothing to the layout. */}
@@ -76,19 +77,19 @@ export default function DatePicker({ value, onChange, placeholder }: DatePickerP
       {Platform.OS === 'ios' && (
         <Modal transparent visible={showPicker} animationType="fade" onRequestClose={() => setShowPicker(false)}>
           <Pressable
-            className="flex-1 bg-slate-950/40 items-center justify-center p-6"
+            className="flex-1 bg-overlay/40 items-center justify-center p-6"
             onPress={() => setShowPicker(false)}
           >
             <Pressable
-              className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-white/10 w-full max-w-sm shadow-lg"
+              className="bg-card rounded-2xl p-5 border border-line w-full max-w-sm shadow-lg"
               onPress={(e) => e.stopPropagation()}
             >
-              <View className="flex-row justify-between items-center pb-3 border-b border-slate-100 dark:border-white/5 mb-2">
-                <Text className="font-orbitron-bold text-sm text-slate-850 dark:text-white uppercase tracking-wider">
+              <View className="flex-row justify-between items-center pb-3 border-b border-line-soft mb-2">
+                <Text className="font-orbitron-bold text-sm text-ink uppercase tracking-wider">
                   {placeholder || 'Select Date'}
                 </Text>
                 <TouchableOpacity onPress={() => setShowPicker(false)}>
-                  <Ionicons name="close" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
+                  <Ionicons name="close" size={20} color={themeColor(isDark, 'ink-muted')} />
                 </TouchableOpacity>
               </View>
 
@@ -97,18 +98,18 @@ export default function DatePicker({ value, onChange, placeholder }: DatePickerP
                 mode="date"
                 display="inline"
                 themeVariant={isDark ? 'dark' : 'light'}
-                accentColor={COLORS.brand.orange}
+                accentColor={themeColor(isDark, 'primary')}
                 onChange={(_event, selectedDate) => {
                   if (selectedDate) setPendingDate(selectedDate);
                 }}
               />
 
-              <View className="flex-row justify-end gap-3 pt-3 border-t border-slate-100 dark:border-white/5 mt-2">
+              <View className="flex-row justify-end gap-3 pt-3 border-t border-line-soft mt-2">
                 <TouchableOpacity onPress={() => setShowPicker(false)} className="px-4 py-2">
-                  <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">Cancel</Text>
+                  <Text className="font-inter text-sm text-ink-muted">Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={confirmIos} className="px-4 py-2 rounded-xl bg-brand-orange">
-                  <Text className="font-inter-bold text-sm text-white">Done</Text>
+                <TouchableOpacity onPress={confirmIos} className="px-4 py-2 rounded-xl bg-primary">
+                  <Text className="font-inter-bold text-sm text-on-fill">Done</Text>
                 </TouchableOpacity>
               </View>
             </Pressable>

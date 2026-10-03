@@ -95,26 +95,26 @@ export function GuardiansCard({ orgId, playerProfileId, playerName, guardians, c
           {guardians.map((link, index) => (
             <View
               key={link.id}
-              className={`flex-row items-start gap-3 py-2.5 ${index > 0 ? 'border-t border-slate-100 dark:border-white/5' : 'pt-0'}`}
+              className={`flex-row items-start gap-3 py-2.5 ${index > 0 ? 'border-t border-line-soft' : 'pt-0'}`}
             >
-              <View className="w-8 h-8 rounded-full bg-orange-100 dark:bg-brand-orange/15 items-center justify-center mt-0.5">
-                <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">
+              <View className="w-8 h-8 rounded-full bg-primary-soft items-center justify-center mt-0.5">
+                <Text className="font-inter-bold text-sm text-primary-ink">
                   {(link.guardianName || '?').charAt(0).toUpperCase()}
                 </Text>
               </View>
               <View className="flex-1 min-w-0">
                 <View className="flex-row items-center gap-2 flex-wrap">
-                  <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white">{link.guardianName}</Text>
+                  <Text className="font-inter-semibold text-sm text-ink">{link.guardianName}</Text>
                   {link.isPrimary && guardians.length > 1 ? (
-                    <View className="px-2 py-px rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-                      <Text className="font-inter-semibold text-[11px] text-slate-600 dark:text-slate-300">Primary</Text>
+                    <View className="px-2 py-px rounded-full bg-sunken border border-line">
+                      <Text className="font-inter-semibold text-[11px] text-ink-soft">Primary</Text>
                     </View>
                   ) : null}
                 </View>
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <Text className="font-inter text-xs text-ink-muted mt-0.5">
                   {[RELATIONSHIP_LABELS[link.relationship], link.guardianEmail, formatCellphone(link.guardianCellphone)].filter(Boolean).join(' · ')}
                 </Text>
-                <Text className={`font-inter text-xs mt-0.5 ${link.guardianHasAccount ? 'text-emerald-800 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                <Text className={`font-inter text-xs mt-0.5 ${link.guardianHasAccount ? 'text-success-ink' : 'text-ink-muted'}`}>
                   {link.guardianHasAccount ? 'On ScoreKeeper' : 'Not on ScoreKeeper yet'}
                 </Text>
               </View>
@@ -217,7 +217,7 @@ export function AddGuardianDialog({ visible, orgId, playerProfileId, playerName,
         showPrimary={hasGuardians}
         excludeProfileId={playerProfileId}
       />
-      {error ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">{error}</Text> : null}
+      {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
 }
@@ -316,7 +316,7 @@ function EditGuardianDialog({ link, onClose }: { link: ProfileGuardian | null; o
           isCompact={false}
         />
       </View>
-      {error ? <Text className="font-inter text-sm text-red-600 dark:text-red-400">{error}</Text> : null}
+      {error ? <Text className="font-inter text-sm text-danger-ink">{error}</Text> : null}
     </EditDialog>
   );
 }

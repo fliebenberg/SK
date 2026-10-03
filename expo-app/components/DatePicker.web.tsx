@@ -1,6 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 
 interface DatePickerProps {
   value: string;
@@ -12,7 +13,7 @@ export default function DatePicker({ value, onChange }: DatePickerProps) {
   const isDark = useActiveTheme() === 'dark';
 
   return (
-    <View className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden">
+    <View className="bg-canvas border border-line rounded-xl overflow-hidden">
       <input
         type="date"
         value={value}
@@ -23,7 +24,7 @@ export default function DatePicker({ value, onChange }: DatePickerProps) {
           padding: '0 16px',
           background: 'transparent',
           border: 'none',
-          color: isDark ? '#FFFFFF' : '#0F172A',
+          color: themeColor(isDark, 'ink'),
           fontFamily: 'Inter, System, sans-serif',
           fontSize: 14,
           outline: 'none',

@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { NominateAdminModal } from './NominateAdminModal';
 import { useOrgClaimStatus } from '../hooks/useOrgClaimStatus';
 import { useActiveTheme } from '../store/settingsStore';
-import { COLORS, getThemeColor } from '../constants/Colors';
+import { themeColor } from '../constants/Colors';
+
 
 /**
  * The small icon on an organisation chip that asks the user to help an organisation with no
@@ -59,9 +60,9 @@ export function UnclaimedOrgBadge({ org, size = 14, className = '', onHoverChang
   const hint = pending
     ? `You invited ${mine.join(', ')} to claim this organisation. Click to invite someone else.`
     : `${org.name} has no administrator yet. Click to nominate one.`;
-  // Light-mode swaps (`UI-6`): brand green is 1.67:1 on white and brand yellow worse; the icon is
-  // the whole signal, so it takes the success token and amber-700.
-  const iconColor = pending ? getThemeColor(isDark, 'success') : isDark ? COLORS.brand.yellow : '#B45309';
+  // The icon is the whole signal, so it takes the readable `-ink` shades: brand green is 1.67:1 on
+  // white and brand yellow worse (`UI-6`).
+  const iconColor = themeColor(isDark, pending ? 'success-ink' : 'warning-ink');
 
   const setHover = (h: boolean) => {
     setHovered(h);
@@ -83,11 +84,11 @@ export function UnclaimedOrgBadge({ org, size = 14, className = '', onHoverChang
         <Ionicons name={pending ? 'mail' : 'alert-circle'} size={size} color={iconColor} />
         {hovered && (
           <View
-            className="absolute bg-slate-900 dark:bg-slate-700 rounded-lg px-2.5 py-1.5 shadow-lg"
+            className="absolute bg-tooltip rounded-lg px-2.5 py-1.5 shadow-lg"
             style={{ bottom: size + 10, left: -100, width: 220 }}
             pointerEvents="none"
           >
-            <Text className="font-inter text-[11px] text-white text-center">{hint}</Text>
+            <Text className="font-inter text-[11px] text-on-fill text-center">{hint}</Text>
           </View>
         )}
       </Pressable>}

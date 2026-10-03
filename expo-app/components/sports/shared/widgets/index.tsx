@@ -67,8 +67,8 @@ export function WidgetStep({ step, value, onChange }: WidgetProps) {
 
   if (!Widget) {
     return (
-      <View className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10">
-        <Text className="font-inter-bold text-xs text-amber-500">
+      <View className="p-3 rounded-xl border border-warning-line bg-warning-soft">
+        <Text className="font-inter-bold text-xs text-warning-ink">
           {step.widgetName ? `Unknown widget: ${step.widgetName}` : 'This step declares no widget.'}
         </Text>
       </View>

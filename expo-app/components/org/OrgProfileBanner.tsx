@@ -5,7 +5,7 @@ import { Organization, orgColors } from '@sk/shared';
 import { OrgBrandedCard } from '../OrgBrandedCard';
 import { OrgLogo } from '../OrgLogo';
 import { getContrastColor } from '../../utils/colorUtils';
-import { COLORS } from '../../constants/Colors';
+
 import { addressLocality } from '../../services/places';
 import { orgTypeIcon, orgTypeLabel } from './orgTypes';
 
@@ -28,7 +28,7 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo }: { org: Organizatio
 
   const crest = (
     <View
-      className="items-center justify-center rounded-2xl overflow-hidden border bg-white/15 border-white/25"
+      className="items-center justify-center rounded-2xl overflow-hidden border bg-on-fill/15 border-on-fill/25"
       style={{ width: logoSize, height: logoSize }}
     >
       {org.logo ? (
@@ -45,7 +45,7 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo }: { org: Organizatio
         {onEditLogo ? (
           <TouchableOpacity onPress={onEditLogo} accessibilityRole="button" accessibilityLabel="Change the logo" activeOpacity={0.85}>
             {crest}
-            <View className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full bg-brand-orange border-2 border-white items-center justify-center">
+            <View className="absolute -right-1 -bottom-1 w-5 h-5 rounded-full bg-primary border-2 border-card items-center justify-center">
               <Ionicons name="pencil" size={9} color="white" />
             </View>
           </TouchableOpacity>
@@ -70,10 +70,10 @@ export function OrgProfileBanner({ org, onEdit, onEditLogo }: { org: Organizatio
             onPress={onEdit}
             accessibilityRole="button"
             accessibilityLabel="Edit the name, short code, type and colours"
-            className="ml-auto flex-row items-center gap-1.5 rounded-full px-3 py-1 border bg-black/20 border-white/30"
+            className="ml-auto flex-row items-center gap-1.5 rounded-full px-3 py-1 border bg-overlay/20 border-on-fill/30"
           >
             <Ionicons name="pencil" size={12} color="white" />
-            <Text className="font-inter-semibold text-sm text-white">Edit</Text>
+            <Text className="font-inter-semibold text-sm text-on-fill">Edit</Text>
           </TouchableOpacity>
         ) : null}
       </View>

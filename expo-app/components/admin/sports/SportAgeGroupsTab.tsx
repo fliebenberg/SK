@@ -9,6 +9,7 @@ import { Button } from '../../Button';
 import CustomSelect from '../../CustomSelect';
 import { ConfirmationModal } from '../../ConfirmationModal';
 import { EmptyHint, RowActions, SectionLabel } from './editorPrimitives';
+import { themeColor } from '../../../constants/Colors';
 
 /**
  * The Age Groups tab: the sport's official list, and the custom entries users have added to it.
@@ -44,7 +45,7 @@ function usageText(group: AgeGroupAdminView): string {
 }
 
 const inputClass =
-  'bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-white/5 px-3 py-2.5 rounded-xl font-inter text-sm text-slate-800 dark:text-white';
+  'bg-sunken border border-line px-3 py-2.5 rounded-xl font-inter text-sm text-ink';
 
 export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: SportAgeGroupsTabProps) {
   const isDark = useActiveTheme() === 'dark';
@@ -126,11 +127,11 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
           maxLength={40}
           className={`flex-1 ${inputClass}`}
         />
-        <TouchableOpacity onPress={() => handleRename(group)} disabled={isBusy} className="p-2 bg-brand-orange rounded-lg">
+        <TouchableOpacity onPress={() => handleRename(group)} disabled={isBusy} className="p-2 bg-primary rounded-lg">
           <Ionicons name="checkmark" size={14} color="white" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setEditingId(null)} className="p-2 bg-slate-100 dark:bg-white/5 rounded-lg">
-          <Ionicons name="close" size={14} color="#94A3B8" />
+        <TouchableOpacity onPress={() => setEditingId(null)} className="p-2 bg-sunken rounded-lg">
+          <Ionicons name="close" size={14} color={themeColor(isDark, 'ink-muted')} />
         </TouchableOpacity>
       </View>
     ) : (
@@ -141,8 +142,8 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
         }}
         className="flex-row items-center gap-1.5"
       >
-        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">{group.name}</Text>
-        <Ionicons name="pencil" size={11} color="#94A3B8" />
+        <Text className="font-inter-bold text-sm text-ink">{group.name}</Text>
+        <Ionicons name="pencil" size={11} color={themeColor(isDark, 'ink-muted')} />
       </TouchableOpacity>
     );
 
@@ -151,14 +152,14 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
       {/* OFFICIAL */}
       <View className="flex-row items-center justify-between mb-3">
         <SectionLabel>Official Age Groups</SectionLabel>
-        {isBusy && <ActivityIndicator size="small" color="#FF3E00" />}
+        {isBusy && <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />}
       </View>
-      <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+      <Text className="font-inter text-[11px] text-ink-muted mb-4 leading-relaxed">
         What every team, division and league of this sport chooses from, offered in this order.
         Changes on this tab save as you make them. Renaming one renames it everywhere it is used.
       </Text>
 
-      <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl mb-6">
+      <GlassCard className="border border-line p-4 rounded-xl mb-6">
         {official.length === 0 ? (
           <EmptyHint icon="people-outline" text="No official age groups. Add one below." />
         ) : (
@@ -167,7 +168,7 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
               <View key={group.id} className="flex-row items-center gap-2.5">
                 <View className="flex-1">
                   {renderName(group)}
-                  <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{usageText(group)}</Text>
+                  <Text className="font-inter text-[10px] text-ink-muted mt-0.5">{usageText(group)}</Text>
                 </View>
                 <RowActions
                   canMoveUp={index > 0 && !isBusy}
@@ -181,36 +182,36 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
           </View>
         )}
 
-        <View className="flex-row items-center gap-2 mt-4 pt-4 border-t border-slate-200/60 dark:border-white/5">
+        <View className="flex-row items-center gap-2 mt-4 pt-4 border-t border-line-soft">
           <TextInput
             value={newName}
             onChangeText={setNewName}
             onSubmitEditing={handleAdd}
             placeholder="Add an official age group, e.g. U8"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
             maxLength={40}
             className={`flex-1 ${inputClass}`}
           />
           <TouchableOpacity
             onPress={handleAdd}
             disabled={!newName.trim() || isBusy}
-            className={`px-3.5 py-2.5 rounded-xl bg-brand-orange flex-row items-center gap-1 ${!newName.trim() ? 'opacity-50' : ''}`}
+            className={`px-3.5 py-2.5 rounded-xl bg-primary flex-row items-center gap-1 ${!newName.trim() ? 'opacity-50' : ''}`}
           >
             <Ionicons name="add" size={14} color="white" />
-            <Text className="font-inter-bold text-xs text-white">Add</Text>
+            <Text className="font-inter-bold text-xs text-on-fill">Add</Text>
           </TouchableOpacity>
         </View>
       </GlassCard>
 
       {/* CUSTOM */}
       <SectionLabel className="mb-3">Custom Age Groups</SectionLabel>
-      <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+      <Text className="font-inter text-[11px] text-ink-muted mb-4 leading-relaxed">
         Added by users under "Other…" when the official list had nothing that fitted. Everyone who
         plays this sport can pick them. Promote one that belongs on the official list, or merge one
         into the official age group it duplicates — everything using it moves across.
       </Text>
 
-      <GlassCard className="border border-slate-200 dark:border-white/5 p-4 rounded-xl mb-6">
+      <GlassCard className="border border-line p-4 rounded-xl mb-6">
         {custom.length === 0 ? (
           <EmptyHint icon="checkmark-circle-outline" text="No custom age groups — nobody has needed one yet." />
         ) : (
@@ -218,7 +219,7 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
             {custom.map(group => (
               <View key={group.id}>
                 {renderName(group)}
-                <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                <Text className="font-inter text-[10px] text-ink-muted mt-0.5">
                   {group.createdOrgName ? `Added by ${group.createdOrgName} · ` : ''}
                   {usageText(group)}
                 </Text>
@@ -255,15 +256,15 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
 
       {/* MERGE */}
       <Modal transparent visible={!!mergeFrom} animationType="fade" onRequestClose={() => setMergeFrom(null)}>
-        <View className="flex-1 bg-slate-950/75 items-center justify-center p-6">
+        <View className="flex-1 bg-overlay/75 items-center justify-center p-6">
           <GlassCard
-            className="w-full max-w-sm border border-slate-200 dark:border-white/10 p-6 space-y-4 shadow-lg"
-            style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }}
+            className="w-full max-w-sm border border-line p-6 space-y-4 shadow-lg"
+            style={{ backgroundColor: themeColor(isDark, 'popover') }}
           >
-            <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-sm text-ink uppercase tracking-wider">
               Merge "{mergeFrom?.name}"
             </Text>
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            <Text className="font-inter text-xs text-ink-muted leading-relaxed">
               {mergeFrom && usageCount(mergeFrom) > 0
                 ? `${usageText(mergeFrom)}. Merging moves all of them to the age group you choose, then removes "${mergeFrom.name}".`
                 : `Nothing uses "${mergeFrom?.name}" yet. Merging removes it, as deleting would.`}
@@ -275,7 +276,7 @@ export function SportAgeGroupsTab({ sportId, token, ageGroups, onChange }: Sport
               options={mergeTargets.map(g => ({ value: g.id, label: g.isOfficial ? g.name : `${g.name} (custom)` }))}
             />
             {!!mergeInto && !!mergeFrom && (
-              <Text className="font-inter text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+              <Text className="font-inter text-[11px] text-warning-ink leading-relaxed">
                 "{mergeFrom.name}" will be gone and everything that used it will show "{mergeInto.name}".
                 This cannot be undone.
               </Text>

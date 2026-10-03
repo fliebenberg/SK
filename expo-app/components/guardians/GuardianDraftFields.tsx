@@ -9,6 +9,8 @@ import { SegmentedControl } from '../SegmentedControl';
 import { GuardianDraft, RELATIONSHIP_LABELS } from './guardianDraft';
 import { formatCellphone } from '../../utils/phone';
 
+import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 interface GuardianDraftFieldsProps {
   orgId: string;
   draft: GuardianDraft;
@@ -25,6 +27,7 @@ interface GuardianDraftFieldsProps {
  * {@link GuardianDraft} and saves it with `saveGuardianDraft`.
  */
 export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, excludeProfileId }: GuardianDraftFieldsProps) {
+  const isDark = useActiveTheme() === 'dark';
   const set = (patch: Partial<GuardianDraft>) => onChange({ ...draft, ...patch });
 
   return (
@@ -32,19 +35,19 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
       <View className="gap-1.5" style={{ zIndex: 50 }}>
         <FieldLabel label="Guardian’s name" />
         {draft.existingId ? (
-          <View className="flex-row items-center justify-between bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-4 py-3">
+          <View className="flex-row items-center justify-between bg-success-soft border border-success-line rounded-xl px-4 py-3">
             <View className="flex-1 mr-3">
-              <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">{draft.name}</Text>
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <Text className="font-inter-bold text-sm text-ink">{draft.name}</Text>
+              <Text className="font-inter text-xs text-ink-muted mt-0.5">
                 {draft.email || 'Already on record in this organisation'}
               </Text>
             </View>
             <TouchableOpacity
               onPress={() => set({ existingId: null, name: '', email: '', cellphone: '' })}
               accessibilityRole="button"
-              className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800"
+              className="px-3 py-1.5 rounded-lg bg-sunken"
             >
-              <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">Change</Text>
+              <Text className="font-inter-bold text-sm text-primary-ink">Change</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -69,7 +72,7 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
               value={draft.email}
               onChangeText={email => set({ email })}
               placeholder="Their own email"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               autoCapitalize="none"
               keyboardType="email-address"
               className={TEXT_INPUT}
@@ -81,7 +84,7 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
               value={draft.cellphone}
               onChangeText={cellphone => set({ cellphone })}
               placeholder="e.g. +27 82 123 4567"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
               keyboardType="phone-pad"
               className={TEXT_INPUT}
             />
@@ -102,8 +105,8 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
       {showPrimary ? (
         <View className="flex-row items-center justify-between">
           <View className="flex-1 mr-3 flex-row items-center gap-2">
-            <Ionicons name="star-outline" size={14} color="#94A3B8" />
-            <Text className="font-inter text-sm text-slate-700 dark:text-slate-300">Make this the primary contact</Text>
+            <Ionicons name="star-outline" size={14} color={themeColor(isDark, 'ink-muted')} />
+            <Text className="font-inter text-sm text-ink-soft">Make this the primary contact</Text>
           </View>
           <Switch value={draft.makePrimary} onValueChange={makePrimary => set({ makePrimary })} />
         </View>

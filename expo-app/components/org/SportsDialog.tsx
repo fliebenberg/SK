@@ -7,7 +7,8 @@ import { TEXT_INPUT } from '../formStyles';
 import { sendAction } from '../../services/actions';
 import { useSocketQuery } from '../../hooks/useSocketQuery';
 import { useActiveTheme } from '../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../constants/Colors';
+import { themeColor } from '../../constants/Colors';
+
 
 /**
  * Which sports the org plays. Saves the set alone (`UPDATE_ORG` with `supportedSportIds`).
@@ -78,14 +79,14 @@ export function SportsDialog({ org, visible, onClose }: { org: Organization; vis
       isDirty={isDirty}
     >
       <View className={`flex-row items-center gap-2 ${TEXT_INPUT}`}>
-        <Ionicons name="search" size={16} color={getThemeColor(isDark, 'textSecondary')} />
+        <Ionicons name="search" size={16} color={themeColor(isDark, 'ink-muted')} />
         <TextInput
           value={search}
           onChangeText={setSearch}
           placeholder="Search sports"
-          placeholderTextColor={getThemeColor(isDark, 'textSecondary')}
+          placeholderTextColor={themeColor(isDark, 'ink-muted')}
           accessibilityLabel="Search sports"
-          className="flex-1 font-inter text-base text-slate-800 dark:text-white outline-none"
+          className="flex-1 font-inter text-base text-ink outline-none"
         />
       </View>
 
@@ -99,31 +100,31 @@ export function SportsDialog({ org, visible, onClose }: { org: Organization; vis
               accessibilityRole="checkbox"
               accessibilityState={{ checked: on }}
               className={`flex-row items-center justify-between rounded-xl border px-3 py-2.5 ${
-                on ? 'border-brand-orange/50 bg-orange-50 dark:bg-brand-orange/10' : 'border-slate-200 dark:border-white/10'
+                on ? 'border-primary-line bg-primary-soft' : 'border-line'
               }`}
             >
-              <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white">{sport.name}</Text>
+              <Text className="font-inter-semibold text-sm text-ink">{sport.name}</Text>
               <Ionicons
                 name={on ? 'checkbox' : 'square-outline'}
                 size={20}
-                color={on ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary')}
+                color={on ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')}
               />
             </TouchableOpacity>
           );
         })}
         {sports && shown.length === 0 ? (
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">No sport matches "{search.trim()}".</Text>
+          <Text className="font-inter text-sm text-ink-muted">No sport matches "{search.trim()}".</Text>
         ) : null}
       </View>
 
       {confirming ? (
-        <View className="rounded-xl border border-red-200 dark:border-red-400/30 bg-red-50 dark:bg-red-500/10 p-3 gap-1.5">
-          <Text className="font-inter-bold text-sm text-red-800 dark:text-red-300">These teams will be deactivated</Text>
+        <View className="rounded-xl border border-danger-line bg-danger-soft p-3 gap-1.5">
+          <Text className="font-inter-bold text-sm text-danger-ink">These teams will be deactivated</Text>
           {affected.map(item => (
             <View key={item.name}>
-              <Text className="font-inter-semibold text-xs text-red-800 dark:text-red-300">{item.name}</Text>
+              <Text className="font-inter-semibold text-xs text-danger-ink">{item.name}</Text>
               {item.teams.map((t: any) => (
-                <Text key={t.id} className="font-inter text-xs text-red-700 dark:text-red-300/90 pl-3">• {t.name}</Text>
+                <Text key={t.id} className="font-inter text-xs text-danger-ink pl-3">• {t.name}</Text>
               ))}
             </View>
           ))}

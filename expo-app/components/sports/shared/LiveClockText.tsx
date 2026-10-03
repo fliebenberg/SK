@@ -2,7 +2,8 @@ import React, { memo, useState, useEffect } from 'react';
 import { Text } from 'react-native';
 import { GameClockState } from '@sk/shared';
 import { useGameTimer } from '../../../hooks/useGameTimer';
-import { COLORS } from '../../../constants/Colors';
+import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 interface LiveClockTextProps {
   clock?: GameClockState;
@@ -17,8 +18,9 @@ export const LiveClockText = memo(function LiveClockText({
   startTime,
   finishTime,
   showHours = true,
-  className = 'font-orbitron-bold text-sm text-amber-500',
+  className = 'font-orbitron-bold text-sm text-warning-ink',
 }: LiveClockTextProps) {
+  const isDark = useActiveTheme() === 'dark';
   const { formattedTime, currentMS } = useGameTimer(clock, startTime, finishTime, showHours);
   const [isBlinking, setIsBlinking] = useState(false);
 
@@ -46,7 +48,7 @@ export const LiveClockText = memo(function LiveClockText({
       <Text
         className={className}
         style={{
-          color: COLORS.brand.red,
+          color: themeColor(isDark, 'danger-ink'),
           opacity: isBlinking ? 1 : 0.25,
         }}
       >
