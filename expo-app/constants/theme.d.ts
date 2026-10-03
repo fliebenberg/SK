@@ -3,7 +3,7 @@
 export type ThemeMode = 'light' | 'dark';
 
 export type ThemeToken =
-  | 'canvas' | 'card' | 'sunken' | 'field' | 'overlay'
+  | 'canvas' | 'card' | 'sunken' | 'field' | 'raised' | 'popover' | 'tooltip' | 'overlay' | 'shadow' | 'logo-plate'
   | 'ink' | 'ink-soft' | 'ink-muted' | 'ink-faint' | 'on-fill' | 'on-bright'
   | 'line' | 'line-soft' | 'line-strong'
   | 'primary' | 'primary-ink' | 'primary-soft' | 'primary-line'

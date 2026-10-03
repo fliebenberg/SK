@@ -14,9 +14,10 @@
  *  - a text token below 4.5:1 on the surfaces it is read on (the design spec asks for 7:1 where it
  *    can; the contrast table is printed with `--contrast`).
  *
- * Reports, without failing, how many raw palette classes and hex colours remain — the colours named
- * by shade rather than purpose. Once the sweep has moved them to tokens, `--strict` makes them fail
- * too, and the pre-commit hook runs it that way.
+ * Reports, without failing, how many colours are still named by shade rather than purpose: raw
+ * palette classes, `brand-*` / `white` / `black` and the legacy class names, hex values, and the old
+ * `COLORS` / `getThemeColor` helpers. Once the sweep has moved them to tokens, `--strict` makes them
+ * fail too, and the pre-commit hook runs it that way. `--list` prints where each one is.
  *
  * Run: `npm run check:colors` (from expo-app/). Exit code 1 lists each offending line.
  */
@@ -38,7 +39,12 @@ const SHADES = new Set([50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]);
 const COLOR_PREFIX = '(?:text|bg|border(?:-[trblxy])?|divide|ring|ring-offset|outline|fill|stroke|placeholder|from|via|to|decoration|accent|caret|shadow)';
 const PALETTE_CLASS = new RegExp(`(?<![\\w-])(?:[a-z-]+:)*${COLOR_PREFIX}-(${PALETTE.join('|')})-(\\d+)(?:\\/\\d+)?(?![\\w-])`, 'g');
 const TOKEN_CLASS = new RegExp(`(?<![\\w-])(?:[a-z-]+:)*${COLOR_PREFIX}-((?:${[...TOKEN_GROUPS].join('|')})(?:-[a-z]+)*)(?:\\/\\d+)?(?![\\w-])`, 'g');
-const HEX = /['"`]#[0-9A-Fa-f]{6}['"`]/g;
+const HEX = /['"`](?:#(?:[0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|rgba?\([^)]*\))['"`]/g;
+// Colour classes that name a colour rather than a purpose but are not palette shades: the old brand
+// table, white and black, and the legacy names from before the tokens.
+const OTHER_CLASS = new RegExp(`(?<![\\w-])(?:[a-z-]+:)*${COLOR_PREFIX}-(brand-[a-z]+|white|black|background|surface|textPrimary|textSecondary)(?:\\/\\d+)?(?![\\w-])`, 'g');
+// The value helpers from before the tokens; `themeColor(isDark, token)` replaces both.
+const LEGACY_VALUE = /\b(COLORS\.(?:brand|light|dark)\b|getThemeColor\()/g;
 const COMMENT = /^\s*(\/\/|\/?\*|\{\/\*)/;
 
 function walk(dir, out) {
@@ -54,22 +60,45 @@ function walk(dir, out) {
 const failures = [];
 let rawPalette = 0;
 let rawHex = 0;
+let rawOther = 0;
+const LIST = process.argv.includes('--list');
+const listed = [];
 
 for (const file of SCAN.flatMap(dir => walk(path.join(ROOT, dir), []))) {
   const rel = path.relative(ROOT, file).replace(/\\/g, '/');
-  // The token file and the legacy table are where colours are defined, not used.
+  // Where colours are defined, not used: the tokens, and `themeColor()`, which hands them out.
   const isDefinition = rel === 'constants/theme.js' || rel === 'constants/Colors.ts';
-  fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach((line, i) => {
+  const text = fs.readFileSync(file, 'utf8');
+  // Colours that are data, not theme: an org's brand colour, a picker's swatches, the black or
+  // white worked out to read on a colour. A file says so once with `@colour-data` in a comment,
+  // saying why; a single line says so with a `colour-data: <why>` comment at its end or on the line
+  // above. Classes are still checked there.
+  const isData = /@colour-data\b/.test(text);
+  const lines = text.split(/\r?\n/);
+  lines.forEach((line, i) => {
     if (COMMENT.test(line)) return;
     for (const m of line.matchAll(PALETTE_CLASS)) {
       if (!SHADES.has(Number(m[2]))) failures.push(`${rel}:${i + 1}  ${m[0]} — Tailwind has no ${m[1]}-${m[2]}; it applies no colour`);
-      else rawPalette++;
+      else {
+        rawPalette++;
+        if (LIST) listed.push(`${rel}:${i + 1}  ${m[0]}`);
+      }
+    }
+    for (const m of line.matchAll(OTHER_CLASS)) {
+      rawOther++;
+      if (LIST) listed.push(`${rel}:${i + 1}  ${m[0]}`);
     }
     for (const m of line.matchAll(TOKEN_CLASS)) {
       const name = m[1];
       if (!TOKEN_NAMES.has(name)) failures.push(`${rel}:${i + 1}  ${m[0]} — "${name}" is not a colour token (constants/theme.js)`);
     }
-    if (!isDefinition) rawHex += (line.match(HEX) || []).length;
+    const dataLine = /(\/\/|\/\*) colour-data:/.test(line) || /^\s*(\/\/|\{?\/\*) colour-data:/.test(lines[i - 1] || '');
+    if (!isDefinition && !isData && !dataLine) {
+      for (const m of [...(line.match(HEX) || []), ...(line.match(LEGACY_VALUE) || [])]) {
+        rawHex++;
+        if (LIST) listed.push(`${rel}:${i + 1}  ${m}`);
+      }
+    }
   });
 }
 
@@ -92,6 +121,8 @@ function ratio(a, b) {
 const TONES = ['primary', 'accent', 'success', 'warning', 'danger', 'info', 'special'];
 const PAIRS = [
   ...['ink', 'ink-soft', 'ink-muted'].flatMap(t => ['card', 'canvas', 'field', 'sunken'].map(s => [t, s])),
+  ...['ink', 'ink-soft', 'ink-muted'].map(t => [t, 'popover']),
+  ['ink', 'raised'], ['ink-muted', 'raised'], ['primary-ink', 'raised'], ['on-fill', 'tooltip'],
   ...TONES.flatMap(t => [[`${t}-ink`, 'card'], [`${t}-ink`, 'sunken'], [`${t}-ink`, `${t}-soft`]]),
 ];
 const rows = [];
@@ -107,13 +138,16 @@ if (SHOW_CONTRAST) {
   for (const { text, surface, mode, r } of rows) console.log(`  ${r >= 7 ? '  ' : r >= 4.5 ? '~ ' : '! '}${`${text} on ${surface}`.padEnd(34)} ${mode.padEnd(6)} ${r.toFixed(2)}:1`);
 }
 
+if (LIST) for (const l of listed) console.log(`  ${l}`);
 if (STRICT && rawPalette) failures.push(`${rawPalette} raw palette classes — name the purpose with a token instead`);
-if (STRICT && rawHex) failures.push(`${rawHex} hex colours outside constants/ — use themeColor() or a token class`);
+if (STRICT && rawOther) failures.push(`${rawOther} brand-*, white, black or legacy colour classes — name the purpose with a token instead`);
+if (STRICT && rawHex) failures.push(`${rawHex} hex colours or COLORS / getThemeColor uses outside constants/ — use themeColor() or a token class`);
 
+const remaining = `${rawPalette} raw palette classes, ${rawOther} brand/white/black/legacy classes and ${rawHex} hex or legacy colour values left to move to tokens`;
 if (failures.length) {
   console.error(`check:colors — ${failures.length} problem${failures.length === 1 ? '' : 's'}:`);
   for (const f of failures) console.error(`  ${f}`);
-  if (!STRICT) console.error(`(and, not yet failing: ${rawPalette} raw palette classes and ${rawHex} hex colours left to move to tokens)`);
+  if (!STRICT) console.error(`(and, not yet failing: ${remaining})`);
   process.exit(1);
 }
-console.log(`check:colors — every colour class names a real shade or token${STRICT ? '' : ` (${rawPalette} raw palette classes and ${rawHex} hex colours left to move to tokens)`}.`);
+console.log(`check:colors — every colour class names a real shade or token${STRICT ? '' : ` (${remaining})`}.`);

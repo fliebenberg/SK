@@ -47,6 +47,23 @@ const tokens = {
   sunken: { light: '#F1F5F9', dark: '#1E293B' },
   /** The inside of a text input or a closed select. */
   field: { light: '#F8FAFC', dark: '#020617' },
+  /**
+   * Lifted off a sunken track: the selected segment, a page number, a stepper button. The dark value
+   * is as far above `sunken` as white is in light mode, and no further: slate-700 would take the
+   * orange and muted text under 4.5:1.
+   */
+  raised: { light: '#FFFFFF', dark: '#273449' },
+  /**
+   * A dialog, sheet or menu floating over the page. In dark mode a step lighter than `card`, so it
+   * stands off the page behind its scrim.
+   */
+  popover: { light: '#FFFFFF', dark: '#1E293B' },
+  /** A tooltip's dark bubble, in both themes; its text is `on-fill`. */
+  tooltip: { light: '#0F172A', dark: '#334155' },
+  /** The white plate behind an org's logo, in both themes: logos are drawn for white. */
+  'logo-plate': { light: '#FFFFFF', dark: '#FFFFFF' },
+  /** A drop shadow's colour (`shadowColor`); the shadow's opacity sets how strong it is. */
+  shadow: { light: '#000000', dark: '#000000' },
   /** The scrim behind a dialog; use with an opacity, `bg-overlay/60`. */
   overlay: { light: '#020617', dark: '#000000' },
 

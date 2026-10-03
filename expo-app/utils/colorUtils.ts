@@ -1,3 +1,4 @@
+/** @colour-data — works out black or white text to read on an arbitrary colour, such as an org's brand colour. */
 export function getContrastColor(hexcolor: string | undefined): string {
   if (!hexcolor || hexcolor === 'transparent' || hexcolor === 'undefined') return '#ffffff';
   let hex = hexcolor.replace('#', '');
@@ -43,4 +44,27 @@ export function readableTextOn(hex: string | undefined): '#000000' | '#FFFFFF' {
   const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
   // Contrast with black is (L + 0.05) / 0.05, with white 1.05 / (L + 0.05); they cross at L ≈ 0.179.
   return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? '#000000' : '#FFFFFF';
+}
+
+/**
+ * The colours for content drawn over a brand colour — an org's banner card: black-based on a light
+ * colour, white-based on a dark one, with the softer shades for subtext, borders and chips. The
+ * one place those shades are written, so the banners cannot drift apart (`UI-24`).
+ */
+export function inkOnBrand(hex: string | undefined) {
+  const text = getContrastColor(hex);
+  const isLight = text === '#000000';
+  const shade = (onLight: number, onDark: number) =>
+    isLight ? `rgba(0, 0, 0, ${onLight})` : `rgba(255, 255, 255, ${onDark})`;
+  return {
+    isLight,
+    text,
+    /** The opposite of `text`: a solid button set into the banner. */
+    inverse: isLight ? '#FFFFFF' : '#000000',
+    subtext: shade(0.6, 0.7),
+    border: shade(0.1, 0.15),
+    badge: shade(0.06, 0.15),
+    chip: shade(0.08, 0.25),
+    button: shade(0.08, 0.2),
+  };
 }
