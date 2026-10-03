@@ -121,16 +121,16 @@ export function PersonnelAutocomplete({
                   className="flex-row items-center px-4 py-2 border-b border-slate-100 dark:border-white/5 active:bg-slate-100 dark:active:bg-slate-800"
                 >
                   <View className="w-5 h-5 rounded-full bg-brand-orange/10 items-center justify-center mr-3">
-                    <Text className="font-orbitron-bold text-[10px] text-brand-orange">
+                    <Text className="font-inter-bold text-[10px] text-brand-orange">
                       {item.name.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white">
+                    <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white">
                       {item.name}
                     </Text>
                     {!!item.email && (
-                      <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">
+                      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
                         {item.email}
                       </Text>
                     )}

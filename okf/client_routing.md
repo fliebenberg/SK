@@ -7,7 +7,7 @@ tags:
   - routing
   - pages
   - navigation-guards
-timestamp: 2026-09-27T00:00:00Z
+timestamp: 2026-10-03T00:00:00Z
 ---
 
 # Client Pages & Routing Maps
@@ -61,7 +61,7 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 
 *   `/admin/[orgId]`: Organization console.
 *   `/admin/[orgId]/teams`, `/teams/new`, `/teams/[teamId]`, `/teams/[teamId]/view`: Teams.
-*   `/admin/[orgId]/people`, `/people/[membershipId]`, `/people/[membershipId]/view`: Rosters, staff roles and memberships.
+*   `/admin/[orgId]/people`, `/people/[membershipId]`: The People list and one read-first person page — read-only for anyone but Admin and Staff (there is no separate view route). [people.md](file:///c:/Fred/Coding/SK/docs/people.md).
 *   `/admin/[orgId]/people/import`: Import people and their guardians from a spreadsheet — admin or staff, opened from the People screen's `⋯` menu. Rules: [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.
 *   `/admin/[orgId]/sites`, `/sites/[siteId]`, `/sites/[siteId]/facilities/[facilityId]`: Venues and courts.
 *   `/admin/[orgId]/leagues`, `/leagues/[leagueId]`, `/leagues/[leagueId]/seasons/[seasonId]`: Leagues and seasons.

@@ -15,6 +15,7 @@ import {
   normalizeEmail,
 } from '@sk/shared';
 import { GlassCard } from './GlassCard';
+import { ReadCard } from './ReadCard';
 import { Button } from './Button';
 import { sendAction } from '../services/actions';
 import { useSocketQuery } from '../hooks/useSocketQuery';
@@ -160,7 +161,8 @@ function restrictionMessage(person: InvitablePerson, minorAge: number, hasGuardi
     ? 'Invite their guardian instead.'
     : 'Record a guardian on their profile to invite them instead.';
   if (person.restrictedReason === 'org-off') {
-    return `${person.name} is under ${minorAge}, and minors do not have member access in this organisation (Org Settings › Minors). ${instead}`;
+    const who = isUnderAge(person.birthdate, minorAge) ? `is under ${minorAge}, and minors do` : 'has a guardian, and dependants do';
+    return `${person.name} ${who} not have member access in this organisation (Settings › Minors). ${instead}`;
   }
   if (person.restrictedReason === 'minor-off') {
     return `${person.name} has not been allowed their own access. ${instead}`;
@@ -421,31 +423,27 @@ interface InviteStatusCardProps {
   cooldownHours: number;
   /** Whether the viewer may send invites — org admins and staff. */
   canInvite: boolean;
-  /** Shown instead of the button when it is there but may not be used yet. */
-  blockedReason?: string;
   onInvite: () => void;
 }
 
 /**
- * A person's standing on ScoreKeeper, for their profile: whether they have an account, and if not,
- * whether an invite is pending, when it went and to which address. Its button is always there for
- * someone not on ScoreKeeper — pair it with an {@link InviteModal} that has `allowResend`, so an
- * invite that went astray can be sent again without waiting out the cooldown.
+ * The person page's ScoreKeeper account card (docs/people.md): **shown only while there is
+ * something to do** — not on ScoreKeeper yet, or an invite pending. Someone already on the app gets
+ * no card; the page's banner says so in one line. The button is always there for someone not on
+ * ScoreKeeper — pair it with an {@link InviteModal} that has `allowResend`, so an invite that went
+ * astray can be sent again without waiting out the cooldown. This is the only place a person is
+ * invited from; the People list has no Invite button.
  */
-export function InviteStatusCard({ person, cooldownHours, canInvite, blockedReason, onInvite }: InviteStatusCardProps) {
-  const onScoreKeeper = isOnScoreKeeper(person);
-  const waitHours = inviteWaitHours(person, cooldownHours);
+export function InviteStatusCard({ person, cooldownHours, canInvite, onInvite }: InviteStatusCardProps) {
+  if (isOnScoreKeeper(person)) return null;
   const pending = isInvitePending(person);
 
   let status: string;
   let detail: string;
-  if (onScoreKeeper) {
-    status = 'On ScoreKeeper';
-    detail = 'Has a ScoreKeeper account, linked to this profile.';
-  } else if (pending) {
+  if (pending) {
     status = 'Invite pending';
     detail = `Sent ${formatInstant(person.lastInviteSentAt)} to ${person.lastInviteEmail}.`;
-    if (waitHours > 0) detail += ' If it did not arrive, you can resend it now.';
+    if (inviteWaitHours(person, cooldownHours) > 0) detail += ' If it did not arrive, you can resend it now.';
   } else {
     status = 'Not on ScoreKeeper yet';
     detail = person.lastInviteSentAt && person.lastInviteEmail
@@ -454,35 +452,29 @@ export function InviteStatusCard({ person, cooldownHours, canInvite, blockedReas
   }
 
   return (
-    <View className="flex-row items-center gap-3">
-      <View className={`w-8 h-8 rounded-lg items-center justify-center ${onScoreKeeper ? 'bg-emerald-500/10' : 'bg-slate-100 dark:bg-white/5'}`}>
-        <Ionicons
-          name={onScoreKeeper ? 'checkmark-circle-outline' : 'person-add-outline'}
-          size={16}
-          color={onScoreKeeper ? '#10B981' : '#94A3B8'}
-        />
-      </View>
-      <View className="flex-1">
-        <Text className="font-inter-bold text-[10px] text-slate-400 uppercase tracking-wider">ScoreKeeper Account</Text>
-        <Text className="font-inter text-sm text-slate-800 dark:text-white mt-0.5">
-          {status}
-        </Text>
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{detail}</Text>
-        {!onScoreKeeper && canInvite && blockedReason ? (
-          <Text className="font-inter text-xs text-amber-600 dark:text-amber-400 mt-0.5">{blockedReason}</Text>
+    <ReadCard label="ScoreKeeper account">
+      <View className="flex-row items-center gap-3">
+        <View className="w-8 h-8 rounded-lg items-center justify-center bg-slate-100 dark:bg-white/5">
+          <Ionicons name={pending ? 'mail-outline' : 'person-add-outline'} size={16} color="#64748B" />
+        </View>
+        <View className="flex-1 min-w-0">
+          <Text className="font-inter text-sm text-slate-800 dark:text-white">{status}</Text>
+          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{detail}</Text>
+        </View>
+        {canInvite ? (
+          <TouchableOpacity
+            onPress={onInvite}
+            accessibilityRole="button"
+            className={`min-h-[36px] px-3.5 rounded-xl border items-center justify-center ${
+              pending ? 'border-slate-200 dark:border-white/10' : 'bg-brand-orange border-brand-orange'
+            }`}
+          >
+            <Text className={`font-inter-bold text-sm ${pending ? 'text-slate-700 dark:text-slate-200' : 'text-white'}`}>
+              {pending ? 'Resend' : 'Invite'}
+            </Text>
+          </TouchableOpacity>
         ) : null}
       </View>
-      {!onScoreKeeper && canInvite ? (
-        <TouchableOpacity
-          onPress={onInvite}
-          disabled={Boolean(blockedReason)}
-          className={`px-3 py-2 rounded-xl active:scale-95 ${blockedReason ? 'bg-slate-200 dark:bg-slate-800 opacity-60' : 'bg-brand-orange'}`}
-        >
-          <Text className={`font-orbitron-bold text-[9px] uppercase tracking-widest ${blockedReason ? 'text-slate-500 dark:text-slate-400' : 'text-white'}`}>
-            {pending ? 'Resend' : 'Invite'}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
+    </ReadCard>
   );
 }

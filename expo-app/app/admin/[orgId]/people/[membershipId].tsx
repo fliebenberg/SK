@@ -1,572 +1,250 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeBack } from '../../../../hooks/useSafeBack';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../components/GlassCard';
-import { InviteModal, InviteStatusCard, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
-import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { useActiveTheme } from '../../../../store/settingsStore';
+import { SocketAction } from '@sk/shared';
+import { ScreenHeader } from '../../../../components/ScreenHeader';
+import { ReadCard } from '../../../../components/ReadCard';
+import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
-import { wsService } from '../../../../services/websocket';
-import { sendAction } from '../../../../services/actions';
-import { useWsStore } from '../../../../store/wsStore';
-import { SocketAction, OrgMember } from '@sk/shared';
 import { ImageEditor, ImageConfig } from '../../../../components/ImageEditor';
-import { getAvatarUrl } from '../../../../services/assets';
-import { useSocketQuery } from '../../../../hooks/useSocketQuery';
-import { useUnsavedChanges } from '../../../../hooks/useUnsavedChanges';
-import { useUnsavedChangesStore } from '../../../../store/unsavedChangesStore';
-import { useAuthStore } from '../../../../store/authStore';
+import { InviteModal, InviteStatusCard, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
+import { AddGuardianDialog, GuardiansCard } from '../../../../components/guardians/GuardiansCard';
+import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCard';
+import { PersonBanner } from '../../../../components/people/PersonBanner';
+import { ContactDialog, IdentityDialog, OrgRole, PersonalDialog } from '../../../../components/people/PersonDialogs';
+import { guardianshipOf, parseImageConfig } from '../../../../components/people/PersonBits';
+import { useOrgMembers } from '../../../../hooks/useOrgMembers';
 import { useOrgGuardians } from '../../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../../hooks/useOrgMinorsSettings';
-import { GuardiansCard } from '../../../../components/guardians/GuardiansCard';
-import { MinorAccessCard } from '../../../../components/guardians/MinorAccessCard';
-import DatePicker from '../../../../components/DatePicker';
-import { isCalendarDate } from '../../../../utils/dates';
+import { useSocketQuery } from '../../../../hooks/useSocketQuery';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
+import { useAuthStore } from '../../../../store/authStore';
+import { sendAction } from '../../../../services/actions';
+import { getAvatarUrl } from '../../../../services/assets';
+import { ageInYears, formatCalendarDate } from '../../../../utils/dates';
 import { formatCellphone } from '../../../../utils/phone';
+import { COLORS } from '../../../../constants/Colors';
 
-const parseImageConfig = (config: any): ImageConfig => {
-  if (!config) return { scale: 1, x: 0, y: 0 };
-  if (typeof config === 'string') {
-    try {
-      return JSON.parse(config);
-    } catch (e) {
-      return { scale: 1, x: 0, y: 0 };
-    }
-  }
-  return {
-    scale: config.scale ?? 1,
-    x: config.x ?? 0,
-    y: config.y ?? 0
-  };
-};
+type Dialog = 'identity' | 'contact' | 'personal' | 'photo' | 'guardian' | 'remove' | null;
 
-export default function EditMember() {
-  const router = useRouter();
+/**
+ * One person in the organisation (docs/people.md).
+ *
+ * Read-first (design_system.md, *Read-first record pages*): the values as text, one card per group,
+ * each card's Edit opening a dialog that saves only its own fields. It replaced a read-only view
+ * screen and a separate edit form with a save bar on 2026-10-03. A viewer who cannot edit people —
+ * anyone but an Admin or Staff — gets the same page with no Edit links, no Invite and no ⋯ menu.
+ *
+ * Cards that would be empty for most people are left out rather than shown empty: the ScoreKeeper
+ * account card only while they are not on the app (the banner says when they are), and the
+ * Guardians card only for a minor or someone who has a guardian — for anyone else, Add guardian is
+ * in the ⋯ menu.
+ */
+export default function PersonPage() {
+  const { orgId, membershipId } = useLocalSearchParams<{ orgId: string; membershipId: string }>();
   const safeBack = useSafeBack();
-  const { orgId, membershipId } = useLocalSearchParams<{ orgId: string, membershipId: string }>();
-  const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore(state => state.isConnected);
+  const { width } = useWindowDimensions();
+  const isWide = width >= 900;
+  const isNarrow = width < 640;
 
-  const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers, setData: setMembersData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
+  const { members, isLoading: isMembersLoading } = useOrgMembers(orgId);
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
-
-  const availableRoles: any[] = rolesData?.org || [];
-  const member = useMemo(() => membersData?.find(m => m.membershipId === membershipId), [membersData, membershipId]);
-
-  // Form State
-  const [form, setForm] = useState<{
-    id: string;
-    membershipId: string;
-    name: string;
-    email: string;
-    cellphone: string;
-    birthdate: string;
-    nationalId: string;
-    personOrgId: string;
-    roleId: string;
-    image: string;
-    imageConfig: { scale: number; x: number; y: number };
-  } | null>(null);
-
-  const [originalData, setOriginalData] = useState<any>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [imageEditorVisible, setImageEditorVisible] = useState(false);
-  const inviteCooldownHours = useInviteCooldownHours();
-  const [isInviteOpen, setIsInviteOpen] = useState(false);
-
-  // Guardians and the minors rule (`MEMBER-3`). This screen is reached only by those who may edit
-  // the org's people, so the guardian controls are always on; setting a minor's own access is an
-  // Admin's alone, and only while the minor has no guardian.
+  const roles: OrgRole[] = rolesData?.org || [];
   const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
+  const inviteCooldownHours = useInviteCooldownHours();
+
   const viewer = useAuthStore(state => state.user);
-  const viewerOrgRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId && !m.restrictedReason)?.roleId);
-  const isOrgAdmin = viewer?.globalRole === 'admin' || viewerOrgRole === 'role-org-admin';
+  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId && !m.restrictedReason)?.roleId);
+  const isOrgAdmin = viewer?.globalRole === 'admin' || viewerRole === 'role-org-admin';
+  const canEdit = isOrgAdmin || viewerRole === 'role-org-staff';
+
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  const member = useMemo(() => members?.find(m => m.membershipId === membershipId) || null, [members, membershipId]);
   const guardians = member ? guardiansByPlayer.get(member.id) || [] : [];
+  const guardianship = member ? guardianshipOf(member.birthdate, minorsSettings, guardians.length > 0) : null;
+  const close = () => setDialog(null);
+  const back = () => safeBack(`/admin/${orgId}/people`);
 
-  useEffect(() => {
-    if (member && !form) {
-      const lConfig = parseImageConfig(member.imageConfig || (member as any).settings?.logoConfig);
-      const initialData = {
-        id: member.id,
-        membershipId: member.membershipId,
-        name: member.name,
-        email: member.email || '',
-        // Shown as it is written here; the server stores it in international form.
-        cellphone: formatCellphone(member.cellphone),
-        birthdate: member.birthdate || '',
-        nationalId: member.nationalId || '',
-        personOrgId: member.personOrgId || '',
-        roleId: member.roleId,
-        image: member.image || '',
-        imageConfig: lConfig,
-      };
-      setForm(initialData);
-      setOriginalData(JSON.stringify(initialData));
-    }
-  }, [member, form]);
-
-  // Subscribe to updates
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
-
-    const room = `org:${orgId}:members`;
-    const unsubscribe = wsService.subscribeToRoom(room);
-
-    const handleUpdate = (event: any) => {
-      if (!event) return;
-      if (event.type === 'ORG_MEMBERS_SYNC') {
-        setMembersData(event.data);
-      } else if (event.type === 'ORG_MEMBER_UPDATED') {
-        const updatedData = event.data;
-        if (updatedData) {
-          if (updatedData.endDate) {
-            // Member was removed
-            setMembersData(prev => {
-              if (!prev) return null;
-              return prev.filter(m => m.membershipId !== updatedData.id && m.membershipId !== updatedData.membershipId);
-            });
-          } else if (updatedData.id) {
-            setMembersData(prev => {
-              if (!prev) return null;
-              const idx = prev.findIndex(m => m.id === updatedData.id);
-              if (idx !== -1) {
-                // Update existing member
-                const copy = [...prev];
-                copy[idx] = { ...copy[idx], ...updatedData };
-                return copy;
-              } else if (updatedData.membershipId) {
-                // Add new member to list
-                return [...prev, updatedData];
-              }
-              return prev;
-            });
-          }
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, orgId, setMembersData]);
-
-  const hasChanges = useMemo(() => {
-    if (!form || !originalData) return false;
-    return JSON.stringify(form) !== originalData;
-  }, [form, originalData]);
-
-  const handleCancel = useCallback(() => {
-    if (originalData) {
-      setForm(JSON.parse(originalData));
-    }
-  }, [originalData]);
-
-  useUnsavedChanges(hasChanges && !isProcessing, handleCancel);
-
-  // A birthdate half-typed on native's free-text picker is not one yet; it is refused here with a
-  // line under the field, rather than by the server after the round trip.
-  const birthdateIncomplete = !!form?.birthdate && !isCalendarDate(form.birthdate);
-
-  const handleSave = async () => {
-    if (!form || !form.name.trim() || birthdateIncomplete) return;
-
-    setIsProcessing(true);
-    try {
-      // 1. Update Profile
-      const profileResult = await sendAction(SocketAction.UPDATE_ORG_PROFILE, {
-        id: form.id,
-        data: {
-          name: form.name,
-          email: form.email || undefined,
-          cellphone: form.cellphone || undefined,
-          // `null` clears a birthdate that was removed; `undefined` would leave the old one.
-          birthdate: form.birthdate || null,
-          nationalId: form.nationalId || undefined,
-          image: form.image || undefined,
-          imageConfig: form.imageConfig,
-          identifier: form.personOrgId || undefined,
-        }
-      });
-      if (!profileResult.ok) throw new Error(`Failed to update profile: ${profileResult.message}`);
-
-      // 2. Update Member Role
-      const roleResult = await sendAction(SocketAction.UPDATE_ORG_MEMBER, {
-        id: form.membershipId,
-        roleId: form.roleId
-      });
-      if (!roleResult.ok) throw new Error(`Failed to update role: ${roleResult.message}`);
-
-      setOriginalData(JSON.stringify(form));
-      useUnsavedChangesStore.getState().clear();
-    } catch (err: any) {
-      console.error(err);
-      Alert.alert('Save Failed', err.message || 'Failed to save changes');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!form) return;
-
-    setIsProcessing(true);
-    setDeleteError(null);
-    try {
-      // Shown inline in the confirmation modal, so no toast.
-      const result = await sendAction(
-        SocketAction.REMOVE_ORG_MEMBER,
-        { id: form.membershipId },
-        { suppressToast: true }
-      );
-      if (!result.ok) throw new Error(result.message || 'Failed to remove member');
-      setIsDeleteModalOpen(false);
-      useUnsavedChangesStore.getState().clear();
-      safeBack(`/admin/${orgId}/people`);
-    } catch (err: any) {
-      console.error(err);
-      setDeleteError(err.message || 'Failed to remove member');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const getEditorImage = () => {
-    if (!form) return '';
-    return getAvatarUrl(form.image, 'large') || form.image;
-  };
-
-  const handleImageEditorApply = (uri: string, config: ImageConfig) => {
-    if (form) {
-      setForm(prev => prev ? ({ ...prev, image: uri, imageConfig: config }) : null);
-    }
-    setImageEditorVisible(false);
-  };
-
-  const isLoading = isMembersLoading || isRolesLoading || !form;
-
-  if (isLoading) {
+  if (isMembersLoading || isRolesLoading || !member) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center">
-        <ActivityIndicator size="large" color="#FF3E00" />
+      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Person" backLabel="People" onBack={back} />
+        <View className="flex-1 items-center justify-center px-6">
+          {isMembersLoading || isRolesLoading ? <ActivityIndicator size="large" color={COLORS.brand.orange} /> : (
+            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center">
+              This person is not a member of the organisation any more.
+            </Text>
+          )}
+        </View>
       </SafeAreaView>
     );
   }
 
+  const applyPhoto = (uri: string, config: ImageConfig) => {
+    close();
+    sendAction(SocketAction.UPDATE_ORG_PROFILE, {
+      id: member.id,
+      // Sent only when it changed, so moving the photo inside its frame does not re-upload it.
+      data: { ...(uri !== (member.image || '') ? { image: uri } : {}), imageConfig: config } as any,
+    });
+  };
+
+  const remove = async () => {
+    setIsRemoving(true);
+    setRemoveError(null);
+    // Shown inline in the confirmation, so no toast.
+    const result = await sendAction(SocketAction.REMOVE_ORG_MEMBER, { id: member.membershipId }, { suppressToast: true });
+    setIsRemoving(false);
+    if (!result.ok) {
+      setRemoveError(result.message || 'They could not be removed.');
+      return;
+    }
+    close();
+    back();
+  };
+
+  const menu: OverflowMenuItem[] = [
+    { label: 'Edit photo', description: 'Upload, move or remove their photo.', icon: 'camera-outline', onPress: () => setDialog('photo') },
+    ...(guardians.length === 0
+      ? [{ label: 'Add guardian', description: 'Record a parent or other adult who answers for them.', icon: 'people-outline' as const, onPress: () => setDialog('guardian') }]
+      : []),
+    {
+      label: 'Remove from organisation',
+      description: 'Ends their membership and takes them off every team in this organisation.',
+      icon: 'person-remove-outline',
+      destructive: true,
+      onPress: () => { setRemoveError(null); setDialog('remove'); },
+    },
+  ];
+
+  const age = ageInYears(member.birthdate);
+  const birthdate = member.birthdate
+    ? `${formatCalendarDate(member.birthdate) ?? 'Not a valid date'}${age !== null ? ` · ${age} ${age === 1 ? 'year' : 'years'} old` : ''}`
+    : null;
+
+  const contact = (
+    <ReadCard label="Contact" onEdit={canEdit ? () => setDialog('contact') : undefined}>
+      <ValueRow icon="mail-outline" label="Email" value={member.email} first />
+      <ValueRow icon="call-outline" label="Cell number" value={formatCellphone(member.cellphone)} />
+    </ReadCard>
+  );
+  const personal = (
+    <ReadCard label="Personal details" onEdit={canEdit ? () => setDialog('personal') : undefined}>
+      <ValueRow icon="calendar-outline" label="Birthdate" value={birthdate} first />
+      <ValueRow icon="card-outline" label="National ID" value={member.nationalId} />
+    </ReadCard>
+  );
+  const account = <InviteStatusCard person={member} cooldownHours={inviteCooldownHours} canInvite={canEdit} onInvite={() => setIsInviteOpen(true)} />;
+  const guardiansCard = guardians.length || guardianship === 'minor' ? (
+    <GuardiansCard orgId={orgId!} playerProfileId={member.id} playerName={member.name} guardians={guardians} canEdit={canEdit} />
+  ) : null;
+  const access = (
+    <MinorAccessCard
+      player={member}
+      settings={minorsSettings}
+      guardians={guardians}
+      isOrgAdmin={isOrgAdmin}
+      nameOfProfile={id => members?.find(m => m.id === id)?.name}
+    />
+  );
+  // The account card and the access card each decide for themselves whether to render.
+  const hasSideCards = !!guardiansCard || guardianship !== null || !isOnScoreKeeper(member);
+
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}/people`)}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Back
-          </Text>
-        </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
-          Edit Member Details
-        </Text>
-        <View className="w-8" />
-      </View>
-
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        className="flex-1 px-6 py-6"
-        contentContainerStyle={{ paddingBottom: hasChanges ? 140 : 60 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View className="space-y-6">
-          {/* Avatar and Name row */}
-          <View className="flex-row gap-6 items-center">
-            <View className="items-center">
-              <TouchableOpacity
-                onPress={() => setImageEditorVisible(true)}
-                className="w-20 h-20 rounded-full overflow-hidden items-center justify-center bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-white/10"
-              >
-                {form.image ? (
-                  <View className="w-20 h-20 overflow-hidden">
-                    <View
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        transform: [
-                          { scale: form.imageConfig.scale },
-                          { translateX: form.imageConfig.x * 80 },
-                          { translateY: form.imageConfig.y * 80 },
-                        ],
-                      }}
-                    >
-                      <Image
-                        source={{ uri: getAvatarUrl(form.image, 'medium') }}
-                        className="w-full h-full"
-                        resizeMode="cover"
-                      />
-                    </View>
-                  </View>
-                ) : (
-                  <Ionicons name="camera-outline" size={28} color="#94A3B8" />
-                )}
-              </TouchableOpacity>
-              <Text className="font-orbitron-bold text-[8px] text-slate-600 dark:text-slate-400 uppercase mt-1.5">
-                Avatar
-              </Text>
+      <ScreenHeader
+        title="Person"
+        backLabel="People"
+        onBack={back}
+        right={canEdit ? <OverflowMenu items={menu} accessibilityLabel="Person actions" title={member.name} /> : undefined}
+      />
+      <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
+        <View className="w-full gap-4 self-center" style={{ maxWidth: 960 }}>
+          <PersonBanner
+            member={member}
+            guardianship={guardianship}
+            isNarrow={isNarrow}
+            onEdit={canEdit ? () => setDialog('identity') : undefined}
+            onEditPhoto={canEdit ? () => setDialog('photo') : undefined}
+          />
+          {!isWide ? (
+            <View className="gap-3">{guardiansCard}{access}{contact}{account}{personal}</View>
+          ) : hasSideCards ? (
+            <View className="flex-row gap-4 items-start">
+              <View className="gap-4" style={{ flex: 1.6 }}>{contact}{personal}</View>
+              <View className="gap-4" style={{ flex: 1 }}>{account}{guardiansCard}{access}</View>
             </View>
-
-            {/* Name Input */}
-            <View className="flex-1">
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
-                Name
-              </Text>
-              <TextInput
-                value={form.name}
-                onChangeText={(text) => setForm(prev => prev ? ({ ...prev, name: text }) : null)}
-                placeholder="e.g. John Doe"
-                placeholderTextColor="#94A3B8"
-                className="font-orbitron-bold text-lg text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
-              />
+          ) : (
+            <View className="flex-row gap-4 items-start">
+              <View style={{ flex: 1 }}>{contact}</View>
+              <View style={{ flex: 1 }}>{personal}</View>
             </View>
-          </View>
-
-          {/* Email Address & Cell Number */}
-          <View className="flex-row gap-4 flex-wrap md:flex-nowrap">
-            <View className="flex-1 min-w-[200px]">
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
-                Email Address
-              </Text>
-              <TextInput
-                placeholder="email@example.com"
-                placeholderTextColor="#94A3B8"
-                value={form.email}
-                onChangeText={(text) => setForm(prev => prev ? ({ ...prev, email: text }) : null)}
-                className="font-inter text-sm text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 outline-none"
-              />
-            </View>
-
-            <View className="flex-1 min-w-[200px]">
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
-                Cell Number
-              </Text>
-              <TextInput
-                placeholder="e.g. +1 234 567 8900"
-                placeholderTextColor="#94A3B8"
-                value={form.cellphone}
-                onChangeText={(text) => setForm(prev => prev ? ({ ...prev, cellphone: text }) : null)}
-                className="font-inter text-sm text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 outline-none"
-              />
-            </View>
-          </View>
-
-          {/* Org ID & Birthdate */}
-          <View className="flex-row gap-4 flex-wrap md:flex-nowrap">
-            <View className="flex-1 min-w-[200px]">
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
-                Org ID (e.g. Student #)
-              </Text>
-              <TextInput
-                placeholder="ID number"
-                placeholderTextColor="#94A3B8"
-                value={form.personOrgId}
-                onChangeText={(text) => setForm(prev => prev ? ({ ...prev, personOrgId: text }) : null)}
-                className="font-inter text-sm text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 outline-none"
-              />
-            </View>
-
-            <View className="flex-1 min-w-[200px]">
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5">
-                Birthdate
-              </Text>
-              <DatePicker
-                value={form.birthdate}
-                onChange={(value) => setForm(prev => prev ? ({ ...prev, birthdate: value }) : null)}
-                placeholder="Birthdate"
-              />
-              {birthdateIncomplete && (
-                <Text className="font-inter text-xs text-red-500 mt-1.5">Enter the full date, YYYY-MM-DD.</Text>
-              )}
-            </View>
-          </View>
-
-          {/* Assigned Role */}
-          <View>
-            <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-3">
-              Assigned Role
-            </Text>
-            <View className="flex-row flex-wrap gap-2.5">
-              {availableRoles.map(role => (
-                <TouchableOpacity
-                  key={role.id}
-                  onPress={() => setForm(prev => prev ? ({ ...prev, roleId: role.id }) : null)}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: form.roleId === role.id ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.1)' : '#CBD5E1'),
-                    backgroundColor: form.roleId === role.id ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)'),
-                  }}
-                  className="px-4 py-2.5 rounded-xl active:scale-95"
-                >
-                  <Text
-                    style={{
-                      color: form.roleId === role.id ? '#fff' : (isDark ? '#94A3B8' : '#64748B')
-                    }}
-                    className="font-orbitron-bold text-[10px] text-center uppercase tracking-widest"
-                  >
-                    {role.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* ScoreKeeper Account */}
-          {member ? (
-            <View className="border-t border-slate-200 dark:border-white/5 pt-6">
-              <InviteStatusCard
-                person={member}
-                cooldownHours={inviteCooldownHours}
-                canInvite
-                // The invite may save a new email to the profile; an unsaved edit to the same
-                // field would then be silently overwritten by one or the other.
-                blockedReason={hasChanges ? 'Save or discard your changes before sending an invite.' : undefined}
-                onInvite={() => setIsInviteOpen(true)}
-              />
-            </View>
-          ) : null}
-
-          {/* Guardians, and whether a minor's membership carries member access */}
-          {member ? (
-            <View className="border-t border-slate-200 dark:border-white/5 pt-6 space-y-6">
-              <GuardiansCard
-                orgId={orgId}
-                playerProfileId={member.id}
-                playerName={member.name}
-                guardians={guardians}
-                canEdit
-              />
-              <MinorAccessCard
-                player={member}
-                settings={minorsSettings}
-                guardians={guardians}
-                isOrgAdmin={isOrgAdmin}
-                nameOfProfile={id => membersData?.find(m => m.id === id)?.name}
-              />
-            </View>
-          ) : null}
-
-          {/* Danger Zone */}
-          <View className="border-t border-red-500/20 pt-6 mt-6">
-            <Text className="font-orbitron-bold text-[9px] text-red-500/80 uppercase tracking-widest mb-3">
-              Danger Zone
-            </Text>
-            <View className="bg-red-500/5 border border-red-500/10 rounded-xl p-4 flex-row items-center justify-between">
-              <View className="flex-1 mr-4">
-                <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Remove Member</Text>
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Remove this person from the organization. They will also be removed from all teams in this organization.
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => { setIsDeleteModalOpen(true); setDeleteError(null); }}
-                className="bg-red-500 px-4 py-2.5 rounded-xl items-center justify-center active:opacity-85"
-              >
-                <Text className="font-inter-bold text-xs text-white uppercase tracking-wider">Remove</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          )}
         </View>
       </ScrollView>
 
-      {/* FLOATING SAVE CHANGES BAR */}
-      {hasChanges && (
-        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
-          <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
-              Unsaved Changes
-            </Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
-              You have modified this member's details.
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-2.5">
-            <TouchableOpacity
-              onPress={handleCancel}
-              disabled={isProcessing}
-              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
-            >
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={isProcessing || !form.name.trim() || birthdateIncomplete}
-              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
-            >
-              {isProcessing ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
-                    Save
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
+      <IdentityDialog member={member} roles={roles} visible={dialog === 'identity'} onClose={close} />
+      <ContactDialog member={member} visible={dialog === 'contact'} onClose={close} />
+      <PersonalDialog member={member} visible={dialog === 'personal'} onClose={close} />
+      <AddGuardianDialog
+        visible={dialog === 'guardian'}
+        orgId={orgId!}
+        playerProfileId={member.id}
+        playerName={member.name}
+        hasGuardians={false}
+        onClose={close}
+      />
+      <ImageEditor
+        visible={dialog === 'photo'}
+        imageUri={getAvatarUrl(member.image, 'large') || member.image || ''}
+        config={parseImageConfig(member.imageConfig)}
+        title="Edit photo"
+        allowRemove
+        onApply={applyPhoto}
+        onCancel={close}
+      />
       <InviteModal
-        person={isInviteOpen && member ? member : null}
+        person={isInviteOpen ? member : null}
         guardians={guardians}
         minorsSettings={minorsSettings}
         cooldownHours={inviteCooldownHours}
         allowResend
         onClose={() => setIsInviteOpen(false)}
-        onSent={updated => {
-          // The form was seeded once, so take in an email the invite saved — or the next Save
-          // would write the old one back.
-          if (!form) return;
-          const next = { ...form, email: updated.email || '' };
-          setForm(next);
-          setOriginalData(JSON.stringify(next));
-        }}
       />
-
-      {/* DELETE CONFIRMATION MODAL */}
       <ConfirmationModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        title="Remove Member?"
-        description={
-          form 
-            ? `Are you sure you want to remove "${form.name}" from the organization? This action is irreversible.${deleteError ? '\n\nError: ' + deleteError : ''}` 
-            : ''
-        }
-        onConfirm={handleDelete}
-        confirmText={isProcessing ? 'Removing...' : 'Remove'}
+        isOpen={dialog === 'remove'}
+        onClose={close}
+        title="Remove from organisation?"
+        description={`${member.name} will no longer be a member of this organisation, and will be taken off every team in it.${removeError ? `\n\n${removeError}` : ''}`}
+        onConfirm={remove}
+        confirmText={isRemoving ? 'Removing…' : 'Remove'}
         variant="danger"
-        isProcessing={isProcessing}
-      />
-
-      {/* IMAGE EDITOR */}
-      <ImageEditor
-        visible={imageEditorVisible}
-        imageUri={getEditorImage()}
-        config={form.imageConfig}
-        title="Edit Avatar"
-        allowRemove
-        onApply={handleImageEditorApply}
-        onCancel={() => setImageEditorVisible(false)}
+        isProcessing={isRemoving}
       />
     </SafeAreaView>
+  );
+}
+
+/** One value on a card, with its icon and label; an empty one says "None". */
+function ValueRow({ icon, label, value, first }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string | null; first?: boolean }) {
+  return (
+    <View className={`flex-row items-center gap-3 ${first ? '' : 'pt-2.5 border-t border-slate-100 dark:border-white/5'}`}>
+      <View className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center">
+        <Ionicons name={icon} size={15} color="#64748B" />
+      </View>
+      <View className="flex-1 min-w-0">
+        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{label}</Text>
+        <Text className={`font-inter text-sm mt-0.5 ${value ? 'text-slate-800 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`} selectable>
+          {value || 'None'}
+        </Text>
+      </View>
+    </View>
   );
 }

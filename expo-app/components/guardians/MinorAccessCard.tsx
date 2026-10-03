@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { OrgMinorsSettings, ProfileGuardian, RestrictedReason, SocketAction, isMinorIn } from '@sk/shared';
+import { OrgMinorsSettings, ProfileGuardian, RestrictedReason, SocketAction, isMinorIn, isUnderAge } from '@sk/shared';
 import { sendAction } from '../../services/actions';
 import { formatInstant } from '../../utils/dates';
-import { useActiveTheme } from '../../store/settingsStore';
+import { ReadCard } from '../ReadCard';
+import { SegmentedControl } from '../SegmentedControl';
 
 interface MinorAccessCardProps {
   player: {
@@ -23,22 +24,27 @@ interface MinorAccessCardProps {
   nameOfProfile?: (profileId: string) => string | undefined;
 }
 
-const CHOICES: { value: boolean | null; label: string }[] = [
-  { value: null, label: 'Organisation default' },
-  { value: true, label: 'Allowed' },
-  { value: false, label: 'Not allowed' },
+type Choice = 'default' | 'allowed' | 'not-allowed';
+const CHOICES: { key: Choice; label: string }[] = [
+  { key: 'default', label: 'Organisation default' },
+  { key: 'allowed', label: 'Allowed' },
+  { key: 'not-allowed', label: 'Not allowed' },
 ];
+const toChoice = (value: boolean | null | undefined): Choice => (value === true ? 'allowed' : value === false ? 'not-allowed' : 'default');
+const fromChoice = (choice: Choice): boolean | null => (choice === 'allowed' ? true : choice === 'not-allowed' ? false : null);
 
 /**
- * Whether a minor's membership carries a member's privileges, and why (`MEMBER-3`). Shown only for a
- * minor — younger than the org's minor age, or anyone with a guardian. The org's switch comes first;
- * then the minor's own setting, which their guardians control, or an Admin while there are none.
+ * Whether a minor's or dependant's membership carries a member's privileges, and why (`MEMBER-3`).
+ * Shown only for one of them — younger than the org's minor age, or anyone with a guardian. The
+ * org's switch comes first; then the person's own setting, which their guardians control, or an
+ * Admin while there are none. A card on the read-first person page (docs/people.md); the Admin's
+ * choice saves the moment it is picked, like a switch.
  */
 export function MinorAccessCard({ player, settings, guardians, isOrgAdmin, nameOfProfile }: MinorAccessCardProps) {
-  const isDark = useActiveTheme() === 'dark';
   const [isSaving, setIsSaving] = useState(false);
   const hasGuardian = guardians.length > 0;
   if (!isMinorIn(player.birthdate, settings, hasGuardian)) return null;
+  const isMinor = isUnderAge(player.birthdate, settings.minorAge);
 
   const setBy = player.ownAccountSetBy
     ? guardians.find(g => g.guardianProfileId === player.ownAccountSetBy)?.guardianName || nameOfProfile?.(player.ownAccountSetBy)
@@ -50,7 +56,9 @@ export function MinorAccessCard({ player, settings, guardians, isOrgAdmin, nameO
   let allowed: boolean;
   if (!settings.accountsAllowed) {
     allowed = false;
-    status = `Not allowed: this organisation does not give players under ${settings.minorAge} member access.`;
+    status = isMinor
+      ? `Not allowed: this organisation does not give players under ${settings.minorAge} member access.`
+      : 'Not allowed: this organisation does not give minors or dependants member access.';
   } else if (player.ownAccountAllowed === false) {
     allowed = false;
     status = `Switched off${byWhom}.`;
@@ -62,8 +70,17 @@ export function MinorAccessCard({ player, settings, guardians, isOrgAdmin, nameO
     status = 'Allowed — the organisation’s default.';
   }
 
-  const canSet = isOrgAdmin && !hasGuardian;
-  const choose = async (value: boolean | null) => {
+  const explanation = !settings.accountsAllowed
+    ? `Switched off for every minor and dependant in Settings › Minors.${hasGuardian ? ' Once it is on, the guardian decides for this person.' : ''}`
+    : hasGuardian
+    ? 'Only a guardian can change this.'
+    : isOrgAdmin
+      ? 'No guardian is recorded, so an admin can set this. Once a guardian is added, only they can change it.'
+      : 'No guardian is recorded. An admin can set this until one is.';
+
+  const canSet = isOrgAdmin && !hasGuardian && settings.accountsAllowed;
+  const choose = async (choice: Choice) => {
+    const value = fromChoice(choice);
     if (value === (player.ownAccountAllowed ?? null)) return;
     setIsSaving(true);
     // The result arrives as the player's updated member row on `org:{id}:members`.
@@ -72,51 +89,24 @@ export function MinorAccessCard({ player, settings, guardians, isOrgAdmin, nameO
   };
 
   return (
-    <View className="flex-row items-start gap-3">
-      <View className={`w-8 h-8 rounded-lg items-center justify-center ${allowed ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
-        <Ionicons name={allowed ? 'lock-open-outline' : 'lock-closed-outline'} size={16} color={allowed ? '#10B981' : '#F59E0B'} />
+    <ReadCard
+      label="Member access"
+      help="Whether they get a member’s view of this organisation when they sign in. Without it they can still sign in and coach or score what they are appointed to."
+    >
+      <View className="flex-row items-start gap-3">
+        <View className={`w-8 h-8 rounded-lg items-center justify-center ${allowed ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+          <Ionicons name={allowed ? 'lock-open-outline' : 'lock-closed-outline'} size={16} color={allowed ? '#059669' : '#D97706'} />
+        </View>
+        <View className="flex-1 min-w-0">
+          <Text className="font-inter text-sm text-slate-800 dark:text-white">{status}</Text>
+          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{explanation}</Text>
+        </View>
       </View>
-      <View className="flex-1">
-        <Text className="font-inter-bold text-[10px] text-slate-400 uppercase tracking-wider">Member access for a minor</Text>
-        <Text className="font-inter text-sm text-slate-800 dark:text-white mt-0.5">{status}</Text>
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          {!settings.accountsAllowed
-            ? `Switched off for every minor in Org Settings › Minors.${hasGuardian ? ' Once it is on, the guardian decides for this player.' : ''} A minor without member access can still sign in and coach or score what they are appointed to.`
-            : hasGuardian
-            ? 'Set by the guardian. A minor without member access can still sign in and coach or score what they are appointed to.'
-            : isOrgAdmin
-              ? 'No guardian is recorded, so an admin can set this. Once a guardian is added, only they can change it.'
-              : 'No guardian is recorded. An admin can set this until one is.'}
-        </Text>
-        {canSet && settings.accountsAllowed ? (
-          <View className="flex-row flex-wrap gap-2 mt-3">
-            {CHOICES.map(choice => {
-              const selected = (player.ownAccountAllowed ?? null) === choice.value;
-              return (
-                <TouchableOpacity
-                  key={String(choice.value)}
-                  onPress={() => choose(choice.value)}
-                  disabled={isSaving}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: selected ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.1)' : '#CBD5E1'),
-                    backgroundColor: selected ? '#FF3E00' : 'transparent',
-                    opacity: isSaving ? 0.6 : 1,
-                  }}
-                  className="px-3 py-2 rounded-xl active:scale-95"
-                >
-                  <Text
-                    style={{ color: selected ? '#fff' : (isDark ? '#94A3B8' : '#64748B') }}
-                    className="font-orbitron-bold text-[9px] uppercase tracking-widest"
-                  >
-                    {choice.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : null}
-      </View>
-    </View>
+      {canSet ? (
+        <View style={{ opacity: isSaving ? 0.6 : 1 }} pointerEvents={isSaving ? 'none' : 'auto'}>
+          <SegmentedControl options={CHOICES} value={toChoice(player.ownAccountAllowed)} onChange={choose} isCompact={false} />
+        </View>
+      ) : null}
+    </ReadCard>
   );
 }

@@ -112,6 +112,20 @@ export function formatCalendarDate(value?: CalendarDate | null, options?: { week
 }
 
 /**
+ * Age in whole years today, from a birthdate — `null` when it is not a date. Someone turns a year
+ * older **on** their birthday, the same rule as `isUnderAge` in `@sk/shared`.
+ */
+export function ageInYears(birthdate?: CalendarDate | null): number | null {
+  const born = parseCalendarDate(birthdate);
+  if (!born) return null;
+  const today = new Date();
+  const hadBirthday = today.getMonth() > born.getMonth()
+    || (today.getMonth() === born.getMonth() && today.getDate() >= born.getDate());
+  const age = today.getFullYear() - born.getFullYear() - (hadBirthday ? 0 : 1);
+  return age >= 0 ? age : null;
+}
+
+/**
  * The date, or the range, as it should be read aloud.
  *
  * One day carries its weekday — "Sat 19 Sep 2026" — because a single-day event is a date somebody

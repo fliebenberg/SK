@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { OrgMinorsSettings, isUnderAge } from '@sk/shared';
 import { GuardianDraftFields } from './GuardianDraftFields';
 import { GuardianDraft, emptyGuardianDraft, isGuardianDraftStarted } from './guardianDraft';
+import { COLORS } from '../../constants/Colors';
 
 interface GuardianBlockProps {
   orgId: string;
@@ -20,11 +21,12 @@ interface GuardianBlockProps {
 }
 
 /**
- * An optional guardian on an "add a player" form (`MEMBER-3`).
+ * An optional guardian on an "add a person" form (`MEMBER-3`).
  *
- * Opens by itself when the birthdate makes the player a minor under the org's minor age — **age
- * prompts the question, it never answers it**: the block can be closed for a minor and opened for an
- * adult. Closing it discards what was typed, so a closed block never saves a guardian.
+ * Closed, it is one link, "Add a guardian". Opens by itself when the birthdate makes the person a
+ * minor under the org's minor age — **age prompts the question, it never answers it**: the block
+ * can be closed for a minor and opened for an adult. Closing it discards what was typed, so a
+ * closed block never saves a guardian.
  */
 export function GuardianBlock({ orgId, draft, onChange, open, onOpenChange, birthdate, settings, playerProfileId }: GuardianBlockProps) {
   const isMinor = isUnderAge(birthdate, settings.minorAge);
@@ -35,29 +37,32 @@ export function GuardianBlock({ orgId, draft, onChange, open, onOpenChange, birt
     onOpenChange(!isOpen);
   };
 
+  if (!isOpen) {
+    return (
+      <TouchableOpacity onPress={toggle} accessibilityRole="button" className="flex-row items-center gap-1.5 self-start">
+        <Ionicons name="add" size={16} color={COLORS.brand.orange} />
+        <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">Add a guardian</Text>
+      </TouchableOpacity>
+    );
+  }
+
   return (
-    <View className="border border-slate-200 dark:border-white/5 rounded-xl p-4 mt-2" style={{ zIndex: 20 }}>
-      <TouchableOpacity onPress={toggle} className="flex-row items-center justify-between">
-        <View className="flex-1 mr-3">
-          <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest">
-            Guardian {isOpen ? '' : '(optional)'}
-          </Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-1">
+    <View className="border border-slate-200 dark:border-white/10 rounded-xl p-4 gap-3" style={{ zIndex: 20 }}>
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="flex-1">
+          <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">Guardian</Text>
+          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {isMinor
               ? `Under ${settings.minorAge}: record the adult who answers for them.`
-              : 'Record a parent or guardian who answers for this player.'}
+              : 'A parent or other adult who answers for this person.'}
+            {isGuardianDraftStarted(draft) ? '' : ' Leave empty to add them without one.'}
           </Text>
         </View>
-        <Ionicons name={isOpen ? 'chevron-up' : 'add-circle-outline'} size={18} color="#FF3E00" />
-      </TouchableOpacity>
-      {isOpen ? (
-        <View className="mt-4">
-          <GuardianDraftFields orgId={orgId} draft={draft} onChange={onChange} excludeProfileId={playerProfileId} />
-          {isGuardianDraftStarted(draft) ? null : (
-            <Text className="font-inter text-[11px] text-slate-400 mt-3">Leave empty to add the player without a guardian.</Text>
-          )}
-        </View>
-      ) : null}
+        <TouchableOpacity onPress={toggle} accessibilityRole="button" hitSlop={8}>
+          <Text className="font-inter-bold text-sm text-slate-500 dark:text-slate-400">Remove</Text>
+        </TouchableOpacity>
+      </View>
+      <GuardianDraftFields orgId={orgId} draft={draft} onChange={onChange} excludeProfileId={playerProfileId} />
     </View>
   );
 }

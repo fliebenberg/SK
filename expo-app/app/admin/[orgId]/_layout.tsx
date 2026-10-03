@@ -80,7 +80,6 @@ function OrgAdminWorkspace() {
       <Stack.Screen name="people" />
       <Stack.Screen name="people/import" />
       <Stack.Screen name="people/[membershipId]" />
-      <Stack.Screen name="people/[membershipId]/view" />
       <Stack.Screen name="teams" />
       <Stack.Screen name="teams/new" />
       <Stack.Screen name="teams/[teamId]" />

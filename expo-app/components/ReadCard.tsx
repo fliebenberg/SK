@@ -18,12 +18,14 @@ export interface ReadCardProps {
   help?: string;
   onEdit?: () => void;
   editLabel?: string;
+  /** For a card whose action adds rather than edits — "Add" on a list of guardians. */
+  editIcon?: keyof typeof Ionicons.glyphMap;
   /** Amber, for a task that needs doing (a missing administrator). */
   tone?: 'default' | 'attention';
   children?: React.ReactNode;
 }
 
-export function ReadCard({ label, help, onEdit, editLabel = 'Edit', tone = 'default', children }: ReadCardProps) {
+export function ReadCard({ label, help, onEdit, editLabel = 'Edit', editIcon = 'pencil', tone = 'default', children }: ReadCardProps) {
   const attention = tone === 'attention';
   return (
     <View
@@ -37,7 +39,7 @@ export function ReadCard({ label, help, onEdit, editLabel = 'Edit', tone = 'defa
         <View className="flex-1 min-w-0">
           <FieldLabel label={label} help={help} />
         </View>
-        {onEdit ? <EditLink label={editLabel} onPress={onEdit} /> : null}
+        {onEdit ? <EditLink label={editLabel} onPress={onEdit} icon={editIcon} /> : null}
       </View>
       {children}
     </View>

@@ -1,842 +1,263 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, useWindowDimensions, View, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeBack } from '../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../components/GlassCard';
-import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { ConfirmationModal } from '../../../components/ConfirmationModal';
+import { OrgMember } from '@sk/shared';
+import { ScreenHeader } from '../../../components/ScreenHeader';
 import { OverflowMenu } from '../../../components/OverflowMenu';
-import { InviteButton, InviteModal, useInviteCooldownHours } from '../../../components/InviteToScoreKeeper';
-import { useActiveTheme } from '../../../store/settingsStore';
-import { wsService } from '../../../services/websocket';
-import { requestKeyFor, sendAction } from '../../../services/actions';
-import { useRequestScope } from '../../../hooks/useRequestScope';
-import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, OrgProfile, OrgMember } from '@sk/shared';
-import { PersonnelAutocomplete } from '../../../components/PersonnelAutocomplete';
-import { ImageEditor, ImageConfig } from '../../../components/ImageEditor';
-import { getAvatarUrl } from '../../../services/assets';
-import { useSocketQuery } from '../../../hooks/useSocketQuery';
-import { useAuthStore } from '../../../store/authStore';
+import { SegmentedControl } from '../../../components/SegmentedControl';
 import { PaginatedList } from '../../../components/PaginatedList';
-import { GuardianBlock } from '../../../components/guardians/GuardianBlock';
-import {
-  GuardianDraft,
-  emptyGuardianDraft,
-  guardianDraftProblem,
-  isGuardianDraftStarted,
-  saveGuardianDraft,
-} from '../../../components/guardians/guardianDraft';
+import { AddPersonDialog } from '../../../components/people/AddPersonDialog';
+import { OrgRole } from '../../../components/people/PersonDialogs';
+import { GuardianshipTag, PersonAvatar, RoleBadge, guardianshipOf } from '../../../components/people/PersonBits';
+import { useOrgMembers } from '../../../hooks/useOrgMembers';
 import { useOrgGuardians, guardianSummary } from '../../../hooks/useOrgGuardians';
 import { useOrgMinorsSettings } from '../../../hooks/useOrgMinorsSettings';
-import DatePicker from '../../../components/DatePicker';
-import { isCalendarDate } from '../../../utils/dates';
+import { useSocketQuery } from '../../../hooks/useSocketQuery';
+import { useSafeBack } from '../../../hooks/useSafeBack';
+import { useAuthStore } from '../../../store/authStore';
 import { formatCellphone } from '../../../utils/phone';
+import { COLORS } from '../../../constants/Colors';
 
-interface OrgRole {
-  id: string;
-  name: string;
-}
+const PAGE_SIZE = 50;
+type RoleFilter = 'all' | 'role-org-admin' | 'role-org-staff' | 'role-org-member';
+type SortKey = 'name' | 'role';
+const ROLE_RANK: Record<string, number> = { 'role-org-admin': 0, 'role-org-staff': 1 };
 
-const parseImageConfig = (config: any): ImageConfig => {
-  if (!config) return { scale: 1, x: 0, y: 0 };
-  if (typeof config === 'string') {
-    try {
-      return JSON.parse(config);
-    } catch (e) {
-      return { scale: 1, x: 0, y: 0 };
-    }
-  }
-  return {
-    scale: config.scale ?? 1,
-    x: config.x ?? 0,
-    y: config.y ?? 0
-  };
-};
-
+/**
+ * The organisation's people (docs/people.md). A row is the person at a glance — name, a badge for
+ * Staff or Admin, the org ID, contact details and guardians — and opens their page, where
+ * everything is read and edited. There is no Invite here: inviting is done from the person page.
+ *
+ * Wide, the row has columns: contact details stacked, then guardians. On a phone it is two lines —
+ * name, badges and org ID; email and cell — and a Minor or Dependant tag stands in for the
+ * guardian column.
+ */
 export default function OrgPeople() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
-  const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore(state => state.isConnected);
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
 
-  // User & Permissions
   const user = useAuthStore(state => state.user);
-  const orgMemberships = useAuthStore(state => state.orgMemberships || []);
-  const { data: org } = useSocketQuery<any>('organization', { orgId });
+  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId)?.roleId);
+  const canEdit = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff';
 
-  const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const canEdit = Boolean(
-    user?.globalRole === 'admin' ||
-    (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
-  );
-
-  const { data: membersData, isLoading: isMembersLoading, refetch: refetchMembers, setData: setMembersData } = useSocketQuery<OrgMember[]>('org_members', { orgId });
+  const { members, isLoading: isMembersLoading } = useOrgMembers(orgId);
   const { data: rolesData, isLoading: isRolesLoading } = useSocketQuery<any>('roles');
-  const inviteCooldownHours = useInviteCooldownHours();
-  const [inviteTarget, setInviteTarget] = useState<OrgMember | null>(null);
-
-  const members = membersData || [];
-  const availableRoles: any[] = rolesData?.org || [];
-  
-  // Filtering / Sorting state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [sortConfig, setSortConfig] = useState<{ key: 'name' | 'roleName'; direction: 'asc' | 'desc' }>({
-    key: 'name',
-    direction: 'asc',
-  });
-
-  // Action states
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  // Add Member Modal State
-  const [isAdding, setIsAdding] = useState(false);
-  const [selectedPerson, setSelectedPerson] = useState<OrgProfile | null>(null);
-  const [newMemberData, setNewMemberData] = useState({
-    name: '',
-    email: '',
-    cellphone: '',
-    birthdate: '',
-    nationalId: '',
-    personOrgId: '',
-    roleId: 'role-org-member',
-    image: '',
-    imageConfig: { scale: 1, x: 0, y: 0 },
-  });
-
-  // Set default roleId once roles load
-  useEffect(() => {
-    if (rolesData && Array.isArray(rolesData.org)) {
-      const defaultRole = rolesData.org.find((r: any) => r.name === 'Member')?.id || rolesData.org[0]?.id;
-      setNewMemberData(prev => ({ ...prev, roleId: defaultRole || 'role-org-member' }));
-    }
-  }, [rolesData]);
-
-  // One scope per person being added, kept across retries (SYNC-3) — see handleAddMember.
-  const addRequestScope = useRequestScope();
-
-  // An optional guardian for the person being added (`MEMBER-3`), and the guardian shown beside
-  // each player in the list.
-  const [guardianDraft, setGuardianDraft] = useState<GuardianDraft>(emptyGuardianDraft);
-  const [guardianOpen, setGuardianOpen] = useState<boolean | null>(null);
-  const [addError, setAddError] = useState<string | null>(null);
+  const roles: OrgRole[] = rolesData?.org || [];
   const { byPlayer: guardiansByPlayer } = useOrgGuardians(orgId);
   const { settings: minorsSettings } = useOrgMinorsSettings(orgId);
 
-  const handleCloseAddModal = () => {
-    setIsAdding(false);
-    addRequestScope.renew();
-    const defaultRole = rolesData?.org?.find((r: any) => r.name === 'Member')?.id || 'role-org-member';
-    setNewMemberData({
-      name: '',
-      email: '',
-      cellphone: '',
-      birthdate: '',
-      nationalId: '',
-      personOrgId: '',
-      roleId: defaultRole,
-      image: '',
-      imageConfig: { scale: 1, x: 0, y: 0 },
-    });
-    setSelectedPerson(null);
-    setGuardianDraft(emptyGuardianDraft());
-    setGuardianOpen(null);
-    setAddError(null);
-  };
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [isAdding, setIsAdding] = useState(false);
 
-  const isLoading = isMembersLoading || isRolesLoading;
+  const all = members || [];
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const m of all) c[m.roleId] = (c[m.roleId] || 0) + 1;
+    return c;
+  }, [all]);
 
-  // Remove Confirmation State
-  const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; membershipId: string; name: string } | null>(null);
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = all.filter(m =>
+      (roleFilter === 'all' || m.roleId === roleFilter) &&
+      (!q || m.name.toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q) || (m.personOrgId || '').toLowerCase().includes(q))
+    );
+    const byName = (a: OrgMember, b: OrgMember) => a.name.localeCompare(b.name);
+    return list.sort(sortKey === 'role'
+      ? (a, b) => (ROLE_RANK[a.roleId] ?? 2) - (ROLE_RANK[b.roleId] ?? 2) || byName(a, b)
+      : byName);
+  }, [all, search, roleFilter, sortKey]);
 
-  // Image Editor state — which form slot (add) is being edited
-  const [imageEditorTarget, setImageEditorTarget] = useState<'add' | null>(null);
+  const label = (text: string, count: number) => (isWide ? `${text} ${count}` : text);
+  const filterOptions: { key: RoleFilter; label: string }[] = [
+    { key: 'all', label: label('All', all.length) },
+    { key: 'role-org-admin', label: label('Admin', counts['role-org-admin'] || 0) },
+    { key: 'role-org-staff', label: label('Staff', counts['role-org-staff'] || 0) },
+    { key: 'role-org-member', label: label('Member', counts['role-org-member'] || 0) },
+  ];
 
-  // Resolve the image URI to pass to ImageEditor (must be a displayable absolute URI)
-  const getEditorImage = () => {
-    const raw = imageEditorTarget === 'add' ? newMemberData.image : '';
-    return getAvatarUrl(raw, 'large') || raw;
-  };
-
-  const getEditorConfig = (): ImageConfig =>
-    imageEditorTarget === 'add' ? newMemberData.imageConfig : { scale: 1, x: 0, y: 0 };
-
-  const handleImageEditorApply = (uri: string, config: ImageConfig) => {
-    if (imageEditorTarget === 'add') {
-      setNewMemberData(prev => ({ ...prev, image: uri, imageConfig: config }));
-    }
-    setImageEditorTarget(null);
-  };
-
-  // Subscribe to updates
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
-
-    const room = `org:${orgId}:members`;
-    const unsubscribe = wsService.subscribeToRoom(room);
-
-    const handleUpdate = (event: any) => {
-      if (!event) return;
-      if (event.type === 'ORG_MEMBERS_SYNC') {
-        setMembersData(event.data);
-      } else if (event.type === 'ORG_MEMBER_UPDATED') {
-        const updatedData = event.data;
-        if (updatedData) {
-          if (updatedData.endDate) {
-            // Member was removed
-            setMembersData(prev => {
-              if (!prev) return null;
-              return prev.filter(m => m.membershipId !== updatedData.id && m.membershipId !== updatedData.membershipId);
-            });
-          } else if (updatedData.id) {
-            setMembersData(prev => {
-              if (!prev) return null;
-              const idx = prev.findIndex(m => m.id === updatedData.id);
-              if (idx !== -1) {
-                // Update existing member
-                const copy = [...prev];
-                copy[idx] = { ...copy[idx], ...updatedData };
-                return copy;
-              } else if (updatedData.membershipId) {
-                // Add new member to list
-                return [...prev, updatedData];
-              }
-              return prev;
-            });
-          }
-        }
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, orgId, setMembersData]);
-
-  // Add Member Submission
-  const handleAddMember = async () => {
-    if (!newMemberData.name.trim()) return;
-    if (newMemberData.birthdate && !isCalendarDate(newMemberData.birthdate)) {
-      setAddError('Enter the full birthdate, YYYY-MM-DD.');
-      return;
-    }
-    const withGuardian = isGuardianDraftStarted(guardianDraft);
-    const guardianProblem = withGuardian ? guardianDraftProblem(guardianDraft) : null;
-    if (guardianProblem) {
-      setAddError(guardianProblem);
-      return;
-    }
-
-    setIsProcessing(true);
-    setAddError(null);
-    try {
-      let profileId = selectedPerson?.id;
-
-      if (!profileId) {
-        // Find matching user first to avoid duplication
-        const matchingUser: any = await new Promise((resolve) => {
-          wsService.emit('get_data', {
-            type: 'find_matching_user',
-            email: newMemberData.email || undefined,
-            name: newMemberData.name,
-            birthdate: newMemberData.birthdate || undefined
-          }, (res) => resolve(res));
-        });
-
-        /*
-          Two writes, so a retry after the second fails must not repeat the first (SYNC-3). The new
-          profile's id comes from this save's request scope rather than the clock, so every retry
-          sends the same profile; keyed on it, the server hands back the one it already created.
-        */
-        const profilePayload = {
-          id: matchingUser?.id || `profile-${addRequestScope.current()}`,
-          name: newMemberData.name,
-          email: newMemberData.email || undefined,
-          cellphone: newMemberData.cellphone || undefined,
-          birthdate: newMemberData.birthdate || undefined,
-          nationalId: newMemberData.nationalId || undefined,
-          orgId,
-          image: newMemberData.image || undefined,
-          imageConfig: newMemberData.imageConfig,
-          identifier: newMemberData.personOrgId || undefined,
-        };
-        const profileResult = await sendAction(SocketAction.ADD_ORG_PROFILE, profilePayload, {
-          requestId: requestKeyFor(addRequestScope.current(), SocketAction.ADD_ORG_PROFILE, profilePayload),
-        });
-        if (!profileResult.ok) throw new Error(`Failed to create profile: ${profileResult.message}`);
-        profileId = profileResult.data.id;
-      } else {
-        // Update profile details
-        const updateResult = await sendAction(SocketAction.UPDATE_ORG_PROFILE, {
-          id: profileId,
-          data: {
-            email: newMemberData.email || undefined,
-            cellphone: newMemberData.cellphone || undefined,
-            birthdate: newMemberData.birthdate || undefined,
-            nationalId: newMemberData.nationalId || undefined,
-            image: newMemberData.image || undefined,
-            imageConfig: newMemberData.imageConfig,
-            identifier: newMemberData.personOrgId || undefined,
-          }
-        });
-        if (!updateResult.ok) throw new Error(`Failed to update profile: ${updateResult.message}`);
-      }
-
-      // Link membership role to organization
-      if (profileId) {
-        const memberPayload = { orgProfileId: profileId, orgId, roleId: newMemberData.roleId };
-        const memberResult = await sendAction(SocketAction.ADD_ORG_MEMBER, memberPayload, {
-          requestId: requestKeyFor(addRequestScope.current(), SocketAction.ADD_ORG_MEMBER, memberPayload),
-        });
-        if (!memberResult.ok) throw new Error(`Failed to add organization member: ${memberResult.message}`);
-      }
-
-      // The guardian last, under the same scope, so a retry after it fails re-sends the person and
-      // membership (answered from the first attempt) and tries only the guardian again.
-      if (profileId && withGuardian) {
-        const guardianResult = await saveGuardianDraft(orgId!, profileId, guardianDraft, addRequestScope.current(), { quiet: true });
-        if (!guardianResult.ok) throw new Error(`${newMemberData.name} was added, but ${guardianResult.message.charAt(0).toLowerCase()}${guardianResult.message.slice(1)} Press Add Person again to retry the guardian.`);
-      }
-
-      // Reset and close
-      handleCloseAddModal();
-    } catch (error: any) {
-      console.error(error);
-      // Names the step that failed; the modal stays open so nothing typed is lost.
-      setAddError(error?.message || 'Failed to add member');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Delete workflow
-  const handleRemoveMember = async () => {
-    if (!confirmDelete) return;
-
-    setIsProcessing(true);
-    try {
-      const result = await sendAction(SocketAction.REMOVE_ORG_MEMBER, { id: confirmDelete.membershipId });
-      if (!result.ok) throw new Error(result.message || 'Failed to remove member');
-      setConfirmDelete(null);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to remove member');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Autocomplete Select Profile callback
-  const handleSelectPerson = (person: OrgProfile | null) => {
-    setSelectedPerson(person);
-    if (person) {
-      const lConfig = parseImageConfig(person.imageConfig || (person as any).settings?.logoConfig);
-      setNewMemberData(prev => ({
-        ...prev,
-        name: person.name,
-        email: person.email || prev.email,
-        cellphone: formatCellphone(person.cellphone) || prev.cellphone,
-        birthdate: person.birthdate || prev.birthdate,
-        nationalId: person.nationalId || prev.nationalId,
-        personOrgId: person.identifier || prev.personOrgId,
-        image: person.image || prev.image,
-        imageConfig: lConfig,
-      }));
-    }
-  };
-
-  // Filter & Sorting config
-  const filteredMembers = members.filter(m => {
-    const matchesSearch = m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (m.roleName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (m.email || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || m.roleId === roleFilter;
-    return matchesSearch && matchesRole;
+  const open = (member: OrgMember) => router.push({
+    pathname: '/admin/[orgId]/people/[membershipId]',
+    params: { orgId: orgId!, membershipId: member.membershipId },
   });
 
-  const sortedMembers = [...filteredMembers].sort((a, b) => {
-    const aVal = (a[sortConfig.key] || '').toLowerCase();
-    const bVal = (b[sortConfig.key] || '').toLowerCase();
-    if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-    return 0;
-  });
+  const headerRight = canEdit ? (
+    <View className="flex-row items-center gap-1">
+      <OverflowMenu
+        accessibilityLabel="People actions"
+        items={[{
+          label: 'Import from a spreadsheet',
+          description: 'Add and update people and their guardians from an .xlsx or .csv file. You see every change before it is saved.',
+          icon: 'cloud-upload-outline',
+          onPress: () => router.push(`/admin/${orgId}/people/import`),
+        }]}
+      />
+      <TouchableOpacity
+        onPress={() => setIsAdding(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Add person"
+        className={`flex-row items-center gap-1.5 rounded-xl bg-brand-orange ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
+      >
+        <Ionicons name="add" size={18} color="white" />
+        {isWide ? <Text className="font-inter-bold text-sm text-white">Add person</Text> : null}
+      </TouchableOpacity>
+    </View>
+  ) : undefined;
 
-  const toggleSort = (key: 'name' | 'roleName') => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
-    }));
-  };
-
-  const getAvatarSource = (member: OrgMember) => {
-    if (member.image) {
-      return { uri: getAvatarUrl(member.image, 'thumb') };
-    }
-    return null;
-  };
-
-  if (isLoading) {
+  if (isMembersLoading || isRolesLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center">
-        <ActivityIndicator size="large" color="#FF3E00" />
+      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="People" onBack={() => safeBack(`/admin/${orgId}`)} />
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={COLORS.brand.orange} /></View>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}`)}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Back
-          </Text>
-        </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
-          People & Roles
-        </Text>
-        <View className="flex-row items-center gap-2">
-          {canEdit && (
-            <OverflowMenu
-              accessibilityLabel="People actions"
-              items={[
-                {
-                  label: 'Import from a spreadsheet',
-                  description: 'Add and update people and their guardians from an .xlsx or .csv file. You see every change before it is saved.',
-                  icon: 'cloud-upload-outline',
-                  onPress: () => router.push(`/admin/${orgId}/people/import`),
-                },
-              ]}
-            />
-          )}
-          <TouchableOpacity
-            className="w-8 h-8 rounded-lg bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
-            onPress={() => setIsAdding(true)}
-          >
-            <Ionicons name="person-add-outline" size={16} color="white" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView className="flex-1 px-4 py-3" contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* FILTERS */}
-        <View className="flex-row gap-2 mb-3 flex-wrap">
-          <View className="flex-1 flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-1.5 min-w-[200px] shadow-sm">
-            <Ionicons name="search-outline" size={16} color="#94A3B8" />
-            <TextInput
-              placeholder="Search roster members..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              className="flex-1 font-inter text-slate-800 dark:text-white text-xs ml-2 outline-none"
-            />
-          </View>
-
-          <View className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl overflow-hidden min-w-[120px] justify-center px-2 py-0.5">
-            <Text className="font-orbitron-bold text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5 ml-1">Role Filter</Text>
-            <View className="flex-row items-center gap-1">
-              <TouchableOpacity onPress={() => setRoleFilter(roleFilter === 'all' ? 'role-org-member' : 'all')} className="flex-row items-center gap-1 py-0.5 px-1">
-                <Text className="font-inter text-xs text-slate-700 dark:text-slate-300">
-                  {roleFilter === 'all' ? 'All Roles' : availableRoles.find(r => r.id === roleFilter)?.name || 'Role'}
-                </Text>
-                <Ionicons name="chevron-down" size={12} color="#94A3B8" />
-              </TouchableOpacity>
+      <ScreenHeader title="People" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
+      <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
+          <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
+            <View className="flex-1 flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3">
+              <Ionicons name="search-outline" size={16} color="#94A3B8" />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search by name, email or org ID"
+                placeholderTextColor="#94A3B8"
+                accessibilityLabel="Search people"
+                className="flex-1 font-inter text-base text-slate-800 dark:text-white py-2.5 outline-none"
+              />
             </View>
+            <SegmentedControl options={filterOptions} value={roleFilter} onChange={setRoleFilter} isCompact={false} />
           </View>
-        </View>
 
-        {/* SORT CONTROLS */}
-        <View className="flex-row items-center gap-4 mb-2">
-          <TouchableOpacity onPress={() => toggleSort('name')} className="flex-row items-center gap-1">
-            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-              Name
+          <View className="flex-row items-center justify-between px-1">
+            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+              {shown.length === 1 ? '1 person' : `${shown.length} people`}
             </Text>
-            {sortConfig.key === 'name' && (
-              <Ionicons name={sortConfig.direction === 'asc' ? 'chevron-up' : 'chevron-down'} size={10} color="#FF3E00" />
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => toggleSort('roleName')} className="flex-row items-center gap-1">
-            <Text className="font-orbitron-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-              Role
-            </Text>
-            {sortConfig.key === 'roleName' && (
-              <Ionicons name={sortConfig.direction === 'asc' ? 'chevron-up' : 'chevron-down'} size={10} color="#FF3E00" />
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* MEMBER LIST */}
-        <PaginatedList
-          data={sortedMembers}
-          pageSize={50}
-          keyExtractor={(member) => member.membershipId}
-          emptyState={
-            <View className="items-center justify-center py-12">
-              <Ionicons name="people-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
-              <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
-                No Members Found
+            <TouchableOpacity
+              onPress={() => setSortKey(sortKey === 'name' ? 'role' : 'name')}
+              accessibilityRole="button"
+              accessibilityLabel={`Sorted by ${sortKey}. Change the sort.`}
+              className="flex-row items-center gap-1"
+            >
+              <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+                Sort: <Text className="font-inter-semibold text-slate-700 dark:text-slate-200">{sortKey === 'name' ? 'Name' : 'Role'}</Text>
               </Text>
-            </View>
-          }
-          renderItem={(member) => {
-            const avatarSrc = getAvatarSource(member);
-            const logoConf = parseImageConfig(member.imageConfig || (member as any).settings?.logoConfig);
-            const contactInfo = [member.email, formatCellphone(member.cellphone)].filter(Boolean).join('  |  ');
+              <Ionicons name="swap-vertical" size={14} color="#64748B" />
+            </TouchableOpacity>
+          </View>
 
-            return (
-              <TouchableOpacity
-                key={member.membershipId}
-                onPress={() => {
-                  if (canEdit) {
-                    router.push({
-                      pathname: '/admin/[orgId]/people/[membershipId]',
-                      params: { orgId: orgId!, membershipId: member.membershipId }
-                    });
-                  } else {
-                    router.push({
-                      pathname: '/admin/[orgId]/people/[membershipId]/view',
-                      params: { orgId: orgId!, membershipId: member.membershipId }
-                    });
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                <GlassCard className="border border-slate-200 dark:border-white/5 py-1.5 px-3 flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2.5 flex-1 mr-3 overflow-hidden">
-                    <View className="w-7 h-7 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center flex-shrink-0">
-                      {avatarSrc ? (
-                        <View style={{ width: 28, height: 28, overflow: 'hidden' }}>
-                          <View
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              transform: [
-                                { scale: logoConf.scale },
-                                { translateX: logoConf.x * 28 },
-                                { translateY: logoConf.y * 28 },
-                              ],
-                            }}
-                          >
-                            <Image
-                              source={avatarSrc}
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                              }}
-                              resizeMode="cover"
-                            />
-                          </View>
-                        </View>
-                      ) : (
-                        <Text className="font-orbitron-bold text-[11px] text-brand-orange">
-                          {member.name.charAt(0).toUpperCase()}
-                        </Text>
-                      )}
-                    </View>
-
-                    <View className="flex-1 flex-row items-center gap-2 flex-wrap min-w-0">
-                      <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white" numberOfLines={1}>
-                        {member.name}
-                      </Text>
-                      <View className="px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-800">
-                        <Text className="font-inter-bold text-[7px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                          {member.roleName || 'Member'}
-                        </Text>
-                      </View>
-                      {contactInfo ? (
-                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500" numberOfLines={1}>
-                          · {contactInfo}
-                        </Text>
-                      ) : null}
-                      {member.personOrgId ? (
-                        <Text className="font-mono text-[8px] text-slate-400 dark:text-slate-600" numberOfLines={1}>
-                          (ID: {member.personOrgId})
-                        </Text>
-                      ) : null}
-                      {guardianSummary(guardiansByPlayer.get(member.id)) ? (
-                        <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500" numberOfLines={1}>
-                          · Guardian: {guardianSummary(guardiansByPlayer.get(member.id))}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  <View className="flex-row items-center gap-1.5 flex-shrink-0">
-                    {canEdit ? (
-                      <InviteButton
-                        person={member}
-                        cooldownHours={inviteCooldownHours}
-                        onPress={() => setInviteTarget(member)}
-                      />
-                    ) : null}
-
-                    <TouchableOpacity
-                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
-                      onPress={(e: any) => {
-                        if (e && e.stopPropagation) e.stopPropagation();
-                        router.push({
-                          pathname: '/admin/[orgId]/people/[membershipId]/view',
-                          params: { orgId: orgId!, membershipId: member.membershipId }
-                        });
-                      }}
-                    >
-                      <Ionicons name="eye-outline" size={13} color={isDark ? "#E2E8F0" : "#475569"} />
-                    </TouchableOpacity>
-                  </View>
-                </GlassCard>
-              </TouchableOpacity>
-            );
-          }}
-        />
+          <PaginatedList
+            data={shown}
+            pageSize={PAGE_SIZE}
+            keyExtractor={member => member.membershipId}
+            containerClassName="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 overflow-hidden"
+            itemSpacingClassName=""
+            emptyState={
+              <View className="items-center justify-center py-12 gap-2">
+                <Ionicons name="people-outline" size={40} color="#94A3B8" />
+                <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+                  {all.length ? 'Nobody matches.' : 'Nobody has been added yet.'}
+                </Text>
+              </View>
+            }
+            renderItem={(member, index) => {
+              const guardians = guardiansByPlayer.get(member.id);
+              return (
+                <PersonRow
+                  member={member}
+                  isWide={isWide}
+                  first={index % PAGE_SIZE === 0}
+                  guardians={guardianSummary(guardians)}
+                  guardianCount={guardians?.length || 0}
+                  guardianship={guardianshipOf(member.birthdate, minorsSettings, !!guardians?.length)}
+                  onPress={() => open(member)}
+                />
+              );
+            }}
+          />
+        </View>
       </ScrollView>
 
-      {/* ADD MEMBER MODAL */}
-      {isAdding && (
-        <View className="absolute inset-0 bg-slate-950/80 items-center justify-center z-40 p-4">
-          <View 
-            className="w-full max-w-md border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl"
-            style={{ backgroundColor: isDark ? '#1E293B' : '#FFFFFF', maxHeight: '90%' }}
-          >
-            {/* Fixed Header */}
-            <View className="flex-row items-center justify-between border-b border-slate-200 dark:border-white/5 px-5 pt-5 pb-4">
-              <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white uppercase tracking-wider">
-                Add Person to Organization
-              </Text>
-              <TouchableOpacity onPress={handleCloseAddModal}>
-                <Ionicons name="close" size={20} color="#94A3B8" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Scrollable Form Fields */}
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Row 1: Avatar Uploader + Name Input side-by-side */}
-              <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center', marginBottom: 24, zIndex: 10 }}>
-                <View style={{ alignItems: 'center' }}>
-                  <TouchableOpacity
-                    onPress={() => setImageEditorTarget('add')}
-                    style={{ width: 64, height: 64, borderRadius: 32, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#CBD5E1' }}
-                  >
-                    {newMemberData.image ? (
-                      <View style={{ width: 64, height: 64, overflow: 'hidden' }}>
-                        <View
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            transform: [
-                              { scale: newMemberData.imageConfig.scale },
-                              { translateX: newMemberData.imageConfig.x * 64 },
-                              { translateY: newMemberData.imageConfig.y * 64 },
-                            ],
-                          }}
-                        >
-                          <Image
-                            source={{ uri: newMemberData.image }}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                            }}
-                            resizeMode="cover"
-                          />
-                        </View>
-                      </View>
-                    ) : (
-                      <Ionicons name="camera-outline" size={20} color="#94A3B8" />
-                    )}
-                  </TouchableOpacity>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 7, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', marginTop: 4 }}>
-                    Avatar
-                  </Text>
-                </View>
-
-                {/* Name Input */}
-                <View style={{ flex: 1, zIndex: 50 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Name
-                  </Text>
-                  <PersonnelAutocomplete
-                    orgId={orgId!}
-                    value={newMemberData.name}
-                    onChangeText={(text) => setNewMemberData(prev => ({ ...prev, name: text }))}
-                    onSelectPerson={handleSelectPerson}
-                  />
-                </View>
-              </View>
-
-              {/* Row 2: Email Address & Cell Number */}
-              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Email Address
-                  </Text>
-                  <TextInput
-                    placeholder="email@example.com"
-                    placeholderTextColor="#94A3B8"
-                    value={newMemberData.email}
-                    onChangeText={(text) => setNewMemberData(prev => ({ ...prev, email: text }))}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Cell Number
-                  </Text>
-                  <TextInput
-                    placeholder="e.g. +1 234 567 8900"
-                    placeholderTextColor="#94A3B8"
-                    value={newMemberData.cellphone}
-                    onChangeText={(text) => setNewMemberData(prev => ({ ...prev, cellphone: text }))}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
-                  />
-                </View>
-              </View>
-
-              {/* Row 3: Org ID + Birthdate side-by-side */}
-              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Org ID (e.g. Student #)
-                  </Text>
-                  <TextInput
-                    placeholder="ID number"
-                    placeholderTextColor="#94A3B8"
-                    value={newMemberData.personOrgId}
-                    onChangeText={(text) => setNewMemberData(prev => ({ ...prev, personOrgId: text }))}
-                    style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: isDark ? '#fff' : '#1E293B', backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12 }}
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 10 }}>
-                    Birthdate
-                  </Text>
-                  <DatePicker
-                    value={newMemberData.birthdate}
-                    onChange={(value) => setNewMemberData(prev => ({ ...prev, birthdate: value }))}
-                    placeholder="Birthdate"
-                  />
-                </View>
-              </View>
-
-              {/* Row 4: Assigned Role */}
-              <View style={{ marginBottom: 8 }}>
-                <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 9, color: isDark ? '#94A3B8' : '#475569', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 12 }}>
-                  Assigned Role
-                </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {availableRoles.map(role => (
-                    <TouchableOpacity
-                      key={role.id}
-                      onPress={() => setNewMemberData(prev => ({ ...prev, roleId: role.id }))}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: newMemberData.roleId === role.id ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.1)' : '#CBD5E1'),
-                        backgroundColor: newMemberData.roleId === role.id ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(241,245,249,0.3)'),
-                      }}
-                    >
-                      <Text style={{ fontFamily: 'Orbitron_700Bold', fontSize: 8, textTransform: 'uppercase', letterSpacing: 1.5, color: newMemberData.roleId === role.id ? '#fff' : (isDark ? '#94A3B8' : '#64748B') }}>
-                        {role.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Row 5: an optional guardian (`MEMBER-3`) */}
-              <GuardianBlock
-                orgId={orgId!}
-                draft={guardianDraft}
-                onChange={setGuardianDraft}
-                open={guardianOpen}
-                onOpenChange={setGuardianOpen}
-                birthdate={newMemberData.birthdate}
-                settings={minorsSettings}
-                playerProfileId={selectedPerson?.id}
-              />
-
-              {addError ? (
-                <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#EF4444', marginTop: 16 }}>{addError}</Text>
-              ) : null}
-            </ScrollView>
-
-            {/* Fixed Footer Action Buttons */}
-            <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : '#E2E8F0' }}>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={handleCloseAddModal}
-                className="flex-1 min-h-[40px] py-2"
-              />
-              <Button
-                title={isProcessing ? 'Adding...' : 'Add Person'}
-                variant="primary"
-                onPress={handleAddMember}
-                disabled={isProcessing || !newMemberData.name.trim()}
-                className="flex-1 min-h-[40px] py-2"
-              />
-            </View>
-          </View>
-        </View>
-      )}
-
-
-
-      {/* CONFIRM DELETE MODAL */}
-      <InviteModal
-        person={inviteTarget}
-        guardians={inviteTarget ? guardiansByPlayer.get(inviteTarget.id) : undefined}
-        minorsSettings={minorsSettings}
-        cooldownHours={inviteCooldownHours}
-        onClose={() => setInviteTarget(null)}
-      />
-
-      <ConfirmationModal
-        isOpen={confirmDelete !== null && confirmDelete.isOpen}
-        onClose={() => setConfirmDelete(null)}
-        title="Remove Member"
-        description={
-          confirmDelete
-            ? `Are you sure you want to remove ${confirmDelete.name} from the organization? They will also be removed from all teams in this organization.`
-            : ''
-        }
-        onConfirm={handleRemoveMember}
-        confirmText={isProcessing ? 'Removing...' : 'Remove'}
-        cancelText="Cancel"
-        variant="danger"
-        isProcessing={isProcessing}
-      />
-
-
-      {/* SHARED IMAGE EDITOR */}
-      <ImageEditor
-        visible={imageEditorTarget !== null}
-        imageUri={getEditorImage()}
-        config={getEditorConfig()}
-        title="Edit Avatar"
-        allowRemove
-        onApply={handleImageEditorApply}
-        onCancel={() => setImageEditorTarget(null)}
-      />
+      {canEdit ? <AddPersonDialog orgId={orgId!} roles={roles} visible={isAdding} onClose={() => setIsAdding(false)} /> : null}
     </SafeAreaView>
+  );
+}
+
+function PersonRow({ member, isWide, first, guardians, guardianCount, guardianship, onPress }: {
+  member: OrgMember;
+  isWide: boolean;
+  first: boolean;
+  guardians: string | null;
+  guardianCount: number;
+  guardianship: ReturnType<typeof guardianshipOf>;
+  onPress: () => void;
+}) {
+  const cell = formatCellphone(member.cellphone);
+  const border = first ? '' : 'border-t border-slate-100 dark:border-white/5';
+
+  if (!isWide) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" className={`flex-row items-center gap-3 px-3 py-2.5 ${border}`}>
+        <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={36} />
+        <View className="flex-1 min-w-0">
+          <View className="flex-row items-center gap-1.5">
+            <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white flex-shrink" numberOfLines={1}>{member.name}</Text>
+            <RoleBadge roleId={member.roleId} roleName={member.roleName} />
+            <GuardianshipTag kind={guardianship} />
+            {member.personOrgId ? (
+              <Text className="ml-auto pl-2 font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0" style={{ fontVariant: ['tabular-nums'] }}>
+                {member.personOrgId}
+              </Text>
+            ) : null}
+          </View>
+          {member.email || cell ? (
+            <View className="flex-row items-center justify-between gap-2.5 mt-0.5">
+              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink" numberOfLines={1}>{member.email || ''}</Text>
+              {cell ? <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{cell}</Text> : null}
+            </View>
+          ) : null}
+        </View>
+        <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" className={`flex-row items-center gap-3 px-4 py-2.5 ${border}`}>
+      <PersonAvatar name={member.name} image={member.image} imageConfig={member.imageConfig} size={36} />
+      <View className="flex-1 min-w-0">
+        <View className="flex-row items-center gap-2 flex-wrap">
+          <Text className="font-inter-semibold text-sm text-slate-800 dark:text-white" numberOfLines={1}>{member.name}</Text>
+          <RoleBadge roleId={member.roleId} roleName={member.roleName} />
+        </View>
+        {member.personOrgId ? (
+          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5" style={{ fontVariant: ['tabular-nums'] }}>{member.personOrgId}</Text>
+        ) : null}
+      </View>
+      <View style={{ width: 250 }}>
+        {member.email ? <Text className="font-inter text-sm text-slate-500 dark:text-slate-400" numberOfLines={1}>{member.email}</Text> : null}
+        {cell ? <Text className="font-inter text-sm text-slate-500 dark:text-slate-400" numberOfLines={1}>{cell}</Text> : null}
+      </View>
+      <View style={{ width: 170 }}>
+        {guardians ? (
+          <>
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{guardianCount > 1 ? 'Guardians' : 'Guardian'}</Text>
+            <Text className="font-inter text-sm text-slate-700 dark:text-slate-200" numberOfLines={1}>{guardians}</Text>
+          </>
+        ) : null}
+      </View>
+      <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+    </TouchableOpacity>
   );
 }

@@ -86,7 +86,8 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 
 Agreed 2026-10-01 while redesigning the org basic info screen ([docs/org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md)),
 as rules to carry to other pages. So far they are applied to the org Profile, Settings and Nominate
-admin pages only; other pages adopt them as they are next redesigned.
+admin pages and the People list and person page ([people.md](file:///c:/Fred/Coding/SK/docs/people.md));
+other pages adopt them as they are next redesigned.
 
 1.  **Read-first when a record is read more than it is edited.** Show values as text, one
     [`<ReadCard>`](file:///c:/Fred/Coding/SK/expo-app/components/ReadCard.tsx) per group. Each card's
@@ -126,7 +127,12 @@ admin pages only; other pages adopt them as they are next redesigned.
     likely wish — the org timezone after a new address pin.
 12. **A temporary task gets a temporary place, and leaves completely when it is done.** Nominating an
     admin is a banner, an amber menu item and its own page, all gone once the org has an admin.
-13. **Mark the exception, quietly.** On a form where most fields are required, the optional ones
+13. **Leave out a card that would be empty for most records**, rather than showing it empty; put its
+    add action in the page's ⋯ menu. The person page shows Guardians only for a minor or someone
+    with one, and the ScoreKeeper account card only while there is an invite to send.
+14. **A list row and the record it opens say the same thing the same way** — the same badges, in the
+    same order. Mark only what is not the default (no badge for Member).
+15. **Mark the exception, quietly.** On a form where most fields are required, the optional ones
     carry a small "Optional" after the label — sentence case, secondary colour, smaller and lighter
     than the label; where most are optional, the required ones carry an orange `*`. Never both on
     one form. This is `<FieldLabel>`'s `optional` and `required`, so a screen gets it by using

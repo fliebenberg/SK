@@ -3069,6 +3069,11 @@ io.on('connection', (socket) => {
                     updateType = 'ORG_MEMBER_UPDATED';
                     // A guardian's name and contact details travel in their links (`MEMBER-3`).
                     await publishGuardianProfileChange(result.id);
+                    // The member row, not the bare profile: the People screens read the org ID as
+                    // `personOrgId`, and `hasAccount` and `restrictedReason` follow from the email and
+                    // birthdate just saved. A profile with no membership (a guardian) has no row.
+                    const richMember = (await dataManager.getOrganizationMembers(result.orgId)).find((m: any) => m.id === result.id);
+                    if (richMember) result = richMember;
                 }
                 break;
             }

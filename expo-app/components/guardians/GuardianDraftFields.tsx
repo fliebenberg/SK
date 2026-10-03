@@ -3,7 +3,9 @@ import { View, Text, TextInput, TouchableOpacity, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GUARDIAN_RELATIONSHIPS } from '@sk/shared';
 import { PersonnelAutocomplete } from '../PersonnelAutocomplete';
-import { useActiveTheme } from '../../store/settingsStore';
+import { FieldLabel } from '../FieldLabel';
+import { TEXT_INPUT } from '../formStyles';
+import { SegmentedControl } from '../SegmentedControl';
 import { GuardianDraft, RELATIONSHIP_LABELS } from './guardianDraft';
 import { formatCellphone } from '../../utils/phone';
 
@@ -17,22 +19,18 @@ interface GuardianDraftFieldsProps {
   excludeProfileId?: string;
 }
 
-const LABEL = 'font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1.5';
-const INPUT = 'font-inter text-sm text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 outline-none';
-
 /**
  * The fields for one guardian: pick someone already in the organisation, or type a new person's
  * name and contact details, plus how they are related. Controlled — the owner keeps the
  * {@link GuardianDraft} and saves it with `saveGuardianDraft`.
  */
 export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, excludeProfileId }: GuardianDraftFieldsProps) {
-  const isDark = useActiveTheme() === 'dark';
   const set = (patch: Partial<GuardianDraft>) => onChange({ ...draft, ...patch });
 
   return (
-    <View className="space-y-4">
-      <View style={{ zIndex: 50 }}>
-        <Text className={LABEL}>Guardian’s name</Text>
+    <View className="gap-4">
+      <View className="gap-1.5" style={{ zIndex: 50 }}>
+        <FieldLabel label="Guardian’s name" />
         {draft.existingId ? (
           <View className="flex-row items-center justify-between bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-4 py-3">
             <View className="flex-1 mr-3">
@@ -43,9 +41,10 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
             </View>
             <TouchableOpacity
               onPress={() => set({ existingId: null, name: '', email: '', cellphone: '' })}
+              accessibilityRole="button"
               className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800"
             >
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Change</Text>
+              <Text className="font-inter-bold text-sm text-orange-700 dark:text-brand-orange">Change</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -63,9 +62,9 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
       </View>
 
       {!draft.existingId ? (
-        <View className="flex-row gap-3">
-          <View className="flex-1">
-            <Text className={LABEL}>Guardian’s email</Text>
+        <View className="flex-row flex-wrap gap-3">
+          <View className="flex-1 gap-1.5" style={{ minWidth: 180 }}>
+            <FieldLabel label="Guardian’s email" />
             <TextInput
               value={draft.email}
               onChangeText={email => set({ email })}
@@ -73,49 +72,31 @@ export function GuardianDraftFields({ orgId, draft, onChange, showPrimary, exclu
               placeholderTextColor="#94A3B8"
               autoCapitalize="none"
               keyboardType="email-address"
-              className={INPUT}
+              className={TEXT_INPUT}
             />
           </View>
-          <View className="flex-1">
-            <Text className={LABEL}>Guardian’s cell</Text>
+          <View className="flex-1 gap-1.5" style={{ minWidth: 160 }}>
+            <FieldLabel label="Guardian’s cell" />
             <TextInput
               value={draft.cellphone}
               onChangeText={cellphone => set({ cellphone })}
               placeholder="e.g. +27 82 123 4567"
               placeholderTextColor="#94A3B8"
               keyboardType="phone-pad"
-              className={INPUT}
+              className={TEXT_INPUT}
             />
           </View>
         </View>
       ) : null}
 
-      <View>
-        <Text className={LABEL}>Relationship</Text>
-        <View className="flex-row flex-wrap gap-2">
-          {GUARDIAN_RELATIONSHIPS.map(relationship => {
-            const selected = draft.relationship === relationship;
-            return (
-              <TouchableOpacity
-                key={relationship}
-                onPress={() => set({ relationship })}
-                style={{
-                  borderWidth: 1,
-                  borderColor: selected ? '#FF3E00' : (isDark ? 'rgba(255,255,255,0.1)' : '#CBD5E1'),
-                  backgroundColor: selected ? '#FF3E00' : 'transparent',
-                }}
-                className="px-3 py-2 rounded-xl active:scale-95"
-              >
-                <Text
-                  style={{ color: selected ? '#fff' : (isDark ? '#94A3B8' : '#64748B') }}
-                  className="font-orbitron-bold text-[9px] uppercase tracking-widest"
-                >
-                  {RELATIONSHIP_LABELS[relationship]}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      <View className="gap-1.5">
+        <FieldLabel label="Relationship" />
+        <SegmentedControl
+          options={GUARDIAN_RELATIONSHIPS.map(value => ({ key: value, label: RELATIONSHIP_LABELS[value] }))}
+          value={draft.relationship}
+          onChange={relationship => set({ relationship })}
+          isCompact={false}
+        />
       </View>
 
       {showPrimary ? (
