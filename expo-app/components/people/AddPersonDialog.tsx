@@ -36,8 +36,18 @@ const emptyPerson = () => ({ name: '', email: '', cellphone: '', birthdate: '', 
  * — under one request scope kept across retries (SYNC-3), so a retry after a later step fails
  * re-sends the earlier ones (answered from the first attempt) and tries only the failed one again.
  * The dialog stays open on any failure, with what failed said inside it.
+ *
+ * From a team page (docs/teams.md), `team` names the team and the role on it: the person then also
+ * joins that team, as one more write under the same scope, after the membership and before the
+ * guardian.
  */
-export function AddPersonDialog({ orgId, roles, visible, onClose }: { orgId: string; roles: OrgRole[]; visible: boolean; onClose: () => void }) {
+export function AddPersonDialog({ orgId, roles, visible, onClose, team }: {
+  orgId: string;
+  roles: OrgRole[];
+  visible: boolean;
+  onClose: () => void;
+  team?: { id: string; name: string; roleId: string; roleName: string };
+}) {
   const [person, setPerson] = useState(emptyPerson);
   const [selected, setSelected] = useState<OrgProfile | null>(null);
   const [guardianDraft, setGuardianDraft] = useState<GuardianDraft>(emptyGuardianDraft);
@@ -125,11 +135,22 @@ export function AddPersonDialog({ orgId, roles, visible, onClose }: { orgId: str
       });
       if (!joined.ok) throw new Error(`They were not added to the organisation: ${joined.message}`);
 
+      if (team) {
+        const placement = { orgProfileId: profileId!, teamId: team.id, roleId: team.roleId };
+        const placed = await sendAction(SocketAction.ADD_TEAM_MEMBER, placement, {
+          suppressToast: true,
+          requestId: requestKeyFor(scope.current(), SocketAction.ADD_TEAM_MEMBER, placement),
+        });
+        if (!placed.ok) {
+          throw new Error(`${person.name.trim()} was added to the organisation, but not to ${team.name}: ${placed.message} Press Add again to retry.`);
+        }
+      }
+
       // The guardian last, so a retry after it fails tries only the guardian again.
       if (withGuardian) {
         const guardian = await saveGuardianDraft(orgId, profileId!, guardianDraft, scope.current(), { quiet: true });
         if (!guardian.ok) {
-          throw new Error(`${person.name.trim()} was added, but ${guardian.message.charAt(0).toLowerCase()}${guardian.message.slice(1)} Press Add person again to retry the guardian.`);
+          throw new Error(`${person.name.trim()} was added, but ${guardian.message.charAt(0).toLowerCase()}${guardian.message.slice(1)} Press ${team ? 'Add' : 'Add person'} again to retry the guardian.`);
         }
       }
       onClose();
@@ -143,10 +164,10 @@ export function AddPersonDialog({ orgId, roles, visible, onClose }: { orgId: str
   return (
     <EditDialog
       visible={visible}
-      title="Add person"
+      title={team ? `New ${team.roleName.toLowerCase()} for ${team.name}` : 'Add person'}
       onClose={onClose}
       onSave={save}
-      saveLabel="Add person"
+      saveLabel={team ? 'Add' : 'Add person'}
       saveDisabled={!person.name.trim()}
       isSaving={isSaving}
       isDirty={isDirty}

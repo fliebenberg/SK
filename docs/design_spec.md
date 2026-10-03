@@ -213,7 +213,10 @@ Agreed 2026-10-03 on the People list ([people.md](file:///c:/Fred/Coding/SK/docs
 - **Mark only what is not the default.** A badge for Staff and Admin, none for Member; nothing for someone already on ScoreKeeper. Badges follow the name, in the colours of §1.1, and the record's own page shows the same badges in the same order.
 - **An identifier whose meaning varies is shown bare, in a fixed place** — an org ID under the name, never "Student #" in front of a staff number.
 - **The add action is a labelled button in the header** ("Add person"; the icon alone on a phone), shown only to people who may use it. Rarer list actions (import) go in the header `⋯` menu.
-- **Filter by the one property most worth narrowing to** (role, on People), with a count per option, as a segmented control when there are four options or fewer. Search covers the values a record is looked up by — name, email, an ID.
+- **Filter by the one property most worth narrowing to** (role, on People), with a count per option, as a segmented control when there are four options or fewer, a dropdown beyond (age group, on Teams). Search covers the values a record is looked up by — name, email, an ID.
+- **Group only by something that varies.** Teams are grouped by sport only when the organisation has teams in more than one.
+- **Records out of use sit in a collapsed section at the end** (inactive teams), so the main list needs no badge for them.
+- Applied to the Teams list on 2026-10-03 ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)).
 
 ---
 

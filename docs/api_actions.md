@@ -157,7 +157,7 @@ remembered, so a refused attempt can be retried with the same id. In memory, per
 ### 1. Teams
 
 #### `ADD_TEAM`
-*   **Payload**: `Omit<Team, "id">` (includes `name`, `ageGroupId`, `sportId`, `orgId`). `ageGroupId` must be an entry of the team's sport — see [Age groups](#age-groups). Reads carry `ageGroup` (the name) as well; writes ignore it.
+*   **Payload**: `Omit<Team, "id">` (includes `name`, `ageGroupId`, `sportId`, `orgId`, and an optional `shortName`). `ageGroupId` must be an entry of the team's sport — see [Age groups](#age-groups). Reads carry `ageGroup` (the name) as well; writes ignore it.
 *   **Logic**: Creates a new team.
 *   **Broadcasts**:
     *   **Topic**: `org:{orgId}:teams`
@@ -224,9 +224,9 @@ The admin operations are REST, under `requireAdmin`, and each answers with the s
 *   **Payload**: `{ orgProfileId, teamId, roleId }`
 *   **Logic**: Links a person to a team.
 *   **Broadcasts**:
-    1.  **Topic**: `team:{teamId}`
-        *   **Event**: `TEAM_MEMBERS_UPDATED`
-        *   **Data**: The enriched member object.
+    1.  **Topic**: `team:{teamId}:members`
+        *   **Event**: `TEAM_MEMBERS_SYNC`
+        *   **Data**: The whole roster, `TeamMember[]`.
     2.  **Topic**: `org:{orgId}:teams`
         *   **Event**: `TEAM_UPDATED`
         *   **Data**: The updated `Team` object (including new player/staff counts if applicable).
@@ -235,17 +235,20 @@ The admin operations are REST, under `requireAdmin`, and each answers with the s
 *   **Payload**: `{ id, data }` (where `id` is membershipId and `data` is `Partial<TeamMembership>`)
 *   **Logic**: Updates membership details (e.g., role, dates).
 *   **Broadcasts**:
-    *   **Topic**: `team:{teamId}`
-    *   **Event**: `TEAM_MEMBER_UPDATED`
-    *   **Data**: The updated enriched member object.
+    1.  **Topic**: `team:{teamId}:members`
+        *   **Event**: `TEAM_MEMBERS_SYNC`
+        *   **Data**: The whole roster, `TeamMember[]`.
+    2.  **Topic**: `org:{orgId}:teams`
+        *   **Event**: `TEAM_UPDATED`
+        *   **Data**: The `Team` — a role change can change its staff count and head coach (`coachName`).
 
 #### `REMOVE_TEAM_MEMBER`
 *   **Payload**: `{ id }` (This is the `membershipId`)
 *   **Logic**: Soft-deletes the membership (sets `endDate`).
 *   **Broadcasts**:
-    1.  **Topic**: `team:{teamId}`
-        *   **Event**: `TEAM_MEMBER_UPDATED`
-        *   **Data**: The updated membership object.
+    1.  **Topic**: `team:{teamId}:members`
+        *   **Event**: `TEAM_MEMBERS_SYNC`
+        *   **Data**: The whole roster, `TeamMember[]`.
     2.  **Topic**: `org:{orgId}:teams`
         *   **Event**: `TEAM_UPDATED`
         *   **Data**: The updated `Team` object (with new counts).

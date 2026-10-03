@@ -437,6 +437,23 @@ export function formatKickoffTime(iso?: Instant | null): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * A fixture's kick-off broken up for a date tile: the day of the month and the month ("11", "Oct")
+ * for the tile, and the weekday with the time ("Sat 09:00", or "Sat, time TBD") for the line beside
+ * it. In the viewer's timezone, like every instant. `null` when it is not one. Added 2026-10-03 for
+ * the team page's games (docs/teams.md).
+ */
+export function fixtureDateParts(iso?: Instant | null, options?: { timeTbd?: boolean }): { day: string; month: string; when: string } | null {
+  const date = parseInstant(iso);
+  if (!date) return null;
+  const weekday = DAYS[date.getDay()];
+  return {
+    day: String(date.getDate()),
+    month: MONTHS[date.getMonth()],
+    when: options?.timeTbd ? `${weekday}, time TBD` : `${weekday} ${formatKickoffTime(iso)}`,
+  };
+}
+
 /** The day an instant falls on for the viewer — "24 Sep 2026". Empty when it is not one. */
 export function formatInstantDate(iso?: Instant | null): string {
   const date = parseInstant(iso);

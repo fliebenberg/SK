@@ -101,6 +101,7 @@ export class DataManager {
   // Teams
   getTeams = (orgId?: string) => teamManager.getTeams(orgId);
   getTeam = (id: string) => teamManager.getTeam(id);
+  teamIdsCoachedBy = (orgProfileId: string) => teamManager.teamIdsCoachedBy(orgProfileId);
   addTeam = (team: AddTeamPayload) => teamManager.addTeam(team);
   updateTeam = (id: string, data: Partial<Team>) => teamManager.updateTeam(id, data);
   deleteTeam = (id: string) => teamManager.deleteTeam(id);

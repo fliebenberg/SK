@@ -10,6 +10,8 @@ export interface Team {
   isActive?: boolean;
   playerCount?: number;
   staffCount?: number;
+  /** The head coach's name — the longest-serving current Coach — joined in on read. Ignored on write. */
+  coachName?: string | null;
   creatorId?: string;
   /** `null` on an update clears it. */
   shortName?: string | null;

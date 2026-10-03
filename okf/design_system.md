@@ -88,8 +88,9 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 
 Agreed 2026-10-01 while redesigning the org basic info screen ([docs/org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md)),
 as rules to carry to other pages. So far they are applied to the org Profile, Settings and Nominate
-admin pages and the People list and person page ([people.md](file:///c:/Fred/Coding/SK/docs/people.md));
-other pages adopt them as they are next redesigned.
+admin pages, the People list and person page ([people.md](file:///c:/Fred/Coding/SK/docs/people.md)) and
+the Teams list and team page ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)); other pages adopt
+them as they are next redesigned.
 
 1.  **Read-first when a record is read more than it is edited.** Show values as text, one
     [`<ReadCard>`](file:///c:/Fred/Coding/SK/expo-app/components/ReadCard.tsx) per group. Each card's
@@ -144,6 +145,12 @@ other pages adopt them as they are next redesigned.
     than the label; where most are optional, the required ones carry an orange `*`. Never both on
     one form. This is `<FieldLabel>`'s `optional` and `required`, so a screen gets it by using
     FieldLabel.
+18. **One search for a page made of lists**, covering every card on it, each card counting what
+    matches ("1 of 22") and saying so in one line when nothing does. On a phone, where the cards
+    are one long column, pin the search under the header with buttons that jump to each card. The
+    team page: players, staff and games.
+19. **An action that is not available stays in the menu, disabled, saying why** — Delete team
+    "Not available: this team has 9 games. Deactivate it instead." — rather than vanishing.
 
 ## NativeWind v4 & React Native Styling Constraints
 

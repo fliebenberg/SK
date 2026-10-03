@@ -60,7 +60,7 @@ Every screen below is behind [AuthGuard](file:///c:/Fred/Coding/SK/expo-app/comp
 applied at the layout so an unauthorized visitor never mounts the workspace or its subscriptions.
 
 *   `/admin/[orgId]`: Organization console.
-*   `/admin/[orgId]/teams`, `/teams/new`, `/teams/[teamId]`, `/teams/[teamId]/view`: Teams.
+*   `/admin/[orgId]/teams`, `/teams/[teamId]`: The Teams list and one read-first team page — read-only for anyone but Admin and Staff (there is no separate view route; Add team is a dialog). [teams.md](file:///c:/Fred/Coding/SK/docs/teams.md).
 *   `/admin/[orgId]/people`, `/people/[membershipId]`: The People list and one read-first person page — read-only for anyone but Admin and Staff (there is no separate view route). [people.md](file:///c:/Fred/Coding/SK/docs/people.md).
 *   `/admin/[orgId]/people/import`: Import people and their guardians from a spreadsheet — admin or staff, opened from the People screen's `⋯` menu. Rules: [identity_structure.md](file:///c:/Fred/Coding/SK/docs/identity_structure.md) §8.
 *   `/admin/[orgId]/sites`, `/sites/[siteId]`, `/sites/[siteId]/facilities/[facilityId]`: Sites and their facilities.

@@ -2841,6 +2841,12 @@ io.on('connection', (socket) => {
                 if (result) {
                     // Same reasoning as `ADD_TEAM_MEMBER`: the roster is the dataset this room
                     // carries, so the whole roster is what it publishes.
+                    // A role change can change the team's staff count and head coach, which its
+                    // row on the teams list shows.
+                    const teamForRole = await dataManager.getTeam(result.teamId);
+                    if (teamForRole) {
+                        additionalBroadcasts.push({ topic: `org:${teamForRole.orgId}:teams`, type: 'TEAM_UPDATED', data: teamForRole });
+                    }
                     updateTopic = teamMembersRoom(result.teamId);
                     updateType = 'TEAM_MEMBERS_SYNC';
                     result = await dataManager.getTeamMembers(result.teamId);
@@ -3073,6 +3079,13 @@ io.on('connection', (socket) => {
                     // `personOrgId`, and `hasAccount` and `restrictedReason` follow from the email and
                     // birthdate just saved. A profile with no membership (a guardian) has no row.
                     const richMember = (await dataManager.getOrganizationMembers(result.orgId)).find((m: any) => m.id === result.id);
+                    // A coach's name is on their teams' rows in the teams list (`coachName`).
+                    if (updateData.name !== undefined) {
+                        for (const coachedTeamId of await dataManager.teamIdsCoachedBy(result.id)) {
+                            const coachedTeam = await dataManager.getTeam(coachedTeamId);
+                            if (coachedTeam) additionalBroadcasts.push({ topic: `org:${coachedTeam.orgId}:teams`, type: 'TEAM_UPDATED', data: coachedTeam });
+                        }
+                    }
                     if (richMember) result = richMember;
                 }
                 break;

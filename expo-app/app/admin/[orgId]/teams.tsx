@@ -1,467 +1,266 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeBack } from '../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../components/GlassCard';
-import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { ConfirmationModal } from '../../../components/ConfirmationModal';
-import { useActiveTheme } from '../../../store/settingsStore';
-import { wsService } from '../../../services/websocket';
-import { sendAction } from '../../../services/actions';
-import { useWsStore } from '../../../store/wsStore';
+import { Organization, Sport, Team, sortAgeGroups } from '@sk/shared';
+import { ScreenHeader } from '../../../components/ScreenHeader';
+import { SegmentedControl } from '../../../components/SegmentedControl';
+import CustomSelect from '../../../components/CustomSelect';
+import { TeamCrest } from '../../../components/teams/TeamBits';
+import { TeamDetailsDialog } from '../../../components/teams/TeamDialogs';
+import { useOrgTeams } from '../../../hooks/useOrgTeams';
+import { useOrgSummary } from '../../../hooks/useOrgSummary';
+import { useSocketQuery } from '../../../hooks/useSocketQuery';
+import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../store/authStore';
-import { SocketAction, Team, Sport, Organization } from '@sk/shared';
+import { COLORS } from '../../../constants/Colors';
 
+const ALL = 'all';
+
+/**
+ * The organisation's teams (docs/teams.md). A row is the team at a glance — crest, name, age group,
+ * head coach and how many players and staff — and opens the team page, the same page for everyone.
+ *
+ * Grouped by sport only when the teams span more than one; inactive teams are in a collapsed
+ * section at the bottom, which is why the main list needs no Inactive badge. Add team is shown to
+ * Admin and Staff only.
+ */
 export default function OrgTeams() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
-  const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore((state: any) => state.isConnected);
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
 
-  // User & Permissions
   const user = useAuthStore(state => state.user);
-  const orgMemberships = useAuthStore(state => state.orgMemberships || []);
-  const userMembership = orgMemberships.find(m => m.orgId === orgId);
+  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId)?.roleId);
+  const canEdit = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff';
 
-  // Loading and Data States
-  const [isLoading, setIsLoading] = useState(true);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [sports, setSports] = useState<Sport[]>([]);
-  const [org, setOrg] = useState<Organization | null>(null);
+  const { teams, isLoading } = useOrgTeams(orgId);
+  const { org } = useOrgSummary(orgId);
+  const { data: sportsData } = useSocketQuery<Sport[]>('sports');
+  const sports = sportsData || [];
 
-  const canEdit = Boolean(
-    user?.globalRole === 'admin' ||
-    (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
-  );
+  const [search, setSearch] = useState('');
+  const [sportFilter, setSportFilter] = useState(ALL);
+  const [ageFilter, setAgeFilter] = useState(ALL);
+  const [showInactive, setShowInactive] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
-  // Filters & Layout States
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sportFilter, setSportFilter] = useState('all');
-  const [ageFilter, setAgeFilter] = useState('all');
-  const [groupBy, setGroupBy] = useState<'none' | 'sport' | 'age'>('none');
-  const [isDeactivatedExpanded, setIsDeactivatedExpanded] = useState(false);
-  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const sportName = (id: string) => sports.find(s => s.id === id)?.name || 'Other';
+  /** Where an age group sits in its sport's own order, so U13 and U11 read in the order the sport lists them. */
+  const ageRank = useMemo(() => {
+    const rank = new Map<string, number>();
+    for (const sport of sports) sortAgeGroups(sport.ageGroups || []).forEach((g, i) => rank.set(g.id, i));
+    return rank;
+  }, [sports]);
 
-  // Modals & Deletion States
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const active = teams.filter(t => t.isActive !== false);
+  const sportIds = Array.from(new Set(active.map(t => t.sportId)));
+  const ageGroups = Array.from(new Set(active.map(t => t.ageGroup).filter(Boolean))) as string[];
 
-  // Load Data & Subscribe
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return teams
+      .filter(t =>
+        (sportFilter === ALL || t.sportId === sportFilter) &&
+        (ageFilter === ALL || t.ageGroup === ageFilter) &&
+        (!q || [t.name, t.shortName, t.coachName].some(v => (v || '').toLowerCase().includes(q))))
+      .sort((a, b) =>
+        (ageRank.get(a.ageGroupId || '') ?? 999) - (ageRank.get(b.ageGroupId || '') ?? 999) ||
+        a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }, [teams, search, sportFilter, ageFilter, ageRank]);
 
-    let active = true;
-    setIsLoading(true);
+  const shownActive = shown.filter(t => t.isActive !== false);
+  const shownInactive = shown.filter(t => t.isActive === false);
+  const groups = sportIds.length > 1
+    ? sportIds
+        .map(id => ({ id, name: sportName(id), teams: shownActive.filter(t => t.sportId === id) }))
+        .filter(g => g.teams.length)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : [{ id: ALL, name: '', teams: shownActive }];
 
-    const loadData = () => {
-      // Get organization details
-      wsService.emit('get_data', { type: 'organization', id: orgId }, (res: any) => {
-        if (!active) return;
-        if (res) setOrg(res);
-      });
+  const open = (team: Team) => router.push({ pathname: '/admin/[orgId]/teams/[teamId]', params: { orgId: orgId!, teamId: team.id } });
 
-      // Teams are not fetched: joining `org:{orgId}:teams` pushes them, and
-      // every later change arrives carrying its own data.
-
-      // Get sports
-      wsService.emit('get_data', { type: 'sports' }, (res: any) => {
-        if (!active) return;
-        if (Array.isArray(res)) {
-          setSports(res);
-        }
-      });
-    };
-
-    loadData();
-
-    // Subscribe to teams updates
-    const room = `org:${orgId}:teams`;
-    const unsubscribe = wsService.subscribeToRoom(room);
-
-    const applyTeams = (next: Team[]) => {
-      setTeams(next);
-      const uniqueSportIds = new Set(next.map(t => t.sportId));
-      setGroupBy(uniqueSportIds.size > 1 ? 'sport' : 'age');
-      setIsLoading(false);
-    };
-
-    const handleUpdate = (event: any) => {
-      if (!active || !event) return;
-      if (event.topic && event.topic !== room) return;
-
-      if (event.type === 'TEAMS_SYNC') {
-        applyTeams(Array.isArray(event.data) ? event.data : []);
-      } else if ((event.type === 'TEAM_ADDED' || event.type === 'TEAM_UPDATED') && event.data?.id) {
-        setTeams(prev => {
-          const idx = prev.findIndex(t => t.id === event.data.id);
-          if (idx === -1) return [...prev, event.data];
-          const next = prev.slice();
-          next[idx] = event.data;
-          return next;
-        });
-      } else if (event.type === 'TEAM_DELETED' && event.data?.id) {
-        setTeams(prev => prev.filter(t => t.id !== event.data.id));
-      }
-    };
-
-    wsService.on('update', handleUpdate);
-
-    return () => {
-      active = false;
-      unsubscribe();
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, orgId]);
-
-  // Delete Team Confirmation
-  const handleDeleteTeam = (team: Team) => {
-    setTeamToDelete(team);
-    setDeleteError(null);
-  };
-
-  const confirmDeleteTeam = () => {
-    if (!teamToDelete) return;
-    setIsProcessing(true);
-    setDeleteError(null);
-    // Shown inline in the confirmation modal, so no toast.
-    sendAction(SocketAction.DELETE_TEAM, { id: teamToDelete.id }, { suppressToast: true }).then(result => {
-      setIsProcessing(false);
-      if (result.ok) {
-        setTeamToDelete(null);
-      } else {
-        setDeleteError(result.message || 'Team is currently linked to games or events and cannot be deleted.');
-      }
-    });
-  };
-
-  // Derived Sport List
-  const availableSports = org?.supportedSportIds
-    ? sports.filter(s => org.supportedSportIds?.includes(s.id))
-    : sports;
-
-  // Derived unique age groups
-  const uniqueAgeGroups = Array.from(
-    new Set(teams.map(t => t.ageGroup).filter(Boolean))
-  ).sort() as string[];
-
-  // Helper for icons
-  const getSportIcon = (sportId: string) => {
-    const sport = sports.find(s => s.id === sportId);
-    const sportName = (sport?.name || '').toLowerCase();
-    if (sportName.includes('rugby')) return 'shield-checkmark-outline';
-    if (sportName.includes('soccer') || sportName.includes('football')) return 'football-outline';
-    if (sportName.includes('netball')) return 'basketball-outline';
-    if (sportName.includes('cricket') || sportName.includes('baseball')) return 'baseball-outline';
-    return 'trophy-outline';
-  };
-
-  const getSportName = (sportId: string) => {
-    return sports.find(s => s.id === sportId)?.name || 'Unknown Sport';
-  };
-
-  // Filtering Logic
-  const filterTeam = (team: Team) => {
-    const matchesSearch = team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      getSportName(team.sportId).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (team.ageGroup || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSport = sportFilter === 'all' || team.sportId === sportFilter;
-    const matchesAge = ageFilter === 'all' || team.ageGroup === ageFilter;
-    return matchesSearch && matchesSport && matchesAge;
-  };
-
-  const activeTeams = teams.filter(t => t.isActive !== false && filterTeam(t));
-  const deactivatedTeams = teams.filter(t => t.isActive === false && filterTeam(t));
-
-  // Grouping Logic
-  const renderTeamCard = (team: Team) => (
+  const headerRight = canEdit ? (
     <TouchableOpacity
-      key={team.id}
-      onPress={() => {
-        if (canEdit) {
-          router.push({
-            pathname: '/admin/[orgId]/teams/[teamId]',
-            params: { orgId: orgId!, teamId: team.id }
-          });
-        } else {
-          router.push({
-            pathname: '/admin/[orgId]/teams/[teamId]/view',
-            params: { orgId: orgId!, teamId: team.id }
-          });
-        }
-      }}
-      activeOpacity={0.85}
+      onPress={() => setIsAdding(true)}
+      accessibilityRole="button"
+      accessibilityLabel="Add team"
+      className={`flex-row items-center gap-1.5 rounded-xl bg-brand-orange ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
     >
-      <GlassCard 
-        className={`border border-slate-200 dark:border-white/5 p-5 mb-4 ${team.isActive === false ? 'opacity-60' : ''}`}
-      >
-        <View className="flex-row justify-between items-start">
-          <View className="flex-1 mr-4">
-            <View className="flex-row items-center gap-2 mb-1.5 flex-wrap">
-              <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white">
-                {team.name}
-              </Text>
-              {team.isActive === false && (
-                <View className="bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
-                  <Text className="text-[8px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Inactive</Text>
-                </View>
-              )}
-            </View>
-            
-            <View className="flex-row flex-wrap items-center gap-2">
-              <View className="bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full flex-row items-center gap-1">
-                <Ionicons name={getSportIcon(team.sportId) as any} size={10} color={isDark ? '#94A3B8' : '#64748B'} />
-                <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  {team.ageGroup} • {getSportName(team.sportId)}
-                </Text>
-              </View>
-              <View className="flex-row items-center gap-1 bg-slate-100 dark:bg-white/10 px-2.5 py-1 rounded-full">
-                <Ionicons name="people" size={10} color="#FF3E00" />
-                <Text className="font-inter-bold text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  {team.playerCount || 0} Athletes
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View className="flex-row items-center gap-2">
-            <TouchableOpacity 
-              onPress={(e: any) => {
-                if (e && e.stopPropagation) e.stopPropagation();
-                router.push({
-                  pathname: '/admin/[orgId]/teams/[teamId]/view',
-                  params: { orgId: orgId!, teamId: team.id }
-                });
-              }}
-              className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-white/5 items-center justify-center border border-slate-200/50 dark:border-white/5 active:opacity-80"
-            >
-              <Ionicons name="eye-outline" size={13} color={isDark ? "#E2E8F0" : "#475569"} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </GlassCard>
+      <Ionicons name="add" size={18} color="white" />
+      {isWide ? <Text className="font-inter-bold text-sm text-white">Add team</Text> : null}
     </TouchableOpacity>
-  );
+  ) : undefined;
 
-  const renderGroupedTeams = (teamList: Team[]) => {
-    if (groupBy === 'none') {
-      return teamList.map(renderTeamCard);
-    }
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Teams" onBack={() => safeBack(`/admin/${orgId}`)} />
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={COLORS.brand.orange} /></View>
+      </SafeAreaView>
+    );
+  }
 
-    const grouped: Record<string, Team[]> = {};
-    teamList.forEach(t => {
-      const key = groupBy === 'sport' ? getSportName(t.sportId) : (t.ageGroup || 'Other');
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(t);
-    });
-
-    return Object.entries(grouped).map(([groupName, groupTeams]) => (
-      <View key={groupName} className="mb-6">
-        <View className="flex-row items-center gap-2 mb-3 px-1">
-          <Text className="font-orbitron-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            {groupName}
-          </Text>
-          <View className="h-[1px] flex-1 bg-slate-200 dark:bg-white/10" />
-          <Text className="font-inter-bold text-[10px] text-slate-400 dark:text-slate-500">
-            ({groupTeams.length})
-          </Text>
-        </View>
-        {groupTeams.map(renderTeamCard)}
-      </View>
-    ));
-  };
+  const sportOptions = [
+    { key: ALL, label: isWide ? `All ${active.length}` : 'All' },
+    ...sportIds
+      .map(id => ({ key: id, label: isWide ? `${sportName(id)} ${active.filter(t => t.sportId === id).length}` : sportName(id) }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+  ];
+  const ageOptions = [{ value: ALL, label: 'All ages' }, ...sortByName(ageGroups).map(a => ({ value: a, label: a }))];
 
   return (
     <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
-      {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
-        <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}`)}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-            Back
-          </Text>
-        </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase">
-          Teams & Divisions
-        </Text>
-        <TouchableOpacity 
-          className="w-8 h-8 rounded-lg bg-brand-orange items-center justify-center shadow-md shadow-brand-orange/20 active:opacity-85"
-          onPress={() => router.push({
-            pathname: '/admin/[orgId]/teams/new',
-            params: { orgId: orgId! }
-          })}
-        >
-          <Ionicons name="add-outline" size={16} color="white" />
-        </TouchableOpacity>
-      </View>
-
-      {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#FF3E00" />
-          <Text className="font-orbitron text-xs text-slate-500 dark:text-slate-400 mt-3">Loading teams...</Text>
-        </View>
-      ) : (
-        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
-          
-          {/* SEARCH & FILTERS CONTROLS */}
-          <View className="flex-row gap-2 mb-4">
-            <View className="flex-1 flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 shadow-sm">
-              <Ionicons name="search-outline" size={18} color="#94A3B8" />
+      <ScreenHeader title="Teams" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
+      <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
+          <View className={`gap-2.5 ${isWide ? 'flex-row items-center' : ''}`}>
+            <View className="flex-1 flex-row items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-3">
+              <Ionicons name="search-outline" size={16} color="#94A3B8" />
               <TextInput
-                placeholder="Search teams..."
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search by name, short name or coach"
                 placeholderTextColor="#94A3B8"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                className="flex-1 font-inter text-slate-800 dark:text-white text-sm ml-2.5 outline-none"
+                accessibilityLabel="Search teams"
+                className="flex-1 font-inter text-base text-slate-800 dark:text-white py-2.5 outline-none"
               />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
-                </TouchableOpacity>
-              )}
             </View>
-
-            <TouchableOpacity 
-              onPress={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-              className={`w-11 h-11 rounded-xl items-center justify-center border ${
-                isFilterMenuOpen || sportFilter !== 'all' || ageFilter !== 'all' || groupBy !== 'none'
-                  ? 'bg-brand-orange/10 border-brand-orange'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/5'
-              }`}
-            >
-              <Ionicons name="funnel-outline" size={18} color={isFilterMenuOpen || sportFilter !== 'all' || ageFilter !== 'all' || groupBy !== 'none' ? '#FF3E00' : '#94A3B8'} />
-            </TouchableOpacity>
+            {sportIds.length > 1 || ageGroups.length > 1 ? (
+              <View className="flex-row items-center gap-2">
+                {sportIds.length > 1 ? (
+                  <View className={isWide ? 'flex-shrink-0' : 'flex-1'}>
+                    <SegmentedControl options={sportOptions} value={sportFilter} onChange={setSportFilter} isCompact={false} />
+                  </View>
+                ) : null}
+                {ageGroups.length > 1 ? (
+                  <View style={{ minWidth: isWide ? 140 : 110 }}>
+                    <CustomSelect value={ageFilter} onChange={setAgeFilter} options={ageOptions} />
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
           </View>
 
-          {/* DYNAMIC FILTER MENU */}
-          {isFilterMenuOpen && (
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 mb-6">
-              <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Filter & Grouping options</Text>
-              
-              {/* Sport Filter */}
-              <View className="mb-3">
-                <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 mb-1.5">Sport</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
-                  <TouchableOpacity 
-                    onPress={() => setSportFilter('all')}
-                    className={`px-3 py-1.5 rounded-full border ${sportFilter === 'all' ? 'bg-brand-orange border-brand-orange' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5'}`}
-                  >
-                    <Text className={`font-inter text-xs ${sportFilter === 'all' ? 'text-white' : 'text-slate-600 dark:text-slate-300'}`}>All Sports</Text>
-                  </TouchableOpacity>
-                  {availableSports.map(s => (
-                    <TouchableOpacity 
-                      key={s.id}
-                      onPress={() => setSportFilter(s.id)}
-                      className={`px-3 py-1.5 rounded-full border ${sportFilter === s.id ? 'bg-brand-orange border-brand-orange' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5'}`}
-                    >
-                      <Text className={`font-inter text-xs ${sportFilter === s.id ? 'text-white' : 'text-slate-600 dark:text-slate-300'}`}>{s.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 px-1">
+            {shownActive.length === 1 ? '1 team' : `${shownActive.length} teams`}
+          </Text>
 
-              {/* Age Group Filter */}
-              <View className="mb-3">
-                <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 mb-1.5">Age Group</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-2">
-                  <TouchableOpacity 
-                    onPress={() => setAgeFilter('all')}
-                    className={`px-3 py-1.5 rounded-full border ${ageFilter === 'all' ? 'bg-brand-orange border-brand-orange' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5'}`}
-                  >
-                    <Text className={`font-inter text-xs ${ageFilter === 'all' ? 'text-white' : 'text-slate-600 dark:text-slate-300'}`}>All Ages</Text>
-                  </TouchableOpacity>
-                  {uniqueAgeGroups.map(age => (
-                    <TouchableOpacity 
-                      key={age}
-                      onPress={() => setAgeFilter(age)}
-                      className={`px-3 py-1.5 rounded-full border ${ageFilter === age ? 'bg-brand-orange border-brand-orange' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5'}`}
-                    >
-                      <Text className={`font-inter text-xs ${ageFilter === age ? 'text-white' : 'text-slate-600 dark:text-slate-300'}`}>{age}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+          {groups.map(group => (
+            <View key={group.id} className="gap-2">
+              {group.name ? <GroupHeading label={group.name} count={group.teams.length} /> : null}
+              <TeamList teams={group.teams} org={org} isWide={isWide} onOpen={open} />
+            </View>
+          ))}
+          {shownActive.length === 0 ? (
+            <View className="items-center justify-center py-12 gap-2">
+              <Ionicons name="shield-outline" size={40} color="#94A3B8" />
+              <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center">
+                {active.length ? 'No team matches.' : canEdit ? 'No teams yet. Add the first one with Add team.' : 'No teams yet.'}
+              </Text>
+            </View>
+          ) : null}
 
-              {/* Group By Option */}
-              <View>
-                <Text className="font-inter-bold text-[10px] text-slate-500 dark:text-slate-400 mb-1.5">Group Layout By</Text>
-                <View className="flex-row gap-2">
-                  {(['none', 'sport', 'age'] as const).map(option => (
-                    <TouchableOpacity 
-                      key={option}
-                      onPress={() => setGroupBy(option)}
-                      className={`flex-1 items-center py-2 rounded-xl border capitalize ${groupBy === option ? 'bg-brand-orange/10 border-brand-orange' : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/5'}`}
-                    >
-                      <Text className={`font-inter text-xs font-semibold ${groupBy === option ? 'text-brand-orange' : 'text-slate-600 dark:text-slate-300'}`}>
-                        {option === 'none' ? 'No Grouping' : option}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </GlassCard>
-          )}
-
-          {/* ACTIVE TEAMS LIST */}
-          <View>
-            {renderGroupedTeams(activeTeams)}
-
-            {activeTeams.length === 0 && (
-              <View className="items-center justify-center py-12">
-                <Ionicons name="trophy-outline" size={48} color="#94A3B8" className="opacity-40 mb-3" />
-                <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
-                  No Active Teams
-                </Text>
-                <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
-                  Adjust filters or register a new team.
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* DEACTIVATED TEAMS SECTION */}
-          {deactivatedTeams.length > 0 && (
-            <View className="mt-8 border-t border-slate-200/50 dark:border-white/5 pt-6">
-              <TouchableOpacity 
-                onPress={() => setIsDeactivatedExpanded(!isDeactivatedExpanded)}
-                className="flex-row items-center justify-between py-2 px-1"
+          {shownInactive.length ? (
+            <View className="gap-2 mt-2">
+              <TouchableOpacity
+                onPress={() => setShowInactive(v => !v)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showInactive }}
+                className="flex-row items-center justify-between rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 px-4 py-3"
               >
-                <Text className="font-orbitron-bold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                  Deactivated Teams ({deactivatedTeams.length})
-                </Text>
-                <Ionicons name={isDeactivatedExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#94A3B8" />
-              </TouchableOpacity>
-
-              {isDeactivatedExpanded && (
-                <View className="mt-4">
-                  {renderGroupedTeams(deactivatedTeams)}
+                <Text className="font-inter-semibold text-sm text-slate-700 dark:text-slate-200">Inactive teams · {shownInactive.length}</Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">{showInactive ? 'Hide' : 'Show'}</Text>
+                  <Ionicons name={showInactive ? 'chevron-up' : 'chevron-down'} size={14} color="#64748B" />
                 </View>
-              )}
+              </TouchableOpacity>
+              {showInactive ? <TeamList teams={shownInactive} org={org} isWide={isWide} onOpen={open} /> : null}
             </View>
-          )}
-        </ScrollView>
-      )}
+          ) : null}
+        </View>
+      </ScrollView>
 
-      <ConfirmationModal
-        isOpen={teamToDelete !== null}
-        onClose={() => setTeamToDelete(null)}
-        title="Delete Team?"
-        description={
-          teamToDelete 
-            ? `Are you sure you want to delete "${teamToDelete.name}"? This action cannot be undone.${deleteError ? '\n\nError: ' + deleteError : ''}` 
-            : ''
-        }
-        onConfirm={confirmDeleteTeam}
-        confirmText={isProcessing ? 'Deleting...' : 'Delete'}
-        variant="danger"
-        isProcessing={isProcessing}
-      />
+      {canEdit ? (
+        <TeamDetailsDialog
+          visible={isAdding}
+          onClose={() => setIsAdding(false)}
+          orgId={orgId!}
+          supportedSportIds={org?.supportedSportIds}
+          sports={sports}
+          onAdded={open}
+        />
+      ) : null}
     </SafeAreaView>
+  );
+}
+
+const sortByName = (names: string[]) => [...names].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+function GroupHeading({ label, count }: { label: string; count: number }) {
+  return (
+    <View className="flex-row items-center gap-2.5 px-1 mt-1">
+      <Text className="font-orbitron-bold text-[11px] uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</Text>
+      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{count}</Text>
+      <View className="flex-1 h-px bg-slate-200 dark:bg-white/10" />
+    </View>
+  );
+}
+
+function TeamList({ teams, org, isWide, onOpen }: { teams: Team[]; org: Organization | null; isWide: boolean; onOpen: (team: Team) => void }) {
+  return (
+    <View className="rounded-2xl border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 overflow-hidden">
+      {teams.map((team, i) => <TeamRow key={team.id} team={team} org={org} isWide={isWide} first={i === 0} onPress={() => onOpen(team)} />)}
+    </View>
+  );
+}
+
+function TeamRow({ team, org, isWide, first, onPress }: { team: Team; org: Organization | null; isWide: boolean; first: boolean; onPress: () => void }) {
+  const inactive = team.isActive === false;
+  const players = team.playerCount || 0;
+  const staff = team.staffCount || 0;
+  const border = first ? '' : 'border-t border-slate-100 dark:border-white/5';
+  const crest = <TeamCrest team={team} org={org} size={40} inactive={inactive} />;
+  const playersLabel = `${players} ${players === 1 ? 'player' : 'players'}`;
+
+  if (!isWide) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" className={`flex-row items-center gap-3 px-3 py-2.5 ${border}`}>
+        {crest}
+        <View className="flex-1 min-w-0">
+          <View className="flex-row items-center gap-2">
+            <Text className="font-inter-semibold text-[15px] text-slate-800 dark:text-white flex-shrink" numberOfLines={1}>{team.name}</Text>
+            <Text className="ml-auto pl-2 font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{playersLabel}</Text>
+          </View>
+          <View className="flex-row items-center justify-between gap-2.5 mt-0.5">
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{team.ageGroup}</Text>
+            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 flex-shrink" numberOfLines={1}>{team.coachName || 'No coach'}</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" className={`flex-row items-center gap-3 px-4 py-3 ${border}`}>
+      {crest}
+      <View className="flex-1 min-w-0">
+        <Text className="font-inter-semibold text-[15px] text-slate-800 dark:text-white" numberOfLines={1}>{team.name}</Text>
+        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">{team.ageGroup}</Text>
+      </View>
+      <View style={{ width: 200 }}>
+        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">{team.coachName ? 'Coach' : 'No coach yet'}</Text>
+        {team.coachName ? <Text className="font-inter text-sm text-slate-700 dark:text-slate-200" numberOfLines={1}>{team.coachName}</Text> : null}
+      </View>
+      <View style={{ width: 110 }} className="items-end">
+        <Text className="font-inter text-sm text-slate-700 dark:text-slate-200">{playersLabel}</Text>
+        <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">{staff} staff</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+    </TouchableOpacity>
   );
 }

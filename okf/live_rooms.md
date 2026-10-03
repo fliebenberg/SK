@@ -7,7 +7,7 @@ tags:
   - subscriptions
   - rooms
   - real-time
-timestamp: 2026-09-26T12:00:00Z
+timestamp: 2026-10-03T00:00:00Z
 ---
 
 # Live Room Inventory
@@ -51,7 +51,7 @@ not also query for the same data.
 | `org:{id}:summary` | public | `ORGANIZATION_UPDATED` or `ENTITY_NOT_FOUND` | `ORGANIZATION_UPDATED` |
 | `org:{id}:events` | public | `EVENTS_SYNC` (`Event[]`) | `EVENT_ADDED/UPDATED/DELETED` |
 | `org:{id}:fixtures` | public | `GAME_SUMMARIES_SYNC` (`GameSummary[]`) | `GAME_SUMMARY_UPDATED`, `GAME_SUMMARY_REMOVED` |
-| `org:{id}:teams` | public | `TEAMS_SYNC` | `TEAM_ADDED/UPDATED/DELETED` |
+| `org:{id}:teams` | public | `TEAMS_SYNC` | `TEAM_ADDED/UPDATED/DELETED` — each a whole `Team` with its player and staff counts and `coachName`, so it is republished by a roster add, removal or role change, and by renaming a coach |
 | `org:{id}:sites` | public | `SITES_SYNC` | `SITE_ADDED/UPDATED/DELETED` |
 | `org:{id}:facilities` | public | `FACILITIES_SYNC` | `FACILITY_ADDED/UPDATED/DELETED` |
 | `org:{id}:leagues` | public | `LEAGUES_SYNC` | `LEAGUE_*`, `SEASON_*` |

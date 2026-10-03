@@ -31,22 +31,39 @@ export class TeamManager extends BaseManager {
     return teams;
   }
 
+  /**
+   * Adds what a teams list row shows beyond the team itself: player and staff counts, and the head
+   * coach — the longest-serving current Coach — by name (docs/teams.md). One query for all three.
+   */
   async enrichTeam(team: Team): Promise<Team> {
-    const pCountRes = await this.query(`
-        SELECT COUNT(*) as count FROM team_memberships 
-        WHERE team_id = $1 AND role_id = 'role-player' AND (end_date IS NULL OR end_date > NOW())
+    const res = await this.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE tm.role_id = 'role-player') AS players,
+          COUNT(*) FILTER (WHERE tm.role_id != 'role-player') AS staff,
+          (SELECT p.name FROM team_memberships c JOIN org_profiles p ON p.id = c.org_profile_id
+            WHERE c.team_id = $1 AND c.role_id = 'role-coach' AND (c.end_date IS NULL OR c.end_date > NOW())
+            ORDER BY c.start_date, p.name LIMIT 1) AS coach
+        FROM team_memberships tm
+        WHERE tm.team_id = $1 AND (tm.end_date IS NULL OR tm.end_date > NOW())
     `, [team.id]);
-    
-    const sCountRes = await this.query(`
-        SELECT COUNT(*) as count FROM team_memberships 
-        WHERE team_id = $1 AND role_id != 'role-player' AND (end_date IS NULL OR end_date > NOW())
-    `, [team.id]);
+    const row = res.rows[0];
 
-    return { 
-        ...team, 
-        playerCount: parseInt(pCountRes.rows[0].count), 
-        staffCount: parseInt(sCountRes.rows[0].count) 
+    return {
+        ...team,
+        playerCount: parseInt(row.players),
+        staffCount: parseInt(row.staff),
+        coachName: row.coach ?? null,
     };
+  }
+
+  /** The teams a person currently coaches, whose list rows carry their name (`coachName`). */
+  async teamIdsCoachedBy(orgProfileId: string): Promise<string[]> {
+    const res = await this.query(
+      `SELECT DISTINCT team_id FROM team_memberships
+        WHERE org_profile_id = $1 AND role_id = 'role-coach' AND (end_date IS NULL OR end_date > NOW())`,
+      [orgProfileId]
+    );
+    return res.rows.map((r: any) => r.team_id);
   }
 
   async getTeam(id: string): Promise<Team | undefined> {

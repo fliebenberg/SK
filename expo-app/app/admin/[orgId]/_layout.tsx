@@ -81,9 +81,7 @@ function OrgAdminWorkspace() {
       <Stack.Screen name="people/import" />
       <Stack.Screen name="people/[membershipId]" />
       <Stack.Screen name="teams" />
-      <Stack.Screen name="teams/new" />
       <Stack.Screen name="teams/[teamId]" />
-      <Stack.Screen name="teams/[teamId]/view" />
       <Stack.Screen name="sites" />
       <Stack.Screen name="sites/[siteId]" />
       <Stack.Screen name="sites/[siteId]/view" />
