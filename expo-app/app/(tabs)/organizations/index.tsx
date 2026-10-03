@@ -14,8 +14,10 @@ import { BrandColorsField, brandColorsProblem } from '../../../components/org/Br
 import { useOrgShortCode } from '../../../hooks/useOrgShortCode';
 import { OrgLogo } from '../../../components/OrgLogo';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
-import { getContrastColor } from '@/utils/colorUtils';
+import { inkOnBrand } from '@/utils/colorUtils';
 import { deviceTimeZone } from '@/utils/dates';
+import { themeColor } from '../../../constants/Colors';
+
 
 export default function OrganizationsPage() {
   const router = useRouter();
@@ -195,27 +197,27 @@ export default function OrganizationsPage() {
   const showTabs = isAuthenticated && (user?.globalRole === 'admin' || user?.isAdminOrCoach);
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <View className="flex-1 bg-canvas">
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* HEADER SECTION */}
         {isLargeScreen && (
           <View className="mb-6">
-            <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
+            <Text className="font-orbitron-bold text-2xl tracking-widest text-ink uppercase mb-2">
               Organizations
             </Text>
-            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+            <Text className="font-inter text-sm text-ink-muted">
               Browse and search active sports clubs, schools, and leagues on ScoreKeeper.
             </Text>
           </View>
         )}
 
         {/* SEARCH BAR */}
-        <View className="flex-row items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 mb-6 shadow-sm">
-          <Ionicons name="search-outline" size={18} color="#94A3B8" />
+        <View className="flex-row items-center bg-card border border-line rounded-xl px-4 py-3 mb-6 shadow-sm">
+          <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
           <TextInput
             placeholder="Search organizations..."
-            placeholderTextColor="#94A3B8"
-            className="flex-1 font-inter text-slate-800 dark:text-white text-sm ml-2.5 outline-none"
+            placeholderTextColor={themeColor(isDark, 'ink-muted')}
+            className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -223,15 +225,15 @@ export default function OrganizationsPage() {
 
         {/* TABS */}
         {showTabs && (
-          <View className="flex-row border-b border-slate-200 dark:border-white/5 mb-6">
+          <View className="flex-row border-b border-line mb-6">
             <TouchableOpacity
               onPress={() => setActiveTab('my')}
               className={`flex-1 pb-3 items-center border-b-2 ${
-                activeTab === 'my' ? 'border-brand-orange' : 'border-transparent'
+                activeTab === 'my' ? 'border-primary' : 'border-transparent'
               }`}
             >
               <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${
-                activeTab === 'my' ? 'text-brand-orange font-orbitron-bold' : 'text-slate-400 dark:text-slate-500'
+                activeTab === 'my' ? 'text-primary-ink font-orbitron-bold' : 'text-ink-muted'
               }`}>
                 My Organizations
               </Text>
@@ -239,11 +241,11 @@ export default function OrganizationsPage() {
             <TouchableOpacity
               onPress={() => setActiveTab('all')}
               className={`flex-1 pb-3 items-center border-b-2 ${
-                activeTab === 'all' ? 'border-brand-orange' : 'border-transparent'
+                activeTab === 'all' ? 'border-primary' : 'border-transparent'
               }`}
             >
               <Text className={`font-orbitron-bold text-xs uppercase tracking-wider ${
-                activeTab === 'all' ? 'text-brand-orange font-orbitron-bold' : 'text-slate-400 dark:text-slate-500'
+                activeTab === 'all' ? 'text-primary-ink font-orbitron-bold' : 'text-ink-muted'
               }`}>
                 All Organizations
               </Text>
@@ -254,18 +256,18 @@ export default function OrganizationsPage() {
         {/* TAB CONTENTS */}
         {isLoading ? (
           <View className="py-20 items-center justify-center">
-            <Text className="font-inter text-slate-500 dark:text-slate-400">Loading organizations...</Text>
+            <Text className="font-inter text-ink-muted">Loading organizations...</Text>
           </View>
         ) : showTabs && activeTab === 'my' ? (
           <View className="mb-8">
             <View className="space-y-4">
               {managedOrgs.length === 0 ? (
-                <GlassCard className="border border-slate-200 dark:border-white/5 p-6 items-center">
-                  <Ionicons name="business-outline" size={32} color="#94A3B8" className="mb-3" />
-                  <Text className="font-orbitron-bold text-sm text-slate-700 dark:text-slate-300 text-center mb-1 uppercase tracking-wide">
+                <GlassCard className="border border-line p-6 items-center">
+                  <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
+                  <Text className="font-orbitron-bold text-sm text-ink-soft text-center mb-1 uppercase tracking-wide">
                     {searchQuery.trim() ? "No Matching Organizations" : "No Managed Organizations"}
                   </Text>
-                  <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mb-5 leading-4">
+                  <Text className="font-inter text-xs text-ink-muted text-center mb-5 leading-4">
                     {searchQuery.trim()
                       ? `No managed organizations found matching "${searchQuery}".`
                       : "You don't manage any organizations yet. Create one to get started."
@@ -275,12 +277,12 @@ export default function OrganizationsPage() {
               ) : (
                 managedOrgs.map((org) => {
                   const { primary: primaryColor, secondary: secondaryColor } = orgColors(org);
-                  const contrastColor = getContrastColor(primaryColor);
-                  const isLightBg = contrastColor === '#000000';
-                  const textColor = contrastColor;
-                  const subtextColor = isLightBg ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)';
-                  const badgeBgColor = isLightBg ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.15)';
-                  const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
+                  const ink = inkOnBrand(primaryColor);
+                  const isLightBg = ink.isLight;
+                  const textColor = ink.text;
+                  const subtextColor = ink.subtext;
+                  const badgeBgColor = ink.badge;
+                  const borderColor = ink.border;
 
                   return (
                     <OrgBrandedCard
@@ -299,14 +301,14 @@ export default function OrganizationsPage() {
                               logo={org.logo} 
                               settings={org.settings} 
                               size={40} 
-                              className="border bg-white rounded-full" 
+                              className="border bg-logo-plate rounded-full" 
                               style={{ borderColor: borderColor }}
                             />
                             <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide leading-tight flex-shrink">
                               {org.name}
                             </Text>
                           </View>
-                          <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
+                          <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
                             <Ionicons name="shield-checkmark" size={12} color={textColor} />
                             <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
                               {org.role}
@@ -345,7 +347,7 @@ export default function OrganizationsPage() {
                       <View style={{ borderTopColor: borderColor }} className="mt-2 border-t pt-3">
                         <TouchableOpacity
                           style={{
-                            backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.2)',
+                            backgroundColor: ink.button,
                             borderColor: borderColor,
                           }}
                           className="w-full border py-2.5 rounded-lg items-center justify-center active:opacity-85"
@@ -372,12 +374,12 @@ export default function OrganizationsPage() {
         ) : (
           <View className="space-y-4">
             {orgs.length === 0 ? (
-              <GlassCard className="border border-slate-200 dark:border-white/5 p-6 items-center">
-                <Ionicons name="business-outline" size={32} color="#94A3B8" className="mb-3" />
-                <Text className="font-orbitron-bold text-sm text-slate-700 dark:text-slate-300 text-center mb-1 uppercase tracking-wide">
+              <GlassCard className="border border-line p-6 items-center">
+                <Ionicons name="business-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="mb-3" />
+                <Text className="font-orbitron-bold text-sm text-ink-soft text-center mb-1 uppercase tracking-wide">
                   {searchQuery.trim() ? "No Matching Organizations" : "No Organizations"}
                 </Text>
-                <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mb-2 leading-4">
+                <Text className="font-inter text-xs text-ink-muted text-center mb-2 leading-4">
                   {searchQuery.trim()
                     ? `No organizations found matching "${searchQuery}".`
                     : "There are no active organizations on ScoreKeeper yet."
@@ -387,12 +389,12 @@ export default function OrganizationsPage() {
             ) : (
               orgs.map((org) => {
               const { primary: primaryColor, secondary: secondaryColor } = orgColors(org);
-              const contrastColor = getContrastColor(primaryColor);
-              const isLightBg = contrastColor === '#000000';
-              const textColor = contrastColor;
-              const subtextColor = isLightBg ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)';
-              const badgeBgColor = isLightBg ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.15)';
-              const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
+              const ink = inkOnBrand(primaryColor);
+              const isLightBg = ink.isLight;
+              const textColor = ink.text;
+              const subtextColor = ink.subtext;
+              const badgeBgColor = ink.badge;
+              const borderColor = ink.border;
               const showManage = isAuthenticated && org.isManaged && (user?.globalRole === 'admin' || user?.isAdminOrCoach);
 
               return (
@@ -412,7 +414,7 @@ export default function OrganizationsPage() {
                           logo={org.logo} 
                           settings={org.settings} 
                           size={40} 
-                          className="border bg-white rounded-full" 
+                          className="border bg-logo-plate rounded-full" 
                           style={{ borderColor: borderColor }}
                         />
                         <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-lg uppercase tracking-wide flex-shrink">
@@ -421,14 +423,14 @@ export default function OrganizationsPage() {
                       </View>
                       
                       {showManage ? (
-                        <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
+                        <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
                           <Ionicons name="shield-checkmark" size={12} color={textColor} />
                           <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
                             {org.role}
                           </Text>
                         </View>
                       ) : (
-                        <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
+                        <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-0.5 rounded">
                           <Ionicons name="people-outline" size={12} color={textColor} />
                           <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
                             {org.membersCount}
@@ -477,7 +479,7 @@ export default function OrganizationsPage() {
                   <View className="flex-row gap-2 mt-1">
                     <TouchableOpacity
                       style={{
-                        backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.2)',
+                        backgroundColor: ink.button,
                         borderColor: borderColor,
                       }}
                       className="flex-1 border py-2 rounded-lg items-center justify-center active:opacity-85"
@@ -490,13 +492,13 @@ export default function OrganizationsPage() {
                     {showManage && (
                       <TouchableOpacity
                         style={{
-                          backgroundColor: isLightBg ? '#0F172A' : '#FFFFFF',
+                          backgroundColor: ink.text,
                           borderColor: 'transparent',
                         }}
                         className="flex-1 border py-2 rounded-lg items-center justify-center active:opacity-85"
                         onPress={() => router.push(`/admin/${org.id}` as any)}
                       >
-                        <Text style={{ color: isLightBg ? '#FFFFFF' : '#0F172A' }} className="font-inter-bold text-sm">
+                        <Text style={{ color: ink.inverse }} className="font-inter-bold text-sm">
                           Manage
                         </Text>
                       </TouchableOpacity>
@@ -517,20 +519,20 @@ export default function OrganizationsPage() {
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <View className="flex-1 justify-center items-center bg-slate-950/80 px-6">
-          <View className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-6 rounded-2xl shadow-2xl" style={{ maxHeight: '90%' }}>
+        <View className="flex-1 justify-center items-center bg-overlay/80 px-6">
+          <View className="w-full max-w-md bg-card border border-line p-6 rounded-2xl shadow-2xl" style={{ maxHeight: '90%' }}>
             <View className="flex-row justify-between items-center mb-6">
-              <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white uppercase tracking-wide">
+              <Text className="font-orbitron-bold text-lg text-ink uppercase tracking-wide">
                 Add Organization
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} className="p-1 active:opacity-70">
-                <Ionicons name="close" size={22} color={isDark ? "white" : "#475569"} />
+                <Ionicons name="close" size={22} color={isDark ? "white" : themeColor(isDark, 'ink-muted')} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={{ flexGrow: 0 }} keyboardShouldPersistTaps="handled">
             <View className="mb-4">
-              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
                 Organization Name
               </Text>
               <TextInput
@@ -540,15 +542,15 @@ export default function OrganizationsPage() {
                   shortCode.onNameChange(text);
                 }}
                 placeholder="e.g. Springvale High"
-                placeholderTextColor="#94A3B8"
-                className="bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-800 dark:text-white outline-none"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                className="bg-sunken border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink outline-none"
                 autoFocus
               />
             </View>
 
             {/* Required, but pre-filled from the name as it is typed — see `useOrgShortCode`. */}
             <View className="mb-4">
-              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
                 Short Code (Required)
               </Text>
               <TextInput
@@ -559,24 +561,24 @@ export default function OrganizationsPage() {
                 autoCorrect={false}
                 spellCheck={false}
                 placeholder="SVH"
-                placeholderTextColor="#94A3B8"
-                className="bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-orbitron-bold text-sm text-slate-800 dark:text-white outline-none w-32 text-center"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                className="bg-sunken border border-line rounded-xl px-4 py-3 font-orbitron-bold text-sm text-ink outline-none w-32 text-center"
               />
-              <Text className="font-inter text-[10px] text-slate-500 dark:text-slate-400 mt-1.5">
+              <Text className="font-inter text-[10px] text-ink-muted mt-1.5">
                 Used wherever the full name will not fit — tabs, columns and team flags.
               </Text>
             </View>
 
             <View className="mb-6">
-              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
                 Primary Sport
               </Text>
               <TextInput
                 value={newOrgSport}
                 onChangeText={setNewOrgSport}
                 placeholder="e.g. Football"
-                placeholderTextColor="#94A3B8"
-                className="bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3 font-inter text-sm text-slate-800 dark:text-white outline-none"
+                placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                className="bg-sunken border border-line rounded-xl px-4 py-3 font-inter text-sm text-ink outline-none"
               />
               
               {/* Quick Select Sports */}
@@ -587,14 +589,14 @@ export default function OrganizationsPage() {
                     onPress={() => setNewOrgSport(sport)}
                     className={`px-3 py-1 rounded-full border ${
                       newOrgSport === sport
-                        ? 'bg-brand-orange/15 border-brand-orange'
-                        : 'bg-transparent border-slate-200 dark:border-white/5'
+                        ? 'bg-primary-soft border-primary'
+                        : 'bg-transparent border-line'
                     }`}
                   >
                     <Text className={`font-inter text-xs ${
                       newOrgSport === sport
-                        ? 'text-brand-orange font-inter-bold'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'text-primary-ink font-inter-bold'
+                        : 'text-ink-muted'
                     }`}>
                       {sport}
                     </Text>
@@ -605,7 +607,7 @@ export default function OrganizationsPage() {
 
             {/* Organization Type Selector */}
             <View className="mb-4">
-              <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
                 Organization Type (Required)
               </Text>
               <View className="flex-row flex-wrap gap-2 mb-2">
@@ -620,14 +622,14 @@ export default function OrganizationsPage() {
                     }}
                     className={`px-3 py-1.5 rounded-xl border ${
                       newOrgType === t.value
-                        ? 'bg-brand-orange/15 border-brand-orange'
-                        : 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-white/5'
+                        ? 'bg-primary-soft border-primary'
+                        : 'bg-sunken border-line'
                     }`}
                   >
                     <Text className={`font-inter text-xs ${
                       newOrgType === t.value
-                        ? 'text-brand-orange font-inter-bold'
-                        : 'text-slate-600 dark:text-slate-400'
+                        ? 'text-primary-ink font-inter-bold'
+                        : 'text-ink-muted'
                     }`}>
                       {t.label}
                     </Text>
@@ -639,15 +641,15 @@ export default function OrganizationsPage() {
             {/* Custom Organization Type Specification */}
             {newOrgType === 'OTHER' && (
               <View className="mb-6">
-                <Text className="font-orbitron-bold text-[10px] text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
                   Specify Custom Type (Required)
                 </Text>
                 <TextInput
                   value={newOrgCustomType}
                   onChangeText={setNewOrgCustomType}
                   placeholder="e.g. Charity / Social Group"
-                  placeholderTextColor="#94A3B8"
-                  className="bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 font-inter text-sm text-slate-800 dark:text-white outline-none"
+                  placeholderTextColor={themeColor(isDark, 'ink-muted')}
+                  className="bg-sunken border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink outline-none"
                 />
               </View>
             )}

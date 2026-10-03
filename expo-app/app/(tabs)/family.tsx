@@ -13,6 +13,8 @@ import { RELATIONSHIP_LABELS } from '../../components/guardians/guardianDraft';
 import { useInviteCooldownHours } from '../../components/InviteToScoreKeeper';
 import { formatCellphone } from '../../utils/phone';
 
+import { useActiveTheme } from '../../store/settingsStore';
+import { themeColor } from '../../constants/Colors';
 /**
  * My Family (`MEMBER-3`, Phase 4): what a guardian sees of the children they are recorded for.
  *
@@ -22,30 +24,31 @@ import { formatCellphone } from '../../utils/phone';
  * the guardian could read anyway. Nothing about any other child is ever on this screen.
  */
 export default function FamilyScreen() {
+  const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const dependants = useAuthStore(state => state.dependants || []);
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <View className="flex-1 bg-canvas">
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         <View className="mb-6">
           {isLargeScreen && (
-            <Text className="font-orbitron-bold text-2xl tracking-widest text-slate-800 dark:text-white uppercase mb-2">
+            <Text className="font-orbitron-bold text-2xl tracking-widest text-ink uppercase mb-2">
               My Family
             </Text>
           )}
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-sm text-ink-muted">
             The children you are recorded as a parent or guardian for: their teams, their fixtures, and
             whether they may use ScoreKeeper themselves.
           </Text>
         </View>
 
         {!isAuthenticated || dependants.length === 0 ? (
-          <GlassCard className="border border-slate-200 dark:border-white/5 p-6 items-center">
-            <Ionicons name="people-outline" size={28} color="#94A3B8" />
-            <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 text-center mt-3">
+          <GlassCard className="border border-line p-6 items-center">
+            <Ionicons name="people-outline" size={28} color={themeColor(isDark, 'ink-muted')} />
+            <Text className="font-inter text-sm text-ink-muted text-center mt-3">
               No children are linked to your account. A school or club records you as a guardian; ask them
               to use this account's email address.
             </Text>
@@ -62,26 +65,26 @@ export default function FamilyScreen() {
   );
 }
 
-const SECTION = 'font-orbitron-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2';
+const SECTION = 'font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest mb-2';
 
 function DependantCard({ child }: { child: Dependant }) {
   const avatar = child.image ? getAvatarUrl(child.image, 'medium') : null;
   const firstName = child.name.split(' ')[0];
 
   return (
-    <GlassCard className="border border-slate-200 dark:border-white/5 p-5 space-y-5">
+    <GlassCard className="border border-line p-5 space-y-5">
       {/* Who */}
       <View className="flex-row items-center gap-4">
-        <View className="w-14 h-14 rounded-full bg-brand-orange/10 overflow-hidden items-center justify-center">
+        <View className="w-14 h-14 rounded-full bg-primary-soft overflow-hidden items-center justify-center">
           {avatar ? (
             <Image source={{ uri: avatar }} style={{ width: 56, height: 56 }} resizeMode="cover" />
           ) : (
-            <Text className="font-orbitron-bold text-lg text-brand-orange">{child.name.charAt(0).toUpperCase()}</Text>
+            <Text className="font-orbitron-bold text-lg text-primary-ink">{child.name.charAt(0).toUpperCase()}</Text>
           )}
         </View>
         <View className="flex-1">
-          <Text className="font-orbitron-bold text-lg text-slate-800 dark:text-white">{child.name}</Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <Text className="font-orbitron-bold text-lg text-ink">{child.name}</Text>
+          <Text className="font-inter text-xs text-ink-muted mt-0.5">
             {child.orgName} · you are recorded as {RELATIONSHIP_LABELS[child.relationship].toLowerCase()}
             {child.isPrimary ? ' (primary contact)' : ''}
           </Text>
@@ -94,13 +97,13 @@ function DependantCard({ child }: { child: Dependant }) {
         {child.teams.length ? (
           <View className="flex-row flex-wrap gap-2">
             {child.teams.map(team => (
-              <View key={team.teamId} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5">
-                <Text className="font-inter-bold text-xs text-slate-700 dark:text-slate-200">{team.name}</Text>
+              <View key={team.teamId} className="px-3 py-1.5 rounded-lg bg-sunken border border-line">
+                <Text className="font-inter-bold text-xs text-ink-soft">{team.name}</Text>
               </View>
             ))}
           </View>
         ) : (
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">Not on a team yet.</Text>
+          <Text className="font-inter text-xs text-ink-muted">Not on a team yet.</Text>
         )}
       </View>
 
@@ -111,13 +114,13 @@ function DependantCard({ child }: { child: Dependant }) {
       <OwnAccount child={child} firstName={firstName} />
 
       {/* The guardian's own details */}
-      <View className="border-t border-slate-200 dark:border-white/5 pt-4">
+      <View className="border-t border-line pt-4">
         <Text className={SECTION}>Your details at {child.orgName}</Text>
-        <Text className="font-inter text-sm text-slate-800 dark:text-white">{child.guardianName}</Text>
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+        <Text className="font-inter text-sm text-ink">{child.guardianName}</Text>
+        <Text className="font-inter text-xs text-ink-muted mt-0.5">
           {[child.guardianEmail, formatCellphone(child.guardianCellphone)].filter(Boolean).join(' · ') || 'No contact details on record'}
         </Text>
-        <Text className="font-inter text-[11px] text-slate-400 mt-1">Ask {child.orgName} to change these.</Text>
+        <Text className="font-inter text-[11px] text-ink-muted mt-1">Ask {child.orgName} to change these.</Text>
       </View>
     </GlassCard>
   );
@@ -156,14 +159,14 @@ function ChildFixtures({ child }: { child: Dependant }) {
     <View>
       <Text className={SECTION}>Fixtures</Text>
       {isLoading ? (
-        <Text className="font-inter text-xs text-slate-400">Loading fixtures…</Text>
+        <Text className="font-inter text-xs text-ink-muted">Loading fixtures…</Text>
       ) : upcoming.length === 0 && recent.length === 0 ? (
-        <Text className="font-inter text-xs text-slate-500 dark:text-slate-400">No fixtures scheduled.</Text>
+        <Text className="font-inter text-xs text-ink-muted">No fixtures scheduled.</Text>
       ) : (
         <View className="space-y-1.5">
           {upcoming.map(game => <FixtureRow key={game.id} game={game} />)}
           {recent.length ? (
-            <Text className="font-inter-bold text-[10px] text-slate-400 uppercase tracking-wider mt-2">Recent results</Text>
+            <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider mt-2">Recent results</Text>
           ) : null}
           {recent.map(game => <FixtureRow key={game.id} game={game} />)}
         </View>
@@ -177,17 +180,17 @@ function FixtureRow({ game }: { game: GameSummary }) {
   const score = (side?: { id: string }) => (side && game.scores ? game.scores[side.id] : undefined);
   const finished = game.status === 'Finished';
   return (
-    <View className="flex-row items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5">
+    <View className="flex-row items-center justify-between bg-card border border-line rounded-xl px-4 py-2.5">
       <View className="flex-1 mr-3">
-        <Text className="font-inter-bold text-sm text-slate-800 dark:text-white" numberOfLines={1}>
+        <Text className="font-inter-bold text-sm text-ink" numberOfLines={1}>
           {home?.name || home?.entrantLabel || 'TBC'} vs {away?.name || away?.entrantLabel || 'TBC'}
         </Text>
-        <Text className="font-inter text-[11px] text-slate-500 dark:text-slate-400">
+        <Text className="font-inter text-[11px] text-ink-muted">
           {game.status === 'Live' ? 'Live now' : formatFixtureWhen(game.scheduledStartTime || game.startTime, { timeTbd: game.timeTbd })}
         </Text>
       </View>
       {finished && score(home) !== undefined ? (
-        <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">{score(home)} – {score(away)}</Text>
+        <Text className="font-orbitron-bold text-sm text-ink">{score(home)} – {score(away)}</Text>
       ) : null}
     </View>
   );
@@ -198,6 +201,7 @@ function FixtureRow({ game }: { game: GameSummary }) {
  * switched minors on — and, when they may, inviting them.
  */
 function OwnAccount({ child, firstName }: { child: Dependant; firstName: string }) {
+  const isDark = useActiveTheme() === 'dark';
   const [isSaving, setIsSaving] = useState(false);
   const [email, setEmail] = useState(child.email || '');
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -244,11 +248,11 @@ function OwnAccount({ child, firstName }: { child: Dependant; firstName: string 
   );
 
   return (
-    <View className="border-t border-slate-200 dark:border-white/5 pt-4">
+    <View className="border-t border-line pt-4">
       <Text className={SECTION}>{firstName}'s own ScoreKeeper account</Text>
 
       {!child.minorsAccountsAllowed ? (
-        <Text className="font-inter text-sm text-slate-600 dark:text-slate-300">
+        <Text className="font-inter text-sm text-ink-soft">
           {child.orgName} does not give members under {child.minorAge} their own access, so there is nothing
           to decide yet. {child.hasAccount ? `${firstName} can sign in, but sees only their own teams.` : ''}
         </Text>
@@ -256,10 +260,10 @@ function OwnAccount({ child, firstName }: { child: Dependant; firstName: string 
         <>
           <View className="flex-row items-center justify-between">
             <View className="flex-1 mr-4">
-              <Text className="font-inter-bold text-sm text-slate-800 dark:text-white">
+              <Text className="font-inter-bold text-sm text-ink">
                 Let {firstName} use ScoreKeeper as a member
               </Text>
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <Text className="font-inter text-xs text-ink-muted mt-0.5">
                 {allowed
                   ? `On — ${firstName} sees ${child.orgName} as members do.`
                   : `Off — ${firstName} can sign in, but sees nothing of ${child.orgName} beyond any team they coach or score.`}
@@ -270,10 +274,10 @@ function OwnAccount({ child, firstName }: { child: Dependant; firstName: string 
           </View>
 
           {child.hasAccount ? (
-            <Text className="font-inter text-xs text-emerald-600 dark:text-emerald-400 mt-3">{firstName} is on ScoreKeeper.</Text>
+            <Text className="font-inter text-xs text-success-ink mt-3">{firstName} is on ScoreKeeper.</Text>
           ) : allowed ? (
             <View className="mt-4">
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <Text className="font-inter text-xs text-ink-muted mb-2">
                 {inviteSentHere
                   ? `An invite went to ${child.lastInviteEmail} on ${formatInstant(child.lastInviteSentAt)}.${waitHours > 0 ? ` You can send it again in ${formatInviteWait(waitHours)}, or to a different address now.` : ''}`
                   : `Invite ${firstName} with their own email address — not yours.`}
@@ -284,10 +288,10 @@ function OwnAccount({ child, firstName }: { child: Dependant; firstName: string 
                   value={email}
                   onChangeText={text => { setEmail(text); setInviteError(null); }}
                   placeholder={`${firstName}'s email`}
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={themeColor(isDark, 'ink-muted')}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  className="flex-1 min-w-[180px] font-inter text-sm text-slate-800 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-2.5 outline-none"
+                  className="flex-1 min-w-[180px] font-inter text-sm text-ink bg-card border border-line rounded-xl px-4 py-2.5 outline-none"
                 />
                 <Button
                   title={waitHours > 0 ? 'Sent' : inviteSentHere ? 'Send again' : 'Invite'}
@@ -298,7 +302,7 @@ function OwnAccount({ child, firstName }: { child: Dependant; firstName: string 
                   className="min-h-[40px] px-4"
                 />
               </View>
-              {inviteError ? <Text className="font-inter text-xs text-red-500 mt-2">{inviteError}</Text> : null}
+              {inviteError ? <Text className="font-inter text-xs text-danger-ink mt-2">{inviteError}</Text> : null}
             </View>
           ) : null}
         </>

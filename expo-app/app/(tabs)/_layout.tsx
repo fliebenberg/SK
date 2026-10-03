@@ -6,6 +6,8 @@ import { LeftNavigationRail } from '../../components/LeftNavigationRail';
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { BottomMenu } from '../../components/BottomMenu';
+import { themeColor } from '../../constants/Colors';
+
 
 export default function TabLayout() {
   const router = useRouter();
@@ -37,20 +39,20 @@ export default function TabLayout() {
       ) : null}
       screenOptions={{
         headerShown: !isLargeScreen, // Left rail handles navigation and branding on desktop
-        tabBarActiveTintColor: '#FF3E00',
-        tabBarInactiveTintColor: isDark ? '#94A3B8' : '#64748B',
+        tabBarActiveTintColor: themeColor(isDark, 'primary'),
+        tabBarInactiveTintColor: themeColor(isDark, 'ink-muted'),
         headerStyle: {
-          backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-          borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+          backgroundColor: themeColor(isDark, 'card'),
+          borderBottomColor: themeColor(isDark, 'line'),
           shadowOpacity: 0,
           elevation: 0,
         },
         headerTitleStyle: {
-          color: isDark ? '#FFFFFF' : '#0F172A',
+          color: themeColor(isDark, 'ink'),
           fontFamily: 'Orbitron_700Bold',
           fontSize: 16,
         },
-        headerTintColor: isDark ? '#FFFFFF' : '#0F172A',
+        headerTintColor: themeColor(isDark, 'ink'),
       }}
     >
       <Tabs.Screen 
@@ -121,10 +123,10 @@ export default function TabLayout() {
           headerTitle: 'ACCOUNT SETTINGS',
           tabBarLabel: 'Settings',
           tabBarIcon: () => (
-            <Ionicons name={isSettingsActive ? "settings" : "settings-outline"} size={22} color={isSettingsActive ? '#FF3E00' : (isDark ? '#94A3B8' : '#64748B')} />
+            <Ionicons name={isSettingsActive ? "settings" : "settings-outline"} size={22} color={isSettingsActive ? themeColor(isDark, 'primary') : (themeColor(isDark, 'ink-muted'))} />
           ),
           tabBarLabelStyle: {
-            color: isSettingsActive ? '#FF3E00' : (isDark ? '#94A3B8' : '#64748B')
+            color: isSettingsActive ? themeColor(isDark, 'primary') : (themeColor(isDark, 'ink-muted'))
           }
         }} 
         listeners={() => ({
@@ -140,7 +142,7 @@ export default function TabLayout() {
   );
 
   const mainView = (
-    <View className="flex-grow h-full bg-slate-50 dark:bg-slate-950">
+    <View className="flex-grow h-full bg-canvas">
       {content}
       
       {/* Dynamic Popover Overlay Selector */}
@@ -150,7 +152,7 @@ export default function TabLayout() {
           <TouchableOpacity
             activeOpacity={1}
             onPress={() => setMenuVisible(false)}
-            className="absolute inset-0 bg-slate-950/40 dark:bg-slate-950/60 z-40"
+            className="absolute inset-0 bg-overlay/40 z-40"
           />
 
           {/* Vertical Stack Menu floating above Settings bottom tab icon */}
@@ -163,12 +165,12 @@ export default function TabLayout() {
                   router.push('/admin' as any);
                 }}
                 activeOpacity={0.8}
-                className="bg-brand-orange border border-brand-orange/30 rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg shadow-brand-orange/35"
+                className="bg-primary border border-primary-line rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg shadow-primary/35"
               >
-                <View className="w-7 h-7 rounded-lg bg-white/20 items-center justify-center">
+                <View className="w-7 h-7 rounded-lg bg-on-fill/20 items-center justify-center">
                   <Ionicons name="shield-checkmark" size={14} color="white" />
                 </View>
-                <Text className="font-orbitron-bold text-[10px] text-white uppercase tracking-widest mt-0.5">
+                <Text className="font-orbitron-bold text-[10px] text-on-fill uppercase tracking-widest mt-0.5">
                   Admin Portal
                 </Text>
               </TouchableOpacity>
@@ -181,12 +183,12 @@ export default function TabLayout() {
                 router.push('/settings' as any);
               }}
               activeOpacity={0.8}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg"
+              className="bg-card border border-line rounded-xl px-4 py-3.5 flex-row items-center gap-3 shadow-lg"
             >
-              <View className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 items-center justify-center">
-                <Ionicons name="person-outline" size={14} color={isDark ? "#FF3E00" : "#64748B"} />
+              <View className="w-7 h-7 rounded-lg bg-sunken items-center justify-center">
+                <Ionicons name="person-outline" size={14} color={isDark ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
               </View>
-              <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-widest mt-0.5">
+              <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-widest mt-0.5">
                 My Account
               </Text>
             </TouchableOpacity>
@@ -198,7 +200,7 @@ export default function TabLayout() {
 
   if (isLargeScreen) {
     return (
-      <View className="flex-1 flex-row bg-slate-50 dark:bg-slate-950">
+      <View className="flex-1 flex-row bg-canvas">
         <LeftNavigationRail />
         {mainView}
       </View>

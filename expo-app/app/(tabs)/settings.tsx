@@ -26,6 +26,8 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { apiService } from "../../services/api";
 import { getAvatarUrl } from "../../services/assets";
 import { CONSTANTS } from '../../constants';
+import { themeColor } from '../../constants/Colors';
+
 
 /** Sections of the settings screen, in the order they appear in the nav rail. */
 type SettingsTab = "general" | "profile" | "security" | "emails";
@@ -335,10 +337,10 @@ export default function SettingsScreen() {
       return {
         score: 0,
         label: "Empty",
-        color: "bg-slate-200 dark:bg-slate-800",
+        color: "bg-line",
       };
     if (pass.length < 6)
-      return { score: 1, label: "Too Short", color: "bg-red-500" };
+      return { score: 1, label: "Too Short", color: "bg-danger" };
 
     let score = 0;
     if (pass.length >= 8) score += 1;
@@ -348,11 +350,11 @@ export default function SettingsScreen() {
 
     const labels = ["Weak", "Fair", "Good", "Strong", "Excellent"];
     const colors = [
-      "bg-red-500",
-      "bg-orange-500",
-      "bg-yellow-500",
-      "bg-brand-blue",
-      "bg-green-500",
+      "bg-danger",
+      "bg-primary",
+      "bg-warning",
+      "bg-accent",
+      "bg-success",
     ];
 
     return {
@@ -394,7 +396,7 @@ export default function SettingsScreen() {
     (name !== user.name || avatarSource !== (user.avatarSource || "custom"));
 
   const activeTabStyle = {
-    shadowColor: "#000",
+    shadowColor: themeColor(activeTheme === 'dark', 'shadow'),
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.18,
     shadowRadius: 1.0,
@@ -403,14 +405,14 @@ export default function SettingsScreen() {
 
   const content = (
     <ScrollView
-      className="flex-1 bg-slate-50 dark:bg-slate-900"
+      className="flex-1 bg-canvas"
       contentContainerStyle={{ padding: 16, paddingBottom: 40, flexGrow: 1 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
       <View className="w-full max-w-6xl mx-auto">
         {isLargeScreen && (
-          <Text className="font-orbitron-bold text-2xl text-brand-orange mb-6 tracking-widest text-center md:text-left">
+          <Text className="font-orbitron-bold text-2xl text-primary-ink mb-6 tracking-widest text-center md:text-left">
             SETTINGS
           </Text>
         )}
@@ -418,10 +420,10 @@ export default function SettingsScreen() {
         {!isAuthenticated ? (
           <View className="w-full max-w-xl mx-auto mb-6 gap-6">
             <GlassCard>
-              <Text className="font-inter-bold text-lg text-slate-900 dark:text-white mb-4">
+              <Text className="font-inter-bold text-lg text-ink mb-4">
                 Account Settings
               </Text>
-              <Text className="font-inter text-slate-600 dark:text-slate-400 text-sm leading-relaxed mb-6">
+              <Text className="font-inter text-ink-muted text-sm leading-relaxed mb-6">
                 You are currently browsing as a guest. Log in to manage your
                 profile, customize your avatar, set a direct password, and link
                 multiple emails.
@@ -438,10 +440,10 @@ export default function SettingsScreen() {
                 guests can set it. It is stored locally and, on sign-in, adopted
                 by the account if that account has no theme of its own. */}
             <GlassCard>
-              <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-1">
+              <Text className="font-inter-bold text-base text-ink mb-1">
                 Appearance
               </Text>
-              <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+              <Text className="font-inter text-xs text-ink-muted leading-relaxed mb-4">
                 Saved on this device. Sign in to carry it across your devices.
               </Text>
               <SegmentedControl<ThemePreference>
@@ -457,8 +459,8 @@ export default function SettingsScreen() {
           </View>
         ) : isLoading ? (
           <View className="py-12 items-center justify-center">
-            <ActivityIndicator size="large" color="#FF3E00" />
-            <Text className="font-inter text-slate-600 dark:text-slate-400 mt-4">
+            <ActivityIndicator size="large" color={themeColor(activeTheme === 'dark', 'primary')} />
+            <Text className="font-inter text-ink-muted mt-4">
               Loading profile details...
             </Text>
           </View>
@@ -469,35 +471,35 @@ export default function SettingsScreen() {
               <GlassCard className="items-center py-8">
                 {/* Responsive Avatar display */}
                 <View className="relative mb-4">
-                  <View className="w-24 h-24 rounded-full border-2 border-brand-orange/40 bg-slate-200 dark:bg-slate-800 items-center justify-center overflow-hidden shadow-lg">
+                  <View className="w-24 h-24 rounded-full border-2 border-primary-line bg-line items-center justify-center overflow-hidden shadow-lg">
                     {getAvatarUri() ? (
                       <Image
                         source={{ uri: getAvatarUri()! }}
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <Text className="font-orbitron-bold text-3xl text-slate-700 dark:text-slate-200">
+                      <Text className="font-orbitron-bold text-3xl text-ink-soft">
                         {getInitials(user?.name || "")}
                       </Text>
                     )}
                   </View>
                   <TouchableOpacity
                     onPress={handlePickAvatar}
-                    className="absolute bottom-0 right-0 bg-brand-orange w-8 h-8 rounded-full items-center justify-center border-2 border-white dark:border-slate-950 active:scale-95"
+                    className="absolute bottom-0 right-0 bg-primary w-8 h-8 rounded-full items-center justify-center border-2 border-card active:scale-95"
                   >
                     <Ionicons name="camera" size={16} color="white" />
                   </TouchableOpacity>
                 </View>
 
-                <Text className="font-inter-bold text-xl text-slate-900 dark:text-white mb-1 text-center">
+                <Text className="font-inter-bold text-xl text-ink mb-1 text-center">
                   {user?.name}
                 </Text>
-                <Text className="font-inter text-slate-500 dark:text-slate-400 text-sm mb-4 text-center">
+                <Text className="font-inter text-ink-muted text-sm mb-4 text-center">
                   {user?.email}
                 </Text>
 
-                <View className="bg-brand-blue/10 border border-brand-blue/30 rounded-full px-4 py-1 mb-6">
-                  <Text className="font-orbitron-bold text-xs text-brand-blue uppercase tracking-wider">
+                <View className="bg-accent-soft border border-accent-line rounded-full px-4 py-1 mb-6">
+                  <Text className="font-orbitron-bold text-xs text-accent-ink uppercase tracking-wider">
                     {user?.globalRole}
                   </Text>
                 </View>
@@ -505,76 +507,76 @@ export default function SettingsScreen() {
                 {user?.globalRole === 'admin' && (
                   <TouchableOpacity
                     onPress={() => router.push('/admin' as any)}
-                    className="w-full bg-brand-orange/10 dark:bg-brand-orange/20 border border-brand-orange/20 hover:bg-brand-orange/15 rounded-xl px-4 py-3.5 flex-row items-center justify-between mb-4 active:scale-[0.98]"
+                    className="w-full bg-primary-soft border border-primary-line hover:bg-primary-soft rounded-xl px-4 py-3.5 flex-row items-center justify-between mb-4 active:scale-[0.98]"
                   >
                     <View className="flex-row items-center gap-3">
-                      <Ionicons name="shield-checkmark" size={16} color="#FF3E00" />
-                      <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-widest mt-0.5">
+                      <Ionicons name="shield-checkmark" size={16} color={themeColor(activeTheme === 'dark', 'primary')} />
+                      <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-widest mt-0.5">
                         System Admin Portal
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={14} color="#FF3E00" />
+                    <Ionicons name="chevron-forward" size={14} color={themeColor(activeTheme === 'dark', 'primary')} />
                   </TouchableOpacity>
                 )}
 
                 {/* Left Navigation Rails for Desktop/Tablets */}
-                <View className="hidden md:flex w-full border-t border-slate-200 dark:border-white/10 pt-4 gap-2">
+                <View className="hidden md:flex w-full border-t border-line pt-4 gap-2">
                   <TouchableOpacity
                     onPress={() => setActiveTab("general")}
-                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "general" ? "bg-slate-200 dark:bg-white/10" : ""}`}
+                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "general" ? "bg-line" : ""}`}
                   >
                     <Ionicons
                       name="options"
                       size={18}
-                      color={activeTab === "general" ? "#FF3E00" : "#64748B"}
+                      color={themeColor(activeTheme === 'dark', activeTab === "general" ? 'primary' : 'ink-muted')}
                     />
                     <Text
-                      className={`font-inter-bold text-sm ${activeTab === "general" ? "text-slate-950 dark:text-white" : "text-slate-600 dark:text-slate-400"}`}
+                      className={`font-inter-bold text-sm ${activeTab === "general" ? "text-ink" : "text-ink-muted"}`}
                     >
                       General
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setActiveTab("profile")}
-                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "profile" ? "bg-slate-200 dark:bg-white/10" : ""}`}
+                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "profile" ? "bg-line" : ""}`}
                   >
                     <Ionicons
                       name="person"
                       size={18}
-                      color={activeTab === "profile" ? "#FF3E00" : "#64748B"}
+                      color={themeColor(activeTheme === 'dark', activeTab === "profile" ? 'primary' : 'ink-muted')}
                     />
                     <Text
-                      className={`font-inter-bold text-sm ${activeTab === "profile" ? "text-slate-950 dark:text-white" : "text-slate-600 dark:text-slate-400"}`}
+                      className={`font-inter-bold text-sm ${activeTab === "profile" ? "text-ink" : "text-ink-muted"}`}
                     >
                       Edit Profile
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setActiveTab("security")}
-                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "security" ? "bg-slate-200 dark:bg-white/10" : ""}`}
+                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "security" ? "bg-line" : ""}`}
                   >
                     <Ionicons
                       name="shield-checkmark"
                       size={18}
-                      color={activeTab === "security" ? "#FF3E00" : "#64748B"}
+                      color={themeColor(activeTheme === 'dark', activeTab === "security" ? 'primary' : 'ink-muted')}
                     />
                     <Text
-                      className={`font-inter-bold text-sm ${activeTab === "security" ? "text-slate-950 dark:text-white" : "text-slate-600 dark:text-slate-400"}`}
+                      className={`font-inter-bold text-sm ${activeTab === "security" ? "text-ink" : "text-ink-muted"}`}
                     >
                       Security & Password
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setActiveTab("emails")}
-                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "emails" ? "bg-slate-200 dark:bg-white/10" : ""}`}
+                    className={`flex-row items-center gap-3 p-3 rounded-lg ${activeTab === "emails" ? "bg-line" : ""}`}
                   >
                     <Ionicons
                       name="mail"
                       size={18}
-                      color={activeTab === "emails" ? "#FF3E00" : "#64748B"}
+                      color={themeColor(activeTheme === 'dark', activeTab === "emails" ? 'primary' : 'ink-muted')}
                     />
                     <Text
-                      className={`font-inter-bold text-sm ${activeTab === "emails" ? "text-slate-950 dark:text-white" : "text-slate-600 dark:text-slate-400"}`}
+                      className={`font-inter-bold text-sm ${activeTab === "emails" ? "text-ink" : "text-ink-muted"}`}
                     >
                       Linked Accounts
                     </Text>
@@ -611,18 +613,18 @@ export default function SettingsScreen() {
               {/* 0. GENERAL TAB (display and device preferences) */}
               {activeTab === "general" && (
                 <GlassCard className="gap-6">
-                  <View className="flex-row items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
-                    <Ionicons name="options" size={20} color="#FF3E00" />
-                    <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+                  <View className="flex-row items-center gap-2 border-b border-line pb-3">
+                    <Ionicons name="options" size={20} color={themeColor(activeTheme === 'dark', 'primary')} />
+                    <Text className="font-orbitron-bold text-lg text-ink">
                       GENERAL
                     </Text>
                   </View>
 
                   <View>
-                    <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-1">
+                    <Text className="font-inter-bold text-base text-ink mb-1">
                       Appearance
                     </Text>
-                    <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                    <Text className="font-inter text-xs text-ink-muted leading-relaxed mb-4">
                       Pick a display theme, or follow the device setting. Saved to
                       your account, so it carries across your devices.
                     </Text>
@@ -638,12 +640,12 @@ export default function SettingsScreen() {
                     />
                   </View>
 
-                  <View className="flex-row items-center justify-between pt-5 border-t border-slate-100 dark:border-white/5">
+                  <View className="flex-row items-center justify-between pt-5 border-t border-line-soft">
                     <View className="flex-1 pr-4">
-                      <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-1">
+                      <Text className="font-inter-bold text-base text-ink mb-1">
                         Haptic Vibration
                       </Text>
-                      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      <Text className="font-inter text-xs text-ink-muted leading-relaxed">
                         Tactile feedback when tapping scoring action buttons.
                         Saved on this device only.
                       </Text>
@@ -651,20 +653,20 @@ export default function SettingsScreen() {
                     <Switch
                       value={hapticFeedbackEnabled}
                       onValueChange={(val) => setLocalOverride('hapticFeedbackEnabled', val)}
-                      trackColor={{ false: '#64748B', true: '#FF3E00' }}
-                      thumbColor="#FFFFFF"
+                      trackColor={{ false: themeColor(activeTheme === 'dark', 'ink-muted'), true: themeColor(activeTheme === 'dark', 'primary') }}
+                      thumbColor={themeColor(activeTheme === 'dark', 'on-fill')}
                     />
                   </View>
 
                   {/* The durable half of the field-help pattern (U49). The info icon beside a
                       field label toggles that field for as long as the screen is open; this is
                       what decides whether any of them start out open. */}
-                  <View className="flex-row items-center justify-between pt-5 border-t border-slate-100 dark:border-white/5">
+                  <View className="flex-row items-center justify-between pt-5 border-t border-line-soft">
                     <View className="flex-1 pr-4">
-                      <Text className="font-inter-bold text-base text-slate-900 dark:text-white mb-1">
+                      <Text className="font-inter-bold text-base text-ink mb-1">
                         Show Form Field Help
                       </Text>
-                      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      <Text className="font-inter text-xs text-ink-muted leading-relaxed">
                         Explain admin form fields underneath their labels. Turn this off once you
                         know your way around — the info icon beside a label still shows the
                         explanation whenever you want it. Saved on this device only.
@@ -673,8 +675,8 @@ export default function SettingsScreen() {
                     <Switch
                       value={showFieldHelp}
                       onValueChange={(val) => setLocalOverride('showFieldHelp', val)}
-                      trackColor={{ false: '#64748B', true: '#FF3E00' }}
-                      thumbColor="#FFFFFF"
+                      trackColor={{ false: themeColor(activeTheme === 'dark', 'ink-muted'), true: themeColor(activeTheme === 'dark', 'primary') }}
+                      thumbColor={themeColor(activeTheme === 'dark', 'on-fill')}
                     />
                   </View>
                 </GlassCard>
@@ -683,20 +685,20 @@ export default function SettingsScreen() {
               {/* 1. EDIT PROFILE TAB */}
               {activeTab === "profile" && (
                 <GlassCard className="gap-6">
-                  <View className="flex-row items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
-                    <Ionicons name="person-circle" size={20} color="#FF3E00" />
-                    <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+                  <View className="flex-row items-center gap-2 border-b border-line pb-3">
+                    <Ionicons name="person-circle" size={20} color={themeColor(activeTheme === 'dark', 'primary')} />
+                    <Text className="font-orbitron-bold text-lg text-ink">
                       EDIT PROFILE
                     </Text>
                   </View>
 
                   <View className="gap-4">
                     <View>
-                      <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
+                      <Text className="text-ink-muted font-inter mb-2">
                         Display Name
                       </Text>
                       <TextInput
-                        className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+                        className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
                         placeholder="Your full name"
                         value={name}
                         onChangeText={setName}
@@ -706,8 +708,8 @@ export default function SettingsScreen() {
 
                     {/* Avatar sources selector (e.g. toggling custom vs Google pics) */}
                     {socialAccounts.length > 0 && (
-                      <View className="pt-2 border-t border-slate-200 dark:border-white/5">
-                        <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
+                      <View className="pt-2 border-t border-line">
+                        <Text className="text-ink-muted font-inter mb-2">
                           Profile Image Source
                         </Text>
                         <SegmentedControl
@@ -740,9 +742,9 @@ export default function SettingsScreen() {
               {/* 2. SECURITY & PASSWORD TAB */}
               {activeTab === "security" && (
                 <GlassCard className="gap-6">
-                  <View className="flex-row items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
-                    <Ionicons name="lock-closed" size={20} color="#FF3E00" />
-                    <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+                  <View className="flex-row items-center gap-2 border-b border-line pb-3">
+                    <Ionicons name="lock-closed" size={20} color={themeColor(activeTheme === 'dark', 'primary')} />
+                    <Text className="font-orbitron-bold text-lg text-ink">
                       SECURITY & PASSWORD
                     </Text>
                   </View>
@@ -751,8 +753,8 @@ export default function SettingsScreen() {
                     <View 
                       className="p-4 rounded-xl border items-center md:items-start gap-4"
                       style={{
-                        backgroundColor: activeTheme === 'dark' ? 'rgba(2, 6, 23, 0.4)' : '#F1F5F9',
-                        borderColor: activeTheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#E2E8F0',
+                        backgroundColor: themeColor(activeTheme === 'dark', 'sunken'),
+                        borderColor: themeColor(activeTheme === 'dark', 'line'),
                       }}
                     >
                       <View className="flex-row items-center gap-3">
@@ -761,15 +763,15 @@ export default function SettingsScreen() {
                             user?.hasPassword ? "shield-checkmark" : "warning"
                           }
                           size={24}
-                          color={user?.hasPassword ? "#FF3E00" : "#EAB308"}
+                          color={themeColor(activeTheme === 'dark', user?.hasPassword ? 'primary' : 'warning-ink')}
                         />
                         <View>
-                          <Text className="font-inter-bold text-base text-slate-900 dark:text-white">
+                          <Text className="font-inter-bold text-base text-ink">
                             {user?.hasPassword
                               ? "Password Status Active"
                               : "No Password Established"}
                           </Text>
-                          <Text className="font-inter text-slate-500 dark:text-slate-400 text-xs mt-0.5">
+                          <Text className="font-inter text-ink-muted text-xs mt-0.5">
                             {user?.hasPassword
                               ? "Secure email/password logins enabled"
                               : "Setup a password for direct logins"}
@@ -793,17 +795,17 @@ export default function SettingsScreen() {
                       {/* STEP 1: Verify current password */}
                       {user?.hasPassword && !isOldPasswordVerified && (
                         <View className="gap-4">
-                          <Text className="font-inter text-slate-600 dark:text-slate-400 text-sm">
+                          <Text className="font-inter text-ink-muted text-sm">
                             Confirm your current password to update security
                             settings.
                           </Text>
                           <View>
-                            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
+                            <Text className="text-ink-muted font-inter mb-2">
                               Current Password
                             </Text>
                             <PasswordInput
                               purpose="current"
-                              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+                              className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
                               placeholder="••••••••"
                               value={oldPassword}
                               onChangeText={setOldPassword}
@@ -835,17 +837,17 @@ export default function SettingsScreen() {
                       {/* STEP 2: Input new password credentials */}
                       {(!user?.hasPassword || isOldPasswordVerified) && (
                         <View className="gap-4">
-                          <Text className="font-inter text-slate-600 dark:text-slate-400 text-sm">
+                          <Text className="font-inter text-ink-muted text-sm">
                             Define your secure email/password credential
                             details.
                           </Text>
                           <View>
-                            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
+                            <Text className="text-ink-muted font-inter mb-2">
                               New Password
                             </Text>
                             <PasswordInput
                               purpose="new"
-                              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+                              className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
                               placeholder="••••••••"
                               value={newPassword}
                               onChangeText={setNewPassword}
@@ -854,12 +856,12 @@ export default function SettingsScreen() {
 
                             {/* Strength indicator */}
                             {newPassword.length > 0 && (
-                              <View className="mt-2 bg-slate-100 dark:bg-slate-950 p-3 rounded-lg gap-2">
+                              <View className="mt-2 bg-sunken p-3 rounded-lg gap-2">
                                 <View className="flex-row justify-between items-center">
-                                  <Text className="font-orbitron-bold text-[10px] text-slate-500">
+                                  <Text className="font-orbitron-bold text-[10px] text-ink-muted">
                                     Strength: {strength.label}
                                   </Text>
-                                  <Text className="font-orbitron-bold text-[10px] text-slate-500">
+                                  <Text className="font-orbitron-bold text-[10px] text-ink-muted">
                                     {strength.score}/5
                                   </Text>
                                 </View>
@@ -867,7 +869,7 @@ export default function SettingsScreen() {
                                   {[1, 2, 3, 4, 5].map((s) => (
                                     <View
                                       key={s}
-                                      className={`flex-1 rounded-full ${s <= strength.score ? strength.color : "bg-slate-200 dark:bg-slate-800"}`}
+                                      className={`flex-1 rounded-full ${s <= strength.score ? strength.color : "bg-line"}`}
                                     />
                                   ))}
                                 </View>
@@ -876,12 +878,12 @@ export default function SettingsScreen() {
                           </View>
 
                           <View>
-                            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">
+                            <Text className="text-ink-muted font-inter mb-2">
                               Confirm New Password
                             </Text>
                             <PasswordInput
                               purpose="new"
-                              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+                              className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
                               placeholder="••••••••"
                               value={confirmPassword}
                               onChangeText={setConfirmPassword}
@@ -898,13 +900,11 @@ export default function SettingsScreen() {
                                   }
                                   size={14}
                                   color={
-                                    confirmPassword === newPassword
-                                      ? "#10B981"
-                                      : "#EF4444"
+                                    themeColor(activeTheme === 'dark', confirmPassword === newPassword ? 'success-ink' : 'danger-ink')
                                   }
                                 />
                                 <Text
-                                  className={`font-inter-bold text-[10px] ${confirmPassword === newPassword ? "text-green-500" : "text-red-500"}`}
+                                  className={`font-inter-bold text-[10px] ${confirmPassword === newPassword ? "text-success-ink" : "text-danger-ink"}`}
                                 >
                                   {confirmPassword === newPassword
                                     ? "Passwords match"
@@ -948,9 +948,9 @@ export default function SettingsScreen() {
               {/* 3. LINKED ACCOUNTS & EMAILS TAB */}
               {activeTab === "emails" && (
                 <GlassCard className="gap-6">
-                  <View className="flex-row items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-3">
-                    <Ionicons name="mail-open" size={20} color="#FF3E00" />
-                    <Text className="font-orbitron-bold text-lg text-slate-900 dark:text-white">
+                  <View className="flex-row items-center gap-2 border-b border-line pb-3">
+                    <Ionicons name="mail-open" size={20} color={themeColor(activeTheme === 'dark', 'primary')} />
+                    <Text className="font-orbitron-bold text-lg text-ink">
                       LINKED EMAILS
                     </Text>
                   </View>
@@ -959,37 +959,37 @@ export default function SettingsScreen() {
                     {emails.map((e) => (
                       <View
                         key={e.email}
-                        className="flex-row items-center justify-between p-4 bg-slate-100 dark:bg-slate-950/40 border border-slate-200 dark:border-white/5 rounded-xl"
+                        className="flex-row items-center justify-between p-4 bg-sunken border border-line rounded-xl"
                       >
                         <View className="flex-row items-center gap-3">
-                          <Ionicons name="mail" size={20} color="#64748B" />
+                          <Ionicons name="mail" size={20} color={themeColor(activeTheme === 'dark', 'ink-muted')} />
                           <View>
-                            <Text className="font-inter-bold text-slate-900 dark:text-white text-sm">
+                            <Text className="font-inter-bold text-ink text-sm">
                               {e.email}
                             </Text>
                             {e.isPrimary && (
-                              <Text className="font-orbitron-bold text-[9px] text-brand-orange uppercase tracking-wider mt-0.5">
+                              <Text className="font-orbitron-bold text-[9px] text-primary-ink uppercase tracking-wider mt-0.5">
                                 Primary Contact
                               </Text>
                             )}
                           </View>
                         </View>
 
-                        <View className="flex-row items-center gap-1.5 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded">
+                        <View className="flex-row items-center gap-1.5 bg-success-soft border border-success-line px-2 py-0.5 rounded">
                           <Ionicons
                             name="checkmark-circle"
                             size={12}
-                            color="#10B981"
+                            color={themeColor(activeTheme === 'dark', 'success')}
                           />
-                          <Text className="font-orbitron-bold text-[9px] text-green-500 uppercase tracking-widest">
+                          <Text className="font-orbitron-bold text-[9px] text-success-ink uppercase tracking-widest">
                             Verified
                           </Text>
                         </View>
                       </View>
                     ))}
 
-                    <View className="p-4 rounded-xl bg-brand-orange/5 border border-brand-orange/10">
-                      <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed italic text-center">
+                    <View className="p-4 rounded-xl bg-primary-soft border border-primary-line">
+                      <Text className="font-inter text-xs text-ink-muted leading-relaxed italic text-center">
                         Link separate organization, school, or personal emails
                         to easily consolidate statistics across multiple teams
                         and host matches seamlessly.
@@ -1017,11 +1017,11 @@ export default function SettingsScreen() {
       {/* Branded Floating Toast Notification */}
       {toastConfig.visible && (
         <View pointerEvents="none" className="absolute bottom-8 left-4 right-4 z-50 items-center">
-          <GlassCard className="flex-row items-center gap-3 px-5 py-3.5 border border-slate-200/20 dark:border-white/10 shadow-xl max-w-sm w-full rounded-2xl">
+          <GlassCard className="flex-row items-center gap-3 px-5 py-3.5 border border-line-soft shadow-xl max-w-sm w-full rounded-2xl">
             <View className={`w-8 h-8 rounded-full items-center justify-center ${
-              toastConfig.type === 'success' ? 'bg-green-500/15 border border-green-500/30' :
-              toastConfig.type === 'error' ? 'bg-red-500/15 border border-red-500/30' :
-              'bg-brand-blue/15 border border-brand-blue/30'
+              toastConfig.type === 'success' ? 'bg-success-soft border border-success-line' :
+              toastConfig.type === 'error' ? 'bg-danger-soft border border-danger-line' :
+              'bg-accent-soft border border-accent-line'
             }`}>
               <Ionicons 
                 name={
@@ -1031,13 +1031,11 @@ export default function SettingsScreen() {
                 } 
                 size={18} 
                 color={
-                  toastConfig.type === 'success' ? '#10B981' :
-                  toastConfig.type === 'error' ? '#EF4444' :
-                  '#00E5FF'
+                  themeColor(activeTheme === 'dark', toastConfig.type === 'success' ? 'success-ink' : toastConfig.type === 'error' ? 'danger-ink' : 'accent-ink')
                 } 
               />
             </View>
-            <Text className="flex-1 font-inter-medium text-xs text-slate-800 dark:text-slate-200 leading-snug">
+            <Text className="flex-1 font-inter-medium text-xs text-ink leading-snug">
               {toastConfig.message}
             </Text>
           </GlassCard>

@@ -19,9 +19,12 @@ import {
   payloadFromForm,
 } from '../../../../components/admin/sports/sportForm';
 
+import { useActiveTheme } from '../../../../store/settingsStore';
+import { themeColor } from '../../../../constants/Colors';
 type SportTab = 'settings' | 'positions' | 'ageGroups' | 'events';
 
 export default function EditSport() {
+  const isDark = useActiveTheme() === 'dark';
   const safeBack = useSafeBack();
   const { sportId } = useLocalSearchParams<{ sportId: string }>();
   const token = useAuthStore(state => state.token);
@@ -200,21 +203,21 @@ export default function EditSport() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 justify-center items-center bg-slate-50 dark:bg-slate-950">
-        <ActivityIndicator size="large" color="#FF3E00" />
+      <View className="flex-1 justify-center items-center bg-canvas">
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
       </View>
     );
   }
 
   if (error || (!originalSport && !isNew)) {
     return (
-      <View className="flex-1 justify-center items-center bg-slate-50 dark:bg-slate-950 px-6">
-        <GlassCard className="border border-red-200 dark:border-red-950/20 bg-red-500/5 p-6 rounded-xl w-full items-center">
-          <Ionicons name="alert-circle-outline" size={36} color="#EF4444" />
-          <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white mt-4 text-center">
+      <View className="flex-1 justify-center items-center bg-canvas px-6">
+        <GlassCard className="border border-danger-line bg-danger-soft p-6 rounded-xl w-full items-center">
+          <Ionicons name="alert-circle-outline" size={36} color={themeColor(isDark, 'danger')} />
+          <Text className="font-orbitron-bold text-sm text-ink mt-4 text-center">
             Failed to Load Sport
           </Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-2 text-center leading-relaxed">
+          <Text className="font-inter text-xs text-ink-muted mt-2 text-center leading-relaxed">
             {error || 'The requested sport configuration could not be found.'}
           </Text>
         </GlassCard>
@@ -223,7 +226,7 @@ export default function EditSport() {
   }
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <View className="flex-1 bg-canvas">
       <View className="px-6 pt-4">
         <Tabs<SportTab>
           items={[
@@ -262,7 +265,7 @@ export default function EditSport() {
 
         {activeTab === 'ageGroups' && (
           isNew || !sportId || !token ? (
-            <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            <Text className="font-inter text-xs text-ink-muted leading-relaxed">
               Create the sport first. It starts with the standard age groups (U9 to U19, and Open),
               which you can then change here.
             </Text>
@@ -285,12 +288,12 @@ export default function EditSport() {
 
       {/* FLOATING SAVE CHANGES BAR */}
       {hasChanges && (
-        <View className="absolute bottom-6 left-6 right-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
+        <View className="absolute bottom-6 left-6 right-6 bg-card border border-line p-4 rounded-2xl flex-row items-center justify-between shadow-xl z-40">
           <View className="flex-1 mr-4">
-            <Text className="font-orbitron-bold text-[10px] text-slate-800 dark:text-white uppercase tracking-wider">
+            <Text className="font-orbitron-bold text-[10px] text-ink uppercase tracking-wider">
               {isNew ? 'Create New Sport' : 'Unsaved Changes'}
             </Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+            <Text className="font-inter text-[9px] text-ink-muted mt-0.5">
               {isNew ? 'Click Create to add this sport.' : 'You have modified this sport\'s configuration.'}
             </Text>
           </View>
@@ -298,21 +301,21 @@ export default function EditSport() {
             <TouchableOpacity
               onPress={handleCancel}
               disabled={isProcessing}
-              className="bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl active:scale-95 border border-slate-200 dark:border-white/5"
+              className="bg-sunken px-4 py-2.5 rounded-xl active:scale-95 border border-line"
             >
-              <Text className="font-orbitron-bold text-[9px] text-slate-600 dark:text-slate-300 uppercase tracking-widest">Cancel</Text>
+              <Text className="font-orbitron-bold text-[9px] text-ink-soft uppercase tracking-widest">Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
               disabled={isProcessing || !form.name.trim()}
-              className="bg-brand-orange px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-brand-orange/30"
+              className="bg-primary px-5 py-2.5 rounded-xl flex-row items-center gap-2 active:scale-95 shadow-md shadow-primary/30"
             >
               {isProcessing ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={14} color="white" />
-                  <Text className="font-orbitron-bold text-[9px] text-white uppercase tracking-widest mt-0.5">
+                  <Text className="font-orbitron-bold text-[9px] text-on-fill uppercase tracking-widest mt-0.5">
                     {isNew ? 'Create' : 'Save'}
                   </Text>
                 </>

@@ -3,8 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { GlassCard } from '../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
-import { COLORS, getThemeColor } from '../../../constants/Colors';
+
 import { formatInstantDate } from '../../../utils/dates';
+import { themeColor } from '../../../constants/Colors';
 
 export default function SystemReports() {
   const isDark = useActiveTheme() === 'dark';
@@ -51,52 +52,52 @@ export default function SystemReports() {
   });
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <View className="flex-1 bg-canvas">
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* HEADER SECTION */}
         <View className="mb-6">
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400">
+          <Text className="font-inter text-sm text-ink-muted">
             Monitor automated accuracy audits, dispute reports, and double-booking warning logs.
           </Text>
         </View>
 
         {/* METRICS ROW */}
         <View className="flex-row gap-4 mb-6">
-          <GlassCard className="flex-1 border border-slate-200 dark:border-white/5 p-4 items-center">
-            <Text className="font-orbitron-bold text-lg text-rose-500">1</Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase mt-1 text-center font-semibold">
+          <GlassCard className="flex-1 border border-line p-4 items-center">
+            <Text className="font-orbitron-bold text-lg text-danger-ink">1</Text>
+            <Text className="font-inter text-[9px] text-ink-muted uppercase mt-1 text-center font-semibold">
               Pending Disputes
             </Text>
           </GlassCard>
-          <GlassCard className="flex-1 border border-slate-200 dark:border-white/5 p-4 items-center">
-            <Text className="font-orbitron-bold text-lg text-emerald-500">99.8%</Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase mt-1 text-center font-semibold">
+          <GlassCard className="flex-1 border border-line p-4 items-center">
+            <Text className="font-orbitron-bold text-lg text-success-ink">99.8%</Text>
+            <Text className="font-inter text-[9px] text-ink-muted uppercase mt-1 text-center font-semibold">
               Audit Accuracy
             </Text>
           </GlassCard>
-          <GlassCard className="flex-1 border border-slate-200 dark:border-white/5 p-4 items-center">
-            <Text className="font-orbitron-bold text-lg text-cyan-500">48h</Text>
-            <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500 uppercase mt-1 text-center font-semibold">
+          <GlassCard className="flex-1 border border-line p-4 items-center">
+            <Text className="font-orbitron-bold text-lg text-accent-ink">48h</Text>
+            <Text className="font-inter text-[9px] text-ink-muted uppercase mt-1 text-center font-semibold">
               Avg Resolution
             </Text>
           </GlassCard>
         </View>
 
         {/* FILTER BAR */}
-        <View className="flex-row bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl border border-slate-200/50 dark:border-white/5 mb-6">
+        <View className="flex-row bg-sunken p-1 rounded-xl border border-line-soft mb-6">
           {(['all', 'pending', 'resolved'] as const).map((tab) => (
             <TouchableOpacity
               key={tab}
               onPress={() => setFilter(tab)}
               className="flex-1 items-center py-2.5 rounded-lg active:opacity-90"
               style={{
-                backgroundColor: filter === tab ? getThemeColor(isDark, 'surface') : 'transparent',
+                backgroundColor: filter === tab ? themeColor(isDark, 'raised') : 'transparent',
               }}
             >
               <Text 
                 className="font-orbitron-bold text-[10px] uppercase tracking-wider"
                 style={{
-                  color: filter === tab ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+                  color: themeColor(isDark, filter === tab ? 'primary-ink' : 'ink-muted'),
                 }}
               >
                 {tab}
@@ -110,7 +111,7 @@ export default function SystemReports() {
           {filteredReports.map((report) => (
             <GlassCard 
               key={report.id} 
-              className="border border-slate-200 dark:border-white/5 p-5"
+              className="border border-line p-5"
             >
               <View className="flex-row justify-between items-center mb-3">
                 <View className="flex-row items-center gap-2">
@@ -121,53 +122,49 @@ export default function SystemReports() {
                         : 'checkmark-circle-outline'
                     } 
                     size={16} 
-                    color={
-                      report.status === 'pending'
-                        ? '#EF4444' 
-                        : '#10B981'
-                    } 
+                    color={themeColor(isDark, report.status === 'pending' ? 'danger-ink' : 'success-ink')}
                   />
-                  <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider">
+                  <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider">
                     {report.reason}
                   </Text>
                 </View>
                 <View 
                   className={`px-2 py-0.5 rounded-full border ${
                     report.status === 'resolved'
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-                      : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                      ? 'bg-success-soft border-success-line text-success-ink'
+                      : 'bg-danger-soft border-danger-line text-danger-ink'
                   }`}
                 >
                   <Text 
                     className="font-inter-bold text-[8px] uppercase tracking-widest"
-                    style={{ color: report.status === 'resolved' ? '#10B981' : '#EF4444' }}
+                    style={{ color: themeColor(isDark, report.status === 'resolved' ? 'success-ink' : 'danger-ink') }}
                   >
                     {report.status}
                   </Text>
                 </View>
               </View>
 
-              <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
+              <Text className="font-inter text-xs text-ink-muted leading-relaxed mb-4">
                 {report.description}
               </Text>
 
               {/* DETAILS */}
-              <View className="flex-row flex-wrap justify-between items-center pt-3 border-t border-slate-100 dark:border-white/5 gap-2">
-                <View className="flex-row items-center gap-1 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-md">
-                  <Ionicons name="construct-outline" size={10} color="#FF3E00" />
-                  <Text className="font-mono text-[9px] text-slate-500 dark:text-slate-400">
+              <View className="flex-row flex-wrap justify-between items-center pt-3 border-t border-line-soft gap-2">
+                <View className="flex-row items-center gap-1 bg-sunken px-2.5 py-1 rounded-md">
+                  <Ionicons name="construct-outline" size={10} color={themeColor(isDark, 'primary')} />
+                  <Text className="font-mono text-[9px] text-ink-muted">
                     Impact: {report.impact} • {report.entityType.toUpperCase()}:{report.entityId}
                   </Text>
                 </View>
-                <Text className="font-inter text-[9px] text-slate-400 dark:text-slate-500">
+                <Text className="font-inter text-[9px] text-ink-muted">
                   {formatInstantDate(report.createdAt)}
                 </Text>
               </View>
 
               {report.status === 'resolved' && report.resolvedAt && (
                 <View className="mt-3 flex-row items-center gap-1">
-                  <Ionicons name="checkmark-done" size={12} color="#10B981" />
-                  <Text className="font-inter text-[9px] italic text-slate-400 dark:text-slate-500">
+                  <Ionicons name="checkmark-done" size={12} color={themeColor(isDark, 'success')} />
+                  <Text className="font-inter text-[9px] italic text-ink-muted">
                     Resolved on {formatInstantDate(report.resolvedAt)}
                   </Text>
                 </View>
@@ -177,11 +174,11 @@ export default function SystemReports() {
 
           {filteredReports.length === 0 && (
             <View className="items-center justify-center py-12">
-              <Ionicons name="checkmark-circle-outline" size={48} color="#94A3B8" style={{ opacity: 0.4, marginBottom: 12 }} />
-              <Text className="font-orbitron-bold text-base text-slate-700 dark:text-slate-300">
+              <Ionicons name="checkmark-circle-outline" size={48} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.4, marginBottom: 12 }} />
+              <Text className="font-orbitron-bold text-base text-ink-soft">
                 All Clear!
               </Text>
-              <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 text-center mt-1">
+              <Text className="font-inter text-xs text-ink-muted text-center mt-1">
                 No system alerts match the selected filter.
               </Text>
             </View>

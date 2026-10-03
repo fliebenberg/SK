@@ -4,23 +4,24 @@ import { useRouter } from 'expo-router';
 import { GlassCard } from '../../../components/GlassCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../../store/settingsStore';
+import { themeColor } from '../../../constants/Colors';
 
 export default function AdminDashboard() {
   const router = useRouter();
   const isDark = useActiveTheme() === 'dark';
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <View className="flex-1 bg-canvas">
       <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
         {/* WELCOME BANNER */}
         <View className="mb-6 mt-2">
-          <Text className="font-inter text-sm text-slate-500 dark:text-slate-400 leading-5">
+          <Text className="font-inter text-sm text-ink-muted leading-5">
             Select an administrative action below to schedule leagues, configure rosters, or manage system audits.
           </Text>
         </View>
 
         {/* QUICK ACTION BUTTONS */}
-        <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+        <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-4">
           Quick Actions
         </Text>
         <View className="space-y-4 mb-8">
@@ -30,15 +31,15 @@ export default function AdminDashboard() {
             activeOpacity={0.85}
             onPress={() => router.push('/admin/users' as any)}
           >
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
-              <View className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-brand-orange/10 border border-orange-200 dark:border-brand-orange/20 items-center justify-center flex-shrink-0">
-                <Ionicons name="people-outline" size={18} color={isDark ? "#FF3E00" : "#c2410c"} />
+            <GlassCard className="border border-line p-4 flex-row items-center gap-3.5">
+              <View className="w-10 h-10 rounded-xl bg-primary-soft border border-primary-line items-center justify-center flex-shrink-0">
+                <Ionicons name="people-outline" size={18} color={themeColor(isDark, 'primary-ink')} />
               </View>
               <View className="flex-1">
-                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
+                <Text className="font-orbitron-bold text-sm text-ink leading-tight">
                   User Management
                 </Text>
-                <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                <Text className="font-inter text-[10px] text-ink-muted mt-0.5">
                   Search and manage application users and members
                 </Text>
               </View>
@@ -51,15 +52,15 @@ export default function AdminDashboard() {
             activeOpacity={0.85}
             onPress={() => router.push('/admin/reports' as any)}
           >
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
-              <View className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-850/20 items-center justify-center flex-shrink-0">
-                <Ionicons name="shield-outline" size={18} color={isDark ? "#A78BFA" : "#6D28D9"} />
+            <GlassCard className="border border-line p-4 flex-row items-center gap-3.5">
+              <View className="w-10 h-10 rounded-xl bg-special-soft border border-special-line items-center justify-center flex-shrink-0">
+                <Ionicons name="shield-outline" size={18} color={themeColor(isDark, 'special-ink')} />
               </View>
               <View className="flex-1">
-                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
+                <Text className="font-orbitron-bold text-sm text-ink leading-tight">
                   System Audits
                 </Text>
-                <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                <Text className="font-inter text-[10px] text-ink-muted mt-0.5">
                   Monitor score conflicts and game disputes
                 </Text>
               </View>
@@ -72,15 +73,15 @@ export default function AdminDashboard() {
             activeOpacity={0.85}
             onPress={() => router.push('/admin/sports' as any)}
           >
-            <GlassCard className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
-              <View className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-850/20 items-center justify-center flex-shrink-0">
-                <Ionicons name="trophy-outline" size={18} color={isDark ? "#60A5FA" : "#1D4ED8"} />
+            <GlassCard className="border border-line p-4 flex-row items-center gap-3.5">
+              <View className="w-10 h-10 rounded-xl bg-info-soft border border-info-line items-center justify-center flex-shrink-0">
+                <Ionicons name="trophy-outline" size={18} color={themeColor(isDark, 'info-ink')} />
               </View>
               <View className="flex-1">
-                <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white leading-tight">
+                <Text className="font-orbitron-bold text-sm text-ink leading-tight">
                   Sport Management
                 </Text>
-                <Text className="font-inter text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                <Text className="font-inter text-[10px] text-ink-muted mt-0.5">
                   View and edit sport rules, names, terms, and player positions
                 </Text>
               </View>

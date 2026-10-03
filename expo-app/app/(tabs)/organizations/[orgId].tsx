@@ -11,11 +11,11 @@ import { wsService } from '../../../services/websocket';
 import { useWsStore } from '../../../store/wsStore';
 import { OrgBrandedCard } from '@/components/OrgBrandedCard';
 import { OrgLogo } from '@/components/OrgLogo';
-import { getContrastColor } from '@/utils/colorUtils';
+import { inkOnBrand } from '@/utils/colorUtils';
 import { useAuthStore } from '@/store/authStore';
-import { COLORS, getThemeColor } from '../../../constants/Colors';
 import { formatInstantDate, formatKickoffTime } from '../../../utils/dates';
 import { useOrgSummary } from '../../../hooks/useOrgSummary';
+import { themeColor } from '../../../constants/Colors';
 
 interface Team {
   id: string;
@@ -158,8 +158,8 @@ export default function PublicOrgDetail() {
 
   if (isLoading || isOrgLoading || !orgData) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950 items-center justify-center" edges={['top', 'left', 'right']}>
-        <ActivityIndicator size="large" color="#FF3E00" />
+      <SafeAreaView className="flex-1 bg-canvas items-center justify-center" edges={['top', 'left', 'right']}>
+        <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
       </SafeAreaView>
     );
   }
@@ -167,11 +167,11 @@ export default function PublicOrgDetail() {
   const { primary: primaryColor, secondary: secondaryColor } = orgColors(orgData);
   const mappedSports = orgData.supportedSportIds?.map((id: string) => sportsMap[id] || id) || ['General'];
 
-  const contrastColor = getContrastColor(primaryColor);
-  const isLightBg = contrastColor === '#000000';
-  const textColor = contrastColor;
-  const subtextColor = isLightBg ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.7)';
-  const borderColor = isLightBg ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)';
+  const ink = inkOnBrand(primaryColor);
+  const isLightBg = ink.isLight;
+  const textColor = ink.text;
+  const subtextColor = ink.subtext;
+  const borderColor = ink.border;
 
   const userMembership = orgMemberships.find(m => m.orgId === orgId);
   let membershipStatus: string | null = null;
@@ -242,19 +242,19 @@ export default function PublicOrgDetail() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/organizations')}
           className="flex-row items-center gap-1 active:opacity-85"
         >
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
             Back
           </Text>
         </TouchableOpacity>
-        <Text className="font-orbitron-bold text-xs tracking-widest text-slate-800 dark:text-white uppercase">
+        <Text className="font-orbitron-bold text-xs tracking-widest text-ink uppercase">
           Organization Profile
         </Text>
         <View className="w-10 h-2" />
@@ -273,7 +273,7 @@ export default function PublicOrgDetail() {
                 logo={orgData.logo} 
                 settings={orgData.settings} 
                 size={40} 
-                className="border bg-white rounded-full" 
+                className="border bg-logo-plate rounded-full" 
                 style={{ borderColor: borderColor }}
               />
               <Text style={{ color: textColor }} className="flex-1 font-orbitron-bold text-xl uppercase tracking-wide leading-tight flex-shrink">
@@ -281,7 +281,7 @@ export default function PublicOrgDetail() {
               </Text>
             </View>
             {org.membershipStatus ? (
-              <View style={{ backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.25)', borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-1 rounded-lg">
+              <View style={{ backgroundColor: ink.chip, borderColor: borderColor }} className="flex-row items-center gap-1 border px-2.5 py-1 rounded-lg">
                 <Ionicons name="ribbon-outline" size={12} color={textColor} />
                 <Text style={{ color: textColor }} className="font-orbitron-bold text-[9px] uppercase tracking-widest">
                   {org.membershipStatus}
@@ -330,7 +330,7 @@ export default function PublicOrgDetail() {
             <View style={{ borderTopColor: borderColor }} className="mt-4 border-t pt-4">
               <TouchableOpacity
                 style={{
-                  backgroundColor: isLightBg ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.2)',
+                  backgroundColor: ink.button,
                   borderColor: borderColor,
                 }}
                 className="w-full border py-2.5 rounded-lg items-center justify-center active:opacity-85"
@@ -345,7 +345,7 @@ export default function PublicOrgDetail() {
         </OrgBrandedCard>
 
         {/* INTERACTIVE NAVIGATION TABS */}
-        <View className="flex-row bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 p-1 rounded-xl mb-6 gap-1">
+        <View className="flex-row bg-card border border-line p-1 rounded-xl mb-6 gap-1">
           {(['overview', 'teams', 'fixtures', 'facilities', 'leagues'] as const).map((tab) => {
             const isTabActive = activeTab === tab;
             return (
@@ -354,13 +354,13 @@ export default function PublicOrgDetail() {
                 onPress={() => setActiveTab(tab)}
                 className="flex-1 py-2.5 rounded-lg items-center active:opacity-85"
                 style={{
-                  backgroundColor: isTabActive ? (isDark ? 'rgba(255, 255, 255, 0.1)' : '#F1F5F9') : 'transparent',
+                  backgroundColor: isTabActive ? themeColor(isDark, 'raised') : 'transparent',
                 }}
               >
                 <Text
                   className="font-orbitron-bold text-[10px] uppercase tracking-wider"
                   style={{
-                    color: isTabActive ? COLORS.brand.orange : getThemeColor(isDark, 'textSecondary'),
+                    color: themeColor(isDark, isTabActive ? 'primary-ink' : 'ink-muted'),
                   }}
                 >
                   {tab}
@@ -374,22 +374,22 @@ export default function PublicOrgDetail() {
         <View className="mb-6">
           {activeTab === 'overview' && (
             <View className="space-y-4">
-              <GlassCard className="border border-slate-200 dark:border-white/5 p-5">
-                <Text className="font-orbitron-bold text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">
+              <GlassCard className="border border-line p-5">
+                <Text className="font-orbitron-bold text-xs text-ink-muted uppercase tracking-widest mb-3">
                   About Organization
                 </Text>
-                <Text className="font-inter text-sm text-slate-700 dark:text-slate-300 leading-6">
+                <Text className="font-inter text-sm text-ink-soft leading-6">
                   {org.description}
                 </Text>
               </GlassCard>
 
-              <GlassCard className="border border-brand-orange/20 bg-brand-orange/5 p-5 flex-row items-center gap-3">
-                <Ionicons name="information-circle-outline" size={22} color="#FF3E00" />
+              <GlassCard className="border border-primary-line bg-primary-soft p-5 flex-row items-center gap-3">
+                <Ionicons name="information-circle-outline" size={22} color={themeColor(isDark, 'primary')} />
                 <View className="flex-1">
-                  <Text className="font-orbitron-bold text-xs text-slate-800 dark:text-white uppercase tracking-wider">
+                  <Text className="font-orbitron-bold text-xs text-ink uppercase tracking-wider">
                     Registration Alert
                   </Text>
-                  <Text className="font-inter text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                  <Text className="font-inter text-xs text-ink-muted mt-0.5">
                     {org.registrationStatus}
                   </Text>
                 </View>
@@ -400,25 +400,25 @@ export default function PublicOrgDetail() {
           {activeTab === 'teams' && (
             <View className="space-y-4">
               {org.teams.map((team) => (
-                <GlassCard key={team.id} className="border border-slate-200 dark:border-white/5 p-4 flex-row justify-between items-center">
+                <GlassCard key={team.id} className="border border-line p-4 flex-row justify-between items-center">
                   <View className="flex-1 mr-3">
-                    <View className="bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded-full w-fit mb-2 border border-slate-200/50 dark:border-white/5">
-                      <Text className="font-inter-bold text-[8px] text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                    <View className="bg-sunken px-2 py-0.5 rounded-full w-fit mb-2 border border-line-soft">
+                      <Text className="font-inter-bold text-[8px] text-ink-soft uppercase tracking-wider">
                         {team.sport}
                       </Text>
                     </View>
-                    <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wide">
+                    <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wide">
                       {team.name}
                     </Text>
-                    <Text className="font-inter text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    <Text className="font-inter text-xs text-ink-muted mt-1">
                       Coach: {team.coach}
                     </Text>
                   </View>
-                  <View className="items-end bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl px-3 py-2">
-                    <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white">
+                  <View className="items-end bg-sunken border border-line rounded-xl px-3 py-2">
+                    <Text className="font-orbitron-bold text-sm text-ink">
                       {team.players}
                     </Text>
-                    <Text className="font-inter text-[8px] text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5">
+                    <Text className="font-inter text-[8px] text-ink-muted uppercase tracking-wider mt-0.5">
                       Players
                     </Text>
                   </View>
@@ -430,32 +430,32 @@ export default function PublicOrgDetail() {
           {activeTab === 'fixtures' && (
             <View className="space-y-4">
               {org.fixtures.map((fix) => (
-                <GlassCard key={fix.id} className="border border-slate-200 dark:border-white/5 p-5">
+                <GlassCard key={fix.id} className="border border-line p-5">
                   <View className="flex-row justify-between items-center mb-3">
-                    <View className="bg-brand-orange/10 px-2.5 py-0.5 rounded border border-brand-orange/20">
-                      <Text className="font-orbitron-bold text-[8px] text-brand-orange uppercase tracking-wider">
+                    <View className="bg-primary-soft px-2.5 py-0.5 rounded border border-primary-line">
+                      <Text className="font-orbitron-bold text-[8px] text-primary-ink uppercase tracking-wider">
                         {fix.title}
                       </Text>
                     </View>
-                    <Text className="font-inter-bold text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    <Text className="font-inter-bold text-[9px] text-ink-muted uppercase tracking-wider">
                       {fix.sport}
                     </Text>
                   </View>
 
-                  <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white text-center py-2 uppercase tracking-wide">
-                    {fix.home} <Text className="text-brand-orange text-xs font-inter lowercase">vs</Text> {fix.away}
+                  <Text className="font-orbitron-bold text-base text-ink text-center py-2 uppercase tracking-wide">
+                    {fix.home} <Text className="text-primary-ink text-xs font-inter lowercase">vs</Text> {fix.away}
                   </Text>
 
-                  <View className="flex-row justify-between border-t border-slate-100 dark:border-white/5 pt-3 mt-1">
+                  <View className="flex-row justify-between border-t border-line-soft pt-3 mt-1">
                     <View className="flex-row items-center gap-1.5">
-                      <Ionicons name="calendar-outline" size={13} color="#FF3E00" />
-                      <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                      <Ionicons name="calendar-outline" size={13} color={themeColor(isDark, 'primary')} />
+                      <Text className="font-inter text-xs text-ink-muted">
                         {fix.date} @ {fix.time}
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-1.5">
-                      <Ionicons name="location-outline" size={13} color="#FF3E00" />
-                      <Text className="font-inter text-xs text-slate-600 dark:text-slate-400">
+                      <Ionicons name="location-outline" size={13} color={themeColor(isDark, 'primary')} />
+                      <Text className="font-inter text-xs text-ink-muted">
                         {fix.venue}
                       </Text>
                     </View>
@@ -468,19 +468,19 @@ export default function PublicOrgDetail() {
           {activeTab === 'facilities' && (
             <View className="space-y-4">
               {org.facilities.map((fac) => (
-                <GlassCard key={fac.id} className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
-                  <View className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-850/20 items-center justify-center">
-                    <Ionicons name="location-outline" size={18} color="#8B5CF6" />
+                <GlassCard key={fac.id} className="border border-line p-4 flex-row items-center gap-3.5">
+                  <View className="w-10 h-10 rounded-xl bg-special-soft border border-special-line items-center justify-center">
+                    <Ionicons name="location-outline" size={18} color={themeColor(isDark, 'special')} />
                   </View>
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wide">
+                    <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wide">
                       {fac.name}
                     </Text>
                     <View className="flex-row items-center gap-2 mt-1">
-                      <Text className="font-inter-bold text-[9px] text-purple-600 dark:text-purple-400 uppercase tracking-wide bg-purple-100 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200/50 dark:border-purple-800/30">
+                      <Text className="font-inter-bold text-[9px] text-special-ink uppercase tracking-wide bg-special-soft px-2 py-0.5 rounded border border-special-line">
                         {fac.type}
                       </Text>
-                      <Text className="font-inter text-xs text-slate-400 dark:text-slate-500">
+                      <Text className="font-inter text-xs text-ink-muted">
                         {fac.location}
                       </Text>
                     </View>
@@ -493,23 +493,23 @@ export default function PublicOrgDetail() {
           {activeTab === 'leagues' && (
             <View className="space-y-4">
               {leagues.map((league) => (
-                <GlassCard key={league.id} className="border border-slate-200 dark:border-white/5 p-4 flex-row items-center gap-3.5">
-                  <View className="w-10 h-10 rounded-xl bg-brand-orange/10 items-center justify-center border border-brand-orange/20">
-                    <Ionicons name="trophy" size={16} color="#FF3E00" />
+                <GlassCard key={league.id} className="border border-line p-4 flex-row items-center gap-3.5">
+                  <View className="w-10 h-10 rounded-xl bg-primary-soft items-center justify-center border border-primary-line">
+                    <Ionicons name="trophy" size={16} color={themeColor(isDark, 'primary')} />
                   </View>
                   
                   <View className="flex-1">
-                    <Text className="font-orbitron-bold text-base text-slate-800 dark:text-white uppercase tracking-wide">
+                    <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wide">
                       {league.name}
                     </Text>
                     <View className="flex-row items-center gap-2 mt-1">
-                      <Text className="font-inter-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                      <Text className="font-inter-bold text-[9px] text-ink-muted uppercase tracking-wide">
                         {sportsMap[league.sportId] || 'Sport'}
                       </Text>
                       {!!league.ageGroup && (
                         <>
-                          <Text className="text-slate-350 dark:text-slate-650">•</Text>
-                          <Text className="font-inter-bold text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                          <Text className="text-ink-faint">•</Text>
+                          <Text className="font-inter-bold text-[9px] text-ink-muted uppercase tracking-wide">
                             {league.ageGroup}
                           </Text>
                         </>
@@ -528,8 +528,8 @@ export default function PublicOrgDetail() {
 
               {leagues.length === 0 && (
                 <View className="items-center justify-center py-10">
-                  <Ionicons name="trophy-outline" size={36} color="#94A3B8" className="opacity-45 mb-2" />
-                  <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400">No Active Leagues</Text>
+                  <Ionicons name="trophy-outline" size={36} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
+                  <Text className="font-orbitron-bold text-xs text-ink-muted">No Active Leagues</Text>
                 </View>
               )}
             </View>
@@ -537,12 +537,12 @@ export default function PublicOrgDetail() {
         </View>
 
         {/* PREMIUM ACTION CTA CARD */}
-        <GlassCard className="bg-brand-orange/5 border border-brand-orange/20 p-5 items-center">
-          <Ionicons name="mail-unread-outline" size={24} color="#FF3E00" className="mb-2" />
-          <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white text-center mb-1 uppercase tracking-wide">
+        <GlassCard className="bg-primary-soft border border-primary-line p-5 items-center">
+          <Ionicons name="mail-unread-outline" size={24} color={themeColor(isDark, 'primary')} className="mb-2" />
+          <Text className="font-orbitron-bold text-sm text-ink text-center mb-1 uppercase tracking-wide">
             INTERESTED IN JOINING?
           </Text>
-          <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 text-center mb-4 leading-4">
+          <Text className="font-inter text-xs text-ink-muted text-center mb-4 leading-4">
             Contact the organization administration team to enquire about league placements or roster registrations.
           </Text>
           <Button

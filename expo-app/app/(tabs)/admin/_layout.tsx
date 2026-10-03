@@ -2,6 +2,7 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { useActiveTheme } from '../../../store/settingsStore';
 import { AuthGuard } from '../../../components/AuthGuard';
+import { themeColor } from '../../../constants/Colors';
 
 export default function AdminLayout() {
   return (
@@ -20,14 +21,14 @@ function AdminPortalStack() {
       screenOptions={{
         headerShown: true,
         headerStyle: {
-          backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+          backgroundColor: themeColor(isDark, 'card'),
         },
         headerTitleStyle: {
-          color: isDark ? '#FFFFFF' : '#0F172A',
+          color: themeColor(isDark, 'ink'),
           fontFamily: 'Orbitron_700Bold',
           fontSize: 14,
         },
-        headerTintColor: '#FF3E00', // Highlight back button in Burnt Orange
+        headerTintColor: themeColor(isDark, 'primary'), // Highlight back button in Burnt Orange
       }}
     >
       <Stack.Screen name="index" options={{ title: 'ADMIN PORTAL' }} />
