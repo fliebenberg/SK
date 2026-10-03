@@ -125,7 +125,6 @@ export function OverflowMenu({
                     {!!item.description && (
                       <Text
                         className="font-inter text-xs mt-0.5 text-slate-500 dark:text-slate-400"
-                        numberOfLines={2}
                       >
                         {item.description}
                       </Text>
