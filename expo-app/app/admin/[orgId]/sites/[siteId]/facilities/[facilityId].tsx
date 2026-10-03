@@ -222,7 +222,6 @@ const CATEGORIES = [
   { key: 'shop', label: 'Shop / Tuck Shop', icon: 'cart-outline' },
   { key: 'parking', label: 'Parking Area', icon: 'car-outline' },
   { key: 'restroom', label: 'Restrooms', icon: 'water-outline' },
-  { key: 'restrooms', label: 'Restrooms', icon: 'water-outline' },
   { key: 'other', label: 'Other', icon: 'location-outline' }
 ];
 
