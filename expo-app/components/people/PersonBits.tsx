@@ -59,7 +59,7 @@ export function RoleBadge({ roleId, roleName, size = 'sm' }: { roleId?: string; 
       className={kind === 'admin'
         ? 'bg-orange-50 dark:bg-brand-orange/10 border-orange-200 dark:border-brand-orange/30'
         : 'bg-blue-50 dark:bg-blue-400/10 border-blue-200 dark:border-blue-400/30'}
-      textClassName={kind === 'admin' ? 'text-orange-700 dark:text-brand-orange' : 'text-blue-700 dark:text-blue-300'}
+      textClassName={kind === 'admin' ? 'text-orange-900 dark:text-orange-300' : 'text-blue-800 dark:text-blue-300'}
     />
   );
 }
@@ -79,9 +79,9 @@ export function guardianshipOf(birthdate: string | null | undefined, settings: O
 export function GuardianshipTag({ kind, size = 'sm' }: { kind: Guardianship; size?: 'sm' | 'md' }) {
   if (!kind) return null;
   return kind === 'minor' ? (
-    <Pill label="Minor" size={size} className="bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-300/30" textClassName="text-amber-800 dark:text-amber-300" />
+    <Pill label="Minor" size={size} className="bg-amber-50 dark:bg-amber-400/10 border-amber-200 dark:border-amber-300/30" textClassName="text-amber-900 dark:text-amber-300" />
   ) : (
-    <Pill label="Dependant" size={size} className="bg-violet-50 dark:bg-violet-400/10 border-violet-200 dark:border-violet-300/30" textClassName="text-violet-700 dark:text-violet-300" />
+    <Pill label="Dependant" size={size} className="bg-violet-50 dark:bg-violet-400/10 border-violet-200 dark:border-violet-300/30" textClassName="text-violet-800 dark:text-violet-300" />
   );
 }
 

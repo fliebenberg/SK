@@ -56,7 +56,7 @@ export function PersonBanner({ member, guardianship, isNarrow, onEdit, onEditPho
             {onApp ? (
               <View className="flex-row items-center gap-1">
                 <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                <Text className="font-inter-semibold text-sm text-emerald-700 dark:text-emerald-400">On ScoreKeeper</Text>
+                <Text className="font-inter-semibold text-sm text-emerald-800 dark:text-emerald-400">On ScoreKeeper</Text>
               </View>
             ) : null}
           </View>

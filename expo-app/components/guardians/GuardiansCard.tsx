@@ -114,7 +114,7 @@ export function GuardiansCard({ orgId, playerProfileId, playerName, guardians, c
                 <Text className="font-inter text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {[RELATIONSHIP_LABELS[link.relationship], link.guardianEmail, formatCellphone(link.guardianCellphone)].filter(Boolean).join(' · ')}
                 </Text>
-                <Text className={`font-inter text-xs mt-0.5 ${link.guardianHasAccount ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                <Text className={`font-inter text-xs mt-0.5 ${link.guardianHasAccount ? 'text-emerald-800 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
                   {link.guardianHasAccount ? 'On ScoreKeeper' : 'Not on ScoreKeeper yet'}
                 </Text>
               </View>
