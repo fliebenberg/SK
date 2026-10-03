@@ -55,8 +55,11 @@ const tokens = {
   ink: { light: '#0F172A', dark: '#FFFFFF' },
   /** Body text a step down: descriptions, secondary values. */
   'ink-soft': { light: '#334155', dark: '#CBD5E1' },
-  /** Labels, counts, meta lines. */
-  'ink-muted': { light: '#64748B', dark: '#94A3B8' },
+  /**
+   * Labels, counts, meta lines. The light value sits between slate-500 and slate-600: slate-500 is
+   * 4.34:1 on `sunken`, under the floor, and slate-600 comes too close to `ink-soft` (2026-10-04).
+   */
+  'ink-muted': { light: '#5A6779', dark: '#94A3B8' },
   /** Placeholders, disabled text and decorative marks — never text that must be read (2.6:1). */
   'ink-faint': { light: '#94A3B8', dark: '#64748B' },
   /** Text on a filled tone (a primary button). */
@@ -75,7 +78,11 @@ const tokens = {
   // --- Tones -------------------------------------------------------------------------------------
   /** The brand orange: primary buttons, links, the selected state. */
   primary: { light: '#FF3E00', dark: '#FF3E00' },
-  'primary-ink': { light: '#C2410C', dark: '#FF3E00' },
+  /**
+   * Links and orange text. Not the brand orange itself, which is 4.14:1 on dark `sunken`: a deeper
+   * burnt orange in light mode and a lighter one in dark, 6–7:1 on every surface (2026-10-04).
+   */
+  'primary-ink': { light: '#A8360A', dark: '#FF7A45' },
   'primary-soft': { light: '#FFF7ED', dark: darkSoft('#FF3E00') },
   'primary-line': { light: '#FED7AA', dark: darkLine('#FF3E00') },
 

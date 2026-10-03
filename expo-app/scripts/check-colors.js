@@ -92,7 +92,7 @@ function ratio(a, b) {
 const TONES = ['primary', 'accent', 'success', 'warning', 'danger', 'info', 'special'];
 const PAIRS = [
   ...['ink', 'ink-soft', 'ink-muted'].flatMap(t => ['card', 'canvas', 'field', 'sunken'].map(s => [t, s])),
-  ...TONES.flatMap(t => [[`${t}-ink`, 'card'], [`${t}-ink`, `${t}-soft`]]),
+  ...TONES.flatMap(t => [[`${t}-ink`, 'card'], [`${t}-ink`, 'sunken'], [`${t}-ink`, `${t}-soft`]]),
 ];
 const rows = [];
 for (const [text, surface] of PAIRS) {
