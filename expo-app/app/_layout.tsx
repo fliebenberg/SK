@@ -24,6 +24,7 @@ import { useUnsavedChangesStore } from '../store/unsavedChangesStore';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { ToastContainer } from '../components/ToastContainer';
 import { View } from 'react-native';
+import { themeColor } from '../constants/Colors';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -142,13 +143,13 @@ export default function RootLayout() {
     <ThemeManager>
       <Stack screenOptions={{
         headerStyle: {
-          backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+          backgroundColor: themeColor(isDark, 'card'),
         },
         headerTitleStyle: {
-          color: isDark ? '#FFFFFF' : '#0F172A',
+          color: themeColor(isDark, 'ink'),
           fontFamily: 'Orbitron_700Bold',
         },
-        headerTintColor: isDark ? '#FFFFFF' : '#0F172A',
+        headerTintColor: themeColor(isDark, 'ink'),
       }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="landing" options={{ headerShown: false }} />

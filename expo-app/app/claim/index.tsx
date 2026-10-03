@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useActiveTheme } from '../../store/settingsStore';
 import * as SecureStore from 'expo-secure-store';
 import { ResponsivePageLayout } from '../../components/ResponsivePageLayout';
+import { themeColor } from '../../constants/Colors';
 
 export default function ClaimIndexScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -93,8 +94,8 @@ export default function ClaimIndexScreen() {
     if (isLoading) {
       return (
         <View className="flex-1 items-center justify-center py-12">
-          <ActivityIndicator size="large" color="#F97316" />
-          <Text className="font-orbitron-bold text-slate-600 dark:text-slate-400 mt-4">
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+          <Text className="font-orbitron-bold text-ink-muted mt-4">
             VERIFYING INVITATION...
           </Text>
         </View>
@@ -104,13 +105,13 @@ export default function ClaimIndexScreen() {
     if (errorMsg) {
       return (
         <View className="items-center py-12 px-6">
-          <View className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-950 items-center justify-center mb-6">
-            <Ionicons name="warning" size={32} color="#EF4444" />
+          <View className="w-16 h-16 rounded-full bg-danger-soft items-center justify-center mb-6">
+            <Ionicons name="warning" size={32} color={themeColor(isDark, 'danger')} />
           </View>
-          <Text className="font-orbitron-bold text-2xl text-red-500 mb-4 text-center">
+          <Text className="font-orbitron-bold text-2xl text-danger-ink mb-4 text-center">
             INVALID INVITATION
           </Text>
-          <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center max-w-sm mb-8 leading-6">
+          <Text className="font-inter-medium text-ink-muted text-center max-w-sm mb-8 leading-6">
             {errorMsg}
           </Text>
           <Button 
@@ -126,14 +127,14 @@ export default function ClaimIndexScreen() {
     if (claimInfo?.status === 'claimed') {
       return (
         <View className="items-center py-12 px-6">
-          <View className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 items-center justify-center mb-6">
-            <Ionicons name="checkmark-circle" size={36} color="#10B981" />
+          <View className="w-16 h-16 rounded-full bg-success-soft items-center justify-center mb-6">
+            <Ionicons name="checkmark-circle" size={36} color={themeColor(isDark, 'success')} />
           </View>
-          <Text className="font-orbitron-bold text-2xl text-slate-900 dark:text-white mb-2 text-center">
+          <Text className="font-orbitron-bold text-2xl text-ink mb-2 text-center">
             ALREADY CLAIMED
           </Text>
-          <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center max-w-sm mb-8 leading-6">
-            The organization <Text className="font-inter-bold text-slate-900 dark:text-white">{claimInfo.organizationName}</Text> has already been claimed by its administrator.
+          <Text className="font-inter-medium text-ink-muted text-center max-w-sm mb-8 leading-6">
+            The organization <Text className="font-inter-bold text-ink">{claimInfo.organizationName}</Text> has already been claimed by its administrator.
           </Text>
           <Button 
             title="Back to Home" 
@@ -148,15 +149,15 @@ export default function ClaimIndexScreen() {
     if (claimInfo?.status === 'voided') {
       return (
         <View className="items-center py-12 px-6">
-          <View className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center mb-6">
-            <Ionicons name="close-circle" size={36} color="#64748B" />
+          <View className="w-16 h-16 rounded-full bg-sunken items-center justify-center mb-6">
+            <Ionicons name="close-circle" size={36} color={themeColor(isDark, 'ink-muted')} />
           </View>
-          <Text className="font-orbitron-bold text-2xl text-slate-900 dark:text-white mb-2 text-center">
+          <Text className="font-orbitron-bold text-2xl text-ink mb-2 text-center">
             ALREADY CLAIMED
           </Text>
           {/* Voided: the org got an administrator after this invitation was sent (`ORG-10`). */}
-          <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center max-w-sm mb-8 leading-6">
-            <Text className="font-inter-bold text-slate-900 dark:text-white">{claimInfo.organizationName}</Text> has already been claimed, so this invitation no longer works.
+          <Text className="font-inter-medium text-ink-muted text-center max-w-sm mb-8 leading-6">
+            <Text className="font-inter-bold text-ink">{claimInfo.organizationName}</Text> has already been claimed, so this invitation no longer works.
             {Array.isArray(claimInfo.adminNames) && claimInfo.adminNames.length > 0
               ? ` If you'd like to help run it, please contact its administrator${claimInfo.adminNames.length > 1 ? 's' : ''}, ${claimInfo.adminNames.join(', ')}.`
               : ' If you\'d like to help run it, please contact its administrator.'}
@@ -173,11 +174,11 @@ export default function ClaimIndexScreen() {
 
     return (
       <View className="items-center py-6 px-4">
-        <Text className="font-orbitron-bold text-slate-900 dark:text-white text-2xl text-center mb-2 tracking-wider">
+        <Text className="font-orbitron-bold text-ink text-2xl text-center mb-2 tracking-wider">
           CLAIM OWNERSHIP
         </Text>
         
-        <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center mb-4 max-w-sm leading-6">
+        <Text className="font-inter-medium text-ink-muted text-center mb-4 max-w-sm leading-6">
           You have been invited to claim administrative access for:
         </Text>
 
@@ -185,34 +186,34 @@ export default function ClaimIndexScreen() {
         <View className="items-center mb-6">
           <OrgLogo 
             logo={claimInfo?.organizationLogo}
-            primaryColor="#F97316"
+            primaryColor={themeColor(isDark, 'primary')}
             size="xl"
-            className="border-4 border-brand-orange/20 shadow-2xl mb-3"
+            className="border-4 border-primary-line shadow-2xl mb-3"
           />
-          <Text className="font-inter-bold text-slate-900 dark:text-white text-xl text-center">
+          <Text className="font-inter-bold text-ink text-xl text-center">
             {claimInfo?.organizationName}
           </Text>
         </View>
 
         {!isAuthenticated ? (
-          <GlassCard className="w-full max-w-sm p-6 items-center border border-slate-200/50 dark:border-slate-800/50 bg-slate-50/50 dark:bg-slate-900/50">
-            <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-sm text-center mb-6 leading-5">
+          <GlassCard className="w-full max-w-sm p-6 items-center border border-line-soft bg-sunken">
+            <Text className="font-inter-medium text-ink-muted text-sm text-center mb-6 leading-5">
               Please log in or create an account to claim this organization and become its official administrator.
             </Text>
             <Button 
               title="Log In to Proceed" 
               variant="primary" 
               onPress={handleRedirectToLogin}
-              className="w-full shadow-md shadow-brand-orange/20"
+              className="w-full shadow-md shadow-primary/20"
             />
           </GlassCard>
         ) : (
           <View className="w-full max-w-sm gap-4">
-            <View className="bg-brand-orange/10 dark:bg-brand-orange/5 border border-brand-orange/25 p-4 rounded-xl items-center mb-4">
-              <Text className="font-orbitron-bold text-xs text-brand-orange tracking-widest uppercase mb-1">
+            <View className="bg-primary-soft border border-primary-line p-4 rounded-xl items-center mb-4">
+              <Text className="font-orbitron-bold text-xs text-primary-ink tracking-widest uppercase mb-1">
                 Administrator Privileges
               </Text>
-              <Text className="font-inter-medium text-xs text-slate-600 dark:text-slate-400 text-center leading-4">
+              <Text className="font-inter-medium text-xs text-ink-muted text-center leading-4">
                 As administrator you will be able to add and manage organisation members, teams, facilities and much more.
               </Text>
             </View>
@@ -222,7 +223,7 @@ export default function ClaimIndexScreen() {
               variant="primary" 
               isLoading={claiming}
               onPress={handleClaim}
-              className="w-full shadow-md shadow-brand-orange/20"
+              className="w-full shadow-md shadow-primary/20"
             />
 
             <View className="flex-row justify-between w-full mt-4">
@@ -254,7 +255,7 @@ export default function ClaimIndexScreen() {
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingHorizontal: 16 }}
       >
         <View className="w-full max-w-md self-center">
-          <GlassCard className="p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-lg bg-white/80 dark:bg-slate-900/80">
+          <GlassCard className="p-6 border border-line-soft shadow-lg bg-card/80">
             {renderContent()}
           </GlassCard>
         </View>

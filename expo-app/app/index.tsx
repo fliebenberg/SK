@@ -3,7 +3,11 @@ import { useRouter } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 
+
+import { useActiveTheme } from '../store/settingsStore';
+import { themeColor } from '../constants/Colors';
 export default function IndexGateway() {
+  const isDark = useActiveTheme() === 'dark';
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const isHydrated = useAuthStore(state => state.isHydrated);
   const router = useRouter();
@@ -21,8 +25,8 @@ export default function IndexGateway() {
   }, [isHydrated, isAuthenticated]);
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
-      <ActivityIndicator size="large" color="#FF3E00" />
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: themeColor(isDark, 'canvas') }}>
+      <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
     </View>
   );
 }

@@ -12,6 +12,8 @@ import { League, Season, LeagueStandingRow, Game, Sport } from '@sk/shared';
 import { finishedScoreLine } from '../../utils/matchScore';
 import CustomSelect from '../../components/CustomSelect';
 import { formatFixtureWhen } from '../../utils/dates';
+import { themeColor } from '../../constants/Colors';
+
 
 export default function PublicLeagueStandings() {
   const router = useRouter();
@@ -132,18 +134,18 @@ export default function PublicLeagueStandings() {
     });
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['top', 'left', 'right']}>
+    <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-white/5 bg-white dark:bg-slate-900 z-10">
+      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
         <TouchableOpacity onPress={() => safeBack('/(tabs)/organizations')} className="flex-row items-center gap-1 active:opacity-85">
-          <Ionicons name="chevron-back" size={20} color="#FF3E00" />
-          <Text className="font-inter-bold text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider">Back</Text>
+          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
+          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">Back</Text>
         </TouchableOpacity>
         <View className="items-center max-w-[65%]">
-          <Text className="font-orbitron-bold text-sm tracking-widest text-slate-800 dark:text-white uppercase truncate text-center">
+          <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase truncate text-center">
             {league ? league.name : 'League Leaderboard'}
           </Text>
-          <Text className="font-inter text-[9px] text-slate-450 uppercase mt-0.5 tracking-wider">
+          <Text className="font-inter text-[9px] text-ink-muted uppercase mt-0.5 tracking-wider">
             {league ? getSportName(league.sportId) : ''}
           </Text>
         </View>
@@ -152,13 +154,13 @@ export default function PublicLeagueStandings() {
 
       {isLoadingLeague ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#FF3E00" />
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
       ) : (
         <View className="flex-1">
           {/* Season Selector bar */}
-          <View className="flex-row items-center justify-between px-6 py-3 bg-white dark:bg-slate-900/50 border-b border-slate-200 dark:border-white/5 gap-4">
-            <Text className="font-orbitron-bold text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active Season:</Text>
+          <View className="flex-row items-center justify-between px-6 py-3 bg-card border-b border-line gap-4">
+            <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-widest">Active Season:</Text>
             <CustomSelect
               value={selectedSeasonId}
               onChange={setSelectedSeasonId}
@@ -170,16 +172,16 @@ export default function PublicLeagueStandings() {
           </View>
 
           {/* Tabs */}
-          <View className="flex-row border-b border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900 px-4">
+          <View className="flex-row border-b border-line bg-card px-4">
             <TouchableOpacity
               onPress={() => setActiveTab('standings')}
               className="flex-1 items-center py-3 border-b-2 flex-row justify-center gap-1.5 active:opacity-80"
-              style={{ borderBottomColor: activeTab === 'standings' ? '#FF3E00' : 'transparent' }}
+              style={{ borderBottomColor: activeTab === 'standings' ? themeColor(isDark, 'primary') : 'transparent' }}
             >
-              <Ionicons name="trophy-outline" size={14} color={activeTab === 'standings' ? '#FF3E00' : '#94A3B8'} />
+              <Ionicons name="trophy-outline" size={14} color={themeColor(isDark, activeTab === 'standings' ? 'primary-ink' : 'ink-muted')} />
               <Text
                 className="font-orbitron-bold text-[10px] uppercase tracking-wider"
-                style={{ color: activeTab === 'standings' ? '#FF3E00' : '#94A3B8' }}
+                style={{ color: themeColor(isDark, activeTab === 'standings' ? 'primary-ink' : 'ink-muted') }}
               >
                 Standings
               </Text>
@@ -188,12 +190,12 @@ export default function PublicLeagueStandings() {
             <TouchableOpacity
               onPress={() => setActiveTab('fixtures')}
               className="flex-1 items-center py-3 border-b-2 flex-row justify-center gap-1.5 active:opacity-80"
-              style={{ borderBottomColor: activeTab === 'fixtures' ? '#FF3E00' : 'transparent' }}
+              style={{ borderBottomColor: activeTab === 'fixtures' ? themeColor(isDark, 'primary') : 'transparent' }}
             >
-              <Ionicons name="calendar-outline" size={14} color={activeTab === 'fixtures' ? '#FF3E00' : '#94A3B8'} />
+              <Ionicons name="calendar-outline" size={14} color={themeColor(isDark, activeTab === 'fixtures' ? 'primary-ink' : 'ink-muted')} />
               <Text
                 className="font-orbitron-bold text-[10px] uppercase tracking-wider"
-                style={{ color: activeTab === 'fixtures' ? '#FF3E00' : '#94A3B8' }}
+                style={{ color: themeColor(isDark, activeTab === 'fixtures' ? 'primary-ink' : 'ink-muted') }}
               >
                 Matches & Results
               </Text>
@@ -203,46 +205,46 @@ export default function PublicLeagueStandings() {
           {/* Tab content */}
           {isLoadingStandings ? (
             <View className="flex-1 items-center justify-center">
-              <ActivityIndicator size="small" color="#FF3E00" />
+              <ActivityIndicator size="small" color={themeColor(isDark, 'primary')} />
             </View>
           ) : (
             <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
               {activeTab === 'standings' && (
-                <GlassCard className="border border-slate-200 dark:border-white/5 p-4 overflow-hidden">
+                <GlassCard className="border border-line p-4 overflow-hidden">
                   <View className="overflow-x-auto">
                     <View className="min-w-[400px]">
                       {/* Table Header */}
-                      <View className="flex-row border-b border-slate-200 dark:border-white/5 pb-2">
-                        <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">Pos</Text>
-                        <Text className="flex-1 font-inter-bold text-[9px] text-slate-400 uppercase">Team</Text>
-                        <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">P</Text>
-                        <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">W</Text>
-                        <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">D</Text>
-                        <Text className="w-8 font-inter-bold text-[9px] text-slate-400 uppercase text-center">L</Text>
-                        <Text className="w-12 font-inter-bold text-[9px] text-slate-400 uppercase text-center">Diff</Text>
-                        <Text className="w-12 font-inter-bold text-[9px] text-slate-400 uppercase text-center">Pts</Text>
+                      <View className="flex-row border-b border-line pb-2">
+                        <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">Pos</Text>
+                        <Text className="flex-1 font-inter-bold text-[9px] text-ink-muted uppercase">Team</Text>
+                        <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">P</Text>
+                        <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">W</Text>
+                        <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">D</Text>
+                        <Text className="w-8 font-inter-bold text-[9px] text-ink-muted uppercase text-center">L</Text>
+                        <Text className="w-12 font-inter-bold text-[9px] text-ink-muted uppercase text-center">Diff</Text>
+                        <Text className="w-12 font-inter-bold text-[9px] text-ink-muted uppercase text-center">Pts</Text>
                       </View>
 
                       {/* Rows */}
                       {standings.map((row, idx) => (
-                        <View key={row.teamId} className="flex-row py-3 border-b border-slate-100 dark:border-white/5 items-center">
-                          <Text className="w-8 font-orbitron-bold text-xs text-slate-500 dark:text-slate-400 text-center">{idx + 1}</Text>
-                          <Text className="flex-1 font-orbitron-bold text-xs text-slate-800 dark:text-white truncate pr-2">{row.teamName}</Text>
-                          <Text className="w-8 font-inter text-xs text-slate-600 dark:text-slate-400 text-center">{row.played}</Text>
-                          <Text className="w-8 font-inter text-xs text-slate-600 dark:text-slate-400 text-center">{row.wins}</Text>
-                          <Text className="w-8 font-inter text-xs text-slate-600 dark:text-slate-400 text-center">{row.draws}</Text>
-                          <Text className="w-8 font-inter text-xs text-slate-600 dark:text-slate-400 text-center">{row.losses}</Text>
-                          <Text className={`w-12 font-inter-bold text-xs text-center ${row.pointsDifference > 0 ? 'text-emerald-500' : row.pointsDifference < 0 ? 'text-red-550' : 'text-slate-500'}`}>
+                        <View key={row.teamId} className="flex-row py-3 border-b border-line-soft items-center">
+                          <Text className="w-8 font-orbitron-bold text-xs text-ink-muted text-center">{idx + 1}</Text>
+                          <Text className="flex-1 font-orbitron-bold text-xs text-ink truncate pr-2">{row.teamName}</Text>
+                          <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.played}</Text>
+                          <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.wins}</Text>
+                          <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.draws}</Text>
+                          <Text className="w-8 font-inter text-xs text-ink-muted text-center">{row.losses}</Text>
+                          <Text className={`w-12 font-inter-bold text-xs text-center ${row.pointsDifference > 0 ? 'text-success-ink' : row.pointsDifference < 0 ? 'text-danger-ink' : 'text-ink-muted'}`}>
                             {row.pointsDifference > 0 ? `+${row.pointsDifference}` : row.pointsDifference}
                           </Text>
-                          <Text className="w-12 font-orbitron-bold text-xs text-brand-orange text-center">{row.points}</Text>
+                          <Text className="w-12 font-orbitron-bold text-xs text-primary-ink text-center">{row.points}</Text>
                         </View>
                       ))}
 
                       {standings.length === 0 && (
                         <View className="items-center justify-center py-12">
-                          <Ionicons name="trophy-outline" size={32} color="#94A3B8" className="opacity-40 mb-2" />
-                          <Text className="font-inter text-xs text-slate-450 text-center">No scores recorded yet.</Text>
+                          <Ionicons name="trophy-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="opacity-40 mb-2" />
+                          <Text className="font-inter text-xs text-ink-muted text-center">No scores recorded yet.</Text>
                         </View>
                       )}
                     </View>
@@ -253,26 +255,26 @@ export default function PublicLeagueStandings() {
               {activeTab === 'fixtures' && (
                 <View className="space-y-4">
                   {fixtures.map((game) => (
-                    <GlassCard key={game.id} className="border border-slate-200 dark:border-white/5 p-4">
+                    <GlassCard key={game.id} className="border border-line p-4">
                       <View className="flex-row justify-between items-center mb-2">
-                        <Text className="font-inter-bold text-[9px] text-slate-400 uppercase tracking-wide">
+                        <Text className="font-inter-bold text-[9px] text-ink-muted uppercase tracking-wide">
                           {formatTime(game)}
                         </Text>
-                        <View className={`px-2 py-0.5 rounded ${game.status === 'Finished' ? 'bg-slate-200/50 dark:bg-white/10' : 'bg-cyan-500/10 border border-cyan-500/20'}`}>
-                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${game.status === 'Finished' ? 'text-slate-500' : 'text-cyan-500'}`}>
+                        <View className={`px-2 py-0.5 rounded ${game.status === 'Finished' ? 'bg-sunken' : 'bg-accent-soft border border-accent-line'}`}>
+                          <Text className={`font-orbitron-bold text-[8px] uppercase tracking-wider ${game.status === 'Finished' ? 'text-ink-muted' : 'text-accent-ink'}`}>
                             {game.status}
                           </Text>
                         </View>
                       </View>
 
-                      <Text className="font-orbitron-bold text-sm text-slate-800 dark:text-white text-center py-2 uppercase tracking-wide">
+                      <Text className="font-orbitron-bold text-sm text-ink text-center py-2 uppercase tracking-wide">
                         {(game.participants?.[0] as any)?.teamName || 'Home'} 
-                        <Text className="text-brand-orange text-[10px] font-inter lowercase"> vs </Text> 
+                        <Text className="text-primary-ink text-[10px] font-inter lowercase"> vs </Text> 
                         {(game.participants?.[1] as any)?.teamName || 'Away'}
                       </Text>
 
                       {finishedScoreLine(game) && (
-                        <Text className="font-orbitron-bold text-base text-brand-orange text-center pb-2">
+                        <Text className="font-orbitron-bold text-base text-primary-ink text-center pb-2">
                           {finishedScoreLine(game)}
                         </Text>
                       )}
@@ -280,9 +282,9 @@ export default function PublicLeagueStandings() {
                   ))}
 
                   {fixtures.length === 0 && (
-                    <View className="items-center justify-center py-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl">
-                      <Ionicons name="calendar-outline" size={32} color="#94A3B8" className="opacity-45 mb-2" />
-                      <Text className="font-orbitron-bold text-xs text-slate-500 dark:text-slate-400">No Matches Scheduled</Text>
+                    <View className="items-center justify-center py-10 bg-card border border-line rounded-2xl">
+                      <Ionicons name="calendar-outline" size={32} color={themeColor(isDark, 'ink-muted')} className="opacity-45 mb-2" />
+                      <Text className="font-orbitron-bold text-xs text-ink-muted">No Matches Scheduled</Text>
                     </View>
                   )}
                 </View>

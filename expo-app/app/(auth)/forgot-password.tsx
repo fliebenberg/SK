@@ -6,13 +6,14 @@ import { useActiveTheme } from '../../store/settingsStore';
 import { apiService } from '../../services/api';
 import { useState } from 'react';
 import { useSafeBack } from '../../hooks/useSafeBack';
+import { themeColor } from '../../constants/Colors';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
-  const placeholderColor = isDark ? '#94A3B8' : '#64748B';
+  const placeholderColor = themeColor(isDark, 'ink-muted');
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -38,20 +39,20 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-900 justify-center p-6">
+    <View className="flex-1 bg-canvas justify-center p-6">
       <View className="w-full max-w-md self-center">
-        <Text className="font-orbitron-bold text-3xl text-brand-orange mb-6 text-center tracking-widest">
+        <Text className="font-orbitron-bold text-3xl text-primary-ink mb-6 text-center tracking-widest">
           RECOVER
         </Text>
         
         <GlassCard className="gap-4">
           {success ? (
             <View className="gap-4">
-              <View className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-lg p-4">
-                <Text className="text-emerald-800 dark:text-emerald-200 font-inter-bold text-sm mb-1">
+              <View className="bg-success-soft border border-success-line rounded-lg p-4">
+                <Text className="text-success-ink font-inter-bold text-sm mb-1">
                   Request Dispatched
                 </Text>
-                <Text className="text-emerald-700 dark:text-emerald-300 font-inter text-xs leading-relaxed">
+                <Text className="text-success-ink font-inter text-xs leading-relaxed">
                   If this email is associated with a ScoreKeeper account, you will receive a secure 6-digit passcode in your inbox shortly.
                 </Text>
               </View>
@@ -72,20 +73,20 @@ export default function ForgotPasswordScreen() {
           ) : (
             <>
               {error ? (
-                <View className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg p-4">
-                  <Text className="text-red-800 dark:text-red-200 font-inter-bold text-sm mb-1">
+                <View className="bg-danger-soft border border-danger-line rounded-lg p-4">
+                  <Text className="text-danger-ink font-inter-bold text-sm mb-1">
                     Recovery Failed
                   </Text>
-                  <Text className="text-red-700 dark:text-red-300 font-inter text-xs leading-relaxed">
+                  <Text className="text-danger-ink font-inter text-xs leading-relaxed">
                     {error}
                   </Text>
                 </View>
               ) : null}
 
               <View>
-                <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Email Address</Text>
+                <Text className="text-ink-muted font-inter mb-2">Email Address</Text>
                 <TextInput 
-                  className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+                  className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
                   placeholder="Enter registered email"
                   placeholderTextColor={placeholderColor}
                   value={email}
@@ -98,7 +99,7 @@ export default function ForgotPasswordScreen() {
 
               {isLoading ? (
                 <View className="py-4 items-center justify-center">
-                  <ActivityIndicator size="large" color="#FF3E00" />
+                  <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
                 </View>
               ) : (
                 <>

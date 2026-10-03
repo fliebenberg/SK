@@ -13,6 +13,7 @@ import { useWsStore } from '../../store/wsStore';
 import { useActiveTheme } from '../../store/settingsStore';
 import { Ionicons } from '@expo/vector-icons';
 import { ResponsivePageLayout } from '../../components/ResponsivePageLayout';
+import { themeColor } from '../../constants/Colors';
 
 export default function DeclineScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -72,8 +73,8 @@ export default function DeclineScreen() {
     if (isLoading) {
       return (
         <View className="flex-1 items-center justify-center py-12">
-          <ActivityIndicator size="large" color="#F97316" />
-          <Text className="font-orbitron-bold text-slate-600 dark:text-slate-400 mt-4">
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
+          <Text className="font-orbitron-bold text-ink-muted mt-4">
             LOADING DETAILS...
           </Text>
         </View>
@@ -83,13 +84,13 @@ export default function DeclineScreen() {
     if (errorMsg) {
       return (
         <View className="items-center py-12 px-6">
-          <View className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-950 items-center justify-center mb-6">
-            <Ionicons name="warning" size={32} color="#EF4444" />
+          <View className="w-16 h-16 rounded-full bg-danger-soft items-center justify-center mb-6">
+            <Ionicons name="warning" size={32} color={themeColor(isDark, 'danger')} />
           </View>
-          <Text className="font-orbitron-bold text-2xl text-red-500 mb-4 text-center">
+          <Text className="font-orbitron-bold text-2xl text-danger-ink mb-4 text-center">
             ERROR
           </Text>
-          <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center max-w-sm mb-8">
+          <Text className="font-inter-medium text-ink-muted text-center max-w-sm mb-8">
             {errorMsg}
           </Text>
           <Button 
@@ -105,20 +106,20 @@ export default function DeclineScreen() {
     if (submitted) {
       return (
         <View className="items-center py-12 px-6">
-          <View className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center mb-6">
-            <Ionicons name="close-circle" size={36} color="#64748B" />
+          <View className="w-16 h-16 rounded-full bg-sunken items-center justify-center mb-6">
+            <Ionicons name="close-circle" size={36} color={themeColor(isDark, 'ink-muted')} />
           </View>
-          <Text className="font-orbitron-bold text-2xl text-slate-900 dark:text-white mb-2 text-center">
+          <Text className="font-orbitron-bold text-2xl text-ink mb-2 text-center">
             INVITATION DECLINED
           </Text>
-          <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center max-w-sm mb-8 leading-6">
+          <Text className="font-inter-medium text-ink-muted text-center max-w-sm mb-8 leading-6">
             You have successfully declined the invitation. Your email address has been removed from our list for this organization.
           </Text>
           <Button 
             title="Back to Home" 
             variant="primary" 
             onPress={() => router.push('/')} 
-            className="w-full max-w-xs shadow-md shadow-brand-orange/20"
+            className="w-full max-w-xs shadow-md shadow-primary/20"
           />
         </View>
       );
@@ -130,24 +131,24 @@ export default function DeclineScreen() {
         <View className="mb-6 items-center justify-center">
           <OrgLogo 
             logo={claimInfo?.organizationLogo}
-            primaryColor="#F97316"
+            primaryColor={themeColor(isDark, 'primary')}
             size="xl"
-            className="border-4 border-brand-orange/20 shadow-2xl"
+            className="border-4 border-primary-line shadow-2xl"
           />
         </View>
 
-        <Text className="font-orbitron-bold text-slate-900 dark:text-white text-2xl text-center mb-2 tracking-wider">
+        <Text className="font-orbitron-bold text-ink text-2xl text-center mb-2 tracking-wider">
           DECLINE INVITATION
         </Text>
         
-        <Text className="font-inter-medium text-slate-600 dark:text-slate-400 text-center mb-8 max-w-sm leading-6">
-          Are you sure you want to decline the invitation to manage <Text className="font-inter-bold text-slate-900 dark:text-white">{claimInfo?.organizationName}</Text>?
+        <Text className="font-inter-medium text-ink-muted text-center mb-8 max-w-sm leading-6">
+          Are you sure you want to decline the invitation to manage <Text className="font-inter-bold text-ink">{claimInfo?.organizationName}</Text>?
         </Text>
 
         <View className="w-full max-w-sm gap-4">
-          <View className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 p-4 rounded-xl items-center mb-4">
-            <Ionicons name="trash-outline" size={20} color="#EF4444" className="mb-1" />
-            <Text className="font-inter-medium text-xs text-red-800 dark:text-red-200 text-center leading-4">
+          <View className="bg-danger-soft border border-danger-line p-4 rounded-xl items-center mb-4">
+            <Ionicons name="trash-outline" size={20} color={themeColor(isDark, 'danger')} className="mb-1" />
+            <Text className="font-inter-medium text-xs text-danger-ink text-center leading-4">
               If you decline, we will remove your email from our list for this organization. You won't be contacted again about this claim.
             </Text>
           </View>
@@ -157,7 +158,7 @@ export default function DeclineScreen() {
             variant="danger" 
             isLoading={submitting}
             onPress={handleDecline}
-            className="w-full shadow-md shadow-brand-red/20"
+            className="w-full shadow-md shadow-danger/20"
           />
 
           <Button 
@@ -178,7 +179,7 @@ export default function DeclineScreen() {
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: 24, paddingHorizontal: 16 }}
       >
         <View className="w-full max-w-md self-center">
-          <GlassCard className="p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-lg bg-white/80 dark:bg-slate-900/80">
+          <GlassCard className="p-6 border border-line-soft shadow-lg bg-card/80">
             {renderContent()}
           </GlassCard>
         </View>

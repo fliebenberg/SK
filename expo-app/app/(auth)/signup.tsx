@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import { apiService } from '../../services/api';
 import { useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { themeColor } from '../../constants/Colors';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function SignupScreen() {
   const login = useAuthStore(state => state.login);
   const activeTheme = useActiveTheme();
   const isDark = activeTheme === 'dark';
-  const placeholderColor = isDark ? '#94A3B8' : '#64748B';
+  const placeholderColor = themeColor(isDark, 'ink-muted');
   const [name, setName] = useState('');
   const [email, setEmail] = useState(typeof invitedEmail === 'string' ? invitedEmail : '');
   const [password, setPassword] = useState('');
@@ -88,28 +89,28 @@ export default function SignupScreen() {
   };
 
   return (
-    <View className="flex-1 bg-slate-50 dark:bg-slate-900 justify-center p-6">
+    <View className="flex-1 bg-canvas justify-center p-6">
       <View className="w-full max-w-md self-center">
-        <Text className="font-orbitron-bold text-3xl text-brand-orange mb-6 text-center tracking-widest">
+        <Text className="font-orbitron-bold text-3xl text-primary-ink mb-6 text-center tracking-widest">
           CREATE ACCOUNT
         </Text>
         
         <GlassCard className="gap-4">
           {error ? (
-            <View className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg p-4">
-              <Text className="text-red-800 dark:text-red-200 font-inter-bold text-sm mb-1">
+            <View className="bg-danger-soft border border-danger-line rounded-lg p-4">
+              <Text className="text-danger-ink font-inter-bold text-sm mb-1">
                 Registration Failed
               </Text>
-              <Text className="text-red-700 dark:text-red-300 font-inter text-xs leading-relaxed">
+              <Text className="text-danger-ink font-inter text-xs leading-relaxed">
                 {error}
               </Text>
             </View>
           ) : null}
 
           <View>
-            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Full Name</Text>
+            <Text className="text-ink-muted font-inter mb-2">Full Name</Text>
             <TextInput 
-              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
               placeholder="John Doe"
               placeholderTextColor={placeholderColor}
               value={name}
@@ -119,9 +120,9 @@ export default function SignupScreen() {
           </View>
 
           <View>
-            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Email</Text>
+            <Text className="text-ink-muted font-inter mb-2">Email</Text>
             <TextInput 
-              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
               placeholder="Enter your email"
               placeholderTextColor={placeholderColor}
               value={email}
@@ -133,10 +134,10 @@ export default function SignupScreen() {
           </View>
           
           <View>
-            <Text className="text-slate-600 dark:text-slate-400 font-inter mb-2">Password</Text>
+            <Text className="text-ink-muted font-inter mb-2">Password</Text>
             <PasswordInput
               purpose="new"
-              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
               placeholder="Create a password"
               placeholderTextColor={placeholderColor}
               value={password}
@@ -147,18 +148,18 @@ export default function SignupScreen() {
 
           <View>
             <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-slate-600 dark:text-slate-400 font-inter">Confirm Password</Text>
+              <Text className="text-ink-muted font-inter">Confirm Password</Text>
               {confirmPassword ? (
                 password === confirmPassword ? (
-                  <Text className="text-emerald-500 font-inter-bold text-xs uppercase tracking-wider">Matched</Text>
+                  <Text className="text-success-ink font-inter-bold text-xs uppercase tracking-wider">Matched</Text>
                 ) : (
-                  <Text className="text-red-500 font-inter-bold text-xs uppercase tracking-wider">Unmatched</Text>
+                  <Text className="text-danger-ink font-inter-bold text-xs uppercase tracking-wider">Unmatched</Text>
                 )
               ) : null}
             </View>
             <PasswordInput
               purpose="new"
-              className="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-lg p-4 font-inter"
+              className="bg-sunken text-ink border border-line rounded-lg p-4 font-inter"
               placeholder="Confirm your password"
               placeholderTextColor={placeholderColor}
               value={confirmPassword}
@@ -169,7 +170,7 @@ export default function SignupScreen() {
 
           {isLoading ? (
             <View className="py-4 items-center justify-center">
-              <ActivityIndicator size="large" color="#FF3E00" />
+              <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
             </View>
           ) : (
             <>
