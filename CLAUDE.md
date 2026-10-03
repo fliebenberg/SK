@@ -35,6 +35,11 @@ found and deliberately parked, grouped by area, each with a stable ID.
 
 Full rule: [.agent/skills/todo-checkin/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/todo-checkin/SKILL.md).
 
+**If a session opens with "let's work on <to-do>"**, first give a short reminder of what the item is
+about, your suggested plan, and any questions for the user, then wait for the go-ahead. Skip the
+reminder for to-dos raised later in the same session. Full rule:
+[.agent/skills/todo-kickoff/SKILL.md](file:///c:/Fred/Coding/SK/.agent/skills/todo-kickoff/SKILL.md).
+
 ## Client–server calls: no silent failures
 
 Every socket action the app sends goes through `sendAction` in
