@@ -32,6 +32,7 @@ import CustomSelect from '../../../../../../components/CustomSelect';
 import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
 import { venueInputsToInstant, venueTimeHint, venueTimeZone } from '../../../../../../utils/dates';
 import { useToastStore } from '../../../../../../store/toastStore';
+import { pickableTeams } from '../../../../../../components/teams/TeamBits';
 
 export default function ScheduleGame() {
   const router = useRouter();
@@ -222,9 +223,9 @@ export default function ScheduleGame() {
   // Resolve list of involved organizations
   const involvedOrgs = orgsList.filter(o => o.id === orgId || event?.participatingOrgIds?.includes(o.id));
 
-  // Resolve Home and Away Teams filtered by org & sport
-  const homeTeamsList = (orgTeams[selectedHomeOrgId] || []).filter(t => t.sportId === selectedSportId);
-  const awayTeamsList = (orgTeams[selectedAwayOrgId] || []).filter(t => t.sportId === selectedSportId);
+  // Resolve Home and Away Teams filtered by org & sport, leaving out inactive teams (docs/teams.md)
+  const homeTeamsList = pickableTeams(orgTeams[selectedHomeOrgId] || [], [selectedHomeTeamId]).filter(t => t.sportId === selectedSportId);
+  const awayTeamsList = pickableTeams(orgTeams[selectedAwayOrgId] || [], [selectedAwayTeamId]).filter(t => t.sportId === selectedSportId);
 
   // Team Quick-Create Trigger
   const handleCreateTeamTrigger = (targetOrgId: string) => {

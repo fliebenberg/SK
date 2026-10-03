@@ -16,6 +16,7 @@ import { nominateOrgContact } from '../services/nominations';
 import { GlassCard } from './GlassCard';
 import { AgeGroupPicker } from './AgeGroupPicker';
 import { getContrastColor } from '../utils/colorUtils';
+import { pickableTeams } from './teams/TeamBits';
 import { venueTimeHint, venueTimeZone, type TimeZone } from '../utils/dates';
 
 export interface MatchFormData {
@@ -360,15 +361,15 @@ export default function MatchForm({
     gameStatus,
   ]);
 
-  // Filter home teams by sport
+  // Filter home teams by sport; an inactive team only if it is already the one chosen.
   const filteredHomeTeams = useMemo(() => {
-    return homeTeams.filter(t => !selectedSportId || t.sportId === selectedSportId);
-  }, [homeTeams, selectedSportId]);
+    return pickableTeams(homeTeams, [selectedHomeTeamId]).filter(t => !selectedSportId || t.sportId === selectedSportId);
+  }, [homeTeams, selectedSportId, selectedHomeTeamId]);
 
-  // Filter away teams by sport
+  // Filter away teams by sport; an inactive team only if it is already the one chosen.
   const filteredAwayTeams = useMemo(() => {
-    return awayTeams.filter(t => !selectedSportId || t.sportId === selectedSportId);
-  }, [awayTeams, selectedSportId]);
+    return pickableTeams(awayTeams, [selectedAwayTeamId]).filter(t => !selectedSportId || t.sportId === selectedSportId);
+  }, [awayTeams, selectedSportId, selectedAwayTeamId]);
 
   // Quick Create Site Handler
   const handleQuickCreateSite = () => {

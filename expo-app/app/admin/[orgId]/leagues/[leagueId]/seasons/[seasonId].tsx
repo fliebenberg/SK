@@ -20,6 +20,7 @@ import { getOrgLogoUrl } from '../../../../../../services/assets';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { calendarRangeStatus, formatFixtureWhen, isCalendarDate } from '../../../../../../utils/dates';
+import { pickableTeams } from '../../../../../../components/teams/TeamBits';
 
 /** Where a season sits against the viewer's today. Its dates are calendar dates, both inclusive. */
 const calculateSeasonStatus = (startDate: string, endDate: string): 'UPCOMING' | 'ACTIVE' | 'COMPLETED' => {
@@ -416,7 +417,8 @@ export default function SeasonDetails() {
   };
 
   // Helper selectors
-  const availableTeams = orgTeams.filter(t => !seasonTeams.some(st => st.teamId === t.id));
+  // Teams that could still be registered: not in the season yet, and not inactive (docs/teams.md).
+  const availableTeams = pickableTeams(orgTeams).filter(t => !seasonTeams.some(st => st.teamId === t.id));
   const availableGames = orgGames.filter(g => !seasonGames.some(sg => sg.id === g.id));
 
   /** Third copy of this, extracted to `utils/dates.ts` in U49. Renders exactly as it always did. */
