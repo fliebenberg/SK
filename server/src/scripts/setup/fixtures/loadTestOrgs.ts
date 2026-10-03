@@ -147,7 +147,7 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
         const people: FixturePerson[] = [
             org.admin,
             ...org.staff,
-            ...org.teams.flatMap(t => [t.coach, ...t.players.filter((p): p is FixturePlayer => typeof p !== 'string')]),
+            ...org.teams.flatMap(t => [...(t.coach ? [t.coach] : []), ...t.players.filter((p): p is FixturePlayer => typeof p !== 'string')]),
             ...(org.members || []),
             ...(org.guardians || []),
         ];
@@ -231,16 +231,18 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
         for (const team of org.teams) {
             const teamId = fixtureIds.team(org.key, team.key);
             await insert('teams',
-                ['id', 'name', 'sport_id', 'age_group_id', 'org_id', 'is_active'],
-                [teamId, team.name, team.sportId, starterAgeGroupId(team.sportId, team.ageGroup), orgId, true]);
+                ['id', 'name', 'short_name', 'sport_id', 'age_group_id', 'org_id', 'is_active'],
+                [teamId, team.name, team.shortName ?? null, team.sportId, starterAgeGroupId(team.sportId, team.ageGroup), orgId, !team.inactive]);
 
             const addToTeam = async (person: FixturePerson, profileId: string, roleId: string, left?: string) =>
                 insert('team_memberships',
                     ['id', 'org_profile_id', 'team_id', 'role_id', 'start_date', 'end_date'],
                     [fixtureIds.teamMembership(org.key, team.key, person.name), profileId, teamId, roleId, FIXTURE_MEMBERSHIP_START, left ?? null]);
 
-            const coachProfile = await addPerson(team.coach, 'role-org-member');
-            await addToTeam(team.coach, coachProfile, 'role-coach');
+            if (team.coach) {
+                const coachProfile = await addPerson(team.coach, 'role-org-member');
+                await addToTeam(team.coach, coachProfile, 'role-coach');
+            }
 
             for (const [i, entry] of team.players.entries()) {
                 const player: FixturePlayer = typeof entry === 'string' ? { name: entry } : entry;
@@ -274,6 +276,55 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
                     [fixtureIds.guardianLink(org.key, guardian.name, child.name), orgId, guardianId, childId,
                      child.relationship, child.primary ?? false, FIXTURE_MEMBERSHIP_START, child.ended ?? null]);
             }
+        }
+
+        // Staff beyond each team's coach, from people already listed — nobody new, so no org ID moves.
+        for (const extra of org.teamStaff || []) {
+            const profileId = profiles.get(extra.name);
+            if (!profileId) throw new Error(`${extra.name} is on ${extra.team}'s staff but not listed in ${org.name}.`);
+            if (!org.teams.some(t => t.key === extra.team)) throw new Error(`${org.name} has no team ${extra.team}.`);
+            await insert('team_memberships',
+                ['id', 'org_profile_id', 'team_id', 'role_id', 'start_date', 'end_date'],
+                [fixtureIds.teamMembership(org.key, extra.team, extra.name), profileId, fixtureIds.team(org.key, extra.team), extra.role, FIXTURE_MEMBERSHIP_START, null]);
+        }
+    }
+
+    // Games last: the other side is another organisation's team, so every team must exist first.
+    for (const org of TEST_ORGS) {
+        for (const game of org.games || []) {
+            const team = org.teams.find(t => t.key === game.team);
+            const opponentOrg = TEST_ORGS.find(o => o.key === game.opponent.org);
+            if (!team) throw new Error(`${org.name} has no team ${game.team}.`);
+            if (!opponentOrg?.teams.some(t => t.key === game.opponent.team)) {
+                throw new Error(`Game ${game.key}: there is no team ${game.opponent.team} in ${game.opponent.org}.`);
+            }
+            const host = game.home ? org : opponentOrg;
+            const facility = host.site.facilities.find(fac => fac.sportId === team.sportId);
+            const ours = fixtureIds.team(org.key, game.team);
+            const theirs = fixtureIds.team(opponentOrg.key, game.opponent.team);
+            const [homeTeam, awayTeam] = game.home ? [ours, theirs] : [theirs, ours];
+            const homeId = fixtureIds.gameParticipant(org.key, game.key, 'home');
+            const awayId = fixtureIds.gameParticipant(org.key, game.key, 'away');
+            const finished = game.status === 'Finished';
+            // Scores are keyed by participant, as the app records a result.
+            const result = !finished ? null
+                : game.scoreNotProvided ? { notProvided: true }
+                : game.score ? { scores: game.home
+                    ? { [homeId]: game.score[0], [awayId]: game.score[1] }
+                    : { [homeId]: game.score[1], [awayId]: game.score[0] } }
+                : null;
+            const day = game.kickoff.slice(0, 10);
+
+            await insert('events',
+                ['id', 'name', 'type', 'start_date', 'end_date', 'site_id', 'org_id'],
+                [fixtureIds.event(org.key, game.key), game.event, 'SingleMatch', day, day, fixtureIds.site(host.key), fixtureIds.org(host.key)]);
+            await insert('games',
+                ['id', 'event_id', 'sport_id', 'scheduled_start_time', 'start_time', 'finish_time', 'status', 'site_id', 'facility_id', 'final_score_data', 'custom_settings'],
+                [fixtureIds.game(org.key, game.key), fixtureIds.event(org.key, game.key), team.sportId, game.kickoff,
+                 finished ? game.kickoff : null, null, game.status, fixtureIds.site(host.key),
+                 facility ? fixtureIds.facility(host.key, facility.key) : null, result, game.timeTbd ? { timeTbd: true } : {}]);
+            await insert('game_participants', ['id', 'game_id', 'team_id', 'sort_order'], [homeId, fixtureIds.game(org.key, game.key), homeTeam, 0]);
+            await insert('game_participants', ['id', 'game_id', 'team_id', 'sort_order'], [awayId, fixtureIds.game(org.key, game.key), awayTeam, 1]);
         }
     }
 

@@ -61,9 +61,14 @@ export interface FixtureTeam {
     sportId: 'rugby' | 'netball';
     /** A starter age group name (see ageGroupSeed.ts). */
     ageGroup: string;
+    /** Shown on the team's crest (docs/teams.md). Absent: the crest shows the age group. */
+    shortName?: string;
+    /** Deactivated: kept, but not offered when picking teams for new games. */
+    inactive?: boolean;
     /** Players are born in this year; the day within it comes from their position in the list. */
     birthYear: number;
-    coach: FixturePerson;
+    /** Absent only on a team with no people yet — add such a team last, so no org ID moves. */
+    coach?: FixturePerson;
     /** A plain string is a player with no email and no account. */
     players: (string | FixturePlayer)[];
 }
@@ -92,6 +97,45 @@ export interface FixtureGuardian extends FixturePerson {
         /** When the link ended. Absent means current. */
         ended?: string;
     }[];
+}
+
+/**
+ * Someone already listed in the organisation, on a team's staff in a role other than Coach — so
+ * a team has a manager and an assistant without anybody new, whose org ID would move others'.
+ */
+export interface FixtureTeamStaff {
+    /** A team key in this organisation. */
+    team: string;
+    /** A person already listed in this organisation. */
+    name: string;
+    role: 'role-assistant-coach' | 'role-manager' | 'role-scorer' | 'role-medic' | 'role-staff';
+}
+
+/**
+ * A game one of the organisation's teams plays, in an event of its own (a single match, as the
+ * app makes them). Loaded after every organisation, since the other side is another one's team.
+ * Dates are fixed, like everything here, so "upcoming" games stay Scheduled after their day.
+ */
+export interface FixtureGame {
+    /** Unique within the organisation; part of the event, game and participant ids. */
+    key: string;
+    /** The event's name — what the team page shows as the competition. */
+    event: string;
+    /** A team key in this organisation. */
+    team: string;
+    /** Another test organisation's team. */
+    opponent: { org: string; team: string };
+    /** At this organisation's site, and this team listed first; otherwise the opponent hosts. */
+    home: boolean;
+    /** Kick-off, an instant. */
+    kickoff: string;
+    /** The kick-off time is not set yet (noon venue time, as the app stores it). */
+    timeTbd?: boolean;
+    status: 'Scheduled' | 'Finished' | 'Cancelled';
+    /** This team's score, then the opponent's. */
+    score?: [number, number];
+    /** Finished, with the result recorded as not provided. */
+    scoreNotProvided?: boolean;
 }
 
 export interface FixtureFacility {
@@ -126,6 +170,8 @@ export interface FixtureOrg {
      */
     members?: FixtureMember[];
     guardians?: FixtureGuardian[];
+    teamStaff?: FixtureTeamStaff[];
+    games?: FixtureGame[];
 }
 
 const STANDARD_FACILITIES: FixtureFacility[] = [
@@ -153,7 +199,7 @@ export const TEST_ORGS: FixtureOrg[] = [
         ],
         teams: [
             {
-                key: 'rugby-u16a', name: 'U16 A', sportId: 'rugby', ageGroup: 'U16', birthYear: 2010,
+                key: 'rugby-u16a', name: 'U16 A', shortName: 'U16A', sportId: 'rugby', ageGroup: 'U16', birthYear: 2010,
                 coach: { name: 'Pieter Joubert', email: 'pieter.joubert@doringkloof.test', account: true },
                 players: [
                     'Ruan Potgieter', 'Jaco Swanepoel', 'Wian Kruger', 'Thabo Maseko', 'Divan Olivier',
@@ -163,7 +209,7 @@ export const TEST_ORGS: FixtureOrg[] = [
                 ],
             },
             {
-                key: 'rugby-1stxv', name: '1st XV', sportId: 'rugby', ageGroup: 'U19', birthYear: 2008,
+                key: 'rugby-1stxv', name: '1st XV', shortName: '1XV', sportId: 'rugby', ageGroup: 'U19', birthYear: 2008,
                 coach: { name: 'Hennie Steyn', email: 'hennie.steyn@doringkloof.test' },
                 players: [
                     { name: 'Francois Marais', email: 'francois.marais@doringkloof.test', account: true },
@@ -174,7 +220,7 @@ export const TEST_ORGS: FixtureOrg[] = [
                 ],
             },
             {
-                key: 'netball-u14a', name: 'U14 A', sportId: 'netball', ageGroup: 'U14', birthYear: 2012,
+                key: 'netball-u14a', name: 'U14 A', shortName: 'NB14A', sportId: 'netball', ageGroup: 'U14', birthYear: 2012,
                 coach: { name: 'Marelize Coetzee', email: 'marelize.coetzee@doringkloof.test' },
                 players: [
                     'Anika Kotzé', 'Mia Strydom', 'Zanele Mkhize', 'Carla Rossouw', 'Liné Janse van Rensburg',
@@ -189,6 +235,28 @@ export const TEST_ORGS: FixtureOrg[] = [
                     'Danielle Nortje', 'Amoré Blignaut', 'Thandeka Zwane', 'Jana Steenkamp', 'Bianca Cronjé',
                 ],
             },
+            // Two teams with nobody in them, last so no org ID moves (docs/teams.md): one just
+            // created, and one deactivated.
+            { key: 'netball-u19a', name: 'U19 A', sportId: 'netball', ageGroup: 'U19', birthYear: 2008, players: [] },
+            { key: 'rugby-u15a', name: 'U15 A', shortName: 'U15A', sportId: 'rugby', ageGroup: 'U15', birthYear: 2011, inactive: true, players: [] },
+        ],
+        // U16 A's staff beyond its coach, from people already listed.
+        teamStaff: [
+            { team: 'rugby-u16a', name: 'Annelie Botha', role: 'role-manager' },
+            { team: 'rugby-u16a', name: 'Marelize Coetzee', role: 'role-assistant-coach' },
+        ],
+        // U16 A's season, for the team page's Games card: wins, a draw, a loss, a result recorded
+        // as not provided, a cancelled game, and three to come — one with its time not set.
+        games: [
+            { key: 'u16a-r1', event: 'Winter league round 1', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, kickoff: '2026-08-15T08:00:00Z', status: 'Finished', score: [21, 10] },
+            { key: 'u16a-r2', event: 'Winter league round 2', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, kickoff: '2026-08-22T08:30:00Z', status: 'Finished', score: [14, 14] },
+            { key: 'u16a-r3', event: 'Winter league round 3', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: true, kickoff: '2026-08-29T08:00:00Z', status: 'Finished', score: [7, 19] },
+            { key: 'u16a-friendly', event: 'Friendly', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: false, kickoff: '2026-09-05T08:00:00Z', status: 'Finished', scoreNotProvided: true },
+            { key: 'u16a-r4', event: 'Winter league round 4', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: true, kickoff: '2026-09-12T08:00:00Z', status: 'Finished', score: [31, 5] },
+            { key: 'u16a-r5', event: 'Winter league round 5', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: false, kickoff: '2026-09-19T08:00:00Z', status: 'Cancelled' },
+            { key: 'u16a-r6', event: 'Winter league round 6', team: 'rugby-u16a', opponent: { org: 'sac', team: 'rugby-u16a' }, home: true, kickoff: '2026-10-10T07:00:00Z', status: 'Scheduled' },
+            { key: 'u16a-r7', event: 'Winter league round 7', team: 'rugby-u16a', opponent: { org: 'rbh', team: 'rugby-u16a' }, home: false, kickoff: '2026-10-17T08:30:00Z', status: 'Scheduled' },
+            { key: 'u16a-r8', event: 'Winter league round 8', team: 'rugby-u16a', opponent: { org: 'ksc', team: 'rugby-u16' }, home: true, kickoff: '2026-10-24T10:00:00Z', timeTbd: true, status: 'Scheduled' },
         ],
         members: [
             // An adult with a guardian: a *dependant* (docs/people.md §4). The app treats him as a
@@ -432,6 +500,9 @@ export const fixtureIds = {
     orgMembership: (orgKey: string, name: string) => `fx-om-${orgKey}-${fixtureSlug(name)}`,
     teamMembership: (orgKey: string, teamKey: string, name: string) =>
         `fx-tm-${orgKey}-${teamKey}-${fixtureSlug(name)}`,
+    event: (orgKey: string, gameKey: string) => `fx-event-${orgKey}-${gameKey}`,
+    game: (orgKey: string, gameKey: string) => `fx-game-${orgKey}-${gameKey}`,
+    gameParticipant: (orgKey: string, gameKey: string, side: 'home' | 'away') => `fx-gp-${orgKey}-${gameKey}-${side}`,
     guardianLink: (orgKey: string, guardianName: string, childName: string) =>
         `fx-pg-${orgKey}-${fixtureSlug(guardianName)}-${fixtureSlug(childName)}`,
     user: (name: string) => `fx-user-${fixtureSlug(name)}`,

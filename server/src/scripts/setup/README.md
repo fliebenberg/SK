@@ -31,13 +31,14 @@ Four made-up organisations, each with "Test" in its name:
 
 | Id | Name | Teams |
 | --- | --- | --- |
-| `fx-org-dkl` | Test Hoërskool Doringkloof | Rugby U16 A, 1st XV; Netball U14 A, U16 A |
+| `fx-org-dkl` | Test Hoërskool Doringkloof | Rugby U16 A, 1st XV, U15 A (inactive, empty); Netball U14 A, U16 A, U19 A (empty) |
 | `fx-org-sac` | Test St Aldric's College | Rugby U16 A, 1st XV; Netball U14 A, U16 A |
 | `fx-org-rbh` | Test Riverbend High School | Rugby U16 A, 1st XV; Netball U14 A, U16 A |
 | `fx-org-ksc` | Test Kwaggafontein Sports Club | Rugby U16 Lions, U19 Colts; Netball U14 Meteors, U16 Comets |
 
 Each organisation has one site with two rugby fields and three netball courts, an admin, staff,
-a coach for each team, 18 players in each rugby team and 10 in each netball team.
+a coach for each team, 18 players in each rugby team and 10 in each netball team — except
+Doringkloof's two empty teams, below.
 
 **Logging in.** Every account uses the password `Test1234!`. Each organisation has an account for
 its admin, a staff member, its U16 rugby coach and one 1st XV (U19) player. For example,
@@ -68,6 +69,17 @@ lists every person with `account: true`.
 
   Add new guardian cases in `guardians` (and adults outside teams in `members`) at the end of an
   organisation: those load after the teams, so nobody's org ID moves.
+- **Teams** ([teams.md](../../../../docs/teams.md)), at Doringkloof:
+  - **Short names** on U16 A (`U16A`), 1st XV (`1XV`) and U14 A (`NB14A`); Netball U16 A has none,
+    so its crest shows the age group.
+  - **Staff beyond the coach:** U16 A has Annelie Botha as Manager and Marelize Coetzee as
+    Assistant Coach — people already listed (`teamStaff`), so nobody new is numbered.
+  - **Two teams with nobody in them**, last in the list so no org ID moves: Netball U19 A, just
+    created, and Rugby U15 A, **inactive**.
+  - **A season of games** for Rugby U16 A against the other three schools (`games`), each a single
+    match in its own event: five results — two wins, a draw, a loss and one recorded as
+    not provided — a cancelled game, and three to come (2026-10-10, -17, -24), the last with its
+    time not set. Dates are fixed, so those stay Scheduled after their day.
 
 Anything a test needs beyond this, it adds itself. Keep this file as the shared base.
 
