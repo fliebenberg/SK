@@ -141,7 +141,25 @@ export interface FixtureGame {
 export interface FixtureFacility {
     key: string;
     name: string;
-    sportId: 'rugby' | 'netball';
+    /** Played on; absent for a facility that is not a playing area. */
+    sportId?: 'rugby' | 'netball';
+    /** `sport_field` unless said otherwise. */
+    category?: 'sport_field' | 'indoor_hall' | 'clubhouse' | 'shop' | 'parking' | 'restroom' | 'other';
+    /** Inactive: kept, but not offered by the pickers. */
+    inactive?: boolean;
+}
+
+/**
+ * A second (or third) site, beside the organisation's main one: on the same street, inactive, or
+ * with no address yet, so the Sites list and the site page have each state to show (docs/sites.md).
+ */
+export interface FixtureSite {
+    key: string;
+    name: string;
+    /** Absent: a site added before anyone knew its address. */
+    address?: { line1: string; suburb?: string; city: string; province: string; postalCode: string; latitude: number; longitude: number };
+    inactive?: boolean;
+    facilities: FixtureFacility[];
 }
 
 export interface FixtureOrg {
@@ -154,6 +172,8 @@ export interface FixtureOrg {
     secondaryColor: string;
     address: {
         line1: string;
+        /** The suburb, `address_line_2`. */
+        suburb?: string;
         city: string;
         province: string;
         postalCode: string;
@@ -161,6 +181,8 @@ export interface FixtureOrg {
         longitude: number;
     };
     site: { name: string; facilities: FixtureFacility[] };
+    /** More sites than the main one. Their games are not placed: every fixture game is at a main site. */
+    extraSites?: FixtureSite[];
     admin: FixturePerson;
     staff: FixturePerson[];
     teams: FixtureTeam[];
@@ -190,8 +212,41 @@ export const TEST_ORGS: FixtureOrg[] = [
         type: 'SCHOOL',
         primaryColor: '#7A1F2B',
         secondaryColor: '#E0B040',
-        address: { line1: '12 Kiepersol Avenue', city: 'Centurion', province: 'Gauteng', postalCode: '0157', latitude: -25.8603, longitude: 28.1894 },
-        site: { name: 'Main Campus', facilities: STANDARD_FACILITIES },
+        address: { line1: '12 Kiepersol Avenue', suburb: 'Doringkloof', city: 'Centurion', province: 'Gauteng', postalCode: '0157', latitude: -25.8603, longitude: 28.1894 },
+        site: {
+            name: 'Main Campus',
+            facilities: [
+                ...STANDARD_FACILITIES,
+                { key: 'court-4', name: 'Netball Court 4', sportId: 'netball', inactive: true },
+                { key: 'tuck-shop', name: 'Tuck Shop', category: 'shop' },
+                { key: 'parking', name: "Visitors' Parking", category: 'parking' },
+                { key: 'restrooms', name: 'Restrooms', category: 'restroom' },
+            ],
+        },
+        extraSites: [
+            {
+                key: 'club',
+                name: 'Sports Club Grounds',
+                address: { line1: '48 Kiepersol Avenue', suburb: 'Doringkloof', city: 'Centurion', province: 'Gauteng', postalCode: '0157', latitude: -25.8641, longitude: 28.1935 },
+                facilities: [
+                    { key: 'club-field', name: 'Club Field', sportId: 'rugby' },
+                    { key: 'clubhouse', name: 'Clubhouse', category: 'clubhouse' },
+                    { key: 'parking', name: 'Parking', category: 'parking' },
+                ],
+            },
+            {
+                key: 'old-b',
+                name: 'Old B-Field',
+                address: { line1: '3 Kiepersol Avenue', suburb: 'Doringkloof', city: 'Centurion', province: 'Gauteng', postalCode: '0157', latitude: -25.8589, longitude: 28.1871 },
+                inactive: true,
+                facilities: [{ key: 'old-b-field', name: 'Old B Field', sportId: 'rugby' }],
+            },
+            {
+                key: 'hall',
+                name: 'Community Hall',
+                facilities: [{ key: 'hall', name: 'Hall', sportId: 'netball', category: 'indoor_hall' }],
+            },
+        ],
         admin: { name: 'Johan van der Merwe', email: 'johan.vandermerwe@doringkloof.test', account: true },
         staff: [
             { name: 'Annelie Botha', email: 'annelie.botha@doringkloof.test', account: true },
@@ -494,6 +549,8 @@ export const fixtureIds = {
     org: (orgKey: string) => `fx-org-${orgKey}`,
     address: (orgKey: string) => `fx-addr-${orgKey}`,
     site: (orgKey: string) => `fx-site-${orgKey}`,
+    extraSite: (orgKey: string, siteKey: string) => `fx-site-${orgKey}-${siteKey}`,
+    extraSiteAddress: (orgKey: string, siteKey: string) => `fx-addr-${orgKey}-${siteKey}`,
     facility: (orgKey: string, facilityKey: string) => `fx-fac-${orgKey}-${facilityKey}`,
     team: (orgKey: string, teamKey: string) => `fx-team-${orgKey}-${teamKey}`,
     profile: (orgKey: string, name: string) => `fx-prof-${orgKey}-${fixtureSlug(name)}`,

@@ -7,11 +7,16 @@ import {
     FIXTURE_ORG_ROLES,
     FIXTURE_PASSWORD,
     FIXTURE_PASSWORD_HASH,
+    FixtureFacility,
+    FixtureOrg,
     FixturePerson,
     FixturePlayer,
     TEST_ORGS,
     fixtureIds,
 } from './testOrgs';
+
+/** A pinned test site's timezone, as the server would find it from the pin (`DATE-2`). */
+const SITE_TIMEZONE = 'Africa/Johannesburg';
 
 /** Every row the test organisations own has an id, or an `…_id`, starting with this. */
 const FIXTURE_PREFIX = 'fx-';
@@ -179,9 +184,10 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
         const a = org.address;
         const sportIds = [...new Set(org.teams.map(t => t.sportId))];
 
-        await insert('addresses',
-            ['id', 'full_address', 'address_line_1', 'city', 'province', 'postal_code', 'country', 'latitude', 'longitude'],
-            [addressId, `${a.line1}, ${a.city}, ${a.postalCode}, South Africa`, a.line1, a.city, a.province, a.postalCode, 'South Africa', a.latitude, a.longitude]);
+        const insertAddress = (id: string, at: FixtureOrg['address']) => insert('addresses',
+            ['id', 'full_address', 'address_line_1', 'address_line_2', 'city', 'province', 'postal_code', 'country', 'latitude', 'longitude'],
+            [id, [at.line1, at.suburb, at.city, at.postalCode, 'South Africa'].filter(Boolean).join(', '), at.line1, at.suburb || null, at.city, at.province, at.postalCode, 'South Africa', at.latitude, at.longitude]);
+        await insertAddress(addressId, a);
 
         await insert('organizations',
             ['id', 'name', 'logo', 'primary_color', 'secondary_color', 'short_name', 'is_claimed', 'creator_id', 'is_active', 'settings', 'address_id', 'type'],
@@ -195,14 +201,28 @@ export async function loadTestOrgs(client: PoolClient): Promise<FixtureCounts> {
             await insert('organization_roles', ['org_id', 'role_id'], [orgId, roleId]);
         }
 
-        await insert('sites', ['id', 'name', 'address_id', 'org_id', 'is_active'], [siteId, org.site.name, addressId, orgId, true]);
+        // Each facility's pin a step from its site's, so they spread out on the map.
+        const insertFacilities = async (forSiteId: string, idPrefix: string, at: { latitude: number; longitude: number } | null, facilities: FixtureFacility[]) => {
+            for (const [i, facility] of facilities.entries()) {
+                const facilityId = fixtureIds.facility(org.key, idPrefix + facility.key);
+                await insert('facilities',
+                    ['id', 'name', 'site_id', 'latitude', 'longitude', 'is_active', 'category', 'primary_sport_id'],
+                    [facilityId, facility.name, forSiteId, at ? at.latitude + 0.0008 * (i + 1) : null, at ? at.longitude + 0.0006 * (i + 1) : null,
+                     !facility.inactive, facility.category || 'sport_field', facility.sportId || null]);
+                if (facility.sportId) await insert('facility_sports', ['facility_id', 'sport_id'], [facilityId, facility.sportId]);
+            }
+        };
 
-        for (const [i, facility] of org.site.facilities.entries()) {
-            const facilityId = fixtureIds.facility(org.key, facility.key);
-            await insert('facilities',
-                ['id', 'name', 'site_id', 'latitude', 'longitude', 'is_active', 'category', 'primary_sport_id'],
-                [facilityId, facility.name, siteId, a.latitude + 0.0008 * (i + 1), a.longitude + 0.0006 * (i + 1), true, 'sport_field', facility.sportId]);
-            await insert('facility_sports', ['facility_id', 'sport_id'], [facilityId, facility.sportId]);
+        // The timezone the server would look up from the pin; every test organisation is in South Africa.
+        await insert('sites', ['id', 'name', 'address_id', 'org_id', 'is_active', 'timezone'], [siteId, org.site.name, addressId, orgId, true, SITE_TIMEZONE]);
+        await insertFacilities(siteId, '', a, org.site.facilities);
+
+        for (const extra of org.extraSites || []) {
+            const extraId = fixtureIds.extraSite(org.key, extra.key);
+            const extraAddressId = extra.address ? fixtureIds.extraSiteAddress(org.key, extra.key) : null;
+            if (extra.address && extraAddressId) await insertAddress(extraAddressId, extra.address);
+            await insert('sites', ['id', 'name', 'address_id', 'org_id', 'is_active', 'timezone'], [extraId, extra.name, extraAddressId, orgId, !extra.inactive, extra.address ? SITE_TIMEZONE : null]);
+            await insertFacilities(extraId, `${extra.key}-`, extra.address || null, extra.facilities);
         }
 
         // People, numbered in the order they are listed: that number is their identifier (a

@@ -80,6 +80,14 @@ lists every person with `account: true`.
     match in its own event: five results — two wins, a draw, a loss and one recorded as
     not provided — a cancelled game, and three to come (2026-10-10, -17, -24), the last with its
     time not set. Dates are fixed, so those stay Scheduled after their day.
+- **Sites** ([sites.md](../../../../docs/sites.md)), at Doringkloof:
+  - **The main site has more than playing fields:** a tuck shop, visitors' parking and restrooms,
+    and an **inactive** Netball Court 4.
+  - **Three more sites** (`extraSites`): Sports Club Grounds on the **same street** (48 Kiepersol
+    Avenue, beside the main site at 12), with a clubhouse and parking; Old B-Field, **inactive**; and
+    Community Hall, with **no address**, so its hall has no pin. Every fixture game is at a main
+    site, so these have none.
+  - A pinned site has the timezone the server would find from its pin (`Africa/Johannesburg`).
 
 Anything a test needs beyond this, it adds itself. Keep this file as the shared base.
 
