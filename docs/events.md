@@ -87,8 +87,9 @@ The section helpers are in [utils/dates.ts](file:///c:/Fred/Coding/SK/expo-app/u
 - **Events / All games** and **Upcoming / Past** are switches beside it. On a phone Mine / All takes
   Upcoming / Past's place, which moves into Filters; the upcoming list ends with **Past events and
   results**, and Past shows as a chip while it is on.
-- **Remembered on this device**: Mine / All and Events / All games. Until someone chooses, Admin and
-  Staff see All and everyone else Mine.
+- **Remembered on this device**: Mine / All, Events / All games, and the filters (per organisation).
+  Until someone chooses, Admin and Staff see All and everyone else Mine. The search term and
+  Upcoming / Past are not remembered.
 - **Filters** — one button, a panel (centred on a wide screen, a bottom sheet on a phone) whose
   choices apply as they are made; its button only closes it, saying how many are left ("Show 3
   events"). **Sport** with counts, only when the list has more than one; **Kind** (matches or

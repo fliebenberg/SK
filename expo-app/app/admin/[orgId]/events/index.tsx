@@ -77,6 +77,8 @@ type Scope = 'mine' | 'all';
 
 const SCOPE_KEY = 'eventsListScope';
 const VIEW_KEY = 'eventsListView';
+/** Per organisation, since the sports on offer differ between them. */
+const filtersKey = (orgId?: string) => `eventsListFilters:${orgId}`;
 
 const ADMIN_ROLES = ['role-org-admin', 'role-org-staff'];
 
@@ -122,7 +124,14 @@ export default function OrgEventsList() {
 
   const [search, setSearch] = useState('');
   const [when, setWhen] = useState<When>('upcoming');
-  const [filters, setFilters] = useState<EventListFilters>(NO_FILTERS);
+  /* The filters are remembered on this device too (decided 2026-10-04): reselecting them on every
+     visit was more irritating than a narrowed list is misleading, and a narrowed list says so — its
+     chips and count sit right under the search. Search and Upcoming / Past are not remembered: a
+     search is a one-off, and Past is a look back. */
+  const savedFilters = useSettingsStore(state => state.localOverrides[filtersKey(orgId)]) as EventListFilters | undefined;
+  const filters: EventListFilters = { ...NO_FILTERS, ...(savedFilters || {}) };
+  const setFilters = (next: EventListFilters | ((current: EventListFilters) => EventListFilters)) =>
+    setLocalOverride(filtersKey(orgId), typeof next === 'function' ? next(filters) : next);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [namingTournament, setNamingTournament] = useState(false);
 
