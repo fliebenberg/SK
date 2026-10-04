@@ -94,7 +94,7 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U16** | The implicit division is created silently with the tournament. | 6 |
 | **U17** | The wizard creates the shell; the event screen carries a setup checklist. | 7 |
 | **U18** | Copying an existing tournament is the first wizard question, with a choose-what-to-copy step. | 7 |
-| **U19** | One layout for v1, with tab order and default tab keyed off phase. | 8 |
+| **U19** | One layout for v1, with tab order and default tab keyed off phase. **Revised 2026-10-04**: the first tab is the default in every phase — *Setting up* while there is setup to do, *Overview* after. | 8 |
 | **U20** | Reading the schedule survives a dropped connection; entering a result queues; generating does not. | 8 |
 | **U21** | Entrants are entered on two axes — by division and by organisation. | 9 |
 | **U22** | One shared fixture-side component renders all three entrant states, and is built first. | 10 |
@@ -123,8 +123,8 @@ Recorded in place in the section each belongs to. This table is the index.
 | **U45** | A tournament is created by naming it. No wizard — the Setup screen is the form. | 7 |
 | **U46** | The setup sections follow the setup process. `Structure` is dissolved into Basics and What's being played (renamed `Sports & Divisions` by U50). | 7 |
 | **U47** | A tournament has a **base site** and a **set of facilities**. The base site is where it is, not what it may use. | 7 |
-| **U48** | The Setup tab is the checklist; every step is its own screen, saving itself. No accordion. | 7 |
-| **U49** | The checklist says what it is, what each step is for, and which to do next. The tab carries a dot, not a count. | 7 |
+| **U48** | The Setup tab is the checklist; every step is its own screen, saving itself. No accordion. **Superseded 2026-10-04** by the read-first tournament page ([events.md](file:///c:/Fred/Coding/SK/docs/events.md) §7): the first tab *is* the setup, as step cards with dialogs; Basic Info and Rules & scoring are no longer screens. | 7 |
+| **U49** | The checklist says what it is, what each step is for, and which to do next. The tab carries a dot, not a count. **Superseded 2026-10-04** with U48: the step cards carry a Done / In progress / Not started state and Next, and a segmented bar replaces the intro. | 7 |
 | **U50** | A tournament always shows its division(s) — one included. The step is `Sports & Divisions`. Narrows U15, renames U46's section. | 6, 7 |
 | **U51** | The tournament's sports are chosen first; each division plays one of them. Reverses U46's derivation. | 7 |
 | **U52** | Every sport has at least one division and every division plays one of the tournament's sports. Choosing a sport creates its division; a sport with divisions cannot be removed; deleting its last division removes it. | 7 |

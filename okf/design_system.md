@@ -107,9 +107,11 @@ Agreed 2026-10-01 while redesigning the org basic info screen ([docs/org-profile
 as rules to carry to other pages. So far they are applied to the org Profile, Settings and Nominate
 admin pages, the People list and person page ([people.md](file:///c:/Fred/Coding/SK/docs/people.md)),
 the Teams list and team page ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)), the Sites list
-and site page ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)) and the Fixtures & Events list
-([events.md](file:///c:/Fred/Coding/SK/docs/events.md)); other pages adopt them as they are next
-redesigned.
+and site page ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)), and the Fixtures & Events list
+and the tournament page ([events.md](file:///c:/Fred/Coding/SK/docs/events.md)); other pages adopt
+them as they are next redesigned. The tournament page applies rule 12 at page scale: while a
+tournament is being set up its first tab *is* the setup — numbered step cards that fold — and it
+becomes the public Overview once the setup is done.
 
 1.  **Read-first when a record is read more than it is edited.** Show values as text, one
     [`<ReadCard>`](file:///c:/Fred/Coding/SK/expo-app/components/ReadCard.tsx) per group. Each card's
@@ -172,6 +174,22 @@ redesigned.
     page: players, staff and games; the site page: facilities, location and coming up.
 19. **An action that is not available stays in the menu, disabled, saying why** — Delete team
     "Not available: this team has 9 games. Deactivate it instead." — rather than vanishing.
+20. **Work done in steps shows each step's state in one consistent way** (the tournament's *Setting
+    up* tab, 2026-10-04). Three states — **Done** (green, a tick), **In progress** (amber), **Not
+    started** (grey) — shown alike on the step's segment of a progress bar (one segment per step,
+    with gaps, never one bar filling up), on its number and on its status pill; **Next** is a
+    separate marker on the first unfinished step. A step that is used but unconfirmed — scoring on
+    its default — is *In progress*, not *Not started*.
+21. **A page of many cards may fold them to one line each**, keeping the line's summary ("Where ·
+    Main Campus · 5 facilities") so what was decided stays visible. Open the card the reader came
+    for (the Next step), fold the rest; a heading opens or closes its own card, several may be open,
+    *Open all / Close all* sits above them, and what is open is remembered on the device. A folded
+    card's Edit appears only when it is open, so a tap on the line never starts an edit.
+22. **A choice with more options than fit on one line scrolls sideways, never wraps** — arrows on a
+    wide screen, a swipe on a phone, the chosen option scrolled into view — with an **All N ▾**
+    fixed at its end that lists every option for a quick jump (with a search once there are many).
+    One choice at a time is shown under it: the tournament's sports, then the chosen sport's
+    divisions. A segmented control is still the answer for two to four options (rule 2).
 
 ## NativeWind v4 & React Native Styling Constraints
 

@@ -83,21 +83,18 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
     creation screen: it is named and dated in a dialog on the events list, written as a `Festival`
     (D1/U34) and opened on its own Setup tab, where the format and everything else is edited
     (U45). The route no longer takes a `type`.
-*   `/admin/[orgId]/events/[eventId]`: One event. A `SingleMatch` shows its game; a `Tournament` shows
-    its structure over `Setup / Schedule / Standings`, where **Setup is the setup checklist and
-    nothing else** (U17/U48); an event whose `type` cannot be recognised shows an **error state
-    rather than a Tournament** (U39 / `FIX-1`). Takes an optional `?tab=` so a step screen can
-    return to the checklist after a refresh or a deep link.
-*   `/admin/[orgId]/events/[eventId]/setup/basics`, `/setup/playing`, `/setup/scoring`,
-    `/setup/fixtures`: **One setup step each** (U48). Basics is the identity, dates, base site,
-    fields and organisers; playing is **Sports & Divisions** (U50–U52) — the tournament's sports,
-    which save as they are pressed and each create a first division, and the divisions grouped
-    under them; scoring is the points per
-    result; fixtures is a status and the ways to add one. Basics and scoring **save themselves** —
-    their own dirty state, their own [`<FloatingSaveBar>`](file:///c:/Fred/Coding/SK/expo-app/components/FloatingSaveBar.tsx),
-    and only their own fields in the write; playing writes on every press, and fixtures holds
-    nothing to save. Back always goes to the checklist, never to the previous
-    step. The frame they share is
+*   `/admin/[orgId]/events/[eventId]`: One event. A `SingleMatch` shows its game; a `Tournament` is
+    read-first (stage 2, [events.md](file:///c:/Fred/Coding/SK/docs/events.md) §7): its first tab is
+    **Setting up** — five step cards, the setup itself — for an organiser while it is being set up,
+    and **Overview** after and for everyone else, then `Schedule / Standings`. An event whose `type`
+    cannot be recognised shows an **error state rather than a Tournament** (U39 / `FIX-1`). Takes an
+    optional `?tab=` (`setup` is the first tab) so a screen can return to it after a refresh or a
+    deep link.
+*   `/admin/[orgId]/events/[eventId]/setup/playing`, `/setup/fixtures`: the two step screens left
+    from U48 — **Sports & Divisions** (the sports, their organisers, removing a sport) and
+    **Fixtures** (each division's draw state), reached from the Setting up cards until the
+    drill-down work (`FIX-26`–`FIX-28`) decides their place. Basic Info and Rules & scoring are
+    dialogs on the first tab since stage 2, and their routes are gone. The frame the two share is
     [useSetupStepScreen](file:///c:/Fred/Coding/SK/expo-app/hooks/useSetupStepScreen.ts); the order
     and the routes are
     [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts).

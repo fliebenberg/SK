@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,20 +25,15 @@ import {
   participantLabel,
   hasLiveScore,
   isScoreNotProvided,
-  drawChanges,
 } from '@sk/shared';
 
 import { Tabs } from '../../../../components/Tabs';
-import {
-  SetupChecklistIntro,
-  SetupDismissedSteps,
-  SetupChecklistRow,
-  SetupStep,
-} from '../../../../components/SetupChecklist';
 import { OverflowMenu } from '../../../../components/OverflowMenu';
 import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { formatDateRange, dateCountdown } from '../../../../utils/dates';
-import { SETUP_STEPS } from '../../../../components/tournament/setupSteps';
+import { TournamentHome, useTournamentSteps } from '../../../../components/tournament/TournamentHome';
+import { OrganizersDialog } from '../../../../components/tournament/TournamentDialogs';
+import { useOrgSummary } from '../../../../hooks/useOrgSummary';
 import { StandingsTable } from '../../../../components/tournament/StandingsTable';
 import { DivisionStandings } from '../../../../components/tournament/DivisionStandings';
 import { DivisionPanel } from '../../../../components/tournament/DivisionPanel';
@@ -48,7 +43,7 @@ import { useEventCapabilities, useMyEventGrants } from '../../../../hooks/useEve
 import { useEventEntrants } from '../../../../hooks/useEventEntrants';
 import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import { deriveEventRoles } from '@sk/shared';
-import { resolveEventType, tournamentFormatLabel, unknownEventTypeMessage } from '@sk/shared';
+import { resolveEventType, unknownEventTypeMessage } from '@sk/shared';
 import { isCollapsed } from '@sk/shared';
 import { themeColor } from '../../../../constants/Colors';
 
@@ -57,17 +52,12 @@ import { themeColor } from '../../../../constants/Colors';
  *
  * A `SingleMatch` is one game and shows it. A `Tournament` is a structure — divisions, stages and
  * the fixtures under them — and shows that, with the collapse rule (U15) hiding every level that
- * has only one child. Its Setup tab is the **checklist** and nothing else: five rows in the order
- * a tournament is actually set up (U46), each opening a screen of its own (U48). It is where a
- * tournament is finished rather than created — creation is a name and a date on the events list
- * (U45). A type we cannot name shows an error rather than guessing at Tournament, which is
- * `FIX-1` / U39.
- *
- * **The work left this file with U48.** The Setup tab used to hold six accordion sections and
- * every input they contained, one form, one save bar, and a pair of platform-specific pinning
- * mechanisms to keep the open section's heading visible. What is left of all that is the step
- * statuses — computed here because this is the screen that already holds the event, its divisions,
- * its fixtures and its entrants — and the rows that report them.
+ * has only one child. A tournament's first tab is read-first (stage 2, docs/events.md): *Setting up*
+ * — five step cards, the setup itself — while there is setup to do, and the *Overview* after and
+ * for everyone else ([TournamentHome](../../../../components/tournament/TournamentHome.tsx)). It
+ * replaced the U48 checklist, whose rows each opened a step screen of their own (closes `UI-11`).
+ * Creation is a name and a date on the events list (U45). A type we cannot name shows an error
+ * rather than guessing at Tournament, which is `FIX-1` / U39.
  *
  * **The screen reads from rooms rather than fetching.** Joining `event:{id}` pushes the event, its
  * fixture summaries, its divisions and the event-level table, so there is no `get_data` for any of
@@ -285,19 +275,19 @@ export default function EventDetails() {
   // ------------------------------------------------------------------------------------------
 
   /**
-   * `Setup / Schedule / Standings` for an organiser; `Schedule / Standings` for everyone else.
+   * The first tab, then `Schedule / Standings` (docs/events.md, stage 2).
    *
-   * Setup is where the checklist lives **and** where every input it points at lives, so a step is
-   * always one tap from the thing that completes it. Settings is gone as a tab: its contents were
-   * setup, and the danger zone sits at the bottom of Setup, which is the last place you go for a
-   * tournament. The default tab keys off phase (§8): Setup while the checklist is incomplete,
-   * Schedule once it is done. Reversed 2026-09-07 from "checklist at the top of Schedule", which
-   * left three of six steps with nowhere to go.
+   * The first tab is *Setting up* for an organiser while the tournament is being set up — the setup
+   * itself, five step cards — and *Overview* once it is set up, and for everyone else: the
+   * tournament as everyone sees it. Its key stays `setup`, so `?tab=setup` from a division or
+   * entrants screen still lands on it. It is the default tab in every phase.
    */
   const [activeTab, setActiveTab] = useState<'setup' | 'schedule' | 'standings'>(
-    () => (tabParam === 'setup' || tabParam === 'standings' ? tabParam : 'schedule')
+    () => (tabParam === 'schedule' || tabParam === 'standings' ? tabParam : 'setup')
   );
-  const defaultTabApplied = useRef(false);
+  const [organizersOpen, setOrganizersOpen] = useState(false);
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
 
   /**
    * Which subject the table ranks (U28) — `all`, or a division id.
@@ -390,210 +380,18 @@ export default function EventDetails() {
    */
   const standingsRows: LeagueStandingRow[] = serverStandings;
 
-  const dismissedSteps = event?.settings?.dismissedSetupSteps || [];
-
-  const saveDismissed = (next: string[]) => {
-    if (!event) return;
-    void sendAction(SocketAction.UPDATE_EVENT, {
-      id: eventId,
-      orgId,
-      data: { settings: { ...(event.settings || {}), dismissedSetupSteps: next } },
-    });
-  };
-
-  /**
-   * Where each step stands, in the order the work is actually done (U46).
-   *
-   * The order, the labels and the routes are
-   * [setupSteps.ts](file:///c:/Fred/Coding/SK/expo-app/components/tournament/setupSteps.ts); what
-   * is computed here is the half that needs data — whether a step is done, and the line of detail
-   * that says where it has got to. This screen already holds the event, its divisions, its
-   * fixtures and its entrants, so the statuses cost nothing; a checklist that fetched to render a
-   * number would fetch on every broadcast.
-   *
-   * Scoring comes before fixtures rather than last, because it is a rule of the competition rather
-   * than a finishing touch: it binds the moment the first result is entered, and leaving it to the
-   * end is how a morning gets scored on defaults nobody chose.
-   *
-   * A step is done by the **state of the data**, never by having been visited — which is what
-   * keeps this a checklist rather than a wizard (U17), now that each step has a screen it could
-   * plausibly have been marked complete by leaving.
-   */
-  const setupSteps: SetupStep[] = useMemo(() => {
-    const fixtureCount = games.length;
-    const playingDivisions = orderedDivisions.filter(division => !!division.sportId);
-    const drawnDivisions = playingDivisions.filter(division =>
-      games.some(game => game.divisionId === division.id)
-    ).length;
-    // The same reading the Fixtures step's rows make (`UI-21`), so the two cannot disagree.
-    const divisionsWithChanges = playingDivisions.filter(
-      division =>
-        drawChanges(
-          division.firstStageId,
-          games.filter(game => game.divisionId === division.id),
-          entrantsByDivision.get(division.id) || []
-        ).count > 0
-    ).length;
-    const scoring = event?.settings?.scoring;
-    const scoringDetail =
-      scoring?.mode === 'byResult'
-        ? `${scoring.pointsPerWin} / ${scoring.pointsPerDraw} / ${scoring.pointsPerLoss} for a win, draw, loss`
-        : scoring?.mode === 'byPlacing'
-        ? 'Points by finishing position'
-        : 'Using the default 3 / 1 / 0';
-
-    // The same formatter the header uses — this row said `2026-09-19` under a header reading
-    // `Sat 19 Sep 2026` until U49, which is the disagreement this consolidation is about.
-    const whenLabel = formatDateRange(event?.startDate, event?.endDate, { compact: true });
-    const venueName = sites.find(s => s.id === event?.siteId)?.name;
-    const facilityCount = savedFacilityIds.length;
-    const invitedCount = (event?.participatingOrgs || []).length;
-
-    const state: Record<string, Omit<SetupStep, 'key' | 'label' | 'dismissible'>> = {
-      basics: {
-        status: event?.siteId || facilityCount > 0 ? 'done' : 'todo',
-        detail:
-          [
-            whenLabel,
-            venueName,
-            facilityCount > 0
-              ? `${facilityCount} facilit${facilityCount === 1 ? 'y' : 'ies'}`
-              : undefined,
-            organizers.length > 0
-              ? `${organizers.length} organiser${organizers.length === 1 ? '' : 's'}`
-              : undefined,
-          ]
-            .filter(Boolean)
-            .join(' · ') || undefined,
-      },
-      divisions: {
-        status: effectiveSportIds.length > 0 ? 'done' : 'todo',
-        detail:
-          [
-            effectiveSportIds.map(id => sportName(id)).filter(Boolean).join(', ') || undefined,
-            orderedDivisions.length > 0
-              ? `${orderedDivisions.length} division${orderedDivisions.length === 1 ? '' : 's'}`
-              : undefined,
-            divisionsWithoutSport > 0 ? `${divisionsWithoutSport} without a sport` : undefined,
-          ]
-            .filter(Boolean)
-            .join(' · ') || undefined,
-        hint:
-          effectiveSportIds.length > 0
-            ? undefined
-            : 'Choose the sports being played. Each gets its first division straight away; add more for age groups.',
-      },
-      entrants: {
-        status: entrantCount > 0 ? 'done' : 'todo',
-        detail:
-          [
-            invitedCount > 0 ? `${invitedCount} invited` : undefined,
-            entrantCount > 0 ? `${entrantCount} entered` : undefined,
-          ]
-            .filter(Boolean)
-            .join(' · ') || undefined,
-        hint:
-          entrantCount > 0
-            ? undefined
-            : 'Invite the organisations coming, then enter teams by division or a school at a time.',
-      },
-      /**
-       * `default` rather than `todo` when nothing has been chosen (U49).
-       *
-       * The row used to say "Using the default 3 / 1 / 0" and carry the word **To do** beside it,
-       * which is a contradiction: it reported the competition as already scored and unscored at
-       * once. It is neither — 3 / 1 / 0 is what the server will use (D17), so nothing is blocked,
-       * but nobody has agreed to it, so it is not done either.
-       */
-      scoring: {
-        status: scoring ? 'done' : 'default',
-        detail: scoring ? scoringDetail : undefined,
-        hint: 'Points default to 3 / 1 / 0 for a win, draw and loss. Open to confirm or change them.',
-      },
-      /**
-       * Done when every division that plays something has fixtures (2026-09-24). "Any fixture at
-       * all" read as done for a sports day with one division drawn and five still waiting, which is
-       * the question this row exists to answer — the draw is per division, so the count is too.
-       */
-      fixtures: {
-        // A draw the roster has moved away from is not done: somebody is due to play and has no
-        // fixture, or a withdrawn team still holds fixtures nobody will turn up for.
-        status:
-          playingDivisions.length > 0
-            ? drawnDivisions === playingDivisions.length && divisionsWithChanges === 0 ? 'done' : 'todo'
-            : fixtureCount > 0 ? 'done' : 'todo',
-        detail:
-          fixtureCount > 0
-            ? [
-                playingDivisions.length > 1
-                  ? drawnDivisions === playingDivisions.length
-                    ? 'All divisions drawn'
-                    : `${drawnDivisions} of ${playingDivisions.length} divisions drawn`
-                  : undefined,
-                divisionsWithChanges > 0
-                  ? playingDivisions.length > 1
-                    ? `${divisionsWithChanges} with changes since the draw`
-                    : 'Changes since the draw'
-                  : undefined,
-                `${fixtureCount} fixture${fixtureCount === 1 ? '' : 's'}`,
-              ]
-                .filter(Boolean)
-                .join(' · ')
-            : undefined,
-        hint:
-          fixtureCount > 0
-            ? undefined
-            : entrantCount >= 2
-            ? 'A draw can be generated for you, or add fixtures by hand.'
-            : 'Fixtures follow entrants — or add them by hand at any time.',
-      },
-    };
-
-    return SETUP_STEPS.map(step => ({
-      key: step.key,
-      label: step.label,
-      purpose: step.purpose,
-      icon: step.icon,
-      dismissible: step.dismissible,
-      ...state[step.key],
-    }));
-  }, [
-    orderedDivisions,
-    effectiveSportIds,
-    divisionsWithoutSport,
+  /** Where each setup step stands, and the tournament's host for the Schools list. */
+  const { steps: setupSteps, complete: setupComplete, nextIndex } = useTournamentSteps({
+    event,
+    divisions: orderedDivisions,
+    games,
+    entrants,
+    entrantsByDivision,
+    facilityIds: savedFacilityIds,
     sports,
     sites,
-    organizers.length,
-    savedFacilityIds.length,
-    games,
-    entrantsByDivision,
-    entrantCount,
-    event?.siteId,
-    event?.startDate,
-    event?.endDate,
-    event?.participatingOrgs,
-    event?.settings?.scoring,
-    orgId,
-    eventId,
-  ]);
-
-  const visibleSteps = setupSteps.filter(step => !dismissedSteps.includes(step.key));
-  const hiddenSteps = setupSteps.filter(step => dismissedSteps.includes(step.key));
-  const setupComplete = visibleSteps.every(step => step.status === 'done');
-  const openStep = (key: string) => {
-    const href = SETUP_STEPS.find(s => s.key === key)?.href(orgId, eventId);
-    if (href) router.push(href as any);
-  };
-
-  /**
-   * Land an organiser on Setup while there is setup to do, once, when we first learn they may
-   * edit. Not re-evaluated afterwards: a step completing under them must not yank the tab.
-   */
-  useEffect(() => {
-    if (defaultTabApplied.current || !event || !capabilities) return;
-    defaultTabApplied.current = true;
-    if (canEdit && !setupComplete) setActiveTab('setup');
-  }, [event, capabilities, canEdit, setupComplete]);
+  });
+  const { org: hostOrg } = useOrgSummary(event?.orgId);
 
   // ------------------------------------------------------------------------------------------
   // Actions
@@ -665,12 +463,14 @@ export default function EventDetails() {
   const isMultiDay = !!dateLabel && dateLabel.includes('–');
   const subjectNoun = resolved.kind === 'SingleMatch' ? 'match' : 'tournament';
 
+  const resultsRecorded = games.filter(g => g.status === 'Finished').length;
   const header = (
     <>
       {/* One of the thirty-four screens `UI-10` is about, converted here because U49 was rewriting
           this header anyway and the menu it gained is exactly what the `right` prop is for. */}
       <ScreenHeader
-        title={event.name}
+        /* A tournament's name is its banner's (stage 2), so the bar names what the page is. */
+        title={resolved.kind === 'Tournament' ? 'Tournament' : event.name}
         onBack={() => safeBack(`/admin/${orgId}/events`)}
         right={
           /* The danger zone, relocated here from the bottom of the Setup tab (U49): it belongs to
@@ -683,6 +483,16 @@ export default function EventDetails() {
               accessibilityLabel="Event actions"
               title={`This ${subjectNoun}`}
               items={[
+                ...(resolved.kind === 'Tournament'
+                  ? [{
+                      // Most tournaments have no organiser besides the host's admins, so there is
+                      // no empty card for them (read-first rule 13): appointing one starts here.
+                      label: 'Organisers',
+                      description: 'Others who run this tournament — from your organisation or a school taking part.',
+                      icon: 'people-outline' as const,
+                      onPress: () => setOrganizersOpen(true),
+                    }]
+                  : []),
                 {
                   label: 'Cancel event',
                   description: `Marks the ${subjectNoun} as cancelled. Nothing is deleted.`,
@@ -692,12 +502,17 @@ export default function EventDetails() {
                 },
                 {
                   label: 'Delete event',
+                  // Rule 19: not available stays in the menu, saying why — once results are
+                  // recorded a tournament is cancelled, not deleted.
                   description:
                     resolved.kind === 'SingleMatch'
                       ? 'Permanently deletes the match and everything recorded against it.'
+                      : resultsRecorded
+                      ? `Not available: ${resultsRecorded} result${resultsRecorded === 1 ? ' is' : 's are'} recorded. Cancel it instead.`
                       : 'Permanently deletes the tournament, its divisions and its fixtures.',
                   icon: 'trash-outline',
                   destructive: true,
+                  disabled: resolved.kind === 'Tournament' && resultsRecorded > 0,
                   onPress: () => setIsDeleting(true),
                 },
               ]}
@@ -706,6 +521,7 @@ export default function EventDetails() {
         }
       />
 
+      {resolved.kind !== 'Tournament' ? (
       <View className="bg-card px-6 py-2.5 flex-row justify-between items-center gap-3 border-b border-line-soft">
         <View className="flex-row items-center gap-2.5 flex-1 min-w-0">
           <Ionicons name="calendar-outline" size={16} color={themeColor(isDark, 'primary')} />
@@ -731,11 +547,12 @@ export default function EventDetails() {
           <View className="bg-sunken px-2 py-0.5 rounded">
             <Text className="font-orbitron-bold text-[9px] text-ink-muted uppercase tracking-widest">
               {/* A tournament is described by its format, which is also its label (U34). */}
-              {resolved.kind === 'Tournament' ? tournamentFormatLabel(event) : resolved.label}
+              {resolved.label}
             </Text>
           </View>
         </View>
       </View>
+      ) : null}
     </>
   );
 
@@ -916,28 +733,11 @@ export default function EventDetails() {
 
       <View className="bg-card">
         <Tabs
-          items={
-            canEdit
-              ? [
-                  {
-                    /**
-                     * A dot, not a count (U49). The badge read `2` — outstanding steps, counting
-                     * down — directly above a progress bar counting *done* steps up, and a bare
-                     * number beside a tab label is read as unread items anyway. The dot says
-                     * there is work here; the page behind it says how much, in words.
-                     */
-                    key: 'setup',
-                    label: 'Setup',
-                    dot: !setupComplete,
-                  },
-                  { key: 'schedule', label: 'Schedule' },
-                  { key: 'standings', label: 'Standings' },
-                ]
-              : [
-                  { key: 'schedule', label: 'Schedule' },
-                  { key: 'standings', label: 'Standings' },
-                ]
-          }
+          items={[
+            { key: 'setup', label: canEdit && !setupComplete ? 'Setting up' : 'Overview' },
+            { key: 'schedule', label: 'Schedule' },
+            { key: 'standings', label: 'Standings' },
+          ]}
           activeKey={activeTab}
           onChange={(key) => setActiveTab(key as typeof activeTab)}
         />
@@ -947,33 +747,31 @@ export default function EventDetails() {
           `stickyHeaderIndices` addresses a scroll's children by position and a `false` sibling is
           stripped on native but kept on web — so the pinned row differed between platforms. With
           the steps on their own screens there is nothing to pin and nothing to index (U48). */}
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 60 }}>
-        {/* The checklist (U48): where every step stands, and the way in to each one. There is no
-            save bar here — a step is saved on its own screen, so this tab can never be dirty. */}
-        {activeTab === 'setup' && canEdit && (
-          <View className="gap-3">
-            {/* What the list is, and how far through it this tournament is. The rows below say
-                where each step stands; nothing but this says what they add up to, or that none of
-                it has to be done today — which is the thing an organiser opening a half-finished
-                tournament in March actually wants to be told. */}
-            <View className="pb-1">
-              <SetupChecklistIntro steps={visibleSteps} />
-            </View>
-
-            {/* Outstanding steps are tinted, done ones are not, so where the work is left reads
-                off the shape of the list before a word of it is (U49). No separate "next up" card:
-                that put a summary back above the list, which is the shape this page has failed as
-                twice before. */}
-            {visibleSteps.map(step => (
-              <SetupChecklistRow key={step.key} step={step} onPress={() => openStep(step.key)} />
-            ))}
-
-            <View className="pt-2">
-              <SetupDismissedSteps
-                steps={hiddenSteps}
-                onRestore={key => saveDismissed(dismissedSteps.filter(k => k !== key))}
-              />
-            </View>
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}>
+        {/* The first tab (stage 2): Setting up while there is setup to do, the Overview after. Each
+            card saves itself through its own dialog, so the tab is never dirty. */}
+        {activeTab === 'setup' && (
+          <View className="w-full self-center" style={{ maxWidth: canEdit && !setupComplete ? 780 : 960 }}>
+            <TournamentHome
+              event={event}
+              orgId={orgId}
+              canEdit={canEdit}
+              isWide={isWide}
+              steps={setupSteps}
+              nextIndex={nextIndex}
+              complete={setupComplete}
+              sports={sports}
+              sites={sites}
+              facilities={facilities}
+              facilityIds={savedFacilityIds}
+              divisions={orderedDivisions}
+              games={games}
+              entrantsByDivision={entrantsByDivision}
+              organizers={organizers}
+              onEditOrganizers={() => setOrganizersOpen(true)}
+              hostOrg={hostOrg}
+              viewerOrgIds={(orgMemberships || []).map((m: any) => m.orgId)}
+            />
           </View>
         )}
         {activeTab === 'schedule' && (
@@ -1129,6 +927,16 @@ export default function EventDetails() {
 
       </ScrollView>
 
+      {canEdit ? (
+        <OrganizersDialog
+          visible={organizersOpen}
+          event={event}
+          orgId={orgId}
+          organizers={organizers}
+          onChange={setOrganizers}
+          onClose={() => setOrganizersOpen(false)}
+        />
+      ) : null}
       <ConfirmationModal
         isOpen={isCancelling}
         title="Cancel this tournament?"

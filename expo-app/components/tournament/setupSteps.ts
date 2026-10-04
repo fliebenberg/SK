@@ -52,11 +52,13 @@ export interface SetupStepRoute {
 export const SETUP_STEPS: SetupStepRoute[] = [
   {
     key: 'basics',
-    label: 'Basic Info',
-    purpose: 'When it happens and where it is played',
-    icon: 'calendar-outline',
+    // The name and dates are the banner's; this step is the venue (stage 2, docs/events.md). It is
+    // edited in a dialog on the tournament's Setting up tab, so its "screen" is that tab.
+    label: 'Where',
+    purpose: 'Where it is played',
+    icon: 'location-outline',
     dismissible: false,
-    href: (orgId, eventId) => `/admin/${orgId}/events/${eventId}/setup/basics`,
+    href: (orgId, eventId) => setupChecklistHref(orgId, eventId),
   },
   {
     key: 'divisions',
@@ -68,7 +70,7 @@ export const SETUP_STEPS: SetupStepRoute[] = [
   },
   {
     key: 'entrants',
-    label: 'Entrants',
+    label: 'Schools & teams',
     purpose: 'The schools and teams taking part',
     icon: 'people-outline',
     dismissible: true,
@@ -80,7 +82,8 @@ export const SETUP_STEPS: SetupStepRoute[] = [
     purpose: 'How points are awarded and tables are ranked',
     icon: 'calculator-outline',
     dismissible: true,
-    href: (orgId, eventId) => `/admin/${orgId}/events/${eventId}/setup/scoring`,
+    // A dialog on the Setting up tab since stage 2.
+    href: (orgId, eventId) => setupChecklistHref(orgId, eventId),
   },
   {
     key: 'fixtures',

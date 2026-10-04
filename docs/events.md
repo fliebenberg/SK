@@ -6,7 +6,7 @@ People ([people.md](file:///c:/Fred/Coding/SK/docs/people.md)), Teams ([teams.md
 and Sites ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)). It is done in stages, agreed 2026-10-04:
 
 1. **The list** — `/admin/[orgId]/events`. **Built 2026-10-04**, below.
-2. **The tournament page** — `/admin/[orgId]/events/[eventId]`, with Basic info as cards and dialogs (`UI-11`).
+2. **The tournament page** — `/admin/[orgId]/events/[eventId]`. **Built 2026-10-04**: its first tab, below (§7).
 3. **One game page** in place of `games/[gameId]/view` and `edit` (`FIX-21`).
 4. Later, if wanted: divisions, entrants and the other setup steps.
 
@@ -125,3 +125,68 @@ reopened — accepted 2026-10-04 (`LIVE-22`), since they change rarely.
 
 - Who-played and team changes on a tournament fixture (`FIX-21`) — stage 3.
 - Double-booking checks (`FIX-23`).
+
+## 7. The tournament page (stage 2)
+
+[events/[eventId].tsx](file:///c:/Fred/Coding/SK/expo-app/app/admin/%5BorgId%5D/events/%5BeventId%5D.tsx), with the
+first tab in [TournamentHome.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentHome.tsx),
+its pieces in [TournamentBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentBits.tsx) and its
+dialogs in [TournamentDialogs.tsx](file:///c:/Fred/Coding/SK/expo-app/components/tournament/TournamentDialogs.tsx).
+Agreed on the mockup [tournament-read-first.html](file:///c:/Fred/Coding/SK/mockups/tournament-read-first.html), after three
+layouts were compared (option A chosen) and three for Sports & divisions (one sport at a time chosen).
+
+**Three tabs: the first, Schedule, Standings.** The first tab is **Setting up** for an organiser while
+the tournament is being set up, and **Overview** once it is — and for everyone else. Its key is still
+`setup`, so `?tab=setup` from a division or entrants screen lands on it, and it is the default tab in
+every phase. Schedule and Standings are unchanged (division work, stage 4).
+
+**Setting up is the setup itself** — separated from the tournament in time, not on the same page.
+Five numbered cards in the order the work is done, each saying in its heading where it stands and
+holding what it is about, read-first, with Edit. There is no checklist repeating the cards; it
+replaced the U48 checklist, whose rows each opened a step screen (closes `UI-11`).
+
+| Step | Holds | Edited in |
+|---|---|---|
+| 1 Where | The base site and the facilities it uses, as chips | *Where* dialog (site + `FacilityPicker`) |
+| 2 Sports & divisions | One sport at a time (below) | *Sports* dialog; a division's own page |
+| 3 Schools & teams | What is missing, then each school with its crest and teams | The entrants screen |
+| 4 Rules & scoring | The points; *Confirm* while the default is unconfirmed | *Rules & scoring* dialog |
+| 5 Fixtures | Each division and whether it is drawn | Each division's schedule screen |
+
+- **Each step is in one of three states**, shown alike on its segment of the progress bar, its number
+  and its pill: **Done** (green, a tick), **In progress** (amber — teams entered with gaps, scoring on
+  the unconfirmed default, some divisions drawn) and **Not started** (grey). A dismissible step can
+  be marked **Not needed** (`settings.dismissedSetupSteps`), which counts as done. **Next** marks the
+  first unfinished step. Nothing is faded: a waiting step says so in words (design_system.md).
+- **Steps fold.** Finished and waiting steps start as one line with their summary ("Where · Main
+  Campus · 5 facilities"); the next step starts open. Any heading opens or closes its step; *Open
+  all / Close all*. What is open is remembered on the device per tournament.
+- **The name and dates are the banner's**, edited in *Edit tournament*; a tournament has its first
+  day from the moment it is created, so there is no setup step for them. Step 1 is the venue only.
+- Steps 2 and 4 carry their explanation as text while field help is on (the Sports & divisions one:
+  "Choose the sports being played, then the divisions within each. A division is a group of teams
+  that compete against each other — usually an age group, e.g. Rugby U16. …").
+
+**Sports & divisions, one sport at a time.** The sports are one line that scrolls sideways and never
+wraps — arrows on a wide screen, a swipe on a phone — with **All N ▾** fixed at its end, a list to
+jump straight to a sport. Under it, only the chosen sport: its name, divisions and teams, and its
+divisions as tiles (name, format from its stages, who can play, teams, and where it has got to). A
+sport with **one** division shows it as one wide panel, with *＋ Split into divisions*. ＋ Add a …
+division creates one with an automatic name and opens its page, as the Sports & Divisions screen did;
+the sport's ⋯ links to that screen for its organisers, and removes a sport that has no divisions.
+
+**The Overview** — once set up, and for anyone who cannot edit: the banner (on the day, "Day 2 of 2 ·
+5 live"), **Live now** while games are being played, Sports & divisions (each tile saying where the
+division has got to), Schools, Where with the map, Rules & scoring, and Organisers for an organiser
+when there are any. A guest school sees its own school first. These outside views are accepted for
+now and are to be designed properly (`FIX-24`, `FIX-25`).
+
+**The ⋯ menu**: Organisers (appointed in a dialog — most tournaments have none, so no empty card),
+Cancel, and Delete, which is disabled with the reason once results are recorded.
+
+**Gone**: the Basic Info and Rules & scoring step screens (`setup/basics`, `setup/scoring`) and the
+checklist component. The Sports & Divisions and Fixtures step screens remain, reachable from the
+cards, until the drill-down work (`FIX-26`–`FIX-28`) decides their place. The event-level `format` is
+no longer shown anywhere on the page: every tournament is created a Festival and the formats live on
+each division's stages.
+
