@@ -42,6 +42,13 @@ pieces in [EventBits.tsx](file:///c:/Fred/Coding/SK/expo-app/components/events/E
     the time or score in the middle, away on the right, and where and the sport underneath. Short
     codes because two school names do not fit on a phone line; a team with no short name uses its
     name.
+  - **A name that does not fit steps down, never just cut** (2026-10-04): another school's team goes
+    "Test Riverbend High School U16 A" → "RBH U16 A" (school code) → "RBH U16A" (and team code) →
+    "U16A" (team code alone), and only then is cut short; our own team goes "U16 A" → "U16A". On a
+    wide row the two names share the line and the one printing the wider name steps first, so a
+    short name is not shortened for a long one; a phone row starts at the codes, each side in its
+    own half. The versions are measured, not guessed (`FixtureLine`, `FixtureSideFitted`). The Where
+    column is narrow (160px) so the room goes to the names.
 - **A tournament reads like an event**: a trophy mark, the name, the format and sports, where, and
   how many games — "4 live" and "Day 2 of 3" while it is on, "Finished" once it is past. An editor of
   the hosting organisation sees **No fixtures yet** on one with no games, as a nudge; anybody else

@@ -17,7 +17,8 @@ import { SegmentedControl } from '../../../../components/SegmentedControl';
 import { OverflowMenu } from '../../../../components/OverflowMenu';
 import {
   DateTile,
-  FixtureCrest,
+  FixtureLine,
+  FixtureSideFitted,
   RowTag,
   TournamentMark,
   fixtureSideNames,
@@ -78,6 +79,12 @@ const SCOPE_KEY = 'eventsListScope';
 const VIEW_KEY = 'eventsListView';
 
 const ADMIN_ROLES = ['role-org-admin', 'role-org-staff'];
+
+/**
+ * The Where column on a wide row. Narrow on purpose: a venue is "Main Campus" over "A Field", and
+ * the room is worth more to the teams' names, which step down to short codes when they run out.
+ */
+const WHERE_WIDTH = 160;
 
 /** The day a game is on: its kick-off's, or its event's first day while it has none. */
 const gameDay = (game: GameSummary, event?: Event) =>
@@ -444,7 +451,7 @@ export default function OrgEventsList() {
       <TextInput
         value={search}
         onChangeText={setSearch}
-        placeholder={isWide ? 'Search teams, events or venues' : 'Search'}
+        placeholder={width >= 1200 ? 'Search teams, events or venues' : 'Search'}
         placeholderTextColor={themeColor(isDark, 'ink-muted')}
         accessibilityLabel="Search events"
         className="flex-1 font-inter text-base text-ink py-2.5 outline-none"
@@ -828,26 +835,14 @@ function MatchRow({ game, event, competition, showDate, isWide, orgId, sportName
       : (away || convening)
       ? <RoleTags away={away} convening={convening} />
       : scores ? <Text className="font-inter text-[11px] text-ink-muted">Full time</Text> : null;
-    const side = (names: typeof homeNames, participant: typeof home, align: 'left' | 'right') => (
-      <View className={`flex-1 min-w-0 flex-row items-center gap-1.5 ${align === 'right' ? 'justify-end' : ''}`}>
-        {align === 'left' ? <FixtureCrest participant={participant} size={24} placeholder={names.isPlaceholder} /> : null}
-        <Text
-          numberOfLines={1}
-          className={`flex-shrink text-[13px] ${names.isPlaceholder ? 'font-inter italic text-ink-muted' : `font-inter-bold text-ink ${struck}`}`}
-        >
-          {names.short}
-        </Text>
-        {align === 'right' ? <FixtureCrest participant={participant} size={24} placeholder={names.isPlaceholder} /> : null}
-      </View>
-    );
     return (
       <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" accessibilityLabel={label} className={`flex-row items-center gap-2.5 px-3 py-2.5 ${border}`}>
         {showDate ? <DateTile tile={tile} width={34} /> : null}
         <View className="flex-1 min-w-0">
           <View className="flex-row items-center gap-2">
-            {side(homeNames, home, 'left')}
+            <FixtureSideFitted names={homeNames} participant={home} align="left" struck={isCancelled} />
             <View className="items-center" style={{ minWidth: 44 }}>{middle}</View>
-            {side(awayNames, visitor, 'right')}
+            <FixtureSideFitted names={awayNames} participant={visitor} align="right" struck={isCancelled} />
           </View>
           <View className="flex-row items-center gap-2 mt-1">
             <Text className="flex-1 font-inter text-xs text-ink-muted" numberOfLines={1}>{line2}</Text>
@@ -879,33 +874,23 @@ function MatchRow({ game, event, competition, showDate, isWide, orgId, sportName
   ) : (
     <Text className={`font-inter-bold text-sm ${time ? 'text-ink' : 'text-ink-muted'}`}>{time || 'Time TBD'}</Text>
   );
-  const side = (names: typeof homeNames, participant: typeof home) => (
-    <View className="flex-row items-center gap-2 min-w-0 flex-shrink">
-      <FixtureCrest participant={participant} size={26} placeholder={names.isPlaceholder} />
-      <Text
-        numberOfLines={1}
-        className={`flex-shrink text-[15px] ${names.isPlaceholder ? 'font-inter italic text-ink-muted' : `font-inter-semibold text-ink ${struck}`}`}
-      >
-        {names.full}
-      </Text>
-    </View>
-  );
-
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" accessibilityLabel={label} className={`flex-row items-center gap-3 px-4 py-3 ${border}`}>
       {showDate ? <DateTile tile={tile} /> : null}
       <View className="flex-1 min-w-0">
-        <View className="flex-row items-center gap-2 min-w-0">
-          {side(homeNames, home)}
-          <Text className="font-inter text-[13px] text-ink-muted">vs</Text>
-          {side(awayNames, visitor)}
-          <RoleTags away={away} convening={convening} />
-        </View>
+        <FixtureLine
+          home={homeNames}
+          away={awayNames}
+          homeParticipant={home}
+          awayParticipant={visitor}
+          struck={isCancelled}
+          tags={away || convening ? <RoleTags away={away} convening={convening} /> : undefined}
+        />
         <Text className="font-inter text-xs text-ink-muted mt-0.5" style={{ marginLeft: 34 }} numberOfLines={1}>
           {[competition, sport].filter(Boolean).join(' · ')}
         </Text>
       </View>
-      <View style={{ width: 230 }}>
+      <View style={{ width: WHERE_WIDTH }}>
         <Text className="font-inter text-sm text-ink-soft" numberOfLines={1}>{siteName(game.siteId || event?.siteId) || ' '}</Text>
         {facilityName(game.facilityId || event?.facilityId) ? (
           <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{facilityName(game.facilityId || event?.facilityId)}</Text>
@@ -991,7 +976,7 @@ function TournamentRow({ event, games, sportIds, isPast, isWide, canCreate, spor
         </View>
         <Text className="font-inter text-xs text-ink-muted mt-0.5" style={{ marginLeft: 34 }} numberOfLines={1}>{kind}</Text>
       </View>
-      <View style={{ width: 230 }}>
+      <View style={{ width: WHERE_WIDTH }}>
         <Text className="font-inter text-sm text-ink-soft" numberOfLines={1}>{where || ' '}</Text>
       </View>
       <View style={{ width: 112 }} className="items-end gap-0.5">{end}</View>
