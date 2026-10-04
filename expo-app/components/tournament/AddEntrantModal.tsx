@@ -189,7 +189,7 @@ export function AddEntrantModal({
       const created = await sendAction(SocketAction.ADD_ORG_PROFILE, {
         name: personText.trim(),
         orgId: entrantOrgId,
-      } as any);
+      });
       setIsSaving(false);
       if (!created.ok) {
         setError(created.message || 'That person could not be added.');
@@ -210,7 +210,7 @@ export function AddEntrantModal({
       sportId,
       ageGroupId: ageGroupId || undefined,
       isActive: true,
-    } as any);
+    });
     setIsSaving(false);
     // A refusal is already toasted; the dialog stays open with what was typed.
     if (!result.ok) {

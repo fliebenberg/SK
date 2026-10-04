@@ -61,7 +61,7 @@ export default function ClaimIndexScreen() {
     if (!token || !user) return;
     setClaiming(true);
     
-    sendAction(SocketAction.CLAIM_ORG_VIA_TOKEN, { token: token as string, userId: user.id }).then(result => {
+    sendAction(SocketAction.CLAIM_ORG_VIA_TOKEN, { token, userId: user.id }).then(result => {
       setClaiming(false);
       // A missing reply used to count as a claim and navigate into an org the user may not hold.
       if (!result.ok) {

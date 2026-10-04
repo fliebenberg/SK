@@ -5,12 +5,16 @@ export interface OrgProfile {
   orgId: string;
   userId?: string;
   name: string;
-  email?: string;
-  cellphone?: string;
+  /** `null` when not set, as the server sends it; `null` on an update clears it. */
+  email?: string | null;
+  /** `null` when not set; `null` on an update clears it. */
+  cellphone?: string | null;
   /** A calendar date (`YYYY-MM-DD`), never a timestamp. `null` on an update clears it. */
   birthdate?: CalendarDate | null;
-  nationalId?: string;
-  identifier?: string;
+  /** `null` when not set; `null` on an update clears it. */
+  nationalId?: string | null;
+  /** The organisation's own number for the person. `null` when not set; `null` on an update clears it. */
+  identifier?: string | null;
   image?: string;
   primaryRoleId?: string;
   lastInviteSentAt?: string;

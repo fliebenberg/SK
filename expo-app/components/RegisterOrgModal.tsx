@@ -77,12 +77,11 @@ export function RegisterOrgModal({ isOpen, onClose, initialName, sportId, onRegi
       primaryColor: colors.primary,
       // Cleared means "not set": painted as the primary.
       secondaryColor: colors.secondary || null,
-      joinPolicy: 'request',
       supportedSportIds: sportId ? [sportId] : [],
       // A guess until it is claimed: an organisation registered to play against is most likely
       // near whoever registered it (DATE-2). Its admins can change it in its settings.
       timezone: deviceTimeZone(),
-    } as any).then(result => {
+    }).then(result => {
       setIsSaving(false);
       // A refusal is already toasted; the dialog stays open with what was typed.
       if (!result.ok) return;

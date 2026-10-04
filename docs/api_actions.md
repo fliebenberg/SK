@@ -147,6 +147,15 @@ answered `ok` with `data: null`, and no handler encodes a refusal inside `data`.
 with the first attempt's reply (plus `replayed: true`) and applies nothing; only successes are
 remembered, so a refused attempt can be retried with the same id. In memory, per process (`SYNC-5`).
 
+**Payload check (`SYNC-6`).** Before any gate or handler reads it, the payload is checked against
+its type in `ProtocolMap`, through JSON Schema generated from those types
+(`server/scripts/gen-action-schemas.js` → `server/src/wss/actionPayloads.schema.json`). A field the
+type does not name, a field of the wrong type or a missing required field is refused with a message
+naming it — `This request was not in the form the server expects (UPDATE_TEAM: data has a field the
+server does not take: colour).` — and so is an action with no entry in `ProtocolMap`. Regenerate with
+`npm run gen:action-schemas` after changing `shared/src`; `check:action-schemas` (pre-commit) fails
+until you do.
+
 **Failures log.** Every refusal is written to `server/logs/failures-YYYY-MM-DD.jsonl`.
 
 #### `client_failures` (socket event, not an action)
@@ -264,8 +273,8 @@ Joining `org:{orgId}:sites` pushes `SITES_SYNC`, `org:{orgId}:facilities` pushes
 and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UPDATED`.
 
 #### `ADD_SITE`
-*   **Payload**: `AddSitePayload` — `Omit<Site, "id">`: `name`, `orgId`, `address?` (or an existing
-    `addressId?`), `isActive?`.
+*   **Payload**: `AddSitePayload` — `Omit<Site, "id" | "address">`: `name`, `orgId`, `address?` (an
+    `AddressPayload`: no `id`, and a pin that may be `null`), or an existing `addressId?`, `isActive?`.
 *   **Logic**: Creates the site, and its address when one is given. `timezone` is **never** taken
     from the payload: the server looks it up from the address pin (`DATE-2`).
 *   **Returns**: `Site`
@@ -273,7 +282,7 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     org summary is republished (its `siteCount` changed).
 
 #### `UPDATE_SITE`
-*   **Payload**: `{ id, data }` (where `data` is `Partial<Site>`)
+*   **Payload**: `{ id, data }` (where `data` is `Partial<Site>`, with `address` as an `AddressPayload`)
 *   **Logic**: Updates the site. An `address` in `data` updates the site's address, or creates one
     if it had none; whenever the address changes the timezone is looked up again from the pin. A
     `timezone` in `data` is always dropped.
@@ -385,7 +394,10 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
 ### 5. Organizations
 
 #### `ADD_ORG`
-*   **Payload**: `Omit<Organization, "id">`
+*   **Payload**: `AddOrgPayload` — the fields `addOrganization` reads: `name`, `shortName?` (derived
+    from the name when missing), `type?`, `customType?`, `logo?`, `primaryColor?`,
+    `secondaryColor?` (`null` paints it as the primary), `supportedSportIds?`, `supportedRoleIds?`,
+    `address?` or `addressId?`, `creatorId?`, `isActive?`, `settings?`, `timezone?`.
 *   **Logic**: Creates a new organization.
 *   **Broadcasts**:
     *   **Topic**: `organizations`
@@ -393,7 +405,8 @@ and `site:{id}` / `facility:{id}` push the item as `SITE_UPDATED` / `FACILITY_UP
     *   **Data**: The new `Organization` object.
 
 #### `UPDATE_ORG`
-*   **Payload**: `{ id, data }`
+*   **Payload**: `{ id, data }` — `data` is `Partial<Organization>` without `isClaimed` or
+    `creatorId`; `address` is an `AddressPayload`, or `null` to remove it.
 *   **Logic**: Updates organization details.
 *   **Broadcasts**:
     *   **Topic**: `organizations`
@@ -424,11 +437,14 @@ them to any signed-in user.
     picker's third tier — appointing a convenor who is not on the app — and follows U12. The event
     must be hosted by the org the profile is going into, or organising any event anywhere would let
     you write into any organisation's people list.
-*   **`userId` is stripped from `UPDATE_ORG_PROFILE`, always.** Re-pointing a profile at a user
-    account hands over every membership it holds; the one legitimate caller
+*   **`userId` is refused on `UPDATE_ORG_PROFILE`, always** — it is not in the payload type, so the
+    payload check refuses the request (`SYNC-6`), and the handler strips it as well. Re-pointing a
+    profile at a user account hands over every membership it holds; the one legitimate caller
     (`UserManager.ensureProfileForUserInOrg`) is server-side, and no client sends it.
-*   **`lastInviteSentAt` and `lastInviteEmail` are stripped from `UPDATE_ORG_PROFILE` too.** Only
-    `SEND_MEMBER_INVITE` writes them; editable, they would let the resend cooldown be cleared by hand.
+*   **`lastInviteSentAt` and `lastInviteEmail` are refused on `UPDATE_ORG_PROFILE` too**, and so are
+    the `ownAccount*` fields (`SET_MINOR_ACCOUNT_ACCESS` writes those). Only `SEND_MEMBER_INVITE` writes
+    the invite record; editable, it would let the resend cooldown be cleared by hand.
+*   `email`, `cellphone`, `birthdate`, `nationalId` and `identifier` take `null` to clear them.
 *   The gate is on the **action**, not in `UserManager`, so the server's own writes — the invite
     flow's `lastInviteSentAt`, the claim flow's link — keep working. They are not requests.
 

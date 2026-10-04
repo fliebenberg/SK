@@ -1,4 +1,4 @@
-import { Site } from "@sk/shared";
+import { Site, AddSitePayload, UpdateSitePayload } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { addressManager } from "./AddressManager";
 import { timeZoneAt } from "../utils/timeZoneLookup";
@@ -71,7 +71,7 @@ export class SiteManager extends BaseManager {
     };
   }
 
-  async addSite(site: Omit<Site, "id" | "orgId"> & { orgId: string, id?: string }): Promise<Site> {
+  async addSite(site: AddSitePayload & { id?: string }): Promise<Site> {
     const id = site.id || `site-${Date.now()}`;
     let addressId = site.addressId;
 
@@ -92,7 +92,7 @@ export class SiteManager extends BaseManager {
     return (await this.getSite(id))!;
   }
 
-  async updateSite(id: string, data: Partial<Site>): Promise<Site | null> {
+  async updateSite(id: string, data: UpdateSitePayload["data"]): Promise<Site | null> {
     const currentSite = await this.getSite(id);
     if (!currentSite) return null;
 

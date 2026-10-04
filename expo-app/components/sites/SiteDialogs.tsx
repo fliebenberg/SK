@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Facility, Site, SocketAction, Sport } from '@sk/shared';
+import { AddressPayload, Facility, Site, SocketAction, Sport } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
 import { TEXT_INPUT } from '../formStyles';
@@ -29,7 +29,7 @@ const draftOf = (site?: Site | null): AddressDraft | null => {
 };
 
 /** An address ready to send: a hand-typed one with no pin sends nulls, so an old pin does not survive. */
-const addressPayload = (draft: AddressDraft) => ({
+const addressPayload = (draft: AddressDraft): AddressPayload => ({
   ...draft,
   latitude: draft.latitude ?? null,
   longitude: draft.longitude ?? null,
@@ -83,8 +83,8 @@ export function SiteDialog({ visible, onClose, orgId, site, onAdded }: {
           name: name.trim(),
           orgId,
           isActive: true,
-          ...(address ? { address: addressPayload(address) as any } : {}),
-        } as any, { suppressToast: true });
+          ...(address ? { address: addressPayload(address) } : {}),
+        }, { suppressToast: true });
     setIsSaving(false);
     if (!result.ok) return setError(result.message || (site ? 'The name was not saved.' : 'The site was not added.'));
     onClose();
@@ -170,7 +170,7 @@ export function LocationDialog({ visible, onClose, site, markers }: {
     if (!draft) return;
     setError(null);
     setIsSaving(true);
-    const result = await sendAction(SocketAction.UPDATE_SITE, { id: site.id, data: { address: addressPayload(draft) as any } }, { suppressToast: true });
+    const result = await sendAction(SocketAction.UPDATE_SITE, { id: site.id, data: { address: addressPayload(draft) } }, { suppressToast: true });
     setIsSaving(false);
     if (!result.ok) return setError(result.message || 'The address was not saved.');
     onClose();

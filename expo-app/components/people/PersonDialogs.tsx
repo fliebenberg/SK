@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
-import { OrgMember, SocketAction, isValidEmail } from '@sk/shared';
+import { OrgMember, SocketAction, UpdateOrgProfilePayload, isValidEmail } from '@sk/shared';
 import { EditDialog } from '../EditDialog';
 import { FieldLabel } from '../FieldLabel';
 import { TEXT_INPUT } from '../formStyles';
@@ -58,7 +58,7 @@ export function IdentityDialog({ member, roles, visible, onClose }: { member: Or
     if (profileChanged) {
       const result = await sendAction(SocketAction.UPDATE_ORG_PROFILE, {
         id: member.id,
-        data: { name: name.trim(), identifier: orgIdNumber.trim() || null } as any,
+        data: { name: name.trim(), identifier: orgIdNumber.trim() || null },
       });
       if (!result.ok) return setIsSaving(false);
     }
@@ -131,10 +131,10 @@ export function ContactDialog({ member, visible, onClose }: { member: OrgMember;
     if (cellProblem) return setProblem(cellProblem);
     setProblem(null);
     setIsSaving(true);
-    const data: Record<string, string | null> = {};
+    const data: UpdateOrgProfilePayload['data'] = {};
     if (emailChanged) data.email = email.trim() || null;
     if (cellChanged) data.cellphone = cellphone.trim() || null;
-    const result = await sendAction(SocketAction.UPDATE_ORG_PROFILE, { id: member.id, data: data as any });
+    const result = await sendAction(SocketAction.UPDATE_ORG_PROFILE, { id: member.id, data });
     setIsSaving(false);
     if (result.ok) onClose();
   };
@@ -194,10 +194,10 @@ export function PersonalDialog({ member, visible, onClose }: { member: OrgMember
 
   const save = async () => {
     setIsSaving(true);
-    const data: Record<string, string | null> = {};
+    const data: UpdateOrgProfilePayload['data'] = {};
     if (birthdateChanged) data.birthdate = birthdate || null;
     if (nationalIdChanged) data.nationalId = nationalId.trim() || null;
-    const result = await sendAction(SocketAction.UPDATE_ORG_PROFILE, { id: member.id, data: data as any });
+    const result = await sendAction(SocketAction.UPDATE_ORG_PROFILE, { id: member.id, data });
     setIsSaving(false);
     if (result.ok) onClose();
   };

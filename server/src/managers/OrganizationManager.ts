@@ -1,4 +1,4 @@
-import { Organization, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR } from "@sk/shared";
+import { Organization, AddOrgPayload, UpdateOrgPayload, OrganizationRole, levenshtein, Address, PaginationParams, PaginatedResponse, deriveOrgShortCode, normalizeOrgShortCode, OrgMinorsSettings, isValidMinorAge, minorsSettingsOf, isTimeZone, DEFAULT_TIME_ZONE, normalizeHexColor, DEFAULT_ORG_PRIMARY_COLOR, DEFAULT_ORG_SECONDARY_COLOR } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 import { imageService } from "../services/ImageService";
 import { addressManager } from "./AddressManager";
@@ -245,7 +245,7 @@ export class OrganizationManager extends BaseManager {
     return value;
   }
 
-  async addOrganization(org: Omit<Organization, "id"> & { id?: string }): Promise<Organization> {
+  async addOrganization(org: AddOrgPayload): Promise<Organization> {
     const id = org.id || `org-${Date.now()}`;
     const supportedSportIds = org.supportedSportIds || [];
     const supportedRoleIds = org.supportedRoleIds || [];
@@ -321,7 +321,7 @@ export class OrganizationManager extends BaseManager {
     return minorsSettingsOf(res.rows[0].settings);
   }
 
-  async updateOrganization(id: string, data: Partial<Organization>): Promise<Organization | null> {
+  async updateOrganization(id: string, data: UpdateOrgPayload["data"]): Promise<Organization | null> {
     // An update that *names* the short code may not blank it. Deriving a replacement would be
     // wrong here in a way it is not on create: the organisation already has a code people have
     // seen, and silently swapping it for initials is worse than telling the editor to type one.

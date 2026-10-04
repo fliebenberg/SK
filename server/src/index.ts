@@ -38,6 +38,7 @@ import { publishGameSummary, publishGameRemoved, captureFixtureRooms, publishEve
 import { tournamentManager } from './managers/TournamentManager';
 import { runIdempotent, BatchRefused, BatchFailed } from './wss/batch';
 import { enforceTournamentAction } from './wss/tournamentGate';
+import { payloadProblem } from './wss/actionPayloads';
 import { enforceProfileAction } from './wss/profileGate';
 import { GateRefusal, enforceOrgAction } from './wss/orgGate';
 import { refuseResultInFixtureEdit, validateRecordedResult } from './wss/fixtureRules';
@@ -2198,6 +2199,12 @@ io.on('connection', (socket) => {
                 throw err;
             }
         };
+
+        // The payload is what the action's type says, before anything reads it (`SYNC-6`).
+        await gate('payload', async () => {
+            const problem = payloadProblem(action.type, action.payload);
+            if (problem) throw new Error(problem);
+        });
 
         // Live match mutations — the scorer of the fixture.
         await gate('scoring', async () => {

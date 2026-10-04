@@ -18,3 +18,13 @@ export interface Address {
   latitude?: number;
   longitude?: number;
 }
+
+/**
+ * An address as the app sends it, inside a site's or an organisation's payload: no `id` (the server
+ * keeps the one it has, or makes one), and a pin that `null` clears — a hand-typed address with no
+ * pin sends nulls, so an old pin does not survive the edit.
+ */
+export type AddressPayload = Omit<Address, 'id' | 'latitude' | 'longitude'> & {
+  latitude?: number | null;
+  longitude?: number | null;
+};

@@ -628,7 +628,6 @@ export function DynamicScoringProvider({ game, children }: { game: Game; childre
         eventId: scoringState.editingId,
         gameParticipantId: participant?.id,
         actorOrgProfileId,
-        initiatorOrgProfileId: initiatorId,
         eventData,
       };
 

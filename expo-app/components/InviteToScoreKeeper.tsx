@@ -43,7 +43,7 @@ import { themeColor } from '../constants/Colors';
 export interface InvitablePerson {
   id: string;
   name: string;
-  email?: string;
+  email?: string | null;
   birthdate?: CalendarDate | null;
   userId?: string;
   hasAccount?: boolean;

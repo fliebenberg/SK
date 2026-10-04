@@ -1,7 +1,8 @@
 import { SocketAction } from '../constants/SocketActions';
 import { ProtocolMap } from '../types/Protocol';
 
-export type SocketActionPayload<K extends SocketAction> = K extends keyof ProtocolMap ? ProtocolMap[K]['payload'] : any;
+/** `never` for an action with no entry in `ProtocolMap`: the server refuses those (`SYNC-6`). */
+export type SocketActionPayload<K extends SocketAction> = K extends keyof ProtocolMap ? ProtocolMap[K]['payload'] : never;
 export type SocketActionResponse<K extends SocketAction> = K extends keyof ProtocolMap ? ProtocolMap[K]['response'] : any;
 
 export interface TypedSocketAction<K extends SocketAction = SocketAction> {

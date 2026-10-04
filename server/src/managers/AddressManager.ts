@@ -1,4 +1,4 @@
-import { Address } from "@sk/shared";
+import { Address, AddressPayload } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
 
 export class AddressManager extends BaseManager {
@@ -22,7 +22,7 @@ export class AddressManager extends BaseManager {
     return res.rows[0];
   }
 
-  async addAddress(address: Omit<Address, "id"> & { id?: string }): Promise<Address> {
+  async addAddress(address: AddressPayload & { id?: string }): Promise<Address> {
     const id = address.id || `addr-${Date.now()}`;
     const res = await this.query(`
       INSERT INTO addresses (id, full_address, building, address_line_1, address_line_2, city, province, postal_code, country, latitude, longitude)
@@ -44,7 +44,7 @@ export class AddressManager extends BaseManager {
     return res.rows[0];
   }
 
-  async updateAddress(id: string, data: Partial<Address>): Promise<Address | null> {
+  async updateAddress(id: string, data: Partial<AddressPayload>): Promise<Address | null> {
     const keys = Object.keys(data).filter(k => k !== 'id');
     if (keys.length === 0) return this.getAddress(id).then(r => r || null);
 

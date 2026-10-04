@@ -8,7 +8,7 @@ import { eventManager } from '../managers/EventManager';
 
 /**
  * The action contract, end to end over a real socket — the parts that only exist in the running
- * server's action handler, which no manager-level script can reach (SYNC-1 to SYNC-4).
+ * server's action handler, which no manager-level script can reach (SYNC-1 to SYNC-4, SYNC-6).
  *
  *  - SYNC-1: an action that changed nothing is refused, not answered `ok` with `data: null`; a
  *    refused undo arrives as an error, not as `ok` carrying `success: false`.
@@ -16,6 +16,8 @@ import { eventManager } from '../managers/EventManager';
  *    and a server refusal is recorded there too.
  *  - SYNC-3: a repeated `requestId` is answered from the first attempt and writes nothing twice; a
  *    refused attempt is not remembered, so it can be retried.
+ *  - SYNC-6: a payload with a field its type does not name, a field of the wrong type or a missing
+ *    required field is refused before any handler reads it, and so is an action with no type.
  *  - SYNC-4: a status change carries its log entry, which the server writes only when the change
  *    applies.
  *
@@ -70,14 +72,24 @@ async function main() {
   const missing = await send(socket, SocketAction.UPDATE_TEAM, { id: `team-missing-${stamp}`, data: { name: 'x' } });
   expect(missing?.status, 'error', 'updating a team that does not exist is refused, not answered ok');
 
+  // --- SYNC-6 ---------------------------------------------------------------------------------
+  const extra = await send(socket, SocketAction.UPDATE_TEAM, { id: `team-missing-${stamp}`, data: { name: 'x', colour: 'red' } });
+  expect([extra?.status, /colour/.test(extra?.message)], ['error', true], 'a field the type does not name is refused, and named');
+  const wrongType = await send(socket, SocketAction.UPDATE_TEAM, { id: `team-missing-${stamp}`, data: { name: 5 } });
+  expect([wrongType?.status, /data\.name must be string/.test(wrongType?.message)], ['error', true], 'a field of the wrong type is refused');
+  const noId = await send(socket, SocketAction.UPDATE_TEAM, { data: { name: 'x' } });
+  expect([noId?.status, /missing id/.test(noId?.message)], ['error', true], 'a missing required field is refused');
+  const unknown = await send(socket, 'NOT_AN_ACTION' as SocketAction, {});
+  expect(unknown?.status, 'error', 'an action with no payload type is refused');
+
   // --- SYNC-3 ---------------------------------------------------------------------------------
-  const teamPayload = { id: `team-contract-${stamp}`, name: 'Contract Test', orgId: APP_TEST_ORG_ID, sportId, isActive: true };
-  created.teamIds.push(teamPayload.id);
+  const teamPayload = { name: 'Contract Test', orgId: APP_TEST_ORG_ID, sportId, isActive: true };
   const requestId = `contract-${stamp}`;
   const first = await send(socket, SocketAction.ADD_TEAM, teamPayload, requestId);
+  if (first?.data?.id) created.teamIds.push(first.data.id);
   const second = await send(socket, SocketAction.ADD_TEAM, teamPayload, requestId);
-  expect([first?.status, first?.data?.id], ['ok', teamPayload.id], 'a keyed create succeeds');
-  expect([second?.status, second?.data?.id, second?.replayed], ['ok', teamPayload.id, true], 'a repeated key is answered from the first attempt');
+  expect([first?.status, typeof first?.data?.id], ['ok', 'string'], 'a keyed create succeeds');
+  expect([second?.status, second?.data?.id, second?.replayed], ['ok', first?.data?.id, true], 'a repeated key is answered from the first attempt');
   const rows = (await query(`SELECT count(*)::int AS n FROM teams WHERE name = 'Contract Test' AND org_id = $1`, [APP_TEST_ORG_ID])).rows[0].n;
   expect(rows, 1, 'and nothing was written twice');
 

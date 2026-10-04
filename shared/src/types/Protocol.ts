@@ -5,6 +5,7 @@ import { OrgMembership } from "../models/organization/OrgMembership";
 import { Team } from "../models/team/Team";
 import { TeamMembership } from "../models/team/TeamMembership";
 import { Site } from "../models/venue/Site";
+import { AddressPayload } from "../models/Address";
 import { Facility } from "../models/venue/Facility";
 import { Event } from "../models/event/Event";
 import { Game } from "../models/event/Game";
@@ -65,23 +66,35 @@ export interface PaginatedResponse<T> {
 
 // --- Specific Payloads ---
 
+/** What `OrganizationManager.addOrganization` reads; anything else is refused (`SYNC-6`). */
 export interface AddOrgPayload {
+    id?: string;
     name: string;
-    description?: string;
+    /** Required in effect: the server derives one from the name when it is missing. */
+    shortName?: string;
     type?: OrganizationType;
-    customType?: string;
-    email?: string;
-    website?: string;
+    customType?: string | null;
     logo?: string;
-    colors?: { primary: string; secondary: string };
-    creatorId?: string;
+    primaryColor?: string;
+    /** `null` means "not set": painted as the primary. */
+    secondaryColor?: string | null;
     supportedSportIds?: string[];
+    supportedRoleIds?: string[];
+    addressId?: string;
+    address?: AddressPayload;
+    creatorId?: string;
+    isActive?: boolean;
+    settings?: Organization['settings'];
+    timezone?: Organization['timezone'];
 }
 
 export interface UpdateOrgPayload {
     id: string;
     /** Not `isClaimed`, which follows the org's admins, nor `creatorId`, set once on create (`ORG-12`). */
-    data: Omit<Partial<Organization>, 'isClaimed' | 'creatorId'>;
+    data: Omit<Partial<Organization>, 'isClaimed' | 'creatorId' | 'address'> & {
+        /** `null` removes the organisation's address. */
+        address?: AddressPayload | null;
+    };
 }
 
 export interface DeleteOrgPayload {
@@ -99,11 +112,13 @@ export interface DeleteTeamPayload {
     id: string;
 }
 
-export interface AddSitePayload extends Omit<Site, "id"> {}
+export interface AddSitePayload extends Omit<Site, "id" | "address"> {
+    address?: AddressPayload;
+}
 
 export interface UpdateSitePayload {
     id: string;
-    data: Partial<Site>;
+    data: Partial<Omit<Site, "address">> & { address?: AddressPayload };
 }
 
 export interface DeleteSitePayload {
@@ -220,7 +235,14 @@ export interface AddOrgProfilePayload extends Omit<OrgProfile, "id"> {
 
 export interface UpdateOrgProfilePayload {
     id: string;
-    data: Partial<OrgProfile>;
+    /**
+     * Not the fields only the server writes, so naming one is refused (`SYNC-6`): `userId` (an
+     * account claims its profile, `PEOPLE-2`), the invite record (`SEND_MEMBER_INVITE` alone, or the
+     * resend cooldown could be cleared by hand), and a minor's own-account say
+     * (`SET_MINOR_ACCOUNT_ACCESS`).
+     */
+    data: Partial<Omit<OrgProfile, 'id' | 'userId' | 'lastInviteSentAt' | 'lastInviteEmail'
+        | 'ownAccountAllowed' | 'ownAccountSetAt' | 'ownAccountSetBy'>>;
 }
 
 export interface DeleteOrgProfilePayload {
@@ -480,6 +502,8 @@ export interface AddLeaguePayload {
     ageGroupId?: string | null;
     joinPolicy: 'CLOSED' | 'INVITE' | 'OPEN';
     criteria?: Record<string, any>;
+    /** An image to stage as the league's logo. */
+    logo?: string;
 }
 
 export interface UpdateLeaguePayload {
@@ -498,6 +522,8 @@ export interface AddSeasonPayload {
     endDate: string;
     status: 'UPCOMING' | 'ACTIVE' | 'COMPLETED';
     settings?: Partial<LeagueSettings>;
+    /** An image to stage as the season's logo. */
+    logo?: string;
 }
 
 export interface UpdateSeasonPayload {
@@ -979,7 +1005,20 @@ export interface ProtocolMap {
     [SocketAction.SET_DIVISION_FACILITIES]: { payload: SetDivisionFacilitiesPayload; response: { divisionId: string; facilityIds: string[] } };
     [SocketAction.APPOINT_ORGANIZER]: { payload: AppointOrganizerPayload; response: OrganizersResult };
     [SocketAction.WITHDRAW_ORGANIZER]: { payload: WithdrawOrganizerPayload; response: OrganizersResult };
+
+    [SocketAction.GLOBAL_CACHE_REFRESH]: { payload: EmptyPayload; response: void };
+    [SocketAction.RESET_CACHE]: { payload: EmptyPayload; response: void };
 }
+
+/** A payload with nothing in it, for an action that needs no arguments. */
+export type EmptyPayload = Record<string, never>;
+
+/**
+ * Every action's payload type, by action. The server's payload check is generated from this
+ * (`server/scripts/gen-action-schemas.js`, `SYNC-6`): a payload with a field its type does not
+ * name, or a field of the wrong type, is refused, and an action missing here is refused outright.
+ */
+export type ActionPayloads = { [K in keyof ProtocolMap]: ProtocolMap[K]['payload'] };
 
 /**
  * Strict discriminated union for get_data WebSocket requests.

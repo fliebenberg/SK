@@ -94,7 +94,7 @@ export default function PersonPage() {
     sendAction(SocketAction.UPDATE_ORG_PROFILE, {
       id: member.id,
       // Sent only when it changed, so moving the photo inside its frame does not re-upload it.
-      data: { ...(uri !== (member.image || '') ? { image: uri } : {}), imageConfig: config } as any,
+      data: { ...(uri !== (member.image || '') ? { image: uri } : {}), imageConfig: config },
     });
   };
 

@@ -116,8 +116,8 @@ async function main() {
     expect(retyped?.status, 'error', 'clearing the email and typing it back does not reset the cooldown');
 
     const wiped = await send(socket, SocketAction.UPDATE_ORG_PROFILE, { id: COACH_NO_ACCOUNT, data: { lastInviteSentAt: null, lastInviteEmail: null, name: 'Marelize Coetzee' } });
-    expect(wiped?.status, 'ok', 'a profile edit naming the invite fields still saves the rest');
-    expect(Boolean((await profile(COACH_NO_ACCOUNT)).sentAt), true, 'but cannot clear the invite record');
+    expect(wiped?.status, 'error', 'a profile edit naming the invite fields is refused (SYNC-6)');
+    expect(Boolean((await profile(COACH_NO_ACCOUNT)).sentAt), true, 'and the invite record is not cleared');
 
     // --- Someone with no email ---------------------------------------------------------------
     const noAddress = await invite(socket, PLAYER_NO_EMAIL);

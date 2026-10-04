@@ -67,7 +67,7 @@ export default function ReferScreen() {
 
     setSubmitting(true);
     sendAction(SocketAction.REFER_ORG_CONTACT_VIA_TOKEN, {
-      token: token as string,
+      token,
       contactEmails: [email.trim().toLowerCase()],
     }).then(result => {
       setSubmitting(false);

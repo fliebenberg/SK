@@ -106,7 +106,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
   // not from the reply, so nothing here waits on it. `sendAction` still announces a failure. The
   // log entry travels with the change and is written by the server only if the change applies
   // (SYNC-4) — it used to be a second action, so a refused start could still log GAME_STARTED.
-  const handleUpdateStatus = (status: string, reason?: string) => {
+  const handleUpdateStatus = (status: Game['status'], reason?: string) => {
     let subType = 'GAME_UPDATED';
     if (status === 'Live') subType = 'GAME_STARTED';
     else if (status === 'Finished') subType = 'GAME_ENDED';
@@ -114,7 +114,7 @@ export function TimerPanelSlot({ game, canEdit = false }: TimerPanelSlotProps) {
 
     void sendAction(SocketAction.UPDATE_GAME_STATUS, {
       id: game.id,
-      status: status as any,
+      status,
       initiatorOrgProfileId: resolveInitiatorId(),
       log: {
         subType,

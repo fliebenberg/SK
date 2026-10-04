@@ -59,7 +59,7 @@ export default function DeclineScreen() {
 
   const handleDecline = async () => {
     setSubmitting(true);
-    sendAction(SocketAction.DECLINE_CLAIM, { token: token as string }).then(result => {
+    sendAction(SocketAction.DECLINE_CLAIM, { token }).then(result => {
       setSubmitting(false);
       if (!result.ok) {
         Alert.alert('Error', result.message);

@@ -94,7 +94,7 @@ export function TeamDetailsDialog({ visible, onClose, orgId, supportedSportIds, 
         sportId,
         ageGroupId,
         orgId,
-      } as any, { suppressToast: true });
+      }, { suppressToast: true });
       setIsSaving(false);
       if (!result.ok) return setError(result.message || 'The team was not added.');
       onClose();

@@ -343,7 +343,6 @@ export default function ScheduleGame() {
       scheduledStartTime: scheduledTime,
       startTime: scheduledTime,
       siteId: selectedSiteId || undefined,
-      status: 'Scheduled',
       customSettings: {
         timeTbd: isTbd
       }

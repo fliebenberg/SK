@@ -8,7 +8,7 @@ import pool, { query } from '../db';
  * end to end over a real socket, against an organisation this script makes and removes.
  *
  *  - Nobody nominates their own address, whether or not they may take the role.
- *  - The nominator is the signed-in caller, never the payload's `referredByUserId`.
+ *  - The nominator is the signed-in caller; a payload naming its own `referredByUserId` is refused.
  *  - `TAKE_ORG_ADMIN`: anyone may take an org with no members with an account; once it has some, only
  *    a member of `admin_takeover_min_days` standing — member and staff alike — and never while an
  *    admin exists. A member's own membership is promoted in place, keeping its start date.
@@ -112,9 +112,12 @@ async function main() {
     expect(r.status, 'error', 'own address refused');
     expect(/take on the admin role directly/.test(r.message), true, 'own address: points a qualifying caller to the takeover');
 
-    // The payload's nominator is ignored: the row is credited to whoever is signed in.
+    // A payload naming its own nominator is refused (SYNC-6); the row is credited to whoever is
+    // signed in.
     const lostAddress = `takeover-${Date.now()}@example.com`;
     r = await nominate(outsider, lostAddress, { referredByUserId: VETERAN });
+    expect(r.status, 'error', 'a payload naming its own nominator is refused');
+    r = await nominate(outsider, lostAddress);
     expect([r.status, r.data?.[0]?.emailSent], ['ok', true], 'outsider nominates another address');
     const ref = (await query(
       `SELECT id, referred_by_user_id AS "by", claim_token AS token, last_sent_at AS "sentAt" FROM org_claim_referrals WHERE org_id = $1 AND referred_email = $2`,

@@ -50,6 +50,16 @@ caller shows it inline, and logs and reports it (Rule 3).
 (from `expo-app/`) fails on either, anywhere outside `services/`. Run it before committing client
 changes.
 
+**Never cast a payload.** The server refuses a payload with a field its type does not name, a field
+of the wrong type, or a missing required one (`SYNC-6`), so the payload type in
+[Protocol.ts](file:///c:/Fred/Coding/SK/shared/src/types/Protocol.ts) is the contract, checked at
+both ends. `sendAction` rejects unknown fields at compile time even in a payload built in a variable;
+`as any` or `as SomeType` inside a `sendAction(…)` call switches that off, and `check:actions` fails
+on it. When the compiler says a field does not fit, fix whichever side is wrong: the screen if it
+sends something the server ignores, the type if the server really reads it. A field that can be
+cleared is typed `T | null` — the server sends `null` for an unset column, and so does a screen
+clearing one.
+
 ### What a call site owes
 
 1. **Success path only on `result.ok`**, reading `result.data`.
@@ -117,6 +127,12 @@ contents in a report — payloads carry people's details.
 
 ## Server side
 
+- **The payload is checked before anything reads it.** The first gate in the action handler checks
+  it against a schema generated from the payload types
+  ([wss/actionPayloads.ts](file:///c:/Fred/Coding/SK/server/src/wss/actionPayloads.ts)); an action
+  with no entry in `ProtocolMap` is refused outright. After changing anything in `shared/src`, run
+  `npm run gen:action-schemas` in `server/` — `check:action-schemas` in the pre-commit hook fails
+  until you do.
 - **Throw** for anything the user should hear about; the handler turns a throw into
   `{ status: 'error', message }` and records it in the failures log.
 - **Never answer success for an action that did nothing.** The handler's exit refuses an empty result

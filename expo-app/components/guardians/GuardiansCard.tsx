@@ -266,7 +266,7 @@ function EditGuardianDialog({ link, onClose }: { link: ProfileGuardian | null; o
     if (detailsChanged) {
       const result = await sendAction(
         SocketAction.UPDATE_ORG_PROFILE,
-        { id: link.guardianProfileId, data: { name: name.trim(), email: email.trim() || null, cellphone: cellphone.trim() || null } as any },
+        { id: link.guardianProfileId, data: { name: name.trim(), email: email.trim() || null, cellphone: cellphone.trim() || null } },
         { suppressToast: true }
       );
       if (!result.ok) {

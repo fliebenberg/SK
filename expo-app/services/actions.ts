@@ -106,9 +106,28 @@ function emitOnce(action: object, timeoutMs?: number): Promise<any> {
   });
 }
 
-export async function sendAction<K extends SocketAction>(
+/** Every key of any member of the union `T`, where plain `keyof` keeps only the shared ones. */
+type KeysOf<T> = T extends unknown ? keyof T : never;
+/** The type of key `K` in whichever members of `T` have it. */
+type ValueOf<T, K extends PropertyKey> = T extends unknown ? (K extends keyof T ? T[K] : never) : never;
+
+/**
+ * `P` with every field the payload type `T` does not have turned into `never`, at every depth.
+ *
+ * The server refuses a payload with a field its type does not name (`SYNC-6`). TypeScript only
+ * rejects unknown fields on an object literal written straight into the call; one built in a
+ * variable first, or spread in, passes. This closes that gap, so the refusal is a compile error.
+ */
+type NoExtraFields<T, P> =
+  P extends readonly (infer E)[]
+    ? readonly NoExtraFields<ValueOf<NonNullable<T>, number>, E>[]
+    : P extends object
+      ? { [K in keyof P]: K extends KeysOf<NonNullable<T>> ? NoExtraFields<ValueOf<NonNullable<T>, K>, P[K]> : never }
+      : P;
+
+export async function sendAction<K extends SocketAction, P extends SocketActionPayload<K>>(
   type: K,
-  payload: SocketActionPayload<K>,
+  payload: P & NoExtraFields<SocketActionPayload<K>, P>,
   options: SendActionOptions = {}
 ): Promise<ActionResult<SocketActionResponse<K>>> {
   const key = fingerprint(type, payload);

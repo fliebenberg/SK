@@ -387,8 +387,8 @@ export default function MatchForm({
     const payload = {
       name: newSiteName.trim(),
       orgId: orgId,
-      // The server creates the address and assigns its id, which the model type requires.
-      address: { fullAddress: 'TBD' } as Site['address'],
+      // The server creates the address and assigns its id.
+      address: { fullAddress: 'TBD' },
     };
 
     sendAction(SocketAction.ADD_SITE, payload).then(result => {

@@ -52,7 +52,7 @@ export function AddressDialog({ org, visible, onClose, onSaved }: {
           latitude: draft!.latitude ?? null,
           longitude: draft!.longitude ?? null,
         };
-    sendAction(SocketAction.UPDATE_ORG, { id: org.id, data: { address: address as any } }).then(result => {
+    sendAction(SocketAction.UPDATE_ORG, { id: org.id, data: { address } }).then(result => {
       setIsSaving(false);
       if (!result.ok) return;
       onClose();

@@ -17,6 +17,8 @@
     "verify:rooms": "ts-node src/scripts/verify-rooms.ts",
     "check:migrations": "node scripts/check-migrations.js",
     "check:transactions": "node scripts/check-transactions.js",
+    "gen:action-schemas": "node scripts/gen-action-schemas.js",
+    "check:action-schemas": "node scripts/check-action-schemas.js",
     "assets:migrate": "ts-node src/scripts/migrate-asset-layout.ts",
     "assets:audit": "ts-node src/scripts/audit-assets.ts"
   },
@@ -24,6 +26,7 @@
     "@sk/shared": "file:../shared",
     "@types/sharp": "^0.32.0",
     "@types/winston": "^2.4.4",
+    "ajv": "^8.20.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -49,6 +52,7 @@
     "@types/uuid": "^10.0.0",
     "nodemon": "^3.1.14",
     "socket.io-client": "^4.8.3",
+    "ts-json-schema-generator": "^2.9.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
   }
