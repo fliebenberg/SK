@@ -33,6 +33,7 @@ import { AgeGroupPicker } from '../../../../../../components/AgeGroupPicker';
 import { venueInputsToInstant, venueTimeHint, venueTimeZone } from '../../../../../../utils/dates';
 import { useToastStore } from '../../../../../../store/toastStore';
 import { pickableTeams } from '../../../../../../components/teams/TeamBits';
+import { pickableSites } from '../../../../../../components/sites/SiteBits';
 import { themeColor } from '../../../../../../constants/Colors';
 
 export default function ScheduleGame() {
@@ -672,7 +673,7 @@ export default function ScheduleGame() {
             <CustomSelect
               value={selectedSiteId}
               onChange={(val: string) => setSelectedSiteId(val)}
-              options={sites.map(s => ({ label: s.name, value: s.id }))}
+              options={pickableSites(sites, [selectedSiteId]).map(s => ({ label: s.name, value: s.id }))}
               placeholder="Select site..."
               clearable={true}
             />

@@ -15,12 +15,14 @@ import { themeColor } from '../../constants/Colors';
  */
 
 /** A card on the team page: a label with its count, an optional action, and its rows. */
-export function SectionCard({ label, count, action, onAction, children }: {
+export function SectionCard({ label, count, action, onAction, actionIcon = 'add', children }: {
   label: string;
   /** "22", or "1 of 22" while a search narrows the card. */
   count?: string;
   action?: string;
   onAction?: () => void;
+  /** `pencil` for an Edit; adding is the default. */
+  actionIcon?: keyof typeof Ionicons.glyphMap;
   children: React.ReactNode;
 }) {
   const isDark = useActiveTheme() === 'dark';
@@ -33,7 +35,7 @@ export function SectionCard({ label, count, action, onAction, children }: {
         </Text>
         {action && onAction ? (
           <TouchableOpacity onPress={onAction} hitSlop={12} accessibilityRole="button" className="flex-row items-center gap-1">
-            <Ionicons name="add" size={15} color={themeColor(isDark, 'primary')} />
+            <Ionicons name={actionIcon} size={actionIcon === 'add' ? 15 : 13} color={themeColor(isDark, 'primary')} />
             <Text className="font-inter-bold text-sm text-primary-ink">{action}</Text>
           </TouchableOpacity>
         ) : null}

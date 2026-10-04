@@ -1,390 +1,208 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeBack } from '../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../components/GlassCard';
-import { Button } from '../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { ConfirmationModal } from '../../../components/ConfirmationModal';
-import { useActiveTheme } from '../../../store/settingsStore';
-import { wsService } from '../../../services/websocket';
-import { sendAction } from '../../../services/actions';
-import { useWsStore } from '../../../store/wsStore';
-import { SocketAction, Site, Facility, Address } from '@sk/shared';
+import { Facility, Site, Sport } from '@sk/shared';
+import { ScreenHeader } from '../../../components/ScreenHeader';
+import { AmenityIcons, SiteAddressLine, SiteMark, addressText, siteAmenities, siteSports } from '../../../components/sites/SiteBits';
+import { SiteDialog } from '../../../components/sites/SiteDialogs';
+import { useOrgSites } from '../../../hooks/useOrgSites';
 import { useSocketQuery } from '../../../hooks/useSocketQuery';
+import { useSafeBack } from '../../../hooks/useSafeBack';
 import { useAuthStore } from '../../../store/authStore';
+import { useActiveTheme } from '../../../store/settingsStore';
 import { themeColor } from '../../../constants/Colors';
 
-// Conditionally require react-native-maps to avoid breaking react-native-web
-let MapView: any;
-let Marker: any;
-try {
-  const MapsModule = require('react-native-maps');
-  MapView = MapsModule.default;
-  Marker = MapsModule.Marker;
-} catch (e) {
-  // Fallback on web/unsupported platforms
-}
-
-export default function OrgSitesList() {
+/**
+ * The organisation's sites (docs/sites.md). A row is the site at a glance — its name, its street
+ * (then suburb and town while there is room), the sports it can host and its other facilities as
+ * icons — and opens the site page, the same page for everyone.
+ *
+ * Inactive sites are in a collapsed section at the bottom, which is why the main list needs no
+ * Inactive badge. No filters: an organisation has a handful of sites. Add site is shown to Admin
+ * and Staff only.
+ */
+export default function OrgSites() {
+  const isDark = useActiveTheme() === 'dark';
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
-  const isDark = useActiveTheme() === 'dark';
-  const isConnected = useWsStore(state => state.isConnected);
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
 
-  // User & Permissions
   const user = useAuthStore(state => state.user);
-  const orgMemberships = useAuthStore(state => state.orgMemberships || []);
+  const viewerRole = useAuthStore(state => state.orgMemberships.find((m: any) => m.orgId === orgId)?.roleId);
+  const canEdit = user?.globalRole === 'admin' || viewerRole === 'role-org-admin' || viewerRole === 'role-org-staff';
 
-  const userMembership = orgMemberships.find(m => m.orgId === orgId);
-  const canEdit = Boolean(
-    user?.globalRole === 'admin' ||
-    (userMembership && (userMembership.roleId === 'role-org-admin' || userMembership.roleId === 'role-org-staff'))
-  );
-
-  // Data State
-  const { data: sitesData, isLoading: isSitesLoading, refetch: refetchSites, setData: setSitesData } = useSocketQuery<Site[]>('sites', { orgId });
-  const { data: sportsData } = useSocketQuery<any[]>('sports');
-
-  const [facilities, setFacilities] = useState<Facility[]>([]);
-
-  const sites = sitesData || [];
+  const { sites, facilities, isLoading } = useOrgSites(orgId);
+  const { data: sportsData } = useSocketQuery<Sport[]>('sports');
   const sports = sportsData || [];
 
-  // Filter & Search
-  const [searchQuery, setSearchQuery] = useState('');
+  const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
-  // Modals & Forms State
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [siteToDelete, setSiteToDelete] = useState<Site | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const facilitiesBySite = useMemo(() => {
+    const map = new Map<string, Facility[]>();
+    for (const f of facilities) map.set(f.siteId, [...(map.get(f.siteId) || []), f]);
+    return map;
+  }, [facilities]);
 
-  // Load Initial Data & Subscribe to updates for Sites & Facilities
-  useEffect(() => {
-    if (!isConnected || !orgId) return;
-
-    const sitesRoom = `org:${orgId}:sites`;
-    const facilitiesRoom = `org:${orgId}:facilities`;
-    
-    const unsubscribeSites = wsService.subscribeToRoom(sitesRoom);
-    const unsubscribeFacilities = wsService.subscribeToRoom(facilitiesRoom);
-
-    const handleUpdate = (event: any) => {
-      if (!event) return;
-
-      if (event.type === 'SITES_SYNC' || event.type === 'SITE_ADDED' || event.type === 'SITE_UPDATED' || event.type === 'SITE_DELETED') {
-        if (event.type === 'SITES_SYNC' && Array.isArray(event.data)) {
-          setSitesData(event.data);
-        } else if (event.type === 'SITE_ADDED') {
-          setSitesData(prev => prev ? [...prev, event.data] : [event.data]);
-        } else if (event.type === 'SITE_UPDATED') {
-          setSitesData(prev => prev ? prev.map(s => s.id === event.data.id ? event.data : s) : [event.data]);
-        } else if (event.type === 'SITE_DELETED') {
-          setSitesData(prev => prev ? prev.filter(s => s.id !== event.data.id) : []);
-        }
-      }
-      
-      if (event.type === 'FACILITIES_SYNC' || event.type === 'FACILITY_ADDED' || event.type === 'FACILITY_UPDATED' || event.type === 'FACILITY_DELETED') {
-        if (event.type === 'FACILITIES_SYNC' && Array.isArray(event.data)) {
-          setFacilities(event.data);
-        } else if (event.type === 'FACILITY_ADDED') {
-          setFacilities(prev => [...prev, event.data]);
-        } else if (event.type === 'FACILITY_UPDATED') {
-          setFacilities(prev => prev.map(f => f.id === event.data.id ? event.data : f));
-        } else if (event.type === 'FACILITY_DELETED') {
-          setFacilities(prev => prev.filter(f => f.id !== event.data.id));
-        }
-      }
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const matches = (site: Site) => {
+      if (!q) return true;
+      const own = facilitiesBySite.get(site.id) || [];
+      const words = [
+        site.name,
+        addressText(site.address),
+        ...own.map(f => f.name),
+        ...own.flatMap(f => (f.supportedSportIds || []).map(id => sports.find(s => s.id === id)?.name || '')),
+      ];
+      return words.some(w => (w || '').toLowerCase().includes(q));
     };
+    return sites.filter(matches).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }, [sites, search, facilitiesBySite, sports]);
 
-    wsService.on('update', handleUpdate);
+  const shownActive = shown.filter(s => s.isActive !== false);
+  const shownInactive = shown.filter(s => s.isActive === false);
+  const activeCount = sites.filter(s => s.isActive !== false).length;
 
-    return () => {
-      unsubscribeSites();
-      unsubscribeFacilities();
-      wsService.off('update', handleUpdate);
-    };
-  }, [isConnected, orgId, setSitesData]);
+  const open = (site: Site) => router.push({ pathname: '/admin/[orgId]/sites/[siteId]', params: { orgId: orgId!, siteId: site.id } });
 
-  const isLoading = isSitesLoading || !sportsData;
+  const headerRight = canEdit ? (
+    <TouchableOpacity
+      onPress={() => setIsAdding(true)}
+      accessibilityRole="button"
+      accessibilityLabel="Add site"
+      className={`flex-row items-center gap-1.5 rounded-xl bg-primary ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
+    >
+      <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
+      {isWide ? <Text className="font-inter-bold text-sm text-on-primary">Add site</Text> : null}
+    </TouchableOpacity>
+  ) : undefined;
 
-  // Resolve Sport-Specific Facility Term
-  const getFacilityTerm = (supportedSportIds?: string[]) => {
-    if (!supportedSportIds || supportedSportIds.length === 0) return 'Facility';
-    if (supportedSportIds.length === 1) {
-      const sport = sports.find(s => s.id === supportedSportIds[0]);
-      return sport?.facilityTerm || 'Facility';
-    }
-    const terms = supportedSportIds
-      .map(id => sports.find(s => s.id === id)?.facilityTerm)
-      .filter(Boolean) as string[];
-    const uniqueTerms = Array.from(new Set(terms));
-    if (uniqueTerms.length === 1) return uniqueTerms[0];
-    return 'Field/Court';
-  };
-
-  // Open Site Editor
-  const handleOpenSiteModal = (site: Site | null) => {
-    router.push({
-      pathname: '/admin/[orgId]/sites/[siteId]',
-      params: { orgId: orgId!, siteId: site ? site.id : 'new' }
-    });
-  };
-
-  // Delete Site Confirmation
-  const handleDeleteSite = (site: Site) => {
-    setSiteToDelete(site);
-    setDeleteError(null);
-  };
-
-  const confirmDeleteSite = () => {
-    if (!siteToDelete) return;
-    setIsProcessing(true);
-    setDeleteError(null);
-    // Shown inline in the confirmation modal, so no toast.
-    sendAction(SocketAction.DELETE_SITE, { id: siteToDelete.id }, { suppressToast: true }).then(result => {
-      setIsProcessing(false);
-      if (result.ok) {
-        setSiteToDelete(null);
-      } else {
-        setDeleteError(result.message || 'Site is currently linked to events or games and cannot be deleted.');
-      }
-    });
-  };
-
-  // Filter & Search Sites List
-  const filteredSites = sites.filter(s => {
-    if (!showInactive && s.isActive === false) return false;
-
-    const siteFacilities = facilities.filter(f => f.siteId === s.id);
-    const facilityMatch = siteFacilities.some(f => 
-      f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (f.supportedSportIds || []).some(id => 
-        (sports.find(sp => sp.id === id)?.name || '').toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    );
-
+  if (isLoading) {
     return (
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.address?.fullAddress || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      facilityMatch
+      <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
+        <ScreenHeader title="Sites" onBack={() => safeBack(`/admin/${orgId}`)} />
+        <View className="flex-1 items-center justify-center"><ActivityIndicator size="large" color={themeColor(isDark, 'primary')} /></View>
+      </SafeAreaView>
     );
-  });
+  }
+
+  const list = (items: Site[]) => (
+    <View className="rounded-2xl border border-line bg-card overflow-hidden">
+      {items.map((site, i) => (
+        <SiteRow key={site.id} site={site} facilities={facilitiesBySite.get(site.id) || []} sports={sports} isWide={isWide} first={i === 0} onPress={() => open(site)} />
+      ))}
+    </View>
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
-      {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
-        <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}`)}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
-          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
-            Back
+      <ScreenHeader title="Sites" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
+      <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
+          <View className="flex-row items-center gap-2 bg-card border border-line rounded-xl px-3">
+            <Ionicons name="search-outline" size={16} color={themeColor(isDark, 'ink-muted')} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search by name, address or facility"
+              placeholderTextColor={themeColor(isDark, 'ink-muted')}
+              accessibilityLabel="Search sites"
+              className="flex-1 font-inter text-base text-ink py-2.5 outline-none"
+            />
+          </View>
+
+          <Text className="font-inter text-sm text-ink-muted px-1">
+            {shownActive.length === 1 ? '1 site' : `${shownActive.length} sites`}
           </Text>
-        </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
-          Sites & Facilities
-        </Text>
-        <TouchableOpacity 
-          className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
-          onPress={() => handleOpenSiteModal(null)}
-        >
-          <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
-        </TouchableOpacity>
-      </View>
 
-      {/* BODY CONTENT */}
-      {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
-          <Text className="font-orbitron text-xs text-ink-muted mt-3">Loading Sites...</Text>
-        </View>
-      ) : (
-        <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 40 }}>
-          {/* SEARCH BAR & FILTER */}
-          <View className="flex-row items-center gap-3 mb-6">
-            <View className="flex-1 flex-row items-center bg-card border border-line rounded-xl px-4 py-2.5 shadow-sm">
-              <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
-              <TextInput
-                placeholder="Search sites, addresses, or facilities..."
-                placeholderTextColor={themeColor(isDark, 'ink-muted')}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={18} color={themeColor(isDark, 'ink-muted')} />
-                </TouchableOpacity>
-              )}
+          {shownActive.length ? list(shownActive) : (
+            <View className="items-center justify-center py-12 gap-2">
+              <Ionicons name="location-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
+              <Text className="font-inter text-sm text-ink-muted text-center">
+                {activeCount ? 'No site matches.' : canEdit ? 'No sites yet. Add where your games are played with Add site.' : 'No sites yet.'}
+              </Text>
             </View>
+          )}
 
-            <TouchableOpacity 
-              onPress={() => setShowInactive(!showInactive)}
-              className={`p-3 rounded-xl border items-center justify-center ${showInactive ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}
-            >
-              <Ionicons name={showInactive ? "eye" : "eye-off"} size={16} color={showInactive ? themeColor(isDark, 'primary') : themeColor(isDark, 'ink-muted')} />
-            </TouchableOpacity>
-          </View>
+          {shownInactive.length ? (
+            <View className="gap-2 mt-2">
+              <TouchableOpacity
+                onPress={() => setShowInactive(v => !v)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showInactive }}
+                className="flex-row items-center justify-between rounded-2xl border border-line bg-card px-4 py-3"
+              >
+                <Text className="font-inter-semibold text-sm text-ink-soft">Inactive sites · {shownInactive.length}</Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="font-inter text-sm text-ink-muted">{showInactive ? 'Hide' : 'Show'}</Text>
+                  <Ionicons name={showInactive ? 'chevron-up' : 'chevron-down'} size={14} color={themeColor(isDark, 'ink-muted')} />
+                </View>
+              </TouchableOpacity>
+              {showInactive ? list(shownInactive) : null}
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
 
-          {/* SITES LIST */}
-          <View className="space-y-4">
-            {filteredSites.map((site) => {
-              const siteFacilities = facilities.filter(f => f.siteId === site.id);
-              return (
-                <TouchableOpacity
-                  key={site.id}
-                  onPress={() => {
-                    if (canEdit) {
-                      router.push({ pathname: '/admin/[orgId]/sites/[siteId]', params: { orgId: orgId!, siteId: site.id } });
-                    } else {
-                      router.push({ pathname: '/admin/[orgId]/sites/[siteId]/view', params: { orgId: orgId!, siteId: site.id } });
-                    }
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <GlassCard 
-                    className={`border border-line p-5 ${site.isActive === false ? 'opacity-60' : ''}`}
-                  >
-                    <View className="flex-row justify-between items-start mb-2">
-                      <View className="flex-1">
-                        <View className="flex-row items-center gap-2">
-                          <Text className="font-orbitron-bold text-base text-ink">
-                            {site.name}
-                          </Text>
-                          {site.isActive === false && (
-                            <View className="bg-line px-2 py-0.5 rounded">
-                              <Text className="text-[8px] font-semibold text-ink-muted uppercase tracking-widest">Inactive</Text>
-                            </View>
-                          )}
-                        </View>
-
-                        <View className="flex-row items-center gap-1.5 mt-1">
-                          <Ionicons name="map-outline" size={12} color={themeColor(isDark, 'ink-muted')} />
-                          <Text className="font-inter text-xs text-ink-muted">
-                            {site.address?.fullAddress || 'No address registered'}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View className="flex-row items-center gap-2">
-                        <TouchableOpacity 
-                          onPress={(e: any) => {
-                            if (e && e.stopPropagation) e.stopPropagation();
-                            router.push({ pathname: '/admin/[orgId]/sites/[siteId]/view', params: { orgId: orgId!, siteId: site.id } });
-                          }}
-                          className="w-7 h-7 rounded-lg bg-sunken items-center justify-center border border-line-soft active:opacity-80"
-                        >
-                          <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-soft')} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    {/* FACILITIES LIST UNDER SITE */}
-                    <View className="mt-4 pt-3 border-t border-line-soft">
-                      <Text className="font-inter-bold text-[10px] text-ink-muted uppercase tracking-wider mb-2">
-                        Facilities ({siteFacilities.length})
-                      </Text>
-                      <View className="flex-row flex-wrap gap-2">
-                        {siteFacilities.map((fac) => {
-                          const term = getFacilityTerm(fac.supportedSportIds);
-                          
-                          // Map category / sport to an icon name
-                          let iconName: any = "location-outline";
-                          if (fac.primarySportId) {
-                            const sport = sports.find(s => s.id === fac.primarySportId);
-                            const sportNameLower = (sport?.name || '').toLowerCase();
-                            if (sportNameLower.includes('rugby')) iconName = 'american-football';
-                            else if (sportNameLower.includes('soccer') || sportNameLower.includes('football')) iconName = 'football';
-                            else if (sportNameLower.includes('tennis')) iconName = 'tennisball';
-                            else if (sportNameLower.includes('cricket')) iconName = 'baseball';
-                            else if (sportNameLower.includes('golf')) iconName = 'golf';
-                            else if (sportNameLower.includes('chess')) iconName = 'trophy-outline';
-                          } else {
-                            switch(fac.category) {
-                              case 'sport_field': iconName = 'tennisball-outline'; break;
-                              case 'indoor_hall': iconName = 'business-outline'; break;
-                              case 'clubhouse': iconName = 'home-outline'; break;
-                              case 'shop': iconName = 'cart-outline'; break;
-                              case 'parking': iconName = 'car-outline'; break;
-                              case 'restroom': iconName = 'water-outline'; break;
-                              default: iconName = 'location-outline';
-                            }
-                          }
-
-                          return (
-                            <TouchableOpacity 
-                              key={fac.id}
-                              onPress={(e: any) => {
-                                if (e && e.stopPropagation) e.stopPropagation();
-                                if (canEdit) {
-                                  router.push({
-                                    pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]',
-                                    params: { orgId: orgId!, siteId: site.id, facilityId: fac.id }
-                                  });
-                                } else {
-                                  router.push({
-                                    pathname: '/admin/[orgId]/sites/[siteId]/facilities/[facilityId]/view',
-                                    params: { orgId: orgId!, siteId: site.id, facilityId: fac.id }
-                                  });
-                                }
-                              }}
-                              className={`flex-row items-center gap-1.5 bg-sunken px-2.5 py-1 rounded-lg border border-line-soft active:opacity-85 ${fac.isActive === false ? 'opacity-50' : ''}`}
-                            >
-                              <Ionicons name={iconName} size={12} color={themeColor(isDark, 'primary')} />
-                              <Text className="font-inter text-xs text-ink-soft">
-                                {fac.name}
-                              </Text>
-                              <Text className="font-inter text-[9px] text-ink-muted lowercase italic">
-                                ({term})
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                        {siteFacilities.length === 0 && (
-                          <Text className="font-inter text-xs text-ink-muted italic">No facilities registered. Edit site to configure.</Text>
-                        )}
-                      </View>
-                    </View>
-                  </GlassCard>
-                </TouchableOpacity>
-              );
-            })}
-
-            {filteredSites.length === 0 && (
-              <View className="items-center justify-center py-12">
-                <Ionicons name="location-outline" size={48} color={themeColor(isDark, 'ink-muted')} className="opacity-40 mb-3" />
-                <Text className="font-orbitron-bold text-base text-ink-soft">
-                  No Sites Registered
-                </Text>
-                <Text className="font-inter text-xs text-ink-muted text-center mt-1">
-                  Click the "+" button in the header to register training complexes and playing fields.
-                </Text>
-              </View>
-            )}
-          </View>
-        </ScrollView>
-      )}
-
-      <ConfirmationModal
-        isOpen={siteToDelete !== null}
-        onClose={() => setSiteToDelete(null)}
-        title="Delete Site?"
-        description={
-          siteToDelete 
-            ? `Are you sure you want to delete "${siteToDelete.name}"? This will permanently delete all associated facilities.${deleteError ? '\n\nError: ' + deleteError : ''}` 
-            : ''
-        }
-        onConfirm={confirmDeleteSite}
-        confirmText={isProcessing ? 'Deleting...' : 'Delete'}
-        variant="danger"
-        isProcessing={isProcessing}
-      />
+      {canEdit ? <SiteDialog visible={isAdding} onClose={() => setIsAdding(false)} orgId={orgId!} onAdded={open} /> : null}
     </SafeAreaView>
+  );
+}
+
+function SiteRow({ site, facilities, sports, isWide, first, onPress }: {
+  site: Site;
+  facilities: Facility[];
+  sports: Sport[];
+  isWide: boolean;
+  first: boolean;
+  onPress: () => void;
+}) {
+  const isDark = useActiveTheme() === 'dark';
+  const inactive = site.isActive === false;
+  const sportNames = siteSports(facilities, sports).join(', ');
+  const amenities = siteAmenities(facilities);
+  const border = first ? '' : 'border-t border-line-soft';
+  const chevron = <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />;
+
+  if (!isWide) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" accessibilityLabel={`${site.name}, ${addressText(site.address) || 'no address yet'}`} className={`flex-row items-center gap-3 px-3 py-2.5 ${border}`}>
+        <SiteMark size={40} dim={inactive} />
+        <View className="flex-1 min-w-0">
+          <View className="flex-row items-center gap-2">
+            <Text className="font-inter-semibold text-[15px] text-ink flex-shrink" numberOfLines={1}>{site.name}</Text>
+            <View className="ml-auto pl-2 flex-shrink-0"><AmenityIcons categories={amenities} dim={inactive} /></View>
+          </View>
+          <View className="flex-row items-center gap-2.5 mt-0.5">
+            <SiteAddressLine address={site.address} />
+            {sportNames ? <Text className="font-inter text-xs text-ink-muted flex-shrink-0" style={{ maxWidth: '45%' }} numberOfLines={1}>{sportNames}</Text> : null}
+          </View>
+        </View>
+        {chevron}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" className={`flex-row items-center gap-3 px-4 py-3 ${border}`}>
+      <SiteMark size={40} dim={inactive} />
+      <View className="flex-1 min-w-0">
+        <Text className="font-inter-semibold text-[15px] text-ink" numberOfLines={1}>{site.name}</Text>
+        <View className="flex-row mt-0.5"><SiteAddressLine address={site.address} /></View>
+      </View>
+      <View style={{ width: 340 }} className="gap-1">
+        <Text className={`font-inter text-sm ${sportNames ? 'text-ink-soft' : 'text-ink-muted'}`} numberOfLines={1}>
+          {sportNames || (facilities.length ? 'No sports set' : 'No facilities yet')}
+        </Text>
+        <AmenityIcons categories={amenities} dim={inactive} />
+      </View>
+      {chevron}
+    </TouchableOpacity>
   );
 }

@@ -15,6 +15,7 @@ import { nominateOrgContact } from '../services/nominations';
 import { GlassCard } from './GlassCard';
 import { AgeGroupPicker } from './AgeGroupPicker';
 import { pickableTeams } from './teams/TeamBits';
+import { pickableFacilities, pickableSites } from './sites/SiteBits';
 import { venueTimeHint, venueTimeZone, type TimeZone } from '../utils/dates';
 import { themeColor } from '../constants/Colors';
 
@@ -188,12 +189,12 @@ export default function MatchForm({
 
   // Filter facilities by the selected sport
   const filteredFacilities = useMemo(() => {
-    return facilities.filter(f => {
+    return pickableFacilities(facilities, [initialData?.facilityId]).filter(f => {
       if (!selectedSportId) return true;
       if (!f.supportedSportIds || f.supportedSportIds.length === 0) return true;
       return f.supportedSportIds.includes(selectedSportId) || f.primarySportId === selectedSportId;
     });
-  }, [facilities, selectedSportId]);
+  }, [facilities, selectedSportId, initialData?.facilityId]);
 
   // Resolve Sport-Specific Facility Term
   const getFacilityLabel = () => {
@@ -856,7 +857,7 @@ export default function MatchForm({
                 <CustomSelect
                   value={selectedSiteId}
                   onChange={setSelectedSiteId}
-                  options={sites.map(s => ({ value: s.id, label: s.name }))}
+                  options={pickableSites(sites, [initialData?.siteId]).map(s => ({ value: s.id, label: s.name }))}
                   placeholder="Select Site"
                   clearable={true}
                 />

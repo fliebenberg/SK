@@ -32,6 +32,12 @@ export interface AddressInputProps {
   pinHelp?: string;
   /** Other places to show on the map around the pin — a site's facilities. */
   markers?: MapMarker[];
+  /** Marks the field `Optional` — Add site, where a site can be placed later. */
+  optional?: boolean;
+  /** Field help on the Address label. */
+  help?: string;
+  /** Opens on the search box ready to type. Off where the input is not the first field. */
+  autoFocus?: boolean;
 }
 
 type Mode = 'search' | 'picked' | 'manual';
@@ -45,7 +51,7 @@ export function isAddressComplete(a: AddressDraft | null): boolean {
 
 const DEFAULT_PIN_HELP = 'Drag the pin to the main entrance.';
 
-export function AddressInput({ value, onChange, pinTitle, pinHelp = DEFAULT_PIN_HELP, markers }: AddressInputProps) {
+export function AddressInput({ value, onChange, pinTitle, pinHelp = DEFAULT_PIN_HELP, markers, optional, help, autoFocus = true }: AddressInputProps) {
   const isDark = useActiveTheme() === 'dark';
   const [mode, setMode] = useState<Mode>(value ? 'picked' : 'search');
   const [query, setQuery] = useState('');
@@ -107,7 +113,7 @@ export function AddressInput({ value, onChange, pinTitle, pinHelp = DEFAULT_PIN_
   if (mode === 'search') {
     return (
       <View className="gap-2">
-        <FieldLabel label="Address" />
+        <FieldLabel label="Address" optional={optional} help={help} />
         <View className={`flex-row items-center gap-2 ${INPUT}`}>
           <Ionicons name="search" size={16} color={themeColor(isDark, 'ink-muted')} />
           <TextInput
@@ -115,7 +121,7 @@ export function AddressInput({ value, onChange, pinTitle, pinHelp = DEFAULT_PIN_
             onChangeText={setQuery}
             placeholder="Start typing the address"
             placeholderTextColor={themeColor(isDark, 'ink-muted')}
-            autoFocus
+            autoFocus={autoFocus}
             autoCorrect={false}
             className="flex-1 font-inter text-base text-ink outline-none"
             accessibilityLabel="Search for the address"
@@ -179,7 +185,7 @@ export function AddressInput({ value, onChange, pinTitle, pinHelp = DEFAULT_PIN_
   return (
     <View className="gap-3">
       <View className="gap-1.5">
-        <FieldLabel label="Address" />
+        <FieldLabel label="Address" optional={optional} help={help} />
         <View className="flex-row items-start gap-2.5 rounded-xl bg-sunken px-3 py-2.5">
           <Ionicons name="location-outline" size={16} color={themeColor(isDark, 'ink-muted')} style={{ marginTop: 2 }} />
           <View className="flex-1 min-w-0">

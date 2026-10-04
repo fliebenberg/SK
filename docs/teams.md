@@ -69,7 +69,8 @@ the matching games — a head-to-head when the search names an opponent.
 
 Wide, the search sits above the two columns (Players left; Staff and Games right). On a phone the
 page is one long column, so the search is **pinned under the header** with Players / Staff / Games
-buttons that jump to each card and highlight the one in view. A team with nobody and no games has
+buttons that jump to each card and highlight the one in view ([`JumpBar`](file:///c:/Fred/Coding/SK/expo-app/components/JumpBar.tsx),
+shared with the site page since 2026-10-04, which drops the counts when a label would be cut). A team with nobody and no games has
 neither.
 
 ### Adding people

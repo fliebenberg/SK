@@ -12,6 +12,7 @@ import { ScreenHeader } from '../../../../../../components/ScreenHeader';
 import { FieldLabel } from '../../../../../../components/FieldLabel';
 import { addCalendarDays, isCalendarDate } from '../../../../../../utils/dates';
 import { FacilityPicker } from '../../../../../../components/tournament/FacilityPicker';
+import { pickableSites } from '../../../../../../components/sites/SiteBits';
 import { SetupStepFooter } from '../../../../../../components/tournament/SetupStepFooter';
 import { useSetupStepScreen } from '../../../../../../hooks/useSetupStepScreen';
 import { useUnsavedChanges } from '../../../../../../hooks/useUnsavedChanges';
@@ -527,7 +528,7 @@ export default function SetupBasics() {
                     help="Where the tournament is based — what the listing shows and where the facility picker opens. It does not restrict anything: a tournament based at the school can still use the courts next door."
                   />
                   <CustomSelect
-                    options={sites.map(s => ({ label: s.name, value: s.id }))}
+                    options={pickableSites(sites, [event?.siteId]).map(s => ({ label: s.name, value: s.id }))}
                     value={editSiteId}
                     onChange={setEditSiteId}
                     placeholder="Select a site..."

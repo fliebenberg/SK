@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Facility, Site } from '@sk/shared';
+import { pickableFacilities } from '../sites/SiteBits';
 
 /**
  * Which facilities a tournament uses — or one division of it (U47).
@@ -24,6 +25,9 @@ import { Facility, Site } from '@sk/shared';
  * Facilities are not filtered by the sport they support. `Facility.supportedSportIds` is optional
  * and mostly unset in practice, so filtering on it would hide real fields; the sport rule belongs
  * to the scheduler, which warns rather than blocks (U26).
+ *
+ * **Inactive is left out** — an inactive facility, or any facility at an inactive site — unless it
+ * is already chosen, so an old tournament never quietly loses a facility it used (docs/sites.md).
  */
 export interface FacilityPickerProps {
   sites: Site[];
@@ -53,13 +57,12 @@ export function FacilityPicker({
   emptyLabel = 'None chosen yet.',
   disabled,
 }: FacilityPickerProps) {
-  const offered = useMemo(
-    () =>
-      allowedFacilityIds
-        ? facilities.filter(facility => allowedFacilityIds.includes(facility.id))
-        : facilities,
-    [facilities, allowedFacilityIds]
-  );
+  const offered = useMemo(() => {
+    const inactiveSites = new Set(sites.filter(s => s.isActive === false).map(s => s.id));
+    const active = facilities.map(f => (inactiveSites.has(f.siteId) ? { ...f, isActive: false } : f));
+    const pickable = pickableFacilities(active, value);
+    return allowedFacilityIds ? pickable.filter(facility => allowedFacilityIds.includes(facility.id)) : pickable;
+  }, [facilities, sites, value, allowedFacilityIds]);
 
   /** Grouped by site, base site first, then alphabetically — a stable order to scan. */
   const groups = useMemo(() => {

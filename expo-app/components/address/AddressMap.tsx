@@ -46,6 +46,11 @@ export interface AddressMapProps {
   height?: number | '100%';
   /** Other places to show around the pin. Pass a memoised array: a new one redraws them. */
   markers?: MapMarker[];
+  /**
+   * Draw the pin itself as a marker with this icon and colour rather than the plain pin — a
+   * facility's pin, which shows what the facility is while it is dragged (`VENUE-3`).
+   */
+  pinIcon?: { icon: string; color: string };
 }
 
 /**
@@ -55,7 +60,7 @@ export interface AddressMapProps {
  * Web draws it with the Maps JavaScript SDK (`services/places.ts` loads it), native with
  * react-native-maps. The map type follows the reader's saved preference.
  */
-export function AddressMap({ latitude, longitude, title, draggable = false, onPinMoved, interactive = true, height = 200, markers = NO_MARKERS }: AddressMapProps) {
+export function AddressMap({ latitude, longitude, title, draggable = false, onPinMoved, interactive = true, height = 200, markers = NO_MARKERS, pinIcon }: AddressMapProps) {
   const isDark = useActiveTheme() === 'dark';
   const mapType = useSettingsStore((state: any) => state.getEffectivePreference('mapType') || 'standard');
 
@@ -71,6 +76,7 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
         height={height}
         satellite={mapType === 'satellite'}
         markers={markers}
+        pinIcon={pinIcon}
         isDark={isDark}
       />
     );
@@ -104,7 +110,9 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
             const c = e.nativeEvent.coordinate;
             onPinMoved?.(c.latitude, c.longitude);
           }}
-        />
+        >
+          {pinIcon ? <MarkerBadge icon={pinIcon.icon} color={pinIcon.color} isDark={isDark} size={18} /> : null}
+        </Marker>
         {markers.map(m => (
           <Marker
             key={m.id}
@@ -113,20 +121,7 @@ export function AddressMap({ latitude, longitude, title, draggable = false, onPi
             description={m.description}
             tracksViewChanges={false}
           >
-            <View
-              style={{
-                backgroundColor: themeColor(isDark, 'popover'),
-                padding: 6,
-                borderRadius: 20,
-                borderWidth: 1.5,
-                borderColor: m.color,
-                alignItems: 'center',
-                justifyContent: 'center',
-                elevation: 5,
-              }}
-            >
-              <Ionicons name={m.icon as any} size={14} color={m.color} />
-            </View>
+            <MarkerBadge icon={m.icon} color={m.color} isDark={isDark} size={14} />
           </Marker>
         ))}
       </MapView>
@@ -154,10 +149,30 @@ function setMapType(value: 'standard' | 'satellite') {
 
 const NO_MARKERS: MapMarker[] = [];
 
+/** A round marker with an icon, for native maps — the web map draws the same from `markerSvgUrl`. */
+function MarkerBadge({ icon, color, isDark, size }: { icon: string; color: string; isDark: boolean; size: number }) {
+  return (
+    <View
+      style={{
+        backgroundColor: themeColor(isDark, 'popover'),
+        padding: Math.round(size * 0.43),
+        borderRadius: 40,
+        borderWidth: size > 14 ? 2 : 1.5,
+        borderColor: color,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 5,
+      }}
+    >
+      <Ionicons name={icon as any} size={size} color={color} />
+    </View>
+  );
+}
+
 function WebMap({
-  latitude, longitude, title, draggable, onPinMoved, interactive, height, satellite, markers, isDark,
+  latitude, longitude, title, draggable, onPinMoved, interactive, height, satellite, markers, pinIcon, isDark,
 }: Required<Pick<AddressMapProps, 'latitude' | 'longitude' | 'draggable' | 'interactive' | 'height' | 'markers'>> &
-  Pick<AddressMapProps, 'title' | 'onPinMoved'> & { satellite: boolean; isDark: boolean }) {
+  Pick<AddressMapProps, 'title' | 'onPinMoved' | 'pinIcon'> & { satellite: boolean; isDark: boolean }) {
   const containerRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
@@ -179,6 +194,12 @@ function WebMap({
       },
     }));
   };
+  /** The pin's own icon, when it has one; `undefined` keeps Google's plain pin. */
+  const pinIconOf = (google: any) => pinIcon ? {
+    url: markerSvgUrl(pinIcon.icon, pinIcon.color, isDark),
+    anchor: new google.maps.Point(20, 20),
+    scaledSize: new google.maps.Size(40, 40),
+  } : undefined;
   // Read through a ref so a new callback each render does not rebuild the map.
   const onPinMovedRef = useRef(onPinMoved);
   onPinMovedRef.current = onPinMoved;
@@ -204,7 +225,7 @@ function WebMap({
           const id = mapRef.current.getMapTypeId();
           setMapType(id === google.maps.MapTypeId.HYBRID || id === google.maps.MapTypeId.SATELLITE ? 'satellite' : 'standard');
         });
-        markerRef.current = new google.maps.Marker({ position: center, map: mapRef.current, title, draggable });
+        markerRef.current = new google.maps.Marker({ position: center, map: mapRef.current, title, draggable, icon: pinIconOf(google) });
         markerRef.current.addListener('dragend', (e: any) => {
           onPinMovedRef.current?.(e.latLng.lat(), e.latLng.lng());
         });
@@ -216,6 +237,7 @@ function WebMap({
           mapRef.current.setCenter(center);
         }
         markerRef.current.setDraggable(draggable);
+        markerRef.current.setIcon(pinIconOf(google) ?? null);
         const wanted = satellite ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.ROADMAP;
         if (mapRef.current.getMapTypeId() !== wanted) mapRef.current.setMapTypeId(wanted);
       }
@@ -223,7 +245,8 @@ function WebMap({
       // Leaves the empty box; the address text beside or below the map still says where it is.
     });
     return () => { cancelled = true; };
-  }, [latitude, longitude, title, draggable, interactive, satellite]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latitude, longitude, title, draggable, interactive, satellite, pinIcon?.icon, pinIcon?.color, isDark]);
 
   // Redraws the markers when they change, once the map exists; until then the effect above draws them.
   useEffect(() => {

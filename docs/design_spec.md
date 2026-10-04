@@ -217,7 +217,7 @@ Agreed 2026-10-03 on the People list ([people.md](file:///c:/Fred/Coding/SK/docs
 - **Wide, search and filters share one line, and a filter label is never cut short.** The segmented filter (`<SegmentedControl fit>`) sizes each segment to its own label and the search box takes what is left, down to 160px. When there is not room for the counts as well, the counts are dropped — on web a segment then shows its count on hover. Labels are always one line.
 - **Group only by something that varies.** Teams are grouped by sport only when the organisation has teams in more than one.
 - **Records out of use sit in a collapsed section at the end** (inactive teams), so the main list needs no badge for them.
-- Applied to the Teams list on 2026-10-03 ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)).
+- Applied to the Teams list on 2026-10-03 ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)), and the Sites list on 2026-10-04 ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)), which has no filters — an organisation has a handful of sites — and shows a site's other facilities as icons only, the marks they have on the map.
 
 ---
 

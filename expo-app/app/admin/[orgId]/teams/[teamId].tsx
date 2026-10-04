@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, NativeScrollEvent, NativeSyntheticEvent, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { ScreenHeader } from '../../../../components/ScreenHeader';
 import { EditLink } from '../../../../components/ReadCard';
 import { OverflowMenu, OverflowMenuItem } from '../../../../components/OverflowMenu';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
+import { JumpBar, useJumpSections } from '../../../../components/JumpBar';
 import { InviteModal, isOnScoreKeeper, useInviteCooldownHours } from '../../../../components/InviteToScoreKeeper';
 import { AddPersonDialog } from '../../../../components/people/AddPersonDialog';
 import { OrgRole } from '../../../../components/people/PersonDialogs';
@@ -87,11 +88,7 @@ export default function TeamPage() {
   const [busyError, setBusyError] = useState<string | null>(null);
 
   // The phone's jump buttons: where each card starts, and which one is in view.
-  const scrollRef = useRef<ScrollView>(null);
-  const sectionY = useRef<Record<Section, number>>({ players: 0, staff: 0, games: 0 });
-  /** Where the column of cards starts in the scroll content; each card is measured inside it. */
-  const columnY = useRef(0);
-  const [inView, setInView] = useState<Section>('players');
+  const jump = useJumpSections<Section>(['players', 'staff', 'games'], isWide ? 24 : 12);
 
   const team = teams.find(t => t.id === teamId) || null;
   const back = () => safeBack(`/admin/${orgId}/teams`);
@@ -344,47 +341,18 @@ export default function TeamPage() {
 
   /* ---------------- phone: pinned search and jump buttons ---------------- */
 
-  const track = (section: Section) => (e: { nativeEvent: { layout: { y: number } } }) => {
-    sectionY.current[section] = e.nativeEvent.layout.y;
-  };
-  const jumpTo = (section: Section) => {
-    setInView(section);
-    scrollRef.current?.scrollTo({ y: Math.max(0, columnY.current + sectionY.current[section] - 8), animated: true });
-  };
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (isWide) return;
-    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-    const y = contentOffset.y + 24 - columnY.current;
-    const order: Section[] = ['players', 'staff', 'games'];
-    // At the bottom the last card cannot reach the top of the screen, so it counts as in view.
-    const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 8;
-    const current = atBottom ? 'games' : order.reduce<Section>((at, s) => (y >= sectionY.current[s] ? s : at), 'players');
-    if (current !== inView) setInView(current);
-  };
-  const jumpCounts: Record<Section, number> = {
-    players: q ? matchingPlayers.length : players.length,
-    staff: q ? matchingStaff.length : staff.length,
-    games: q ? matchingGames.length : games.length,
-  };
   const pinned = (
     <View className="gap-2 px-3 py-2 bg-card border-b border-line">
       {searchBox}
-      <View className="flex-row gap-1.5">
-        {(['players', 'staff', 'games'] as Section[]).map(s => (
-          <TouchableOpacity
-            key={s}
-            onPress={() => jumpTo(s)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: inView === s }}
-            className={`flex-1 flex-row items-center justify-center gap-1 rounded-lg py-1.5 ${inView === s ? 'bg-primary-soft' : 'bg-sunken'}`}
-          >
-            <Text className={`font-inter-semibold text-[13px] ${inView === s ? 'text-primary-ink' : 'text-ink-soft'}`}>
-              {s === 'players' ? 'Players' : s === 'staff' ? 'Staff' : 'Games'}
-            </Text>
-            <Text className={`font-inter text-xs ${inView === s ? 'text-primary-ink' : 'text-ink-muted'}`}>{jumpCounts[s]}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <JumpBar
+        sections={[
+          { key: 'players', label: 'Players', count: q ? matchingPlayers.length : players.length },
+          { key: 'staff', label: 'Staff', count: q ? matchingStaff.length : staff.length },
+          { key: 'games', label: 'Games', count: q ? matchingGames.length : games.length },
+        ]}
+        inView={jump.inView}
+        onJump={jump.jumpTo}
+      />
     </View>
   );
 
@@ -399,8 +367,8 @@ export default function TeamPage() {
       {/* A team with nobody and no games has nothing to search or jump to. */}
       {isWide || !(players.length || staff.length || games.length) ? null : pinned}
       <ScrollView
-        ref={scrollRef}
-        onScroll={onScroll}
+        ref={jump.scrollRef}
+        onScroll={isWide ? undefined : jump.onScroll}
         scrollEventThrottle={32}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }}
@@ -417,12 +385,10 @@ export default function TeamPage() {
               </View>
             </>
           ) : (
-            // Each card is measured inside this column, and the column inside the page (after the
-            // banner), so a jump adds the two.
-            <View className="gap-3" onLayout={e => { columnY.current = (isWide ? 24 : 12) + e.nativeEvent.layout.y; }}>
-              <View onLayout={track('players')}>{playersCard}</View>
-              <View onLayout={track('staff')}>{staffCard}</View>
-              <View onLayout={track('games')}>{gamesCard}</View>
+            <View className="gap-3" onLayout={jump.onColumnLayout}>
+              <View onLayout={jump.track('players')}>{playersCard}</View>
+              <View onLayout={jump.track('staff')}>{staffCard}</View>
+              <View onLayout={jump.track('games')}>{gamesCard}</View>
             </View>
           )}
         </View>

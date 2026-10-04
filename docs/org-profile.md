@@ -50,7 +50,7 @@ it* appears beside the type only while Other is chosen. The register-an-org dial
 
 The org's address uses the app's shared address input
 ([AddressInput](file:///c:/Fred/Coding/SK/expo-app/components/address/AddressInput.tsx)), which the
-site editor uses too, so that the same kind of data is entered the same way everywhere:
+site dialogs use too, so that the same kind of data is entered the same way everywhere:
 
 1. **Search** — suggestions from Google Places as you type.
 2. **Picked** — the address as text, with *Change* and *Edit details*, and a map whose pin can be
