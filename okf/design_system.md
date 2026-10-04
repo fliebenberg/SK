@@ -103,9 +103,10 @@ To maintain a consistent, premium live-sports aesthetic and prevent silent failu
 Agreed 2026-10-01 while redesigning the org basic info screen ([docs/org-profile.md](file:///c:/Fred/Coding/SK/docs/org-profile.md)),
 as rules to carry to other pages. So far they are applied to the org Profile, Settings and Nominate
 admin pages, the People list and person page ([people.md](file:///c:/Fred/Coding/SK/docs/people.md)),
-the Teams list and team page ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)) and the Sites list
-and site page ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)); other pages adopt them as they
-are next redesigned.
+the Teams list and team page ([teams.md](file:///c:/Fred/Coding/SK/docs/teams.md)), the Sites list
+and site page ([sites.md](file:///c:/Fred/Coding/SK/docs/sites.md)) and the Fixtures & Events list
+([events.md](file:///c:/Fred/Coding/SK/docs/events.md)); other pages adopt them as they are next
+redesigned.
 
 1.  **Read-first when a record is read more than it is edited.** Show values as text, one
     [`<ReadCard>`](file:///c:/Fred/Coding/SK/expo-app/components/ReadCard.tsx) per group. Each card's

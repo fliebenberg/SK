@@ -32,11 +32,16 @@ export interface EditDialogProps {
   isDirty?: boolean;
   /** Something quieter at the left of the footer, such as "Remove address". */
   footerLeft?: React.ReactNode;
+  /**
+   * For a dialog with nothing to save whose choices apply as they are made (the events list's
+   * Filters): one primary button with this label closes it, in place of Close — "Show 5 events".
+   */
+  doneLabel?: string;
   children: React.ReactNode;
 }
 
 export function EditDialog({
-  visible, title, onClose, onSave, saveLabel = 'Save', saveDisabled, isSaving, isDirty, footerLeft, children,
+  visible, title, onClose, onSave, saveLabel = 'Save', saveDisabled, isSaving, isDirty, footerLeft, doneLabel, children,
 }: EditDialogProps) {
   const isDark = useActiveTheme() === 'dark';
   const { width } = useWindowDimensions();
@@ -93,7 +98,7 @@ export function EditDialog({
                       <DialogButton label={saveLabel} onPress={onSave} disabled={saveDisabled || isSaving} loading={isSaving} />
                     </>
                   ) : (
-                    <DialogButton label="Close" variant="ghost" onPress={onClose} />
+                    <DialogButton label={doneLabel || 'Close'} variant={doneLabel ? 'primary' : 'ghost'} onPress={onClose} />
                   )}
                 </>
               )}

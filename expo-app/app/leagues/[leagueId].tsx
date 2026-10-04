@@ -127,7 +127,7 @@ export default function PublicLeagueStandings() {
     return s ? s.name : sportId;
   };
 
-  /** Third copy of this, extracted to `utils/dates.ts` in U49. Renders exactly as it always did. */
+  /** "19 Sep 2026 · 14:30", the one way the app writes a kick-off (`UI-13`). */
   const formatTime = (game: any) =>
     formatFixtureWhen(game?.scheduledStartTime || game?.startTime, {
       timeTbd: game?.customSettings?.timeTbd,

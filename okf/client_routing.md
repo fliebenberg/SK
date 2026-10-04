@@ -74,12 +74,13 @@ applied at the layout so an unauthorized visitor never mounts the workspace or i
 
 #### Fixtures, events and tournaments
 
-*   `/admin/[orgId]/events`: The fixture list, split into **Events** and **Games** tabs (U2/U36) over
-    one room, with multi-select role chips — Hosting / Convening / Attending — beside the
-    `Upcoming / Past` toggle (U4/U5). An event is **Past only once its last day is**, so a
-    tournament still running stays under Upcoming (`FIX-22`).
+*   `/admin/[orgId]/events`: Fixtures & Events, read-first (2026-10-04,
+    [events.md](file:///c:/Fred/Coding/SK/docs/events.md)). One row per event: a single match opens
+    its game, a tournament its event page. **Mine / All**, **Events / All games** and **Upcoming /
+    Past** switches; sport, kind and role behind one Filters button. An event is **Past only once its
+    last day is**, so a tournament still running stays under Upcoming (`FIX-22`).
 *   `/admin/[orgId]/events/create`: Scheduling **one match**, and nothing else. A tournament has no
-    creation screen: it is named and dated in a prompt on the events list, written as a `Festival`
+    creation screen: it is named and dated in a dialog on the events list, written as a `Festival`
     (D1/U34) and opened on its own Setup tab, where the format and everything else is edited
     (U45). The route no longer takes a `type`.
 *   `/admin/[orgId]/events/[eventId]`: One event. A `SingleMatch` shows its game; a `Tournament` shows

@@ -422,7 +422,7 @@ export default function SeasonDetails() {
   const availableTeams = pickableTeams(orgTeams).filter(t => !seasonTeams.some(st => st.teamId === t.id));
   const availableGames = orgGames.filter(g => !seasonGames.some(sg => sg.id === g.id));
 
-  /** Third copy of this, extracted to `utils/dates.ts` in U49. Renders exactly as it always did. */
+  /** "19 Sep 2026 · 14:30", the one way the app writes a kick-off (`UI-13`). */
   const formatTime = (game: any) =>
     formatFixtureWhen(game?.scheduledStartTime || game?.startTime, {
       timeTbd: game?.customSettings?.timeTbd,

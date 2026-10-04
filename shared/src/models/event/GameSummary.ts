@@ -20,6 +20,21 @@ export interface GameSummaryParticipant {
   status?: 'active' | 'withdrawn' | 'disqualified' | 'did_not_start';
   sortOrder?: number;
 
+  // --- The side's crest, for the fixture rows (docs/events.md) ---------------------------------
+  //
+  // Carried for the same reason as `orgShortName`: a fixtures list draws both teams' crests, and
+  // the other side is usually another organisation, whose record this viewer does not hold. A logo
+  // is a stored file name, not image data, so this costs a few bytes a side.
+
+  /** The team's short name ("U15A") — what a phone row prints after the org code. */
+  teamShortName?: string;
+  /** The organisation's full name, for a wide row ("Menlopark U15A"). */
+  orgName?: string;
+  orgLogo?: string;
+  orgLogoConfig?: { scale?: number; x?: number; y?: number } | null;
+  /** Tints the shield drawn for an organisation with no logo (most of them). */
+  orgPrimaryColor?: string;
+
   // --- A tournament side that nobody is playing yet (data model §2.0) --------------------------
   //
   // Carried for the same reason `orgShortName` is: `resolveFixtureSide` has to be able to print

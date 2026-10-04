@@ -1,171 +1,125 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeBack } from '../../../../hooks/useSafeBack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassCard } from '../../../../components/GlassCard';
-import { Button } from '../../../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { ConfirmationModal } from '../../../../components/ConfirmationModal';
-import DatePicker from '../../../../components/DatePicker';
-import { useActiveTheme } from '../../../../store/settingsStore';
-import { wsService } from '../../../../services/websocket';
-import { sendAction } from '../../../../services/actions';
-import { useAuthStore } from '../../../../store/authStore';
 import {
-  SocketAction,
   Event,
-  Site,
-  Facility,
   GameSummary,
-  participantLabel,
-  hasLiveScore,
+  Sport,
+  eventFormatLabel,
   isScoreNotProvided,
+  resolveEventType,
+  unknownEventTypeMessage,
 } from '@sk/shared';
-
+import { ScreenHeader } from '../../../../components/ScreenHeader';
+import { SegmentedControl } from '../../../../components/SegmentedControl';
+import { OverflowMenu } from '../../../../components/OverflowMenu';
+import {
+  DateTile,
+  FixtureCrest,
+  RowTag,
+  TournamentMark,
+  fixtureSideNames,
+  sideScores,
+} from '../../../../components/events/EventBits';
+import {
+  EventFiltersDialog,
+  EventListFilters,
+  EventListRole,
+  NO_FILTERS,
+  NewTournamentDialog,
+  ROLE_OPTIONS,
+} from '../../../../components/events/EventListDialogs';
+import { useLiveRoom } from '../../../../hooks/useLiveRoom';
+import { useOrgSites } from '../../../../hooks/useOrgSites';
+import { useSocketQuery } from '../../../../hooks/useSocketQuery';
+import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
+import { useSafeBack } from '../../../../hooks/useSafeBack';
+import { useAuthStore } from '../../../../store/authStore';
+import { useActiveTheme, useSettingsStore } from '../../../../store/settingsStore';
+import { getMatchPermissions } from '../../../../utils/matchPermissions';
 import {
   calendarRangeStatus,
-  formatDateRange,
-  formatFixtureWhen,
+  calendarRangeTile,
+  dayHeading,
+  eventDayOfRange,
+  formatKickoffTime,
+  instantCalendarDate,
+  instantTile,
   isCalendarDate,
+  monthSection,
   startOfTodayMs,
   todayCalendarDate,
+  upcomingSection,
   whenMs,
 } from '../../../../utils/dates';
-import { getMatchPermissions } from '../../../../utils/matchPermissions';
-import { useLiveRoom } from '../../../../hooks/useLiveRoom';
-import { useMyEventGrants } from '../../../../hooks/useEventCapabilities';
-import { deriveEventRoles, EventRole } from '@sk/shared';
-import { EventRoleChips, EventRoleFilter } from '../../../../components/EventRoleChips';
-import { resolveEventType, unknownEventTypeMessage } from '@sk/shared';
-import { Tabs } from '../../../../components/Tabs';
 import { themeColor } from '../../../../constants/Colors';
 
-class EventsErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+/**
+ * Fixtures & Events (docs/events.md). One row per event, and a row opens its page: a single match
+ * its game, a tournament its event page. A match row is the fixture — both teams with their crests,
+ * when and where; a tournament row is the event — name, format, sports, where and how many games.
+ *
+ * The toolbar holds what changes what someone sees most: search, **Mine / All**, Events / All games
+ * and Upcoming / Past. Everything else narrows the list from behind one Filters button, and every
+ * filter that is on shows as a chip right under the line that sets it, with how many of how many
+ * are shown. On a phone Mine / All takes Upcoming / Past's place, which moves into Filters.
+ *
+ * Two live rooms, because they are two datasets: `org:{id}:events` holds the events and
+ * `org:{id}:fixtures` the summary of every game under them. Joining either is the load.
+ */
 
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
+type When = 'upcoming' | 'past';
+type View_ = 'events' | 'games';
+type Scope = 'mine' | 'all';
 
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.error('[EventsErrorBoundary] Render error caught:', error, errorInfo);
-  }
+const SCOPE_KEY = 'eventsListScope';
+const VIEW_KEY = 'eventsListView';
 
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View className="p-6 bg-danger-soft border border-danger-line rounded-xl my-4">
-          <Text className="font-orbitron-bold text-danger-ink text-sm mb-2">Render Error in Events List</Text>
-          <Text className="font-inter text-xs text-ink-faint mb-4">{this.state.error?.toString()}</Text>
-          <TouchableOpacity
-            onPress={() => this.setState({ hasError: false, error: null })}
-            className="bg-primary px-4 py-2 rounded-lg self-start"
-          >
-            <Text className="font-inter-bold text-xs text-on-primary uppercase">Retry</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
+const ADMIN_ROLES = ['role-org-admin', 'role-org-staff'];
+
+/** The day a game is on: its kick-off's, or its event's first day while it has none. */
+const gameDay = (game: GameSummary, event?: Event) =>
+  instantCalendarDate(game.scheduledStartTime || game.startTime) || (event?.startDate ?? null);
+const gameMs = (game: GameSummary, event?: Event) => {
+  const ms = whenMs(game.scheduledStartTime || game.startTime || event?.startDate);
+  return isNaN(ms) ? 0 : ms;
+};
 
 export default function OrgEventsList() {
   const router = useRouter();
   const safeBack = useSafeBack();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const isDark = useActiveTheme() === 'dark';
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
 
   const user = useAuthStore((state: any) => state.user);
   const orgMemberships = useAuthStore((state: any) => state.orgMemberships);
   const teamMemberships = useAuthStore((state: any) => state.teamMemberships);
+  const dependants = useAuthStore((state: any) => state.dependants);
+  const viewerRole = (orgMemberships || []).find((m: any) => m.orgId === orgId)?.roleId;
+  /** Creating an event is a manage-org action: Admin and Staff. */
+  const canCreate = user?.globalRole === 'admin' || ADMIN_ROLES.includes(viewerRole);
 
-  // UI States
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'upcoming' | 'past'>('upcoming');
-  /**
-   * Events and games are two altitudes of one list, not two subjects (U2).
-   *
-   * The events tab asks what we are involved in and in what capacity; the games tab drills to the
-   * actual fixtures. Both are already delivered by the one room below — `EVENTS_SYNC` and
-   * `GAME_SUMMARIES_SYNC` both arrive on join — so this is a presentation split over data the
-   * screen already has, with no new fetch. Named after the entities (U36).
-   */
-  const [listTab, setListTab] = useState<'events' | 'games'>('events');
-  /** Multi-select, because a viewer can hold several roles in one event at once (U5). */
-  const [roleFilter, setRoleFilter] = useState<EventRole[]>([]);
-  const [isAddMenuVisible, setIsAddMenuVisible] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
-  /*
-    Creating a tournament (U45).
+  /* Mine / All and Events / All games are remembered on this device. Until someone chooses, Admin
+     and Staff see everything the organisation has on, and everyone else what is theirs. */
+  const savedScope = useSettingsStore(state => state.localOverrides[SCOPE_KEY]) as Scope | undefined;
+  const savedView = useSettingsStore(state => state.localOverrides[VIEW_KEY]) as View_ | undefined;
+  const setLocalOverride = useSettingsStore(state => state.setLocalOverride);
+  const scope: Scope = savedScope ?? (canCreate ? 'all' : 'mine');
+  const view: View_ = savedView ?? 'events';
+  const setScope = (next: Scope) => setLocalOverride(SCOPE_KEY, next);
+  const setView = (next: View_) => setLocalOverride(VIEW_KEY, next);
 
-    There is no wizard. A tournament is not built in one sitting — the name and the date are known
-    in March and everything else lands over the following weeks — so the only thing asked here is
-    what the list has to show, and the Setup screen is the form for the rest. The old create screen
-    demanded a venue, a facility and a sport before it would write anything, which is more than an
-    organiser knows on the day they decide to run it.
-  */
-  const [isNamingTournament, setIsNamingTournament] = useState(false);
-  const [newTournamentName, setNewTournamentName] = useState('');
-  const [newTournamentDate, setNewTournamentDate] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [when, setWhen] = useState<When>('upcoming');
+  const [filters, setFilters] = useState<EventListFilters>(NO_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [namingTournament, setNamingTournament] = useState(false);
 
-  const openTournamentPrompt = () => {
-    setNewTournamentName('');
-    setNewTournamentDate(todayCalendarDate());
-    setIsNamingTournament(true);
-  };
-
-  /**
-   * Write the shell and go straight to it.
-   *
-   * `Festival` is the format that assumes least about structure (D1) and the Setup screen changes
-   * it; the server creates the first division and its stages from it (U16), so a tournament is
-   * never in a state where a fixture has nowhere to live. Landing on the new tournament rather
-   * than back on this list is half the point of the change — the old screen made you find what
-   * you had just created.
-   */
-  const handleCreateTournament = () => {
-    const name = newTournamentName.trim();
-    if (!name || !isCalendarDate(newTournamentDate)) return;
-    setIsProcessing(true);
-    sendAction(SocketAction.ADD_EVENT, {
-      name,
-      type: 'Tournament',
-      format: 'Festival',
-      startDate: newTournamentDate,
-      orgId,
-      status: 'Scheduled',
-    }).then(result => {
-      setIsProcessing(false);
-      // A refusal is already toasted; the naming dialog stays open with what was typed.
-      if (!result.ok) return;
-      setIsNamingTournament(false);
-      router.push(`/admin/${orgId}/events/${result.data.id}`);
-    });
-  };
-
-  /**
-   * Two rooms, because they are two datasets (rule 4): `org:{id}:events` holds the `Event` records
-   * and `org:{id}:fixtures` the `GameSummary` of every game under them. They were one room until
-   * 2026-09-11, which meant an events list that never rendered a score still paid for every game
-   * in the org on join. Joining either IS the load - there is no `get_data` here at all, and every
-   * later change arrives carrying its own data rather than as a nudge to re-read.
-   *
-   * The audience is the hosting org plus every org playing in it, so a visiting school sees the
-   * same live fixture the host does.
-   */
-  const eventsRoom = orgId ? `org:${orgId}:events` : null;
-  const fixturesRoom = orgId ? `org:${orgId}:fixtures` : null;
-
-  const { items: events, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(eventsRoom, {
+  const { items: events, isLoading: eventsLoading, accessDenied } = useLiveRoom<Event>(orgId ? `org:${orgId}:events` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'EVENTS_SYNC':
@@ -181,7 +135,7 @@ export default function OrgEventsList() {
     },
   });
 
-  const { items: gameSummaries, isLoading: gamesLoading } = useLiveRoom<GameSummary>(fixturesRoom, {
+  const { items: games, isLoading: gamesLoading } = useLiveRoom<GameSummary>(orgId ? `org:${orgId}:fixtures` : null, {
     reduce: (message) => {
       switch (message.type) {
         case 'GAME_SUMMARIES_SYNC':
@@ -196,861 +150,866 @@ export default function OrgEventsList() {
     },
   });
 
-  const isLoading = eventsLoading || gamesLoading;
-
-  // Venue names are the one thing a fixture summary does not carry, since a
-  // site and facility are the org's own reference data rather than the game's.
-  const { items: sites } = useLiveRoom<Site>(orgId ? `org:${orgId}:sites` : null, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'SITES_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'SITE_ADDED':
-        case 'SITE_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'SITE_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
-
-  const { items: facilities } = useLiveRoom<Facility>(orgId ? `org:${orgId}:facilities` : null, {
-    reduce: (message) => {
-      switch (message.type) {
-        case 'FACILITIES_SYNC':
-          return { kind: 'replace', items: message.data || [] };
-        case 'FACILITY_ADDED':
-        case 'FACILITY_UPDATED':
-          return { kind: 'upsert', item: message.data };
-        case 'FACILITY_DELETED':
-          return { kind: 'remove', id: message.data?.id };
-        default:
-          return { kind: 'ignore' };
-      }
-    },
-  });
-
-  /**
-   * The one thing about a viewer's relationship to an event that the client cannot work out.
-   *
-   * Hosting and attending are derived from what this screen already holds — the user's
-   * memberships, each event's own org, its participating orgs, and the fixtures themselves. A
-   * division-organiser assignment appears on no payload the client holds, so it is read once for
-   * every event rather than per card (UI doc §4).
-   */
+  const { sites, facilities } = useOrgSites(orgId);
+  const { data: sportsData } = useSocketQuery<Sport[]>('sports');
   const grants = useMyEventGrants();
 
-  const rolesFor = (event: Event): EventRole[] =>
-    deriveEventRoles({
-      event,
-      grants,
-      orgMemberships,
-      teamMemberships,
-      games: (gameSummaries || []).filter(g => g && g.eventId === event.id),
-    });
+  const sportName = (id?: string) => (sportsData || []).find(s => s.id === id)?.name || '';
+  const siteName = (id?: string | null) => sites.find(s => s.id === id)?.name || '';
+  const facilityName = (id?: string | null) => facilities.find(f => f.id === id)?.name || '';
 
-  // Handle Deleting an Event
-  const handleDeleteEvent = async () => {
-    if (!eventToDelete) return;
-    setIsProcessing(true);
-    await sendAction(SocketAction.DELETE_EVENT, {
-      id: eventToDelete.id,
-      orgId,
-    });
-    setIsProcessing(false);
-    setEventToDelete(null);
-  };
-
-  /**
-   * A fixture's teams, straight off the summary the server published. The
-   * summary carries each participant's team name and org short name, so this
-   * needs no teams or organizations lookup of its own - and cannot go stale
-   * while the screen is open, because a rename republishes the summary.
-   */
-  const getMatchupLabel = (game?: GameSummary): string | undefined => {
-    if (!game) return undefined;
-    const home = participantLabel(game.participants?.[0]);
-    const away = participantLabel(game.participants?.[1]);
-    if (!home && !away) return undefined;
-    return `${home || 'TBD'} vs ${away || 'TBD'}`;
-  };
-
-  /** "12 - 7", in the same participant order as the matchup line — or "No score", when finished without one. */
-  const getScoreLabel = (game?: GameSummary): string | undefined => {
-    if (isScoreNotProvided(game)) return 'No score';
-    if (!game || !hasLiveScore(game)) return undefined;
-    const [home, away] = game.participants || [];
-    if (!home || !away) return undefined;
-    return `${game.scores?.[home.id] ?? 0} - ${game.scores?.[away.id] ?? 0}`;
-  };
-
-  // "<site> · <facility>", dropping whichever half we cannot resolve
-  const getVenueLabel = (siteId?: string | null, facilityId?: string | null): string | undefined => {
-    const site = sites.find(s => s.id === siteId)?.name;
-    const facility = facilities.find(f => f.id === facilityId)?.name;
-    const parts = [site, facility].filter(Boolean);
-    return parts.length ? parts.join(' · ') : undefined;
-  };
-
-  /**
-   * Date (and kick-off time, where the game carries one) shown on the card's top line.
-   *
-   * The **event** branch goes through the shared formatter (U49) so this card and the event screen
-   * behind it say the same thing — they did not: this built its own range out of
-   * `toLocaleDateString` and read `19 Sep 2026 – 21 Sep 2026` while the detail header one tap away
-   * printed the raw `2026-09-19`. A range now collapses what its ends share, and `compact` drops
-   * the weekday that the detail header shows, because this line already carries a venue and a
-   * status beside it.
-   *
-   * The **game** branch stays an instant with a time of day, which is a different question — hence
-   * `formatFixtureWhen` rather than the range formatter. Its `·` separator is preserved exactly as
-   * it was; `UI-13` covers the app disagreeing with the league screens' `@`.
-   */
-  const getWhenLabel = (event: Event, game?: GameSummary): string => {
-    const gameTime = game?.scheduledStartTime || game?.startTime;
-    if (gameTime) {
-      return formatFixtureWhen(gameTime, { timeTbd: game?.timeTbd, separator: '·' });
+  const eventsById = useMemo(() => new Map((events || []).filter(Boolean).map(e => [e.id, e])), [events]);
+  const gamesByEvent = useMemo(() => {
+    const map = new Map<string, GameSummary[]>();
+    for (const game of games || []) {
+      if (!game?.eventId) continue;
+      map.set(game.eventId, [...(map.get(game.eventId) || []), game]);
     }
-    return formatDateRange(event?.startDate, event?.endDate, { compact: true }) || 'Date TBD';
-  };
+    return map;
+  }, [games]);
 
-  // Helper to determine display name for event
-  const getEventName = (event: Event) => {
-    if (!event) return 'Unnamed Event';
+  /* ---------------------------------------------------------------------------------------------
+   * Mine: the games of the teams this person plays in, coaches or manages, their children's teams
+   * (as a guardian), and the events they run or convene.
+   * ------------------------------------------------------------------------------------------- */
+  const ownTeamIds = useMemo(() => new Set<string>((teamMemberships || []).map((m: any) => m.teamId)), [teamMemberships]);
+  const childTeamIds = useMemo(
+    () => new Set<string>((dependants || []).flatMap((d: any) => (d.teams || []).map((t: any) => t.teamId))),
+    [dependants]
+  );
+  const runEventIds = useMemo(() => new Set<string>([
+    ...grants.eventIds,
+    ...grants.divisions.map(d => d.eventId),
+    ...(grants.sports || []).map(s => s.eventId),
+  ]), [grants]);
+  const conveneEventIds = useMemo(() => new Set<string>([
+    ...grants.divisions.map(d => d.eventId),
+    ...(grants.sports || []).map(s => s.eventId),
+  ]), [grants]);
 
-    const eventGames = (gameSummaries || []).filter(g => g && g.eventId === event.id);
-    if (event.type === 'SingleMatch' && eventGames.length === 1) {
-      const matchup = getMatchupLabel(eventGames[0]);
-      if (matchup) return matchup;
-    }
-    return event.name || 'Unnamed Event';
-  };
+  const isMyGame = (game: GameSummary) =>
+    runEventIds.has(game.eventId) ||
+    (game.participants || []).some(p => !!p.teamId && (ownTeamIds.has(p.teamId) || childTeamIds.has(p.teamId)));
+  const isMyEvent = (event: Event) => runEventIds.has(event.id) || (gamesByEvent.get(event.id) || []).some(isMyGame);
 
-  // Filter & Sort Events
+  /** What Mine covers, built from what applies to this person — each part only when they have it. */
+  const mineScopeLine = (() => {
+    const parts = [
+      ownTeamIds.size > 0 && 'your teams',
+      childTeamIds.size > 0 && "your children's teams",
+      runEventIds.size > 0 && 'what you run',
+    ].filter(Boolean) as string[];
+    if (!parts.length) return 'You are on no team and run no events, so Mine is empty. All shows everything on.';
+    const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
+    return `Showing ${list}`;
+  })();
+
+  const rolesOf = (event: Event): Record<EventListRole, boolean> => ({
+    hosting: event.orgId === orgId,
+    convening: conveneEventIds.has(event.id),
+    away: event.orgId !== orgId,
+  });
+
+  /* ---------------------------------------------------------------------------------------------
+   * The list
+   * ------------------------------------------------------------------------------------------- */
   const today = todayCalendarDate();
-  const lastDayOf = (e?: Event) => e?.endDate || e?.startDate || '';
   const startOfToday = startOfTodayMs();
 
-  const filteredEvents = (events || [])
-    .filter(e => {
-      if (!e) return false;
-      // A single match now displays its resolved matchup rather than its stored name,
-      // so search has to cover both or a custom name becomes unfindable.
-      const haystack = `${getEventName(e)} ${e.name || ''}`.toLowerCase();
-      const matchesSearch = searchQuery ? haystack.includes(searchQuery.toLowerCase()) : true;
-      if (!matchesSearch) return false;
+  const eventSportIds = (event: Event) => Array.from(new Set([
+    ...(event.sportIds || []),
+    ...(gamesByEvent.get(event.id) || []).map(g => g.sportId).filter(Boolean),
+  ]));
+  const isPastEvent = (event: Event) => calendarRangeStatus(event.startDate, event.endDate, today) === 'after';
 
-      // Nothing selected means no narrowing. Selecting several widens rather than narrows, because
-      // the chips are alternatives — "show me the ones I host **or** convene" (U5).
-      if (roleFilter.length > 0) {
-        const roles = rolesFor(e);
-        if (!roleFilter.some(role => roles.includes(role))) return false;
-      }
+  /** Events in scope and on the chosen side of today — what search and filters then narrow. */
+  const baseEvents = useMemo(() => (events || []).filter(event => {
+    if (!event || !isCalendarDate(event.startDate)) return false;
+    if (scope === 'mine' && !isMyEvent(event)) return false;
+    return when === 'past' ? isPastEvent(event) : !isPastEvent(event);
+  }), [events, scope, when, gamesByEvent, ownTeamIds, childTeamIds, runEventIds, today]);
 
-      if (!e.startDate) {
-        console.warn('[OrgEventsList] Event missing startDate:', e);
-        return false;
-      }
+  const baseGames = useMemo(() => (games || []).filter(game => {
+    if (!game) return false;
+    if (scope === 'mine' && !isMyGame(game)) return false;
+    const ms = gameMs(game, eventsById.get(game.eventId));
+    if (!ms) return false;
+    return when === 'past' ? ms < startOfToday : ms >= startOfToday;
+  }), [games, scope, when, eventsById, ownTeamIds, childTeamIds, runEventIds, startOfToday]);
 
-      if (!isCalendarDate(e.startDate)) {
-        console.warn('[OrgEventsList] Invalid startDate for event:', e.id, e.startDate);
-        return false;
-      }
+  const sideWords = (game: GameSummary) => (game.participants || []).flatMap(p => {
+    const names = fixtureSideNames(p, orgId);
+    return [names.full, names.short];
+  });
 
-      // An event is past only once its last day is (FIX-22): a tournament still running stays
-      // under Upcoming, rather than moving to Past on its second day.
-      const finished = calendarRangeStatus(e.startDate, e.endDate, today) === 'after';
-      return viewMode === 'upcoming' ? !finished : finished;
-    })
-    .sort((a, b) =>
-      // Upcoming soonest first; Past most recently finished first.
-      viewMode === 'upcoming'
-        ? (a?.startDate || '').localeCompare(b?.startDate || '')
-        : lastDayOf(b).localeCompare(lastDayOf(a))
-    );
+  const q = search.trim().toLowerCase();
+  const matchesSearch = (words: string[]) => !q || words.some(w => (w || '').toLowerCase().includes(q));
 
-  const eventsById: Record<string, Event> = (events || []).reduce((acc, e) => {
-    if (e?.id) acc[e.id] = e;
-    return acc;
-  }, {} as Record<string, Event>);
-
-  /**
-   * The games tab, over the same room and the same two controls.
-   *
-   * A fixture's date is its own where it has one and its event's otherwise, so a game with no
-   * kick-off yet still sorts and filters with the day it belongs to rather than falling out of
-   * both halves of the Upcoming / Past split.
-   */
-  const gameWhen = (game: GameSummary): number => {
-    const when = whenMs(game.scheduledStartTime || game.startTime || eventsById[game.eventId || '']?.startDate);
-    return isNaN(when) ? 0 : when;
+  const eventPasses = (event: Event) => {
+    const type = resolveEventType(event);
+    const own = gamesByEvent.get(event.id) || [];
+    if (!matchesSearch([
+      event.name,
+      siteName(event.siteId),
+      ...eventSportIds(event).map(sportName),
+      ...own.flatMap(sideWords),
+      ...own.map(g => siteName(g.siteId)),
+      ...own.map(g => facilityName(g.facilityId)),
+    ])) return false;
+    if (filters.sportIds.length && !eventSportIds(event).some(id => filters.sportIds.includes(id))) return false;
+    if (filters.kind === 'matches' && type.kind !== 'SingleMatch') return false;
+    if (filters.kind === 'tournaments' && type.kind !== 'Tournament') return false;
+    if (filters.roles.length) {
+      const roles = rolesOf(event);
+      if (!filters.roles.some(r => roles[r])) return false;
+    }
+    return true;
   };
 
-  const filteredGames = (gameSummaries || [])
-    .filter(game => {
-      if (!game) return false;
-      const parentEvent = eventsById[game.eventId || ''];
+  const gamePasses = (game: GameSummary) => {
+    const event = eventsById.get(game.eventId);
+    if (!matchesSearch([
+      event?.name || '',
+      sportName(game.sportId),
+      siteName(game.siteId),
+      facilityName(game.facilityId),
+      ...sideWords(game),
+    ])) return false;
+    if (filters.sportIds.length && !filters.sportIds.includes(game.sportId)) return false;
+    if (filters.roles.length) {
+      if (!event) return false;
+      const roles = rolesOf(event);
+      if (!filters.roles.some(r => roles[r])) return false;
+    }
+    return true;
+  };
 
-      const haystack = `${getMatchupLabel(game) || ''} ${parentEvent ? getEventName(parentEvent) : ''}`.toLowerCase();
-      if (searchQuery && !haystack.includes(searchQuery.toLowerCase())) return false;
+  const shownEvents = baseEvents.filter(eventPasses);
+  const shownGames = baseGames.filter(gamePasses);
 
-      // A fixture inherits its event's roles: you convene the netball, so the netball fixtures are
-      // yours. Deriving it per game would ask the same question sixty times for one answer.
-      if (roleFilter.length > 0) {
-        if (!parentEvent) return false;
-        const roles = rolesFor(parentEvent);
-        if (!roleFilter.some(role => roles.includes(role))) return false;
-      }
+  /** Sections of the Events view: On now, This week, later this month, then by month. */
+  const eventSections = useMemo(() => {
+    const primaryGame = (event: Event) => (resolveEventType(event).kind === 'SingleMatch' ? (gamesByEvent.get(event.id) || [])[0] : undefined);
+    const dayOf = (event: Event) => {
+      const game = primaryGame(event);
+      return (game && gameDay(game, event)) || event.startDate;
+    };
+    const msOf = (event: Event) => {
+      const game = primaryGame(event);
+      return game ? gameMs(game, event) : whenMs(event.startDate);
+    };
+    const isOnNow = (event: Event) => {
+      if (event.status === 'Cancelled') return false;
+      const type = resolveEventType(event).kind;
+      if (type === 'Tournament') return calendarRangeStatus(event.startDate, event.endDate, today) === 'during';
+      return primaryGame(event)?.status === 'Live';
+    };
 
-      const when = gameWhen(game);
-      if (!when) return false;
-      return viewMode === 'upcoming' ? when >= startOfToday : when < startOfToday;
-    })
-    .sort((a, b) => (viewMode === 'upcoming' ? gameWhen(a) - gameWhen(b) : gameWhen(b) - gameWhen(a)));
+    const sections = new Map<string, { key: string; label: string; isNow?: boolean; items: Event[] }>();
+    const add = (key: string, label: string, event: Event, isNow?: boolean) => {
+      if (!sections.has(key)) sections.set(key, { key, label, isNow, items: [] });
+      sections.get(key)!.items.push(event);
+    };
+    for (const event of shownEvents) {
+      if (when === 'upcoming' && isOnNow(event)) { add('0000-now', 'On now', event, true); continue; }
+      const section = when === 'upcoming' ? upcomingSection(dayOf(event), today) : monthSection(event.endDate || event.startDate);
+      add(section.key, section.label, event);
+    }
+    const ordered = Array.from(sections.values()).sort((a, b) => (when === 'upcoming' ? a.key.localeCompare(b.key) : b.key.localeCompare(a.key)));
+    for (const section of ordered) {
+      section.items.sort((a, b) => (when === 'upcoming' ? msOf(a) - msOf(b) : msOf(b) - msOf(a)));
+    }
+    return ordered;
+  }, [shownEvents, when, gamesByEvent, today]);
 
-  console.log('[OrgEventsList] viewMode:', viewMode, 'Total events:', events.length, 'Filtered count:', filteredEvents.length);
+  /** Sections of the All games view: one per day. */
+  const gameSections = useMemo(() => {
+    const sections = new Map<string, { key: string; label: string; isNow?: boolean; items: GameSummary[] }>();
+    for (const game of shownGames) {
+      const day = gameDay(game, eventsById.get(game.eventId));
+      const key = day || '0000';
+      if (!sections.has(key)) sections.set(key, { key, label: day ? dayHeading(day, today) : 'Date to be set', isNow: day === today, items: [] });
+      sections.get(key)!.items.push(game);
+    }
+    const ordered = Array.from(sections.values()).sort((a, b) => (when === 'upcoming' ? a.key.localeCompare(b.key) : b.key.localeCompare(a.key)));
+    for (const section of ordered) {
+      section.items.sort((a, b) => {
+        const diff = gameMs(a, eventsById.get(a.eventId)) - gameMs(b, eventsById.get(b.eventId));
+        return when === 'upcoming' ? diff : -diff;
+      });
+    }
+    return ordered;
+  }, [shownGames, when, eventsById, today]);
+
+  /* ---------------------------------------------------------------------------------------------
+   * Filters: the options offered, and the chips for the ones that are on
+   * ------------------------------------------------------------------------------------------- */
+  const sportOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (view === 'events') baseEvents.forEach(e => eventSportIds(e).forEach(id => counts.set(id, (counts.get(id) || 0) + 1)));
+    else baseGames.forEach(g => g.sportId && counts.set(g.sportId, (counts.get(g.sportId) || 0) + 1));
+    return Array.from(counts.entries())
+      .map(([id, count]) => ({ id, name: sportName(id) || 'Unknown sport', count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [view, baseEvents, baseGames, sportsData]);
+
+  const roleCounts = useMemo(() => {
+    const counts: Record<EventListRole, number> = { hosting: 0, convening: 0, away: 0 };
+    const subjects = view === 'events' ? baseEvents : baseGames.map(g => eventsById.get(g.eventId)).filter(Boolean) as Event[];
+    subjects.forEach(e => {
+      const roles = rolesOf(e);
+      (Object.keys(counts) as EventListRole[]).forEach(r => { if (roles[r]) counts[r] += 1; });
+    });
+    return counts;
+  }, [view, baseEvents, baseGames, eventsById, conveneEventIds]);
+
+  const chips: Array<{ key: string; label: string; remove: () => void }> = [];
+  if (!isWide && when === 'past') chips.push({ key: 'past', label: 'Past', remove: () => setWhen('upcoming') });
+  filters.sportIds.forEach(id => chips.push({
+    key: `sport-${id}`, label: sportName(id) || 'Sport', remove: () => setFilters(f => ({ ...f, sportIds: f.sportIds.filter(s => s !== id) })),
+  }));
+  if (view === 'events' && filters.kind !== 'all') {
+    chips.push({ key: 'kind', label: filters.kind === 'matches' ? 'Matches' : 'Tournaments', remove: () => setFilters(f => ({ ...f, kind: 'all' })) });
+  }
+  filters.roles.forEach(role => chips.push({
+    key: `role-${role}`, label: ROLE_OPTIONS.find(r => r.key === role)!.label, remove: () => setFilters(f => ({ ...f, roles: f.roles.filter(r => r !== role) })),
+  }));
+  const filterCount = chips.length;
+  const isNarrowed = !!q || filters.sportIds.length > 0 || (view === 'events' && filters.kind !== 'all') || filters.roles.length > 0;
+  const noun = view === 'events' ? 'events' : 'games';
+  const shownCount = view === 'events' ? shownEvents.length : shownGames.length;
+  const baseCount = view === 'events' ? baseEvents.length : baseGames.length;
+  const clearAll = () => {
+    setSearch('');
+    setFilters(NO_FILTERS);
+    if (!isWide) setWhen('upcoming');
+  };
+
+  /* ---------------------------------------------------------------------------------------------
+   * Navigation
+   * ------------------------------------------------------------------------------------------- */
+  /** A game opens its edit screen for someone who may edit it, its view otherwise — the game page is stage 3. */
+  const openGame = (game: GameSummary, event?: Event) => {
+    const perms = getMatchPermissions({ game, event: event || null, currentOrgId: orgId, user, orgMemberships, teamMemberships });
+    router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/${perms.canEdit ? 'edit' : 'view'}`);
+  };
+  const openEvent = (event: Event) => {
+    const single = resolveEventType(event).kind === 'SingleMatch' ? (gamesByEvent.get(event.id) || [])[0] : undefined;
+    if (single) openGame(single, event);
+    else router.push(`/admin/${orgId}/events/${event.id}`);
+  };
+
+  /* ---------------------------------------------------------------------------------------------
+   * Rendering
+   * ------------------------------------------------------------------------------------------- */
+  const headerRight = canCreate ? (
+    <OverflowMenu
+      title="New event"
+      items={[
+        {
+          label: 'Match',
+          description: 'One game between two teams, set up in one go',
+          icon: 'football-outline',
+          onPress: () => router.push(`/admin/${orgId}/events/create`),
+        },
+        {
+          label: 'Tournament',
+          description: 'A festival, league or knockout. Name it and pick a date; the rest is set up on the tournament',
+          icon: 'trophy-outline',
+          onPress: () => setNamingTournament(true),
+        },
+      ]}
+      renderTrigger={open => (
+        <TouchableOpacity
+          onPress={open}
+          accessibilityRole="button"
+          accessibilityLabel="New event"
+          className={`flex-row items-center gap-1.5 rounded-xl bg-primary ${isWide ? 'px-3.5 py-2' : 'w-9 h-9 justify-center'}`}
+        >
+          <Ionicons name="add" size={18} color={themeColor(isDark, 'on-primary')} />
+          {isWide ? <Text className="font-inter-bold text-sm text-on-primary">New event</Text> : null}
+        </TouchableOpacity>
+      )}
+    />
+  ) : undefined;
+
+  /* A search term narrows the list like a filter does, so while there is one the box wears the same
+     "active" tint as the filter chips and the Filters button. */
+  const searchBox = (
+    <View
+      className={`flex-1 flex-row items-center gap-2 border rounded-xl px-3 ${search ? 'bg-primary-soft border-primary-line' : 'bg-card border-line'}`}
+      style={{ minWidth: isWide ? 220 : 0 }}
+    >
+      <Ionicons name="search-outline" size={16} color={themeColor(isDark, search ? 'primary-ink' : 'ink-muted')} />
+      <TextInput
+        value={search}
+        onChangeText={setSearch}
+        placeholder={isWide ? 'Search teams, events or venues' : 'Search'}
+        placeholderTextColor={themeColor(isDark, 'ink-muted')}
+        accessibilityLabel="Search events"
+        className="flex-1 font-inter text-base text-ink py-2.5 outline-none"
+      />
+      {search ? (
+        <TouchableOpacity onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear search">
+          <Ionicons name="close-circle" size={18} color={themeColor(isDark, 'ink-muted')} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+
+  const filtersButton = (
+    <TouchableOpacity
+      onPress={() => setFiltersOpen(true)}
+      accessibilityRole="button"
+      accessibilityLabel={filterCount ? `Filters, ${filterCount} on` : 'Filters'}
+      className={`flex-row items-center gap-1.5 rounded-xl border px-3 py-2.5 ${filterCount ? 'border-primary-line bg-primary-soft' : 'border-line bg-card'}`}
+    >
+      <Ionicons name="options-outline" size={16} color={themeColor(isDark, filterCount ? 'primary-ink' : 'ink-soft')} />
+      <Text className={`font-inter-semibold text-sm ${filterCount ? 'text-primary-ink' : 'text-ink-soft'}`}>Filters</Text>
+      {filterCount ? (
+        <View className="rounded-full bg-primary px-1.5 min-w-[18px] items-center">
+          <Text className="font-inter-bold text-[11px] text-on-primary">{filterCount}</Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+
+  const scopeSwitch = (
+    <SegmentedControl<Scope>
+      fit={isWide}
+      value={scope}
+      onChange={setScope}
+      options={[{ key: 'mine', label: 'Mine' }, { key: 'all', label: 'All' }]}
+    />
+  );
+  const viewSwitch = (
+    <SegmentedControl<View_>
+      fit={isWide}
+      value={view}
+      onChange={setView}
+      options={[{ key: 'events', label: 'Events' }, { key: 'games', label: 'All games' }]}
+    />
+  );
+  const whenSwitch = (
+    <SegmentedControl<When>
+      fit
+      value={when}
+      onChange={setWhen}
+      options={[{ key: 'upcoming', label: 'Upcoming' }, { key: 'past', label: 'Past' }]}
+    />
+  );
+
+  /* The chips sit right under the line that sets them. The count shares their line and, when there
+     is no room, drops to the next line whole — it is never split. */
+  const chipsRow = chips.length || isNarrowed ? (
+    <View className="flex-row flex-wrap items-center gap-1.5">
+      {chips.map(chip => (
+        <TouchableOpacity
+          key={chip.key}
+          onPress={chip.remove}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove filter ${chip.label}`}
+          className="flex-row items-center gap-1.5 rounded-full border border-primary-line bg-primary-soft pl-2.5 pr-1.5 py-1"
+        >
+          <Text className="font-inter-semibold text-xs text-primary-ink">{chip.label}</Text>
+          <Ionicons name="close" size={13} color={themeColor(isDark, 'primary-ink')} />
+        </TouchableOpacity>
+      ))}
+      {chips.length ? (
+        <TouchableOpacity onPress={clearAll} accessibilityRole="button" className="px-1.5 py-1">
+          <Text className="font-inter-bold text-xs text-ink-muted">Clear all</Text>
+        </TouchableOpacity>
+      ) : null}
+      {isNarrowed ? (
+        <Text className="font-inter text-xs text-ink-muted ml-auto pl-2" numberOfLines={1} style={{ flexShrink: 0 }}>
+          {shownCount}/{baseCount} {noun}
+        </Text>
+      ) : null}
+    </View>
+  ) : null;
+
+  const scopeLine = scope === 'mine' ? (
+    <Text className="font-inter text-xs text-ink-faint -mt-1 px-0.5">{mineScopeLine}</Text>
+  ) : null;
+
+  const toolbar = isWide ? (
+    <>
+      <View className="flex-row items-center gap-2.5">
+        {searchBox}
+        {scopeSwitch}
+        {viewSwitch}
+        {whenSwitch}
+        {filtersButton}
+      </View>
+      {chipsRow}
+      {scopeLine}
+    </>
+  ) : (
+    <>
+      <View className="flex-row items-center gap-2">
+        {searchBox}
+        {filtersButton}
+      </View>
+      {chipsRow}
+      <View className="flex-row items-center gap-2">
+        <View className="flex-1">{scopeSwitch}</View>
+        <View className="flex-1">{viewSwitch}</View>
+      </View>
+      {scopeLine}
+    </>
+  );
+
+  const sectionHeading = (label: string, count: number, isNow?: boolean) => (
+    <View className="flex-row items-center gap-2.5 px-1 mt-1.5">
+      <Text className={`font-orbitron-bold text-[11px] uppercase tracking-widest ${isNow ? 'text-danger-ink' : 'text-ink-muted'}`}>{label}</Text>
+      <View className="flex-1 h-px bg-line" />
+      <Text className="font-inter text-xs text-ink-muted">{count}</Text>
+    </View>
+  );
+
+  const rowProps = { isWide, orgId: orgId!, canCreate, sportName, siteName, facilityName, today };
+
+  const body = (() => {
+    if (accessDenied) {
+      return (
+        <View className="items-center justify-center py-16 gap-2">
+          <Ionicons name="lock-closed-outline" size={40} color={themeColor(isDark, 'ink-muted')} />
+          <Text className="font-inter-semibold text-base text-ink-soft">No access</Text>
+          <Text className="font-inter text-sm text-ink-muted text-center">You do not have permission to see this organisation's fixtures.</Text>
+        </View>
+      );
+    }
+    if (!(events || []).length) {
+      return (
+        <View className="rounded-2xl border border-line bg-card px-5 py-8 items-center gap-2">
+          <Ionicons name="calendar-outline" size={32} color={themeColor(isDark, 'ink-faint')} />
+          <Text className="font-inter-semibold text-base text-ink">No events yet</Text>
+          <Text className="font-inter text-sm text-ink-muted text-center">
+            {canCreate
+              ? 'Schedule a match between two teams, or create a tournament and set it up over the coming weeks.'
+              : 'Nothing has been scheduled yet.'}
+          </Text>
+          {canCreate ? (
+            <View className="flex-row gap-2 mt-2">
+              <TouchableOpacity onPress={() => router.push(`/admin/${orgId}/events/create`)} accessibilityRole="button" className="rounded-xl border border-line px-3.5 py-2">
+                <Text className="font-inter-bold text-sm text-ink-soft">New match</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setNamingTournament(true)} accessibilityRole="button" className="rounded-xl bg-primary px-3.5 py-2">
+                <Text className="font-inter-bold text-sm text-on-primary">New tournament</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+      );
+    }
+    if (shownCount === 0) {
+      const narrowedBy = isNarrowed || (!isWide && when === 'past');
+      return (
+        <View className="rounded-2xl border border-line bg-card px-5 py-8 items-center gap-2">
+          <Text className="font-inter-semibold text-base text-ink">{narrowedBy ? 'Nothing matches' : `No ${when} ${noun}`}</Text>
+          <Text className="font-inter text-sm text-ink-muted text-center">
+            {narrowedBy
+              ? `No ${when} ${noun}${scope === 'mine' ? ' of yours' : ''} match the search and filters.`
+              : scope === 'mine'
+              ? `None of yours. Switch to All to see everything on.`
+              : `There are no ${when} ${noun}.`}
+          </Text>
+          {narrowedBy ? (
+            <TouchableOpacity onPress={clearAll} accessibilityRole="button" className="mt-1">
+              <Text className="font-inter-bold text-sm text-primary-ink">Clear search and filters</Text>
+            </TouchableOpacity>
+          ) : scope === 'mine' ? (
+            <TouchableOpacity onPress={() => setScope('all')} accessibilityRole="button" className="mt-1">
+              <Text className="font-inter-bold text-sm text-primary-ink">Show all</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      );
+    }
+
+    if (view === 'games') {
+      return gameSections.map(section => (
+        <View key={section.key} className="gap-2">
+          {sectionHeading(section.label, section.items.length, section.isNow)}
+          <View className="rounded-2xl border border-line bg-card overflow-hidden">
+            {section.items.map((game, i) => {
+              const event = eventsById.get(game.eventId);
+              return (
+                <MatchRow
+                  key={game.id}
+                  {...rowProps}
+                  game={game}
+                  event={event}
+                  first={i === 0}
+                  competition={event ? (resolveEventType(event).kind === 'SingleMatch' ? 'Single match' : event.name) : ''}
+                  showDate={false}
+                  away={!!event && event.orgId !== orgId}
+                  convening={!!event && conveneEventIds.has(event.id)}
+                  onPress={() => openGame(game, event)}
+                />
+              );
+            })}
+          </View>
+        </View>
+      ));
+    }
+
+    return eventSections.map(section => (
+      <View key={section.key} className="gap-2">
+        {sectionHeading(section.label, section.items.length, section.isNow)}
+        <View className="rounded-2xl border border-line bg-card overflow-hidden">
+          {section.items.map((event, i) => {
+            const type = resolveEventType(event);
+            const own = gamesByEvent.get(event.id) || [];
+            const away = event.orgId !== orgId;
+            const convening = conveneEventIds.has(event.id);
+            if (type.kind === 'Unknown') {
+              return <UnknownRow key={event.id} name={event.name} message={unknownEventTypeMessage(type)} first={i === 0} />;
+            }
+            if (type.kind === 'SingleMatch' && own[0]) {
+              return (
+                <MatchRow
+                  key={event.id}
+                  {...rowProps}
+                  game={own[0]}
+                  event={event}
+                  first={i === 0}
+                  showDate
+                  away={away}
+                  convening={convening}
+                  onPress={() => openEvent(event)}
+                />
+              );
+            }
+            return (
+              <TournamentRow
+                key={event.id}
+                {...rowProps}
+                event={event}
+                games={own}
+                sportIds={eventSportIds(event)}
+                first={i === 0}
+                isPast={when === 'past'}
+                away={away}
+                convening={convening}
+                onPress={() => openEvent(event)}
+              />
+            );
+          })}
+        </View>
+      </View>
+    ));
+  })();
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top', 'left', 'right']}>
-      {/* HEADER BAR */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-line-soft bg-card z-10">
-        <TouchableOpacity
-          onPress={() => safeBack(`/admin/${orgId}`)}
-          className="flex-row items-center gap-1 active:opacity-85"
-        >
-          <Ionicons name="chevron-back" size={20} color={themeColor(isDark, 'primary')} />
-          <Text className="font-inter-bold text-xs text-ink-muted uppercase tracking-wider">
-            Back
-          </Text>
-        </TouchableOpacity>
-        <Text className="font-orbitron-bold text-sm tracking-widest text-ink uppercase">
-          Fixtures & Events
-        </Text>
-        <TouchableOpacity 
-          className="w-8 h-8 rounded-lg bg-primary items-center justify-center shadow-md shadow-primary/20 active:opacity-85"
-          onPress={() => setIsAddMenuVisible(true)}
-        >
-          <Ionicons name="add" size={20} color={themeColor(isDark, 'on-primary')} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView className="flex-1 px-6 py-6" contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* SEARCH BAR */}
-        <View className="flex-row items-center bg-card border border-line rounded-xl px-4 py-3 mb-4 shadow-sm">
-          <Ionicons name="search-outline" size={18} color={themeColor(isDark, 'ink-muted')} />
-          <TextInput
-            placeholder="Search events by name..."
-            placeholderTextColor={themeColor(isDark, 'ink-muted')}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            className="flex-1 font-inter text-ink text-sm ml-2.5 outline-none"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={18} color={themeColor(isDark, 'ink-muted')} />
-            </TouchableOpacity>
-          )}
+      <ScreenHeader title="Fixtures & Events" onBack={() => safeBack(`/admin/${orgId}`)} right={headerRight} />
+      {eventsLoading || gamesLoading ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
         </View>
-
-        {/* UPCOMING / PAST VIEW SELECTOR */}
-        <View className="flex-row bg-sunken p-1 rounded-xl border border-line-soft mb-6">
-          <TouchableOpacity
-            onPress={() => setViewMode('upcoming')}
-            className="flex-1 flex-row items-center justify-center py-2.5 rounded-lg"
-            style={{
-              backgroundColor: viewMode === 'upcoming' ? themeColor(isDark, 'raised') : 'transparent',
-            }}
-          >
-            <Ionicons
-              name="calendar"
-              size={14}
-              color={themeColor(isDark, viewMode === 'upcoming' ? 'primary-ink' : 'ink-muted')}
-              style={{ marginRight: 6 }}
-            />
-            <Text
-              className="font-orbitron-bold text-xs uppercase tracking-widest"
-              style={{
-                color: themeColor(isDark, viewMode === 'upcoming' ? 'primary-ink' : 'ink-muted'),
-              }}
-            >
-              Upcoming
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setViewMode('past')}
-            className="flex-1 flex-row items-center justify-center py-2.5 rounded-lg"
-            style={{
-              backgroundColor: viewMode === 'past' ? themeColor(isDark, 'raised') : 'transparent',
-            }}
-          >
-            <Ionicons
-              name="time"
-              size={14}
-              color={themeColor(isDark, viewMode === 'past' ? 'primary-ink' : 'ink-muted')}
-              style={{ marginRight: 6 }}
-            />
-            <Text
-              className="font-orbitron-bold text-xs uppercase tracking-widest"
-              style={{
-                color: themeColor(isDark, viewMode === 'past' ? 'primary-ink' : 'ink-muted'),
-              }}
-            >
-              Past
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* EVENTS / GAMES — two altitudes of one list, over one room (U2, U36) */}
-        <Tabs
-          items={[
-            { key: 'events', label: 'Events', icon: 'calendar-outline' },
-            { key: 'games', label: 'Games', icon: 'football-outline' },
-          ]}
-          activeKey={listTab}
-          onChange={(key) => setListTab(key as 'events' | 'games')}
-          className="mb-4"
-        />
-
-        {/* SCOPE CHIPS — beside the Upcoming / Past toggle rather than competing with it (U5) */}
-        <View className="mb-6">
-          <EventRoleFilter selected={roleFilter} onChange={setRoleFilter} />
-        </View>
-
-        {isLoading ? (
-          <View className="items-center justify-center py-20">
-            <ActivityIndicator size="large" color={themeColor(isDark, 'primary')} />
-            <Text className="font-orbitron text-xs text-ink-muted mt-4 uppercase tracking-widest">
-              Loading events...
-            </Text>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: isWide ? 24 : 12, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+          <View className="w-full gap-3 self-center" style={{ maxWidth: 960 }}>
+            {toolbar}
+            {body}
+            {/* A phone has no Upcoming / Past switch in its toolbar, so the upcoming list ends with the way to the results. */}
+            {!isWide && when === 'upcoming' && (events || []).length ? (
+              <TouchableOpacity
+                onPress={() => setWhen('past')}
+                accessibilityRole="button"
+                className="flex-row items-center justify-between rounded-2xl border border-line bg-card px-4 py-3 mt-1"
+              >
+                <Text className="font-inter-semibold text-sm text-ink-soft">Past events and results</Text>
+                <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
+              </TouchableOpacity>
+            ) : null}
           </View>
-        ) : (
-          <EventsErrorBoundary>
-            <View className="space-y-3">
-              {listTab === 'events' && filteredEvents.map(event => {
-                const eventGames = (gameSummaries || []).filter(g => g && g.eventId === event.id);
+        </ScrollView>
+      )}
 
-                /**
-                 * `FIX-1` / U39 — three branches, and the third is an error rather than a guess.
-                 *
-                 * Every consumer used to test `=== 'SingleMatch'` and fall through to Tournament,
-                 * so an event with no type quietly got the Tournament badge, Tournament navigation
-                 * and the wrong actions. The schema half was closed in Phase 1; this is the client
-                 * half, and it fails loudly instead of falling back.
-                 */
-                const resolved = resolveEventType(event);
-                const roles = rolesFor(event);
-
-                if (resolved.kind === 'Unknown') {
-                  return (
-                    <GlassCard
-                      key={event.id}
-                      className="border border-danger-line bg-danger-soft p-4"
-                    >
-                      <View className="flex-row items-center gap-2 mb-1">
-                        <Ionicons name="alert-circle-outline" size={16} color={themeColor(isDark, 'danger')} />
-                        <Text className="font-inter-bold text-[9px] text-danger-ink uppercase tracking-widest">
-                          Cannot display
-                        </Text>
-                      </View>
-                      <Text className="font-orbitron-bold text-sm text-ink leading-tight">
-                        {event.name || 'Unnamed Event'}
-                      </Text>
-                      <Text className="font-inter text-[11px] text-ink-muted mt-1">
-                        {unknownEventTypeMessage(resolved)}
-                      </Text>
-                    </GlassCard>
-                  );
-                }
-
-                const isSingleMatch = resolved.kind === 'SingleMatch';
-                const isEventOwner = event.orgId === orgId;
-
-                // An event fully described by one game borrows that game's kick-off time and
-                // venue, and needs no separate details block repeating them below the card.
-                const primaryGame = isSingleMatch && eventGames.length === 1 ? eventGames[0] : undefined;
-                const whenLabel = getWhenLabel(event, primaryGame);
-                const scoreLabel = getScoreLabel(primaryGame);
-                const isLive = primaryGame?.status === 'Live';
-                const venueLabel = getVenueLabel(
-                  primaryGame?.siteId || event.siteId,
-                  primaryGame?.facilityId || event.facilityId
-                );
-
-                return (
-                <TouchableOpacity
-                  key={event.id}
-                  onPress={() => {
-                    if (isSingleMatch && eventGames.length > 0) {
-                      router.push(`/admin/${orgId}/events/${event.id}/games/${eventGames[0].id}/${isEventOwner ? 'edit' : 'view'}`);
-                    } else {
-                      router.push(`/admin/${orgId}/events/${event.id}`);
-                    }
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <GlassCard className="border border-line p-4">
-                    {/* TOP LINE: when -> type -> status -> actions */}
-                    <View className="flex-row items-center gap-2 mb-2">
-                      <Text
-                        numberOfLines={1}
-                        className="font-inter-bold text-[11px] text-ink-muted flex-shrink"
-                      >
-                        {whenLabel}
-                      </Text>
-                      <View className="bg-sunken px-2 py-0.5 rounded-md flex-shrink-0">
-                        <Text className="font-inter-bold text-[9px] text-ink-soft uppercase tracking-widest">
-                          {resolved.label}
-                        </Text>
-                      </View>
-                      {isLive && (
-                        <View className="bg-primary-soft px-2 py-0.5 rounded-md flex-shrink-0">
-                          <Text className="font-inter-bold text-[9px] text-primary-ink uppercase tracking-widest">
-                            Live
-                          </Text>
-                        </View>
-                      )}
-                      {event.status === 'Cancelled' && (
-                        <View className="bg-danger-soft px-2 py-0.5 rounded-md flex-shrink-0">
-                          <Text className="font-inter-bold text-[9px] text-danger-ink uppercase tracking-widest">
-                            Cancelled
-                          </Text>
-                        </View>
-                      )}
-                      <View className="flex-1" />
-                      <View className="flex-row items-center gap-1.5 flex-shrink-0">
-                      {isSingleMatch && eventGames.length > 0 ? (() => {
-                        const singleGame = eventGames[0];
-                        const perms = getMatchPermissions({
-                          game: singleGame,
-                          event,
-                          currentOrgId: orgId,
-                          user,
-                          orgMemberships,
-                          teamMemberships
-                        });
-                        return (
-                          <>
-                            <TouchableOpacity
-                              onPress={(e: any) => {
-                                if (e && e.stopPropagation) e.stopPropagation();
-                                router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/view`);
-                              }}
-                              className="w-7 h-7 bg-sunken border border-line-soft rounded-lg items-center justify-center active:opacity-80"
-                            >
-                              <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
-                            </TouchableOpacity>
-                            {perms.canEdit && (
-                              <TouchableOpacity
-                                onPress={(e: any) => {
-                                  if (e && e.stopPropagation) e.stopPropagation();
-                                  router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/edit`);
-                                }}
-                                className="w-7 h-7 bg-sunken border border-line-soft rounded-lg items-center justify-center active:opacity-80"
-                              >
-                                <Ionicons name="pencil-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
-                              </TouchableOpacity>
-                            )}
-                            {perms.canSelectLineup && (
-                              <TouchableOpacity
-                                onPress={(e: any) => {
-                                  if (e && e.stopPropagation) e.stopPropagation();
-                                  router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/selection`);
-                                }}
-                                className="w-7 h-7 bg-primary-soft border border-primary-line rounded-lg items-center justify-center active:opacity-80"
-                              >
-                                <Ionicons name="people-outline" size={13} color={themeColor(isDark, 'primary')} />
-                              </TouchableOpacity>
-                            )}
-                            {perms.canScore && (
-                              <TouchableOpacity
-                                onPress={(e: any) => {
-                                  if (e && e.stopPropagation) e.stopPropagation();
-                                  router.push(`/admin/${orgId}/events/${event.id}/games/${singleGame.id}/score`);
-                                }}
-                                className="w-7 h-7 bg-primary-soft border border-primary-line rounded-lg items-center justify-center active:opacity-80"
-                              >
-                                <Ionicons name="trophy-outline" size={13} color={themeColor(isDark, 'primary')} />
-                              </TouchableOpacity>
-                            )}
-                          </>
-                        );
-                      })() : (
-                        <TouchableOpacity
-                          onPress={(e: any) => {
-                            if (e && e.stopPropagation) e.stopPropagation();
-                            router.push(`/admin/${orgId}/events/${event.id}`);
-                          }}
-                          className="w-7 h-7 bg-sunken border border-line-soft rounded-lg items-center justify-center active:opacity-80"
-                        >
-                          <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
-                        </TouchableOpacity>
-                      )}
-                      </View>
-                    </View>
-
-                    {/* MAIN LINE: "A vs B" on the left, where it is played on the right */}
-                    <View className="flex-row items-center justify-between gap-3">
-                      <Text
-                        numberOfLines={1}
-                        className="font-orbitron-bold text-sm text-ink leading-tight flex-1"
-                      >
-                        {getEventName(event)}
-                      </Text>
-                      {scoreLabel ? (
-                        <Text
-                          className={`font-orbitron-bold text-sm flex-shrink-0 ${isLive ? 'text-primary-ink' : 'text-ink'}`}
-                        >
-                          {scoreLabel}
-                        </Text>
-                      ) : null}
-                      {venueLabel ? (
-                        <View className="flex-row items-center gap-1 flex-shrink-0 max-w-[45%]">
-                          <Ionicons name="location-outline" size={12} color={themeColor(isDark, 'ink-muted')} />
-                          <Text
-                            numberOfLines={1}
-                            className="font-inter text-[11px] text-ink-muted flex-shrink"
-                          >
-                            {venueLabel}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-
-                    {/* Every role this viewer holds here, not the most senior one (U4). */}
-                    {roles.length > 0 && (
-                      <View className="mt-2">
-                        <EventRoleChips roles={roles} />
-                      </View>
-                    )}
-
-                    {/* Nested game summaries - only where the header line does not already say it all */}
-                    {!primaryGame && eventGames.length > 0 && (
-                      <View className="mt-3 pt-3 border-t border-line-soft space-y-2">
-                        <Text className="font-orbitron text-[9px] uppercase tracking-widest text-ink-muted mb-1">
-                          {eventGames.length} Scheduled Games
-                        </Text>
-                        {eventGames.slice(0, 3).map(game => (
-                          <View key={game.id} className="flex-row justify-between items-center bg-sunken p-2 rounded-lg">
-                            <Text className="font-inter text-[11px] text-ink flex-1" numberOfLines={1}>
-                              {getMatchupLabel(game) || 'TBD vs TBD'}
-                            </Text>
-                            <Text className="font-inter text-[10px] text-ink-muted pl-2">
-                              {getScoreLabel(game) || game.status}
-                            </Text>
-                          </View>
-                        ))}
-                        {eventGames.length > 3 && (
-                          <Text className="font-inter text-[10px] text-primary-ink text-center mt-1">
-                            + {eventGames.length - 3} more games
-                          </Text>
-                        )}
-                      </View>
-                    )}
-                  </GlassCard>
-                </TouchableOpacity>
-              );
-              })}
-              {/* GAMES TAB — the lower altitude: the fixtures themselves, across every event */}
-              {listTab === 'games' && filteredGames.map(game => {
-                const parentEvent = eventsById[game.eventId || ''];
-                const perms = getMatchPermissions({
-                  game,
-                  event: parentEvent || null,
-                  currentOrgId: orgId,
-                  user,
-                  orgMemberships,
-                  teamMemberships,
-                });
-                const isLive = game.status === 'Live';
-                const venueLabel = getVenueLabel(game.siteId, game.facilityId);
-                const scoreLabel = getScoreLabel(game);
-
-                return (
-                  <TouchableOpacity
-                    key={game.id}
-                    onPress={() =>
-                      router.push(
-                        `/admin/${orgId}/events/${game.eventId}/games/${game.id}/${perms.canEdit ? 'edit' : 'view'}`
-                      )
-                    }
-                    activeOpacity={0.85}
-                  >
-                    <GlassCard className="border border-line p-4">
-                      <View className="flex-row items-center gap-2 mb-2">
-                        <Text
-                          numberOfLines={1}
-                          className="font-inter-bold text-[11px] text-ink-muted flex-shrink"
-                        >
-                          {parentEvent ? getWhenLabel(parentEvent, game) : 'Date TBD'}
-                        </Text>
-                        {isLive && (
-                          <View className="bg-primary-soft px-2 py-0.5 rounded-md flex-shrink-0">
-                            <Text className="font-inter-bold text-[9px] text-primary-ink uppercase tracking-widest">
-                              Live
-                            </Text>
-                          </View>
-                        )}
-                        <View className="flex-1" />
-                        <View className="flex-row items-center gap-1.5 flex-shrink-0">
-                          <TouchableOpacity
-                            onPress={(e: any) => {
-                              if (e && e.stopPropagation) e.stopPropagation();
-                              router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/view`);
-                            }}
-                            className="w-7 h-7 bg-sunken border border-line-soft rounded-lg items-center justify-center active:opacity-80"
-                          >
-                            <Ionicons name="eye-outline" size={13} color={themeColor(isDark, 'ink-muted')} />
-                          </TouchableOpacity>
-                          {perms.canSelectLineup && (
-                            <TouchableOpacity
-                              onPress={(e: any) => {
-                                if (e && e.stopPropagation) e.stopPropagation();
-                                router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/selection`);
-                              }}
-                              className="w-7 h-7 bg-primary-soft border border-primary-line rounded-lg items-center justify-center active:opacity-80"
-                            >
-                              <Ionicons name="people-outline" size={13} color={themeColor(isDark, 'primary')} />
-                            </TouchableOpacity>
-                          )}
-                          {perms.canScore && (
-                            <TouchableOpacity
-                              onPress={(e: any) => {
-                                if (e && e.stopPropagation) e.stopPropagation();
-                                router.push(`/admin/${orgId}/events/${game.eventId}/games/${game.id}/score`);
-                              }}
-                              className="w-7 h-7 bg-primary-soft border border-primary-line rounded-lg items-center justify-center active:opacity-80"
-                            >
-                              <Ionicons name="trophy-outline" size={13} color={themeColor(isDark, 'primary')} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      </View>
-
-                      <View className="flex-row items-center justify-between gap-3">
-                        <Text
-                          numberOfLines={1}
-                          className="font-orbitron-bold text-sm text-ink leading-tight flex-1"
-                        >
-                          {getMatchupLabel(game) || 'TBD vs TBD'}
-                        </Text>
-                        {scoreLabel ? (
-                          <Text
-                            className={`font-orbitron-bold text-sm flex-shrink-0 ${
-                              isLive ? 'text-primary-ink' : 'text-ink'
-                            }`}
-                          >
-                            {scoreLabel}
-                          </Text>
-                        ) : (
-                          <Text className="font-inter text-[10px] text-ink-muted flex-shrink-0 uppercase tracking-wider">
-                            {game.status}
-                          </Text>
-                        )}
-                      </View>
-
-                      {/* Which event this fixture belongs to, and where it is played. A game row has
-                          to name its parent, or a flat list of sixty fixtures is unreadable. */}
-                      <View className="flex-row items-center gap-2 mt-1">
-                        <Text
-                          numberOfLines={1}
-                          className="font-inter text-[10px] text-ink-muted flex-1"
-                        >
-                          {parentEvent ? getEventName(parentEvent) : 'Unknown event'}
-                        </Text>
-                        {venueLabel ? (
-                          <View className="flex-row items-center gap-1 flex-shrink-0 max-w-[45%]">
-                            <Ionicons name="location-outline" size={11} color={themeColor(isDark, 'ink-muted')} />
-                            <Text
-                              numberOfLines={1}
-                              className="font-inter text-[10px] text-ink-muted flex-shrink"
-                            >
-                              {venueLabel}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </GlassCard>
-                  </TouchableOpacity>
-                );
-              })}
-
-              {/* An empty list and no permission to see one are different answers. */}
-              {accessDenied ? (
-                <View className="items-center justify-center py-16">
-                  <Ionicons name="lock-closed-outline" size={48} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.3, marginBottom: 12 }} />
-                  <Text className="font-orbitron-bold text-base text-ink-soft">
-                    No Access
-                  </Text>
-                  <Text className="font-inter text-xs text-ink-muted text-center mt-1">
-                    You do not have permission to view this organization's fixtures.
-                  </Text>
-                </View>
-              ) : (listTab === 'events' ? filteredEvents.length === 0 : filteredGames.length === 0) && (
-                <View className="items-center justify-center py-16">
-                  <Ionicons name="calendar-outline" size={48} color={themeColor(isDark, 'ink-muted')} style={{ opacity: 0.3, marginBottom: 12 }} />
-                  <Text className="font-orbitron-bold text-base text-ink-soft">
-                    No {viewMode} {listTab === 'events' ? 'Events' : 'Games'}
-                  </Text>
-                  <Text className="font-inter text-xs text-ink-muted text-center mt-1">
-                    {roleFilter.length > 0
-                      ? 'Nothing matches the roles you have selected. Clear them to see everything.'
-                      : 'Click the plus icon in the header to schedule a single match or create a tournament.'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </EventsErrorBoundary>
-        )}
-      </ScrollView>
-
-      {/* Floating Action Button Popover Modal */}
-      <Modal
-        visible={isAddMenuVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsAddMenuVisible(false)}
-      >
-        <TouchableOpacity
-          className="flex-1 bg-overlay/60 justify-end"
-          activeOpacity={1}
-          onPress={() => setIsAddMenuVisible(false)}
-        >
-          <View className="bg-card rounded-t-3xl p-6 border-t border-line">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
-                Create Event
-              </Text>
-              <TouchableOpacity onPress={() => setIsAddMenuVisible(false)}>
-                <Ionicons name="close" size={24} color={themeColor(isDark, 'ink')} />
-              </TouchableOpacity>
-            </View>
-
-            <View className="space-y-3">
-              <TouchableOpacity
-                className="flex-row items-center p-4 bg-sunken rounded-xl border border-line-soft active:bg-sunken"
-                onPress={() => {
-                  setIsAddMenuVisible(false);
-                  router.push(`/admin/${orgId}/events/create`);
-                }}
-              >
-                <View className="w-10 h-10 rounded-full bg-primary-soft items-center justify-center mr-4">
-                  <Ionicons name="trophy" size={20} color={themeColor(isDark, 'primary')} />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-orbitron-bold text-sm text-ink">
-                    Schedule Single Match
-                  </Text>
-                  <Text className="font-inter text-xs text-ink-muted mt-0.5">
-                    Standard head-to-head game between two teams
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="flex-row items-center p-4 bg-sunken rounded-xl border border-line-soft active:bg-sunken"
-                onPress={() => {
-                  setIsAddMenuVisible(false);
-                  openTournamentPrompt();
-                }}
-              >
-                <View className="w-10 h-10 rounded-full bg-success-soft items-center justify-center mr-4">
-                  <Ionicons name="ribbon" size={20} color={themeColor(isDark, 'success-ink')} />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-orbitron-bold text-sm text-ink">
-                    Create Tournament
-                  </Text>
-                  <Text className="font-inter text-xs text-ink-muted mt-0.5">
-                    Name it and pick a date — everything else is set up on the tournament itself
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* NAME A NEW TOURNAMENT (U45) — the whole of creation. */}
-      <Modal
-        visible={isNamingTournament}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsNamingTournament(false)}
-      >
-        <View className="flex-1 bg-overlay/60 justify-center px-6">
-          <View className="bg-card rounded-2xl p-6 border border-line shadow-xl space-y-4">
-            <Text className="font-orbitron-bold text-base text-ink uppercase tracking-wider">
-              New Tournament
-            </Text>
-
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
-                Name
-              </Text>
-              <TextInput
-                value={newTournamentName}
-                onChangeText={setNewTournamentName}
-                autoFocus
-                placeholder="e.g. Winter Sevens 2026"
-                placeholderTextColor={themeColor(isDark, 'ink-muted')}
-                className="bg-canvas border border-line rounded-xl px-4 py-2.5 font-inter text-sm text-ink"
-              />
-            </View>
-
-            <View className="space-y-1.5">
-              <Text className="font-orbitron-bold text-[10px] text-ink-muted uppercase tracking-wider">
-                Starts
-              </Text>
-              <DatePicker value={newTournamentDate} onChange={setNewTournamentDate} />
-            </View>
-
-            <Text className="font-inter text-[10px] text-ink-muted">
-              Facilities, sports, divisions and entrants are all set up on the tournament itself, in
-              whatever order they are settled.
-            </Text>
-
-            <View className="flex-row gap-2">
-              <TouchableOpacity
-                onPress={() => setIsNamingTournament(false)}
-                className="flex-1 py-2.5 rounded-lg border border-line items-center active:opacity-80"
-              >
-                <Text className="font-inter-bold text-xs text-ink-muted uppercase">
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleCreateTournament}
-                disabled={!newTournamentName.trim() || !isCalendarDate(newTournamentDate) || isProcessing}
-                className={`flex-1 py-2.5 rounded-lg bg-primary items-center active:opacity-85 ${
-                  !newTournamentName.trim() || !isCalendarDate(newTournamentDate) || isProcessing ? 'opacity-40' : ''
-                }`}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator size="small" color={themeColor(isDark, 'on-primary')} />
-                ) : (
-                  <Text className="font-inter-bold text-xs text-on-primary uppercase">Create</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Confirmation Modal for Deleting Events */}
-      <ConfirmationModal
-        isOpen={eventToDelete !== null}
-        title="Delete Event?"
-        description={`Are you sure you want to permanently delete "${
-          eventToDelete ? getEventName(eventToDelete) : ''
-        }"? All scheduled games and standings associated with this event will be deleted.`}
-        confirmText="Delete Event"
-        cancelText="Cancel"
-        onConfirm={handleDeleteEvent}
-        onClose={() => setEventToDelete(null)}
-        isProcessing={isProcessing}
+      <EventFiltersDialog
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        filters={filters}
+        onChange={setFilters}
+        sportOptions={sportOptions}
+        roleCounts={roleCounts}
+        showKind={view === 'events'}
+        when={isWide ? undefined : when}
+        onWhenChange={isWide ? undefined : setWhen}
+        shownLabel={`Show ${shownCount} ${shownCount === 1 ? noun.slice(0, -1) : noun}`}
       />
+      {canCreate ? (
+        <NewTournamentDialog
+          visible={namingTournament}
+          orgId={orgId!}
+          onClose={() => setNamingTournament(false)}
+          onCreated={id => {
+            setNamingTournament(false);
+            router.push(`/admin/${orgId}/events/${id}`);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
+  );
+}
+
+/* -----------------------------------------------------------------------------------------------
+ * Rows
+ * --------------------------------------------------------------------------------------------- */
+
+interface RowBase {
+  isWide: boolean;
+  orgId: string;
+  canCreate: boolean;
+  sportName: (id?: string) => string;
+  siteName: (id?: string | null) => string;
+  facilityName: (id?: string | null) => string;
+  today: string;
+  first: boolean;
+  away: boolean;
+  convening: boolean;
+  onPress: () => void;
+}
+
+function RoleTags({ away, convening }: { away: boolean; convening: boolean }) {
+  if (!away && !convening) return null;
+  return (
+    <View className="flex-row gap-1">
+      {away ? <RowTag tone="away" label="Away" /> : null}
+      {convening ? <RowTag tone="convening" label="Convening" /> : null}
+    </View>
+  );
+}
+
+/**
+ * A fixture: a single match in the Events view, any game in All games. Wide: the date, both teams
+ * with their crests, the sport (and the competition in All games), where, and the time, score or
+ * state. Phone: a scoreboard line — home, the time or score, away — in short codes, with where and
+ * the sport underneath.
+ */
+function MatchRow({ game, event, competition, showDate, isWide, orgId, sportName, siteName, facilityName, first, away, convening, onPress }: RowBase & {
+  game: GameSummary;
+  event?: Event;
+  competition?: string;
+  showDate: boolean;
+}) {
+  const isDark = useActiveTheme() === 'dark';
+  const [home, visitor] = game.participants || [];
+  const homeNames = fixtureSideNames(home, orgId);
+  const awayNames = fixtureSideNames(visitor, orgId);
+  const scores = sideScores(game);
+  const isLive = game.status === 'Live';
+  const isCancelled = game.status === 'Cancelled' || event?.status === 'Cancelled';
+  const noScore = isScoreNotProvided(game);
+  const kickoff = game.scheduledStartTime || game.startTime;
+  const time = game.timeTbd || !kickoff ? null : formatKickoffTime(kickoff);
+  const where = [siteName(game.siteId || event?.siteId), facilityName(game.facilityId || event?.facilityId)].filter(Boolean).join(' · ');
+  const sport = sportName(game.sportId);
+  const tile = showDate ? instantTile(kickoff) || calendarRangeTile(event?.startDate) : null;
+  const border = first ? '' : 'border-t border-line-soft';
+  const label = `${homeNames.full} against ${awayNames.full}`;
+  const struck = isCancelled ? 'line-through text-ink-muted' : '';
+
+  if (!isWide) {
+    const middle = isLive && scores
+      ? <Text className="font-orbitron-bold text-[15px] text-danger-ink">{scores[0]} – {scores[1]}</Text>
+      : scores
+      ? <Text className="font-orbitron-bold text-[15px] text-ink">{scores[0]} – {scores[1]}</Text>
+      : noScore
+      ? <Text className="font-inter text-xs text-ink-muted">No score</Text>
+      : <Text className={`font-inter-bold text-sm ${time ? 'text-ink' : 'text-ink-muted'} ${struck}`}>{time || 'TBD'}</Text>;
+    const line2 = competition ?? [where, sport].filter(Boolean).join(' · ');
+    const right = isLive
+      ? <Text className="font-inter-semibold text-xs text-danger-ink">● {game.periodLabel || 'Live'}</Text>
+      : isCancelled
+      ? <RowTag tone="cancelled" label="Cancelled" />
+      : (away || convening)
+      ? <RoleTags away={away} convening={convening} />
+      : scores ? <Text className="font-inter text-[11px] text-ink-muted">Full time</Text> : null;
+    const side = (names: typeof homeNames, participant: typeof home, align: 'left' | 'right') => (
+      <View className={`flex-1 min-w-0 flex-row items-center gap-1.5 ${align === 'right' ? 'justify-end' : ''}`}>
+        {align === 'left' ? <FixtureCrest participant={participant} size={24} placeholder={names.isPlaceholder} /> : null}
+        <Text
+          numberOfLines={1}
+          className={`flex-shrink text-[13px] ${names.isPlaceholder ? 'font-inter italic text-ink-muted' : `font-inter-bold text-ink ${struck}`}`}
+        >
+          {names.short}
+        </Text>
+        {align === 'right' ? <FixtureCrest participant={participant} size={24} placeholder={names.isPlaceholder} /> : null}
+      </View>
+    );
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" accessibilityLabel={label} className={`flex-row items-center gap-2.5 px-3 py-2.5 ${border}`}>
+        {showDate ? <DateTile tile={tile} width={34} /> : null}
+        <View className="flex-1 min-w-0">
+          <View className="flex-row items-center gap-2">
+            {side(homeNames, home, 'left')}
+            <View className="items-center" style={{ minWidth: 44 }}>{middle}</View>
+            {side(awayNames, visitor, 'right')}
+          </View>
+          <View className="flex-row items-center gap-2 mt-1">
+            <Text className="flex-1 font-inter text-xs text-ink-muted" numberOfLines={1}>{line2}</Text>
+            {right}
+          </View>
+          {competition !== undefined && where ? (
+            <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{where}</Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  const end = isLive ? (
+    <>
+      <RowTag tone="live" label="● Live" />
+      {scores ? <Text className="font-orbitron-bold text-[15px] text-danger-ink">{scores[0]} – {scores[1]}</Text> : null}
+      {game.periodLabel ? <Text className="font-inter-semibold text-[11px] text-danger-ink">{game.periodLabel}</Text> : null}
+    </>
+  ) : isCancelled ? (
+    <RowTag tone="cancelled" label="Cancelled" />
+  ) : scores ? (
+    <>
+      <Text className="font-orbitron-bold text-[15px] text-ink">{scores[0]} – {scores[1]}</Text>
+      <Text className="font-inter text-[11px] text-ink-muted">Full time</Text>
+    </>
+  ) : noScore ? (
+    <Text className="font-inter text-xs text-ink-muted">No score</Text>
+  ) : (
+    <Text className={`font-inter-bold text-sm ${time ? 'text-ink' : 'text-ink-muted'}`}>{time || 'Time TBD'}</Text>
+  );
+  const side = (names: typeof homeNames, participant: typeof home) => (
+    <View className="flex-row items-center gap-2 min-w-0 flex-shrink">
+      <FixtureCrest participant={participant} size={26} placeholder={names.isPlaceholder} />
+      <Text
+        numberOfLines={1}
+        className={`flex-shrink text-[15px] ${names.isPlaceholder ? 'font-inter italic text-ink-muted' : `font-inter-semibold text-ink ${struck}`}`}
+      >
+        {names.full}
+      </Text>
+    </View>
+  );
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" accessibilityLabel={label} className={`flex-row items-center gap-3 px-4 py-3 ${border}`}>
+      {showDate ? <DateTile tile={tile} /> : null}
+      <View className="flex-1 min-w-0">
+        <View className="flex-row items-center gap-2 min-w-0">
+          {side(homeNames, home)}
+          <Text className="font-inter text-[13px] text-ink-muted">vs</Text>
+          {side(awayNames, visitor)}
+          <RoleTags away={away} convening={convening} />
+        </View>
+        <Text className="font-inter text-xs text-ink-muted mt-0.5" style={{ marginLeft: 34 }} numberOfLines={1}>
+          {[competition, sport].filter(Boolean).join(' · ')}
+        </Text>
+      </View>
+      <View style={{ width: 230 }}>
+        <Text className="font-inter text-sm text-ink-soft" numberOfLines={1}>{siteName(game.siteId || event?.siteId) || ' '}</Text>
+        {facilityName(game.facilityId || event?.facilityId) ? (
+          <Text className="font-inter text-xs text-ink-muted" numberOfLines={1}>{facilityName(game.facilityId || event?.facilityId)}</Text>
+        ) : null}
+      </View>
+      <View style={{ width: 112 }} className="items-end gap-0.5">{end}</View>
+      <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
+    </TouchableOpacity>
+  );
+}
+
+/** A tournament: its name and format, the sports, where, and how many games — or that it is on now. */
+function TournamentRow({ event, games, sportIds, isPast, isWide, canCreate, sportName, siteName, today, first, away, convening, onPress }: RowBase & {
+  event: Event;
+  games: GameSummary[];
+  sportIds: string[];
+  isPast: boolean;
+}) {
+  const isDark = useActiveTheme() === 'dark';
+  const tile = calendarRangeTile(event.startDate, event.endDate);
+  const liveCount = games.filter(g => g.status === 'Live').length;
+  const dayOf = eventDayOfRange(event.startDate, event.endDate, today);
+  const sports = sportIds.map(sportName).filter(Boolean).join(', ');
+  const kind = [eventFormatLabel(event.format), sports].filter(Boolean).join(' · ');
+  const where = siteName(event.siteId);
+  const border = first ? '' : 'border-t border-line-soft';
+  const isCancelled = event.status === 'Cancelled';
+  const gamesLabel = `${games.length} ${games.length === 1 ? 'game' : 'games'}`;
+
+  const end = isCancelled ? (
+    <RowTag tone="cancelled" label="Cancelled" />
+  ) : liveCount ? (
+    <>
+      <RowTag tone="live" label={`● ${liveCount} live`} />
+      {dayOf ? <Text className="font-inter text-[11px] text-ink-muted">{dayOf}</Text> : null}
+    </>
+  ) : isPast ? (
+    <>
+      <Text className="font-inter-semibold text-[13px] text-ink">{gamesLabel}</Text>
+      <Text className="font-inter text-[11px] text-ink-muted">Finished</Text>
+    </>
+  ) : !games.length ? (
+    canCreate && !away ? <RowTag tone="setup" label="No fixtures yet" /> : <Text className="font-inter text-[11px] text-ink-muted">Fixtures to come</Text>
+  ) : (
+    <>
+      <Text className="font-inter-semibold text-[13px] text-ink">{gamesLabel}</Text>
+      {dayOf ? <Text className="font-inter text-[11px] text-ink-muted">{dayOf}</Text> : null}
+    </>
+  );
+  const name = (
+    <Text numberOfLines={1} className={`flex-shrink font-inter-semibold text-[15px] ${isCancelled ? 'line-through text-ink-muted' : 'text-ink'}`}>
+      {event.name}
+    </Text>
+  );
+
+  if (!isWide) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" accessibilityLabel={event.name} className={`flex-row items-center gap-2.5 px-3 py-2.5 ${border}`}>
+        <DateTile tile={tile} width={34} />
+        <View className="flex-1 min-w-0">
+          <View className="flex-row items-center gap-2 min-w-0">
+            <TournamentMark size={24} />
+            {name}
+          </View>
+          <View className="flex-row items-center gap-2 mt-1">
+            <Text className="flex-1 font-inter text-xs text-ink-muted" numberOfLines={1}>{[kind, where].filter(Boolean).join(' · ')}</Text>
+            <RoleTags away={away} convening={convening} />
+          </View>
+        </View>
+        <View className="items-end gap-0.5 self-start">{end}</View>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="link" accessibilityLabel={event.name} className={`flex-row items-center gap-3 px-4 py-3 ${border}`}>
+      <DateTile tile={tile} />
+      <View className="flex-1 min-w-0">
+        <View className="flex-row items-center gap-2 min-w-0">
+          <TournamentMark />
+          {name}
+          <RoleTags away={away} convening={convening} />
+        </View>
+        <Text className="font-inter text-xs text-ink-muted mt-0.5" style={{ marginLeft: 34 }} numberOfLines={1}>{kind}</Text>
+      </View>
+      <View style={{ width: 230 }}>
+        <Text className="font-inter text-sm text-ink-soft" numberOfLines={1}>{where || ' '}</Text>
+      </View>
+      <View style={{ width: 112 }} className="items-end gap-0.5">{end}</View>
+      <Ionicons name="chevron-forward" size={16} color={themeColor(isDark, 'ink-muted')} />
+    </TouchableOpacity>
+  );
+}
+
+/** An event whose type the app does not recognise is shown as an error rather than guessed at (FIX-1 / U39). */
+function UnknownRow({ name, message, first }: { name: string; message: string; first: boolean }) {
+  const isDark = useActiveTheme() === 'dark';
+  return (
+    <View className={`flex-row items-start gap-3 px-4 py-3 bg-danger-soft ${first ? '' : 'border-t border-line-soft'}`}>
+      <Ionicons name="alert-circle-outline" size={18} color={themeColor(isDark, 'danger-ink')} />
+      <View className="flex-1 min-w-0">
+        <Text className="font-inter-semibold text-[15px] text-ink">{name || 'Unnamed event'}</Text>
+        <Text className="font-inter text-xs text-danger-ink mt-0.5">{message}</Text>
+      </View>
+    </View>
   );
 }

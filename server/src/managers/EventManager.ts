@@ -44,6 +44,13 @@ export class EventManager extends BaseManager {
           'name', COALESCE(t.name, op.name),
           'orgId', COALESCE(t.org_id, e.org_id),
           'orgShortName', o.short_name,
+          -- The side's crest (docs/events.md): the team's short name and the organisation's name,
+          -- logo and colour, so a fixture row can draw both teams' crests from the broadcast.
+          'teamShortName', t.short_name,
+          'orgName', o.name,
+          'orgLogo', o.logo,
+          'orgLogoConfig', o.settings->'logoConfig',
+          'orgPrimaryColor', o.primary_color,
           'status', p.status,
           'sortOrder', p.sort_order,
           -- A tournament side nobody is playing yet (data model §2.0). All null on a single

@@ -42,12 +42,18 @@ export interface OverflowMenuProps {
   accessibilityLabel?: string;
   /** Heading inside the sheet. Omitted renders no heading. */
   title?: string;
+  /**
+   * Draws the control that opens the menu, in place of the ⋯ button — the events list's
+   * "＋ New event", which opens a choice of what to create (docs/events.md).
+   */
+  renderTrigger?: (open: () => void) => React.ReactNode;
 }
 
 export function OverflowMenu({
   items,
   accessibilityLabel = 'More actions',
   title,
+  renderTrigger,
 }: OverflowMenuProps) {
   const isDark = useActiveTheme() === 'dark';
   const [isOpen, setIsOpen] = useState(false);
@@ -64,15 +70,17 @@ export function OverflowMenu({
 
   return (
     <>
-      <TouchableOpacity
-        onPress={() => setIsOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-        activeOpacity={0.7}
-        className="w-10 h-10 items-center justify-center rounded-full"
-      >
-        <Ionicons name="ellipsis-horizontal" size={20} color={secondary} />
-      </TouchableOpacity>
+      {renderTrigger ? renderTrigger(() => setIsOpen(true)) : (
+        <TouchableOpacity
+          onPress={() => setIsOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+          activeOpacity={0.7}
+          className="w-10 h-10 items-center justify-center rounded-full"
+        >
+          <Ionicons name="ellipsis-horizontal" size={20} color={secondary} />
+        </TouchableOpacity>
+      )}
 
       <Modal
         visible={isOpen}

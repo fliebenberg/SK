@@ -44,6 +44,7 @@ import {
 export { addCalendarDays, isCalendarDate, type CalendarDate, type Instant, type TimeZone };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -404,30 +405,20 @@ export function startOfTodayMs(): number {
  * A fixture's kick-off: the day it is on, and the time it starts, or that the time is not settled.
  *
  * A **different** job from {@link formatDateRange} and deliberately kept apart from it. This one is
- * an instant rather than a calendar date, so the time of day is the point, and it is rendered
- * through `toLocaleDateString` / `toLocaleTimeString` — a kick-off is read by a parent deciding
- * when to leave the house, and their locale's own ordering is the right one for that.
+ * an instant rather than a calendar date, so the time of day is the point.
+ *
+ * `19 Sep 2026 · 14:30`, everywhere (`UI-13`, decided 2026-10-04). The league screens used to read
+ * `19/09/2026 @ 14:30` — the locale's short date, which a reader cannot tell from 09/19 — while the
+ * events list wrote the month out; the written month won, as it is what every read-first page shows.
  *
  * `timeTbd` lives in two places on a game depending on its age (`timeTbd` on the summary,
  * `customSettings.timeTbd` on the record), which is why this takes the flag rather than the game:
  * the three screens that used to hold a copy of this each reached for a different one.
- *
- * `separator` is the one thing the copies genuinely disagreed on — the league screens read
- * `19/09/2026 @ 14:30` and the events list reads `19 Sep 2026 · 14:30`. Both are kept until
- * somebody decides which the app says (`UI-13`); unifying them silently would be a visual change
- * on five screens smuggled in under a refactor.
  */
-export function formatFixtureWhen(
-  iso?: Instant | null,
-  options?: { timeTbd?: boolean; separator?: string }
-): string {
-  const date = parseInstant(iso);
-  if (!date) return 'Date TBD';
-
-  const separator = options?.separator ?? '@';
-  const dateLabel = date.toLocaleDateString();
-  if (options?.timeTbd) return `${dateLabel} ${separator} TBD`;
-  return `${dateLabel} ${separator} ${formatKickoffTime(iso)}`;
+export function formatFixtureWhen(iso?: Instant | null, options?: { timeTbd?: boolean }): string {
+  if (!parseInstant(iso)) return 'Date TBD';
+  const day = formatInstantDate(iso);
+  return options?.timeTbd ? `${day} · time TBD` : `${day} · ${formatKickoffTime(iso)}`;
 }
 
 /** The time of day an instant falls at for the viewer — "14:30". Empty when it is not one. */
@@ -459,6 +450,100 @@ export function formatInstantDate(iso?: Instant | null): string {
   const date = parseInstant(iso);
   if (!date) return '';
   return formatCalendarDate(calendarDateOf(date)) ?? '';
+}
+
+/** The calendar date an instant falls on for the viewer — a kick-off's day. `null` when it is not one. */
+export function instantCalendarDate(iso?: Instant | null): CalendarDate | null {
+  const date = parseInstant(iso);
+  return date ? calendarDateOf(date) : null;
+}
+
+/**
+ * A date tile for a calendar date or a range — "Sat" over "18–19" over "Oct" — for a list row
+ * (docs/events.md). A range across two months reads "30–2" over "Sep–Oct". `null` when the start is
+ * not a date.
+ */
+export function calendarRangeTile(
+  start?: CalendarDate | null,
+  end?: CalendarDate | null
+): { weekday: string; day: string; month: string } | null {
+  const first = parseCalendarDate(start);
+  if (!first) return null;
+  const last = parseCalendarDate(end);
+  const weekday = DAYS[first.getDay()];
+  if (!last || last.getTime() <= first.getTime()) {
+    return { weekday, day: String(first.getDate()), month: MONTHS[first.getMonth()] };
+  }
+  const sameMonth = last.getMonth() === first.getMonth() && last.getFullYear() === first.getFullYear();
+  return {
+    weekday,
+    day: `${first.getDate()}–${last.getDate()}`,
+    month: sameMonth ? MONTHS[first.getMonth()] : `${MONTHS[first.getMonth()]}–${MONTHS[last.getMonth()]}`,
+  };
+}
+
+/** A kick-off as a date tile — "Sat" over "11" over "Oct". `null` when it is not an instant. */
+export function instantTile(iso?: Instant | null): { weekday: string; day: string; month: string } | null {
+  const date = parseInstant(iso);
+  if (!date) return null;
+  return { weekday: DAYS[date.getDay()], day: String(date.getDate()), month: MONTHS[date.getMonth()] };
+}
+
+/**
+ * Which section of an upcoming list a day belongs to (docs/events.md): **This week** for today and
+ * the six days after it, then **Later in October** for the rest of this month, then the month's name
+ * — with its year when it is not this year's. The key sorts in date order.
+ */
+export function upcomingSection(day: CalendarDate, today: CalendarDate = todayCalendarDate()): { key: string; label: string } {
+  const date = parseCalendarDate(day);
+  const now = parseCalendarDate(today);
+  if (!date || !now) return { key: '9999', label: 'Date to be set' };
+  const weekEnd = parseCalendarDate(addCalendarDays(today, 6))!;
+  if (date.getTime() <= weekEnd.getTime()) return { key: '0000-week', label: 'This week' };
+  const key = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+  if (date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()) {
+    return { key, label: `Later in ${MONTH_NAMES[date.getMonth()]}` };
+  }
+  const year = date.getFullYear() === now.getFullYear() ? '' : ` ${date.getFullYear()}`;
+  return { key, label: `${MONTH_NAMES[date.getMonth()]}${year}` };
+}
+
+/** The month a past day belongs to, for a list of results — "September 2026". The key sorts in date order. */
+export function monthSection(day: CalendarDate): { key: string; label: string } {
+  const date = parseCalendarDate(day);
+  if (!date) return { key: '0000', label: 'Date not set' };
+  return { key: `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`, label: `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}` };
+}
+
+/**
+ * A day as a list heading — "Today · Sat 4 Oct", "Tomorrow · Sun 5 Oct", "Wed 8 Oct", and with its
+ * year when it is not this year's — for a list of fixtures grouped by day.
+ */
+export function dayHeading(day: CalendarDate, today: CalendarDate = todayCalendarDate()): string {
+  const date = parseCalendarDate(day);
+  const now = parseCalendarDate(today);
+  if (!date || !now) return 'Date to be set';
+  const year = date.getFullYear() === now.getFullYear() ? '' : ` ${date.getFullYear()}`;
+  const label = `${DAYS[date.getDay()]} ${date.getDate()} ${MONTHS[date.getMonth()]}${year}`;
+  if (day === today) return `Today · ${label}`;
+  if (day === addCalendarDays(today, 1)) return `Tomorrow · ${label}`;
+  if (day === addCalendarDays(today, -1)) return `Yesterday · ${label}`;
+  return label;
+}
+
+/**
+ * Which day of a multi-day event today is — "Day 2 of 3" — or `null` when it is a single day or
+ * today is not one of its days.
+ */
+export function eventDayOfRange(start?: CalendarDate | null, end?: CalendarDate | null, today: CalendarDate = todayCalendarDate()): string | null {
+  const first = parseCalendarDate(start);
+  const last = parseCalendarDate(end);
+  const now = parseCalendarDate(today);
+  if (!first || !last || !now || last.getTime() <= first.getTime()) return null;
+  if (now.getTime() < first.getTime() || now.getTime() > last.getTime()) return null;
+  const dayNumber = Math.round((now.getTime() - first.getTime()) / MS_PER_DAY) + 1;
+  const total = Math.round((last.getTime() - first.getTime()) / MS_PER_DAY) + 1;
+  return `Day ${dayNumber} of ${total}`;
 }
 
 /**
