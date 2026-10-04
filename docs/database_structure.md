@@ -138,12 +138,11 @@ Primary locations managed by an organization (e.g., 'Main Campus').
   the organisation's timezone (`DATE-2`).
 
 ### 5. `facilities`
-Specific playing areas within a site (e.g., 'A-Field', 'Court 1').
+What is at a site: the fields, courts and halls played on (e.g., 'A-Field', 'Court 1'), and the clubhouse, shop, parking and restrooms. A facility has no address of its own — it is a pin at its site.
 - `id` (TEXT, PK)
 - `name` (TEXT)
 - `site_id` (TEXT): FK to `sites.id`.
 - `primary_sport_id` (TEXT): FK to `sports.id`.
-- `address_id` (TEXT): FK to `addresses.id`.
 - `surface_type` (TEXT)
 - `latitude` (DOUBLE PRECISION)
 - `longitude` (DOUBLE PRECISION)

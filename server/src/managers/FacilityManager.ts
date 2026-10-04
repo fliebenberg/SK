@@ -1,6 +1,5 @@
 import { Facility } from "@sk/shared";
 import { BaseManager } from "./BaseManager";
-import { addressManager } from "./AddressManager";
 
 export class FacilityManager extends BaseManager {
   private facilityCache: Facility[] | null = null;

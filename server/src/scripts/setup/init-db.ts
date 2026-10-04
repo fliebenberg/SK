@@ -131,7 +131,6 @@ const createTables = async () => {
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 site_id TEXT REFERENCES sites(id),
-                address_id TEXT REFERENCES addresses(id),
                 surface_type TEXT,
                 latitude DOUBLE PRECISION,
                 longitude DOUBLE PRECISION,

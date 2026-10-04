@@ -61,6 +61,7 @@ For the detailed entity models and relationships, see [database_structure.md](fi
     - `20261003_org_primary_color_required.ts`: Every organisation has a primary colour: blank or missing `primary_color` becomes `#FF3E00` (the colour those orgs were already painted in), then `NOT NULL` with a non-blank `CHECK` and that default. A blank `secondary_color` becomes `NULL`. A missing secondary is painted as the primary — `orgColors` in `@sk/shared` is the one place that rule lives.
     - `20261003_address_building.ts`: Adds `addresses.building`, an optional unit or building line above the street (`VENUE-2`). `address_line_1` is the street and `address_line_2` the suburb, so a unit in a complex had nowhere to go but over one of them.
     - `20261003_org_secondary_color_default.ts`: New orgs start in the app's two colours: `secondary_color` defaults to `#00E5FF`, and orgs still in the default orange with no secondary (those that never had colours) get it back, as they were shown before the previous migration. An admin may still clear the secondary; it is then painted as the primary.
+    - `20261004_drop_facility_address_id.ts`: Drops `facilities.address_id`, which nothing read or wrote (`VENUE-5`): a facility's address is its site's. No row had a value.
 
 ## The tournaments schema
 
